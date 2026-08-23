@@ -275,9 +275,14 @@ def build_commentary_from_rows(rows: list[dict], *, open_review_items: int = 0,
     the demo path, but every aggregate is read from the extracted canonical line items (current
     vs prior period). Returns the empty shape when the headline figures needed for ratios were
     not extracted, so the screen degrades honestly instead of fabricating an assessment."""
-    from app.services.derived import _CASH, _DEBT, _side, _value
+    from app.services.derived import _CASH, _DEBT, _group_by_key, _side, _value
 
-    by_key = {r["canonical_key"]: r for r in rows if r.get("canonical_key")}
+    # Grouped, not last-wins. ``derived._value`` sums every printed line that maps to a concept, and
+    # a filing now carries two statements' rows under one key — the Group's and the Company's. With
+    # one row per key the surviving row could be the Company's, `_value` would find no consolidated
+    # figure, and `v()`'s `or 0.0` would turn that into a hard zero: a ratio computed off zero
+    # revenue rather than an honestly empty assessment.
+    by_key = _group_by_key(rows)
 
     def v(key: str, period: str = "current") -> float:
         return _value(by_key, key, basis, period) or 0.0

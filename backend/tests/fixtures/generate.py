@@ -360,6 +360,107 @@ def make_company_statement_after_notes_pdf() -> bytes:
     return buf.getvalue()
 
 
+def make_issuer_named_untokened_face_pdf() -> bytes:
+    """A filing that names NO entity anywhere a scope can be read from, behind a front-matter page
+    that latches the notes-region walk.
+
+    Two false positives in one document, both of which would move every figure in it to standalone:
+
+    * ``_title_candidates`` joins the issuer-name line onto the statement title, so the text a scope
+      is read from is "SUNRISE DEVELOPMENT COMPANY LIMITED BALANCE SHEET" — carrying the word
+      Company for reasons that say nothing about whose figures these are.
+    * the Corporate Information page's registered-office line, "1 Harbour View Street, …", matches
+      ``classify._NOTE_ONE``, so the page decodes as NOTES and every later face page is "past the
+      notes" — which on its own used to be enough to call a face page the Company's.
+
+    Ground truth: this filing has ONE set of figures, they are the Group's by default, and the right
+    answer for the page's scope is None — no evidence either way, stated rather than guessed.
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    _, height = A4
+
+    y = height - 72
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(72, y, "Corporate Information")
+    c.setFont("Helvetica", 10)
+    for text in ("Registered office", "1 Harbour View Street, Central, Hong Kong",
+                 "Auditors: A Firm LLP", "Share registrar: A Registrar Limited"):
+        y -= 20
+        c.drawString(72, y, text)
+    c.showPage()
+
+    y = height - 60
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(72, y, "SUNRISE DEVELOPMENT COMPANY LIMITED")
+    y -= 26
+    c.setFont("Helvetica-Bold", 13)
+    c.drawString(72, y, "BALANCE SHEET")
+    c.setFont("Helvetica", 9)
+    y -= 20
+    c.drawString(72, y, "As at 31 December 2024")
+    y -= 22
+    c.drawRightString(430, y, "2024")
+    c.drawRightString(510, y, "2023")
+    c.setFont("Helvetica", 10)
+    for label, cur, pri in (("Investment properties", "36,683", "37,095"),
+                            ("Inventories", "40,904", "47,131"),
+                            ("Total non-current assets", "53,035", "55,400")):
+        y -= 20
+        c.drawString(72, y, label)
+        c.drawRightString(430, y, cur)
+        c.drawRightString(510, y, pri)
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
+def make_consolidated_statement_spanning_two_pages_pdf() -> bytes:
+    """A consolidated balance sheet running over two pages, where only the FIRST carries the title.
+
+    A statement's entity is named once, at the top of the run — exactly as its statement TYPE is,
+    which the classifier already carries forward in ``current``. Resolving the entity per page
+    instead leaves the continuation with no verdict at all, and a run whose first page is the
+    Company's would have its second page fall back to the Group.
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    def _page(c, height, title, rows):
+        y = height - 72
+        if title:
+            c.setFont("Helvetica-Bold", 13)
+            c.drawString(72, y, title)
+            c.setFont("Helvetica", 9)
+            y -= 20
+            c.drawString(72, y, "As at 31 July 2025")
+        y -= 22
+        c.drawRightString(430, y, "2025")
+        c.drawRightString(510, y, "2024")
+        c.setFont("Helvetica", 10)
+        for label, cur, pri in rows:
+            y -= 20
+            c.drawString(72, y, label)
+            c.drawRightString(430, y, cur)
+            c.drawRightString(510, y, pri)
+        c.showPage()
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    _, height = A4
+    _page(c, height, "CONSOLIDATED STATEMENT OF FINANCIAL POSITION",
+          (("Investment properties", "36,683", "37,095"),
+           ("Total non-current assets", "53,035", "55,400")))
+    _page(c, height, None,
+          (("Bank loans - current portion", "10,886", "2,523"),
+           ("Total current liabilities", "19,411", "6,588")))
+    c.save()
+    return buf.getvalue()
+
+
 def make_annual_report_pdf() -> bytes:
     """A realistic HKEX/IFRS-shaped annual report: cover, an auditor's report (which mentions
     face phrases in prose), three *consolidated* face statements, then a notes section that

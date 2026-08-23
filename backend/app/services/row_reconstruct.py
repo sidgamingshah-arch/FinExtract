@@ -2165,11 +2165,16 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                          signals=entity_signals, fmt=number_format,
                          log=log, page_index=page_index)
     rows = _merge_wrapped_labels(raw_rows, number_format, steps)
-    if not bands and page_scope in _PAGE_SCOPE_BASIS:
+    if not bands and on_face and page_scope in _PAGE_SCOPE_BASIS:
         # The classifier read the entity off the page's own title (or off its position past the
         # notes, which is what an untitled Company statement is). No column header names an entity
         # here — that is why no band was found — so the verdict covers the whole page: one band,
         # and `_basis_of_columns` gives every column that basis.
+        #
+        # FACE ONLY, for the same reason `company_only_markers` is: ``PageSource.scope`` is assigned
+        # inside the classifier's ``if state == _FACE`` branch and describes a STATEMENT. A note
+        # listing the Company's investments in subsidiaries belongs to the consolidated statements
+        # it is a note to, and relabelling its basis would break the note-to-face tie.
         bands = [(_PAGE_SCOPE_BASIS[page_scope], 0.5)]
         if log:
             log(f"extract:page={page_index}:entity_scope=page_scope({page_scope})")

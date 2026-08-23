@@ -152,15 +152,33 @@ _BACKMATTER = re.compile(
     r"five[\s-]?year\s+(?:financial\s+)?summary|financial\s+(?:summary|highlights)"
     r"|[五][年][財财][務务][摘概][要要]|[財财][務务][摘概][要要]", re.I)
 
+# THE FILER'S NAME IS NOT A SCOPE MARKER, and it is printed where one would be. ``_title_candidates``
+# joins the issuer-name line onto the statement title so a title split over two lines is matched as
+# one, which means the text a scope is read from is routinely
+# "SUNRISE DEVELOPMENT COMPANY LIMITED BALANCE SHEET" — carrying both "Company" and "Group" for
+# reasons that say nothing about whose figures the page presents. A corporate suffix AFTER the token
+# is what separates a name from a marker: "… Company Limited" names the filer, "… of the Company"
+# names the entity. The stakes are asymmetric now that this verdict decides a basis — a name read as
+# a marker moves a whole filing's figures to the wrong entity, while a marker read as a name only
+# leaves the page on the consolidated default — so the guard is applied to BOTH sides.
+_CORP_SUFFIX = (r"(?:limited|ltd\.?|plc|inc\.?|incorporated|corporation|corp\.?|holdings?|group"
+                r"|company|companies|pte|llc|llp|s\.?a\.?|n\.?v\.?|a\.?g\.?)")
+
 # Scope. Consolidated is tested FIRST, because "…of the Company and its subsidiaries" contains the
 # word Company and must not be read as the company-only statement.
-_SCOPE_CONSOL = re.compile(r"\bconsolidated\b|\bgroup\b|[合][併并]", re.I)
+_SCOPE_CONSOL = re.compile(
+    rf"\bconsolidated\b|\bgroup\b(?!\s+{_CORP_SUFFIX}\b)|[合][併并]", re.I)
 _SCOPE_COMPANY = re.compile(
-    r"\bcompany\b|\bthe\s+bank\b|\bparent\b|\bstandalone\b|\bunconsolidated\b"
+    rf"\bcompany\b(?!\s+{_CORP_SUFFIX}\b)|\bthe\s+bank\b(?!\s+{_CORP_SUFFIX}\b)"
+    r"|\bparent\b|\bstandalone\b|\bunconsolidated\b"
     r"|[母][公][司]|[本][公][司]", re.I)
-# Traditional 綜合 means BOTH "consolidated" and "comprehensive"; a scope marker only when it is not
-# immediately preceding a comprehensive-income token.
-_ZH_CONSOL_AMBIG = re.compile(r"[綜综]合(?!收益|[損损]益|全面|[虧亏][損损])")
+# 綜合 vs 综合. Traditional HK usage is 綜合 = consolidated (the comment on ``_ZH_CI_AMBIG`` above says
+# so), and 綜合損益及其他全面收益表 — the commonest Traditional face title there is — is the GROUP's.
+# Refusing it as a consolidation marker because a comprehensive-income token follows answers the
+# STATEMENT question in the SCOPE test, and on a bilingual filing whose Chinese statements repeat the
+# English ones past the notes it labelled the Group's figures as the Company's. The lookahead is
+# kept for the PRC Simplified form, where 综合 really does mean comprehensive and 合并 is consolidated.
+_ZH_CONSOL_AMBIG = re.compile(r"綜合|综合(?!收益|[損损]益|全面|[虧亏][損损])")
 
 # Prose pages that discuss the statements without being one.
 _NARRATIVE = re.compile(
@@ -382,7 +400,7 @@ def sheet_title_cells(sheet) -> list[str]:
 
 
 def _scope_of(title: str | None, lines: list[dict], page_h: float,
-              in_notes_region: bool = False) -> tuple[str | None, list[str]]:
+              repeat_after_notes: bool = False) -> tuple[str | None, list[str]]:
     """Scope from the title, plus column-header scope when a Group and a Company column sit side by
     side on one face page — routine in HK balance sheets, and the reason scope_columns exists."""
     scope = None
@@ -391,10 +409,19 @@ def _scope_of(title: str | None, lines: list[dict], page_h: float,
             scope = "consolidated"
         elif _SCOPE_COMPANY.search(title):
             scope = "company"
-        elif in_notes_region:
-            # A face-titled page inside the notes carrying no consolidation token is the Company-only
-            # statement of financial position: HK filings print it there, past note 40, untitled as
-            # to scope.
+        elif repeat_after_notes:
+            # A face page printed past the notes, RE-PRESENTING a statement this filing has already
+            # shown as the Group's and carrying no consolidation token of its own, is the Company's:
+            # HK filings print it there, past note 40, titled only "Statement of financial position".
+            #
+            # THE RE-PRESENTATION IS THE EVIDENCE, not the page position, and the caller owns it.
+            # Position alone is the ``seen_notes`` latch, which one front-matter line can set — a
+            # registered-office address matches ``_NOTE_ONE`` — after which every face page in a
+            # filing that titles its statements "Balance Sheet" would be read as the Company's and
+            # the whole document would come out standalone. Requiring a Group presentation of the
+            # SAME statement first is what the defect actually looks like (pp.348-349 repeat p.187,
+            # which is why the spread summed them) and it refuses that latch, because a first
+            # occurrence has nothing to repeat.
             scope = "company"
     band = " ".join(l["text"] for l in lines if l.get("y", 0.0) <= 0.42 * (page_h or 1.0))
     cols: list[str] = []
@@ -675,6 +702,16 @@ class ClassifyStage:
         # resolvable title inherits the last one named. Reset when the face run ends.
         current: str | None = None
         seen_notes = False
+        # Which statements this filing has already presented as the GROUP's. A Company statement
+        # printed past the notes is a SECOND presentation of one of them — that duplication is what
+        # makes the two sets of figures collide on the same canonical keys — so it is the
+        # corroboration ``_scope_of`` requires before position alone may decide an entity.
+        consolidated_stmts: set[str] = set()
+        # The entity the current face RUN was titled for. A Company statement of financial position
+        # spans two pages in a real filing and only the first carries the title, so without this the
+        # continuation page keeps the consolidated default and its figures are still added to the
+        # Group's — the same half-fix as leaving the scope unread altogether.
+        run_scope: str | None = None
         for page_src, f, state, margin, (lines, height) in zip(
                 pages, feats, path, margins, cache):
             page_src.kind = _KIND[state]
@@ -685,14 +722,37 @@ class ClassifyStage:
                     current = named
                 page_src.statement = current
                 # Scope is resolved again here because only the decode knows whether this face page
-                # sits after the notes — which is what makes an untitled one the Company statement.
-                scope, cols = _scope_of(f.matched_title, lines, height,
-                                        in_notes_region=seen_notes)
-                page_src.scope = f.scope or scope
+                # RE-presents, past the notes, a statement already shown as the Group's — which is
+                # what makes an untitled one the Company statement.
+                scope, cols = _scope_of(
+                    f.matched_title, lines, height,
+                    repeat_after_notes=bool(seen_notes and current
+                                            and current in consolidated_stmts))
+                resolved = f.scope or scope
+                if resolved is None and f.matched_title is None:
+                    # An untitled continuation of a titled run: the entity was named once, on the
+                    # page the run started. A page that DID resolve a title and still says nothing
+                    # keeps its silence — it is a new statement, not a continuation.
+                    resolved = run_scope
+                    if resolved is not None:
+                        ctx.log(f"classify:page={page_src.index}:entity_scope=carried({resolved})")
+                elif f.matched_title is not None:
+                    # Including None: a titled page whose own scope is unresolved ENDS the run's
+                    # verdict rather than passing it on to whatever follows.
+                    run_scope = resolved
+                    if resolved is None and seen_notes:
+                        ctx.log(f"classify:page={page_src.index}:entity_scope="
+                                f"unresolved(face_after_notes:{current or '?'})")
+                page_src.scope = resolved
                 page_src.scope_columns = f.scope_columns or cols
+                if resolved == "consolidated" and current:
+                    consolidated_stmts.add(current)
             else:
                 page_src.statement = None
                 current = None if state == _NOTES else current
+                # Stricter than ``current``, which survives a non-notes page: an entity verdict must
+                # not leak across back matter into whatever face page appears next.
+                run_scope = None
             if state == _NOTES:
                 seen_notes = True
             page_src.evidence = {"state": state, "matched_title": f.matched_title,

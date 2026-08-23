@@ -25,19 +25,44 @@ def _num(v) -> Decimal | None:
         return None
 
 
+def _group_by_key(rows: list[dict]) -> dict[str, list[dict]]:
+    """Rows grouped by the concept they map to — see :func:`_value`."""
+    from app.services.derived import _group_by_key as group
+
+    return group(rows)
+
+
 def _value(rows_by_key: dict, key: str, basis: str, period: str) -> Decimal | None:
-    row = rows_by_key.get(key)
-    if not row:
-        return None
-    for v in row.get("values") or []:
-        if (v.get("basis") or "consolidated") == basis and v.get("period_label") == period:
-            return _num(v.get("value"))
+    """One concept's figure for one (basis, period), read across EVERY row that maps to the concept.
+
+    The index is grouped rather than last-wins because a filing carries two statements' rows under
+    one key once the Company's own statement is labelled: the Group's balance sheet and the
+    Company's both print cash and both print borrowings. Resolving against a single row meant the
+    consolidated lookup returned None whenever the Company's row happened to be the surviving one,
+    and a netting rule that cannot resolve its target is dropped for the whole run — silently, since
+    a policy that did not apply and a policy that could not be read look identical downstream.
+    """
+    for row in _rows_for(rows_by_key, key):
+        for v in row.get("values") or []:
+            if (v.get("basis") or "consolidated") == basis and v.get("period_label") == period:
+                return _num(v.get("value"))
     return None
 
 
+def _rows_for(rows_by_key: dict, key: str) -> list[dict]:
+    """The rows mapped to one key. Tolerates an ungrouped index so a caller passing the old shape
+    is not silently reading a row's ``values`` as a list of rows."""
+    group = rows_by_key.get(key)
+    if not group:
+        return []
+    return group if isinstance(group, list) else [group]
+
+
 def _label_for(rows_by_key: dict, key: str) -> str:
-    row = rows_by_key.get(key) or {}
-    return row.get("source_label") or key
+    for row in _rows_for(rows_by_key, key):
+        if row.get("source_label"):
+            return row["source_label"]
+    return key
 
 
 def build_netting_payload(rows: list[dict], rule, *, basis: str = "consolidated",
@@ -45,7 +70,7 @@ def build_netting_payload(rows: list[dict], rule, *, basis: str = "consolidated"
     """The evidence an LLM needs to decide whether a containment policy applies: the target line
     and the candidate contained lines (labels + values as extracted) plus the policy condition.
     Returns None when the target or all candidates are absent (nothing to evaluate)."""
-    by_key = {r.get("canonical_key"): r for r in rows if r.get("canonical_key")}
+    by_key = _group_by_key(rows)
     target_key = getattr(rule, "target_key", None) or (rule.get("target_key") if isinstance(rule, dict) else None)
     sub_keys = (getattr(rule, "subtract_keys", None)
                 if not isinstance(rule, dict) else rule.get("subtract_keys")) or []
@@ -115,7 +140,7 @@ def compute_netting(rows: list[dict], rules, *, basis: str = "consolidated",
     ``{target_key: {raw, net, formula, label, subtract, add}}`` only for rules whose target and
     at least one contained line are present — so a rule silently no-ops on a document that
     doesn't carry those lines."""
-    by_key = {r.get("canonical_key"): r for r in rows if r.get("canonical_key")}
+    by_key = _group_by_key(rows)
     out: dict[str, dict] = {}
     for rule in rules:
         target_key = getattr(rule, "target_key", None) or (rule.get("target_key") if isinstance(rule, dict) else None)
