@@ -27,7 +27,7 @@ import pytest
 pytest.importorskip("fitz")
 
 from app.api.routes.documents import _build_review, _remap_offer, _remap_targets, _row_ref
-from tests.fixtures.generate import make_native_pdf
+from tests.fixtures.generate import make_unmapped_row_pdf
 
 API = "/api/v1"
 _SAMPLES = Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
@@ -123,7 +123,7 @@ def test_the_row_handle_does_not_move_when_the_figure_does(template):
 def _extracted(client) -> str:
     """One filing through the worker with the shipped template and rulebook attached."""
     doc_id = client.post(f"{API}/documents",
-                         files={"file": ("bs.pdf", make_native_pdf(),
+                         files={"file": ("bs.pdf", make_unmapped_row_pdf(),
                                          "application/pdf")}).json()["id"]
     ont = next(o for o in client.get(f"{API}/ontologies").json()
                if o["ontology_key"] == "hkfrs_hk_china")
@@ -337,7 +337,7 @@ def test_the_analyst_who_owns_the_extraction_may_re_map_it_and_anonymous_may_not
     is: every working role holds ``extraction:edit``, and gating it on ``review:resolve`` instead
     would deny an analyst the correction the role map entitles them to. Unauthenticated is 401."""
     doc_id = anon_client.post(f"{API}/documents",
-                              files={"file": ("rm.pdf", make_native_pdf(), "application/pdf")},
+                              files={"file": ("rm.pdf", make_unmapped_row_pdf(), "application/pdf")},
                               headers=auth("analyst")).json()["id"]
     ont = next(o for o in anon_client.get(f"{API}/ontologies", headers=auth("analyst")).json()
                if o["ontology_key"] == "hkfrs_hk_china")

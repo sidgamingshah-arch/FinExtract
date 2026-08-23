@@ -46,16 +46,16 @@ def _rows(scope: str) -> dict:
 
 def test_an_extraction_threshold_survives_a_restart(client):
     client.patch("/api/v1/settings", headers=_admin(client),
-                 json={"extraction": {"fuzzy_accept": 0.62, "mapping_scope": "per_line"}})
-    assert get_settings().extraction.fuzzy_accept == 0.62
+                 json={"extraction": {"evidence_floor": 0.62, "mapping_scope": "per_line"}})
+    assert get_settings().extraction.evidence_floor == 0.62
 
     _restart()
 
-    assert get_settings().extraction.fuzzy_accept == 0.62
+    assert get_settings().extraction.evidence_floor == 0.62
     assert get_settings().extraction.mapping_scope == "per_line"
     # …and the API reports the same thing a fresh client would read.
     live = client.get("/api/v1/settings", headers=_admin(client)).json()["extraction"]
-    assert live["fuzzy_accept"] == 0.62 and live["mapping_scope"] == "per_line"
+    assert live["evidence_floor"] == 0.62 and live["mapping_scope"] == "per_line"
 
 
 def test_the_llm_configuration_survives_a_restart(client):
@@ -102,15 +102,15 @@ def test_restoring_defaults_deletes_the_rows_rather_than_saving_the_old_value(cl
     """If a reset wrote the current defaults back as overrides, a later change to config.toml
     would be masked forever by a saved copy of the value it replaced."""
     h = _admin(client)
-    client.patch("/api/v1/settings", headers=h, json={"extraction": {"fuzzy_accept": 0.31}})
-    assert _rows(settings_state.SCOPE_EXTRACTION).get("fuzzy_accept") == 0.31
+    client.patch("/api/v1/settings", headers=h, json={"extraction": {"evidence_floor": 0.31}})
+    assert _rows(settings_state.SCOPE_EXTRACTION).get("evidence_floor") == 0.31
 
     client.patch("/api/v1/settings", headers=h, json={"reset_extraction": True})
     assert _rows(settings_state.SCOPE_EXTRACTION) == {}
 
     _restart()
     shipped = client.get("/api/v1/settings", headers=h).json()["extraction_defaults"]
-    assert get_settings().extraction.fuzzy_accept == shipped["fuzzy_accept"]
+    assert get_settings().extraction.evidence_floor == shipped["evidence_floor"]
 
 
 def test_resetting_the_llm_config_also_clears_its_rows(client):
@@ -131,44 +131,44 @@ def test_defaults_are_the_config_files_even_after_a_restart_with_overrides_store
     h = _admin(client)
     shipped = client.get("/api/v1/settings", headers=h).json()["extraction_defaults"]
 
-    client.patch("/api/v1/settings", headers=h, json={"extraction": {"fuzzy_accept": 0.33}})
+    client.patch("/api/v1/settings", headers=h, json={"extraction": {"evidence_floor": 0.33}})
     _restart()
 
     body = client.get("/api/v1/settings", headers=h).json()
-    assert body["extraction"]["fuzzy_accept"] == 0.33          # the override is in force…
+    assert body["extraction"]["evidence_floor"] == 0.33          # the override is in force…
     assert body["extraction_defaults"] == shipped              # …but the default is unchanged
     restored = client.patch("/api/v1/settings", headers=h,
                             json={"reset_extraction": True}).json()["extraction"]
-    assert restored["fuzzy_accept"] == shipped["fuzzy_accept"]
+    assert restored["evidence_floor"] == shipped["evidence_floor"]
 
 
 def test_a_stored_value_that_is_no_longer_valid_does_not_stop_startup(client):
     """A knob's range can tighten between releases, leaving a saved value outside it. That must
     fall back to the config default rather than crash the process on boot."""
-    settings_state.set_extraction_config(fuzzy_accept=0.42)
+    settings_state.set_extraction_config(evidence_floor=0.42)
     with SessionLocal() as s:
         row = s.execute(select(SettingOverride).where(
             SettingOverride.scope == settings_state.SCOPE_EXTRACTION,
-            SettingOverride.key == "fuzzy_accept")).scalar_one()
+            SettingOverride.key == "evidence_floor")).scalar_one()
         row.value = {"v": 99.0}               # impossible now
         s.commit()
 
     _restart()                                 # must not raise
     shipped = client.get("/api/v1/settings",
                          headers=_admin(client)).json()["extraction_defaults"]
-    assert get_settings().extraction.fuzzy_accept == shipped["fuzzy_accept"]
+    assert get_settings().extraction.evidence_floor == shipped["evidence_floor"]
 
 
 def test_one_row_per_setting_so_separate_edits_do_not_clobber_each_other(client):
     """The reason this is a row-per-setting table and not one blob: two admins changing
     different knobs must both survive."""
     h = _admin(client)
-    client.patch("/api/v1/settings", headers=h, json={"extraction": {"fuzzy_accept": 0.61}})
+    client.patch("/api/v1/settings", headers=h, json={"extraction": {"evidence_floor": 0.61}})
     client.patch("/api/v1/settings", headers=h, json={"extraction": {"mapping_margin": 0.11}})
 
     _restart()
     ex = get_settings().extraction
-    assert ex.fuzzy_accept == 0.61 and ex.mapping_margin == 0.11
+    assert ex.evidence_floor == 0.61 and ex.mapping_margin == 0.11
 
 
 def test_whether_the_sample_project_is_loaded_also_survives_a_restart(client):

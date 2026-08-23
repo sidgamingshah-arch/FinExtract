@@ -38,14 +38,15 @@ def test_weak_fuzzy_is_not_auto_mapped():
     assert r.method == MappingMethod.UNMATCHED and r.needs_review
 
 
-def test_strong_fuzzy_still_maps_as_last_resort():
+def test_a_near_exact_typo_is_still_not_mapped_by_resemblance():
+    """There is no last-resort string match. A single typo is as unmapped as any other caption
+    nothing can place, and it says so instead of asserting the concept it resembles."""
     m = OntologyMatcher(_ont())
-    r = m.match("Trade recievables")                # single typo → ~0.94, near-exact
-    assert r.canonical_key == "assets.current.receivables"
-    assert r.method == MappingMethod.FUZZY and not r.needs_review
+    r = m.match("Trade recievables")                # one typo, and still nobody's row
+    assert r.canonical_key is None and r.needs_review
 
 
-def test_rule_wins_over_fuzzy():
+def test_a_rule_hint_is_what_carries_an_unlisted_wording():
     m = OntologyMatcher(_ont())
     r = m.match("Cash at bank and in hand")          # keyword 'cash' → rule
     assert r.canonical_key == "assets.current.cash"

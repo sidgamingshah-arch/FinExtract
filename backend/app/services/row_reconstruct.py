@@ -49,11 +49,15 @@ _NOTE_HDR = re.compile(r"^(notes?|附註|附注)$", re.IGNORECASE)
 # a note reference DELETES a reported figure — see :func:`_scan_row`.
 _NOTE_REF_TOKEN = re.compile(r"^\d{1,3}(?:\s*\([a-z]{1,3}\)|[a-z]{1,2})?[.,;]?$", re.IGNORECASE)
 
-# How close a word has to sit to the one before it to be part of the SAME caption. A word space at
-# statement type sizes is well under 0.01 of the page width; the gap to the note column of a real
-# statement is upwards of 0.1. Anything in between is not a layout these documents produce, so the
-# threshold is uncontentious — it only has to tell "guaranteed notes" from "…            Note 14".
-_CAPTION_GAP = 0.02
+# How close a word has to sit to the one before it to be the NEXT WORD OF THE SAME CAPTION rather
+# than the first word of a cell. A word space at statement type sizes is well under 0.01 of the page
+# width and the gap to a note column is upwards of 0.1, so the threshold only has to tell
+# "guaranteed notes" from "…            Note 14".
+#
+# Deliberately not named _CAPTION_GAP: that name is already taken further down this module, for the
+# clear air between two COLUMN CAPTIONS (0.03), and a second module-level assignment of it silently
+# rebound this one — which is exactly the kind of collision a one-word name invites.
+_WORD_GAP = 0.02
 
 
 def _is_note_ref_token(t: str) -> bool:
@@ -64,7 +68,7 @@ def _is_note_ref_token(t: str) -> bool:
 
 def _tight_after(prev: Word, w: Word) -> bool:
     """Is ``w`` printed as the next word of ``prev``'s caption, rather than in a column of its own?"""
-    return (w.bbox.x0 - prev.bbox.x1) <= _CAPTION_GAP
+    return (w.bbox.x0 - prev.bbox.x1) <= _WORD_GAP
 
 
 def _is_note_number(t: str) -> bool:
@@ -666,21 +670,51 @@ def _wrap_reaches_a_value(rows: list[list[Word]], idx: int, fmt=None,
     return False
 
 
+def _is_page_title(label_words: list[Word], page_title: str | None) -> bool:
+    """Is this label line (part of) the statement TITLE the classifier matched on this page?
+
+    A title is a label-only line sitting directly above the first item, which is the shape of a
+    wrapped caption — so a filing that prints "Balance Sheet" in title case had its title folded
+    onto its first line item ("Balance Sheet Cash and cash equivalents") and that row then mapped
+    to nothing. ALL-CAPS titles never showed it, because ``_looks_like_header`` already refuses
+    those, which is why this survived a real 367-page filing.
+
+    Matched by containment, because the classifier reports the title as ONE string even when the
+    page prints it over two lines ("Consolidated Statement of" / "Financial Position"), so each
+    printed line is a fragment of it. The caller only applies this ABOVE the first valued row — the
+    zone a title can occupy — so a body caption that happens to echo a word of the title is
+    untouched.
+    """
+    if not page_title or not label_words:
+        return False
+    from app.services.mapping import normalize_label
+
+    text = normalize_label(_join_words(label_words))
+    return bool(text) and text in normalize_label(page_title)
+
+
 def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
-                          steps: tuple[tuple[str, object], ...] = ()) -> list[list[Word]]:
+                          steps: tuple[tuple[str, object], ...] = (),
+                          page_title: str | None = None) -> list[list[Word]]:
     """Fold a label-only line into the following valued row when the two are clearly one
     wrapped label: tight vertical spacing *and* left-alignment inside the label column.
 
     Conservative on purpose — a wrong merge corrupts a label. A label-only line that reads
-    like a section header, or that is loosely spaced / mis-aligned, is left untouched (the
-    main loop then simply skips it, as before).
+    like a section header, that is the page's own statement title, or that is loosely spaced /
+    mis-aligned, is left untouched (the main loop then simply skips it, as before).
     """
     out: list[list[Word]] = []
     pending: list[Word] = []
+    seen_value = False
     for idx, row in enumerate(rows):
         label_words, note_ref, value_words = _scan_row(row, fmt)
         if value_words:
             out.append(pending + row if pending else row)
+            pending = []
+            seen_value = True
+            continue
+        if not seen_value and _is_page_title(label_words, page_title):
+            out.append(pending + row if pending else row)   # chrome: never a caption's head
             pending = []
             continue
         # Label-only (or note-only) line: candidate wrapped-label continuation.
@@ -2172,7 +2206,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                      log=None, scope: ScopeSelection | None = None,
                      normalisation: Normalisation | None = None,
                      on_face: bool = True,
-                     page_scope: str | None = None) -> tuple[list[LineItem], int]:
+                     page_scope: str | None = None,
+                     page_title: str | None = None) -> tuple[list[LineItem], int]:
     """Reconstruct line items from positioned words. Returns (items, next_ordinal).
 
     Both bases are extracted in one pass: a two-basis header band (Group | Company,
@@ -2264,7 +2299,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     bands = _basis_bands(raw_rows, value_bands, _value_area(value_bands, col_xs),
                          signals=entity_signals, fmt=number_format,
                          log=log, page_index=page_index)
-    rows = _merge_wrapped_labels(raw_rows, number_format, steps)
+    rows = _merge_wrapped_labels(raw_rows, number_format, steps, page_title=page_title)
     if not bands and on_face and page_scope in _PAGE_SCOPE_BASIS:
         # The classifier read the entity off the page's own title (or off its position past the
         # notes, which is what an untitled Company statement is). No column header names an entity

@@ -96,10 +96,15 @@ def test_ensemble_combines_methods_and_corroborates():
     ont.global_rules.no_fabricated_split = "Do not invent a split."
     ont.global_rules.others_policy = ["Others is never a balancing plug."]
 
+    # A keyword hint on the concept the model is going to pick, so a DETERMINISTIC method has an
+    # opinion to corroborate with. (There is no string-similarity tier to supply one: nothing maps
+    # a row on resemblance, so corroboration comes from the rule tier or the embeddings.)
+    next(x for x in ont.mappings if x.canonical_key == "cash_and_equivalents").keyword_hints = [
+        "cash"]
     m = OntologyMatcher(ont, settings=get_settings(), llm_provider=_Recorder())
-    res = m.match("Cash & cash equivalents")  # fuzzy agrees with the LLM's pick
+    res = m.match("Cash & cash equivalents")  # the rule tier agrees with the LLM's pick
     assert res.canonical_key == "cash_and_equivalents" and res.method is MappingMethod.LLM
-    assert "llm" in res.agreement and "fuzzy" in res.agreement          # corroborated
+    assert "llm" in res.agreement and "rule" in res.agreement           # corroborated
     assert res.confidence > 0.92                                        # agreement boosted it
     # Candidate payload carries criteria; the do_not_extract heading is absent.
     keys = {c["canonical_key"] for c in seen["payload"]["candidates"]}
@@ -116,12 +121,18 @@ def test_llm_abstains_falls_back_to_deterministic():
             return LlmMappingDecision(canonical_key="", confidence=0.0), {
                 "model": "fake-llm", "input_tokens": 50, "output_tokens": 2}
 
-    m = OntologyMatcher(_ontology(), settings=get_settings(), llm_provider=_Abstain())
+    ont = _ontology()
+    m = OntologyMatcher(ont, settings=get_settings(), llm_provider=_Abstain())
     res = m.match("Cash and cash equivalents")  # exact alias → resolves even after abstain path
-    # exact short-circuits first, so this is EXACT; use a fuzzy-ish caption to exercise fallback:
-    res2 = m.match("Cash & cash equivalents")
     assert res.canonical_key == "cash_and_equivalents"
-    assert res2.canonical_key == "cash_and_equivalents"  # fuzzy fallback still works
+    # A caption only resemblance could have matched now falls through to review: the deterministic
+    # fallback is the alias tier and the rule tier, and neither claims this wording.
+    assert m.match("Cash & cash equivalents").canonical_key is None
+    # Authoring a rule hint is how the fallback is extended — the tier the rulebook declares.
+    next(x for x in ont.mappings if x.canonical_key == "cash_and_equivalents").keyword_hints = [
+        "cash"]
+    m2 = OntologyMatcher(ont, settings=get_settings(), llm_provider=_Abstain())
+    assert m2.match("Cash & cash equivalents").canonical_key == "cash_and_equivalents"
 
 
 def test_per_statement_batch_maps_all_lines_in_one_call():

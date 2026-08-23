@@ -139,12 +139,15 @@ def test_the_deterministic_tiers_score_only_the_restricted_set():
                             label="Inventory provision", aliases=["Inventories provision"]),
         ],
     )
+    # A hint both concepts would fire on, so the restriction is the only thing that can separate
+    # them — and the rule tier is handed the restricted set, not asked to filter afterwards.
+    for mp in ont.mappings:
+        mp.keyword_hints = ["inventor"]
     m = _matcher(ont)
-    scored = m._fuzzy("inventoriess", {"bs_current_assets__inventories"})
-
-    assert [c.canonical_key for c in scored] == ["bs_current_assets__inventories"]
+    assert m._rule("inventories", {"bs_current_assets__inventories"}).canonical_key == (
+        "bs_current_assets__inventories")
     # …and via `match`, where the restriction is computed from the banner.
-    res = m.match("Inventoriess", statement="balance_sheet", section="CURRENT ASSETS")
+    res = m.match("Inventories provision", statement="balance_sheet", section="CURRENT ASSETS")
     assert [c.canonical_key for c in res.candidates] == ["bs_current_assets__inventories"]
 
 
@@ -562,9 +565,11 @@ def test_the_refusal_does_not_take_a_row_another_concept_matches_better():
     )
     m = _matcher(ont, locale="en")
 
-    # The computed concept has a real claim on this caption (0.73) and still loses: the matchable
-    # concept explains it better (0.87), so the row is that concept's.
-    kept = m.match("Total operating expenses before", statement="profit_and_loss")
+    # The computed concept has a real claim on this caption and still loses: the matchable concept
+    # explains it exactly, so the row is that concept's. (Exactly, because that is the strength a
+    # claim now has to beat — no tier scores resemblance any more, so the rival's evidence is an
+    # alias hit or a rule hit.)
+    kept = m.match("Total operating expenses", statement="profit_and_loss")
     assert kept.canonical_key == X and kept.computed_claim is None
     assert m.usage["computed_refused"] == 0
 

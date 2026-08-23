@@ -37,6 +37,41 @@ def make_native_pdf(title: str = "Balance Sheet") -> bytes:
     return buf.getvalue()
 
 
+def make_unmapped_row_pdf() -> bytes:
+    """A balance sheet carrying one caption the shipped rulebook cannot place.
+
+    For the paths that need a row in the review queue with nothing mapped to it — the re-map offer
+    and the judgement layer both act on such a card. Deliberately a caption no alias and no rule
+    hint claims, and deliberately NOT a mangled version of a real one: those used to be produced by
+    the reader gluing a page title onto the first item, which is a defect that has since been fixed,
+    and a fixture that depends on a defect stops working the moment the defect does.
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    _width, height = A4
+    y = height - 72
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(72, y, "Balance Sheet")
+    c.setFont("Helvetica", 10)
+    rows = [
+        ("Cash and cash equivalents", "Note 14", "1,204"),
+        ("Trade receivables", "Note 15", "3,410"),
+        ("Sundry widgets held pending resale", "Note 9", "560"),
+        ("Total assets", "", "5,174"),
+    ]
+    for label, note, value in rows:
+        y -= 24
+        c.drawString(72, y, label)
+        c.drawString(320, y, note)
+        c.drawRightString(500, y, value)
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
 def make_dual_basis_pdf() -> bytes:
     """A native PDF whose columns are a two-level Consolidated | Standalone header, each with
     a current + prior period — for testing consolidated+standalone extraction in one pass."""

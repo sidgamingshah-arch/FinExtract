@@ -618,7 +618,7 @@ def _fact_id(spec: str, doc: DocumentModel, li, ev: ExtractedValue, where: str) 
 
 
 def _semantic_score(norm: str, alias_norm: str) -> float:
-    """Coverage-weighted similarity, deliberately the same shape as ``mapping._fuzzy_score``.
+    """Coverage-weighted similarity, deliberately the same shape as ``mapping._alias_similarity``.
 
     Used ONLY to decide whether a swept component looked like a dedicated concept that
     ``exclude_hints`` vetoed — review trigger 4. It never populates anything, so a divergence from
@@ -788,7 +788,7 @@ class ResidualStage:
         section_by_key = {m.canonical_key: m.section_scope[0] for m in ontology.mappings
                           if m.section_scope}
         subtotal_of = {k: sec for sec, mem in members.items() for k in mem.subtotals}
-        threshold = ctx.settings.extraction.fuzzy_accept
+        threshold = ctx.settings.extraction.evidence_floor
         captions = _dedicated_captions(ontology, members)
         _, statement_of = _statement_map(doc)
 

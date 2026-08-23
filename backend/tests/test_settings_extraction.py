@@ -45,43 +45,55 @@ def test_every_knob_is_described_well_enough_to_render_and_validate(client):
             assert f["choices"], key
 
     # The thresholds a user would actually come here to change.
-    assert "fuzzy_accept" in fields and "auto_accept_confidence" in fields
+    assert "evidence_floor" in fields and "auto_accept_confidence" in fields
 
 
 def test_an_edit_reaches_the_settings_the_pipeline_reads(client):
     from app.config import get_settings
 
     res = client.patch("/api/v1/settings", headers=_admin(client),
-                       json={"extraction": {"fuzzy_accept": 0.62}})
+                       json={"extraction": {"evidence_floor": 0.62}})
     assert res.status_code == 200
-    assert res.json()["extraction"]["fuzzy_accept"] == 0.62
+    assert res.json()["extraction"]["evidence_floor"] == 0.62
     # …and the live object the mapper is constructed from, not just the response.
-    assert get_settings().extraction.fuzzy_accept == 0.62
+    assert get_settings().extraction.evidence_floor == 0.62
 
 
 def test_the_mapper_honours_a_changed_threshold(client):
     """End of the chain: the matcher reads the edited value, so the next extraction behaves
-    differently. Without this the screen would be decorative."""
+    differently. Without this the screen would be decorative.
+
+    Observed through the guard the threshold still governs. No tier maps a row on wording, so a
+    looser bar can no longer be shown by a near miss becoming a mapping — what it changes is
+    whether a caption is recognised as the printed name of a concept the framework COMPUTES, which
+    takes the row off the table instead of letting it be re-homed onto a neighbour."""
     from app.config import get_settings
     from app.schemas.ontology import OntologyDefinition, OntologyMapping
     from app.services.mapping import OntologyMatcher
 
-    client.patch("/api/v1/settings", headers=_admin(client),
-                 json={"extraction": {"fuzzy_accept": 0.99, "fuzzy_min_alias_coverage": 0.99}})
     onto = OntologyDefinition(
         ontology_key="t", target_template_key="t", locale="en",
-        mappings=[OntologyMapping(canonical_key="pl_income__revenue_from_operations",
-                                  label="Revenue from operations",
-                                  aliases=["Revenue from operations"])])
-    strict = OntologyMatcher(onto, locale="en", settings=get_settings())
-    # A near miss cannot clear a 0.99 bar…
-    assert strict.match("Revenue from operation of the group").canonical_key is None
+        mappings=[
+            OntologyMapping(canonical_key="pl_top_level__profit_before_tax",
+                            label="Profit before tax", aliases=["Profit before tax"]),
+            OntologyMapping(canonical_key="pl_top_level__profit_before_exceptional_items_and_tax",
+                            label="Profit before exceptional items and tax",
+                            aliases=["Profit before exceptional items and tax"],
+                            extraction_mode="derive"),
+        ])
+    caption = "Profit before exceptional items and taxation"
 
     client.patch("/api/v1/settings", headers=_admin(client),
-                 json={"extraction": {"fuzzy_accept": 0.40, "fuzzy_min_alias_coverage": 0.30}})
+                 json={"extraction": {"evidence_floor": 0.40, "alias_coverage_floor": 0.30}})
     loose = OntologyMatcher(onto, locale="en", settings=get_settings())
-    assert loose.match("Revenue from operation of the group").canonical_key == (
-        "pl_income__revenue_from_operations")
+    res = loose.match(caption)
+    assert res.computed_claim == "pl_top_level__profit_before_exceptional_items_and_tax"
+
+    client.patch("/api/v1/settings", headers=_admin(client),
+                 json={"extraction": {"evidence_floor": 0.99, "alias_coverage_floor": 0.99}})
+    strict = OntologyMatcher(onto, locale="en", settings=get_settings())
+    # The same caption no longer clears the bar, so nothing claims it either way.
+    assert strict.match(caption).computed_claim is None
 
 
 def test_the_reconciliation_tolerances_reach_the_reconcile_stage(client):
@@ -133,8 +145,8 @@ def test_the_reconciliation_tolerances_reach_the_reconcile_stage(client):
 
 
 @pytest.mark.parametrize("payload,expect", [
-    ({"fuzzy_accept": 1.4}, "fuzzy_accept"),
-    ({"fuzzy_accept": -0.1}, "fuzzy_accept"),
+    ({"evidence_floor": 1.4}, "evidence_floor"),
+    ({"evidence_floor": -0.1}, "evidence_floor"),
     ({"auto_accept_confidence": 2}, "auto_accept_confidence"),
     ({"mapping_scope": "nonsense"}, "mapping_scope"),
 ])
@@ -154,9 +166,9 @@ def test_restore_defaults_returns_the_shipped_configuration(client):
     shipped = client.get("/api/v1/settings", headers=h).json()["extraction_defaults"]
 
     client.patch("/api/v1/settings", headers=h,
-                 json={"extraction": {"fuzzy_accept": 0.31, "mapping_margin": 0.42}})
+                 json={"extraction": {"evidence_floor": 0.31, "mapping_margin": 0.42}})
     moved = client.get("/api/v1/settings", headers=h).json()["extraction"]
-    assert moved["fuzzy_accept"] == 0.31
+    assert moved["evidence_floor"] == 0.31
 
     restored = client.patch("/api/v1/settings", headers=h,
                             json={"reset_extraction": True}).json()["extraction"]
@@ -171,19 +183,19 @@ def test_only_an_admin_may_change_the_thresholds(client):
 
     assert client.get("/api/v1/settings", headers=analyst).status_code == 200
     assert client.patch("/api/v1/settings", headers=analyst,
-                        json={"extraction": {"fuzzy_accept": 0.1}}).status_code == 403
+                        json={"extraction": {"evidence_floor": 0.1}}).status_code == 403
     # …and nothing moved.
     assert client.get("/api/v1/settings",
-                      headers=_admin(client)).json()["extraction"]["fuzzy_accept"] != 0.1
+                      headers=_admin(client)).json()["extraction"]["evidence_floor"] != 0.1
 
 
 def test_an_unknown_knob_is_ignored_rather_than_set(client):
     """The patch model is explicit, so an unknown field cannot smuggle a value into settings."""
     h = _admin(client)
     res = client.patch("/api/v1/settings", headers=h,
-                       json={"extraction": {"native_min_chars": 1, "fuzzy_accept": 0.6}})
+                       json={"extraction": {"native_min_chars": 1, "evidence_floor": 0.6}})
     assert res.status_code == 200
-    assert res.json()["extraction"]["fuzzy_accept"] == 0.6
+    assert res.json()["extraction"]["evidence_floor"] == 0.6
     assert "native_min_chars" not in res.json()["extraction"]
     from app.config import get_settings
     assert get_settings().extraction.native_min_chars != 1

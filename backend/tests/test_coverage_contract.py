@@ -33,7 +33,7 @@ from app.schemas.loader import load_ontology, load_template
 from app.services import coverage as cov_mod
 from app.services.coverage import coverage
 from app.services.structural_checks import STATUS_AUTHORING_ERROR, evaluate_structure
-from tests.fixtures.generate import make_native_pdf
+from tests.fixtures.generate import make_native_pdf, make_unmapped_row_pdf
 
 _SAMPLES = Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
 
@@ -76,7 +76,7 @@ def _extracted(client, *, template: bool = True, ontology: bool = True) -> str:
     template at all.
     """
     doc_id = client.post("/api/v1/documents",
-                         files={"file": ("bs.pdf", make_native_pdf(),
+                         files={"file": ("bs.pdf", make_unmapped_row_pdf(),
                                          "application/pdf")}).json()["id"]
     options: dict = {}
     if template or ontology:

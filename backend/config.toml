@@ -117,9 +117,8 @@ model = "paraphrase-multilingual-MiniLM-L12-v2"
 # Extraction / reconciliation tuning
 # ---------------------------------------------------------------------------
 [extraction]
-fuzzy_accept = 0.55             # combined (coverage-weighted) fuzzy score to auto-accept alone
-fuzzy_min_alias_coverage = 0.45 # …and the caption must explain this much of the matched alias
-fuzzy_candidate = 0.45          # minimum score to keep a fuzzy match as a candidate
+evidence_floor = 0.55           # how nearly a caption must BE an authored alias to count as one
+alias_coverage_floor = 0.45     # …and how much of that alias the caption must explain
 embedding_accept = 0.82         # cosine similarity to accept a semantic match
 mapping_margin = 0.08           # winner must beat the runner-up by this margin, else review
 auto_accept_confidence = 0.80   # combined confidence at/above which a line auto-accepts

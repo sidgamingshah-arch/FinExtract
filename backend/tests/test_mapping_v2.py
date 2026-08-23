@@ -124,7 +124,10 @@ def test_a_residual_bucket_cannot_win_however_its_hints_are_authored():
     assert m.match("Other payables").canonical_key == (
         "bs_current_liabilities__other_payables_and_accruals")
     assert m._rule("Other stuff entirely") is None
-    assert not [c for c in m._fuzzy("others") if c.canonical_key.endswith("__others")]
+    # The lock itself: the concept is out of every matchable set, so no tier can reach it however
+    # its hints are authored.
+    assert "bs_current_liabilities__others" in m._unmatchable
+    assert "bs_current_liabilities__others" not in m._mappable_keys()
 
 
 def test_the_model_is_never_offered_a_bucket_on_either_llm_path(v2):
@@ -241,8 +244,13 @@ def test_priority_orders_candidates_and_does_not_score_them(v2):
                             aliases=["Inventories"], match_priority=10),
         ],
     )
-    res = _matcher(ont).match("Inventorys")            # misspelt, so fuzzy decides
+    m = _matcher(ont)
+    res = m.match("Inventories")                       # the low-priority concept's own alias
     assert res.canonical_key == "bs_current_assets__inventories"
+    # …and the misspelling maps to NOTHING, deliberately: no tier decides on wording, so a caption
+    # no alias and no rule claims is a visible gap rather than the highest-priority concept in the
+    # file absorbing it.
+    assert m.match("Inventorys").canonical_key is None
 
     # And on the real file, the model's answer still wins over the order it was offered in.
     spy = Spy(single="bs_current_liabilities__total_current_liabilities")
@@ -252,9 +260,10 @@ def test_priority_orders_candidates_and_does_not_score_them(v2):
 
 
 def test_a_tie_on_token_overlap_is_settled_by_priority(v2):
-    """Two concepts claiming the identical alias score identically on every string method, so which
-    of them the fuzzy tier returned first was dict insertion order. Priority is the rulebook's
-    declared arbiter for exactly this tie."""
+    """Two concepts claiming the identical alias are separated by nothing the wording can offer, so
+    which of them was returned first was dict insertion order. Priority is the rulebook's declared
+    arbiter for exactly this tie — step 4 runs the alias tier in descending match_priority and says
+    in as many words never to pick by declaration order."""
     ont = OntologyDefinition(
         ontology_key="k", target_template_key="t",
         mappings=[
@@ -268,11 +277,11 @@ def test_a_tie_on_token_overlap_is_settled_by_priority(v2):
         ],
     )
     m = _matcher(ont)
-    scored = m._fuzzy("deferred incomes")           # misspelt → no exact hit, identical scores
-    assert scored[0].score == scored[1].score
-    assert scored[0].canonical_key == "bs_non_current_liabilities__non_current_deferred_income"
-    assert m.match("Deferred incomes").canonical_key == (
+    # Declared first is the LOWER priority, so declaration order and priority disagree here.
+    assert m.match("Deferred income").canonical_key == (
         "bs_non_current_liabilities__non_current_deferred_income")
+    # The misspelling is claimed by neither: an alias tier answers identity, not resemblance.
+    assert m.match("Deferred incomes").canonical_key is None
 
 
 def test_a_tie_between_evidence_methods_is_settled_by_priority():
@@ -299,9 +308,6 @@ def test_a_tie_between_evidence_methods_is_settled_by_priority():
     m = OntologyMatcher(ont, settings=get_settings(), embedding_provider=_Flat())
     caption = "A caption that resembles neither"
 
-    # The weaker tier ranks them the other way round, which is what used to survive into the merge.
-    assert m._fuzzy("a caption that resembles neither")[0].canonical_key == (
-        "bs_current_assets__total_current_assets")
     res = m.match(caption)
     assert [c.score for c in res.candidates[:2]] == [1.0, 1.0]
     assert res.canonical_key == "bs_current_assets__inventories"

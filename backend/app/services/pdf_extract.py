@@ -239,7 +239,10 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
             words, page_index=ps.index, document_id=doc.content_hash,
             source_kind=source_kind, ordinal_start=ordinal, number_format=number_format,
             statement=ps.statement, log=ctx.log, scope=scope, normalisation=normalisation,
-            page_scope=ps.scope)
+            page_scope=ps.scope,
+            # The title the classifier matched on this page, so the reader can tell it from a
+            # wrapped caption head: they have the same shape and sit in the same place.
+            page_title=str((ps.evidence or {}).get("matched_title") or "") or None)
         if ps.kind == PageKind.FACE:
             # Said HERE because here is where it is known: this branch reads the FACE of a
             # statement (the notes branch above returns note tables, not line items). Only a page
