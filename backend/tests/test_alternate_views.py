@@ -15,8 +15,9 @@ from __future__ import annotations
 from app.core.models.geometry import BBox
 
 
-def _val(period, value, page=106, x0=0.3):
+def _val(period, value, page=106, x0=0.3, col=None):
     return {"basis": "consolidated", "period_label": period, "value": str(value),
+            "column_index": col,
             "provenance": {"source_kind": "native", "page_index": page,
                            "bbox": {"x0": x0, "y0": 0.2, "x1": x0 + 0.05, "y1": 0.21}}}
 
@@ -224,3 +225,125 @@ def test_no_equity_statement_means_no_cross_statement_check():
              "values": [{"basis": "consolidated", "period_label": "current", "value": "100"}]}]
     assert _equity_closing(rows, "consolidated") is None
     assert [c["type"] for c in _accounting_checks(rows, [], "en")] == []
+
+
+def test_a_sideways_row_is_read_in_the_order_it_is_printed():
+    """The 180° trap. Both a correct quarter-turn and its opposite turn a constant-x column of
+    words into a row, so "the words share a y band" cannot tell them apart — and the opposite one
+    reverses the statement: its columns run total-equity-first and its movements run from the
+    closing balance back to the opening. Direction is therefore asserted, not just alignment.
+
+    A page whose words advance UP the page (``dir=(0,-1)``, reported as rotation 90 — a quarter
+    turn clockwise brings it upright): along a printed row the word printed FIRST sits at the
+    LARGER page y, and the NEXT printed row sits at a larger page x.
+    """
+    from app.services.pdf_extract import _to_reading_space
+
+    first = _to_reading_space(BBox(x0=0.20, y0=0.70, x1=0.21, y1=0.80), 90)
+    then = _to_reading_space(BBox(x0=0.20, y0=0.40, x1=0.21, y1=0.50), 90)
+    next_row = _to_reading_space(BBox(x0=0.30, y0=0.70, x1=0.31, y1=0.80), 90)
+    assert first.x1 <= then.x0                       # printed first ⇒ earlier across the row
+    assert abs(first.y0 - then.y0) < 1e-9            # ...and on the same row
+    assert next_row.y0 > first.y0                    # the next printed row is further down
+
+
+def test_a_sideways_row_the_other_way_up_is_also_read_in_printed_order():
+    """The mirror case, ``dir=(0,+1)`` (rotation 270): words advance DOWN the page, so the word
+    printed first sits at the smaller y, and the next printed row sits at a smaller x."""
+    from app.services.pdf_extract import _to_reading_space
+
+    first = _to_reading_space(BBox(x0=0.30, y0=0.40, x1=0.31, y1=0.50), 270)
+    then = _to_reading_space(BBox(x0=0.30, y0=0.70, x1=0.31, y1=0.80), 270)
+    next_row = _to_reading_space(BBox(x0=0.20, y0=0.40, x1=0.21, y1=0.50), 270)
+    assert first.x1 <= then.x0
+    assert abs(first.y0 - then.y0) < 1e-9
+    assert next_row.y0 > first.y0
+
+
+def test_the_reported_angle_is_the_one_that_brings_the_page_upright():
+    """``PageSource.rotation`` is filled from the PDF's ``/Rotate`` by the ingest stage and from
+    the text's own direction by the extract stage, and the integrity report renders both with one
+    sentence — so the two have to mean the same thing: the CLOCKWISE turn that makes the page
+    readable. Text running up the page needs a quarter-turn clockwise; text running down needs
+    three."""
+    from app.services.pdf_extract import _dir_rotation
+
+    assert _dir_rotation((1.0, 0.0)) == 0
+    assert _dir_rotation((-1.0, 0.0)) == 180
+    assert _dir_rotation((0.0, -1.0)) == 90
+    assert _dir_rotation((0.0, 1.0)) == 270
+    assert _dir_rotation(None) == 0                  # a line with no direction reads upright
+
+
+class _FakePage:
+    """Just enough of a PyMuPDF page: the word list and the line dict have to agree."""
+
+    def __init__(self, lines):
+        self._lines = lines          # (dir, [(x0, y0, x1, y1, text), …])
+
+    def get_text(self, kind):
+        if kind == "dict":
+            return {"blocks": [{"lines": [
+                {"dir": d, "bbox": (min(w[0] for w in ws), min(w[1] for w in ws),
+                                    max(w[2] for w in ws), max(w[3] for w in ws)),
+                 "spans": [{"text": " ".join(w[4] for w in ws)}]}
+                for d, ws in self._lines]}]}
+        assert kind == "words"
+        return [(*w, 0, 0, 0) for _d, ws in self._lines for w in ws]
+
+
+def test_a_sideways_page_drops_the_chrome_that_is_still_printed_upright():
+    """A page that prints its statement sideways prints its page number, its running header and
+    (an HKEX filing) the statement's own title the normal way up. Those words are a quarter-turn
+    from the body, so putting them through the body's transform drops them into the middle of the
+    matrix — inventing rows and gluing the running header onto a caption."""
+    from app.services.pdf_extract import _native_words
+
+    body = [(10.0, 60.0, 20.0, 70.0, "Retained"), (10.0, 40.0, 20.0, 50.0, "profits")]
+    header = [(30.0, 90.0, 60.0, 95.0, "Annual"), (62.0, 90.0, 80.0, 95.0, "Report")]
+    page = _FakePage([((0.0, -1.0), body), ((1.0, 0.0), header)])
+    words = _native_words(page, 100.0, 100.0, rotation=90)
+    assert [w.text for w in words] == ["Retained", "profits"]
+    # An upright page has no other angle to disagree with, so nothing is dropped there.
+    upright = _FakePage([((1.0, 0.0), body + header)])
+    assert len(_native_words(upright, 100.0, 100.0, rotation=0)) == 4
+
+
+def test_a_word_no_line_claims_is_kept():
+    """The word list and the line boxes come from two different calls into the text extractor. A
+    word no line covers has no direction to judge, and deleting a figure is worse than keeping a
+    stray one — so an unclaimed word stays."""
+    from app.services.pdf_extract import _native_words
+
+    class _Mismatched:
+        def get_text(self, kind):
+            if kind == "dict":
+                return {"blocks": [{"lines": [
+                    {"dir": (0.0, -1.0), "bbox": (10.0, 40.0, 20.0, 70.0),
+                     "spans": [{"text": "Retained profits"}]}]}]}
+            return [(10.0, 60.0, 20.0, 70.0, "Retained", 0, 0, 0),
+                    (90.0, 5.0, 95.0, 9.0, "orphan", 0, 0, 0)]
+
+    got = [w.text for w in _native_words(_Mismatched(), 100.0, 100.0, rotation=90)]
+    assert got == ["Retained", "orphan"]
+
+
+def test_matrix_columns_are_ordered_as_printed_even_when_the_page_is_sideways():
+    """On a sideways page the columns advance down the page's y, so ordering them by the value
+    box's x0 — which is what the box now honestly reports — would return the statement's ROW axis.
+    The printed position each fact recorded at extraction is what orders them."""
+    from app.api.routes.documents import _matrix_columns
+
+    # x0 ascending is deliberately the REVERSE of the printed order, as a rotated page's would be.
+    rows = [{"source_label": "At 1 January 2023", "canonical_key": None, "values": [
+        _val("Total equity", 3, x0=0.20, col=2),
+        _val("Retained profits", 2, x0=0.50, col=1),
+        _val("Issued capital", 1, x0=0.80, col=0)]}]
+    assert _matrix_columns(rows, "consolidated") == [
+        "Issued capital", "Retained profits", "Total equity"]
+    # With no recorded position anywhere — an Excel matrix, or a run from before it was recorded
+    # — the page geometry is still what there is.
+    for v in rows[0]["values"]:
+        v.pop("column_index")
+    assert _matrix_columns(rows, "consolidated") == [
+        "Total equity", "Retained profits", "Issued capital"]

@@ -3774,21 +3774,33 @@ def _matrix_rows(rows: list[dict], basis: str) -> list[tuple[dict, dict]]:
 def _matrix_columns(rows: list[dict], basis: str) -> list[str]:
     """The component columns of a matrix statement, in the order they are PRINTED.
 
-    Column identity is the header text extraction already attached to each value; the order is
-    recovered from where the figures sit on the page (the median x of a column's cells), because
-    a dict of values has no left-to-right order of its own and equity statements are read
-    left-to-right — issued capital through to total equity.
+    Column identity is the header text extraction already attached to each value; the order is the
+    ``column_index`` extraction recorded with it, because a dict of values has no left-to-right
+    order of its own and equity statements are read left-to-right — issued capital through to total
+    equity.
+
+    The fallback is the page geometry (the median x of a column's cells), which is what every
+    column carried before the index was persisted, and is still right for a source with no page
+    axis at all — an Excel sheet, where each cell's box is null and the encounter order stands. It
+    is used only when NO column carries an index: mixing the two scales would order some columns by
+    position and the rest by pixels, which is not an order.
     """
+    idx: dict[str, list[float]] = {}
     xs: dict[str, list[float]] = {}
     for _r, cells in _matrix_rows(rows, basis):
         for name, v in cells.items():
+            ci = v.get("column_index")
+            if ci is not None:
+                idx.setdefault(name, []).append(float(ci))
             box = ((v.get("provenance") or {}).get("bbox")) or {}
             x = box.get("x0")
             xs.setdefault(name, []).append(0.0 if x is None else float(x))
-    def centre(name: str) -> float:
-        vals = sorted(xs[name])
+    def median(vals: list[float]) -> float:
+        vals = sorted(vals)
         return vals[len(vals) // 2] if vals else 0.0
-    return sorted(xs, key=centre)
+    if len(idx) == len(xs):            # every column reported where it was printed
+        return sorted(idx, key=lambda name: median(idx[name]))
+    return sorted(xs, key=lambda name: median(xs[name]))
 
 
 def _build_matrix_statement(rows: list[dict], statement_type: str, filename: str, *,

@@ -1975,9 +1975,22 @@ def _heads_indented_block(words: list[Word]) -> bool:
     return " ".join(w.text for w in words).strip().endswith(("：", "﹕"))
 
 
-def _matrix_basis(words: list[Word]) -> Basis:
+def _matrix_basis(words: list[Word], page_scope: str | None = None) -> Basis:
     """One basis for the whole matrix. Its columns are components, so the Consolidated/Standalone
-    banding used for comparatives would read them as bases and split the row apart."""
+    banding used for comparatives would read them as bases and split the row apart.
+
+    ``page_scope`` — the page classifier's verdict on WHOSE statement the page is — decides it when
+    there is one, for the same reason it does in :func:`build_line_items` and one more besides: a
+    matrix has no basis header band to outrank it, and its own words are the WORST evidence
+    available. The word scan below only ever sees the component captions and the movement rows,
+    which name no entity at all; on a sideways page it does not even see the title, because the
+    title is printed upright and dropped as chrome. A statement of changes in equity printed past
+    the notes for the Company alone — which is what the reserve note of an HKEX filing is — carries
+    nothing for the scan to catch, so without the page's scope it defaulted to CONSOLIDATED and the
+    Company's reserves were served as the Group's.
+    """
+    if page_scope in _PAGE_SCOPE_BASIS:
+        return _PAGE_SCOPE_BASIS[page_scope]
     text = " ".join(w.text for w in words)
     if _STANDALONE.search(text) and not _CONSOL.search(text):
         return Basis.STANDALONE
@@ -2002,7 +2015,7 @@ def _is_matrix_noise(label: str, row_text: str, vals: list) -> bool:
 def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id: str | None,
                   source_kind: str, ordinal_start: int, fmt=None,
                   unit_ctx: UnitContext | None = None, dims: tuple[str, ...] = (),
-                  log=None) -> tuple[list[LineItem], int]:
+                  log=None, page_scope: str | None = None) -> tuple[list[LineItem], int]:
     """One LineItem per MOVEMENT ROW, its values keyed by component-column name.
 
     Why one item per row rather than one per cell: ``LineItem.values`` is already a dict keyed by
@@ -2018,7 +2031,7 @@ def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id:
     """
     items: list[LineItem] = []
     ordinal = ordinal_start
-    basis = _matrix_basis([w for row in m.rows for w in row])
+    basis = _matrix_basis([w for row in m.rows for w in row], page_scope)
     value_left = m.bands[0][0]
     pending: list[Word] = []                 # label lines waiting for the row that has figures
     tail: BBox | None = None                 # box of the LAST pending line, for the wrap test
@@ -2072,14 +2085,21 @@ def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id:
                 continue
             k = _band_of(cw, m.bands)
             prov = Provenance(
-                document_id=document_id, page_index=page_index, bbox=cw.bbox,
-                value_bbox=cw.bbox, label_bbox=label_bbox, text_snippet=label,
+                # source_bbox, not the reading-space box: a sideways page is reconstructed in
+                # reading space but RENDERED as drawn, so the viewer's highlight has to be given
+                # the box on the page. (The two are the same box on an upright page.)
+                document_id=document_id, page_index=page_index, bbox=cw.source_bbox,
+                value_bbox=cw.source_bbox, label_bbox=label_bbox, text_snippet=label,
                 source_kind=source_kind, producer=f"extract:{source_kind}@0.1.0",
             )
             store_fact(li, ExtractedValue(
                 value_raw=dec, value=dec, basis=basis,
                 # The component name is both the key and the column header shown in the UI.
                 period_label=names[k], period_display=names[k],
+                # Which column it is, left to right as printed. Kept because the printed order
+                # cannot be recovered from the page box once that box is page-space: on a sideways
+                # page the columns advance down the page's y, not across its x.
+                column_index=k,
                 unit_ctx=unit_ctx or UnitContext(), provenance=prov,
             ), dims, log=log, where=f"page={page_index}:matrix:")
         if li.values:
@@ -2138,7 +2158,9 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     a two-basis header band on the page wins, because caption geometry attributes each COLUMN and
     nothing else can; the page scope comes next, because a title naming the entity is direct
     evidence about the whole page; ``company_only_markers`` is last, because it infers the entity
-    from one line item being present. See :data:`_PAGE_SCOPE_BASIS`."""
+    from one line item being present. See :data:`_PAGE_SCOPE_BASIS`. On a MATRIX page the same
+    verdict is instead the first thing consulted, because a matrix has no basis band to outrank it
+    and its own words name no entity — see :func:`_matrix_basis`."""
     if scope is None or normalisation is None:
         in_force_scope, in_force_norm = in_force_rules()
         scope = scope if scope is not None else in_force_scope
@@ -2158,7 +2180,9 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                              fmt=number_format,
                              unit_ctx=_unit_context(_statement_unit(matrix.rows, unit_signals,
                                                                    number_format), page_index),
-                             dims=dims, log=log)
+                             dims=dims, log=log,
+                             # FACE ONLY, exactly as the two-column path applies it below.
+                             page_scope=page_scope if on_face else None)
     if statement == "changes_in_equity":
         # A named matrix we cannot attribute is worse than nothing: every figure would be filed
         # under a period that does not exist. Report it and emit no rows for the page. A page

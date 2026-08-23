@@ -65,6 +65,12 @@ class ExtractedValue(BaseModel):
     # DISPLAY only. period_label stays the positional key ("current"/"prior"/…) used for all
     # lookups; this never participates in ValueKey or value matching.
     period_display: str | None = None
+    # For a matrix statement (named component columns, not periods): which column this fact was
+    # printed in, counting from the left. The column ORDER is part of a statement of changes in
+    # equity's meaning — issued capital through to total equity — and it cannot be recovered from
+    # ``provenance.bbox`` once the page is sideways, because there the columns advance down the
+    # page's y. None for every ordinary period-keyed fact, which has no column axis to record.
+    column_index: int | None = None
     unit_ctx: UnitContext = Field(default_factory=UnitContext)
     provenance: Provenance | None = None
     confidence: ConfidenceVector = Field(default_factory=ConfidenceVector)

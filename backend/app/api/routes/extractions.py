@@ -326,6 +326,8 @@ def _serialize_rows(doc_model) -> list[dict]:
             values.append({
                 "period_label": ev.period_label,
                 "period_display": ev.period_display,  # real period-end date for headers, if any
+                # Printed left-to-right position of a matrix's component column; null otherwise.
+                "column_index": ev.column_index,
                 "basis": ev.basis.value,
                 "value": (str(ev.value) if ev.value is not None else None),
                 "provenance": prov,
