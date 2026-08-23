@@ -1,7 +1,7 @@
 """Stub adapters.
 
 These honour the port protocols but do no real work — they keep the app and tests
-runnable without the heavy OCR/LLM/embedding dependencies. Each raises or returns an
+runnable without the heavy OCR/LLM dependencies. Each raises or returns an
 empty/neutral result so a mis-wired pipeline fails loudly rather than silently.
 """
 from __future__ import annotations
@@ -49,14 +49,4 @@ class StubLlmProvider:
         raise NotImplementedError(
             "LLM disambiguation requested but no LLM adapter is configured. Install "
             "the 'llm' extra and set FINEX_LLM_PROVIDER (e.g. 'anthropic')."
-        )
-
-
-class StubEmbeddingProvider:
-    id = "stub"
-
-    def embed(self, texts: Sequence[str]) -> list[list[float]]:
-        raise NotImplementedError(
-            "Embedding matching requested but no embedding adapter is configured. "
-            "Install the 'embeddings' extra and set FINEX_EMBEDDING_PROVIDER."
         )

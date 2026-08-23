@@ -2,7 +2,7 @@
 
 Wires each extracted ``LineItem`` through ``services.mapping.OntologyMatcher`` and
 records the winning canonical key, method, and per-strategy confidence. The ontology
-+ locale come from the extraction job; adapters (embedding/LLM) are pulled from the
++ locale come from the extraction job; the LLM adapter is pulled from the
 registry when configured.
 
 Two things happen here that the matcher cannot do, because they are judgements about the WHOLE

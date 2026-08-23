@@ -107,9 +107,6 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "heading ('LIABILITIES') from being read as a much longer concept name that merely "
          "contains it.",
          minimum=0.0, maximum=1.0, step=0.01),
-    Knob("embedding_accept", "number", "Embedding accept",
-         "Cosine similarity at which an embedding match may decide a mapping alone.",
-         minimum=0.0, maximum=1.0, step=0.01),
     Knob("mapping_margin", "number", "Winner margin",
          "How far the winning concept must beat the runner-up before the mapping is accepted "
          "without review. A close call is routed to a human instead of guessed.",

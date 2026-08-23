@@ -144,7 +144,6 @@ export interface AppSettings {
     key_configured: boolean;
   };
   ocr: { engine: string; languages: string[]; dpi: number };
-  embeddings: { provider: string; model: string };
   /** Runtime-tunable pipeline thresholds, keyed by knob name. Rendered from
    *  `extraction_fields` rather than a hardcoded list, so a knob added on the backend appears
    *  here with no frontend change. */

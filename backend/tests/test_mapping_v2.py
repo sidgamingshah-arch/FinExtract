@@ -71,7 +71,7 @@ class Spy:
 
 def test_the_thirteen_residual_buckets_are_locked_out_of_every_matching_index(v2):
     """One control field, checked in one place, keeps them out of all four matching tiers at once:
-    alias, fuzzy and embedding all read the alias index, and the model reads the payload."""
+    the alias tier reads the alias index, the rule tier its hints, and the model the payload."""
     m = _matcher(v2)
     locked = {c.canonical_key for c in v2.mappings if c.alias_matching == "disabled"}
 
@@ -132,7 +132,7 @@ def test_a_residual_bucket_cannot_win_however_its_hints_are_authored():
 
 def test_the_model_is_never_offered_a_bucket_on_either_llm_path(v2):
     """`_llm` and `match_batch` build their candidate lists differently — one from the
-    fuzzy/embedding shortlist, one from every concept on the statement — so the lock has to hold in
+    deterministic shortlist, one from every concept on the statement — so the lock has to hold in
     the payload builder they share."""
     spy = Spy(items=[], single="")
     m = _matcher(v2, spy)
@@ -284,33 +284,32 @@ def test_a_tie_on_token_overlap_is_settled_by_priority(v2):
     assert m.match("Deferred incomes").canonical_key is None
 
 
-def test_a_tie_between_evidence_methods_is_settled_by_priority():
-    """The same tie one tier up, where candidates from several methods are merged into one ranking.
-    Two concepts an embedding rates identically arrived in whatever order the earlier tier had put
-    them in, so `det_top` — which decides the deterministic winner and adjusts the LLM's confidence
-    — came off a dict whose order nothing had decided."""
-    class _Flat:
-        """Every string embeds to the same vector, so every concept ties at cosine 1.0."""
-
-        def embed(self, texts):
-            return [[1.0, 0.0] for _ in texts]
-
+def test_a_tie_inside_the_rule_tier_is_settled_by_priority_and_routed_to_review():
+    """The same tie on the other deterministic tier. Two concepts' hints firing on one caption is
+    an ambiguity no hint can resolve, so the answer is the highest-priority claimant — never the
+    first declared — and it is scored below every accept bar so a human confirms it."""
     ont = OntologyDefinition(
         ontology_key="k", target_template_key="t",
         mappings=[
+            # Declared first, LOWER priority, so declaration order and priority disagree.
             OntologyMapping(canonical_key="bs_current_assets__total_current_assets",
                             label="Total current assets", aliases=["Total current assets"],
-                            match_priority=60),
+                            keyword_hints=["current"], match_priority=60),
             OntologyMapping(canonical_key="bs_current_assets__inventories", label="Inventories",
-                            aliases=["Inventories"], match_priority=82),
+                            aliases=["Inventories"], keyword_hints=["current"],
+                            match_priority=82),
         ],
     )
-    m = OntologyMatcher(ont, settings=get_settings(), embedding_provider=_Flat())
-    caption = "A caption that resembles neither"
-
-    res = m.match(caption)
-    assert [c.score for c in res.candidates[:2]] == [1.0, 1.0]
+    m = _matcher(ont)
+    res = m.match("Something current, claimed by both hints")
     assert res.canonical_key == "bs_current_assets__inventories"
+    assert res.method is MappingMethod.RULE and res.confidence == 0.6
+    assert res.needs_review
+
+    # One claimant is not a tie: it decides, and it decides on its own.
+    ont.mappings[0].keyword_hints = []
+    assert _matcher(ont).match("Something current").canonical_key == (
+        "bs_current_assets__inventories")
 
 
 # --- 3. family resolution ------------------------------------------------------------------------

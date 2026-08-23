@@ -60,7 +60,6 @@ export const settings: Record<Locale, Record<string, string>> = {
     "st.engine": "Engine",
     "st.languages": "Languages",
     "st.dpi": "DPI",
-    "st.embeddings": "Embeddings",
     // Each threshold's label and explanation come from the API (extraction_fields), so the
     // knobs are described in exactly one place; only the card's own chrome is translated here.
     "st.extraction": "Extraction & reconciliation",
@@ -135,7 +134,6 @@ export const settings: Record<Locale, Record<string, string>> = {
     "st.engine": "引擎",
     "st.languages": "语言",
     "st.dpi": "DPI",
-    "st.embeddings": "嵌入向量",
     "st.extraction": "提取与核对",
     "st.extractionNote": "映射与核对阈值。修改仅影响下一次提取，不会改写已完成的运行。每项均附说明；取值范围由后端提供。",
     "st.extractionUnavailable": "当前后端版本未返回提取阈值。请重启后端以启用。",
@@ -208,7 +206,6 @@ export const settings: Record<Locale, Record<string, string>> = {
     "st.engine": "المحرّك",
     "st.languages": "اللغات",
     "st.dpi": "الدقة (DPI)",
-    "st.embeddings": "التضمينات",
     "st.extraction": "الاستخراج والتسوية",
     "st.extractionNote": "حدود المطابقة والتسوية. يسري التغيير على الاستخراج التالي ولا يعيد كتابة عملية سابقة.",
     "st.extractionUnavailable": "لا يُبلِّغ هذا الإصدار من الواجهة الخلفية عن حدود الاستخراج. أعِد تشغيل الخدمة لاستخدامها.",
@@ -281,7 +278,6 @@ export const settings: Record<Locale, Record<string, string>> = {
     "st.engine": "Moteur",
     "st.languages": "Langues",
     "st.dpi": "DPI",
-    "st.embeddings": "Plongements",
     "st.extraction": "Extraction et rapprochement",
     "st.extractionNote": "Seuils de mappage et de rapprochement. Une modification s’applique à la PROCHAINE extraction ; elle ne réécrit jamais un traitement déjà effectué.",
     "st.extractionUnavailable": "Cette version de l’API ne renvoie pas les seuils d’extraction. Redémarrez le backend pour les activer.",

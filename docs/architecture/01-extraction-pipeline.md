@@ -159,12 +159,18 @@ method contributes and they corroborate one another:
    exclude, confusable-with, value_scope) and the ontology's global policies + worked
    examples, it chooses by **meaning**. So "Amounts due from customers" → `trade_receivables`
    with no matching alias, and repeated "Others" captions disambiguate by section context.
-4. **Semantic embeddings** — a cosine-similarity tier is implemented in the matcher
-   (`OntologyMatcher._embedding`, contributing an `embedding` candidate score), but **no
-   embedding provider is wired into the pipeline**: `EmbeddingProvider` has only a stub in
-   the registry and `map_ontology.py` constructs the matcher without one, so the tier is
-   exercised only by tests that pass a fake. Configuring `[embeddings]` today selects
-   nothing; wiring the adapter is the outstanding step.
+**Two tiers that used to be here are gone, and the removals are the contract getting shorter
+rather than weaker.** A **fuzzy / string-similarity** tier decided rows on wording, which the
+rulebook's own `binding.order` never declared and which produced the error nothing downstream can
+see (on the shipped rulebook, "Profit before exceptional items and tax" filed as
+`pl_profit_before_tax` at 0.61, accepted and unflagged — two subtotals differing by exactly the
+exceptional items, so the statement still tied). A **semantic-embedding** tier existed in the
+matcher but never ran: `map_ontology.py` built the matcher without a provider and the only
+registered one was a stub that raised. Measured on a real 300-page filing, of the 15 rows fuzzy
+used to name, 11 now land in their own section's residual *Others* — still on the statement,
+still summing, itemised under their printed label — and 3 become unmapped for a human. Alias
+similarity survives as a *measurement* (`_alias_similarity`) used by two guards, and can map
+nothing on its own.
 
 **Combination policy:** exact wins outright; otherwise the LLM makes the call but is
 **corroborated by the deterministic methods** — agreement nudges confidence up; a strong
@@ -286,6 +292,5 @@ of these documents:
 | `LlmProvider` | `azure_openai` (default), `anthropic`, `openai` / `openai_compatible`, `stub` | yes — mapping, gap closing, netting, credit narrative |
 | `OcrProvider` | `docling`, `azure` (Document Intelligence), `paddleocr`, `stub` | yes — scanned pages and images |
 | `ObjectStore` | `local` | yes — uploaded bytes |
-| `EmbeddingProvider` | `stub` only | **no** — the matcher's embedding tier is never handed a provider |
 | `TableStructureProvider` | `stub` only | **no** — nothing calls it; `row_reconstruct` does the job |
 | `FxConverter` | none — the port is left unbound | **no** — currency conversion is not a rate *feed*. It runs off an admin-maintained rate master (`app/db/models.py::FxRate`, `app/services/fx.py`, `GET/POST/PUT/DELETE /fx-rates`), which resolves a pair `direct` or `inverse`-and-flagged and **refuses** rather than triangulating. |

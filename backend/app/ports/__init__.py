@@ -6,7 +6,6 @@ selects them. This is what makes the "decide infra later" choice cost-free.
 """
 from __future__ import annotations
 
-from .embeddings import EmbeddingProvider
 from .fx import FxConverter
 from .llm import LlmMeta, LlmProvider
 from .object_store import ObjectStore
@@ -15,7 +14,6 @@ from .registry import Registry, registry
 from .table_structure import TableStructureProvider
 
 __all__ = [
-    "EmbeddingProvider",
     "FxConverter",
     "LlmProvider", "LlmMeta",
     "ObjectStore",

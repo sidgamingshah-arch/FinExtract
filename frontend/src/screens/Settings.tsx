@@ -682,12 +682,6 @@ export default function SettingsScreen() {
           <Row label={t("st.languages")} value={s.ocr.languages.join(" · ")} />
           <Row label={t("st.dpi")} value={s.ocr.dpi} />
         </SectionCard>
-
-        {/* Embeddings */}
-        <SectionCard title={t("st.embeddings")} note={readOnlyNote}>
-          <Row label={t("st.provider")} value={s.embeddings.provider} />
-          <Row label={t("st.model")} value={s.embeddings.model} />
-        </SectionCard>
       </div>
 
       {/* Extraction & reconciliation */}

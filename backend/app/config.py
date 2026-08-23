@@ -116,11 +116,6 @@ class OcrSettings(BaseModel):
     azure_api_key_env: str = "AZURE_DI_KEY"
 
 
-class EmbeddingSettings(BaseModel):
-    provider: str = "stub"            # sentence-transformers | openai | stub
-    model: str = "paraphrase-multilingual-MiniLM-L12-v2"
-
-
 class ExtractionSettings(BaseModel):
     """Pipeline tuning: native/scanned detection, the mapping ensemble, reconciliation."""
 
@@ -148,7 +143,6 @@ class ExtractionSettings(BaseModel):
     # …and the caption must also explain this much of the alias it is being compared to, so a
     # heading merely contained in a longer concept name is not read as that concept.
     alias_coverage_floor: float = 0.45
-    embedding_accept: float = 0.82    # cosine similarity to accept
     mapping_margin: float = 0.08      # winner must beat runner-up by this margin
     # Confidence + reconciliation.
     auto_accept_confidence: float = 0.80
@@ -204,7 +198,6 @@ class Settings(BaseSettings):
     features: FeatureSettings = FeatureSettings()
     llm: LlmSettings = LlmSettings()
     ocr: OcrSettings = OcrSettings()
-    embeddings: EmbeddingSettings = EmbeddingSettings()
     extraction: ExtractionSettings = ExtractionSettings()
 
     @classmethod

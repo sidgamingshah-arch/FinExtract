@@ -109,6 +109,9 @@ class MappingMethod(str, Enum):
     EXACT = "exact"
     RULE = "rule"
     FUZZY = "fuzzy"
+    # No longer produced. Kept because a stored run records the method that mapped each of its
+    # rows, and the judgement layer compares an acceptance against the method it was made on — so
+    # deleting the member would make an old run's rows unreadable rather than historical.
     EMBEDDING = "embedding"
     LLM = "llm"
     UNMATCHED = "unmatched"

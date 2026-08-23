@@ -259,6 +259,8 @@ _PROHIBITIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
 # The matchers prohibition 2 names. ``llm`` is deliberately not one of them: a model routing a
 # leftover row into a section's Others is a judgement about the SECTION, not an alias match, and it
 # is the plug audit that holds it to account for the figure it put there.
+# "fuzzy" and "embedding" are here for RUNS ALREADY STORED: neither tier exists any more, and a
+# row mapped by one before they were removed still records that method.
 _MATCHED_METHODS = frozenset({"exact", "rule", "fuzzy", "embedding"})
 
 

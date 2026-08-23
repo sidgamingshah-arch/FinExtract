@@ -71,7 +71,7 @@ NoteUse = Literal["evidence_only", "decomposition_allowed"]
 # The sign the concept is EXPECTED to carry — a review trigger, not a transformation. Distinct
 # from `SignRule.convention`, which says how to normalise a value; a concept can want both.
 SignExpectation = Literal["positive_expected", "negative_expected", "either"]
-# Residual concepts are populated only by the section sweep, never by alias/regex/embedding.
+# Residual concepts are populated only by the section sweep, never by an alias or a rule hint.
 AliasMatching = Literal["enabled", "disabled"]
 
 

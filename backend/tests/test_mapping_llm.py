@@ -98,7 +98,7 @@ def test_ensemble_combines_methods_and_corroborates():
 
     # A keyword hint on the concept the model is going to pick, so a DETERMINISTIC method has an
     # opinion to corroborate with. (There is no string-similarity tier to supply one: nothing maps
-    # a row on resemblance, so corroboration comes from the rule tier or the embeddings.)
+    # a row on resemblance, so corroboration comes from the rule tier.)
     next(x for x in ont.mappings if x.canonical_key == "cash_and_equivalents").keyword_hints = [
         "cash"]
     m = OntologyMatcher(ont, settings=get_settings(), llm_provider=_Recorder())

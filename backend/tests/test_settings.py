@@ -22,7 +22,7 @@ def test_settings_snapshot_exposes_config_without_secrets(anon_client, auth):
     assert body["llm"]["provider"] and body["llm"]["model"]
     assert "api_key_env" in body["llm"] and "key_configured" in body["llm"]
     assert "api_key" not in body["llm"]  # no raw key present
-    assert body["ocr"]["engine"] and body["embeddings"]["model"]
+    assert body["ocr"]["engine"]
     assert "evidence_floor" in body["extraction"]
     assert body["features"]["supported_locales"] == ["en", "zh", "ar", "fr"]
 

@@ -6,8 +6,7 @@ corroborate one another. No single methodology is forced out.
 
 1. exact / normalized lexical  (free, unambiguous → short-circuits)
 2. rule-based                  (regex / keyword hints, minus exclude hints)
-3. semantic embeddings         (cosine similarity — candidate evidence + shortlist)
-4. **LLM semantic decision**   (the key driver): shown each candidate's criteria
+3. **LLM semantic decision**   (the key driver): shown each candidate's criteria
    (definition, include/exclude, confusable-with, value_scope) plus the ontology's global
    policies + worked examples, it chooses by meaning — so "Amounts due from customers",
    "Receivables from clients" and "Trade debtors" all resolve to ``trade_receivables``
@@ -20,6 +19,15 @@ lowers it and flags review (the agreeing methods are recorded). When no LLM is c
 ensemble decides with a margin-over-runner-up accept. Each value also carries an
 ``allocation_status`` so parent/child/residual handling stays auditable. Winning method,
 confidence and per-strategy scores are recorded.
+
+THERE IS NO EMBEDDING TIER EITHER. It shipped as evidence and a shortlist, and it never ran: the
+mapping stage constructs this matcher with an LLM provider and no embedding provider, the only
+registered provider was a stub that raises, and it contributed nothing to any row of any real filing.
+Two settings and a Settings-screen knob governed it. Machinery that cannot execute is worse than
+absent, because it reads like a capability — and as a capability it was the same KIND of judgement
+the fuzzy tier was, resemblance rather than criteria, so it would have rated "Profit before
+exceptional items and tax" against "Profit before tax" too. Meaning is the semantic tier's job, with
+each concept's definition, include/exclude and confusable-with in front of it.
 
 THERE IS NO FUZZY TIER, and its removal is a return to the declared contract rather than a
 simplification of it. The rulebook's own ``binding.order`` names four things: resolve the
@@ -117,19 +125,6 @@ _LLM_BATCH_ADDENDUM = (
     "nothing downstream can detect.\n"
     "Return one entry per item_id you were given, and never an item_id that was not given to you."
 )
-
-
-def _cosine(a: list[float], b: list[float]) -> float:
-    """Cosine similarity of two equal-length vectors; 0 for a zero or mismatched vector."""
-    n = min(len(a), len(b))
-    if n == 0:
-        return 0.0
-    dot = sum(a[i] * b[i] for i in range(n))
-    na = sum(x * x for x in a[:n]) ** 0.5
-    nb = sum(x * x for x in b[:n]) ** 0.5
-    if na == 0.0 or nb == 0.0:
-        return 0.0
-    return dot / (na * nb)
 
 
 def normalize_label(text: str) -> str:
@@ -656,13 +651,11 @@ class OntologyMatcher:
         ontology: OntologyDefinition,
         locale: str | None = None,
         settings: Settings | None = None,
-        embedding_provider=None,
         llm_provider=None,
     ):
         self.ontology = ontology
         self.locale = locale or ontology.locale
         self.settings = settings or get_settings()
-        self.embedding_provider = embedding_provider
         self.llm_provider = llm_provider
         # Description-based LLM mapping is the primary strategy when a provider is present
         # and not disabled in config.
@@ -716,8 +709,6 @@ class OntologyMatcher:
         # about the row — see `_computed_claim` for what is done with it.
         self._computed_alias_by_key: dict[str, list[str]] = {}
         self._by_key: dict[str, OntologyMapping] = {}
-        # Alias embeddings, indexed by canonical key — computed lazily on first embedding use.
-        self._alias_vecs: list[tuple[str, list[float]]] | None = None
         # Concepts a v2 rulebook declares unreachable by MATCHING: the section "Others" buckets,
         # populated by the residual sweep alone (a section's parent minus its confirmed children).
         # Keyed on `alias_matching` alone, not on the conjunction with match_priority 0 /
@@ -1059,52 +1050,6 @@ class OntologyMatcher:
         self.usage["computed_refused"] += 1
         return claim[0]
 
-    def _ensure_alias_embeddings(self) -> None:
-        """Embed every alias once (lazily) and index it by canonical key. Cached for the life
-        of the matcher so a batch of captions reuses the same alias vectors."""
-        if self._alias_vecs is not None:
-            return
-        pairs = [(key, alias) for key, aliases in self._alias_by_key.items()
-                 for alias in aliases if alias]
-        if not pairs:
-            self._alias_vecs = []
-            return
-        vectors = self.embedding_provider.embed([a for _k, a in pairs])
-        indexed: list[tuple[str, list[float]]] = []
-        for (key, _alias), vec in zip(pairs, vectors):
-            if vec:
-                indexed.append((key, list(vec)))
-        self._alias_vecs = indexed
-
-    def _embedding(self, raw: str, keys: set[str] | None = None) -> list[Candidate]:
-        """Cosine similarity of the raw caption against alias embeddings — catches paraphrases
-        with no shared tokens ("Cash & bank balances" ↔ "Cash and cash equivalents"). Returns
-        the best-scoring candidate per canonical key. A provider that is absent, unimplemented,
-        or errors just yields no evidence so the rest of the ensemble carries on."""
-        if self.embedding_provider is None:
-            return []
-        try:
-            self._ensure_alias_embeddings()
-            if not self._alias_vecs:
-                return []
-            query = self.embedding_provider.embed([raw])
-        except Exception:  # noqa: BLE001 — NotImplementedError / provider unreachable
-            return []
-        if not query or not query[0]:
-            return []
-        qv = list(query[0])
-        best: dict[str, float] = {}
-        for key, vec in self._alias_vecs:
-            if keys is not None and key not in keys:
-                continue                          # step 3: restricted before it is scored
-            score = _cosine(qv, vec)
-            if score > best.get(key, -1.0):
-                best[key] = score
-        out = [Candidate(k, MappingMethod.EMBEDDING, max(0.0, min(1.0, s)))
-               for k, s in best.items()]
-        out.sort(key=lambda c: c.score, reverse=True)
-        return out
-
     def _build_system(self) -> str:
         """Base instruction + the ontology's global extraction policies + worked examples."""
         g = self.ontology.global_rules
@@ -1139,7 +1084,7 @@ class OntologyMatcher:
                 continue
             # Also the choke point for the residual lock and the `derive` lock, not only
             # `_extractable_keys`/`_mappable_keys`: the capped shortlist in `match` is assembled from
-            # embedding/rule keys rather than from either list, so a concept kept out of one
+            # the rule tier's keys rather than from either list, so a concept kept out of one
             # route has to be kept out of the other as well. A concept the model cannot see is a
             # concept the model cannot pick.
             if k in self._unmatchable:
@@ -1439,7 +1384,7 @@ class OntologyMatcher:
               statement: str | None = None, section: str | None = None) -> MappingResult:
         """A COMBINATION of methods — no single one is authoritative:
 
-        exact identity short-circuits (free); otherwise rule / embedding each
+        exact identity short-circuits (free); otherwise the rule tier and the model each
         contribute candidate evidence, the LLM makes the semantic, criteria-based call
         (the key driver), and cross-method agreement adjusts confidence and review routing.
         Falls back to the deterministic margin policy when no LLM is configured/abstains.
@@ -1508,17 +1453,12 @@ class OntologyMatcher:
         #    per script segment and keeps the best claim, so "REVENUE 收益" is read as well as the
         #    monolingual "Revenue" would be.
         rule = next((r for r in (self._rule(seg, allowed_keys) for seg in segments) if r), None)
-        emb = self._embedding(raw_label, allowed_keys) or []
         by_method: dict[str, set[str]] = {}
         pool: list[Candidate] = []
         if rule:
             scores["rule"] = rule.score
             by_method["rule"] = {rule.canonical_key}
             pool.append(rule)
-        if emb:
-            scores["embedding"] = emb[0].score
-            by_method["embedding"] = {c.canonical_key for c in emb[:5]}
-            pool.extend(emb[:5])
         best_by_key: dict[str, Candidate] = {}
         for c in pool:
             cur = best_by_key.get(c.canonical_key)
@@ -1559,10 +1499,9 @@ class OntologyMatcher:
                 # would leave the model to answer about a set it was never shown. The restriction to
                 # the section (step 3) is what keeps the fill honest; ``_by_priority`` below decides
                 # the reading order within it.
-                evidenced = list(dict.fromkeys(
-                    ([rule.canonical_key] if rule else []) + [c.canonical_key for c in emb[:8]]))
                 shortlist = list(dict.fromkeys(
-                    evidenced + self._by_priority(all_keys)))[: s.extraction.llm_candidate_cap]
+                    ([rule.canonical_key] if rule else [])
+                    + self._by_priority(all_keys)))[: s.extraction.llm_candidate_cap]
             # Offered in descending match_priority, so the long specific concept is read before the
             # short generic one it collides with on token overlap ("Total assets less current
             # liabilities", 86, ahead of "Total current liabilities", 82 — the pair the rulebook's
@@ -1597,10 +1536,10 @@ class OntologyMatcher:
                 )
 
         # 5. Deterministic decision (no LLM configured, or the LLM abstained). Exact already
-        #    returned above, so what is left is the rule tier and the embedding tier — and if
-        #    neither claims the row, it is left UNMAPPED for a human. There is deliberately no
-        #    last-resort string match: a caption nothing can place is a visible gap, where a
-        #    plausible wrong answer is a figure on the wrong line of a statement that still ties.
+        #    returned above, so the rule tier is all that is left — and if it does not claim the
+        #    row, the row is left UNMAPPED for a human. There is deliberately no last-resort match
+        #    on resemblance: a caption nothing can place is a visible gap, where a plausible wrong
+        #    answer is a figure on the wrong line of a statement that still ties.
         #
         #    First, though, step 6: when the top-scoring concepts are rated IDENTICALLY and name each
         #    other as confusable, no deterministic method can separate them and the tie-break below
@@ -1619,7 +1558,12 @@ class OntologyMatcher:
             return MappingResult(rule.canonical_key, rule.method, rule.score, [rule], False,
                                  {**scores, "rule": rule.score}, allocation_status="direct_exclusive")
 
-        primary = [c for c in ranked if c.method in (MappingMethod.RULE, MappingMethod.EMBEDDING)]
+        # Only the rule tier reaches here (a single-claimant hit returned above at 0.95), so this
+        # is the AMBIGUOUS rule hit: several concepts' hints fired, the score is 0.6, and the key
+        # reported is the highest-priority claimant. It is named rather than dropped — a reviewer
+        # given a candidate can confirm or re-map it, where an unmapped row makes them find it —
+        # and it carries needs_review, because 0.6 clears no accept bar.
+        primary = [c for c in ranked if c.method is MappingMethod.RULE]
         if primary:
             top = primary[0]
             runner = primary[1].score if len(primary) > 1 else 0.0

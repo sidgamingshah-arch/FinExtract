@@ -1,7 +1,7 @@
 """Feedback-batch backend behaviours:
 
 * Fuzzy mapping is a LAST RESORT — weak fuzzy no longer auto-maps into the review queue;
-  strong (near-exact) fuzzy still maps; rule/embedding still win over fuzzy.
+  a near-exact typo is still nobody's row; a rule hint is what carries an unlisted wording.
 * Classification keeps a sticky NOTES section, so note-continuation pages (no "Notes to…"
   banner) are NOTES, not swept into FACE — the cause of "no notes extracted".
 * Entity-name detection from the opening pages.
@@ -30,7 +30,7 @@ def _ont() -> OntologyDefinition:
 
 
 def test_weak_fuzzy_is_not_auto_mapped():
-    """A middling fuzzy overlap (no rule/embedding evidence) must NOT become a low-confidence
+    """A caption no alias and no rule hint claims must NOT become a low-confidence
     mapping that clutters review — it is left unmapped for a human."""
     m = OntologyMatcher(_ont())
     r = m.match("Amounts recoverable from trade")   # overlaps 'trade' only → ~0.5–0.7 fuzzy

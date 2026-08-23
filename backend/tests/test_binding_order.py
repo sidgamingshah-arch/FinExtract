@@ -295,7 +295,7 @@ def test_an_answer_outside_the_tied_pair_is_not_accepted(v2):
 
 
 def test_a_tie_the_evidence_only_scores_equally_is_also_emitted_for_review(v2):
-    """Not just the alias tier: two concepts a fuzzy or embedding score rates identically and that
+    """Not just the alias tier: two concepts whose hints both fire and that
     name each other are the same tie one tier down, where the fall-back was declared priority and
     then dict order."""
     m = _matcher(v2)
