@@ -4,7 +4,7 @@ every value carries page + normalized-bbox provenance regardless of source.
 """
 from __future__ import annotations
 
-from app.core.models.enums import PageKind, PageSourceKind
+from app.core.models.enums import ItemOrigin, PageKind, PageSourceKind
 from app.core.models.geometry import BBox
 from app.core.stage import PipelineContext
 from app.services.row_reconstruct import Word, build_line_items
@@ -240,6 +240,14 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
             source_kind=source_kind, ordinal_start=ordinal, number_format=number_format,
             statement=ps.statement, log=ctx.log, scope=scope, normalisation=normalisation,
             page_scope=ps.scope)
+        if ps.kind == PageKind.FACE:
+            # Said HERE because here is where it is known: this branch reads the FACE of a
+            # statement (the notes branch above returns note tables, not line items). Only a page
+            # the classifier actually called a face is stamped — an unclassified page that reached
+            # the reader because it is scanned is left for the segment stage to attribute, which
+            # is the last thing that sees every row and every page kind together.
+            for li in items:
+                li.origin = ItemOrigin.FACE
         doc.line_items.extend(items)
         added += len(items)
     ctx.log(f"extract:pdf_line_items={added} note_tables={len(doc.notes)}")

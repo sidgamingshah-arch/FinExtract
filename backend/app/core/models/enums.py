@@ -13,6 +13,21 @@ class DocFormat(str, Enum):
     UNKNOWN = "unknown"
 
 
+class ItemOrigin(str, Enum):
+    """Where an extracted row was PRINTED: on the face of a statement, or inside a note.
+
+    The distinction is not cosmetic and it is not derivable downstream from anything else. Face and
+    note rows reach ``line_items`` through the same reader, they carry the same shape, and a note's
+    detail lines sum to a figure the face already reports — so adding the two together double-counts
+    the filing. An analyst reading a value also needs to know which one they are looking at before
+    they can trust it against the statement. ``note_number`` does not answer this: that field holds
+    the note a face row CITES, not the note a row lives in.
+    """
+
+    FACE = "face"
+    NOTES = "notes"
+
+
 class PageKind(str, Enum):
     """Classification of a page after the classify stage."""
 

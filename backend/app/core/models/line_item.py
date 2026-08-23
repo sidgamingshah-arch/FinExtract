@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from .confidence import ConfidenceVector
 from .enums import (
     Basis,
+    ItemOrigin,
     LineRole,
     LinkRelationship,
     ReconciliationRole,
@@ -96,6 +97,11 @@ class LineItem(BaseModel):
     template_node_id: str | None = None
     ordinal: int = 0
     role: LineRole = LineRole.LINE
+    # Face or note — set by the reader that produced the row, from the page's own classification,
+    # and back-filled for anything synthesised later by the segment stage. None only for a row
+    # nothing could attribute, which is reported rather than defaulted: guessing "face" would put a
+    # note's money onto the statement.
+    origin: ItemOrigin | None = None
 
     values: dict[str, ExtractedValue] = Field(default_factory=dict)  # keyed by ValueKey json
     sign_convention: SignConvention = SignConvention.NATURAL
