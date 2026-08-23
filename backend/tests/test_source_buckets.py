@@ -109,6 +109,38 @@ def test_a_section_this_taxonomy_does_not_know_is_named_not_swallowed():
     assert bucket_of("bs_s9_revaluation_surplus", "balance_sheet") == ("others", "unknown_section")
 
 
+def test_a_rulebooks_own_wording_for_a_section_still_finds_its_bucket():
+    """FROM A REAL RUN. The ``output_csv_template`` rulebook writes bare section tokens in its own
+    words, and four of the five happen to equal the canonical phrase — but the fifth says
+    ``equity_reserves`` ("Equity and reserves"). An exact-key lookup answered
+    ``unknown_section(equity_reserves)`` for it, so the Equity bucket came back EMPTY on a filing
+    that prints equity on the face, and 37 rows sat in Others instead."""
+    assert bucket_of("equity_reserves", "balance_sheet") == ("equity", "section")
+    for section in ("non_current_assets", "current_assets",
+                    "non_current_liabilities", "current_liabilities"):
+        assert bucket_of(section, "balance_sheet") == (section, "section")
+
+
+def test_the_longer_phrase_wins_so_non_current_is_never_read_as_current():
+    """The collision the phrase match has to survive: ``current_assets`` is a SUFFIX of
+    ``non_current_assets``, because English puts the modifier first. Taking the longest matching
+    phrase is what keeps a non-current section out of the current bucket — reversing that order,
+    or matching on characters instead of whole words, files half the balance sheet wrongly."""
+    assert bucket_of("non_current_assets", "balance_sheet")[0] == "non_current_assets"
+    assert bucket_of("non_current_liabilities", "balance_sheet")[0] == "non_current_liabilities"
+    assert bucket_of("total_shareholders_equity", "balance_sheet")[0] == "equity"
+
+
+def test_a_section_naming_two_unnested_buckets_is_reported_not_guessed():
+    """Loosening the match must not let a section that spans two buckets be filed in one of them:
+    a phrase match with a rival that is neither nested in it nor the same bucket is an ambiguity,
+    and an ambiguity belongs in ``unknown_sections`` where an analyst can see it."""
+    assert bucket_of("equity_and_non_current_liabilities", "balance_sheet") == (
+        "others", "unknown_section")
+    # And a phrase naming no bucket at all is still named, not swallowed.
+    assert bucket_of("revaluation_surplus", "balance_sheet") == ("others", "unknown_section")
+
+
 def test_the_section_bucket_edge_is_derived_from_the_id_not_tabulated(ontology):
     """Every section the SHIPPED rulebook declares resolves to a real bucket, and the balance-sheet
     ones resolve by their own section phrase — the same phrase ``mapping.HEADING_ROW_SECTIONS`` uses

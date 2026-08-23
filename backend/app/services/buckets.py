@@ -16,8 +16,10 @@ phrase (``bs_s2_current_assets``), and that phrase is already the codebase's sec
 ``mapping.HEADING_ROW_SECTIONS`` holds the same eight tokens the extractor recognises as printed
 banners. So the ordinal prefix is stripped and the remainder is looked up in that vocabulary, which
 means a rulebook and this layer cannot drift into two different ideas of what "current assets" is.
-A balance-sheet section whose token is NOT in the vocabulary is reported in ``unknown_sections``
-rather than quietly counted as Others.
+The remainder is matched against that vocabulary as a PHRASE and not as a key, because a rulebook
+writes the section's own wording ("equity and reserves") where the vocabulary writes the canonical
+one ("equity") — see ``_bs_bucket_of_token``. A balance-sheet section no vocabulary phrase names is
+reported in ``unknown_sections`` rather than quietly counted as Others.
 
 WHAT LANDS IN OTHERS, and the distinction the store keeps:
 
@@ -66,6 +68,49 @@ _BS_SECTION_BUCKETS: dict[str, str] = {
 assert set(_BS_SECTION_BUCKETS) <= HEADING_ROW_SECTIONS, (
     "a balance-sheet bucket names a section phrase the extractor does not recognise as a banner")
 
+# The vocabulary as word tuples, longest phrase first — the ordering IS the tie-break in
+# ``_bs_bucket_of_token``, so it is built once here rather than re-sorted per row.
+_BS_PHRASES: tuple[tuple[tuple[str, ...], str], ...] = tuple(sorted(
+    ((tuple(token.split("_")), bucket) for token, bucket in _BS_SECTION_BUCKETS.items()),
+    key=lambda pair: len(pair[0]), reverse=True))
+
+
+def _contains(words: tuple[str, ...], phrase: tuple[str, ...]) -> bool:
+    """Does ``phrase`` occur in ``words`` as a run of whole words?"""
+    n = len(phrase)
+    return any(words[i:i + n] == phrase for i in range(len(words) - n + 1))
+
+
+def _bs_bucket_of_token(token: str) -> str | None:
+    """The balance-sheet bucket a section phrase names, or ``None`` if none does — or if two do.
+
+    WHY THIS IS NOT A DICTIONARY LOOKUP. A rulebook writes the section's OWN phrase, and that
+    phrase only sometimes equals the canonical one: this filing's rulebook says ``equity_reserves``
+    ("Equity and reserves") where the vocabulary says ``equity``, and an exact lookup sent every
+    equity row — the whole bucket — to Others as an ``unknown_section``.
+
+    WHY A SUBSTRING TEST WOULD BE WRONG, and why "longest wins" is safe. ``current_assets`` sits
+    inside ``non_current_assets``, so a naive match would file the non-current section as current.
+    It sits there as a SUFFIX, because English puts the modifier first — so the containing phrase is
+    always the longer one, and taking the longest match resolves that collision every time. Matching
+    on whole words (not characters) is what makes the run a phrase and not a coincidence.
+
+    A token naming TWO buckets whose phrases are not nested — ``equity_and_non_current_liabilities``
+    — is a genuine ambiguity, and gets ``None`` so the caller reports it in ``unknown_sections``
+    instead of picking one of the two halves. That guard only sees a rival phrase that is itself a
+    whole run: ``current_assets_and_liabilities`` splits ``current`` from ``liabilities`` and so
+    reads as current assets, which is the closer of the two answers available from the phrase alone.
+    """
+    words = tuple(w for w in token.split("_") if w)
+    hits = [(phrase, bucket) for phrase, bucket in _BS_PHRASES if _contains(words, phrase)]
+    if not hits:
+        return None
+    best_phrase, best_bucket = hits[0]
+    for phrase, bucket in hits[1:]:
+        if bucket != best_bucket and not _contains(best_phrase, phrase):
+            return None
+    return best_bucket
+
 # A statement whose every section falls in one bucket, so the section never has to be consulted.
 _STATEMENT_BUCKETS: dict[str, str] = {
     "profit_and_loss": "profit_and_loss",
@@ -110,8 +155,8 @@ def bucket_of(section: str | None, statement: str | None) -> tuple[str, str]:
     if statement in _STATEMENT_BUCKETS:
         return _STATEMENT_BUCKETS[statement], "statement"
     token = section_token(section or "")
-    if token in _BS_SECTION_BUCKETS:
-        return _BS_SECTION_BUCKETS[token], "section"
+    if (bucket := _bs_bucket_of_token(token)) is not None:
+        return bucket, "section"
     if token == "top_level":
         # A statement's own totals span its sections; no section bucket can hold them.
         return OTHERS, "statement_total"
