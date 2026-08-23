@@ -302,12 +302,38 @@ def _anchored(t: str) -> bool:
     return bool(_EN_ANCHOR.search(t))
 
 
+# How much of a title candidate the statement's name has to BE, for the candidate to count as that
+# statement's title. A note's prose refers to the statement it belongs to — "These items are included
+# in “cost of sales” in the consolidated statement of profit or loss" — and the title pattern matches
+# perfectly inside that sentence. Nothing else the classifier has separates the two: the sentence is
+# heading-shaped by every other measure, ``_TITLE_NEGATIVE`` only knows note HEADINGS, and the false
+# title then erases the evidence against itself (the page's own numbered note heading is ignored once
+# a strong title is found). What does separate them is proportion. A printed title IS the statement's
+# name, plus at most a qualifier and its translation; a sentence that merely names the statement is
+# mostly other words.
+#
+# 0.35, measured against two real HKEX filings: the lowest genuine title in either covers 0.52 — a
+# one-line bilingual "CONSOLIDATED STATEMENT OF CASH FLOWS 綜合現金流量表" — and no page that resolved
+# a statement before resolves a different one now. The three prose sentences that were being served
+# as face profit-and-loss pages are far below it.
+_TITLE_COVERAGE = 0.35
+
+
+def _covers_title(match: str, text: str) -> bool:
+    """Is ``match`` most of ``text`` — i.e. is this line the statement's name rather than a
+    sentence that happens to contain it?"""
+    return len(match) / max(len(text), 1) >= _TITLE_COVERAGE
+
+
 def _resolve_statement(cands: list[dict]) -> tuple[str | None, bool, str | None, bool]:
     """(statement, oci_combined, matched_title, ambiguous).
 
     POSITION first, then match length — never list order. Pages genuinely carry two candidates (an
     equity-statement tail above a cash-flow title; P&L above OCI), and longest-match-at-topmost-y is
     what picks the right one. Reverting to list order reintroduces the equity-tail bug.
+
+    A match only counts if it is most of the candidate line (:func:`_covers_title`), which is what
+    keeps a note's prose from being read as the statement it refers to.
     """
     hits: list[tuple[float, int, str, str]] = []
     names: set[str] = set()
@@ -320,7 +346,8 @@ def _resolve_statement(cands: list[dict]) -> tuple[str | None, bool, str | None,
         for name, strong, weak in _STATEMENTS:
             for p in strong:
                 m = re.search(p, low) or re.search(p, t)
-                if m and (best is None or len(m.group(0)) > best[0]):
+                if m and _covers_title(m.group(0), t) and (best is None
+                                                           or len(m.group(0)) > best[0]):
                     best = (len(m.group(0)), name)
             # ``anchored`` on the candidate itself, for text whose CONTEXT is the anchor. The
             # English-anchor test exists because a page's prose says "cash flows" constantly, so a
@@ -330,7 +357,8 @@ def _resolve_statement(cands: list[dict]) -> tuple[str | None, bool, str | None,
             if c.get("anchored") or _anchored(t):
                 for p in weak:
                     m = re.search(p, low) or re.search(p, t)
-                    if m and (best is None or len(m.group(0)) > best[0]):
+                    if m and _covers_title(m.group(0), t) and (best is None
+                                                              or len(m.group(0)) > best[0]):
                         best = (len(m.group(0)), name)
         if best:
             hits.append((c.get("y", 0.0), -best[0], best[1], t))

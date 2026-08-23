@@ -100,19 +100,39 @@ def test_the_filers_own_name_is_not_a_scope_marker():
     scope is read from is "SUNRISE DEVELOPMENT COMPANY LIMITED BALANCE SHEET". Reading Company out
     of the filer's NAME labelled the GROUP's balance sheet as the Company's — and because the title
     path needs no notes-region gate and no corroboration, it did so on page one of any filing whose
-    statements are titled without the word consolidated."""
+    statements are titled without the word consolidated.
+
+    Two independent things now stop it, and this asserts the OUTCOME rather than either mechanism:
+    the joined candidate no longer clears the title-coverage floor (the filer's name is most of it),
+    and ``_SCOPE_COMPANY`` would not read Company out of a corporate suffix even if it did. The
+    scope regex is covered directly by
+    :func:`test_a_corporate_suffix_is_not_read_as_the_reporting_entity`."""
     pytest.importorskip("reportlab")
     from tests.fixtures.generate import make_issuer_named_untokened_face_pdf
 
     doc, logs = _run(make_issuer_named_untokened_face_pdf())
     face = next(p for p in doc.pages if p.statement)
-    assert "COMPANY LIMITED" in str(face.evidence.get("matched_title"))
     assert face.scope is None
     # One set of figures, left where they were: the Group's by default.
     assert sorted({ev.basis.value for li in doc.line_items
                    for ev in li.values.values()}) == ["consolidated"]
     # And the refusal is stated, so a missing basis is distinguishable from a wrong one.
     assert any("entity_scope=unresolved(face_after_notes" in m for m in logs), logs
+
+
+def test_a_corporate_suffix_is_not_read_as_the_reporting_entity():
+    """The scope regex on its own, so it keeps its coverage whatever the title path hands it.
+
+    "Company" and "Group" are both words in corporate NAMES and both name a reporting entity, and
+    only what follows tells them apart: a suffix (Limited, Holdings, plc) means the token is part of
+    a name."""
+    from app.stages.classify import _scope_of
+
+    assert _scope_of("SUNRISE DEVELOPMENT COMPANY LIMITED BALANCE SHEET", [], 800.0)[0] is None
+    assert _scope_of("FAIRWAY GROUP HOLDINGS LIMITED BALANCE SHEET", [], 800.0)[0] is None
+    # ...and a token that really does name the entity is still read.
+    assert _scope_of("BALANCE SHEET OF THE COMPANY", [], 800.0)[0] == "company"
+    assert _scope_of("CONSOLIDATED BALANCE SHEET", [], 800.0)[0] == "consolidated"
 
 
 def test_position_past_the_notes_is_not_enough_on_its_own():
