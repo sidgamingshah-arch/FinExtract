@@ -40,6 +40,12 @@ class PageSource(BaseModel):
     scope: str | None = None
     # The scopes found as COLUMN headers in the top band, when the page carries more than one.
     scope_columns: list[str] = Field(default_factory=list)
+    # The page number PRINTED ON THE PAGE, as printed — the report's own folio. It is not
+    # ``index + 1``: an annual report's front matter (cover, contents, chairman's statement) means
+    # the folio runs behind the file's page count, routinely by several pages. Both numbers are
+    # true and neither substitutes for the other, so the viewer shows the position it navigates by
+    # AND the number the reader sees on the paper. None when the page prints no folio.
+    printed_page: str | None = None
     # Why the classifier decided what it did: the title it matched, whether that title was
     # ambiguous, and the decode margin. Diagnostic — nothing downstream branches on it.
     evidence: dict[str, object] = Field(default_factory=dict)

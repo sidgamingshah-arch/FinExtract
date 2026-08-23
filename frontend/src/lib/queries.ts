@@ -683,6 +683,17 @@ export const useDocumentPages = (documentId: string | undefined) =>
     retry: false,
   });
 
+/** Text search over a document's source pages. Keyed on the SUBMITTED term (not what is being
+ *  typed), so a search is one request per query rather than one per keystroke. */
+export const useDocumentSearch = (documentId: string | undefined, q: string) =>
+  useQuery({
+    queryKey: ["document-search", documentId, q],
+    queryFn: () => api.searchDocument(documentId as string, q),
+    enabled: !!documentId && q.trim().length >= 2,
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+
 /** Persist the user's page selection for extraction; refreshes the pages view. */
 export function useSetDocumentScope(documentId: string | undefined) {
   const qc = useQueryClient();

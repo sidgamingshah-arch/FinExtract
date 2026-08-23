@@ -749,6 +749,10 @@ export interface PageCard {
   conf_pct?: number | null;
   included: boolean;
   scan: "native" | "scanned";
+  /** The page number PRINTED ON THE PAGE, when it prints one. `no` above is the page's position in
+   *  the FILE — what every index in this product means and what the viewer scrolls to — and the two
+   *  differ by however much front matter the report has. Null when the page carries no folio. */
+  printed?: string | null;
 }
 export interface PagesResponse {
   pages: PageCard[];
@@ -756,6 +760,25 @@ export interface PagesResponse {
   focused: number;
   total: number;
   skipped: number;
+}
+
+/** One hit from searching the source document's text layer. The box is in the same normalized
+ *  page space as provenance, so a hit is highlighted by the same overlay a picked value is. */
+export interface DocSearchHit {
+  page_index: number;
+  printed_page?: string | null;
+  bbox: { x0: number; y0: number; x1: number; y1: number };
+  snippet: string;
+}
+export interface DocSearchResult {
+  query: string;
+  hits: DocSearchHit[];
+  count: number;
+  /** True when the cap was reached — "these are the first n", not "these are all". */
+  truncated: boolean;
+  /** Pages with no text layer. They cannot be searched, and saying so is not the same as
+   *  reporting no matches. */
+  scanned_pages: number;
 }
 
 export interface ReviewCalcRow {

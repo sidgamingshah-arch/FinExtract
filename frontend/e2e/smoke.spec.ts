@@ -232,8 +232,18 @@ test("analyst cannot reach the config template screen but can select a template"
 
   // Template & Ontology is an admin-only configuration screen: it must NOT appear in the
   // analyst's nav, and a direct visit is redirected away (to the analyst's first screen).
+  //
+  // The rail is COLLAPSED by default, which hides every label — so it is expanded first. Asserting
+  // the absence of a label against a rail that shows none of them would pass whatever the role may
+  // see, which is the assertion quietly meaning nothing.
   await page.goto("/workspace", DCL);
-  await expect(page.getByText("Template & Ontology")).toHaveCount(0);
+  const rail = page.getByTestId("nav-rail");
+  if ((await rail.getAttribute("data-collapsed")) === "1") {
+    await page.getByTestId("nav-toggle").click();
+  }
+  await expect(rail).toHaveAttribute("data-collapsed", "0");
+  await expect(page.getByText("Workspace").first()).toBeVisible();  // labels are showing…
+  await expect(page.getByText("Template & Ontology")).toHaveCount(0); // …and this one is not there
   await page.goto("/template", DCL);
   await expect(page).not.toHaveURL(/\/template/);
 

@@ -11,7 +11,10 @@
  * `appLocale` (see useAppLocale) is the effective locale for interface chrome. */
 import { create } from "zustand";
 
-import { getStoredActiveDoc, getToken, setStoredActiveDoc, setStoredToken } from "./lib/api";
+import {
+  getStoredActiveDoc, getStoredNavCollapsed, getToken, setStoredActiveDoc, setStoredNavCollapsed,
+  setStoredToken,
+} from "./lib/api";
 import type { Basis, ExportFmt, ExtractMode, Locale, StatementKey } from "./types";
 
 interface UIState {
@@ -34,6 +37,8 @@ interface UIState {
   // first — the oldest. One field, holding the thing a run actually needs.
   selectedTemplateId: string | null;
   exportFmt: ExportFmt;
+  /** Navigation rail collapsed to icons. Persisted, and collapsed by default. */
+  navCollapsed: boolean;
 
   setLocale: (l: Locale) => void;
   setUiLocalization: (v: boolean) => void;
@@ -52,6 +57,7 @@ interface UIState {
   setTpl: (id: string) => void;
   setSelectedTemplateId: (id: string | null) => void;
   setFmt: (f: ExportFmt) => void;
+  setNavCollapsed: (v: boolean) => void;
 }
 
 export const useUI = create<UIState>((set) => ({
@@ -69,6 +75,7 @@ export const useUI = create<UIState>((set) => ({
   tplSel: "trade_recv",
   selectedTemplateId: null,
   exportFmt: "excel",
+  navCollapsed: getStoredNavCollapsed(),
 
   setLocale: (locale) => set({ locale }),
   setUiLocalization: (uiLocalization) => set({ uiLocalization }),
@@ -93,6 +100,10 @@ export const useUI = create<UIState>((set) => ({
   setTpl: (tplSel) => set({ tplSel }),
   setSelectedTemplateId: (selectedTemplateId) => set({ selectedTemplateId }),
   setFmt: (exportFmt) => set({ exportFmt }),
+  setNavCollapsed: (navCollapsed) => {
+    setStoredNavCollapsed(navCollapsed);
+    set({ navCollapsed });
+  },
 }));
 
 /** Effective locale for interface chrome: the chosen language only when an admin has

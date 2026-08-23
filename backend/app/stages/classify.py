@@ -462,6 +462,45 @@ def _scope_of(title: str | None, lines: list[dict], page_h: float,
     return scope, cols
 
 
+# A line that is nothing but a page number, with the brackets or dashes some filings print
+# around it: "12", "(12)", "- 12 -".
+_FOLIO = re.compile(r"^[-–—(\[]?\s*(\d{1,4})\s*[-–—)\]]?$")
+# How far into the page a folio can sit, as a fraction of the page height. Deliberately tight: the
+# folio is printed in the margin, and the band immediately inside it holds the column headings of
+# every statement — a top band of 0.10 would collect "2025" from the header of a balance sheet.
+_FOLIO_BAND = 0.07
+
+
+def _printed_folio(lines: list[dict], page_h: float) -> str | None:
+    """The page's own printed page number, if it prints one.
+
+    Read from the margins only, bottom preferred, because that is where a folio is set and because
+    the further in the search reaches the more of the statement it can mistake for one. A year is
+    never a folio — an annual report has no page 2025 — and that one exclusion is what keeps a
+    column heading in the top margin from being read as the page number.
+    """
+    if not page_h:
+        return None
+    best: tuple[int, float, str] | None = None
+    for line in lines:
+        m = _FOLIO.match(line["text"].strip())
+        if not m:
+            continue
+        folio = m.group(1)
+        if re.fullmatch(r"(?:19|20)\d\d", folio):
+            continue
+        y = float(line.get("y", 0.0)) / page_h
+        if y >= 1.0 - _FOLIO_BAND:
+            zone, edge = 0, 1.0 - y            # bottom margin: where a folio normally sits
+        elif y <= _FOLIO_BAND:
+            zone, edge = 1, y
+        else:
+            continue
+        if best is None or (zone, edge) < (best[0], best[1]):
+            best = (zone, edge, folio)
+    return best[2] if best else None
+
+
 def _page_lines(page) -> tuple[list[dict], float]:
     """Lines as (text, y, size, bold), top-down. Read from the span dict rather than plain text
     because a title's position and weight are evidence the decode uses."""
@@ -744,6 +783,8 @@ class ClassifyStage:
                 pages, feats, path, margins, cache):
             page_src.kind = _KIND[state]
             page_src.classification_confidence = _confidence(margin)
+            # Every page, not just the faces: the viewer names any page the reader scrolls to.
+            page_src.printed_page = _printed_folio(lines, height)
             if state == _FACE:
                 named = _STATEMENT_ALIAS.get(f.statement or "", f.statement)
                 if named:

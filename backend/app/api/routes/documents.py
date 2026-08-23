@@ -3328,6 +3328,11 @@ def _build_pages(pages: list[dict], scope: list[int] | None = None) -> dict:
             "conf_pct": pct,
             "included": included,
             "scan": "scanned" if p.get("source_kind") == "scanned" else "native",
+            # The page's own printed folio, when it prints one. `no` above is the position in the
+            # FILE, which is what every index in this system means and what the viewer navigates
+            # by; this is the number the reader sees on the page. They differ by however much front
+            # matter the report has, which is why showing only one of them misleads.
+            "printed": p.get("printed_page"),
         })
     # Counted from the cards, by the same helper the sample route uses — see app/services/
     # page_scope.py for why the two routes are no longer allowed their own arithmetic.
@@ -4997,6 +5002,106 @@ def get_page_image(
         raise HTTPException(status_code=422, detail=f"Could not render page: {exc}")
     return Response(content=png, media_type="image/png",
                     headers={"Cache-Control": "private, max-age=300"})
+
+
+@router.get("/{document_id}/search", dependencies=[Depends(authorized_document)])
+def search_document_text(
+    document_id: str,
+    q: str = Query(..., min_length=2, max_length=120),
+    limit: int = Query(80, ge=1, le=300),
+    session: Session = Depends(db),
+    store: LocalObjectStore = Depends(object_store),
+) -> dict:
+    """Find ``q`` in the document's text layer, as page + normalized box per hit.
+
+    The viewer renders pages as images, so it has no text of its own to search — and an analyst
+    checking a figure needs to get to a page by what it SAYS, not only by the position an extracted
+    value happens to carry. The boxes come back in the same normalized page space as provenance, so
+    a hit is highlighted by exactly the overlay a picked value is.
+
+    A scanned page has no text layer and cannot be searched; the count of those is returned rather
+    than left to look like an absence of matches. (Their OCR text is not retained per word, so there
+    is nothing to give a box to.)
+    """
+    from app.db.models import Document
+
+    row = session.get(Document, document_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if row.fmt != "pdf":
+        raise HTTPException(status_code=400, detail="Text search is only available for PDFs")
+    try:
+        import fitz
+    except ImportError:  # pragma: no cover - PyMuPDF is a core dep
+        raise HTTPException(status_code=501, detail="PDF rendering unavailable")
+
+    folios = {(p.get("index", 0) or 0): p.get("printed_page")
+              for p in _document_pages(row, store)}
+    scanned = sum(1 for p in _document_pages(row, store) if p.get("source_kind") == "scanned")
+    needle = q.strip()
+    hits: list[dict] = []
+    truncated = False
+    try:
+        pdf = fitz.open(stream=store.get(row.object_key), filetype="pdf")
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=422, detail=f"Could not open document: {exc}")
+    for index in range(pdf.page_count):
+        if len(hits) >= limit:
+            truncated = True
+            break
+        page = pdf[index]
+        try:
+            found = page.search_for(needle)
+        except Exception:  # noqa: BLE001 — one unreadable page must not fail the search
+            continue
+        if not found:
+            continue
+        w, h = max(page.rect.width, 1.0), max(page.rect.height, 1.0)
+        lines = _text_lines_for_snippets(page)
+        for rect in found:
+            if len(hits) >= limit:
+                truncated = True
+                break
+            hits.append({
+                "page_index": index,
+                "printed_page": folios.get(index),
+                "bbox": {"x0": max(0.0, rect.x0 / w), "y0": max(0.0, rect.y0 / h),
+                         "x1": min(1.0, rect.x1 / w), "y1": min(1.0, rect.y1 / h)},
+                "snippet": _snippet_at(lines, rect) or needle,
+            })
+    pdf.close()
+    return {"query": needle, "hits": hits, "count": len(hits),
+            "truncated": truncated, "scanned_pages": scanned}
+
+
+def _text_lines_for_snippets(page) -> list[tuple[tuple[float, float, float, float], str]]:
+    """(box, text) for each text line of the page — the context a hit is quoted from."""
+    try:
+        blocks = page.get_text("dict").get("blocks", [])
+    except Exception:  # noqa: BLE001
+        return []
+    out = []
+    for block in blocks:
+        for line in block.get("lines", []):
+            text = "".join(sp.get("text", "") for sp in line.get("spans", [])).strip()
+            if text:
+                out.append((tuple(line.get("bbox") or (0.0, 0.0, 0.0, 0.0)), text))
+    return out
+
+
+def _snippet_at(lines: list[tuple[tuple[float, float, float, float], str]], rect,
+                width: int = 120) -> str | None:
+    """The printed line a hit falls on, trimmed — so a result reads as the sentence it came from."""
+    cx, cy = (rect.x0 + rect.x1) / 2, (rect.y0 + rect.y1) / 2
+    best: tuple[float, str] | None = None
+    for (x0, y0, x1, y1), text in lines:
+        if x0 - 1 <= cx <= x1 + 1 and y0 - 1 <= cy <= y1 + 1:
+            area = max(x1 - x0, 0.0) * max(y1 - y0, 0.0)
+            if best is None or area < best[0]:
+                best = (area, text)
+    if best is None:
+        return None
+    return best[1][:width] + ("…" if len(best[1]) > width else "")
 
 
 @router.get("/{document_id}/cell-context", dependencies=[Depends(authorized_document)])
