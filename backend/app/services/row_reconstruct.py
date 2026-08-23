@@ -961,6 +961,25 @@ def _is_basis_caption_row(label: str, vals: list,
     return all(_signal_side(t, signals) is not None for t in tokens)
 
 
+# The page classifier's own verdict on whose figures a page presents, as a basis.
+#
+# ``classify._scope_of`` resolves this from the page TITLE ("consolidated statement of financial
+# position" vs "statement of financial position") and, for a face-titled page with no consolidation
+# token, from whether the page sits after the notes — which is where an HKEX filing prints the
+# Company's own statement. It is written to ``PageSource.scope`` and, until this mapping existed,
+# read by nothing: the reconstructor was never told, so a Company-only page with no two-basis column
+# header read as consolidated and its figures were ADDED to the Group's under the same keys.
+#
+# "mixed" is deliberately absent. A page captioned for both entities is exactly the case
+# :func:`_basis_bands` exists for, and only the caption geometry can say which COLUMNS are whose; a
+# page-wide basis would file half of them wrongly. A page whose scope is mixed but where no band
+# survived the geometric guards keeps the consolidated default rather than guessing.
+_PAGE_SCOPE_BASIS: dict[str, Basis] = {
+    "consolidated": Basis.CONSOLIDATED,
+    "company": Basis.STANDALONE,
+}
+
+
 def _company_only_stems(scope: ScopeSelection | None) -> tuple[tuple[str, ...], ...]:
     """Caption stems for each declared ``company_only_markers`` entry.
 
@@ -2056,7 +2075,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                      number_format=None, statement: str | None = None,
                      log=None, scope: ScopeSelection | None = None,
                      normalisation: Normalisation | None = None,
-                     on_face: bool = True) -> tuple[list[LineItem], int]:
+                     on_face: bool = True,
+                     page_scope: str | None = None) -> tuple[list[LineItem], int]:
     """Reconstruct line items from positioned words. Returns (items, next_ordinal).
 
     Both bases are extracted in one pass: a two-basis header band (Group | Company,
@@ -2075,7 +2095,14 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     ``scope``/``normalisation`` override the rulebook in force (see :func:`in_force_rules`), and
     ``on_face`` says whether these rows are a statement FACE: the ``company_only_markers`` rule is
     declared about the face, and a note listing the Company's investments in subsidiaries must not
-    relabel the basis of a note that belongs to the consolidated statements."""
+    relabel the basis of a note that belongs to the consolidated statements.
+
+    ``page_scope`` is the page classifier's ``PageSource.scope`` ("consolidated" / "company" /
+    "mixed" / None). It is the third and weakest way a basis is decided, and the three are ranked:
+    a two-basis header band on the page wins, because caption geometry attributes each COLUMN and
+    nothing else can; the page scope comes next, because a title naming the entity is direct
+    evidence about the whole page; ``company_only_markers`` is last, because it infers the entity
+    from one line item being present. See :data:`_PAGE_SCOPE_BASIS`."""
     if scope is None or normalisation is None:
         in_force_scope, in_force_norm = in_force_rules()
         scope = scope if scope is not None else in_force_scope
@@ -2138,6 +2165,14 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                          signals=entity_signals, fmt=number_format,
                          log=log, page_index=page_index)
     rows = _merge_wrapped_labels(raw_rows, number_format, steps)
+    if not bands and page_scope in _PAGE_SCOPE_BASIS:
+        # The classifier read the entity off the page's own title (or off its position past the
+        # notes, which is what an untitled Company statement is). No column header names an entity
+        # here — that is why no band was found — so the verdict covers the whole page: one band,
+        # and `_basis_of_columns` gives every column that basis.
+        bands = [(_PAGE_SCOPE_BASIS[page_scope], 0.5)]
+        if log:
+            log(f"extract:page={page_index}:entity_scope=page_scope({page_scope})")
     if not bands and on_face:
         # company_only_markers: "Presence of …__investments_in_subsidiaries on the face is strong
         # evidence the column is company-only, since consolidation eliminates it." A single-basis

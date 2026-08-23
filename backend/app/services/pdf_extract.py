@@ -168,10 +168,16 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         # ``ps.statement`` (from the classifier) is what tells the reconstructor that a page is a
         # component matrix rather than a two-column comparative; ``ctx.log`` records the cases
         # where a matrix page could not be attributed and was skipped.
+        #
+        # ``ps.scope`` is the same classifier's verdict on WHOSE figures the page presents. It was
+        # computed and dropped here, so a Company-only statement of financial position — which an
+        # HKEX filing prints on its own page past the notes, with no column header naming an entity
+        # — was reconstructed as the Group's and added to it under the same canonical keys.
         items, ordinal = build_line_items(
             words, page_index=ps.index, document_id=doc.content_hash,
             source_kind=source_kind, ordinal_start=ordinal, number_format=number_format,
-            statement=ps.statement, log=ctx.log, scope=scope, normalisation=normalisation)
+            statement=ps.statement, log=ctx.log, scope=scope, normalisation=normalisation,
+            page_scope=ps.scope)
         doc.line_items.extend(items)
         added += len(items)
     ctx.log(f"extract:pdf_line_items={added} note_tables={len(doc.notes)}")

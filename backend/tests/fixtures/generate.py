@@ -279,6 +279,87 @@ def make_multipage_pdf() -> bytes:
     return buf.getvalue()
 
 
+def make_company_statement_after_notes_pdf() -> bytes:
+    """THE HK HOUSE STYLE THAT MIS-LOADS: the Group's balance sheet, a note, then the COMPANY's own
+    balance sheet printed after the notes with the SAME title minus the word "consolidated".
+
+    Every existing basis fixture puts both entities on ONE page, side by side, where
+    ``_basis_bands`` finds them. This one puts them on separate single-basis pages, which is how
+    an HKEX filing actually prints the Company's statement of financial position — past the notes,
+    titled only "STATEMENT OF FINANCIAL POSITION". No column header names an entity, so nothing in
+    ``row_reconstruct`` can tell the two pages apart, and the Company's figures were added to the
+    Group's: the two pages share every label, so they map to the same canonical keys and the
+    spread sums them.
+
+    The note page in the middle is load-bearing, not decoration. It is what makes the classifier's
+    notes-region walk mark the third page as company-only (``classify._scope_of`` reads a
+    face-titled page inside the notes region as the Company's), and that verdict is the only
+    evidence on the page of whose figures these are.
+
+    Ground truth: p0 consolidated (36,683 / 40,904 / 53,035), p2 company (647 / 0 / 7,551).
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    def _rows(c, y, rows):
+        c.setFont("Helvetica", 10)
+        for label, cur, pri in rows:
+            y -= 20
+            c.drawString(72, y, label)
+            c.drawRightString(430, y, cur)
+            c.drawRightString(510, y, pri)
+        return y
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    _, height = A4
+
+    y = height - 72
+    c.setFont("Helvetica-Bold", 13)
+    c.drawString(72, y, "CONSOLIDATED STATEMENT OF FINANCIAL POSITION")
+    c.setFont("Helvetica", 9)
+    y -= 20
+    c.drawString(72, y, "As at 31 July 2025")
+    y -= 22
+    c.drawRightString(430, y, "2025")
+    c.drawRightString(510, y, "2024")
+    _rows(c, y, (("Investment properties", "36,683", "37,095"),
+                 ("Inventories", "40,904", "47,131"),
+                 ("Total non-current assets", "53,035", "55,400")))
+    c.showPage()
+
+    y = height - 72
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(72, y, "29. Cash and cash equivalents")
+    c.setFont("Helvetica", 10)
+    y -= 22
+    c.drawString(72, y, "Cash at banks earns interest at floating rates based on daily bank")
+    y -= 16
+    c.drawString(72, y, "deposit rates.")
+    y -= 24
+    c.drawRightString(430, y, "2025")
+    c.drawRightString(510, y, "2024")
+    _rows(c, y, (("Cash and bank balances", "2,379", "2,502"),
+                 ("Time deposits", "647", "324")))
+    c.showPage()
+
+    y = height - 72
+    c.setFont("Helvetica-Bold", 13)
+    c.drawString(72, y, "STATEMENT OF FINANCIAL POSITION")
+    c.setFont("Helvetica", 9)
+    y -= 20
+    c.drawString(72, y, "As at 31 July 2025")
+    y -= 22
+    c.drawRightString(430, y, "2025")
+    c.drawRightString(510, y, "2024")
+    _rows(c, y, (("Investment properties", "647", "698"),
+                 ("Inventories", "0", "0"),
+                 ("Total non-current assets", "7,551", "7,598")))
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
 def make_annual_report_pdf() -> bytes:
     """A realistic HKEX/IFRS-shaped annual report: cover, an auditor's report (which mentions
     face phrases in prose), three *consolidated* face statements, then a notes section that
