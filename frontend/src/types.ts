@@ -255,6 +255,11 @@ export interface RowContribution {
   /** …and the same for the prior period, printed in its own column on its own page. */
   src2?: string;
   source2?: ExtractionProvenance | null;
+  /** Whether the figure above ADDS this line. False for a fact the filing printed twice — on the
+   *  face and restated in a note, or on two statements — which is one fact with two references,
+   *  not two amounts to sum. Per period, because the figure is. */
+  counted?: boolean;
+  counted2?: boolean;
 }
 
 export interface StatementRow {

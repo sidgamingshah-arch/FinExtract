@@ -19,6 +19,7 @@ from app.services import review_lines
 from app.services.page_scope import normalise_kind, scope_counts
 from app.services.periods import (
     bases_present, basis_values as _basis_values_of, concept_value as _concept_value,
+    summable as _summable,
     edited_for as _edited_for, effective_basis,
     names_a_component, period_displays, slot_for, split_current_prior)
 from app.services.reconcile import tie_status
@@ -4338,6 +4339,13 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
             # A combined figure has to be auditable line by line: each contributing caption with
             # its OWN values and its OWN source location, so every part can be traced back to the
             # page it was printed on. A prose summary cannot be clicked.
+            #
+            # WHICH LINES ADD, per period. A fact the filing printed twice is counted once
+            # (`periods.summable`), so listing every line as an addend would show a column that does
+            # not add up to the figure above it — the reader would be left to guess which line the
+            # total left out. Marked per period because that is the granularity the figure is.
+            adds_cur = {id(x) for x, _ in _summable(group, basis, "current")}
+            adds_prior = {id(x) for x, _ in _summable(group, basis, "prior")}
             for x in group:
                 c, p = _cur_prior(x, basis)
                 contributions.append({
@@ -4357,6 +4365,11 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
                     # own page in a filing that reprints last year's statement.
                     "src2": _prov_label((p or {}).get("provenance")),
                     "source2": (p or {}).get("provenance"),
+                    # False for a line whose figure this concept already holds from somewhere else
+                    # — the same fact printed on the face and restated in a note, or on two
+                    # statements. Shown as evidence, not added.
+                    "counted": id(x) in adds_cur,
+                    "counted2": id(x) in adds_prior,
                 })
             terms = [f"{c['v1']:,.0f}" if c["v1"] is not None else "—" for c in contributions]
             printed = " + ".join(terms)

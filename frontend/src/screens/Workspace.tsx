@@ -1848,6 +1848,11 @@ export default function WorkspaceScreen() {
                       const src = inspPeriod === "current" ? c.src : c.src2;
                       const v = inspPeriod === "current" ? c.v1 : c.v2;
                       const jump = usingReal ? toPicked(prov ?? null, c.label) : null;
+                      // A fact printed twice is evidence for the figure, not an addend of it. It
+                      // still belongs in the list — it is a real place in the document a reviewer
+                      // can check — but showing it with a "+" would make the column not add up.
+                      const counted =
+                        (inspPeriod === "current" ? c.counted : c.counted2) !== false;
                       return (
                         <div
                           key={`${c.label}-${i}`}
@@ -1864,13 +1869,19 @@ export default function WorkspaceScreen() {
                         >
                           <span style={{ fontFamily: font.mono, fontSize: 10.5, color: color.muted,
                                          minWidth: 14 }}>
-                            {i === 0 ? "" : "+"}
+                            {!counted ? "=" : i === 0 ? "" : "+"}
                           </span>
                           <span style={{ fontSize: 11.5, color: color.ink, flex: 1,
                                          textDecoration: jump ? "underline dotted" : "none" }}>
                             {c.label}
                           </span>
-                          {c.residual ? (
+                          {!counted ? (
+                            <span style={{ fontSize: 9.5, fontWeight: 600, padding: "1px 6px",
+                                           borderRadius: radius.pill, background: color.amberBg,
+                                           color: color.amberFg }}>
+                              printed twice
+                            </span>
+                          ) : c.residual ? (
                             <span style={{ fontSize: 9.5, fontWeight: 600, padding: "1px 6px",
                                            borderRadius: radius.pill, background: color.amberBg,
                                            color: color.amberFg }}>
@@ -1882,7 +1893,8 @@ export default function WorkspaceScreen() {
                             {src || ""}
                           </span>
                           <span style={{ fontFamily: font.mono, fontSize: 11.5, fontWeight: 600,
-                                         color: color.ink, minWidth: 92, textAlign: "right" }}>
+                                         color: counted ? color.ink : color.muted, minWidth: 92,
+                                         textAlign: "right" }}>
                             {v == null ? "—" : present(v)}
                           </span>
                         </div>
