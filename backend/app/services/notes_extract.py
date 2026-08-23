@@ -11,7 +11,8 @@ from __future__ import annotations
 import re
 
 from app.core.models.line_item import NoteItem, NotesTable
-from app.services.row_reconstruct import Word, _group_rows, _scan_row, build_line_items
+from app.services.row_reconstruct import (
+    Word, _group_rows, _scan_row, build_line_items, row_tolerance)
 
 # "Note 15: Trade receivables", "Note 15 Trade receivables", "15. Trade receivables"
 _HEADING = re.compile(r"^(?:note[s]?\.?\s+)?(?P<no>\d{1,3})\s*[:.\)\-]?\s*(?P<title>.*)$",
@@ -46,7 +47,10 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
     the same rules as the face it supports, or the note→face tie compares figures taken from
     different columns.
     """
-    rows = _group_rows(words)
+    # The same page-derived tolerance the face uses: a note's detail lines are set as tightly as a
+    # statement's, and two of them merged into one row interleave their captions (row_reconstruct.
+    # row_tolerance). A note whose caption comes out scrambled ties to nothing.
+    rows = _group_rows(words, row_tolerance(words, source_kind))
     sections: list[dict] = []
     current: dict | None = None
     for row in rows:

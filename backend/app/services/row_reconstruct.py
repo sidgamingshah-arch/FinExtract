@@ -191,8 +191,44 @@ def _num(t: str, fmt=None) -> Decimal | None:
         return None
 
 
-def _group_rows(words: list[Word], y_tol: float = 0.012) -> list[list[Word]]:
-    """Cluster words into visual rows by vertical position, then order left→right."""
+# One line height on A4 at 10pt, give or take — which is the problem with it as a row tolerance.
+# Kept as the default for inexact geometry only; see :func:`row_tolerance`.
+_DEFAULT_Y_TOL = 0.012
+
+
+def row_tolerance(words: list[Word], source_kind: str) -> float:
+    """How far apart two words may sit vertically and still be one printed row.
+
+    DERIVED FROM THE PAGE when the coordinates are exact, generous when they are not. The axis is
+    whether the geometry can be trusted — not what kind of table it is.
+
+    WHY A FIXED FRACTION OF THE PAGE CANNOT WORK. ``_DEFAULT_Y_TOL`` is about ONE line height, so it
+    lands inside the range of leadings a filing actually uses: measured on real output, the centres
+    of consecutive lines sit 0.0107 apart at 9pt leading and 0.0166 at 14pt, with the tolerance at
+    0.012 in between. Everything tighter than about 11pt merges.
+
+    AND THE MERGE IS NOT A NEAR MISS. ``_group_rows`` orders a row left to right, so two printed
+    lines folded into one row come back with their words INTERLEAVED BY X. "Reversal of impairment
+    of property, plant and" over "equipment, net" reads out as "Reversal equipment, of impairment
+    net of property, plant and" — a caption that matches no alias in any rulebook, and one that
+    reaches the analyst looking like an extraction curiosity rather than a geometry bug. Half a
+    line height separates the same lines with room to spare: words of ONE line overlap vertically
+    by 100%, and the tightest leading measured still sits 1.5x the tolerance away.
+
+    OCR KEEPS THE GENEROUS DEFAULT, for the opposite reason. There a word's y comes from a
+    recognised image, and residual skew after deskewing moves a word by a real fraction of a line
+    across the width of a table — so the tolerance has to absorb drift WITHIN a line. Tightening it
+    there would split one row into two and strand the figures away from their caption, which is a
+    worse failure than a merged caption.
+    """
+    return _line_tol(words) if source_kind == "native" else _DEFAULT_Y_TOL
+
+
+def _group_rows(words: list[Word], y_tol: float = _DEFAULT_Y_TOL) -> list[list[Word]]:
+    """Cluster words into visual rows by vertical position, then order left→right.
+
+    ``y_tol`` is the caller's, because only the caller knows how exact its coordinates are — see
+    :func:`row_tolerance`."""
     ordered = sorted(words, key=lambda w: (w.bbox.y0, w.bbox.x0))
     rows: list[list[Word]] = []
     for w in ordered:
@@ -2144,7 +2180,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     # `_basis_bands` correctly refuses it — the page then reads as single-basis and the Company's
     # column is added to the Group's. (Value words are untouched by the merge, so the note column
     # and the value columns come out the same either way.)
-    raw_rows = _group_rows(words)
+    raw_rows = _group_rows(words, row_tolerance(words, source_kind))
     entity_signals = _entity_signals(scope)
     # real period-end dates for column headers, if any
     period_bands = _period_bands(raw_rows, number_format)
