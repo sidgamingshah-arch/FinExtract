@@ -42,6 +42,31 @@ _NOTE = re.compile(r"^note[s]?\.?$", re.IGNORECASE)
 _NOTE_HDR = re.compile(r"^(notes?|附註|附注)$", re.IGNORECASE)
 
 
+# The shape of a printed note reference: a small integer, optionally with the sub-note letter the
+# filing prints beside it ("16(b)", "8a"), and optionally carrying the separator that followed it
+# because a row can cite several ("14, 16(b)"). Deliberately NOT "anything numeric": a monetary
+# amount carries thousands separators, a decimal part or accounting parentheses, and reading one as
+# a note reference DELETES a reported figure — see :func:`_scan_row`.
+_NOTE_REF_TOKEN = re.compile(r"^\d{1,3}(?:\s*\([a-z]{1,3}\)|[a-z]{1,2})?[.,;]?$", re.IGNORECASE)
+
+# How close a word has to sit to the one before it to be part of the SAME caption. A word space at
+# statement type sizes is well under 0.01 of the page width; the gap to the note column of a real
+# statement is upwards of 0.1. Anything in between is not a layout these documents produce, so the
+# threshold is uncontentious — it only has to tell "guaranteed notes" from "…            Note 14".
+_CAPTION_GAP = 0.02
+
+
+def _is_note_ref_token(t: str) -> bool:
+    """Is this token shaped like a note reference (and therefore not an amount)?"""
+    s = t.strip()
+    return bool(s) and bool(_NOTE_REF_TOKEN.match(s))
+
+
+def _tight_after(prev: Word, w: Word) -> bool:
+    """Is ``w`` printed as the next word of ``prev``'s caption, rather than in a column of its own?"""
+    return (w.bbox.x0 - prev.bbox.x1) <= _CAPTION_GAP
+
+
 def _is_note_number(t: str) -> bool:
     """A bare 1–2 digit integer — the shape of a note reference (never a formatted amount).
 
@@ -383,8 +408,23 @@ def _split_banner_prefix(label_words: list[Word], steps: tuple[tuple[str, object
 def _scan_row(row: list[Word], fmt=None) -> tuple[list[Word], str | None, list[Word]]:
     """Split one visual row into (label words, note-ref, value words).
 
-    A "Note"/"Notes" token plus the *single* following number is a note reference, not a
-    value — the value lives in the far-right column, so it must not be consumed as a value.
+    A "Note"/"Notes" token printed in a cell of its own, plus the *single* following number, is a
+    note reference and not a value — the value lives in the far-right column, so it must not be
+    consumed as one.
+
+    BUT "notes" is also an ordinary word of the balance sheet's own vocabulary: guaranteed notes,
+    convertible notes, promissory notes, notes payable. Firing on the word alone read "Interest on
+    guaranteed notes 201,551 221,188" as the caption "Interest on guaranteed", a note reference of
+    "201,551", and one figure — the other was consumed and DELETED, which is the worst outcome
+    available here. Two things have to hold before the word is read as a keyword:
+
+    * the token after it is shaped like a note reference (:func:`_is_note_ref_token`) — never an
+      amount. A token that is not is left where it is, so a figure can no longer be swallowed even
+      if everything else about the row misleads; and
+    * the word is not printed tight against the caption it would otherwise belong to
+      (:func:`_tight_after`). "Guaranteed notes 36 3,877,188" keeps its caption whole and lets the
+      note column place the 36 geometrically (:func:`_resolve_note_column`), which is the better
+      evidence anyway; "Cash and cash equivalents        Note 14  1,000" still reads as a keyword.
     """
     label_words: list[Word] = []
     note_ref: str | None = None
@@ -392,11 +432,11 @@ def _scan_row(row: list[Word], fmt=None) -> tuple[list[Word], str | None, list[W
     i = 0
     while i < len(row):
         tok = row[i].text.strip()
-        if _NOTE.match(tok):
-            if i + 1 < len(row) and _num(row[i + 1].text, fmt) is not None:
-                note_ref = row[i + 1].text.strip().strip(".")
-                i += 2
-                continue
+        if (_NOTE.match(tok) and i + 1 < len(row) and _is_note_ref_token(row[i + 1].text)
+                and not (i and _tight_after(row[i - 1], row[i]))):
+            note_ref = row[i + 1].text.strip().strip(".")
+            i += 2
+            continue
         if _num(tok, fmt) is not None:
             value_words.append(row[i])
         elif not value_words:   # text before any number is part of the label

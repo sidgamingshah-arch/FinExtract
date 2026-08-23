@@ -201,3 +201,53 @@ def test_loosely_spaced_label_line_is_not_merged():
     ])
     assert len(items) == 1
     assert items[0].source_label == "Retained earnings"             # "Other reserves" dropped, not merged
+
+
+# --- "notes" is a word of the balance sheet's own vocabulary ----------------------------------
+
+def _tok(text: str, x0: float, y0: float = 0.30) -> Word:
+    """One printed word, sized from its text so the gaps between words are realistic."""
+    return _w(text, x0, y0, x0 + 0.011 * len(text), y0 + 0.014)
+
+
+def test_a_caption_ending_in_notes_keeps_its_caption_and_both_figures():
+    """The row that made this urgent: "Interest on guaranteed notes 201,551 221,188". Reading the
+    caption's last word as the note keyword took the FIRST figure as the note reference and dropped
+    it — a reported number deleted, silently, with the caption truncated to "Interest on guaranteed"
+    so nothing downstream could even map it."""
+    items = _build([_tok("Interest", 0.10), _tok("on", 0.20), _tok("guaranteed", 0.24),
+                    _tok("notes", 0.36), _tok("201,551", 0.62), _tok("221,188", 0.80)])
+    assert len(items) == 1
+    assert items[0].source_label == "Interest on guaranteed notes"
+    assert items[0].note_number is None
+    assert sorted(str(v.value) for v in items[0].values.values()) == ["201551", "221188"]
+
+
+def test_a_caption_ending_in_notes_still_takes_its_note_from_the_note_column():
+    """The other half: the same caption WITH a real note reference printed in the note column.
+    The caption stays whole and the reference is still found — by where it sits, which is the
+    better evidence, rather than by the word before it."""
+    header = [_tok("Notes", 0.60, y0=0.20), _tok("2025", 0.72, y0=0.20), _tok("2024", 0.86, y0=0.20)]
+    body = [_tok("Guaranteed", 0.10), _tok("notes", 0.23),
+            _tok("36", 0.61), _tok("3,877,188", 0.72), _tok("2,151,000", 0.86)]
+    # A note column is only detected when a run of bare note numbers backs its header.
+    other = [_tok("Bank", 0.10, y0=0.36), _tok("borrowings", 0.16, y0=0.36),
+             _tok("37", 0.61, y0=0.36), _tok("10,886,034", 0.72, y0=0.36),
+             _tok("2,523,016", 0.86, y0=0.36)]
+    items = _build(header + body + other)
+    by_label = {i.source_label: i for i in items}
+    assert by_label["Guaranteed notes"].note_number == "36"
+    assert sorted(str(v.value) for v in by_label["Guaranteed notes"].values.values()) == [
+        "2151000", "3877188"]
+
+
+def test_an_inline_note_keyword_in_a_cell_of_its_own_still_reads_as_one():
+    """The layout the keyword exists for: no note column, the reference printed inline as
+    "Note 14" in a cell well clear of the caption."""
+    items = _build([_tok("Cash", 0.10), _tok("and", 0.16), _tok("bank", 0.21),
+                    _tok("Note", 0.55), _tok("14", 0.60),
+                    _tok("1,000", 0.72), _tok("900", 0.86)])
+    assert len(items) == 1
+    assert items[0].source_label == "Cash and bank"
+    assert items[0].note_number == "14"
+    assert sorted(str(v.value) for v in items[0].values.values()) == ["1000", "900"]
