@@ -95,24 +95,17 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "judgements (parent/child containment, residuals, 'Others') have full context. "
          "per_line is cheaper and less context-aware.",
          choices=("per_statement", "per_line")),
-    Knob("fuzzy_accept", "number", "Fuzzy auto-accept",
-         "Combined (coverage-weighted) string score at which a fuzzy match may decide a mapping "
-         "on its own. Measured floor is 0.55: below that, on a real filing, wrong mappings "
-         "appear and section subtotals stop tying — and they buy no extra coverage, because a "
-         "caption with no good concept already has a correct home in its section's 'Others'.",
+    Knob("evidence_floor", "number", "Alias evidence floor",
+         "How nearly a printed caption must BE one of a concept's authored aliases before that "
+         "counts as evidence. Nothing maps a row on wording alone — there is no string-similarity "
+         "tier — so this decides only whether the deterministic evidence is strong enough to "
+         "contradict the model's choice, and whether a caption is the printed name of a concept "
+         "the framework computes rather than extracts.",
          minimum=0.0, maximum=1.0, step=0.01),
-    Knob("fuzzy_min_alias_coverage", "number", "Fuzzy alias coverage floor",
-         "How much of the matched concept's alias the caption must actually explain. This is "
-         "what stops a short heading ('LIABILITIES') from auto-accepting against a much longer "
-         "concept name that merely contains it.",
-         minimum=0.0, maximum=1.0, step=0.01),
-    Knob("fuzzy_candidate", "number", "Fuzzy shortlist floor",
-         "Minimum score to keep a fuzzy match as a CANDIDATE. Candidates are evidence and are "
-         "offered to the LLM; lowering this widens what the model gets to choose between "
-         "without letting string similarity decide anything by itself.",
-         minimum=0.0, maximum=1.0, step=0.01),
-    Knob("embedding_accept", "number", "Embedding accept",
-         "Cosine similarity at which an embedding match may decide a mapping alone.",
+    Knob("alias_coverage_floor", "number", "Alias coverage floor",
+         "How much of the alias the caption must actually explain. This is what stops a short "
+         "heading ('LIABILITIES') from being read as a much longer concept name that merely "
+         "contains it.",
          minimum=0.0, maximum=1.0, step=0.01),
     Knob("mapping_margin", "number", "Winner margin",
          "How far the winning concept must beat the runner-up before the mapping is accepted "

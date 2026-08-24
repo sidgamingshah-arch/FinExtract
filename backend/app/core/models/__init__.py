@@ -2,6 +2,7 @@
 pipeline stage and is returned by the API."""
 from __future__ import annotations
 
+from .buckets import BucketedSource, BucketSegment
 from .confidence import ConfidenceVector
 from .document import DocumentModel, PageSource
 from .enums import (
@@ -10,6 +11,7 @@ from .enums import (
     LineRole,
     LinkRelationship,
     MappingMethod,
+    PrintedIn,
     PageKind,
     PageSourceKind,
     ReconciliationRole,
@@ -41,10 +43,11 @@ from .table import Cell, Table
 
 __all__ = [
     "BBox", "Provenance", "Transform",
+    "BucketedSource", "BucketSegment",
     "ConfidenceVector",
     "DocumentModel", "PageSource",
     "Basis", "DocFormat", "LineRole", "LinkRelationship", "MappingMethod",
-    "PageKind", "PageSourceKind", "ReconciliationRole", "Severity",
+    "PageKind", "PageSourceKind", "PrintedIn", "ReconciliationRole", "Severity",
     "SignConvention", "StatementType", "ValueSource",
     "IntegrityFinding", "IntegrityReport",
     "ExtractedValue", "FaceNoteLink", "LineItem", "NoteItem", "NoteRef",

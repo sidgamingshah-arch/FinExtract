@@ -21,6 +21,8 @@ from __future__ import annotations
 import io
 import re
 
+from app.services.statements import TITLES as STATEMENT_TITLES
+
 # Column order of the Template sheet. Kept as data so the reader and the writer cannot drift.
 COLUMNS = [
     ("statement", "Statement"),
@@ -55,12 +57,9 @@ _OPS = {"sum", "diff"}
 _ROLES = {"header", "line", "subtotal", "total"}
 _LOCALES = ("zh", "ar", "fr")
 
-_STATEMENT_TITLE = {
-    "balance_sheet": "Balance sheet",
-    "profit_and_loss": "Profit & loss",
-    "cash_flow": "Cash flow",
-    "changes_in_equity": "Changes in equity",
-}
+# The vocabulary lives in ``services.statements`` because the API serves it too — a screen
+# offering a statement this importer would refuse is a disagreement with no owner.
+_STATEMENT_TITLE = STATEMENT_TITLES
 _TITLE_STATEMENT = {v.lower(): k for k, v in _STATEMENT_TITLE.items()}
 
 

@@ -107,20 +107,11 @@ azure_api_version = "2024-11-30"
 azure_api_key_env = "AZURE_DI_KEY"
 
 # ---------------------------------------------------------------------------
-# Embeddings (semantic alias matching in the mapping ensemble)
-# ---------------------------------------------------------------------------
-[embeddings]
-provider = "sentence-transformers"     # sentence-transformers | openai | stub
-model = "paraphrase-multilingual-MiniLM-L12-v2"
-
-# ---------------------------------------------------------------------------
 # Extraction / reconciliation tuning
 # ---------------------------------------------------------------------------
 [extraction]
-fuzzy_accept = 0.55             # combined (coverage-weighted) fuzzy score to auto-accept alone
-fuzzy_min_alias_coverage = 0.45 # …and the caption must explain this much of the matched alias
-fuzzy_candidate = 0.45          # minimum score to keep a fuzzy match as a candidate
-embedding_accept = 0.82         # cosine similarity to accept a semantic match
+evidence_floor = 0.55           # how nearly a caption must BE an authored alias to count as one
+alias_coverage_floor = 0.45     # …and how much of that alias the caption must explain
 mapping_margin = 0.08           # winner must beat the runner-up by this margin, else review
 auto_accept_confidence = 0.80   # combined confidence at/above which a line auto-accepts
 recon_corroboration_rel = 0.05  # how near a note total must be to the face figure to count as its breakdown

@@ -16,6 +16,7 @@ PUBLISHED, and the log records exactly what was dropped so a missing note is exp
 from __future__ import annotations
 
 from app.core.models import DocumentModel
+from app.core.models.line_item import base_note_number
 from app.core.stage import PipelineContext
 
 
@@ -34,30 +35,31 @@ def _is_face_item(li, doc: DocumentModel) -> bool:
 
 
 def _face_note_numbers(doc: DocumentModel) -> set[str]:
-    """Note numbers referenced from the face of the statements.
+    """Note numbers referenced from the face of the statements, and the parent of each.
 
-    Face rows carry their reference either as a parsed ``note_refs`` entry (which expands
-    ranges like "12-14" and sub-refs like "12(a)") or as the plain ``note_number`` scanned
-    from the note column. Both count, and a sub-ref such as "12(a)" also keeps note 12 —
-    the note it belongs to is what gets published.
+    Which notes a row cites is ``LineItem.cited_notes`` — the one definition the linker and the
+    section segmentation also use, so what gets PUBLISHED here cannot disagree with what gets
+    linked and filed. Unlike those two this is a set of names, not a resolution against the notes
+    that exist: it is compared against every note's number below, and it is also the fallback for
+    a run where linking was skipped, so it must not depend on the linker having run.
+
+    A SUB-REFERENCE ALSO KEEPS ITS PARENT: a row citing "12(a)" is explained by the note table
+    numbered "12", and dropping that table would leave the figure with nothing behind it. Both
+    names are kept because a filing may number the table either way. ``note_number`` is added
+    unconditionally rather than as a fallback — a row synthesised from a note item names its note
+    there and nowhere else, and pruning that note would delete the row's own source.
     """
     wanted: set[str] = set()
     for li in doc.line_items:
         # Items extracted from a note table also carry note_number; only the face counts here.
         if not _is_face_item(li, doc):
             continue
-        for ref in li.note_refs:
-            for number in ref.numbers:
-                wanted.add(str(number).strip())
-            for sub in ref.subrefs:
-                # "12(a)" -> also keep "12"
-                head = str(sub).split("(")[0].strip()
-                if head:
-                    wanted.add(head)
-                wanted.add(str(sub).strip())
-        if li.note_number:
-            wanted.add(str(li.note_number).strip())
-
+        for token in (*li.cited_notes(), (li.note_number or "").strip()):
+            if not token:
+                continue
+            wanted.add(token)
+            if (base := base_note_number(token)):
+                wanted.add(base)
     return {w for w in wanted if w}
 
 
@@ -90,7 +92,7 @@ class PruneNotesStage:
         for nt in doc.notes:
             number = str(nt.note_number).strip() if nt.note_number is not None else ""
             # A note whose number matches a face reference is published; so is one whose
-            # number is the head of a referenced sub-ref ("12" for a cited "12(a)").
+            # number is the parent of a referenced sub-ref ("12" for a cited "12(a)").
             if number and number in wanted:
                 kept.append(nt)
             else:

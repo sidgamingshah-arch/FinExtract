@@ -6,9 +6,7 @@ corroborate one another. No single methodology is forced out.
 
 1. exact / normalized lexical  (free, unambiguous → short-circuits)
 2. rule-based                  (regex / keyword hints, minus exclude hints)
-3. similarity / fuzzy          (rapidfuzz — candidate evidence + shortlist)
-4. semantic embeddings         (cosine similarity — candidate evidence + shortlist)
-5. **LLM semantic decision**   (the key driver): shown each candidate's criteria
+3. **LLM semantic decision**   (the key driver): shown each candidate's criteria
    (definition, include/exclude, confusable-with, value_scope) plus the ontology's global
    policies + worked examples, it chooses by meaning — so "Amounts due from customers",
    "Receivables from clients" and "Trade debtors" all resolve to ``trade_receivables``
@@ -21,6 +19,32 @@ lowers it and flags review (the agreeing methods are recorded). When no LLM is c
 ensemble decides with a margin-over-runner-up accept. Each value also carries an
 ``allocation_status`` so parent/child/residual handling stays auditable. Winning method,
 confidence and per-strategy scores are recorded.
+
+THERE IS NO EMBEDDING TIER EITHER. It shipped as evidence and a shortlist, and it never ran: the
+mapping stage constructs this matcher with an LLM provider and no embedding provider, the only
+registered provider was a stub that raises, and it contributed nothing to any row of any real filing.
+Two settings and a Settings-screen knob governed it. Machinery that cannot execute is worse than
+absent, because it reads like a capability — and as a capability it was the same KIND of judgement
+the fuzzy tier was, resemblance rather than criteria, so it would have rated "Profit before
+exceptional items and tax" against "Profit before tax" too. Meaning is the semantic tier's job, with
+each concept's definition, include/exclude and confusable-with in front of it.
+
+THERE IS NO FUZZY TIER, and its removal is a return to the declared contract rather than a
+simplification of it. The rulebook's own ``binding.order`` names four things: resolve the
+statement, resolve the section, restrict the candidate set to that section, then "Rule tier: exact
+normalised alias, then regex_hints, in descending match_priority", then the semantic tier over the
+restricted set. String similarity appears nowhere in it. Carried as an extra tier it decided rows
+on wording alone — measured on the shipped rulebook, "Profit before exceptional items and tax" was
+filed as ``pl_profit_before_tax`` at 0.61, accepted and unflagged, two subtotals that differ by
+exactly the exceptional items, so the figure landed on the wrong line of the P&L and the statement
+still tied. A caption no alias, no rule and no model can place is now left unmapped for a human,
+which is a visible gap instead of a plausible wrong answer.
+
+Alias SIMILARITY survives as a measurement (:meth:`OntologyMatcher._alias_similarity`) and not as a
+decision: two guards need to recognise "this caption is that alias, near enough" — the corroboration
+that tells whether the deterministic evidence dissents from the model, and the refusal that stops a
+caption naming a COMPUTED concept from being re-homed onto a neighbouring one. Neither can map a row
+on its own.
 """
 from __future__ import annotations
 
@@ -101,19 +125,6 @@ _LLM_BATCH_ADDENDUM = (
     "nothing downstream can detect.\n"
     "Return one entry per item_id you were given, and never an item_id that was not given to you."
 )
-
-
-def _cosine(a: list[float], b: list[float]) -> float:
-    """Cosine similarity of two equal-length vectors; 0 for a zero or mismatched vector."""
-    n = min(len(a), len(b))
-    if n == 0:
-        return 0.0
-    dot = sum(a[i] * b[i] for i in range(n))
-    na = sum(x * x for x in a[:n]) ** 0.5
-    nb = sum(x * x for x in b[:n]) ** 0.5
-    if na == 0.0 or nb == 0.0:
-        return 0.0
-    return dot / (na * nb)
 
 
 def normalize_label(text: str) -> str:
@@ -640,13 +651,11 @@ class OntologyMatcher:
         ontology: OntologyDefinition,
         locale: str | None = None,
         settings: Settings | None = None,
-        embedding_provider=None,
         llm_provider=None,
     ):
         self.ontology = ontology
         self.locale = locale or ontology.locale
         self.settings = settings or get_settings()
-        self.embedding_provider = embedding_provider
         self.llm_provider = llm_provider
         # Description-based LLM mapping is the primary strategy when a provider is present
         # and not disabled in config.
@@ -685,7 +694,7 @@ class OntologyMatcher:
         # which the base instruction describes. Additive, so the per-line prompt is unchanged.
         self._batch_system = self._system + _LLM_BATCH_ADDENDUM
 
-        # Precompute normalized alias → key index for exact/fuzzy tiers, and a concept
+        # Precompute normalized alias → key index for the exact tier, and a concept
         # index (key → mapping) for description lookups.
         # alias → EVERY concept that claims it. Two sections legitimately share a caption:
         # "Owners of the parent" and "Non-controlling interests" appear under both the profit
@@ -700,8 +709,6 @@ class OntologyMatcher:
         # about the row — see `_computed_claim` for what is done with it.
         self._computed_alias_by_key: dict[str, list[str]] = {}
         self._by_key: dict[str, OntologyMapping] = {}
-        # Alias embeddings, indexed by canonical key — computed lazily on first embedding use.
-        self._alias_vecs: list[tuple[str, list[float]]] | None = None
         # Concepts a v2 rulebook declares unreachable by MATCHING: the section "Others" buckets,
         # populated by the residual sweep alone (a section's parent minus its confirmed children).
         # Keyed on `alias_matching` alone, not on the conjunction with match_priority 0 /
@@ -893,7 +900,17 @@ class OntologyMatcher:
         high in the file pre-empted every specific concept below it, and the only way to find out
         was to read the JSON in order.
         """
+        # Both spellings of the caption: as printed (lowercased) and NORMALISED the way the alias
+        # tier normalises it. An authored hint is anchored far more often than not — the rulebook's
+        # own are — and an anchored hint never fired on a real caption, because the printed line
+        # carries punctuation and a bilingual tail that the anchors then have to account for:
+        # "^net cash.*investing activities$" is defeated by "Net cash flows from/(used in) investing
+        # activities 投資活動…". The rulebook says the rule tier runs on the normalised alias, so it
+        # sees the normalised text too; the raw one is kept because a hint may deliberately target
+        # punctuation normalisation removes.
         text = raw.lower()
+        norm = normalize_label(raw)
+        candidates = (text, norm) if norm and norm != text else (text,)
         hits: list[str] = []
         for m in self.ontology.mappings:
             # A locked residual is unreachable by matching, and a regex or keyword hint authored on
@@ -903,12 +920,13 @@ class OntologyMatcher:
                 continue
             if keys is not None and m.canonical_key not in keys:
                 continue
-            if any(re.search(ex, text, re.IGNORECASE) for ex in m.exclude_hints):
+            if any(re.search(ex, t, re.IGNORECASE) for ex in m.exclude_hints for t in candidates):
                 continue
             hit = False
-            if any(re.search(rx, text, re.IGNORECASE) for rx in m.regex_hints):
+            if any(re.search(rx, t, re.IGNORECASE) for rx in m.regex_hints for t in candidates):
                 hit = True
-            elif m.keyword_hints and all(kw.lower() in text for kw in m.keyword_hints):
+            elif m.keyword_hints and any(all(kw.lower() in t for kw in m.keyword_hints)
+                                         for t in candidates):
                 hit = True
             if hit:
                 hits.append(m.canonical_key)
@@ -944,67 +962,37 @@ class OntologyMatcher:
                 hit += 1
         return hit / len(alias_tokens)
 
-    def _fuzzy_score(self, norm: str, alias: str) -> float:
-        """Length-aware similarity, weighted by how much of the alias is covered.
+    def _alias_similarity(self, norm: str, alias: str) -> float:
+        """How nearly this caption IS that alias — a measurement, never a decision.
+
+        No tier maps a row on this. It answers two questions that need a notion of "near enough
+        to be the same wording": whether the deterministic evidence dissents from the model's
+        choice, and whether a caption is the printed name of a concept the framework COMPUTES
+        (which must then not be re-homed onto a neighbour). Both compare a caption to an alias
+        the rulebook authored; neither can produce a mapping.
 
         Deliberately NOT ``token_set_ratio``: that scores 100 whenever the caption's tokens
         are a subset of the alias's, so every heading and wrapped-line fragment scored a
-        perfect 1.0 against some longer concept and was auto-accepted with false certainty
-        (observed on a real filing: "LIABILITIES" -> non-current lease liabilities at 1.00).
-        ``token_sort_ratio`` keeps length differences visible, and the coverage factor pulls
-        down matches that only explain a small part of the concept they claim to be.
+        perfect 1.0 against some longer concept (observed on a real filing: "LIABILITIES" ->
+        non-current lease liabilities at 1.00). ``token_sort_ratio`` keeps length differences
+        visible, and the coverage factor pulls down a claim that only explains a small part of
+        the alias it claims to be.
         """
         base = fuzz.token_sort_ratio(norm, alias) / 100.0
         coverage = self._alias_coverage(norm, alias)
         return base * (0.4 + 0.6 * coverage)
 
-    def _fuzzy(self, norm: str, keys: set[str] | None = None) -> list[Candidate]:
-        """Best fuzzy candidate per concept. Scores are EVIDENCE: the decision policy in
-        `match` only lets fuzzy decide alone when it is near-exact (see `_fuzzy_accepts`).
-
-        ``keys`` restricts the set scored at all (``binding.order`` step 3). Filtering afterwards
-        reached the same winner but not the same shortlist: the capped top-8 handed to the semantic
-        tier was drawn from a ranking that out-of-section concepts had already taken places in."""
-        out: list[Candidate] = []
-        for key, aliases in self._alias_by_key.items():
-            if not aliases or (keys is not None and key not in keys):
-                continue
-            best = max((self._fuzzy_score(norm, a) for a in aliases), default=0.0)
-            if best > 0:
-                out.append(Candidate(key, MappingMethod.FUZZY, best))
-        # Score first, so priority can never outrank evidence; priority only settles a genuine tie,
-        # where the alternative was dict insertion order deciding which of two equally-scored
-        # concepts survives the shortlist cap below.
-        out.sort(key=lambda c: (c.score, self._priority_of(c.canonical_key)), reverse=True)
-        return out
-
-    def _fuzzy_accepts(self, norm_segments: list[str], cand: Candidate) -> bool:
-        """Whether a fuzzy-only match is strong enough to stand on its own.
-
-        Requires BOTH a high combined score and that the caption explains most of the
-        alias — a string method may only decide when it is essentially an exact hit, since
-        it measures spelling, not meaning. Anything weaker is left for a human or the LLM
-        rather than asserted.
-        """
-        s = self.settings.extraction
-        if cand.score < s.fuzzy_accept:
-            return False
-        aliases = self._alias_by_key.get(cand.canonical_key) or []
-        best_cov = max((self._alias_coverage(n, a) for a in aliases for n in norm_segments),
-                       default=0.0)
-        return best_cov >= s.fuzzy_min_alias_coverage
-
     def _alias_evidence(self, canonical_key: str, norm_segments: list[str]) -> float:
         """How well the caption explains any ONE alias of a concept — 1.0 for exact identity.
 
-        The same scale `_fuzzy` reports on, so two concepts' claims on one caption are comparable.
+        One scale for every alias claim, so two concepts' claims on one caption are comparable.
         """
         best = 0.0
         for alias in self._alias_by_key.get(canonical_key) or []:
             for norm in norm_segments:
                 if not alias or not norm:
                     continue
-                score = 1.0 if alias == norm else self._fuzzy_score(norm, alias)
+                score = 1.0 if alias == norm else self._alias_similarity(norm, alias)
                 best = max(best, score)
         return best
 
@@ -1022,8 +1010,8 @@ class OntologyMatcher:
         the statement still ties: the class of error nothing downstream can see.
 
         Evidence is only reported at the strength a MATCH would have been accepted at — exact alias
-        identity, or a fuzzy score clearing both ``fuzzy_accept`` and the alias-coverage floor
-        (`_fuzzy_accepts`'s own bar). Anything weaker is a coincidence of wording, and it must not
+        identity, or an alias similarity clearing both ``evidence_floor`` and
+        ``alias_coverage_floor``. Anything weaker is a coincidence of wording, and it must not
         refuse a row that some other concept has real evidence for.
 
         ``extract_or_derive`` is deliberately NOT here. That value means the subtotal is sometimes
@@ -1041,9 +1029,9 @@ class OntologyMatcher:
                     if alias == norm:
                         score = 1.0
                     else:
-                        score = self._fuzzy_score(norm, alias)
-                        if (score < s.fuzzy_accept
-                                or self._alias_coverage(norm, alias) < s.fuzzy_min_alias_coverage):
+                        score = self._alias_similarity(norm, alias)
+                        if (score < s.evidence_floor
+                                or self._alias_coverage(norm, alias) < s.alias_coverage_floor):
                             continue
                     if best is None or score > best[1]:
                         best = (key, score)
@@ -1061,52 +1049,6 @@ class OntologyMatcher:
             return None
         self.usage["computed_refused"] += 1
         return claim[0]
-
-    def _ensure_alias_embeddings(self) -> None:
-        """Embed every alias once (lazily) and index it by canonical key. Cached for the life
-        of the matcher so a batch of captions reuses the same alias vectors."""
-        if self._alias_vecs is not None:
-            return
-        pairs = [(key, alias) for key, aliases in self._alias_by_key.items()
-                 for alias in aliases if alias]
-        if not pairs:
-            self._alias_vecs = []
-            return
-        vectors = self.embedding_provider.embed([a for _k, a in pairs])
-        indexed: list[tuple[str, list[float]]] = []
-        for (key, _alias), vec in zip(pairs, vectors):
-            if vec:
-                indexed.append((key, list(vec)))
-        self._alias_vecs = indexed
-
-    def _embedding(self, raw: str, keys: set[str] | None = None) -> list[Candidate]:
-        """Cosine similarity of the raw caption against alias embeddings — catches paraphrases
-        with no shared tokens ("Cash & bank balances" ↔ "Cash and cash equivalents"). Returns
-        the best-scoring candidate per canonical key. A provider that is absent, unimplemented,
-        or errors just yields no evidence so the rest of the ensemble carries on."""
-        if self.embedding_provider is None:
-            return []
-        try:
-            self._ensure_alias_embeddings()
-            if not self._alias_vecs:
-                return []
-            query = self.embedding_provider.embed([raw])
-        except Exception:  # noqa: BLE001 — NotImplementedError / provider unreachable
-            return []
-        if not query or not query[0]:
-            return []
-        qv = list(query[0])
-        best: dict[str, float] = {}
-        for key, vec in self._alias_vecs:
-            if keys is not None and key not in keys:
-                continue                          # step 3: restricted before it is scored
-            score = _cosine(qv, vec)
-            if score > best.get(key, -1.0):
-                best[key] = score
-        out = [Candidate(k, MappingMethod.EMBEDDING, max(0.0, min(1.0, s)))
-               for k, s in best.items()]
-        out.sort(key=lambda c: c.score, reverse=True)
-        return out
 
     def _build_system(self) -> str:
         """Base instruction + the ontology's global extraction policies + worked examples."""
@@ -1142,7 +1084,7 @@ class OntologyMatcher:
                 continue
             # Also the choke point for the residual lock and the `derive` lock, not only
             # `_extractable_keys`/`_mappable_keys`: the capped shortlist in `match` is assembled from
-            # fuzzy/embedding/rule keys rather than from either list, so a concept kept out of one
+            # the rule tier's keys rather than from either list, so a concept kept out of one
             # route has to be kept out of the other as well. A concept the model cannot see is a
             # concept the model cannot pick.
             if k in self._unmatchable:
@@ -1442,7 +1384,7 @@ class OntologyMatcher:
               statement: str | None = None, section: str | None = None) -> MappingResult:
         """A COMBINATION of methods — no single one is authoritative:
 
-        exact identity short-circuits (free); otherwise rule / fuzzy / embedding each
+        exact identity short-circuits (free); otherwise the rule tier and the model each
         contribute candidate evidence, the LLM makes the semantic, criteria-based call
         (the key driver), and cross-method agreement adjusts confidence and review routing.
         Falls back to the deterministic margin policy when no LLM is configured/abstains.
@@ -1507,27 +1449,16 @@ class OntologyMatcher:
         #    by one the gate was about to refuse anyway.
         allowed_keys = {k for k in self._mappable_keys() if _ok(k)}
 
-        # 3. Deterministic evidence from every method (each contributes; none forced out).
-        #    Fuzzy/rule run per script segment and keep the best score per concept, so
-        #    "REVENUE 收益" scores as well as the monolingual "Revenue" would.
+        # 3. Deterministic evidence (each method contributes; none forced out). The rule tier runs
+        #    per script segment and keeps the best claim, so "REVENUE 收益" is read as well as the
+        #    monolingual "Revenue" would be.
         rule = next((r for r in (self._rule(seg, allowed_keys) for seg in segments) if r), None)
-        fuzzy = self._best_per_key([c for seg in segments
-                                    for c in self._fuzzy(normalize_label(seg), allowed_keys)])
-        emb = self._embedding(raw_label, allowed_keys) or []
         by_method: dict[str, set[str]] = {}
         pool: list[Candidate] = []
         if rule:
             scores["rule"] = rule.score
             by_method["rule"] = {rule.canonical_key}
             pool.append(rule)
-        if fuzzy:
-            scores["fuzzy"] = fuzzy[0].score
-            by_method["fuzzy"] = {c.canonical_key for c in fuzzy[:5]}
-            pool.extend(fuzzy[:5])
-        if emb:
-            scores["embedding"] = emb[0].score
-            by_method["embedding"] = {c.canonical_key for c in emb[:5]}
-            pool.extend(emb[:5])
         best_by_key: dict[str, Candidate] = {}
         for c in pool:
             cur = best_by_key.get(c.canonical_key)
@@ -1561,10 +1492,16 @@ class OntologyMatcher:
             if len(all_keys) <= s.extraction.llm_candidate_cap:
                 shortlist = all_keys
             else:
+                # Deterministic evidence first, then the rest of the RESTRICTED set to fill the cap.
+                # The fill is not padding: with the fuzzy tier gone the evidence here is a rule hit
+                # or nothing at all, and a section whose concepts merely have no hints authored on
+                # them would otherwise reach the model as a shortlist of one — or of none, which
+                # would leave the model to answer about a set it was never shown. The restriction to
+                # the section (step 3) is what keeps the fill honest; ``_by_priority`` below decides
+                # the reading order within it.
                 shortlist = list(dict.fromkeys(
                     ([rule.canonical_key] if rule else [])
-                    + [c.canonical_key for c in fuzzy[:8]] + [c.canonical_key for c in emb[:8]]
-                ))[: s.extraction.llm_candidate_cap]
+                    + self._by_priority(all_keys)))[: s.extraction.llm_candidate_cap]
             # Offered in descending match_priority, so the long specific concept is read before the
             # short generic one it collides with on token overlap ("Total assets less current
             # liabilities", 86, ahead of "Total current liabilities", 82 — the pair the rulebook's
@@ -1581,11 +1518,12 @@ class OntologyMatcher:
                 conf = llm.score
                 if agreement:
                     conf = min(1.0, llm.score + 0.10 * (1.0 - llm.score))
-                elif det_top is not None and det_top.score >= s.extraction.fuzzy_accept:  # noqa: E501 - same combined scale
+                elif det_top is not None and det_top.score >= s.extraction.evidence_floor:
                     conf = llm.score * 0.85
                 needs_review = (
                     conf < s.extraction.auto_accept_confidence
-                    or (not agreement and det_top is not None and det_top.score >= s.extraction.fuzzy_accept)
+                    or (not agreement and det_top is not None
+                        and det_top.score >= s.extraction.evidence_floor)
                 )
                 alloc = llm.allocation_status
                 if alloc is None:
@@ -1597,13 +1535,11 @@ class OntologyMatcher:
                     allocation_status=alloc, agreement=["llm", *agreement],
                 )
 
-        # 5. Deterministic decision (no LLM configured, or the LLM abstained).
-        #    Fuzzy is a LAST RESORT. A fuzzy score measures string overlap, not meaning, so
-        #    letting it auto-map floods the review queue with shaky guesses. Decide from the
-        #    "meaningful" methods first (exact already returned above; then rule, then
-        #    embedding). Only if they produce nothing do we consult fuzzy — and even then
-        #    only when the match is essentially an exact string hit (>= fuzzy_accept);
-        #    anything weaker is left unmapped for a human rather than guessed.
+        # 5. Deterministic decision (no LLM configured, or the LLM abstained). Exact already
+        #    returned above, so the rule tier is all that is left — and if it does not claim the
+        #    row, the row is left UNMAPPED for a human. There is deliberately no last-resort match
+        #    on resemblance: a caption nothing can place is a visible gap, where a plausible wrong
+        #    answer is a figure on the wrong line of a statement that still ties.
         #
         #    First, though, step 6: when the top-scoring concepts are rated IDENTICALLY and name each
         #    other as confusable, no deterministic method can separate them and the tie-break below
@@ -1622,7 +1558,12 @@ class OntologyMatcher:
             return MappingResult(rule.canonical_key, rule.method, rule.score, [rule], False,
                                  {**scores, "rule": rule.score}, allocation_status="direct_exclusive")
 
-        primary = [c for c in ranked if c.method in (MappingMethod.RULE, MappingMethod.EMBEDDING)]
+        # Only the rule tier reaches here (a single-claimant hit returned above at 0.95), so this
+        # is the AMBIGUOUS rule hit: several concepts' hints fired, the score is 0.6, and the key
+        # reported is the highest-priority claimant. It is named rather than dropped — a reviewer
+        # given a candidate can confirm or re-map it, where an unmapped row makes them find it —
+        # and it carries needs_review, because 0.6 clears no accept bar.
+        primary = [c for c in ranked if c.method is MappingMethod.RULE]
         if primary:
             top = primary[0]
             runner = primary[1].score if len(primary) > 1 else 0.0
@@ -1634,15 +1575,7 @@ class OntologyMatcher:
                 allocation_status="direct_exclusive" if accept else "unmapped_review",
             )
 
-        # Last resort: fuzzy only, and only when it is essentially certain — a high combined
-        # score AND most of the alias explained (see `_fuzzy_accepts`).
-        fuzzy_top = fuzzy[0] if fuzzy else None
-        if fuzzy_top and self._fuzzy_accepts(norm_segments, fuzzy_top):
-            return MappingResult(
-                canonical_key=fuzzy_top.canonical_key, method=MappingMethod.FUZZY,
-                confidence=fuzzy_top.score, candidates=fuzzy[:5], needs_review=False,
-                scores=scores, allocation_status="direct_exclusive")
-        # Nothing confident — do NOT emit a low-confidence fuzzy guess; route to review unmapped.
+        # Nothing confident — route to review unmapped rather than guessing from the wording.
         return MappingResult(None, MappingMethod.UNMATCHED, 0.0, ranked[:5], True, scores,
                              allocation_status="unmapped_review")
 

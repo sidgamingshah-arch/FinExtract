@@ -23,11 +23,11 @@ convention.
   the matcher pulls the active locale's aliases plus the English set as a cross-lingual
   anchor. Traditional/Simplified Han is folded by `services/han.py` (with the `cjk` extra,
   falling back to a built-in table of financial-statement variant pairs), and the classifier's
-  lexicon carries Han patterns directly. A **multilingual embedding model** was the intended
-  cross-lingual fallback and is **not wired in**: the matcher has the cosine tier but no
-  `EmbeddingProvider` is bound (see
-  [01-extraction-pipeline](01-extraction-pipeline.md#adapter-ports)), so cross-lingual
-  mapping today rests on the aliases, the Han folding and the LLM.
+  lexicon carries Han patterns directly. A **multilingual embedding model** was once the intended
+  cross-lingual fallback; the tier it needed was never wired to a provider and has been removed
+  (see [01-extraction-pipeline](01-extraction-pipeline.md)), so cross-lingual mapping rests on the
+  per-locale aliases, the Han folding, the rule tier's hints — which now read the normalised
+  caption, so a hint fires on a bilingual line — and the LLM, which is multilingual by nature.
 
 ## Output side
 

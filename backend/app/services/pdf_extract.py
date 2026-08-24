@@ -4,7 +4,7 @@ every value carries page + normalized-bbox provenance regardless of source.
 """
 from __future__ import annotations
 
-from app.core.models.enums import PageKind, PageSourceKind
+from app.core.models.enums import PageKind, PageSourceKind, PrintedIn
 from app.core.models.geometry import BBox
 from app.core.stage import PipelineContext
 from app.services.row_reconstruct import Word, build_line_items
@@ -25,26 +25,101 @@ def text_rotation(page) -> int:
 
     The writing direction comes from the span's own ``dir`` unit vector, weighted by how much
     text is drawn that way, so a single rotated stamp or watermark cannot outvote the body.
+
+    The angle is expressed the way a PDF ``/Rotate`` is — the CLOCKWISE rotation that would bring
+    the text upright — because it is stored on the same field (``PageSource.rotation``, which
+    ``stages.ingest`` fills from ``/Rotate``) and the integrity report renders both with the same
+    sentence. Text whose words advance UP the page (``dir=(0,-1)``) therefore reads as 90: turning
+    the page a quarter-turn clockwise is what makes it readable.
     """
     weights: dict[int, float] = {}
-    try:
-        blocks = page.get_text("dict").get("blocks", [])
-    except Exception:                        # a malformed page must not stop extraction
-        return 0
-    for block in blocks:
-        for line in block.get("lines", []):
-            dx, dy = (line.get("dir") or (1.0, 0.0))[:2]
-            chars = sum(len(sp.get("text", "")) for sp in line.get("spans", []))
-            if not chars:
-                continue
-            if abs(dx) >= abs(dy):
-                deg = 0 if dx >= 0 else 180
-            else:
-                deg = 270 if dy >= 0 else 90
-            weights[deg] = weights.get(deg, 0.0) + chars
+    for line in _text_lines(page):
+        chars = sum(len(sp.get("text", "")) for sp in line.get("spans", []))
+        if not chars:
+            continue
+        deg = _dir_rotation(line.get("dir"))
+        weights[deg] = weights.get(deg, 0.0) + chars
     if not weights:
         return 0
     return max(weights, key=lambda d: weights[d])
+
+
+def _text_lines(page) -> list[dict]:
+    """Every text line of the page, with its own ``dir`` and ``bbox``."""
+    try:
+        blocks = page.get_text("dict").get("blocks", [])
+    except Exception:                        # a malformed page must not stop extraction
+        return []
+    return [line for block in blocks for line in block.get("lines", [])]
+
+
+_CHROME_BAND = 0.12          # the top eighth of the page, where a running header is printed
+_CHROME_MIN_PAGES = 3        # fewer repeats than this is a coincidence, not a template
+
+
+def _chrome_key(text: str) -> str:
+    """A top-of-page caption reduced to what repeats: case-folded, collapsed whitespace, and with
+    every run of digits dropped.
+
+    The digits are what makes a running header LOOK different on every page — "Acme Holdings
+    Limited / Annual Report 2024   64" and the same line on page 65 are the same header. Dropping
+    them is also why the key is never compared against a financial caption: those are matched
+    whole, by a reader that has the row's figures, not by this.
+    """
+    import re as _re
+
+    return " ".join(_re.sub(r"\d+", "", str(text or "")).split()).casefold()
+
+
+def _page_chrome(pdf, targets) -> frozenset[str]:
+    """The captions this filing prints at the top of page after page — its own running header.
+
+    WHY NOT A WORD LIST. Both the classifier and the row reader carry a regex of header wording
+    ("annual report", "年報", …), and a filing whose running header is just its own name — which
+    is the common HK house style — matches neither. The header then reached the reader as an
+    ordinary label and, on a page where a figure happened to sit on its baseline, was published as
+    a line item: an entity name carrying money, on the face of a statement.
+
+    The signal used instead is structural and needs no vocabulary: a caption printed in the top
+    band of at least ``_CHROME_MIN_PAGES`` of the pages being read is the page template, not a
+    financial line. A statement caption cannot qualify — "Trade receivables" is printed once, on
+    one page, in the body — and the threshold is on PAGES rather than occurrences so a word
+    repeated many times down one page is untouched.
+
+    Read from the text layer only. A scanned page contributes nothing here (it has no lines to
+    read), and it does not need to: the header it repeats is the same one the native pages state.
+    """
+    counts: dict[str, set[int]] = {}
+    for ps in targets:
+        if ps.index >= pdf.page_count:
+            continue
+        try:
+            page = pdf[ps.index]
+            height = max(page.rect.height, 1.0)
+            for line in _text_lines(page):
+                box = line.get("bbox") or (0, 0, 0, 0)
+                if box[3] / height > _CHROME_BAND:
+                    continue
+                text = "".join(sp.get("text", "") for sp in line.get("spans", []))
+                key = _chrome_key(text)
+                if key:
+                    counts.setdefault(key, set()).add(ps.index)
+        except Exception:                    # a malformed page must not stop extraction
+            continue
+    return frozenset(k for k, pages in counts.items() if len(pages) >= _CHROME_MIN_PAGES)
+
+
+def _dir_rotation(direction) -> int:
+    """One text line's ``dir`` unit vector as a rotation in the sense :func:`text_rotation` returns.
+
+    Factored out so the page's dominant angle and the per-line angle used to spot the page's
+    horizontal chrome cannot drift apart: both read the same vector through this one function.
+    """
+    dx, dy = (direction or (1.0, 0.0))[:2]
+    if abs(dx) >= abs(dy):
+        return 0 if dx >= 0 else 180
+    # y grows DOWNWARD in PyMuPDF page space, so words advancing in -y run up the page.
+    return 90 if dy < 0 else 270
 
 
 def _to_reading_space(box: BBox, rotation: int) -> BBox:
@@ -57,24 +132,67 @@ def _to_reading_space(box: BBox, rotation: int) -> BBox:
     if rotation in (0, 360):
         return box
     if rotation == 90:                       # text runs bottom-to-top
-        return BBox(x0=_clamp(box.y0), y0=_clamp(1.0 - box.x1),
-                    x1=_clamp(box.y1), y1=_clamp(1.0 - box.x0))
-    if rotation == 270:                      # text runs top-to-bottom
+        # Across the printed row is -y (words advance up the page), so reading-space x runs with
+        # 1-y; successive rows advance in +x, so reading-space y is the page's x. Getting this
+        # pair the wrong way round still yields rows — it yields them mirrored and bottom-to-top,
+        # which reverses a statement's columns and its movements without failing anything.
         return BBox(x0=_clamp(1.0 - box.y1), y0=_clamp(box.x0),
                     x1=_clamp(1.0 - box.y0), y1=_clamp(box.x1))
+    if rotation == 270:                      # text runs top-to-bottom
+        return BBox(x0=_clamp(box.y0), y0=_clamp(1.0 - box.x1),
+                    x1=_clamp(box.y1), y1=_clamp(1.0 - box.x0))
     return BBox(x0=_clamp(1.0 - box.x1), y0=_clamp(1.0 - box.y1),
                 x1=_clamp(1.0 - box.x0), y1=_clamp(1.0 - box.y0))
 
 
+def _rotation_at(lines: list[tuple[tuple[float, float, float, float], int]],
+                 box: tuple[float, float, float, float]) -> int | None:
+    """The rotation of the text line this word belongs to, or None if no line claims it.
+
+    Matched by the word's centre against the line boxes, smallest box first, because a word is
+    laid out inside exactly one line and nested boxes only ever mean a tighter fit is available.
+    """
+    best: tuple[int, float] | None = None
+    cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
+    for (lx0, ly0, lx1, ly1), rot in lines:
+        if lx0 - 0.5 <= cx <= lx1 + 0.5 and ly0 - 0.5 <= cy <= ly1 + 0.5:
+            area = max(lx1 - lx0, 0.0) * max(ly1 - ly0, 0.0)
+            if best is None or area < best[1]:
+                best = (rot, area)
+    return None if best is None else best[0]
+
+
 def _native_words(page, w: float, h: float, rotation: int | None = None) -> list[Word]:
+    """The page's words, in reading space, with the words drawn at some OTHER angle removed.
+
+    A page whose statement is printed sideways still prints its chrome upright: the page number,
+    the running header, and on an HKEX filing the statement's own title and period. Those words
+    are a quarter-turn from the body, so putting them through the body's transform lands them in
+    the middle of the matrix — inventing rows, and gluing a caption to the running header. They
+    are identified by their own line's ``dir``, not by position, so a genuinely sideways word near
+    the page edge is kept and an upright figure in the body is still dropped.
+
+    Only rotated pages pay for this: an upright page has no other angle to disagree with, so the
+    word list is built exactly as before.
+    """
     rot = text_rotation(page) if rotation is None else rotation
+    upright = rot in (0, 360)
+    lines: list[tuple[tuple[float, float, float, float], int]] = []
+    if not upright:
+        lines = [(tuple(ln.get("bbox") or (0.0, 0.0, 0.0, 0.0)), _dir_rotation(ln.get("dir")))
+                 for ln in _text_lines(page)
+                 if any(sp.get("text", "").strip() for sp in ln.get("spans", []))]
     out: list[Word] = []
     for x0, y0, x1, y1, text, *_ in page.get_text("words"):
         if not text.strip():
             continue
+        if lines:
+            at = _rotation_at(lines, (x0, y0, x1, y1))
+            if at is not None and at != rot:
+                continue
         page_box = BBox(x0=_clamp(x0 / w), y0=_clamp(y0 / h),
                         x1=_clamp(x1 / w), y1=_clamp(y1 / h))
-        if rot in (0, 360):
+        if upright:
             out.append(Word(text=text, bbox=page_box))
         else:
             # Layout logic reads the rotated box; provenance keeps the page-space one so
@@ -125,6 +243,9 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
             ctx.log(f"extract:page_scope_applied={sorted(ctx.included_pages)}")
 
     number_format = _resolve_number_format(ctx, doc)
+    chrome = _page_chrome(pdf, targets)
+    if chrome:
+        ctx.log(f"extract:page_chrome={sorted(chrome)[:6]}")
     ocr = None
     added = 0
     ordinal = len(doc.line_items)
@@ -168,10 +289,30 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         # ``ps.statement`` (from the classifier) is what tells the reconstructor that a page is a
         # component matrix rather than a two-column comparative; ``ctx.log`` records the cases
         # where a matrix page could not be attributed and was skipped.
+        #
+        # ``ps.scope`` is the same classifier's verdict on WHOSE figures the page presents. It was
+        # computed and dropped here, so a Company-only statement of financial position — which an
+        # HKEX filing prints on its own page past the notes, with no column header naming an entity
+        # — was reconstructed as the Group's and added to it under the same canonical keys.
         items, ordinal = build_line_items(
             words, page_index=ps.index, document_id=doc.content_hash,
             source_kind=source_kind, ordinal_start=ordinal, number_format=number_format,
-            statement=ps.statement, log=ctx.log, scope=scope, normalisation=normalisation)
+            statement=ps.statement, log=ctx.log, scope=scope, normalisation=normalisation,
+            page_scope=ps.scope,
+            # The title the classifier matched on this page, so the reader can tell it from a
+            # wrapped caption head: they have the same shape and sit in the same place.
+            page_title=str((ps.evidence or {}).get("matched_title") or "") or None,
+            # The captions this filing prints at the top of page after page — its own running
+            # header, whatever it happens to say. See ``_page_chrome``.
+            page_chrome=chrome)
+        if ps.kind == PageKind.FACE:
+            # Said HERE because here is where it is known: this branch reads the FACE of a
+            # statement (the notes branch above returns note tables, not line items). Only a page
+            # the classifier actually called a face is stamped — an unclassified page that reached
+            # the reader because it is scanned is left for the segment stage to attribute, which
+            # is the last thing that sees every row and every page kind together.
+            for li in items:
+                li.printed_in = PrintedIn.FACE
         doc.line_items.extend(items)
         added += len(items)
     ctx.log(f"extract:pdf_line_items={added} note_tables={len(doc.notes)}")

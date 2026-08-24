@@ -1,4 +1,11 @@
-/** Left navigation rail: grouped screen links + the sample project's extraction-progress card. */
+/** Left navigation rail: grouped screen links + the sample project's extraction-progress card.
+ *
+ *  COLLAPSED BY DEFAULT, to an icon strip. The screens this product is used on put a statement grid
+ *  beside a page of the source document, and a permanent 214px of menu is taken from exactly that —
+ *  so the rail starts out of the way and the reader opens it when they want to go somewhere. The
+ *  choice is remembered per browser (see `getStoredNavCollapsed`); collapsed keeps every row, its
+ *  icon, its active marker and its badge, so nothing becomes unreachable — only the labels go, and
+ *  each row still carries its name as a tooltip. */
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { useMe, useProject } from "../../lib/queries";
@@ -25,6 +32,8 @@ export function NavRail() {
   // sourced from the wrong project or paid for with a request the rail cannot justify — and the
   // query is not issued at all while a real document is active, because there is then nothing in
   // its answer this component may print.
+  const collapsed = useUI((s) => s.navCollapsed);
+  const setCollapsed = useUI((s) => s.setNavCollapsed);
   const activeDocumentId = useUI((s) => s.activeDocumentId);
   const usingReal = !!activeDocumentId;
   const { data } = useProject(!usingReal);
@@ -38,24 +47,52 @@ export function NavRail() {
   const groups = NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter(canSee) }))
     .filter((g) => g.items.length > 0);
 
+  const width = collapsed ? 52 : 214;
   return (
     <div
+      data-testid="nav-rail"
+      data-collapsed={collapsed ? "1" : "0"}
       style={{
-        width: 214,
-        flex: "0 0 214px",
+        width,
+        flex: `0 0 ${width}px`,
         background: "#fff",
         borderRight: `1px solid ${color.cardBorder}`,
-        padding: "12px 0",
+        padding: "6px 0 12px",
         overflowY: "auto",
+        overflowX: "hidden",
+        transition: "width 120ms ease",
       }}
     >
+      <div style={{ display: "flex", justifyContent: collapsed ? "center" : "flex-end",
+                    padding: collapsed ? "2px 0 6px" : "2px 10px 6px" }}>
+        <button
+          type="button"
+          data-testid="nav-toggle"
+          onClick={() => setCollapsed(!collapsed)}
+          title={collapsed ? t("nav.expand") : t("nav.collapse")}
+          aria-label={collapsed ? t("nav.expand") : t("nav.collapse")}
+          aria-expanded={!collapsed}
+          style={{
+            border: `1px solid ${color.cardBorder}`, background: "#fff", color: color.sec,
+            borderRadius: 6, width: 26, height: 24, fontSize: 12, cursor: "pointer", padding: 0,
+          }}
+        >
+          {collapsed ? "»" : "«"}
+        </button>
+      </div>
       {groups.map(({ group, items }) => (
         <div key={group}>
-          <div style={{ padding: "12px 16px 5px" }}>
-            <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: ".7px", color: color.muted2 }}>
-              {t(`group.${group}`)}
-            </span>
-          </div>
+          {/* A group heading is a label; collapsed there is no room for one, and a hairline says
+              "these belong together" without pretending to be text. */}
+          {collapsed
+            ? <div style={{ height: 1, background: color.cardBorder, margin: "8px 12px" }} />
+            : (
+              <div style={{ padding: "12px 16px 5px" }}>
+                <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: ".7px", color: color.muted2 }}>
+                  {t(`group.${group}`)}
+                </span>
+              </div>
+            )}
           {items.map((id) => {
             const s = SCREENS[id];
             const active = s.id === activeId;
@@ -63,12 +100,14 @@ export function NavRail() {
               <div
                 key={id}
                 onClick={() => nav(s.path)}
+                title={t(`nav.${s.id}`)}
                 style={{
                   position: "relative",
                   display: "flex",
                   alignItems: "center",
+                  justifyContent: collapsed ? "center" : "flex-start",
                   gap: 10,
-                  padding: "8px 16px 8px 15px",
+                  padding: collapsed ? "9px 0" : "8px 16px 8px 15px",
                   cursor: "pointer",
                   background: active ? color.indigoTint : "transparent",
                 }}
@@ -87,10 +126,23 @@ export function NavRail() {
                 <span style={{ width: 17, textAlign: "center", fontSize: 13, color: active ? color.indigo : color.sec }}>
                   {s.icon}
                 </span>
-                <span style={{ fontSize: 12.5, fontWeight: active ? 600 : 500, color: active ? color.indigo : color.sec, flex: 1 }}>
-                  {t(`nav.${s.id}`)}
-                </span>
-                {s.badge && (
+                {!collapsed && (
+                  <span style={{ fontSize: 12.5, fontWeight: active ? 600 : 500, color: active ? color.indigo : color.sec, flex: 1 }}>
+                    {t(`nav.${s.id}`)}
+                  </span>
+                )}
+                {/* Collapsed, the badge becomes a dot: the COUNT needs the width the label gave up,
+                    but "there is something here" is the part that must survive, or a review queue
+                    with items in it looks empty from the rail. */}
+                {s.badge && collapsed && (
+                  <span
+                    style={{
+                      position: "absolute", top: 6, right: 8, width: 7, height: 7, borderRadius: 4,
+                      background: s.badge.tone === "review" ? color.redFg : color.amberFg,
+                    }}
+                  />
+                )}
+                {s.badge && !collapsed && (
                   <span
                     style={{
                       minWidth: 18,
@@ -120,7 +172,7 @@ export function NavRail() {
           is empty reads as a load that failed; a card whose body is another project's counts is
           worse. So the whole card is absent while a real document is active, and absent before the
           sample project's counts have arrived. */}
-      {prog && (
+      {prog && !collapsed && (
         <div
           data-testid="nav-progress"
           style={{

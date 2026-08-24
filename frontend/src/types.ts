@@ -144,7 +144,6 @@ export interface AppSettings {
     key_configured: boolean;
   };
   ocr: { engine: string; languages: string[]; dpi: number };
-  embeddings: { provider: string; model: string };
   /** Runtime-tunable pipeline thresholds, keyed by knob name. Rendered from
    *  `extraction_fields` rather than a hardcoded list, so a knob added on the backend appears
    *  here with no frontend change. */
@@ -255,6 +254,11 @@ export interface RowContribution {
   /** …and the same for the prior period, printed in its own column on its own page. */
   src2?: string;
   source2?: ExtractionProvenance | null;
+  /** Whether the figure above ADDS this line. False for a fact the filing printed twice — on the
+   *  face and restated in a note, or on two statements — which is one fact with two references,
+   *  not two amounts to sum. Per period, because the figure is. */
+  counted?: boolean;
+  counted2?: boolean;
 }
 
 export interface StatementRow {
@@ -265,6 +269,21 @@ export interface StatementRow {
   level?: number;
   note?: string | null;
   note2?: string | null;
+  /** Where the figure was PRINTED: on the face of a statement, or inside a note. A different
+   *  question from `origin` below, which says whether the figure was read off the document or typed
+   *  by an analyst — a row can be printed on the face and still carry a manual value. It matters
+   *  because a note's detail lines sum to a figure the face already reports, so a reader adding
+   *  both double-counts the filing. */
+  printed_in?: "face" | "notes" | null;
+  /** Which of the analyst sections this row belongs to — one of the thirteen the face of the
+   *  statements is read in, or `others`. `bucket` is the key, `bucket_label` the wording to show. */
+  bucket?: string | null;
+  bucket_label?: string | null;
+  /** The notes that DETAIL this figure: every note the contributing lines cite AND the run actually
+   *  extracted, so a chip here always has a note behind it. `note`/`note2` above are what the page
+   *  printed in its note column, which is a promise the filing makes rather than one this
+   *  extraction can keep. */
+  notes?: string[] | null;
   status?: "flag" | "recon" | "edited" | "missing" | null;
   confidence?: Confidence;
   editable?: boolean;
@@ -330,7 +349,19 @@ export interface ViewerMeta {
 export interface StatementResponse {
   statement: StatementKey;
   label: string;
+  /** The basis these figures ACTUALLY are — not necessarily the one that was asked for. A statement
+   *  whose rows carry only one basis is served for either request, because a filing that labelled
+   *  one basis drew no distinction to filter on and the alternative was an empty grid. */
   basis: Basis;
+  /** The basis the request asked for. Absent on responses stored before the field existed. */
+  basis_requested?: Basis;
+  /** True when `basis` is not `basis_requested` — the figures are the only ones the document has,
+   *  served in answer to a different question. Surfaced rather than swallowed: showing the
+   *  Company's figures under a tab captioned Consolidated without saying so mislabels a real
+   *  number, which is worse than the empty grid this replaces. */
+  basis_substituted?: boolean;
+  /** Why: "requested" (no substitution) or "only_basis_in_document". */
+  basis_reason?: string;
   /** Shape of the statement. "matrix" means the columns are NAMED (equity components, not
    *  periods) and every row carries `cells` instead of v1/v2. Absent means the two-column
    *  comparative default. */
@@ -515,6 +546,15 @@ export interface ExtractionProgress {
   started_at: string;
   elapsed_ms: number;
 }
+/** One statement a template declares. `key` is a `StatementKey`; the LABEL is deliberately not
+ *  taken from `title` — `ws.stmt.*` is translated in every shipped locale and the server's title is
+ *  English, so `title` is only a last resort for a key this build has no translation for. */
+export interface TemplateStatement {
+  key: StatementKey;
+  title: string;
+  sections: number;
+}
+
 export interface ExtractionRunResponse {
   run_id: string;
   status: string;
@@ -529,6 +569,17 @@ export interface ExtractionRunResponse {
   stages?: string[];
   /** The tail of the run log, flushed as stages complete rather than only at the end. */
   log_tail?: string;
+  /** The bases this filing actually labelled, read off the run's own rows. The Workspace opens on
+   *  one of these rather than always on Consolidated: a filing that printed one column has one
+   *  answer, and offering a choice between two when only one exists invites a click on the empty
+   *  one. Absent or empty means the run cannot say, and the built-in pair is offered. */
+  bases?: Basis[];
+  /** The statements THIS RUN's template declares, in the template's own order — what the Workspace
+   *  builds its statement tabs from. Read off the template the run was pinned to, so publishing a
+   *  new template cannot change the tabs above an existing spread. Absent or empty means the run
+   *  cannot say (no template pinned, or a run stored before this field existed) and the caller
+   *  falls back to the built-in set — it does NOT mean the template declares no statements. */
+  statements?: TemplateStatement[];
   result: ExtractionResult;
 }
 /** Whether a document has an extraction IN FLIGHT, and how far it has got.
@@ -712,6 +763,10 @@ export interface PageCard {
   conf_pct?: number | null;
   included: boolean;
   scan: "native" | "scanned";
+  /** The page number PRINTED ON THE PAGE, when it prints one. `no` above is the page's position in
+   *  the FILE — what every index in this product means and what the viewer scrolls to — and the two
+   *  differ by however much front matter the report has. Null when the page carries no folio. */
+  printed?: string | null;
 }
 export interface PagesResponse {
   pages: PageCard[];
@@ -719,6 +774,25 @@ export interface PagesResponse {
   focused: number;
   total: number;
   skipped: number;
+}
+
+/** One hit from searching the source document's text layer. The box is in the same normalized
+ *  page space as provenance, so a hit is highlighted by the same overlay a picked value is. */
+export interface DocSearchHit {
+  page_index: number;
+  printed_page?: string | null;
+  bbox: { x0: number; y0: number; x1: number; y1: number };
+  snippet: string;
+}
+export interface DocSearchResult {
+  query: string;
+  hits: DocSearchHit[];
+  count: number;
+  /** True when the cap was reached — "these are the first n", not "these are all". */
+  truncated: boolean;
+  /** Pages with no text layer. They cannot be searched, and saying so is not the same as
+   *  reporting no matches. */
+  scanned_pages: number;
 }
 
 export interface ReviewCalcRow {
@@ -970,7 +1044,8 @@ export interface ReviewResponse {
 }
 
 export interface NoteIndexItem {
-  no: number;
+  /** As the filing prints it — a string, because a note can be numbered "16(b)" or "7A". */
+  no: string;
   title: string;
   conf: ConfCat;
 }
@@ -987,7 +1062,8 @@ export interface NoteDetailRow {
   kind?: "sub" | "tot";
 }
 export interface NoteDetail {
-  no: number;
+  /** As the filing prints it — see NoteIndexItem.no. */
+  no: string;
   title: string;
   page: number;
   linked_line: string;

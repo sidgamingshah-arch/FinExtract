@@ -35,11 +35,24 @@ def test_exact_match_early_exits():
     assert r.method == MappingMethod.EXACT and r.confidence == 1.0
 
 
-def test_fuzzy_match_absorbs_typo():
+def test_a_typo_is_left_for_a_human_rather_than_guessed():
+    """There is no string-similarity tier: a misspelling maps to NOTHING and says so.
+
+    It used to be absorbed, which is the same mechanism that filed "Profit before exceptional items
+    and tax" as ``profit_before_tax`` on the shipped rulebook — two subtotals differing by exactly
+    the exceptional items, so the figure landed on the wrong line and the statement still tied. A
+    caption nothing can place is now a visible gap. The remedy is authored, not inferred: an alias
+    for the wording the filer actually prints, or a rule hint."""
     m = OntologyMatcher(_ontology())
     r = m.match("Trade recievables")  # misspelled
-    assert r.canonical_key == "assets.current.receivables"
-    assert r.method in (MappingMethod.FUZZY, MappingMethod.RULE)
+    assert r.canonical_key is None and r.needs_review
+
+    ont = _ontology()
+    next(x for x in ont.mappings
+         if x.canonical_key == "assets.current.receivables").aliases.append("Trade recievables")
+    fixed = OntologyMatcher(ont).match("Trade recievables")
+    assert fixed.canonical_key == "assets.current.receivables"
+    assert fixed.method is MappingMethod.EXACT
 
 
 def test_unmatched_routes_to_review():

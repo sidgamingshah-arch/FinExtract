@@ -5,9 +5,10 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { Card } from "./ui";
 import { api } from "../lib/api";
-import { useCellContext } from "../lib/queries";
+import { useCellContext, useDocumentPages, useDocumentSearch } from "../lib/queries";
+import { useT } from "../i18n";
 import { color, font } from "../theme";
-import type { ExtractionProvenance } from "../types";
+import type { DocSearchHit, ExtractionProvenance } from "../types";
 
 /** A value's source location, resolved to what the Source panel needs to render it.
  *  PDF sources carry a page + bbox; spreadsheet sources carry a sheet + cell. */
@@ -43,9 +44,11 @@ export function PanelShell({ t, width = 420, children }:
 /** One page slot in the scrollable document viewer. Lazily fetches its PNG when it nears
  *  the viewport (so a 200-page filing doesn't fetch every page at once), and draws the
  *  picked value's bounding box when the pick lands on this page. */
-function PageSlot({ documentId, index, picked, pickedRef }: {
+function PageSlot({ documentId, index, picked, pickedRef, printed }: {
   documentId: string; index: number; picked: PdfPick | null;
   pickedRef: React.MutableRefObject<HTMLDivElement | null>;
+  /** The folio printed on this page, when the document prints one. */
+  printed?: string | null;
 }) {
   const [url, setUrl] = useState<string | null>(null);
   const isPicked = picked?.page_index === index;
@@ -99,7 +102,12 @@ function PageSlot({ documentId, index, picked, pickedRef }: {
       <div style={{ position: "absolute", top: 4, right: 6, zIndex: 1, fontFamily: font.mono,
                     fontSize: 9.5, color: color.faint, background: "rgba(255,255,255,0.8)",
                     borderRadius: 4, padding: "1px 5px" }}>
-        p.{index + 1}
+        {/* BOTH numbers, because they are both true and they disagree. `index + 1` is the page's
+            position in the file — what this viewer scrolls to, what provenance carries, what the
+            Page Scope screen selects — and `printed` is the folio on the paper, which runs behind
+            it by however much front matter the report has. Showing only the first makes a correct
+            jump look like it landed two pages down. */}
+        p.{index + 1}{printed ? ` · ${printed}` : ""}
       </div>
       {url
         ? <img src={url} alt="" style={{ display: "block", width: "100%" }} />
@@ -122,34 +130,149 @@ function PageSlot({ documentId, index, picked, pickedRef }: {
 /** Bare scrollable stack of the document's pages — no panel chrome, so a host (the Workspace's
  *  dark viewer column) can place it in its own layout. Picking a value scrolls its page into
  *  view and highlights the bbox. */
-export function PageStack({ documentId, pageCount, picked, maxHeight = "78vh", scale = 1 }: {
+export function PageStack({ documentId, pageCount, picked, maxHeight = "78vh", scale = 1,
+                           search = true }: {
   documentId: string; pageCount: number; picked: PdfPick | null; maxHeight?: number | string;
   /** Page-column width multiplier — what a zoom IS here. Each page's image is width-driven and
    *  the bbox highlight is expressed in percentages of the page box, so widening the column
    *  scales the page and its highlight together and provenance geometry is untouched. Default 1
    *  leaves every other caller (the Extraction view, the Notes viewer) exactly as it was. */
   scale?: number;
+  /** Offer the find-in-document bar. On by default: every host of this stack shows a source
+   *  document the reader may need to reach by what it SAYS rather than by which value they
+   *  happened to click. */
+  search?: boolean;
 }) {
   const pickedRef = useRef<HTMLDivElement | null>(null);
+  // A search hit is a pick like any other, but it belongs to the viewer rather than to the host's
+  // selection — clicking a hit must not move the grid's selected row. It is cleared whenever the
+  // host picks something, so the two can never both claim the highlight.
+  const [hit, setHit] = useState<PdfPick | null>(null);
+  useEffect(() => { setHit(null); }, [picked?.page_index, picked?.bbox.x0, picked?.bbox.y0]);
+  const shown = hit ?? picked;
+
   useEffect(() => {
-    if (picked && pickedRef.current) {
+    if (shown && pickedRef.current) {
       pickedRef.current.scrollIntoView({ block: "center", behavior: "smooth" });
     }
-  }, [picked?.page_index, picked?.bbox.x0, picked?.bbox.y0]);
+  }, [shown?.page_index, shown?.bbox.x0, shown?.bbox.y0]);
+
+  // The printed folios, from the same per-page payload the Page Scope screen reads (cached, so
+  // hosting the viewer beside that screen costs nothing extra).
+  const pages = useDocumentPages(documentId);
+  const folio = (i: number) => pages.data?.pages?.find((p) => p.no === i + 1)?.printed ?? null;
 
   const n = Math.max(1, pageCount);
   return (
-    // `overflow: auto` rather than overflowY, so a page column widened past 100% can be panned
-    // horizontally instead of being clipped.
     <div style={{ maxHeight, overflow: "auto", paddingRight: 4 }}>
+      {search && <PageSearch documentId={documentId} onPick={setHit} />}
+      {/* `overflow: auto` above rather than overflowY, so a page column widened past 100% can be
+          panned horizontally instead of being clipped. */}
       <div style={{ width: `${scale * 100}%` }}>
         {Array.from({ length: n }).map((_, i) => (
-          <PageSlot key={i} documentId={documentId} index={i} picked={picked} pickedRef={pickedRef} />
+          <PageSlot key={i} documentId={documentId} index={i} picked={shown}
+                    pickedRef={pickedRef} printed={folio(i)} />
         ))}
       </div>
     </div>
   );
 }
+
+/** Find-in-document: the text search the page-image viewer cannot do for itself.
+ *
+ *  The term is submitted rather than searched as it is typed — one request per query, not one per
+ *  keystroke — and each hit carries its page and a normalized box, so picking one highlights the
+ *  phrase with exactly the overlay a picked value gets. */
+function PageSearch({ documentId, onPick }: {
+  documentId: string; onPick: (p: PdfPick) => void;
+}) {
+  const t = useT();
+  const [term, setTerm] = useState("");
+  const [query, setQuery] = useState("");
+  const [at, setAt] = useState(0);
+  const q = useDocumentSearch(documentId, query);
+  const hits = q.data?.hits ?? [];
+
+  const go = (i: number) => {
+    const h: DocSearchHit | undefined = hits[i];
+    if (!h) return;
+    setAt(i);
+    onPick({ kind: "pdf", page_index: h.page_index, bbox: h.bbox, label: h.snippet });
+  };
+  // Land on the first hit as soon as a search returns, so one Enter is the whole interaction.
+  useEffect(() => {
+    if (q.data && hits.length) go(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q.data]);
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAt(0);
+    setQuery(term.trim());
+  };
+  const step = (d: number) => {
+    if (!hits.length) return;
+    go((at + d + hits.length) % hits.length);
+  };
+
+  return (
+    // Opaque and sticky: the bar has to stay legible over the page images scrolling under it, and
+    // over the Workspace's dark viewer column as well as the Extraction view's white card.
+    <div style={{ position: "sticky", top: 0, zIndex: 2, background: "#fff",
+                  borderBottom: `1px solid ${color.cardBorder}`, borderRadius: 6,
+                  padding: "6px 6px 8px", marginBottom: 8 }}>
+      <form onSubmit={submit} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <input
+          value={term}
+          onChange={(e) => setTerm(e.target.value)}
+          placeholder={t("view.searchPlaceholder")}
+          aria-label={t("view.searchPlaceholder")}
+          data-testid="page-search"
+          style={{ flex: 1, minWidth: 0, fontSize: 11.5, padding: "5px 8px",
+                   border: `1px solid ${color.cardBorder}`, borderRadius: 6,
+                   background: "#fff", color: color.sec }}
+        />
+        {hits.length > 1 && (
+          <>
+            <button type="button" onClick={() => step(-1)} title={t("view.prevMatch")}
+                    style={stepSt}>↑</button>
+            <button type="button" onClick={() => step(1)} title={t("view.nextMatch")}
+                    style={stepSt}>↓</button>
+          </>
+        )}
+      </form>
+      {query.length >= 2 && (
+        <div style={{ fontSize: 10.5, color: color.muted, marginTop: 5, lineHeight: 1.5 }}>
+          {q.isPending && t("view.searching")}
+          {q.isError && t("view.searchFailed")}
+          {q.data && (hits.length
+            ? <>
+                <span data-testid="page-search-count">
+                  {`${at + 1} / ${hits.length}${q.data.truncated ? "+" : ""} ${t("view.matches")}`}
+                </span>
+                {hits[at] && (
+                  <span style={{ color: color.faint }}>
+                    {` · p.${hits[at].page_index + 1}`}
+                    {hits[at].printed_page ? ` · ${hits[at].printed_page}` : ""}
+                  </span>
+                )}
+              </>
+            : t("view.noMatches"))}
+          {/* A page with no text layer cannot be searched, and that is not the same as a page with
+              no match on it. The count of them is stated rather than left to look like an answer. */}
+          {q.data && q.data.scanned_pages > 0 && (
+            <div>{`${q.data.scanned_pages} ${t("view.scannedUnsearchable")}`}</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const stepSt: React.CSSProperties = {
+  border: `1px solid ${color.cardBorder}`, background: "#fff", color: color.sec,
+  borderRadius: 6, width: 24, height: 24, fontSize: 11, cursor: "pointer", padding: 0,
+};
 
 /** The full source document panel (Extraction view): panel chrome + the page stack. */
 export function PagedSource({ documentId, pageCount, picked, t, width }: {

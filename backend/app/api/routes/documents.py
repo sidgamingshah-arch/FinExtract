@@ -18,7 +18,9 @@ from app.services.documents import analyze_document, content_hash
 from app.services import review_lines
 from app.services.page_scope import normalise_kind, scope_counts
 from app.services.periods import (
-    basis_values as _basis_values_of, concept_value as _concept_value, edited_for as _edited_for,
+    bases_present, basis_values as _basis_values_of, concept_value as _concept_value,
+    summable as _summable,
+    edited_for as _edited_for, effective_basis,
     names_a_component, period_displays, slot_for, split_current_prior)
 from app.services.reconcile import tie_status
 
@@ -2424,8 +2426,25 @@ def get_document_run(document_id: str, session: Session = Depends(db)) -> dict:
     # ``routes.extractions.rulebook_record``). Reported, never re-derived: a reader deciding after
     # the fact which rulebook "must" have been in force is how a superseded one got labelled as
     # the current one.
+    # WHICH STATEMENTS THIS SPREAD HAS, so the Workspace's tabs are the template's rather than a
+    # hardcoded three. Read off the template the RUN was pinned to, never the newest one stored:
+    # a template published later must not change the tabs above an existing spread, which is the
+    # same rule ``_template_for_run`` exists to hold. A run with no template gets an empty list and
+    # the client falls back — an empty list means "this run cannot say", not "this run has none".
+    from app.services.statements import declared_statements
+
+    # WHICH BASES THIS FILING ACTUALLY LABELLED, so the Workspace opens on one it has instead of
+    # always opening on Consolidated and then substituting. A filing that printed one column has one
+    # answer; offering a choice between two when only one exists invites the analyst to click the
+    # empty one, and the substitution notice then explains a situation the screen created.
+    #
+    # Read off the run's own rows — the same reading ``basis_values`` filters by, so the selector and
+    # the grid cannot disagree about which bases exist. Empty means nothing was extracted.
     return {"run_id": run.id, "status": run.status,
-            "rulebook": (run.options or {}).get("rulebook"), "result": run.result}
+            "rulebook": (run.options or {}).get("rulebook"),
+            "statements": declared_statements(_template_for_run(session, run)),
+            "bases": bases_present(run.result.get("rows") or []),
+            "result": run.result}
 
 
 @router.get("/{document_id}/analysis", dependencies=[Depends(authorized_document)])
@@ -2932,6 +2951,16 @@ def remap_review_row(document_id: str, body: RemapBody, locale: str = Query("en"
     target["canonical_key"] = key or None
     target["mapping_method"] = "manual_remap" if key else "manual_unmap"
     target["mapping_confidence"] = 1.0 if key else None
+    # THE SECTION TAG FOLLOWS THE CONCEPT, here and in the segmentation store. A row's analyst
+    # section is derived from the concept it maps to, so a re-map that left the tag alone would
+    # serve a row whose figure is now a current liability under Non-current liabilities — and the
+    # tag is the thing a reader groups by, so the error would be invisible in the row itself.
+    #
+    # Both places, because they are joined on the row id and disagree loudly if only one moves: the
+    # row carries the tag it is served with, and ``result["buckets"]`` carries the membership the
+    # bucket screens read. Nothing else about the segmentation is recomputed — a re-map is one row
+    # changing its mind, not a reason to re-run a stage over the document.
+    _retag_row(result, target, key, session, run)
     target["remap"] = {"from": prior, "to": key, "reason": body.reason.strip()[:2000],
                        "by": getattr(principal, "username", "") or "", "at": _now_iso()}
     # On the ROW's flags, not only in the payload: the export and the statement inspector both read
@@ -2957,6 +2986,69 @@ def remap_review_row(document_id: str, body: RemapBody, locale: str = Query("en"
     session.commit()
     return {"ok": True, "row_ref": ref, "label": target.get("source_label") or "",
             "from": prior, "to": key, "remap": target["remap"]}
+
+
+def _retag_row(result: dict, row: dict, key: str, session, run) -> None:
+    """Move one row's analyst-section tag, and its membership in the stored segmentation, to the
+    section its NEW concept belongs to. A row re-mapped to nothing loses its tag with its concept."""
+    from app.core.models.enums import PrintedIn
+    from app.services.buckets import BUCKET_LABELS, bucket_of
+
+    ont = _ontology_for_run(session, run)
+    section = None
+    declared = None
+    if key and ont is not None:
+        concept = next((m for m in ont.mappings if m.canonical_key == key), None)
+        if concept is not None:
+            section = (concept.section_scope or [None])[0]
+            declared = concept.analyst_bucket
+    bucket = None
+    if key:
+        bucket, _why = bucket_of(section, None, declared)
+    row["section"] = section
+    row["bucket"] = bucket
+    row["bucket_label"] = BUCKET_LABELS.get(bucket or "")
+
+    store = result.get("buckets")
+    if not isinstance(store, dict):
+        return
+    row_id = row.get("id")
+    if not row_id:
+        return
+    # THE TAG FOLLOWS THE CONCEPT; THE FACE MEMBERSHIP DOES NOT FOLLOW A NOTE ROW. A row printed
+    # inside a note is not a face row whatever concept a reviewer maps it to — the same test
+    # ``segment_source`` applies, and for the same reason: a note's lines sum to a figure the face
+    # already reports, so counting one as a face row puts the note's money in the section twice,
+    # once through the note and once through the row. The queue does offer a re-map on such a row
+    # (an unmapped card is raised for any row), so this is reachable and not theoretical.
+    if (row.get("printed_in") or "") == PrintedIn.NOTES.value:
+        return
+    for seg in store.get("segments") or []:
+        ids = seg.get("face_item_ids") or []
+        if row_id in ids:
+            seg["face_item_ids"] = [i for i in ids if i != row_id]
+    # The measurement of what nothing could place is membership too, and it leaves with the rest: a
+    # row a human has just placed is not a row nothing placed. Left behind it would be counted as
+    # uncovered by the index AND served with ``unresolved: true`` under the row's new section, so
+    # the analyst's own correction would read on screen as having failed. The unmapped branch below
+    # puts it back.
+    store["unresolved_face_item_ids"] = [i for i in (store.get("unresolved_face_item_ids") or [])
+                                         if i != row_id]
+    if bucket:
+        for seg in store.get("segments") or []:
+            if seg.get("bucket") == bucket:
+                seg["face_item_ids"] = list(seg.get("face_item_ids") or []) + [row_id]
+                if section and section not in (seg.get("sections") or []):
+                    seg["sections"] = sorted((seg.get("sections") or []) + [section])
+    else:
+        # Unmapped: it belongs to Others, and to the measurement that says Others holds it because
+        # nothing placed it rather than because it belongs there.
+        for seg in store.get("segments") or []:
+            if seg.get("bucket") == "others":
+                seg["face_item_ids"] = list(seg.get("face_item_ids") or []) + [row_id]
+        store["unresolved_face_item_ids"] = list(
+            store.get("unresolved_face_item_ids") or []) + [row_id]
+    result["buckets"] = store
 
 
 class LineItemEdit(BaseModel):
@@ -3309,6 +3401,11 @@ def _build_pages(pages: list[dict], scope: list[int] | None = None) -> dict:
             "conf_pct": pct,
             "included": included,
             "scan": "scanned" if p.get("source_kind") == "scanned" else "native",
+            # The page's own printed folio, when it prints one. `no` above is the position in the
+            # FILE, which is what every index in this system means and what the viewer navigates
+            # by; this is the number the reader sees on the page. They differ by however much front
+            # matter the report has, which is why showing only one of them misleads.
+            "printed": p.get("printed_page"),
         })
     # Counted from the cards, by the same helper the sample route uses — see app/services/
     # page_scope.py for why the two routes are no longer allowed their own arithmetic.
@@ -3561,6 +3658,25 @@ def _inspector(r: dict, cur: dict | None) -> dict:
                      if inferred else f"Mapped by {r.get('mapping_method') or 'ensemble'}")}
 
 
+def _ontology_for_run(session: Session, run):
+    """The RESOLVED rulebook this run was launched against, or None when it named none.
+
+    Resolved, because the section layer a v2 rulebook authors once per section only reaches a
+    concept through the fold — and the section is exactly what a re-map has to read.
+    """
+    from app.db.models import OntologyVersion
+    from app.schemas.loader import load_ontology
+
+    oid = (run.options or {}).get("ontology_version_id")
+    row = session.get(OntologyVersion, oid) if oid else None
+    if row is None:
+        return None
+    try:
+        return load_ontology(row.definition, resolve=True)
+    except Exception:  # noqa: BLE001 — a malformed rulebook must not break a re-map
+        return None
+
+
 def _netting_rules_for_run(session: Session, run) -> list:
     """The face-line netting rules from the ontology the run used (empty when none/unavailable)."""
     from app.db.models import OntologyVersion
@@ -3755,21 +3871,33 @@ def _matrix_rows(rows: list[dict], basis: str) -> list[tuple[dict, dict]]:
 def _matrix_columns(rows: list[dict], basis: str) -> list[str]:
     """The component columns of a matrix statement, in the order they are PRINTED.
 
-    Column identity is the header text extraction already attached to each value; the order is
-    recovered from where the figures sit on the page (the median x of a column's cells), because
-    a dict of values has no left-to-right order of its own and equity statements are read
-    left-to-right — issued capital through to total equity.
+    Column identity is the header text extraction already attached to each value; the order is the
+    ``column_index`` extraction recorded with it, because a dict of values has no left-to-right
+    order of its own and equity statements are read left-to-right — issued capital through to total
+    equity.
+
+    The fallback is the page geometry (the median x of a column's cells), which is what every
+    column carried before the index was persisted, and is still right for a source with no page
+    axis at all — an Excel sheet, where each cell's box is null and the encounter order stands. It
+    is used only when NO column carries an index: mixing the two scales would order some columns by
+    position and the rest by pixels, which is not an order.
     """
+    idx: dict[str, list[float]] = {}
     xs: dict[str, list[float]] = {}
     for _r, cells in _matrix_rows(rows, basis):
         for name, v in cells.items():
+            ci = v.get("column_index")
+            if ci is not None:
+                idx.setdefault(name, []).append(float(ci))
             box = ((v.get("provenance") or {}).get("bbox")) or {}
             x = box.get("x0")
             xs.setdefault(name, []).append(0.0 if x is None else float(x))
-    def centre(name: str) -> float:
-        vals = sorted(xs[name])
+    def median(vals: list[float]) -> float:
+        vals = sorted(vals)
         return vals[len(vals) // 2] if vals else 0.0
-    return sorted(xs, key=centre)
+    if len(idx) == len(xs):            # every column reported where it was printed
+        return sorted(idx, key=lambda name: median(idx[name]))
+    return sorted(xs, key=lambda name: median(xs[name]))
 
 
 def _build_matrix_statement(rows: list[dict], statement_type: str, filename: str, *,
@@ -4112,6 +4240,12 @@ def _face_prefixes(template_def: dict | None) -> set[str]:
     return out
 
 
+def _note_sort_key_str(no: str) -> tuple[int, str]:
+    """Note numbers in the order a filing prints them: numerically, with any sub-letter after."""
+    head = re.match(r"\d+", str(no) or "")
+    return (int(head.group(0)) if head else 10_000, str(no))
+
+
 def _build_statement(rows: list[dict], template_def: dict | None, statement_type: str,
                      filename: str, basis: str = "consolidated", locale: str = "en",
                      units_ctx: dict | None = None, company: str | None = None,
@@ -4122,21 +4256,47 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
     carry a value for the requested `basis` (consolidated / standalone) are shown. Labels are
     resolved in the output `locale` from the template's label_i18n (input=output parity)."""
     prefix = _stmt_prefix(template_def, statement_type)
+    # WHICH BASIS THIS VIEW CAN ACTUALLY SHOW. Asking for a basis the document never labelled used
+    # to return nothing, so a filing extracted as company-only rendered an empty Consolidated tab —
+    # the default one — with its figures a tab away, and an empty grid reads exactly like a statement
+    # the filing does not contain. A document that labelled only ONE basis drew no distinction to
+    # filter on, so that basis answers either request; a document that printed Group and Company side
+    # by side genuinely has two answers and the request stands. See `services.periods.effective_basis`.
+    #
+    # Scoped to THIS statement's rows, because the question is per statement: a filing can label its
+    # balance sheet on both bases and its income statement on one. Falls back to every row for a view
+    # with no canonical-key prefix of its own (the KPIs), which would otherwise never resolve.
+    requested_basis = basis
+    _scoped = [r for r in rows if (r.get("canonical_key") or "").startswith(f"{prefix}_")]
+    basis, basis_why = effective_basis(_scoped or rows, basis)
+
+    def _stamp(spread: dict) -> dict:
+        """Say which basis the figures ARE, next to the one that was asked for.
+
+        Never silent: serving the Company's figures under a tab captioned Consolidated without
+        saying so would mislabel a real number, which is worse than the empty grid this replaces.
+        """
+        spread["basis_requested"] = requested_basis
+        spread["basis"] = basis
+        spread["basis_substituted"] = basis != requested_basis
+        spread["basis_reason"] = basis_why
+        return spread
+
     # A statement of changes in equity is not a two-column comparative — its columns are equity
     # COMPONENTS (issued capital, each reserve, retained profits, non-controlling interests,
     # total equity) and its rows are movements through the year. Forcing it into current/prior
     # columns files a component under a period that does not exist, so it gets its own shape.
     if statement_type in _MATRIX_STATEMENTS:
-        return _build_matrix_statement(
+        return _stamp(_build_matrix_statement(
             rows, statement_type, filename, basis=basis, locale=locale, units_ctx=units_ctx,
             company=company, doc_format=doc_format, page_count=page_count,
-            template_def=template_def)
+            template_def=template_def))
     # Two views that are not statements the document prints, but which the document's figures
     # determine: the KPIs computed off them, and everything extracted that reaches no face.
     if statement_type == "kpi":
-        return _build_kpi_statement(
+        return _stamp(_build_kpi_statement(
             rows, filename, basis=basis, locale=locale, company=company,
-            doc_format=doc_format, page_count=page_count, template_def=template_def)
+            doc_format=doc_format, page_count=page_count, template_def=template_def))
     # Several printed lines legitimately share one concept: three depreciation lines roll into
     # "Depreciation and amortisation", two tax payments into "Income tax paid", and an "Others"
     # bucket exists precisely to absorb a handful. Keeping only the first row would drop the
@@ -4294,6 +4454,13 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
             # A combined figure has to be auditable line by line: each contributing caption with
             # its OWN values and its OWN source location, so every part can be traced back to the
             # page it was printed on. A prose summary cannot be clicked.
+            #
+            # WHICH LINES ADD, per period. A fact the filing printed twice is counted once
+            # (`periods.summable`), so listing every line as an addend would show a column that does
+            # not add up to the figure above it — the reader would be left to guess which line the
+            # total left out. Marked per period because that is the granularity the figure is.
+            adds_cur = {id(x) for x, _ in _summable(group, basis, "current")}
+            adds_prior = {id(x) for x, _ in _summable(group, basis, "prior")}
             for x in group:
                 c, p = _cur_prior(x, basis)
                 contributions.append({
@@ -4313,6 +4480,11 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
                     # own page in a filing that reprints last year's statement.
                     "src2": _prov_label((p or {}).get("provenance")),
                     "source2": (p or {}).get("provenance"),
+                    # False for a line whose figure this concept already holds from somewhere else
+                    # — the same fact printed on the face and restated in a note, or on two
+                    # statements. Shown as evidence, not added.
+                    "counted": id(x) in adds_cur,
+                    "counted2": id(x) in adds_prior,
                 })
             terms = [f"{c['v1']:,.0f}" if c["v1"] is not None else "—" for c in contributions]
             printed = " + ".join(terms)
@@ -4343,6 +4515,24 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
             "source_label": r.get("source_label"), "kind": kind,
             "note": next((x.get("note") for x in group if x.get("note")), None),
             "note2": None, "status": "edited" if edited else None,
+            # WHERE THE FIGURE WAS PRINTED and WHICH ANALYST SECTION it belongs to, carried from the
+            # contributing rows. Not the same question as ``origin`` below, which says whether the
+            # figure was read off the document or typed by an analyst — a row can be printed on the
+            # face and still carry a manual value.
+            #
+            # ``face`` when ANY contributing line was printed on a statement face: a concept whose
+            # figure comes partly from the face is a face figure, and a reader needs to know the
+            # weaker case (it came only from a note) rather than have it averaged away.
+            "printed_in": ("face" if any(x.get("printed_in") == "face" for x in group)
+                           else next((x.get("printed_in") for x in group
+                                      if x.get("printed_in")), None)),
+            "bucket": next((x.get("bucket") for x in group if x.get("bucket")), None),
+            "bucket_label": next((x.get("bucket_label") for x in group
+                                  if x.get("bucket_label")), None),
+            # The notes that DETAIL this figure — every note any contributing line cites and that
+            # the run actually extracted, so the linkage cannot offer detail that is not there.
+            "notes": sorted({n for x in group for n in (x.get("notes") or [])},
+                            key=_note_sort_key_str) or None,
             # No confidence object at all when nothing measured one, rather than a category beside a
             # made-up percentage: `_conf_cat` used to answer ('med', 60) for a row that carries no
             # mapping confidence, and the inspector printed "60% confidence" over a figure nothing
@@ -4482,7 +4672,7 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
                               "note": f"{note} {_t('Raw', locale)}: {raw}."}
 
     basis_label = _BASIS_LABEL_I18N.get(basis, {}).get(locale, basis.title())
-    return {
+    return _stamp({
         "statement": statement_type,
         "label": _stmt_label(template_def, statement_type, locale),
         "basis": basis, "periods": _period_labels(rows, basis, locale),
@@ -4503,7 +4693,7 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
                           "ensemble. Open the extraction view for click-to-source provenance.",
                           locale) if refused is None else refused["message"],
         },
-    }
+    })
 
 
 @router.get("/{document_id}/statement", dependencies=[Depends(authorized_document)])
@@ -4543,25 +4733,46 @@ def get_document_statement(
     return spread
 
 
-def _note_no(raw) -> int | None:
-    """Parse a note reference to an int; the notes index/detail key on numbers."""
-    try:
-        return int(str(raw).strip())
-    except (TypeError, ValueError):
-        return None
+def _note_key(raw) -> str | None:
+    """A note's number as the filing prints it — the key the notes index and detail are served on.
+
+    A STRING, not an int. This parsed to ``int`` and returned None on failure, which silently
+    dropped every note a filing does not number with a bare integer: a table printed as "16(b)" or
+    "7A" was absent from the index, absent from its own detail route, and absent from the face rows
+    grouped by note — the note existed, was linked, was filed in its section, and could not be
+    opened. Parsing the leading integer instead is not the fix either: it merges a table numbered
+    "16(b)" with one numbered "16" and serves the two as one note.
+
+    Order comes from ``_note_sort_key_str`` (numerically, sub-letter after), so the index still
+    reads in the order the filing prints, which is what the int key was really providing.
+    """
+    key = str(raw).strip() if raw is not None else ""
+    return key or None
 
 
-def _rows_by_note(rows: list[dict]) -> dict[int, list[dict]]:
+def _rows_by_note(rows: list[dict]) -> dict[str, list[dict]]:
+    """Face rows grouped by the note they cite — the "linked line" the notes screen names.
+
+    Keyed off the row's RESOLVED linkage (``notes``, see ``extractions._linked_notes``) rather than
+    off the note column as printed. A row citing "16(b)" of a table numbered "16" belongs under
+    note 16; re-deriving that here from the printed token would file it under nothing, and would be
+    a fourth place answering "which notes does this row cite" — the rule lives in
+    ``LineItem.cited_notes_among`` and the linkage is what it produced.
+
+    The printed column is the fallback for a run stored before rows carried their linkage.
+    """
     grouped: dict[int, list[dict]] = {}
     for r in rows:
-        n = _note_no(r.get("note"))
-        if n is not None:
-            grouped.setdefault(n, []).append(r)
+        cited = r.get("notes") or ([r.get("note")] if r.get("note") else [])
+        for raw in cited:
+            n = _note_key(raw)
+            if n is not None:
+                grouped.setdefault(n, []).append(r)
     return grouped
 
 
-def _note_index(details: list[dict]) -> dict[int, dict]:
-    return {n: d for d in details if (n := _note_no(d.get("no"))) is not None}
+def _note_index(details: list[dict]) -> dict[str, dict]:
+    return {n: d for d in details if (n := _note_key(d.get("no"))) is not None}
 
 
 def _note_row_kind(row: dict) -> str | None:
@@ -4597,7 +4808,7 @@ def _entry_column(entry: dict) -> str:
     return f"{entry.get('basis') or '—'}/{entry.get('period_label') or '—'}"
 
 
-def _reconciliation_text(entries: list[dict], note_no: int) -> str | None:
+def _reconciliation_text(entries: list[dict], note_no: str) -> str | None:
     """A human-readable note→face reconciliation summary for one note, from the reconcile
     stage's entries. Prefers the consolidated / current-period entry.
 
@@ -4615,7 +4826,11 @@ def _reconciliation_text(entries: list[dict], note_no: int) -> str | None:
     belongs to, and the "Face figure … → reconciled …" clause above says which column IT is about —
     it is taken from ``mine[0]``, the best-graded entry, while the residual list spans all of them.
     """
-    mine = [e for e in entries if _note_no(e.get("note_number")) == note_no]
+    # Both sides through ``_note_key``, so this compares a key with a key. The caller passes the
+    # route's own path value and a reconciliation entry carries whatever the pipeline recorded —
+    # "12" and 12 are the same note, and a bare == between them silently found nothing.
+    want = _note_key(note_no)
+    mine = [e for e in entries if _note_key(e.get("note_number")) == want]
     if not mine:
         return None
     # An entry we could actually grade says more than an unconfirmed one, so prefer it; then
@@ -4680,21 +4895,23 @@ def get_document_notes(document_id: str, session: Session = Depends(db)) -> dict
     # there is no percentage to serve, and the screen must say so instead of printing the literal
     # its category happens to map to. Absent-versus-null is the distinction the client needs to
     # tell "no measurement" from "not sent".
+    # Sorted by ``_note_sort_key_str``, not by the key itself: the keys are strings now, so a plain
+    # sort would read 1, 10, 16(b), 2 — the printed order is numeric with any sub-letter after it.
     if details:
         notes = [{"no": n, "title": details[n].get("title") or f"Note {n}",
                   "conf": "high", "conf_pct": None}
-                 for n in sorted(details)]
+                 for n in sorted(details, key=_note_sort_key_str)]
         linked = sum(len(details[n].get("rows", [])) for n in details)
         return {"notes": notes, "count": len(notes), "linked": linked}
 
     grouped = _rows_by_note(run.result.get("rows", []))
     notes = [{"no": n, "title": f"Note {n}", "conf": "med", "conf_pct": None}
-             for n in sorted(grouped)]
+             for n in sorted(grouped, key=_note_sort_key_str)]
     return {"notes": notes, "count": len(notes), "linked": sum(len(v) for v in grouped.values())}
 
 
 @router.get("/{document_id}/notes/{note_no}", dependencies=[Depends(authorized_document)])
-def get_document_note(document_id: str, note_no: int, locale: str = Query("en"),
+def get_document_note(document_id: str, note_no: str, locale: str = Query("en"),
                       session: Session = Depends(db)) -> dict:
     """One note's detail for a real document: its EXTRACTED breakdown rows (label + period
     values) with the page they came from, plus the face line that cites it. Falls back to
@@ -4765,6 +4982,139 @@ def get_document_note(document_id: str, note_no: int, locale: str = Query("en"),
     }
 
 
+# --- the eight analyst buckets -----------------------------------------------------------------
+# The segmentation itself is stored on the run (services/buckets.py) and holds MEMBERSHIP only: which
+# face rows, which notes, which pages. These two endpoints join it to ``rows`` and ``note_details``,
+# so a bucket's figures are served from the one place they are stored rather than from a copy.
+
+
+def _bucket_store(run) -> dict | None:
+    """The stored segmentation, or None for a run extracted before the segment stage existed.
+
+    None is served as an explicit ``segmented: false`` rather than as eight empty buckets: a filing
+    whose sections were never segmented and one whose sections are all empty are different answers,
+    and only the first is fixed by re-running the extraction.
+    """
+    if not run or not run.result:
+        return None
+    return run.result.get("buckets") or None
+
+
+@router.get("/{document_id}/buckets", dependencies=[Depends(authorized_document)])
+def get_document_buckets(document_id: str, session: Session = Depends(db)) -> dict:
+    """What each bucket holds, in the order a filing is read.
+
+    Counts and page ranges only — call the detail route for a bucket's own rows and notes. Every
+    face row is in exactly one bucket, so ``face_rows`` summed over the buckets equals the run's
+    face row count; ``unresolved_face_rows`` says how many of them reached Others because nothing
+    could place them, which is the number that measures coverage.
+
+    NOTES DO NOT SUM THE SAME WAY. A note cited from two buckets is filed in both, so ``notes``
+    summed over the buckets exceeds the filing's note count by the overlap. ``distinct_notes`` is
+    the filing-level answer and each bucket's ``shared_notes`` names its duplicated members, so a
+    caller needing a total can compute it rather than being handed a figure that double counts.
+    """
+    from app.services.buckets import BUCKETS
+
+    run = _latest_run(session, document_id)
+    store = _bucket_store(run)
+    if store is None:
+        return {"segmented": False, "buckets": [], "unresolved_face_rows": 0,
+                "unknown_sections": []}
+
+    by_key = {seg.get("bucket"): seg for seg in store.get("segments", [])}
+    buckets = []
+    for key, label in BUCKETS:
+        seg = by_key.get(key) or {}
+        buckets.append({
+            "bucket": key,
+            "label": label,
+            "face_rows": len(seg.get("face_item_ids") or []),
+            "notes": len(seg.get("note_numbers") or []),
+            "note_numbers": list(seg.get("note_numbers") or []),
+            "shared_notes": list(seg.get("shared_notes") or []),
+            # 1-based, as every page number this API serves is.
+            "face_pages": [p + 1 for p in (seg.get("face_pages") or [])],
+            "note_pages": [p + 1 for p in (seg.get("note_pages") or [])],
+            "sections": list(seg.get("sections") or []),
+        })
+    return {
+        "segmented": True,
+        "buckets": buckets,
+        # Distinct across the whole filing, because the per-bucket counts above deliberately
+        # double-count a shared note and adding them up is therefore the wrong total.
+        "distinct_notes": len({n for b in buckets for n in b["note_numbers"]}),
+        "unresolved_face_rows": len(store.get("unresolved_face_item_ids") or []),
+        "unresolved_notes": list(store.get("unresolved_note_numbers") or []),
+        # A section of the filing this taxonomy has no bucket for. Its rows are in Others; naming
+        # it here is what stops a swallowed section reading like a covered one.
+        "unknown_sections": list(store.get("unknown_sections") or []),
+    }
+
+
+@router.get("/{document_id}/buckets/{bucket}", dependencies=[Depends(authorized_document)])
+def get_document_bucket(document_id: str, bucket: str,
+                        session: Session = Depends(db)) -> dict:
+    """One bucket's own source: its face rows and the notes filed under it.
+
+    A note cited from two buckets is filed in both and its content is served in both, because an
+    analyst reading current liabilities needs the borrowings note in front of them and so does one
+    reading non-current liabilities. ``shared_notes`` names which of the notes below are also filed
+    elsewhere — the figures of those notes appear more than once across the buckets, so a caller
+    adding the buckets up has to subtract the overlap.
+    """
+    from app.services.buckets import BUCKET_LABELS
+
+    if bucket not in BUCKET_LABELS:
+        raise HTTPException(status_code=404, detail=f"Unknown bucket: {bucket}")
+    run = _latest_run(session, document_id)
+    store = _bucket_store(run)
+    if store is None:
+        return {"segmented": False, "bucket": bucket, "label": BUCKET_LABELS[bucket],
+                "rows": [], "notes": [], "shared_notes": []}
+
+    seg = next((x for x in store.get("segments", []) if x.get("bucket") == bucket), {})
+    wanted = set(seg.get("face_item_ids") or [])
+    unresolved = set(store.get("unresolved_face_item_ids") or [])
+    numbers = {str(n) for n in (seg.get("note_numbers") or [])}
+    notes = [n for n in (run.result.get("note_details") or []) if str(n.get("no")) in numbers]
+    by_number = {str(n.get("no")): n for n in notes}
+    # Joined by id and served in the run's own row order, which is the order the rows were printed.
+    #
+    # EACH FACE ROW CARRIES THE NOTES THAT DETAIL IT, in full, right here — not a note number the
+    # reader has to go and look up. ``notes`` on the row is the linkage the extraction recorded
+    # (only notes it actually parsed, see ``extractions._linked_notes``), and this resolves it
+    # against this section's own note bodies. Restricted to the notes filed in THIS section, so a
+    # borrowings note split across current and non-current appears under the row that cites it in
+    # the section being read, and a section's payload never smuggles in another's content.
+    #
+    # ``is_note`` is on every note object for the same reason ``printed_in`` is on every row: a note
+    # line and a face line have the same shape and a note's lines sum to a figure the face already
+    # reports, so anything adding both up double-counts the filing. The bifurcation has to be
+    # readable from the payload, not inferred from which key it arrived under.
+    rows = []
+    for r in (run.result.get("rows") or []):
+        if r.get("id") not in wanted:
+            continue
+        cited = [by_number[n] for n in (r.get("notes") or []) if n in by_number]
+        rows.append({**r, "unresolved": r.get("id") in unresolved,
+                     "note_details": [{**n, "is_note": True} for n in cited] or None})
+    return {
+        "segmented": True,
+        "bucket": bucket,
+        "label": BUCKET_LABELS[bucket],
+        "sections": list(seg.get("sections") or []),
+        "face_pages": [p + 1 for p in (seg.get("face_pages") or [])],
+        "note_pages": [p + 1 for p in (seg.get("note_pages") or [])],
+        "rows": rows,
+        # The section's notes as a set as well as per row: a note this section holds that NO row in
+        # it cites (placed from its own content — see ``buckets._bucket_from_note_content``) belongs
+        # to the section and would otherwise be invisible here.
+        "notes": [{**n, "is_note": True} for n in notes],
+        "shared_notes": list(seg.get("shared_notes") or []),
+    }
+
+
 @router.get("/{document_id}", dependencies=[Depends(authorized_document)])
 def get_document(document_id: str, session: Session = Depends(db)) -> dict:
     from app.db.models import Document
@@ -4816,6 +5166,106 @@ def get_page_image(
         raise HTTPException(status_code=422, detail=f"Could not render page: {exc}")
     return Response(content=png, media_type="image/png",
                     headers={"Cache-Control": "private, max-age=300"})
+
+
+@router.get("/{document_id}/search", dependencies=[Depends(authorized_document)])
+def search_document_text(
+    document_id: str,
+    q: str = Query(..., min_length=2, max_length=120),
+    limit: int = Query(80, ge=1, le=300),
+    session: Session = Depends(db),
+    store: LocalObjectStore = Depends(object_store),
+) -> dict:
+    """Find ``q`` in the document's text layer, as page + normalized box per hit.
+
+    The viewer renders pages as images, so it has no text of its own to search — and an analyst
+    checking a figure needs to get to a page by what it SAYS, not only by the position an extracted
+    value happens to carry. The boxes come back in the same normalized page space as provenance, so
+    a hit is highlighted by exactly the overlay a picked value is.
+
+    A scanned page has no text layer and cannot be searched; the count of those is returned rather
+    than left to look like an absence of matches. (Their OCR text is not retained per word, so there
+    is nothing to give a box to.)
+    """
+    from app.db.models import Document
+
+    row = session.get(Document, document_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if row.fmt != "pdf":
+        raise HTTPException(status_code=400, detail="Text search is only available for PDFs")
+    try:
+        import fitz
+    except ImportError:  # pragma: no cover - PyMuPDF is a core dep
+        raise HTTPException(status_code=501, detail="PDF rendering unavailable")
+
+    folios = {(p.get("index", 0) or 0): p.get("printed_page")
+              for p in _document_pages(row, store)}
+    scanned = sum(1 for p in _document_pages(row, store) if p.get("source_kind") == "scanned")
+    needle = q.strip()
+    hits: list[dict] = []
+    truncated = False
+    try:
+        pdf = fitz.open(stream=store.get(row.object_key), filetype="pdf")
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=422, detail=f"Could not open document: {exc}")
+    for index in range(pdf.page_count):
+        if len(hits) >= limit:
+            truncated = True
+            break
+        page = pdf[index]
+        try:
+            found = page.search_for(needle)
+        except Exception:  # noqa: BLE001 — one unreadable page must not fail the search
+            continue
+        if not found:
+            continue
+        w, h = max(page.rect.width, 1.0), max(page.rect.height, 1.0)
+        lines = _text_lines_for_snippets(page)
+        for rect in found:
+            if len(hits) >= limit:
+                truncated = True
+                break
+            hits.append({
+                "page_index": index,
+                "printed_page": folios.get(index),
+                "bbox": {"x0": max(0.0, rect.x0 / w), "y0": max(0.0, rect.y0 / h),
+                         "x1": min(1.0, rect.x1 / w), "y1": min(1.0, rect.y1 / h)},
+                "snippet": _snippet_at(lines, rect) or needle,
+            })
+    pdf.close()
+    return {"query": needle, "hits": hits, "count": len(hits),
+            "truncated": truncated, "scanned_pages": scanned}
+
+
+def _text_lines_for_snippets(page) -> list[tuple[tuple[float, float, float, float], str]]:
+    """(box, text) for each text line of the page — the context a hit is quoted from."""
+    try:
+        blocks = page.get_text("dict").get("blocks", [])
+    except Exception:  # noqa: BLE001
+        return []
+    out = []
+    for block in blocks:
+        for line in block.get("lines", []):
+            text = "".join(sp.get("text", "") for sp in line.get("spans", [])).strip()
+            if text:
+                out.append((tuple(line.get("bbox") or (0.0, 0.0, 0.0, 0.0)), text))
+    return out
+
+
+def _snippet_at(lines: list[tuple[tuple[float, float, float, float], str]], rect,
+                width: int = 120) -> str | None:
+    """The printed line a hit falls on, trimmed — so a result reads as the sentence it came from."""
+    cx, cy = (rect.x0 + rect.x1) / 2, (rect.y0 + rect.y1) / 2
+    best: tuple[float, str] | None = None
+    for (x0, y0, x1, y1), text in lines:
+        if x0 - 1 <= cx <= x1 + 1 and y0 - 1 <= cy <= y1 + 1:
+            area = max(x1 - x0, 0.0) * max(y1 - y0, 0.0)
+            if best is None or area < best[0]:
+                best = (area, text)
+    if best is None:
+        return None
+    return best[1][:width] + ("…" if len(best[1]) > width else "")
 
 
 @router.get("/{document_id}/cell-context", dependencies=[Depends(authorized_document)])

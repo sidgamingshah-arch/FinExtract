@@ -74,6 +74,7 @@ def test_a_note_referenced_via_note_refs_is_kept():
 
 
 def test_a_subref_keeps_its_parent_note():
+    """The shape the SCHEMA intends for a sub-reference."""
     doc = _doc()
     li = _face_item("Segment revenue")
     li.note_refs = [NoteRef(raw="6(a)", numbers=[], subrefs=["6(a)"])]
@@ -81,6 +82,21 @@ def test_a_subref_keeps_its_parent_note():
     doc.notes = [_note("6"), _note("7")]
     _run(doc)
     assert [n.note_number for n in doc.notes] == ["6"]
+
+
+def test_a_subref_as_the_READERS_write_it_keeps_its_parent_note():
+    """The shape that actually reaches this stage, and the one the test above does not cover:
+    ``row_reconstruct`` and ``excel_extract`` put the whole printed token in ``numbers``, so
+    ``subrefs`` is always empty and a rule reading only it never fires. The note was deleted, and
+    the linkage and the section view then had nothing to show for a figure the filing explains."""
+    doc = _doc()
+    li = _face_item("Trade receivables")
+    li.note_refs = [NoteRef(raw="16(b)", numbers=["16(b)"])]
+    li.note_number = "16(b)"
+    doc.line_items = [li]
+    doc.notes = [_note("16"), _note("17")]
+    _run(doc)
+    assert [n.note_number for n in doc.notes] == ["16"]
 
 
 def test_an_explicit_face_note_link_keeps_the_note():

@@ -116,11 +116,6 @@ class OcrSettings(BaseModel):
     azure_api_key_env: str = "AZURE_DI_KEY"
 
 
-class EmbeddingSettings(BaseModel):
-    provider: str = "stub"            # sentence-transformers | openai | stub
-    model: str = "paraphrase-multilingual-MiniLM-L12-v2"
-
-
 class ExtractionSettings(BaseModel):
     """Pipeline tuning: native/scanned detection, the mapping ensemble, reconciliation."""
 
@@ -129,25 +124,25 @@ class ExtractionSettings(BaseModel):
     native_min_text_coverage: float = 0.02
     low_dpi_threshold: int = 150
     # Mapping ensemble thresholds (see services/mapping.py).
-    # Fuzzy scores are coverage-weighted (see services.mapping._fuzzy_score), so this
-    # threshold sits on that combined scale — not on a raw rapidfuzz ratio.
     #
-    # 0.55 is measured, not guessed. Swept against a real 270-page filing with the template's
-    # own subtotals as the oracle: 0.70 → 0.55 changes not one mapping and every rollup keeps
-    # tying, while 0.48 breaks three subtotals and 0.40 breaks five — and the extra mappings
-    # those buy are all wrong ("Loss on disposal of investment properties" → ADDITIONS to
-    # investment properties, "Gain on disposal of subsidiaries" → ACQUISITION of subsidiaries).
+    # THERE IS NO STRING-SIMILARITY TIER: nothing maps a row on wording alone (the rulebook's own
+    # ``binding.order`` never declared one). What remains is a MEASUREMENT of how nearly a caption
+    # is an authored alias, on the coverage-weighted scale ``mapping._alias_similarity`` reports —
+    # not a raw rapidfuzz ratio. Two guards read it and neither can map anything: whether the
+    # deterministic evidence dissents from the model's choice, and whether a caption is the printed
+    # name of a concept the framework COMPUTES (which must then not be re-homed onto a neighbour).
     #
-    # The reason lowering it cannot help is structural: a caption with no good concept now has a
-    # correct home in its section's residual bucket (stages/residual.py). A looser bar does not
-    # rescue an unmapped line, it steals a correctly-routed one and asserts something false
-    # about it. Mapping those by MEANING is the LLM tier's job, not a string threshold's.
-    fuzzy_accept: float = 0.55        # combined fuzzy score to auto-accept, alone
-    # …and the caption must also explain this much of the matched alias, so a heading that
-    # is merely contained in a longer concept name can never auto-accept.
-    fuzzy_min_alias_coverage: float = 0.45
-    fuzzy_candidate: float = 0.45     # minimum score to keep as a candidate
-    embedding_accept: float = 0.82    # cosine similarity to accept
+    # 0.55 is measured, not guessed, and was measured while it was still an accept bar: swept
+    # against a real 270-page filing with the template's own subtotals as the oracle, 0.70 → 0.55
+    # changed not one mapping and every rollup kept tying, while 0.48 broke three subtotals and 0.40
+    # broke five — and the extra mappings those bought were all wrong ("Loss on disposal of
+    # investment properties" → ADDITIONS to investment properties). That sweep is why the tier is
+    # gone rather than retuned: a looser bar never rescued an unmapped line, it stole a
+    # correctly-routed one and asserted something false about it.
+    evidence_floor: float = 0.55
+    # …and the caption must also explain this much of the alias it is being compared to, so a
+    # heading merely contained in a longer concept name is not read as that concept.
+    alias_coverage_floor: float = 0.45
     mapping_margin: float = 0.08      # winner must beat runner-up by this margin
     # Confidence + reconciliation.
     auto_accept_confidence: float = 0.80
@@ -203,7 +198,6 @@ class Settings(BaseSettings):
     features: FeatureSettings = FeatureSettings()
     llm: LlmSettings = LlmSettings()
     ocr: OcrSettings = OcrSettings()
-    embeddings: EmbeddingSettings = EmbeddingSettings()
     extraction: ExtractionSettings = ExtractionSettings()
 
     @classmethod

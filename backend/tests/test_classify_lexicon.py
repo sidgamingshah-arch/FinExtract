@@ -57,6 +57,14 @@ DOES_NOT_RESOLVE = [
     "現金流量表附註",
     "UNAUDITED SUPPLEMENTARY FINANCIAL INFORMATION",
     "Details are set out in the consolidated statement of cash flows on page 88",
+    # Note PROSE that refers to the statement it belongs to. No negative pattern can catch these —
+    # they are ordinary sentences — and all three were being served as face profit-and-loss pages of
+    # a real filing, each contributing spurious rows and deleting the note they were printed in.
+    "These items are included in “cost of sales” in the consolidated statement of profit or loss",
+    "The amounts charged/(credited) to the consolidated statement of profit or loss during the "
+    "year are as follows",
+    "recoverable amounts of the right-of-use assets of relevant CGUs have been charged to the "
+    "consolidated income statement",
 ]
 
 
@@ -124,3 +132,38 @@ def test_a_simplified_consolidated_income_title_is_flagged_ambiguous():
     # A genuine comprehensive-income page still wins on match length, and is not ambiguous.
     statement, _, _, ambig = _resolve("綜合全面收益表")
     assert statement == "comprehensive_income" and ambig is False
+
+
+def test_a_title_has_to_be_mostly_the_statements_name():
+    """The floor that separates a printed title from a sentence naming the statement, at the
+    tightest real margin either way.
+
+    Below it: the worst legitimate title measured on a real filing — a one-line bilingual cash-flow
+    title, where the English name is only half the line. Above it: the same words inside a note's
+    sentence. Nothing else distinguishes them; the sentence is heading-shaped by every other measure
+    the classifier has, and it is not a note HEADING so the negative table cannot reject it.
+    """
+    from app.stages.classify import _TITLE_COVERAGE, _covers_title
+
+    title = "CONSOLIDATED STATEMENT OF CASH FLOWS 綜合現金流量表"
+    assert _resolve(title)[0] == "cash_flow"
+    assert _covers_title("statement of cash flows", title) > _TITLE_COVERAGE
+
+    prose = ("The reconciliation of liabilities arising from financing activities is presented "
+             "in the consolidated statement of cash flows")
+    assert _resolve(prose)[0] is None
+    assert _covers_title("statement of cash flows", prose) < _TITLE_COVERAGE
+
+
+def test_the_issuer_name_joined_onto_a_title_does_not_lose_the_page():
+    """``_title_candidates`` offers both the joined lines and each line on its own, so rejecting the
+    join for low coverage cannot cost the page its statement — the title line itself still carries
+    it, and the reported title is now the title rather than the title with the filer's name on the
+    front."""
+    from app.stages.classify import _resolve_statement, _title_candidates
+
+    lines = [{"text": "SUNRISE DEVELOPMENT COMPANY LIMITED", "y": 40.0, "size": 14.0, "bold": True},
+             {"text": "BALANCE SHEET", "y": 58.0, "size": 14.0, "bold": True}]
+    statement, _combined, matched, _ambig = _resolve_statement(_title_candidates(lines))
+    assert statement == "balance_sheet"
+    assert matched == "BALANCE SHEET"

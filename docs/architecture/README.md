@@ -6,7 +6,7 @@ Design & architecture for the financial-statement extraction platform.
 
 1. [Overview & requirements](00-overview.md) — the problem, decisions, and how all 21
    requirements map to components.
-2. [Extraction pipeline](01-extraction-pipeline.md) — the 14 stages
+2. [Extraction pipeline](01-extraction-pipeline.md) — the 15 stages
    `default_pipeline()` assembles: ingest → integrity → language_detect → classify →
    extract → map_ontology → residual → normalize → link_notes → reconcile → prune_notes
    → confidence → gap_closing → structural.

@@ -232,8 +232,18 @@ test("analyst cannot reach the config template screen but can select a template"
 
   // Template & Ontology is an admin-only configuration screen: it must NOT appear in the
   // analyst's nav, and a direct visit is redirected away (to the analyst's first screen).
+  //
+  // The rail is COLLAPSED by default, which hides every label — so it is expanded first. Asserting
+  // the absence of a label against a rail that shows none of them would pass whatever the role may
+  // see, which is the assertion quietly meaning nothing.
   await page.goto("/workspace", DCL);
-  await expect(page.getByText("Template & Ontology")).toHaveCount(0);
+  const rail = page.getByTestId("nav-rail");
+  if ((await rail.getAttribute("data-collapsed")) === "1") {
+    await page.getByTestId("nav-toggle").click();
+  }
+  await expect(rail).toHaveAttribute("data-collapsed", "0");
+  await expect(page.getByText("Workspace").first()).toBeVisible();  // labels are showing…
+  await expect(page.getByText("Template & Ontology")).toHaveCount(0); // …and this one is not there
   await page.goto("/template", DCL);
   await expect(page).not.toHaveURL(/\/template/);
 
@@ -467,31 +477,36 @@ test("admin tunes the extraction thresholds and they persist", async ({ page }) 
 
   // Every control is rendered from the backend's field descriptors, so the knob is present
   // without the screen knowing anything about mapping.
-  const fuzzy = page.getByTestId("ex-fuzzy_accept");
-  await expect(fuzzy).toBeVisible({ timeout: 15_000 });
-  const shipped = await fuzzy.inputValue();
+  //
+  // `ex-evidence_floor`, not `ex-fuzzy_accept`: the string-similarity tier was deleted and its
+  // knob went with it, while this spec kept naming the old testid. That is not a flake — it is a
+  // hard failure, and in a serial suite it stopped the 33 tests after it from running at all,
+  // which is what made the suite look non-deterministic from the outside.
+  const floor = page.getByTestId("ex-evidence_floor");
+  await expect(floor).toBeVisible({ timeout: 15_000 });
+  const shipped = await floor.inputValue();
 
   // Save is inert until something actually changes.
   await expect(page.getByTestId("ex-save")).toBeDisabled();
 
-  await fuzzy.fill("0.62");
+  await floor.fill("0.62");
   await expect(page.getByTestId("ex-save")).toBeEnabled();
   await page.getByTestId("ex-save").click();
 
   // It round-trips: a reload reads the value back from the server, so the pipeline really
   // holds it — not just this form.
   await page.reload(DCL);
-  await expect(page.getByTestId("ex-fuzzy_accept")).toHaveValue("0.62", { timeout: 15_000 });
+  await expect(page.getByTestId("ex-evidence_floor")).toHaveValue("0.62", { timeout: 15_000 });
 
   // Out of range is refused before it can be sent, and says why.
-  await page.getByTestId("ex-fuzzy_accept").fill("1.4");
+  await page.getByTestId("ex-evidence_floor").fill("1.4");
   await expect(page.getByTestId("ex-save")).toBeDisabled();
   await expect(page.getByTestId("ex-message")).toContainText("at most 1");
 
   // Restore defaults puts the shipped configuration back — and leaves nothing behind for the
   // next run to inherit.
   await page.getByTestId("ex-reset").click();
-  await expect(page.getByTestId("ex-fuzzy_accept")).toHaveValue(shipped, { timeout: 15_000 });
+  await expect(page.getByTestId("ex-evidence_floor")).toHaveValue(shipped, { timeout: 15_000 });
 });
 
 test("a saved threshold is still in force for a browser that never saw the edit", async ({
@@ -533,9 +548,11 @@ test("an analyst cannot reach the extraction thresholds at all", async ({ page }
   await loginAs(page, "analyst");
   await page.goto("/settings", DCL);
 
-  await expect(page.getByTestId("ex-fuzzy_accept")).toHaveCount(0);
+  // Named against a knob that EXISTS for an admin. Asserting the absence of a control nothing
+  // renders any more passes whatever the role gate does, which is a test that cannot fail.
+  await expect(page.getByTestId("ex-evidence_floor")).toHaveCount(0);
   await expect(page.getByTestId("ex-save")).toHaveCount(0);
-  await expect(page.getByText("Fuzzy auto-accept")).toHaveCount(0);
+  await expect(page.getByText("Alias evidence floor")).toHaveCount(0);
 });
 
 test("the thresholds are still editable against a backend that omits the descriptors", async ({
@@ -558,17 +575,17 @@ test("the thresholds are still editable against a backend that omits the descrip
   await page.goto("/settings", DCL);
 
   // Inferred from the value's own type: a number input for a threshold…
-  const fuzzy = page.getByTestId("ex-fuzzy_accept");
-  await expect(fuzzy).toBeVisible({ timeout: 15_000 });
-  await expect(fuzzy).toHaveAttribute("type", "number");
+  const floor = page.getByTestId("ex-evidence_floor");
+  await expect(floor).toBeVisible({ timeout: 15_000 });
+  await expect(floor).toHaveAttribute("type", "number");
   // …a toggle for the boolean, and a readable label rather than the raw key.
   await expect(page.getByTestId("ex-llm_mapping")).toBeVisible();
-  await expect(page.getByText("Fuzzy accept")).toBeVisible();
+  await expect(page.getByText("Evidence floor")).toBeVisible();
   // And it is honest about the degraded mode.
   await expect(page.getByText(/did not describe these settings/i)).toBeVisible();
 
   // Still genuinely editable: the save round-trips through the real endpoint.
-  await fuzzy.fill("0.58");
+  await floor.fill("0.58");
   await page.getByTestId("ex-save").click();
   await expect(page.getByTestId("ex-save")).toBeDisabled({ timeout: 15_000 });
 
@@ -1183,8 +1200,16 @@ test("a review filter chip filters, and its count is the length of the list it p
 async function extractFixture(page: Page, file: string): Promise<string> {
   await page.goto("/upload", DCL);
   await page.setInputFiles('input[type="file"]', `e2e/fixtures/${file}`);
-  await expect(page.getByTestId("doc-row").filter({ hasText: file }))
+  // `.first()`: MORE THAN ONE ROW CAN CARRY ONE FILENAME, and asserting otherwise was asserting
+  // something this helper does not need and cannot promise. Documents are scoped to their owner, so
+  // the same bytes uploaded by two roles are two documents — and an admin sees both, which makes
+  // the unfiltered locator ambiguous the moment a suite uploads one fixture as more than one role.
+  // The list is newest-first (documents are ordered by created_at desc), so the first row is the
+  // upload just made; and the document this helper RETURNS is the one the app itself bound to,
+  // read from localStorage below, never a row picked out of the list.
+  await expect(page.getByTestId("doc-row").filter({ hasText: file }).first())
     .toBeVisible({ timeout: 15_000 });
+  // Acts on the app's active document — the one the upload just bound — not on a row.
   await page.getByRole("button", { name: /Extract directly/ }).click();
   await expect(page).toHaveURL(/\/extraction/);
   await expect(page.getByRole("heading", { name: "Extracted data" }))
@@ -1283,7 +1308,15 @@ test("a finding can be ACCEPTED, and the judgement is still there after a reload
   // Admin because this test needs BOTH capabilities: uploading (documents:manage) and judging
   // (review:resolve). The role map gives no single other role both.
   await loginAs(page, "admin");
-  const doc = await extractFixture(page, "sample.pdf");
+  // `unmapped.pdf`, not `sample.pdf`: this test needs a finding to judge, and sample.pdf raises
+  // none any more. Every one of its four captions is an exact alias of a concept, so all four map
+  // at confidence 1.0 and the queue comes back `open: 0, passed: 4` — the premise below then fails
+  // and, in a serial suite, stops every test after it. It used to raise a low-confidence finding
+  // because those captions were matched by the string-similarity tier at well under 1.0; deleting
+  // that tier removed the finding and with it this test's subject. The fixture now carries one
+  // caption the shipped rulebook deliberately cannot place, so the finding is the fixture's
+  // property rather than a side effect of how mapping happens to score.
+  const doc = await extractFixture(page, "unmapped.pdf");
 
   await page.goto("/review", DCL);
   await expect(page.getByRole("heading", { name: "Review queue" })).toBeVisible({ timeout: 15_000 });
@@ -1438,7 +1471,10 @@ test("the coverage band counts RELATIONS, and every number in it is the API's fo
   // the queue, and that role holds no review:resolve — so the judgement controls must be absent
   // while everything else renders.
   await loginAs(page, "analyst");
-  const doc = await extractFixture(page, "sample.pdf");
+  // `unmapped.pdf`: this test needs a card on the review queue, and sample.pdf raises none —
+  // its captions are all exact aliases, so every row maps at 1.0 and the queue comes back
+  // `open: 0, passed: 4`. See the accept-and-reload test above for the full account.
+  const doc = await extractFixture(page, "unmapped.pdf");
   await page.goto("/review", DCL);
   await expect(page.getByRole("heading", { name: "Review queue" })).toBeVisible({ timeout: 15_000 });
 
@@ -1836,7 +1872,10 @@ test("accepting one finding records the verdict against THAT identity and re-lab
   // Admin: uploading needs documents:manage and judging needs review:resolve, and no other single
   // role holds both.
   await loginAs(page, "admin");
-  const doc = await extractFixture(page, "sample.pdf");
+  // `unmapped.pdf`: this test needs a card on the review queue, and sample.pdf raises none —
+  // its captions are all exact aliases, so every row maps at 1.0 and the queue comes back
+  // `open: 0, passed: 4`. See the accept-and-reload test above for the full account.
+  const doc = await extractFixture(page, "unmapped.pdf");
 
   await page.goto("/review", DCL);
   await expect(page.getByRole("heading", { name: "Review queue" })).toBeVisible({ timeout: 15_000 });
@@ -1989,7 +2028,10 @@ test("a finding the queue cannot tell apart from another offers no acceptance an
   // saw these numbers.
   test.setTimeout(240_000);
   await loginAs(page, "admin");
-  const doc = await extractFixture(page, "sample.pdf");
+  // `unmapped.pdf`: this test needs a card on the review queue, and sample.pdf raises none —
+  // its captions are all exact aliases, so every row maps at 1.0 and the queue comes back
+  // `open: 0, passed: 4`. See the accept-and-reload test above for the full account.
+  const doc = await extractFixture(page, "unmapped.pdf");
   await page.goto("/review", DCL);
   await expect(page.getByRole("heading", { name: "Review queue" })).toBeVisible({ timeout: 15_000 });
   await clearJudgements(page, doc);
@@ -2151,7 +2193,10 @@ test("a refused acceptance is explained by the cause the server named, not the o
   // on the card that asked, and records nothing.
   test.setTimeout(240_000);
   await loginAs(page, "admin");
-  const doc = await extractFixture(page, "sample.pdf");
+  // `unmapped.pdf`: this test needs a card on the review queue, and sample.pdf raises none —
+  // its captions are all exact aliases, so every row maps at 1.0 and the queue comes back
+  // `open: 0, passed: 4`. See the accept-and-reload test above for the full account.
+  const doc = await extractFixture(page, "unmapped.pdf");
   await page.goto("/review", DCL);
   await expect(page.getByRole("heading", { name: "Review queue" })).toBeVisible({ timeout: 15_000 });
   await clearJudgements(page, doc);
@@ -2228,7 +2273,10 @@ test("an acceptance stops reading 'accepted' the moment the figures it was made 
   // rather than the ones now on the card.
   test.setTimeout(240_000);
   await loginAs(page, "admin");
-  const doc = await extractFixture(page, "sample.pdf");
+  // `unmapped.pdf`: this test needs a card on the review queue, and sample.pdf raises none —
+  // its captions are all exact aliases, so every row maps at 1.0 and the queue comes back
+  // `open: 0, passed: 4`. See the accept-and-reload test above for the full account.
+  const doc = await extractFixture(page, "unmapped.pdf");
   await page.goto("/review", DCL);
   await expect(page.getByRole("heading", { name: "Review queue" })).toBeVisible({ timeout: 15_000 });
   await clearJudgements(page, doc);
@@ -2525,7 +2573,10 @@ test("every figure a card prints is fingerprinted, and nothing a figure can move
   // Admin: uploading needs documents:manage, editing needs extraction:edit, judging needs
   // review:resolve, and no other single role holds all three.
   await loginAs(page, "admin");
-  const doc = await extractFixture(page, "sample.pdf");
+  // `unmapped.pdf`: the anchor this test sweeps exists only on unmapped and low-confidence
+  // findings, and sample.pdf raises neither any more — every caption it prints is an exact
+  // alias, so all four rows map at 1.0. See the accept-and-reload test for the full account.
+  const doc = await extractFixture(page, "unmapped.pdf");
   await page.goto("/review", DCL);
   await expect(page.getByRole("heading", { name: "Review queue" })).toBeVisible({ timeout: 15_000 });
   await clearJudgements(page, doc);
@@ -2561,9 +2612,21 @@ test("every figure a card prints is fingerprinted, and nothing a figure can move
     .toBeGreaterThan(1);
   // Every member is PRINTED, not just fingerprinted: the note_tie defect was a card that printed a
   // set and hashed one member, and this is the same shape from the other side.
+  //
+  // A member with NO figure is the same fact in two spellings, not a gap. The evidence records it
+  // as `null` — deliberately, because a component that acquires a figure later has to make the
+  // acceptance go stale — and the card prints it as an em dash, which is what "no figure" looks
+  // like to a reader. Comparing the raw spellings would call that a card that hashes what it does
+  // not print, which is the defect this loop is for and not what is happening. This fixture has
+  // one: its unmappable caption is a component of the subtotal with nothing mapped to it.
   for (const value of Object.values(components)) {
-    expect(setCard!.calc.map(([, v]) => figureText(v)),
-           `the set card fingerprints ${value} without printing it`)
+    const printed = setCard!.calc.map(([, v]) => figureText(v));
+    if (value === null || value === undefined) {
+      expect(printed, "a component with no figure must still be printed, as an em dash")
+        .toContain("—");
+      continue;
+    }
+    expect(printed, `the set card fingerprints ${value} without printing it`)
       .toContain(figureText(String(value)));
   }
 
@@ -2742,7 +2805,10 @@ test("a note that does not tie prints EVERY face line it failed to tie, and a gr
   // own evidence lacks.
   test.setTimeout(240_000);
   await loginAs(page, "admin");
-  const doc = await extractFixture(page, "sample.pdf");
+  // `unmapped.pdf`: this test needs a card on the review queue, and sample.pdf raises none —
+  // its captions are all exact aliases, so every row maps at 1.0 and the queue comes back
+  // `open: 0, passed: 4`. See the accept-and-reload test above for the full account.
+  const doc = await extractFixture(page, "unmapped.pdf");
   await page.goto("/review", DCL);
   await expect(page.getByRole("heading", { name: "Review queue" })).toBeVisible({ timeout: 15_000 });
   await clearJudgements(page, doc);
@@ -2938,7 +3004,10 @@ test("a WITHHELD acceptance can be withdrawn: the control is on the card that sh
   // reaches the endpoint and leaves nothing behind.
   test.setTimeout(240_000);
   await loginAs(page, "admin");
-  const doc = await extractFixture(page, "sample.pdf");
+  // `unmapped.pdf`: this test needs a card on the review queue, and sample.pdf raises none —
+  // its captions are all exact aliases, so every row maps at 1.0 and the queue comes back
+  // `open: 0, passed: 4`. See the accept-and-reload test above for the full account.
+  const doc = await extractFixture(page, "unmapped.pdf");
   await page.goto("/review", DCL);
   await expect(page.getByRole("heading", { name: "Review queue" })).toBeVisible({ timeout: 15_000 });
   await clearJudgements(page, doc);
@@ -3487,7 +3556,10 @@ test("an ORPHANED acceptance is still in force and can be withdrawn from the row
   // Admin: uploading needs documents:manage, editing needs extraction:edit and judging needs
   // review:resolve, and no other single role holds all three.
   await loginAs(page, "admin");
-  const doc = await extractFixture(page, "sample.pdf");
+  // `unmapped.pdf`: this test needs a card on the review queue, and sample.pdf raises none —
+  // its captions are all exact aliases, so every row maps at 1.0 and the queue comes back
+  // `open: 0, passed: 4`. See the accept-and-reload test above for the full account.
+  const doc = await extractFixture(page, "unmapped.pdf");
   await page.goto("/review", DCL);
   await expect(page.getByRole("heading", { name: "Review queue" })).toBeVisible({ timeout: 15_000 });
   await clearJudgements(page, doc);

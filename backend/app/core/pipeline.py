@@ -52,6 +52,7 @@ def default_pipeline() -> Pipeline:
     from app.stages.prune_notes import PruneNotesStage
     from app.stages.residual import ResidualStage
     from app.stages.gap_closing import GapClosingStage
+    from app.stages.segment import SegmentStage
 
     # Table reconstruction is performed inside the extract stage (native pages via the
     # PyMuPDF text layer + shared row_reconstruct; scanned pages via the OCR port), so there
@@ -78,4 +79,8 @@ def default_pipeline() -> Pipeline:
         # than as a defect the analyst has to chase down themselves.
         GapClosingStage(),
         StructuralStage(),
+        # Last, and the position is the point: the eight analyst buckets are four balance-sheet
+        # sections plus equity, all printed on one page, so only a row's RESOLVED section can
+        # separate them. See stages/segment.py.
+        SegmentStage(),
     ])

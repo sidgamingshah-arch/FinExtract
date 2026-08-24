@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.models.enums import LineRole, SignConvention, StatementType
 
@@ -58,6 +58,26 @@ class Identity(BaseModel):
 
 class TemplateStatement(BaseModel):
     type: StatementType
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def _fold_equity_spelling(cls, v):
+        """Accept ``changes_in_equity``, which is the spelling everything but this enum uses.
+
+        THE HOLE THIS CLOSES. ``StatementType`` spells the statement ``equity_changes``; the page
+        classifier, the workbook importer's `Statement` column, the API and the front end all say
+        ``changes_in_equity``. ``services.mapping.normalize_statement`` already folds the two for
+        COMPARISON, so a rulebook authored either way scopes correctly — but nothing folded them on
+        the way IN, so a template workbook with a "Changes in equity" row passed the importer's own
+        validation and was then refused by this schema with an enum error naming four values, one of
+        which the importer never produces. The equity statement was, in practice, un-uploadable.
+
+        Folded here rather than by renaming the enum: ``changes_in_equity`` is already the canonical
+        spelling by weight of use, and the enum's VALUE is what stored rulebooks validate their
+        ``statement`` field against — changing it would invalidate authored definitions to fix an
+        input path.
+        """
+        return "equity_changes" if v == "changes_in_equity" else v
     default_sign_convention: SignConvention = SignConvention.NATURAL
     # The statement's own heading, per output language. Undeclared until now, but READ in two
     # places off the raw stored definition — ``documents._stmt_label`` and the Template screen's

@@ -21,8 +21,7 @@ defaults, so env always wins over the file. Settings are grouped into nested mod
 | `[features]` | `ui_localization`, `review_required`, `seed_demo`, `default_output_locale`, `supported_locales` |
 | `[llm]` | `provider`, `model`, `temperature`, `max_tokens`, `timeout_seconds`, `base_url`, `api_key_env`, plus the Azure address: `azure_endpoint`, `azure_api_version`, `azure_deployment` |
 | `[ocr]` | `engine`, `languages`, `dpi`, plus the Azure Document Intelligence address: `azure_endpoint`, `azure_model`, `azure_api_version`, `azure_api_key_env` |
-| `[embeddings]` | `provider`, `model` — **declared but not consumed**: no embedding adapter beyond the stub is registered, so this section selects nothing today |
-| `[extraction]` | native/scanned thresholds, the mapping-ensemble thresholds (`fuzzy_*`, `embedding_accept`, `mapping_margin`, `auto_accept_confidence`), reconciliation tolerances (`recon_*`), and the LLM-mapping knobs (`llm_mapping`, `llm_candidate_cap`, `mapping_scope`, `llm_gap_routing`) |
+| `[extraction]` | native/scanned thresholds, the mapping thresholds (`evidence_floor` and `alias_coverage_floor` — how nearly a caption must BE an authored alias for the two guards that read it; `mapping_margin`, `auto_accept_confidence`), reconciliation tolerances (`recon_*`), and the LLM-mapping knobs (`llm_mapping`, `llm_candidate_cap`, `mapping_scope`, `llm_gap_routing`) |
 
 **Secrets are never stored here.** The LLM key is read at call time from the environment
 variable named by `llm.api_key_env` (shipped default **`AZURE_OPENAI_API_KEY`**, matching

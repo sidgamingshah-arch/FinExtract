@@ -17,7 +17,7 @@ import { color, confStyle, font, layout, radius, shadow, fmtIN, fmtPlain, parseA
 import { DERIVED_STATEMENTS } from "../types";
 import type { Basis, FxRateResolution, StatementColumn, StatementKey, StatementResponse, StatementRow, SupersededTemplate } from "../types";
 import { ApiError, refusalText } from "../lib/api";
-import { activeTemplate, ontologyInForce, useDocumentRunStatus, useDocumentStatement, useEditDocumentLineItem, useFxRateResolution, useOntologies, useReextract, useRevertDocumentLineItem, useStatement, useEditLineItem, useProjectLoaded, useTemplates } from "../lib/queries";
+import { activeTemplate, ontologyInForce, useDocumentRun, useDocumentRunStatus, useDocumentStatement, useEditDocumentLineItem, useFxRateResolution, useOntologies, useReextract, useRevertDocumentLineItem, useStatement, useEditLineItem, useProjectLoaded, useTemplates } from "../lib/queries";
 import { useCan } from "../lib/rbac";
 import { useUI } from "../store";
 import { useT } from "../i18n";
@@ -377,6 +377,31 @@ const ORIGIN_CHIP: Record<Origin, { label: string; bg: string; fg: string; help:
                                + "components were extracted" },
 };
 
+/* ---- printed on the face, or inside a note ----
+ *
+ * Rendered only for the NOTE case, the same way OriginChip is rendered only for the unusual
+ * origins: a filing's statement rows are overwhelmingly face rows, and a chip on every one of them
+ * would cost every label the width of a cell that already ellipsises. The absence therefore means
+ * face, and the inspector says which it is IN WORDS for the row on show — so the reader never has
+ * to infer it from a missing chip.
+ *
+ * It has to be said at all because a note's detail lines sum to a figure the face already reports:
+ * a reader adding a face row and its note's lines counts the filing's money twice. */
+function PrintedInChip({ printedIn }: { printedIn?: StatementRow["printed_in"] }) {
+  if (printedIn !== "notes") return null;
+  return (
+    <span
+      title="Printed inside a note, not on the face of the statement"
+      data-testid="printed-in-notes"
+      style={{ fontSize: 9.5, fontWeight: 700, lineHeight: 1, padding: "3px 5px",
+               borderRadius: 4, background: color.amberBg, color: color.amberFg,
+               fontFamily: font.mono, flex: "0 0 auto" }}
+    >
+      note
+    </span>
+  );
+}
+
 function OriginChip({ origin }: { origin?: Origin }) {
   if (!origin || origin === "extracted") return null;
   const c = ORIGIN_CHIP[origin];
@@ -394,6 +419,23 @@ function OriginChip({ origin }: { origin?: Origin }) {
 }
 
 /* ---- right output-panel row ---- */
+/** Which note a printed reference actually OPENS, out of the notes this row resolved to.
+ *
+ * The chip shows what the page printed ("16(b)"); the note that exists may be the parent table
+ * ("16"), and only the notes in `row.notes` can be opened at all — the backend put them there
+ * having already applied the exact-then-parent rule (`LineItem.cited_notes_among`). This picks
+ * which of the row's own resolved notes a given printed chip corresponds to, and it does NOT
+ * re-derive that rule: exact match, else the reference's leading number if the row resolved it,
+ * else the reference unchanged so the failure is visible rather than silently redirected.
+ */
+function openable(ref: string, row: StatementRow): string {
+  const notes = row.notes || [];
+  if (notes.includes(ref)) return ref;
+  const base = ref.match(/^\d+/)?.[0];
+  return base && notes.includes(base) ? base : ref;
+}
+
+
 function OutputRow({
   row,
   sel,
@@ -507,12 +549,15 @@ function OutputRow({
           {row.label}
         </span>
         <OriginChip origin={row.origin} />
+        <PrintedInChip printedIn={row.printed_in} />
         <StatusIcon status={row.status} />
       </div>
       <div style={{ ...colDiv, display: "flex", alignItems: "center", justifyContent: "center",
                     gap: 4, flexWrap: "wrap" }}>
         {noteRefs.map((n) => (
-          <NoteChip key={n} onClick={(e) => { e?.stopPropagation(); onOpenNote(n); }}>{n}</NoteChip>
+          <NoteChip key={n} onClick={(e) => { e?.stopPropagation(); onOpenNote(openable(n, row)); }}>
+            {n}
+          </NoteChip>
         ))}
       </div>
       {valueCell("current", v1, links1, vwt, vfg)}
@@ -944,12 +989,15 @@ export default function WorkspaceScreen() {
   // cursor:pointer and no handler, so it read as a filter that did nothing.
   const [lowFilter, setLowFilter] = useState(false);
   // Open a note reference: select it and jump to the All Notes screen.
+  //
+  // The reference is passed through AS PRINTED. It used to be parseInt'd and dropped when that
+  // failed, so a chip reading "16(b)" — the HK house style for a sub-note — was a control that did
+  // nothing at all. Note numbers are strings on the wire for the same reason.
   const openNote = (ref: string) => {
-    const n = parseInt(ref, 10);
-    if (!Number.isNaN(n)) {
-      setNote(n);
-      navigate(SCREENS.notes.path);
-    }
+    const no = ref.trim();
+    if (!no) return;
+    setNote(no);
+    navigate(SCREENS.notes.path);
   };
   const activeDocumentId = useUI((s) => s.activeDocumentId);
   const usingReal = !!activeDocumentId;
@@ -958,10 +1006,45 @@ export default function WorkspaceScreen() {
   // data behind them, so the demo workspace falls back to the balance sheet rather than asking
   // for a view the demo endpoint cannot serve.
   const derived = DERIVED_STATEMENTS.includes(statement);
-  const effectiveStatement: StatementKey = !usingReal && derived ? "balance_sheet" : statement;
-  const realQ = useDocumentStatement(activeDocumentId ?? undefined, effectiveStatement, dataset,
+  // THE TABS ARE THE TEMPLATE'S, not a list held here. A template that declares no cash flow used
+  // to get a Cash flow tab that could only ever render an empty grid, and one that declares changes
+  // in equity got no tab at all — the entry point was suppressed on the grounds that the statement
+  // "is not part of the reviewed set", which is a judgement the template is the right place to make.
+  // Read off the RUN's template (`ExtractionRunResponse.statements`), so publishing a new template
+  // cannot re-tab a spread that already exists.
+  const runQ = useDocumentRun(activeDocumentId ?? undefined);
+  const templateStatements = usingReal ? (runQ.data?.statements ?? []) : [];
+  // THE BASES THIS FILING LABELLED. Opening on Consolidated whatever the document contains meant a
+  // company-only filing showed its figures under a substitution notice explaining a mismatch the
+  // screen had introduced. A filing with one basis now offers one, so there is nothing to explain.
+  // Both are offered for the demo workspace and for a run that cannot say.
+  const runBases = usingReal ? (runQ.data?.bases ?? []) : [];
+  const offeredBases: Basis[] = runBases.length > 0
+    ? runBases
+    : (["consolidated", "standalone"] as Basis[]);
+  // A stored or deep-linked basis the filing does not have would land on the empty tab it used to.
+  const effectiveDataset: Basis = offeredBases.includes(dataset)
+    ? dataset
+    : (offeredBases[0] ?? "consolidated");
+  // The fallback set, used for the demo workspace and for a run that cannot say which template it
+  // used (none pinned, or stored before the field existed). Not a default the template overrides —
+  // a substitute for an answer that is missing.
+  const offeredStatements: StatementKey[] = (
+    templateStatements.length > 0
+      ? templateStatements.map((st) => st.key)
+      : (["balance_sheet", "profit_and_loss", "cash_flow"] as StatementKey[])
+  ).concat(usingReal ? DERIVED_STATEMENTS : []);
+  // A stored or deep-linked statement the offered set does not contain would render an empty grid
+  // with no way to tell that from a statement the filing omits, so fall back to the first offered.
+  const inOffered = offeredStatements.includes(statement);
+  const effectiveStatement: StatementKey =
+    !usingReal && derived ? "balance_sheet"
+    : inOffered ? statement
+    : (offeredStatements[0] ?? "balance_sheet");
+  const realQ = useDocumentStatement(activeDocumentId ?? undefined, effectiveStatement,
+                                     effectiveDataset,
                                      locale);
-  const demoQ = useStatement(effectiveStatement, dataset, locale, !usingReal);
+  const demoQ = useStatement(effectiveStatement, effectiveDataset, locale, !usingReal);
   const data = usingReal ? realQ.data : demoQ.data;
   const isPending = usingReal ? realQ.isPending : demoQ.isPending;
   const editMut = useEditLineItem();
@@ -973,7 +1056,7 @@ export default function WorkspaceScreen() {
   const [editError, setEditError] = useState<string | null>(null);
   // A highlight belongs to one statement/basis; clear it when either changes so the viewer
   // never keeps pointing at a page/cell from the statement the user just navigated away from.
-  useEffect(() => { setPicked(null); }, [statement, dataset]);
+  useEffect(() => { setPicked(null); }, [statement, effectiveDataset]);
   // The FX lookup is resolved here, above the loading/empty early-returns, because hooks
   // cannot be called conditionally. `converting` is false until a real target is picked, so
   // the query stays disabled and no request goes out in the default (no conversion) case.
@@ -1138,7 +1221,11 @@ export default function WorkspaceScreen() {
           : (selRowObj.comments?.[e.period]?.text ?? "");
         if (usingReal) {
           await realEditMut.mutateAsync({ key: selRowObj.id, value: e.value, formula,
-                                          basis: dataset, period: e.period, comment: note });
+                                          // The basis the grid is SHOWING, so an edit lands on
+                                          // the figure the analyst is looking at rather than on
+                                          // a basis the filing may not even have.
+                                          basis: effectiveDataset, period: e.period,
+                                          comment: note });
         } else if (e.period === "current") {
           await editMut.mutateAsync({ id: selRowObj.id, value: e.value, formula });
         } else {
@@ -1170,28 +1257,22 @@ export default function WorkspaceScreen() {
         }}
       >
         <Segmented<Basis>
-          options={[
-            { value: "consolidated", label: t("ws.consolidated") },
-            { value: "standalone", label: t("ws.standalone") },
-          ]}
-          value={dataset}
+          options={offeredBases.map((b) => ({ value: b, label: t(`ws.${b}`) }))}
+          value={effectiveDataset}
           onChange={setDataset}
         />
         <Segmented<StatementKey>
-          options={[
-            { value: "balance_sheet", label: t("ws.stmt.balance_sheet") },
-            { value: "profit_and_loss", label: t("ws.stmt.profit_and_loss") },
-            { value: "cash_flow", label: t("ws.stmt.cash_flow") },
-            // Changes in equity is not offered. The matrix parses, but the statement is not part
-            // of the reviewed set, so a tab for it invited an analyst to sign off a spread nobody
-            // had specified. A stored or deep-linked value still renders — this hides the entry
-            // point, it does not remove the view.
-            // Additional items is gone entirely, front and back: see _build_statement.
-            // KPIs are derived from the extraction, so offered only when there IS one.
-            ...(usingReal
-              ? [{ value: "kpi" as StatementKey, label: t("ws.stmt.kpi") }]
-              : []),
-          ]}
+          // One entry per statement the run's template declares, in the template's own order, plus
+          // the derived views (KPIs) which are computed off the extraction rather than declared by
+          // a template. Labels come from `ws.stmt.*` — translated in every shipped locale — and fall
+          // back to the server's English title only for a key this build has no translation for.
+          // Additional items is gone entirely, front and back: see _build_statement.
+          options={offeredStatements.map((key) => ({
+            value: key,
+            label: t(`ws.stmt.${key}`)
+              || templateStatements.find((st) => st.key === key)?.title
+              || key,
+          }))}
           value={effectiveStatement}
           onChange={setStatement}
         />
@@ -1284,6 +1365,23 @@ export default function WorkspaceScreen() {
           produced, on the template it was launched against). */}
       {superseded?.superseded && (
         <SupersededBanner info={superseded} documentId={activeDocumentId ?? undefined} t={t} />
+      )}
+      {/* The figures below are the only basis this filing labelled, answering a request for the
+          other one. Said out loud, in the same strip: an empty grid used to be shown here instead,
+          and the fix must not trade it for the Company's figures captioned Consolidated. */}
+      {d.basis_substituted && (
+        <div
+          role="status"
+          style={{
+            margin: "0 0 10px", padding: "9px 13px", borderRadius: 4,
+            background: color.amberBg, color: color.amberFg,
+            border: `1px solid ${color.amberFg}22`, fontSize: 12.5,
+          }}
+        >
+          {t("ws.basis.substituted")
+            .replace("{served}", t(`ws.${d.basis}`))
+            .replace("{asked}", t(`ws.${d.basis_requested ?? "consolidated"}`))}
+        </div>
       )}
 
       {/* ---------------- BODY ---------------- */}
@@ -1630,6 +1728,53 @@ export default function WorkspaceScreen() {
                     {isEdited ? `Edited · ${insp.tag}` : insp.tag}
                   </span>
                 )}
+                {/* WHICH SECTION OF THE FACE this row belongs to, and WHERE IT WAS PRINTED —
+                    stated in words for the row on show, so neither has to be inferred from the
+                    presence or absence of a chip in the grid. The section is the analyst tag the
+                    backend resolved (services/buckets.py), not the template heading the grid groups
+                    by: the two usually agree and the tag is the one a reader groups the filing by. */}
+                {selRowObj?.bucket_label && (
+                  <span
+                    title="The analyst section this figure is tagged with"
+                    data-testid="inspector-section"
+                    style={{ fontSize: 10.5, fontWeight: 600, padding: "2px 8px",
+                             borderRadius: radius.pill, background: color.rowAltBg,
+                             color: color.sec2, border: `1px solid ${color.hairline3}` }}
+                  >
+                    {selRowObj.bucket_label}
+                  </span>
+                )}
+                {selRowObj?.printed_in && (
+                  <span
+                    data-testid={`inspector-printed-${selRowObj.printed_in}`}
+                    title={selRowObj.printed_in === "face"
+                      ? "Printed on the face of the statement"
+                      : "Printed inside a note — its lines detail a face figure, so adding both "
+                        + "counts the same money twice"}
+                    style={{ fontSize: 10.5, fontWeight: 600, padding: "2px 8px",
+                             borderRadius: radius.pill,
+                             background: selRowObj.printed_in === "face" ? color.rowAltBg
+                                                                        : color.amberBg,
+                             color: selRowObj.printed_in === "face" ? color.sec2 : color.amberFg,
+                             border: selRowObj.printed_in === "face"
+                               ? `1px solid ${color.hairline3}` : undefined }}
+                  >
+                    {selRowObj.printed_in === "face" ? "on the face" : "in a note"}
+                  </span>
+                )}
+                {/* THE NOTES THAT DETAIL THIS FIGURE — the linkage the extraction recorded, which
+                    is not the same list as the note column's chips: those are what the page printed,
+                    these are the notes this run actually read and can open. */}
+                {(selRowObj?.notes || []).length > 0 && (
+                  <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ fontSize: 10.5, color: color.muted }}>detailed by</span>
+                    {(selRowObj?.notes || []).map((n) => (
+                      <NoteChip key={n} onClick={(e) => { e?.stopPropagation(); openNote(n); }}>
+                        {n}
+                      </NoteChip>
+                    ))}
+                  </span>
+                )}
                 {/* Which period everything below is about. */}
                 {selRowObj && (
                   <span style={{ display: "flex", gap: 4 }}>
@@ -1798,6 +1943,11 @@ export default function WorkspaceScreen() {
                       const src = inspPeriod === "current" ? c.src : c.src2;
                       const v = inspPeriod === "current" ? c.v1 : c.v2;
                       const jump = usingReal ? toPicked(prov ?? null, c.label) : null;
+                      // A fact printed twice is evidence for the figure, not an addend of it. It
+                      // still belongs in the list — it is a real place in the document a reviewer
+                      // can check — but showing it with a "+" would make the column not add up.
+                      const counted =
+                        (inspPeriod === "current" ? c.counted : c.counted2) !== false;
                       return (
                         <div
                           key={`${c.label}-${i}`}
@@ -1814,13 +1964,19 @@ export default function WorkspaceScreen() {
                         >
                           <span style={{ fontFamily: font.mono, fontSize: 10.5, color: color.muted,
                                          minWidth: 14 }}>
-                            {i === 0 ? "" : "+"}
+                            {!counted ? "=" : i === 0 ? "" : "+"}
                           </span>
                           <span style={{ fontSize: 11.5, color: color.ink, flex: 1,
                                          textDecoration: jump ? "underline dotted" : "none" }}>
                             {c.label}
                           </span>
-                          {c.residual ? (
+                          {!counted ? (
+                            <span style={{ fontSize: 9.5, fontWeight: 600, padding: "1px 6px",
+                                           borderRadius: radius.pill, background: color.amberBg,
+                                           color: color.amberFg }}>
+                              printed twice
+                            </span>
+                          ) : c.residual ? (
                             <span style={{ fontSize: 9.5, fontWeight: 600, padding: "1px 6px",
                                            borderRadius: radius.pill, background: color.amberBg,
                                            color: color.amberFg }}>
@@ -1832,7 +1988,8 @@ export default function WorkspaceScreen() {
                             {src || ""}
                           </span>
                           <span style={{ fontFamily: font.mono, fontSize: 11.5, fontWeight: 600,
-                                         color: color.ink, minWidth: 92, textAlign: "right" }}>
+                                         color: counted ? color.ink : color.muted, minWidth: 92,
+                                         textAlign: "right" }}>
                             {v == null ? "—" : present(v)}
                           </span>
                         </div>

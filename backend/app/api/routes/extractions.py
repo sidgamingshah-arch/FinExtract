@@ -311,9 +311,27 @@ def _maybe_cache_netting(session: Session, run, locale: str) -> None:
         session.rollback()
 
 
-def _serialize_rows(doc_model) -> list[dict]:
+def _serialize_rows(doc_model, ontology=None) -> list[dict]:
     """Extracted line items in a view-friendly shape, each value with its provenance
-    (sheet+cell for Excel, page+bbox for PDF) so the UI can show click-to-source."""
+    (sheet+cell for Excel, page+bbox for PDF) so the UI can show click-to-source.
+
+    Three things about a row that were computed by the pipeline and then left behind travel with it
+    from here, because every screen and every export reads THIS list:
+
+    * ``printed_in`` — face or note. Not derivable downstream: face and note rows have the same
+      shape, and a note's detail lines sum to a figure the face already reports, so adding the two
+      together double-counts the filing.
+    * ``bucket`` / ``bucket_label`` / ``section`` — which of the analyst sections the row belongs to
+      (``services.buckets``). The segmentation already decided it; this joins the answer to the row
+      instead of making every consumer re-derive it from the ontology.
+    * ``notes`` — the note numbers this row CITES and that were actually extracted as note tables,
+      resolved through the ``FaceNoteLink``s the link-notes stage built. A number the filing prints
+      with no note behind it is not in the list, so the linkage cannot promise detail that is not
+      there.
+    """
+    seg_of, label_of = _bucket_index(doc_model)
+    notes_of = _linked_notes(doc_model)
+    section_of = _section_index(ontology)
     rows = []
     for li in doc_model.line_items:
         values = []
@@ -326,6 +344,8 @@ def _serialize_rows(doc_model) -> list[dict]:
             values.append({
                 "period_label": ev.period_label,
                 "period_display": ev.period_display,  # real period-end date for headers, if any
+                # Printed left-to-right position of a matrix's component column; null otherwise.
+                "column_index": ev.column_index,
                 "basis": ev.basis.value,
                 "value": (str(ev.value) if ev.value is not None else None),
                 "provenance": prov,
@@ -338,9 +358,21 @@ def _serialize_rows(doc_model) -> list[dict]:
                 },
             })
         rows.append({
+            # The row's id, so the bucket segmentation written by the same run can name which rows
+            # belong to which bucket without a second copy of the figures (services/buckets.py).
+            # Per-run and not stable across re-runs — anything that has to survive a re-run keys on
+            # the canonical key or the label geometry instead, see ``_prov_dict``.
+            "id": str(li.id),
             "source_label": li.source_label,
             "canonical_key": li.canonical_key,
             "note": li.note_number,
+            # Where it was printed, which of the analyst sections it belongs to, and which extracted
+            # notes detail it — see this function's docstring for why each has to travel with the row.
+            "printed_in": (li.printed_in.value if li.printed_in else None),
+            "bucket": seg_of.get(str(li.id)),
+            "bucket_label": label_of.get(seg_of.get(str(li.id)) or ""),
+            "section": section_of.get(li.canonical_key or ""),
+            "notes": notes_of.get(str(li.id), []),
             "role": li.role.value,
             "mapping_method": li.confidence.method,
             "mapping_confidence": li.confidence.mapping,
@@ -348,6 +380,58 @@ def _serialize_rows(doc_model) -> list[dict]:
             "values": values,
         })
     return rows
+
+
+def _bucket_index(doc_model) -> tuple[dict[str, str], dict[str, str]]:
+    """(row id → bucket key, bucket key → label) from the segmentation this run already computed.
+
+    Empty when the segment stage did not run, which is how a partial pipeline stays serializable:
+    the field is then absent rather than guessed.
+    """
+    from app.services.buckets import BUCKET_LABELS
+
+    store = getattr(doc_model, "buckets", None)
+    if store is None:
+        return {}, {}
+    out = {row_id: seg.bucket for seg in store.segments for row_id in seg.face_item_ids}
+    return out, dict(BUCKET_LABELS)
+
+
+def _linked_notes(doc_model) -> dict[str, list[str]]:
+    """row id → the note numbers it cites THAT EXIST as extracted note tables, in citation order.
+
+    Read off the ``FaceNoteLink``s rather than off ``note_number``: that field holds what the page
+    printed in its note column, which is a promise the filing makes and not one this extraction can
+    keep — a note the run never parsed would otherwise be offered as a link to nothing.
+
+    AND INTERSECTED WITH THE NOTES THE RUN PUBLISHED, because the links are older than the note
+    list. ``link_notes`` runs before ``prune_notes``, which drops every note no face row cites, so a
+    link can name a table that is no longer in ``doc.notes`` by the time this serializes — and the
+    guarantee above would then be false for exactly the notes the run decided not to publish.
+    Intersecting here makes the guarantee independent of stage order.
+    """
+    published = {str(nt.note_number).strip() for nt in (getattr(doc_model, "notes", []) or [])
+                 if nt.note_number is not None}
+    out: dict[str, list[str]] = {}
+    for link in getattr(doc_model, "links", []) or []:
+        if str(link.note_number).strip() not in published:
+            continue
+        got = out.setdefault(str(link.face_item_id), [])
+        if link.note_number not in got:
+            got.append(link.note_number)
+    return out
+
+
+def _section_index(ontology) -> dict[str, str]:
+    """canonical_key → the template section id its concept was scoped to, for the rows that mapped.
+
+    The bucket is what a reader wants; the section is what a reviewer needs when the bucket looks
+    wrong, because it names the rulebook decision the bucket was derived from. Taken from the
+    ontology the RUN was pinned to — the same object the segmentation read — so the two cannot
+    disagree about which section a concept is in.
+    """
+    return {m.canonical_key: m.section_scope[0]
+            for m in (getattr(ontology, "mappings", []) or []) if m.section_scope}
 
 
 def _prov_dict(p):
@@ -414,6 +498,44 @@ class ExtractionOptions(BaseModel):
     # Entity name used to mint the run id (entity-slug + timestamp). Falls back to the
     # document filename when omitted.
     entity: str | None = None
+
+
+def resolve_rulebook_id(session: Session, pinned_ontology_id: str | None,
+                        pinned_template_id: str | None) -> str | None:
+    """Which rulebook this run reads the filing against, when the caller pinned none.
+
+    A run that names no rulebook used to map against NOTHING: ``_run_extraction_task`` left
+    ``ontology = None``, so no caption resolved to a concept, no concept carried a section, and the
+    spread came back as unmapped rows — while the comment beside the pin said "a run naming no
+    rulebook is read by the shipped default". It was not. Every plain extraction — which is what the
+    upload screen sends — produced a filing with nothing recognised in it.
+
+    So the rulebook IN FORCE is resolved here and PINNED ON THE RUN, which is the part that makes
+    this a defensible default rather than the substitution this codebase removed elsewhere: nothing
+    is guessed at read time. ``_template_for_run`` deliberately has no fallback because findings
+    attributed to a template the analyst never chose are worse than absent ones — nothing on the
+    screen says where they came from. Here the run stores the id, ``rulebook_record`` reports the key
+    and version, and the Workspace names it, so the analyst can see exactly which rulebook produced
+    the figures and pin a different one.
+
+    A caller's own pin always wins, including the legitimate case of reproducing an earlier spread
+    with a superseded rulebook. Only the absence of a pin is filled in.
+    """
+    from app.db.models import TemplateVersion
+    from app.sample.reference import shipped_template_key
+
+    if pinned_ontology_id:
+        return pinned_ontology_id
+    # The template the run is laid out on decides which rulebook is in force for it, so the pair
+    # cannot disagree — the ``pin_mismatch`` check below then holds by construction.
+    template_key = ""
+    if pinned_template_id:
+        tpl = session.get(TemplateVersion, pinned_template_id)
+        template_key = tpl.template_key if tpl is not None else ""
+    if not template_key:
+        template_key = shipped_template_key()
+    chosen = _in_force_for_template(session, template_key) if template_key else None
+    return chosen.id if chosen is not None else None
 
 
 def _in_force_for_template(session: Session, template_key: str):
@@ -586,7 +708,7 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
             "page_count": len(doc_model.pages),
             "line_item_count": len(doc_model.line_items),
             "notes": len(doc_model.notes),
-            "rows": _serialize_rows(doc_model),
+            "rows": _serialize_rows(doc_model, ontology),
             "note_details": _serialize_notes(doc_model),
             "disclosures": disclosures,
             "reconciliation": ([e.model_dump(mode="json") for e in recon.entries] if recon else []),
@@ -597,6 +719,11 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
             # Leftover lines a model placed in a section's Others to reconcile a printed subtotal
             # with its components — kept so the routing is inspectable, not silent.
             "gap_routings": list(doc_model.gap_routings or []),
+            # Which of the eight analyst buckets each face row and each note belongs to. Membership
+            # only — the figures live once, on ``rows`` and ``note_details``, and the buckets
+            # endpoints join to them at serve time (services/buckets.py).
+            "buckets": (doc_model.buckets.model_dump(mode="json")
+                        if doc_model.buckets else None),
             "units": (doc_model.unit_context.model_dump(mode="json")
                       if doc_model.unit_context else None),
             # How mapping ran. Surfaced (not just logged) so a deterministic-only run — the
@@ -681,7 +808,9 @@ def start_extraction(
     # Settle which rulebook this run reads the filing against BEFORE it starts, and keep it on the
     # run. The caller may legitimately pin a superseded rulebook (reproducing an earlier spread),
     # and the run says so rather than letting the screen decide afterwards what it must have used.
-    rulebook = rulebook_record(session, body.ontology_version_id)
+    ontology_version_id = resolve_rulebook_id(session, body.ontology_version_id,
+                                              body.template_version_id)
+    rulebook = rulebook_record(session, ontology_version_id)
 
     # A pinned rulebook and a pinned template have to be about the SAME template, and nothing
     # downstream would ever notice that they were not: the rulebook decides which concept each
@@ -729,16 +858,27 @@ def start_extraction(
     # millisecond later — the elapsed time a screen shows must be measured from the same moment the
     # run says it began.
     started_at = datetime.now(timezone.utc)
+    # ONE options dict, stored on the run AND handed to the worker. The worker used to be given
+    # ``body.model_dump()`` while the row stored something else, so anything settled here — the
+    # rulebook resolved above, above all — was recorded on the run and then not used to produce its
+    # figures. A run that says which rulebook it read the filing against and did not read it is
+    # worse than one that says nothing.
+    run_options = {**body.model_dump(),
+                   "ontology_version_id": ontology_version_id,
+                   "rulebook": rulebook,
+                   "stages": pipeline_stage_names()}
     run = ExtractionRun(
         id=run_id, document_id=doc.id,
         template_version_id=body.template_version_id,
-        ontology_version_id=body.ontology_version_id,
+        # The RESOLVED id, not the request's: a run must be able to say which rulebook produced
+        # its figures, and "whatever was in force at the time" is not an answer a later reader can
+        # reconstruct — the rulebook in force changes every time one is published.
+        ontology_version_id=ontology_version_id,
         # The stage list THIS run will walk, recorded at the moment it is queued. Serving the
         # live pipeline's list instead would make an old run disagree with itself the next time
         # a stage is added: its frozen `stage_count`/`stages_done` would be measured against a
         # longer list, and a screen ticking stages off would show a finished run as incomplete.
-        status="running", options={**body.model_dump(), "rulebook": rulebook,
-                                   "stages": pipeline_stage_names()},
+        status="running", options=run_options,
         created_at=started_at,
         # The full progress shape from the first poll, not a two-key stub: a screen that reads
         # `stage_count` to draw its stage list must be able to draw it before the first stage
@@ -751,7 +891,7 @@ def start_extraction(
     session.commit()
 
     background.add_task(_run_extraction_task, run_id, doc.object_key, doc.filename or "",
-                        body.model_dump(), entity, settings.llm.provider, settings.llm.model,
+                        run_options, entity, settings.llm.provider, settings.llm.model,
                         doc.page_scope, started_at.isoformat())
     # The URL of the mechanism that ACTUALLY reports progress — the endpoint the client polls.
     # This field used to name `/extractions/{run_id}/stream`, a WebSocket route that exists

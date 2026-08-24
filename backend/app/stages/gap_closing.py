@@ -80,7 +80,19 @@ class GapClosingStage:
                     continue
                 li = doc.line_items[idx]
                 li.canonical_key = routing["others_key"]
-                li.mapping_method = "llm_gap_routing"
+                # ``confidence.method`` — a LineItem has no ``mapping_method`` field, and assigning
+                # one raised ValueError on a strict pydantic model, so this stage crashed the whole
+                # run every time the provider CONFIRMED a routing. It never failed in testing
+                # because the confirmed path was the one nothing exercised: the assertions for "the
+                # routed line records why it moved" and "the subtotal ties" were made against a
+                # second implementation that moved the line inside a list of row DICTS, where any
+                # key assignment succeeds, and that nothing in the pipeline called. Both now run
+                # through this stage, and that twin is deleted.
+                #
+                # ``mapping_method`` is the name the API serves this under
+                # (``extractions._serialize_rows`` reads it off ``li.confidence.method``), which is
+                # what made the wrong spelling look right.
+                li.confidence.method = "llm_gap_routing"
                 moved += 1
         doc.gap_routings = routings                     # cached on the run for the UI/audit
         ctx.log(f"gap_closing:{len(routings)} gap(s) closed, {moved} line(s) routed "

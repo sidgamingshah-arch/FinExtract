@@ -7,14 +7,21 @@ results are available (`app/core/pipeline.py::Pipeline.run`).
 
 ## Stages
 
-**Fourteen stages, assembled by `app/core/pipeline.py::default_pipeline()`.** That
+**Fifteen stages, assembled by `app/core/pipeline.py::default_pipeline()`.** That
 function is the only place the order is stated; `api/routes/extractions.py::pipeline_stage_names`
 reads the list off it rather than keeping a copy, and the run row records the list it was
 queued with. Do not add a third copy — the list below names each stage and its file, and
 its order is `default_pipeline()`'s:
 
 `ingest · integrity · language_detect · classify · extract · map_ontology · residual ·
-normalize · link_notes · reconcile · prune_notes · confidence · gap_closing · structural`
+normalize · link_notes · reconcile · prune_notes · confidence · gap_closing · structural ·
+segment`
+
+**Two passes over the first four.** `services/documents.py::analyze_document` runs
+`ingest · integrity · language_detect · classify` alone at upload, synchronously, so the
+integrity gate and the page scope exist before an extraction is started. The run then goes
+through `default_pipeline()` from the beginning, re-reading the stored bytes — so a run
+depends on nothing computed at upload and is reproducible from the file alone.
 
 1. **Ingest & route** (`stages/ingest.py`) — MIME/magic detection (not extension).
    Excel → openpyxl (one "page" per sheet); PDF → **per-page** native-vs-scanned detection
@@ -45,6 +52,24 @@ normalize · link_notes · reconcile · prune_notes · confidence · gap_closing
    decided. There is **no LLM tie-break** in this stage. Notes pages are kept (needed for
    §20), and titles that looked like a statement and resolved to nothing land in
    `DocumentModel.unmapped_titles` so the lexicon's coverage is measurable.
+
+   **An ordering layer runs over the decoded sequence** (`_notes_follow_the_face`): a filing
+   states its statements and then explains them, so **no notes page precedes the face**. A
+   page decoded NOTES before any face page is corrected to OTHER — the numbered-heading
+   feature fires on any "1. …" run and front matter is full of them (contents, an auditor's
+   report, corporate information), while `PRE → NOTES` costs only 1.0, so a strong enough
+   numbered page ahead of the statements could enter the notes state early and everything
+   after it then read as notes-or-later. It is corrected to OTHER and never to FACE: the
+   page's own evidence did not look like a statement, so refusing the notes reading is all
+   the invariant licenses. This is **not** the claim that the face never follows the notes —
+   an HKEX filing prints the company-only balance sheet past note 40 — so only the FIRST
+   face page anchors it. With no face page anywhere the layer does nothing and logs why:
+   a notes section uploaded on its own would otherwise lose every page it has.
+
+   The layer also protects `seen_notes`, which licenses reading an untitled face page as the
+   COMPANY's re-presentation of a Group statement. A front-matter page latching that flag
+   before the statements were reached could make a filing's own balance sheet read as the
+   Company's second copy of one.
 5. **Extract** (`stages/extract.py`) — rows → `LineItem`s with values keyed by
    (basis, period), note refs, unit context, and provenance. **Table reconstruction happens
    inside this stage**, which is why there is no separate `reconstruct` stage (the comment
@@ -74,10 +99,20 @@ normalize · link_notes · reconcile · prune_notes · confidence · gap_closing
    transformation** — a figure arriving with the opposite sign is flagged and its sign
    confidence drops; the value is left as reported.
 9. **Link notes** (`stages/link_notes.py`) — builds `FaceNoteLink`s from each face line's
-   `note_refs` / `note_number` against an index of the extracted `NotesTable`s, labelling
-   the relationship (`ONE_TO_ONE` / `NOTE_SPLITS_TO_MANY_FACE` / `MANY_NOTES_TO_ONE_FACE`)
-   from the citation counts. Amount validation is the **reconcile** stage's job, not this
-   one's — see [03-reconciliation](03-reconciliation.md).
+   citations against an index of the extracted `NotesTable`s, labelling the relationship
+   (`ONE_TO_ONE` / `NOTE_SPLITS_TO_MANY_FACE` / `MANY_NOTES_TO_ONE_FACE`) from the citation
+   counts. Amount validation is the **reconcile** stage's job, not this one's — see
+   [03-reconciliation](03-reconciliation.md).
+
+   **Which notes a row cites is one definition, `LineItem.cited_notes_among`**, shared with
+   *prune notes* (what gets published) and the **segment** stage (which section a note is filed
+   under). Three stages reading citations three ways meant a filing could have a note published
+   but unlinked, or linked but filed where its citing row could not see it. A printed
+   sub-reference resolves to its **parent** note when the sub-part is not itself a table —
+   a balance sheet saying `16(b)` beside a figure and a notes section printing one table
+   numbered `16` is the common HK house style, and the citation as printed matches nothing. The
+   fallback applies only when the citation itself names no table, so no row is ever tied to both
+   a sub-note and its parent — the reconciliation would subtract the same detail twice.
 10. **Reconcile** (`stages/reconcile.py` + `services/reconcile.py`) — the §20 subtraction
     and the note→face tie grading (see [03-reconciliation](03-reconciliation.md)).
 11. **Prune notes** (`stages/prune_notes.py`) — publishes only the notes a face line
@@ -111,6 +146,39 @@ normalize · link_notes · reconcile · prune_notes · confidence · gap_closing
     carrying a classifiable `reason` (`services/coverage.py`), so partial coverage is
     visible rather than implied. A failure flags the participating line items and values.
 
+15. **Segment** (`stages/segment.py` + `services/buckets.py`) — files every face row and
+    every note into the **thirteen face sections** an analyst reads a filing in, plus Others:
+    the balance sheet's five (current / non-current assets, current / non-current
+    liabilities, equity & reserves), the income statement's four (income, expenses,
+    **interest**, non-operating income & expenses), the cash flow's three activities
+    (operating, investing, financing), and the statement of changes in equity.
+    **Last by necessity, not by convention**: a balance sheet prints five of these on a
+    single page, so page classification can never separate them — only a row's resolved
+    `section_scope` can, which does not exist until `map_ontology` and `residual` have run.
+    **Section first, statement second.** Only `equity_changes` still resolves from the
+    statement (a reserve's movement through the year is that statement's content, not the
+    balance sheet's closing position); P&L and cash flow are split BY section, so a row of
+    theirs whose concept resolved no section is Others/`unresolved` rather than filed under
+    its page — a coverage fact made visible. The section → tag edge is *derived* from the
+    section id's own phrase, and every banner the extractor can read
+    (`mapping.HEADING_ROW_SECTIONS`) is asserted at import to have a tag, so the rulebook
+    and this layer cannot drift into two ideas of what "current assets" is; a section with no
+    tag is reported in `unknown_sections` rather than counted as Others, and the three real
+    sections this taxonomy does not name (other comprehensive income, the two "attributable
+    to" sections) are listed explicitly so phrase matching cannot pull them into Income.
+    **Interest is declared, not derived**: no statement prints an interest section, so the
+    two concepts that are interest say so in the rulebook (`analyst_bucket`) — a rule in code
+    would also catch "Interests in associates" and "Non-controlling interests", which are not
+    interest at all. The stage also back-fills `printed_in` (face vs note) for any row no
+    reader stamped, since it is the last thing to see every row and every page kind together.
+    Membership only — the figures stay on `line_items` / `notes` and the
+    `/documents/{id}/buckets` endpoints join to them at serve time. Every face row lands in
+    exactly ONE bucket (so that side is summable, and `unresolved_face_item_ids` separates
+    "belongs in Others" from "nothing could place it"); a note cited from two buckets is
+    filed in BOTH, because each section needs it in front of the reader — so the notes side
+    is deliberately not a partition, `shared_notes` marks the overlap in every bucket
+    holding it, and the index serves a distinct-note count.
+
 **Where a design intent diverged.** Earlier revisions of this document described a
 separate `stages/reconstruct.py` converging native and OCR pages on the `Table` / `Cell`
 core models. That stage was never built and the file does not exist: reconstruction lives
@@ -134,12 +202,18 @@ method contributes and they corroborate one another:
    exclude, confusable-with, value_scope) and the ontology's global policies + worked
    examples, it chooses by **meaning**. So "Amounts due from customers" → `trade_receivables`
    with no matching alias, and repeated "Others" captions disambiguate by section context.
-4. **Semantic embeddings** — a cosine-similarity tier is implemented in the matcher
-   (`OntologyMatcher._embedding`, contributing an `embedding` candidate score), but **no
-   embedding provider is wired into the pipeline**: `EmbeddingProvider` has only a stub in
-   the registry and `map_ontology.py` constructs the matcher without one, so the tier is
-   exercised only by tests that pass a fake. Configuring `[embeddings]` today selects
-   nothing; wiring the adapter is the outstanding step.
+**Two tiers that used to be here are gone, and the removals are the contract getting shorter
+rather than weaker.** A **fuzzy / string-similarity** tier decided rows on wording, which the
+rulebook's own `binding.order` never declared and which produced the error nothing downstream can
+see (on the shipped rulebook, "Profit before exceptional items and tax" filed as
+`pl_profit_before_tax` at 0.61, accepted and unflagged — two subtotals differing by exactly the
+exceptional items, so the statement still tied). A **semantic-embedding** tier existed in the
+matcher but never ran: `map_ontology.py` built the matcher without a provider and the only
+registered one was a stub that raised. Measured on a real 300-page filing, of the 15 rows fuzzy
+used to name, 11 now land in their own section's residual *Others* — still on the statement,
+still summing, itemised under their printed label — and 3 become unmapped for a human. Alias
+similarity survives as a *measurement* (`_alias_similarity`) used by two guards, and can map
+nothing on its own.
 
 **Combination policy:** exact wins outright; otherwise the LLM makes the call but is
 **corroborated by the deterministic methods** — agreement nudges confidence up; a strong
@@ -261,6 +335,5 @@ of these documents:
 | `LlmProvider` | `azure_openai` (default), `anthropic`, `openai` / `openai_compatible`, `stub` | yes — mapping, gap closing, netting, credit narrative |
 | `OcrProvider` | `docling`, `azure` (Document Intelligence), `paddleocr`, `stub` | yes — scanned pages and images |
 | `ObjectStore` | `local` | yes — uploaded bytes |
-| `EmbeddingProvider` | `stub` only | **no** — the matcher's embedding tier is never handed a provider |
 | `TableStructureProvider` | `stub` only | **no** — nothing calls it; `row_reconstruct` does the job |
 | `FxConverter` | none — the port is left unbound | **no** — currency conversion is not a rate *feed*. It runs off an admin-maintained rate master (`app/db/models.py::FxRate`, `app/services/fx.py`, `GET/POST/PUT/DELETE /fx-rates`), which resolves a pair `direct` or `inverse`-and-flagged and **refuses** rather than triangulating. |

@@ -376,11 +376,15 @@ def test_a_failed_run_reports_failed_progress_and_names_the_stage_it_died_in(cli
     assert served["status"] == "failed", served["progress"]
     progress = served["progress"]
     assert progress["phase"] == "failed"
-    # The stage that was in flight is named, and is NOT counted as done.
+    # The stage that was in flight is named, and is NOT counted as done. Keyed on where
+    # ``structural`` actually sits rather than on ``names[:-1]``: that spelling only said "every
+    # stage but the dead one" while structural happened to be LAST, and it started asserting the
+    # opposite — that the dead stage IS done — the moment a stage was added after it.
+    died_at = names.index("structural")
     assert progress["stage"] == "structural"
-    assert progress["stages_done"] == names[:-1]
-    # A run that died in its last stage never claims to have finished the pipeline.
-    assert progress["pct"] < 1.0 and progress["stage_index"] == len(names) - 1
+    assert progress["stages_done"] == names[:died_at]
+    # A run that dies never claims to have finished the pipeline.
+    assert progress["pct"] < 1.0 and progress["stage_index"] == died_at
     assert "RuntimeError" in served["log_tail"]
 
 

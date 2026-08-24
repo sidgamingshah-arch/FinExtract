@@ -248,6 +248,18 @@ def validate_ontology_against_template(
                 location=f"mapping:{m.canonical_key}",
                 message="canonical_key does not exist in the target template",
             ))
+    # An ``analyst_bucket`` naming no bucket would silently lose its rows: ``bucket_of`` refuses it
+    # and files them in Others, and nothing would say why. Imported here rather than at module scope
+    # so the schema layer keeps its module-level import graph free of the service layer.
+    from app.services.buckets import BUCKET_KEYS
+
+    for m in ontology.mappings:
+        if m.analyst_bucket and m.analyst_bucket not in BUCKET_KEYS:
+            errors.append(ValidationError(
+                location=f"mapping:{m.canonical_key}",
+                message=(f"analyst_bucket {m.analyst_bucket!r} is not an analyst section; "
+                         f"expected one of {', '.join(BUCKET_KEYS)}"),
+            ))
     for rule in ontology.decomposition_rules:
         if rule.face_key not in template_keys:
             errors.append(ValidationError(

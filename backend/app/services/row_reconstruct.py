@@ -35,11 +35,40 @@ from app.services.han import to_simplified
 # reading a banner here uses the same function mapping does rather than a second copy of it.
 from app.services.mapping import section_of_banner, section_of_banner_only
 
-_NUM = re.compile(r"^\(?-?[\d,]*\.?\d+\)?%?$")
+_NUM = re.compile(r"^\(?-?[\d,]*\.?\d+\)?$")
 _NOTE = re.compile(r"^note[s]?\.?$", re.IGNORECASE)
 # A column header for the note-reference column (English + Chinese). Real statements print it
 # once at the top; the cells beneath it hold bare note numbers, not monetary values.
 _NOTE_HDR = re.compile(r"^(notes?|附註|附注)$", re.IGNORECASE)
+
+
+# The shape of a printed note reference: a small integer, optionally with the sub-note letter the
+# filing prints beside it ("16(b)", "8a"), and optionally carrying the separator that followed it
+# because a row can cite several ("14, 16(b)"). Deliberately NOT "anything numeric": a monetary
+# amount carries thousands separators, a decimal part or accounting parentheses, and reading one as
+# a note reference DELETES a reported figure — see :func:`_scan_row`.
+_NOTE_REF_TOKEN = re.compile(r"^\d{1,3}(?:\s*\([a-z]{1,3}\)|[a-z]{1,2})?[.,;]?$", re.IGNORECASE)
+
+# How close a word has to sit to the one before it to be the NEXT WORD OF THE SAME CAPTION rather
+# than the first word of a cell. A word space at statement type sizes is well under 0.01 of the page
+# width and the gap to a note column is upwards of 0.1, so the threshold only has to tell
+# "guaranteed notes" from "…            Note 14".
+#
+# Deliberately not named _CAPTION_GAP: that name is already taken further down this module, for the
+# clear air between two COLUMN CAPTIONS (0.03), and a second module-level assignment of it silently
+# rebound this one — which is exactly the kind of collision a one-word name invites.
+_WORD_GAP = 0.02
+
+
+def _is_note_ref_token(t: str) -> bool:
+    """Is this token shaped like a note reference (and therefore not an amount)?"""
+    s = t.strip()
+    return bool(s) and bool(_NOTE_REF_TOKEN.match(s))
+
+
+def _tight_after(prev: Word, w: Word) -> bool:
+    """Is ``w`` printed as the next word of ``prev``'s caption, rather than in a column of its own?"""
+    return (w.bbox.x0 - prev.bbox.x1) <= _WORD_GAP
 
 
 def _is_note_number(t: str) -> bool:
@@ -66,6 +95,14 @@ _HDR_LABEL = re.compile(
     r"截至|止年度|財務狀況|现金流量|現金流量|權益變動|权益变动|全面收益|損益及其他|损益及其他|"
     r"綜合.{0,8}表|综合.{0,8}表",
     re.IGNORECASE)
+
+
+def _chrome_key(text: str) -> str:
+    """The page-chrome spelling of a caption — imported from the detector that builds the set, so
+    the key a row is tested with and the key the set was keyed on cannot drift apart."""
+    from app.services.pdf_extract import _chrome_key as key
+
+    return key(text)
 
 
 def _is_date_ish(d) -> bool:
@@ -127,7 +164,8 @@ def _is_heading_with_note_only(label: str, vals: list) -> bool:
 
 def _is_noise_row(label: str, vals: list,
                   steps: tuple[tuple[str, object], ...] = (),
-                  signals: tuple[tuple[Basis, str], ...] = ()) -> bool:
+                  signals: tuple[tuple[Basis, str], ...] = (),
+                  page_chrome: frozenset[str] = frozenset()) -> bool:
     """A title / running-header / period-caption line that leaked in as a row. Dropped only when
     the label is header-like AND every extracted value is a date fragment — so a genuine line that
     merely mentions a statement name (its value being a real amount) is never removed.
@@ -139,6 +177,14 @@ def _is_noise_row(label: str, vals: list,
     whose amount was a year.
     """
     if _RUNNING_HDR.search(label):
+        return True
+    # THE FILING'S OWN RUNNING HEADER, whatever it says. The regex above is a word list and a
+    # filing whose header is just its own name matches none of it; ``pdf_extract._page_chrome``
+    # answers the same question structurally, from the caption being printed at the top of page
+    # after page. Unlike every other rule here this one does NOT require the values to be date
+    # fragments: a header that landed on a figure's baseline carries that figure, and the figure
+    # is exactly what made it publishable as a line item.
+    if page_chrome and _chrome_key(label) in page_chrome:
         return True
     norm = apply_pipeline(label, steps)
     if _is_period_only_label(norm or label):
@@ -170,10 +216,20 @@ class Word:
 
 
 def _num(t: str, fmt=None) -> Decimal | None:
-    """Parse a token to a Decimal. With no ``fmt`` this uses the fast US-format path (comma
-    thousands, dot decimal) — unchanged behaviour. When a locale ``NumberFormat`` is supplied
-    it delegates to ``services.numbers.parse_number`` so EU decimal-comma (``1.234,56``),
-    Indian grouping (``1,23,456``) and Arabic-Indic digits parse correctly (Req 12)."""
+    """Parse a token to a MONETARY Decimal. With no ``fmt`` this uses the fast US-format path
+    (comma thousands, dot decimal); when a locale ``NumberFormat`` is supplied it delegates to
+    ``services.numbers.parse_number`` so EU decimal-comma (``1.234,56``), Indian grouping
+    (``1,23,456``) and Arabic-Indic digits parse correctly (Req 12).
+
+    A PERCENTAGE IS NOT A FIGURE THIS READS. ``_NUM`` used to end in ``%?`` and the body stripped
+    the sign, so "45.2%" became the amount 45.2 and "(3.1)%" the amount -3.1 — filed on a template
+    line, summed into a subtotal, and exported as money. Filings print percentages in their own
+    columns ("% of revenue", effective tax rate, gearing), and nothing downstream can tell such a
+    figure from a real one once it is a bare Decimal on a line item. Refused at the door, before
+    either path, so the locale parser cannot let "45,2%" through the other side.
+    """
+    if "%" in t:
+        return None
     if fmt is not None:
         from app.services.numbers import parse_number
 
@@ -181,7 +237,7 @@ def _num(t: str, fmt=None) -> Decimal | None:
         return p.value_raw if p.ok else None
     if not _NUM.match(t.strip()):
         return None
-    s = t.strip().replace(",", "").replace("%", "")
+    s = t.strip().replace(",", "")
     neg = s.startswith("(") and s.endswith(")")
     s = s.strip("()")
     try:
@@ -191,8 +247,44 @@ def _num(t: str, fmt=None) -> Decimal | None:
         return None
 
 
-def _group_rows(words: list[Word], y_tol: float = 0.012) -> list[list[Word]]:
-    """Cluster words into visual rows by vertical position, then order left→right."""
+# One line height on A4 at 10pt, give or take — which is the problem with it as a row tolerance.
+# Kept as the default for inexact geometry only; see :func:`row_tolerance`.
+_DEFAULT_Y_TOL = 0.012
+
+
+def row_tolerance(words: list[Word], source_kind: str) -> float:
+    """How far apart two words may sit vertically and still be one printed row.
+
+    DERIVED FROM THE PAGE when the coordinates are exact, generous when they are not. The axis is
+    whether the geometry can be trusted — not what kind of table it is.
+
+    WHY A FIXED FRACTION OF THE PAGE CANNOT WORK. ``_DEFAULT_Y_TOL`` is about ONE line height, so it
+    lands inside the range of leadings a filing actually uses: measured on real output, the centres
+    of consecutive lines sit 0.0107 apart at 9pt leading and 0.0166 at 14pt, with the tolerance at
+    0.012 in between. Everything tighter than about 11pt merges.
+
+    AND THE MERGE IS NOT A NEAR MISS. ``_group_rows`` orders a row left to right, so two printed
+    lines folded into one row come back with their words INTERLEAVED BY X. "Reversal of impairment
+    of property, plant and" over "equipment, net" reads out as "Reversal equipment, of impairment
+    net of property, plant and" — a caption that matches no alias in any rulebook, and one that
+    reaches the analyst looking like an extraction curiosity rather than a geometry bug. Half a
+    line height separates the same lines with room to spare: words of ONE line overlap vertically
+    by 100%, and the tightest leading measured still sits 1.5x the tolerance away.
+
+    OCR KEEPS THE GENEROUS DEFAULT, for the opposite reason. There a word's y comes from a
+    recognised image, and residual skew after deskewing moves a word by a real fraction of a line
+    across the width of a table — so the tolerance has to absorb drift WITHIN a line. Tightening it
+    there would split one row into two and strand the figures away from their caption, which is a
+    worse failure than a merged caption.
+    """
+    return _line_tol(words) if source_kind == "native" else _DEFAULT_Y_TOL
+
+
+def _group_rows(words: list[Word], y_tol: float = _DEFAULT_Y_TOL) -> list[list[Word]]:
+    """Cluster words into visual rows by vertical position, then order left→right.
+
+    ``y_tol`` is the caller's, because only the caller knows how exact its coordinates are — see
+    :func:`row_tolerance`."""
     ordered = sorted(words, key=lambda w: (w.bbox.y0, w.bbox.x0))
     rows: list[list[Word]] = []
     for w in ordered:
@@ -347,8 +439,23 @@ def _split_banner_prefix(label_words: list[Word], steps: tuple[tuple[str, object
 def _scan_row(row: list[Word], fmt=None) -> tuple[list[Word], str | None, list[Word]]:
     """Split one visual row into (label words, note-ref, value words).
 
-    A "Note"/"Notes" token plus the *single* following number is a note reference, not a
-    value — the value lives in the far-right column, so it must not be consumed as a value.
+    A "Note"/"Notes" token printed in a cell of its own, plus the *single* following number, is a
+    note reference and not a value — the value lives in the far-right column, so it must not be
+    consumed as one.
+
+    BUT "notes" is also an ordinary word of the balance sheet's own vocabulary: guaranteed notes,
+    convertible notes, promissory notes, notes payable. Firing on the word alone read "Interest on
+    guaranteed notes 201,551 221,188" as the caption "Interest on guaranteed", a note reference of
+    "201,551", and one figure — the other was consumed and DELETED, which is the worst outcome
+    available here. Two things have to hold before the word is read as a keyword:
+
+    * the token after it is shaped like a note reference (:func:`_is_note_ref_token`) — never an
+      amount. A token that is not is left where it is, so a figure can no longer be swallowed even
+      if everything else about the row misleads; and
+    * the word is not printed tight against the caption it would otherwise belong to
+      (:func:`_tight_after`). "Guaranteed notes 36 3,877,188" keeps its caption whole and lets the
+      note column place the 36 geometrically (:func:`_resolve_note_column`), which is the better
+      evidence anyway; "Cash and cash equivalents        Note 14  1,000" still reads as a keyword.
     """
     label_words: list[Word] = []
     note_ref: str | None = None
@@ -356,11 +463,11 @@ def _scan_row(row: list[Word], fmt=None) -> tuple[list[Word], str | None, list[W
     i = 0
     while i < len(row):
         tok = row[i].text.strip()
-        if _NOTE.match(tok):
-            if i + 1 < len(row) and _num(row[i + 1].text, fmt) is not None:
-                note_ref = row[i + 1].text.strip().strip(".")
-                i += 2
-                continue
+        if (_NOTE.match(tok) and i + 1 < len(row) and _is_note_ref_token(row[i + 1].text)
+                and not (i and _tight_after(row[i - 1], row[i]))):
+            note_ref = row[i + 1].text.strip().strip(".")
+            i += 2
+            continue
         if _num(tok, fmt) is not None:
             value_words.append(row[i])
         elif not value_words:   # text before any number is part of the label
@@ -590,21 +697,51 @@ def _wrap_reaches_a_value(rows: list[list[Word]], idx: int, fmt=None,
     return False
 
 
+def _is_page_title(label_words: list[Word], page_title: str | None) -> bool:
+    """Is this label line (part of) the statement TITLE the classifier matched on this page?
+
+    A title is a label-only line sitting directly above the first item, which is the shape of a
+    wrapped caption — so a filing that prints "Balance Sheet" in title case had its title folded
+    onto its first line item ("Balance Sheet Cash and cash equivalents") and that row then mapped
+    to nothing. ALL-CAPS titles never showed it, because ``_looks_like_header`` already refuses
+    those, which is why this survived a real 367-page filing.
+
+    Matched by containment, because the classifier reports the title as ONE string even when the
+    page prints it over two lines ("Consolidated Statement of" / "Financial Position"), so each
+    printed line is a fragment of it. The caller only applies this ABOVE the first valued row — the
+    zone a title can occupy — so a body caption that happens to echo a word of the title is
+    untouched.
+    """
+    if not page_title or not label_words:
+        return False
+    from app.services.mapping import normalize_label
+
+    text = normalize_label(_join_words(label_words))
+    return bool(text) and text in normalize_label(page_title)
+
+
 def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
-                          steps: tuple[tuple[str, object], ...] = ()) -> list[list[Word]]:
+                          steps: tuple[tuple[str, object], ...] = (),
+                          page_title: str | None = None) -> list[list[Word]]:
     """Fold a label-only line into the following valued row when the two are clearly one
     wrapped label: tight vertical spacing *and* left-alignment inside the label column.
 
     Conservative on purpose — a wrong merge corrupts a label. A label-only line that reads
-    like a section header, or that is loosely spaced / mis-aligned, is left untouched (the
-    main loop then simply skips it, as before).
+    like a section header, that is the page's own statement title, or that is loosely spaced /
+    mis-aligned, is left untouched (the main loop then simply skips it, as before).
     """
     out: list[list[Word]] = []
     pending: list[Word] = []
+    seen_value = False
     for idx, row in enumerate(rows):
         label_words, note_ref, value_words = _scan_row(row, fmt)
         if value_words:
             out.append(pending + row if pending else row)
+            pending = []
+            seen_value = True
+            continue
+        if not seen_value and _is_page_title(label_words, page_title):
+            out.append(pending + row if pending else row)   # chrome: never a caption's head
             pending = []
             continue
         # Label-only (or note-only) line: candidate wrapped-label continuation.
@@ -959,6 +1096,25 @@ def _is_basis_caption_row(label: str, vals: list,
     if not tokens:
         return False
     return all(_signal_side(t, signals) is not None for t in tokens)
+
+
+# The page classifier's own verdict on whose figures a page presents, as a basis.
+#
+# ``classify._scope_of`` resolves this from the page TITLE ("consolidated statement of financial
+# position" vs "statement of financial position") and, for a face-titled page with no consolidation
+# token, from whether the page sits after the notes — which is where an HKEX filing prints the
+# Company's own statement. It is written to ``PageSource.scope`` and, until this mapping existed,
+# read by nothing: the reconstructor was never told, so a Company-only page with no two-basis column
+# header read as consolidated and its figures were ADDED to the Group's under the same keys.
+#
+# "mixed" is deliberately absent. A page captioned for both entities is exactly the case
+# :func:`_basis_bands` exists for, and only the caption geometry can say which COLUMNS are whose; a
+# page-wide basis would file half of them wrongly. A page whose scope is mixed but where no band
+# survived the geometric guards keeps the consolidated default rather than guessing.
+_PAGE_SCOPE_BASIS: dict[str, Basis] = {
+    "consolidated": Basis.CONSOLIDATED,
+    "company": Basis.STANDALONE,
+}
 
 
 def _company_only_stems(scope: ScopeSelection | None) -> tuple[tuple[str, ...], ...]:
@@ -1920,9 +2076,22 @@ def _heads_indented_block(words: list[Word]) -> bool:
     return " ".join(w.text for w in words).strip().endswith(("：", "﹕"))
 
 
-def _matrix_basis(words: list[Word]) -> Basis:
+def _matrix_basis(words: list[Word], page_scope: str | None = None) -> Basis:
     """One basis for the whole matrix. Its columns are components, so the Consolidated/Standalone
-    banding used for comparatives would read them as bases and split the row apart."""
+    banding used for comparatives would read them as bases and split the row apart.
+
+    ``page_scope`` — the page classifier's verdict on WHOSE statement the page is — decides it when
+    there is one, for the same reason it does in :func:`build_line_items` and one more besides: a
+    matrix has no basis header band to outrank it, and its own words are the WORST evidence
+    available. The word scan below only ever sees the component captions and the movement rows,
+    which name no entity at all; on a sideways page it does not even see the title, because the
+    title is printed upright and dropped as chrome. A statement of changes in equity printed past
+    the notes for the Company alone — which is what the reserve note of an HKEX filing is — carries
+    nothing for the scan to catch, so without the page's scope it defaulted to CONSOLIDATED and the
+    Company's reserves were served as the Group's.
+    """
+    if page_scope in _PAGE_SCOPE_BASIS:
+        return _PAGE_SCOPE_BASIS[page_scope]
     text = " ".join(w.text for w in words)
     if _STANDALONE.search(text) and not _CONSOL.search(text):
         return Basis.STANDALONE
@@ -1947,7 +2116,7 @@ def _is_matrix_noise(label: str, row_text: str, vals: list) -> bool:
 def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id: str | None,
                   source_kind: str, ordinal_start: int, fmt=None,
                   unit_ctx: UnitContext | None = None, dims: tuple[str, ...] = (),
-                  log=None) -> tuple[list[LineItem], int]:
+                  log=None, page_scope: str | None = None) -> tuple[list[LineItem], int]:
     """One LineItem per MOVEMENT ROW, its values keyed by component-column name.
 
     Why one item per row rather than one per cell: ``LineItem.values`` is already a dict keyed by
@@ -1963,7 +2132,7 @@ def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id:
     """
     items: list[LineItem] = []
     ordinal = ordinal_start
-    basis = _matrix_basis([w for row in m.rows for w in row])
+    basis = _matrix_basis([w for row in m.rows for w in row], page_scope)
     value_left = m.bands[0][0]
     pending: list[Word] = []                 # label lines waiting for the row that has figures
     tail: BBox | None = None                 # box of the LAST pending line, for the wrap test
@@ -2017,14 +2186,21 @@ def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id:
                 continue
             k = _band_of(cw, m.bands)
             prov = Provenance(
-                document_id=document_id, page_index=page_index, bbox=cw.bbox,
-                value_bbox=cw.bbox, label_bbox=label_bbox, text_snippet=label,
+                # source_bbox, not the reading-space box: a sideways page is reconstructed in
+                # reading space but RENDERED as drawn, so the viewer's highlight has to be given
+                # the box on the page. (The two are the same box on an upright page.)
+                document_id=document_id, page_index=page_index, bbox=cw.source_bbox,
+                value_bbox=cw.source_bbox, label_bbox=label_bbox, text_snippet=label,
                 source_kind=source_kind, producer=f"extract:{source_kind}@0.1.0",
             )
             store_fact(li, ExtractedValue(
                 value_raw=dec, value=dec, basis=basis,
                 # The component name is both the key and the column header shown in the UI.
                 period_label=names[k], period_display=names[k],
+                # Which column it is, left to right as printed. Kept because the printed order
+                # cannot be recovered from the page box once that box is page-space: on a sideways
+                # page the columns advance down the page's y, not across its x.
+                column_index=k,
                 unit_ctx=unit_ctx or UnitContext(), provenance=prov,
             ), dims, log=log, where=f"page={page_index}:matrix:")
         if li.values:
@@ -2056,7 +2232,11 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                      number_format=None, statement: str | None = None,
                      log=None, scope: ScopeSelection | None = None,
                      normalisation: Normalisation | None = None,
-                     on_face: bool = True) -> tuple[list[LineItem], int]:
+                     on_face: bool = True,
+                     page_scope: str | None = None,
+                     page_title: str | None = None,
+                     page_chrome: frozenset[str] = frozenset()
+                     ) -> tuple[list[LineItem], int]:
     """Reconstruct line items from positioned words. Returns (items, next_ordinal).
 
     Both bases are extracted in one pass: a two-basis header band (Group | Company,
@@ -2075,7 +2255,16 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     ``scope``/``normalisation`` override the rulebook in force (see :func:`in_force_rules`), and
     ``on_face`` says whether these rows are a statement FACE: the ``company_only_markers`` rule is
     declared about the face, and a note listing the Company's investments in subsidiaries must not
-    relabel the basis of a note that belongs to the consolidated statements."""
+    relabel the basis of a note that belongs to the consolidated statements.
+
+    ``page_scope`` is the page classifier's ``PageSource.scope`` ("consolidated" / "company" /
+    "mixed" / None). It is the third and weakest way a basis is decided, and the three are ranked:
+    a two-basis header band on the page wins, because caption geometry attributes each COLUMN and
+    nothing else can; the page scope comes next, because a title naming the entity is direct
+    evidence about the whole page; ``company_only_markers`` is last, because it infers the entity
+    from one line item being present. See :data:`_PAGE_SCOPE_BASIS`. On a MATRIX page the same
+    verdict is instead the first thing consulted, because a matrix has no basis band to outrank it
+    and its own words name no entity — see :func:`_matrix_basis`."""
     if scope is None or normalisation is None:
         in_force_scope, in_force_norm = in_force_rules()
         scope = scope if scope is not None else in_force_scope
@@ -2095,7 +2284,9 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                              fmt=number_format,
                              unit_ctx=_unit_context(_statement_unit(matrix.rows, unit_signals,
                                                                    number_format), page_index),
-                             dims=dims, log=log)
+                             dims=dims, log=log,
+                             # FACE ONLY, exactly as the two-column path applies it below.
+                             page_scope=page_scope if on_face else None)
     if statement == "changes_in_equity":
         # A named matrix we cannot attribute is worse than nothing: every figure would be filed
         # under a period that does not exist. Report it and emit no rows for the page. A page
@@ -2117,7 +2308,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     # `_basis_bands` correctly refuses it — the page then reads as single-basis and the Company's
     # column is added to the Group's. (Value words are untouched by the merge, so the note column
     # and the value columns come out the same either way.)
-    raw_rows = _group_rows(words)
+    raw_rows = _group_rows(words, row_tolerance(words, source_kind))
     entity_signals = _entity_signals(scope)
     # real period-end dates for column headers, if any
     period_bands = _period_bands(raw_rows, number_format)
@@ -2137,7 +2328,20 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     bands = _basis_bands(raw_rows, value_bands, _value_area(value_bands, col_xs),
                          signals=entity_signals, fmt=number_format,
                          log=log, page_index=page_index)
-    rows = _merge_wrapped_labels(raw_rows, number_format, steps)
+    rows = _merge_wrapped_labels(raw_rows, number_format, steps, page_title=page_title)
+    if not bands and on_face and page_scope in _PAGE_SCOPE_BASIS:
+        # The classifier read the entity off the page's own title (or off its position past the
+        # notes, which is what an untitled Company statement is). No column header names an entity
+        # here — that is why no band was found — so the verdict covers the whole page: one band,
+        # and `_basis_of_columns` gives every column that basis.
+        #
+        # FACE ONLY, for the same reason `company_only_markers` is: ``PageSource.scope`` is assigned
+        # inside the classifier's ``if state == _FACE`` branch and describes a STATEMENT. A note
+        # listing the Company's investments in subsidiaries belongs to the consolidated statements
+        # it is a note to, and relabelling its basis would break the note-to-face tie.
+        bands = [(_PAGE_SCOPE_BASIS[page_scope], 0.5)]
+        if log:
+            log(f"extract:page={page_index}:entity_scope=page_scope({page_scope})")
     if not bands and on_face:
         # company_only_markers: "Presence of …__investments_in_subsidiaries on the face is strong
         # evidence the column is company-only, since consolidation eliminates it." A single-basis
@@ -2227,7 +2431,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         # Drop running-header / statement-title / period-caption lines that leaked in as rows
         # (their only "value" is a date fragment) — never a genuine financial line.
         row_vals = [d for d in (_num(w.text, number_format) for w in value_words) if d is not None]
-        if _is_noise_row(label, row_vals, steps, entity_signals):
+        if _is_noise_row(label, row_vals, steps, entity_signals, page_chrome):
             continue
 
         # A heading is often printed on the SAME line as its first figure, so it never appears as

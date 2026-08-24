@@ -89,10 +89,10 @@ def _matrix_words() -> list[Word]:
     return words
 
 
-def _build(words: list[Word], statement: str | None = "changes_in_equity"):
+def _build(words: list[Word], statement: str | None = "changes_in_equity", **kw):
     logs: list[str] = []
     items, nxt = build_line_items(words, page_index=7, document_id="d1", source_kind="native",
-                                  statement=statement, log=logs.append)
+                                  statement=statement, log=logs.append, **kw)
     return items, nxt, logs
 
 
@@ -229,3 +229,47 @@ def test_equity_page_without_a_matrix_layout_falls_back_to_the_two_column_path()
     assert len(items) == 3
     assert items[0].get_value(Basis.CONSOLIDATED, period_label="current").value == 500
     assert any("equity_no_matrix_layout" in m for m in logs)
+
+
+def _bases(items) -> set:
+    return {ev.basis for li in items for ev in li.values.values()}
+
+
+def test_the_page_scope_decides_whose_equity_statement_the_matrix_is():
+    """A matrix's columns are components, so no column header names an entity and the words name
+    none either — the page classifier's verdict is the only evidence there is. Without it the
+    Company's own statement of changes in equity (an HKEX filing prints one past the notes, as
+    the reserve note) was filed as the Group's, under the same component names.
+    """
+    company, _, _ = _build(_matrix_words(), page_scope="company")
+    assert _bases(company) == {Basis.STANDALONE}
+    group, _, _ = _build(_matrix_words(), page_scope="consolidated")
+    assert _bases(group) == {Basis.CONSOLIDATED}
+    # Unclassified pages keep reading their own words, exactly as before.
+    assert _bases(_build(_matrix_words())[0]) == {Basis.CONSOLIDATED}
+
+
+def test_a_note_is_not_relabelled_by_the_page_scope():
+    """``PageSource.scope`` describes a STATEMENT. A note tabulating the Company's investments in
+    subsidiaries belongs to the consolidated statements it is a note to, so the face-only rule the
+    two-column path applies has to hold for the matrix path as well."""
+    items, _, _ = _build(_matrix_words(), page_scope="company", on_face=False)
+    assert _bases(items) == {Basis.CONSOLIDATED}
+
+
+def test_every_component_records_which_column_it_was_printed_in():
+    """The printed left-to-right order is part of a statement of changes in equity's meaning, and
+    on a sideways page it cannot be recovered from the value's box — there the columns advance
+    down the page's y. So each fact carries its column's index."""
+    items, _, _ = _build(_matrix_words())
+    opening = _by_label(items)["At 1 January 2023"]
+    got = {ev.column_index: ev.period_label for ev in opening.values.values()}
+    assert got == dict(enumerate(NAMES))
+    # A period-keyed fact has no column axis to record.
+    two_col, _, _ = _build([_w("Cash and bank", 0.05, 0.30),
+                            _cell("1,000", 0, 0.30), _cell("900", 1, 0.30),
+                            _w("Trade receivables", 0.05, 0.30 + PITCH_Y),
+                            _cell("2,000", 0, 0.30 + PITCH_Y),
+                            _cell("1,900", 1, 0.30 + PITCH_Y)], statement=None)
+    assert two_col and all(ev.column_index is None
+                           for li in two_col for ev in li.values.values())

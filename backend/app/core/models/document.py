@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, Field
 
 from .enums import DocFormat, PageKind, PageSourceKind
+from .buckets import BucketedSource
 from .integrity import IntegrityReport
 from .line_item import FaceNoteLink, LineItem, NotesTable, UnitContext
 from .reports import ReconciliationReport, StructuralReport
@@ -39,6 +40,12 @@ class PageSource(BaseModel):
     scope: str | None = None
     # The scopes found as COLUMN headers in the top band, when the page carries more than one.
     scope_columns: list[str] = Field(default_factory=list)
+    # The page number PRINTED ON THE PAGE, as printed — the report's own folio. It is not
+    # ``index + 1``: an annual report's front matter (cover, contents, chairman's statement) means
+    # the folio runs behind the file's page count, routinely by several pages. Both numbers are
+    # true and neither substitutes for the other, so the viewer shows the position it navigates by
+    # AND the number the reader sees on the paper. None when the page prints no folio.
+    printed_page: str | None = None
     # Why the classifier decided what it did: the title it matched, whether that title was
     # ambiguous, and the decode margin. Diagnostic — nothing downstream branches on it.
     evidence: dict[str, object] = Field(default_factory=dict)
@@ -62,6 +69,10 @@ class DocumentModel(BaseModel):
     links: list[FaceNoteLink] = Field(default_factory=list)
     reconciliation: ReconciliationReport | None = None
     structural: StructuralReport | None = None   # template rollup/identity validation
+    # Which of the thirteen face sections (or Others) each face row and each note belongs to.
+    # Membership only —
+    # the figures stay on ``line_items``/``notes``; see ``core.models.buckets``.
+    buckets: BucketedSource | None = None
     # Confirmed gap-closing decisions: leftover lines a model placed in a section's Others to
     # reconcile a printed subtotal with its components (see stages.gap_closing). Kept so the
     # routing is visible and auditable rather than an unexplained change of mapping.

@@ -67,7 +67,7 @@ the whole pipeline (`POST /documents/{id}/extractions` again, which the UI expos
 
 ## Cross-cutting principles
 
-- **Adapters everywhere** — OCR/LLM/embeddings/object-store/FX behind `Protocol`s,
+- **Adapters everywhere** — OCR/LLM/object-store/FX behind `Protocol`s,
   selected by config from a registry. "Decide infra later" costs nothing. Note that only
   LLM, OCR and object-store are actually *bound* today — see the port table in
   [01-extraction-pipeline](01-extraction-pipeline.md#adapter-ports).

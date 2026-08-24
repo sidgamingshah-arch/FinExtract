@@ -348,30 +348,3 @@ def resolve_all(provider, rows: list[dict], template_def: dict | None, *,
                 "provider": routing.provider, "model": routing.model,
             })
     return out
-
-
-def apply_routing(rows: list[dict], routings: list[dict]) -> int:
-    """Move the confirmed leftovers into their section's Others, in place.
-
-    The row keeps its caption, its figures and its page — only where it lands changes — and it
-    records that a model put it there, with the gap it closed. Nothing about the routing is
-    invisible: it shows up as a contributing line under that section's Others, clickable through
-    to the page it was printed on.
-    """
-    moved = 0
-    for routing in routings:
-        for idx in routing.get("moved") or []:
-            if not (0 <= idx < len(rows)):
-                continue
-            row = rows[idx]
-            row["canonical_key"] = routing.get("others_key")
-            row["mapping_method"] = "llm_gap_routing"
-            row["routed_to_others"] = {
-                "target_key": routing.get("target_key"),
-                "gap_current": routing.get("gap_current"),
-                "rationale": routing.get("rationale"),
-                "confidence": routing.get("confidence"),
-                "provider": routing.get("provider"), "model": routing.get("model"),
-            }
-            moved += 1
-    return moved

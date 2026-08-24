@@ -152,15 +152,33 @@ _BACKMATTER = re.compile(
     r"five[\s-]?year\s+(?:financial\s+)?summary|financial\s+(?:summary|highlights)"
     r"|[五][年][財财][務务][摘概][要要]|[財财][務务][摘概][要要]", re.I)
 
+# THE FILER'S NAME IS NOT A SCOPE MARKER, and it is printed where one would be. ``_title_candidates``
+# joins the issuer-name line onto the statement title so a title split over two lines is matched as
+# one, which means the text a scope is read from is routinely
+# "SUNRISE DEVELOPMENT COMPANY LIMITED BALANCE SHEET" — carrying both "Company" and "Group" for
+# reasons that say nothing about whose figures the page presents. A corporate suffix AFTER the token
+# is what separates a name from a marker: "… Company Limited" names the filer, "… of the Company"
+# names the entity. The stakes are asymmetric now that this verdict decides a basis — a name read as
+# a marker moves a whole filing's figures to the wrong entity, while a marker read as a name only
+# leaves the page on the consolidated default — so the guard is applied to BOTH sides.
+_CORP_SUFFIX = (r"(?:limited|ltd\.?|plc|inc\.?|incorporated|corporation|corp\.?|holdings?|group"
+                r"|company|companies|pte|llc|llp|s\.?a\.?|n\.?v\.?|a\.?g\.?)")
+
 # Scope. Consolidated is tested FIRST, because "…of the Company and its subsidiaries" contains the
 # word Company and must not be read as the company-only statement.
-_SCOPE_CONSOL = re.compile(r"\bconsolidated\b|\bgroup\b|[合][併并]", re.I)
+_SCOPE_CONSOL = re.compile(
+    rf"\bconsolidated\b|\bgroup\b(?!\s+{_CORP_SUFFIX}\b)|[合][併并]", re.I)
 _SCOPE_COMPANY = re.compile(
-    r"\bcompany\b|\bthe\s+bank\b|\bparent\b|\bstandalone\b|\bunconsolidated\b"
+    rf"\bcompany\b(?!\s+{_CORP_SUFFIX}\b)|\bthe\s+bank\b(?!\s+{_CORP_SUFFIX}\b)"
+    r"|\bparent\b|\bstandalone\b|\bunconsolidated\b"
     r"|[母][公][司]|[本][公][司]", re.I)
-# Traditional 綜合 means BOTH "consolidated" and "comprehensive"; a scope marker only when it is not
-# immediately preceding a comprehensive-income token.
-_ZH_CONSOL_AMBIG = re.compile(r"[綜综]合(?!收益|[損损]益|全面|[虧亏][損损])")
+# 綜合 vs 综合. Traditional HK usage is 綜合 = consolidated (the comment on ``_ZH_CI_AMBIG`` above says
+# so), and 綜合損益及其他全面收益表 — the commonest Traditional face title there is — is the GROUP's.
+# Refusing it as a consolidation marker because a comprehensive-income token follows answers the
+# STATEMENT question in the SCOPE test, and on a bilingual filing whose Chinese statements repeat the
+# English ones past the notes it labelled the Group's figures as the Company's. The lookahead is
+# kept for the PRC Simplified form, where 综合 really does mean comprehensive and 合并 is consolidated.
+_ZH_CONSOL_AMBIG = re.compile(r"綜合|综合(?!收益|[損损]益|全面|[虧亏][損损])")
 
 # Prose pages that discuss the statements without being one.
 _NARRATIVE = re.compile(
@@ -284,12 +302,38 @@ def _anchored(t: str) -> bool:
     return bool(_EN_ANCHOR.search(t))
 
 
+# How much of a title candidate the statement's name has to BE, for the candidate to count as that
+# statement's title. A note's prose refers to the statement it belongs to — "These items are included
+# in “cost of sales” in the consolidated statement of profit or loss" — and the title pattern matches
+# perfectly inside that sentence. Nothing else the classifier has separates the two: the sentence is
+# heading-shaped by every other measure, ``_TITLE_NEGATIVE`` only knows note HEADINGS, and the false
+# title then erases the evidence against itself (the page's own numbered note heading is ignored once
+# a strong title is found). What does separate them is proportion. A printed title IS the statement's
+# name, plus at most a qualifier and its translation; a sentence that merely names the statement is
+# mostly other words.
+#
+# 0.35, measured against two real HKEX filings: the lowest genuine title in either covers 0.52 — a
+# one-line bilingual "CONSOLIDATED STATEMENT OF CASH FLOWS 綜合現金流量表" — and no page that resolved
+# a statement before resolves a different one now. The three prose sentences that were being served
+# as face profit-and-loss pages are far below it.
+_TITLE_COVERAGE = 0.35
+
+
+def _covers_title(match: str, text: str) -> bool:
+    """Is ``match`` most of ``text`` — i.e. is this line the statement's name rather than a
+    sentence that happens to contain it?"""
+    return len(match) / max(len(text), 1) >= _TITLE_COVERAGE
+
+
 def _resolve_statement(cands: list[dict]) -> tuple[str | None, bool, str | None, bool]:
     """(statement, oci_combined, matched_title, ambiguous).
 
     POSITION first, then match length — never list order. Pages genuinely carry two candidates (an
     equity-statement tail above a cash-flow title; P&L above OCI), and longest-match-at-topmost-y is
     what picks the right one. Reverting to list order reintroduces the equity-tail bug.
+
+    A match only counts if it is most of the candidate line (:func:`_covers_title`), which is what
+    keeps a note's prose from being read as the statement it refers to.
     """
     hits: list[tuple[float, int, str, str]] = []
     names: set[str] = set()
@@ -302,7 +346,8 @@ def _resolve_statement(cands: list[dict]) -> tuple[str | None, bool, str | None,
         for name, strong, weak in _STATEMENTS:
             for p in strong:
                 m = re.search(p, low) or re.search(p, t)
-                if m and (best is None or len(m.group(0)) > best[0]):
+                if m and _covers_title(m.group(0), t) and (best is None
+                                                           or len(m.group(0)) > best[0]):
                     best = (len(m.group(0)), name)
             # ``anchored`` on the candidate itself, for text whose CONTEXT is the anchor. The
             # English-anchor test exists because a page's prose says "cash flows" constantly, so a
@@ -312,7 +357,8 @@ def _resolve_statement(cands: list[dict]) -> tuple[str | None, bool, str | None,
             if c.get("anchored") or _anchored(t):
                 for p in weak:
                     m = re.search(p, low) or re.search(p, t)
-                    if m and (best is None or len(m.group(0)) > best[0]):
+                    if m and _covers_title(m.group(0), t) and (best is None
+                                                              or len(m.group(0)) > best[0]):
                         best = (len(m.group(0)), name)
         if best:
             hits.append((c.get("y", 0.0), -best[0], best[1], t))
@@ -382,7 +428,7 @@ def sheet_title_cells(sheet) -> list[str]:
 
 
 def _scope_of(title: str | None, lines: list[dict], page_h: float,
-              in_notes_region: bool = False) -> tuple[str | None, list[str]]:
+              repeat_after_notes: bool = False) -> tuple[str | None, list[str]]:
     """Scope from the title, plus column-header scope when a Group and a Company column sit side by
     side on one face page — routine in HK balance sheets, and the reason scope_columns exists."""
     scope = None
@@ -391,10 +437,19 @@ def _scope_of(title: str | None, lines: list[dict], page_h: float,
             scope = "consolidated"
         elif _SCOPE_COMPANY.search(title):
             scope = "company"
-        elif in_notes_region:
-            # A face-titled page inside the notes carrying no consolidation token is the Company-only
-            # statement of financial position: HK filings print it there, past note 40, untitled as
-            # to scope.
+        elif repeat_after_notes:
+            # A face page printed past the notes, RE-PRESENTING a statement this filing has already
+            # shown as the Group's and carrying no consolidation token of its own, is the Company's:
+            # HK filings print it there, past note 40, titled only "Statement of financial position".
+            #
+            # THE RE-PRESENTATION IS THE EVIDENCE, not the page position, and the caller owns it.
+            # Position alone is the ``seen_notes`` latch, which one front-matter line can set — a
+            # registered-office address matches ``_NOTE_ONE`` — after which every face page in a
+            # filing that titles its statements "Balance Sheet" would be read as the Company's and
+            # the whole document would come out standalone. Requiring a Group presentation of the
+            # SAME statement first is what the defect actually looks like (pp.348-349 repeat p.187,
+            # which is why the spread summed them) and it refuses that latch, because a first
+            # occurrence has nothing to repeat.
             scope = "company"
     band = " ".join(l["text"] for l in lines if l.get("y", 0.0) <= 0.42 * (page_h or 1.0))
     cols: list[str] = []
@@ -405,6 +460,45 @@ def _scope_of(title: str | None, lines: list[dict], page_h: float,
     if len(cols) == 2:
         scope = "mixed"
     return scope, cols
+
+
+# A line that is nothing but a page number, with the brackets or dashes some filings print
+# around it: "12", "(12)", "- 12 -".
+_FOLIO = re.compile(r"^[-–—(\[]?\s*(\d{1,4})\s*[-–—)\]]?$")
+# How far into the page a folio can sit, as a fraction of the page height. Deliberately tight: the
+# folio is printed in the margin, and the band immediately inside it holds the column headings of
+# every statement — a top band of 0.10 would collect "2025" from the header of a balance sheet.
+_FOLIO_BAND = 0.07
+
+
+def _printed_folio(lines: list[dict], page_h: float) -> str | None:
+    """The page's own printed page number, if it prints one.
+
+    Read from the margins only, bottom preferred, because that is where a folio is set and because
+    the further in the search reaches the more of the statement it can mistake for one. A year is
+    never a folio — an annual report has no page 2025 — and that one exclusion is what keeps a
+    column heading in the top margin from being read as the page number.
+    """
+    if not page_h:
+        return None
+    best: tuple[int, float, str] | None = None
+    for line in lines:
+        m = _FOLIO.match(line["text"].strip())
+        if not m:
+            continue
+        folio = m.group(1)
+        if re.fullmatch(r"(?:19|20)\d\d", folio):
+            continue
+        y = float(line.get("y", 0.0)) / page_h
+        if y >= 1.0 - _FOLIO_BAND:
+            zone, edge = 0, 1.0 - y            # bottom margin: where a folio normally sits
+        elif y <= _FOLIO_BAND:
+            zone, edge = 1, y
+        else:
+            continue
+        if best is None or (zone, edge) < (best[0], best[1]):
+            best = (zone, edge, folio)
+    return best[2] if best else None
 
 
 def _page_lines(page) -> tuple[list[dict], float]:
@@ -519,6 +613,57 @@ def _emission(f: PageFeat, state: str) -> float:
     s -= 3.0 if f.notes_banner else 0.0
     s -= 1.0 if dense else 0.0
     return s
+
+
+def _notes_follow_the_face(path: list[str], log=None) -> list[str]:
+    """THE ORDERING INVARIANT: no notes page precedes the face of the statements.
+
+    A filing states its statements and then explains them. The notes to the financial statements
+    are printed AFTER the face — always — so a page decoded as NOTES before any face page has been
+    seen is not a note, whatever its own evidence looked like.
+
+    The evidence that produces such a page is real and common: the numbered-heading feature
+    (``note_heading``) fires on any "1. …" / "2. …" run, and front matter is full of them —
+    a contents page, an auditor's report with numbered paragraphs, a corporate-information page,
+    a financial-highlights page quoting statement titles. The decode weighs those against document
+    order, but PRE -> NOTES costs only 1.0, so a strong enough numbered-heading page ahead of the
+    statements can enter the notes state early. Everything after it then reads as notes-or-later,
+    because NOTES -> FACE costs 3.0.
+
+    THIS IS NOT THE SAME CLAIM AS "the face never follows the notes", which would be false: an
+    HKEX filing prints the Company's own balance sheet PAST note 40, and recovering that page is
+    what the NOTES -> FACE transition exists for. Only the FIRST face page is anchored here —
+    anything after it is left exactly as the decode left it.
+
+    Fail-open, and the reason matters: with no face page anywhere, this cannot know where the face
+    would have been, and a document that really is only notes pages (a notes section uploaded on
+    its own) would lose every one of them. So the layer does nothing and says so, rather than
+    emptying the notes index to satisfy an invariant it cannot locate.
+
+    Corrected to PRE (served as OTHER) rather than to FACE: the page's own evidence did not look
+    like a statement — that is why the decode did not choose FACE for it — so the only thing this
+    invariant licenses is refusing the notes reading, never asserting a statement.
+
+    There is a second effect worth naming. ``seen_notes`` in the stage below drives
+    ``repeat_after_notes``, which is what makes an untitled face page read as the COMPANY's
+    statement rather than the Group's. A spurious notes page in the front matter set that flag
+    before the first statement was even reached, so the Group's own balance sheet could be read as
+    the Company's re-presentation of it. Anchoring the notes to the face fixes that too.
+    """
+    first_face = next((i for i, s in enumerate(path) if s == _FACE), None)
+    if first_face is None:
+        if _NOTES in path and log:
+            log("classify:notes_before_face=kept(no_face_page_in_filing)")
+        return path
+    moved = [i for i in range(first_face) if path[i] == _NOTES]
+    if not moved:
+        return path
+    out = list(path)
+    for i in moved:
+        out[i] = _PRE
+    if log:
+        log(f"classify:notes_before_face={moved}->other(first_face={first_face})")
+    return out
 
 
 def _decode(feats: list[PageFeat]) -> tuple[list[str], list[float]]:
@@ -670,29 +815,76 @@ class ClassifyStage:
             feats.append(_features(page_src.index, lines, height, text))
 
         path, margins = _decode(feats)
+        # The notes explain statements already printed, so none of them precedes the face.
+        path = _notes_follow_the_face(path, log=ctx.log)
 
         # A statement runs across several pages and only the first is titled, so a face page with no
         # resolvable title inherits the last one named. Reset when the face run ends.
         current: str | None = None
         seen_notes = False
+        # Which statements this filing has already presented as the GROUP's. A Company statement
+        # printed past the notes is a SECOND presentation of one of them — that duplication is what
+        # makes the two sets of figures collide on the same canonical keys — so it is the
+        # corroboration ``_scope_of`` requires before position alone may decide an entity.
+        consolidated_stmts: set[str] = set()
+        # The entity the current face RUN was titled for. A Company statement of financial position
+        # spans two pages in a real filing and only the first carries the title, so without this the
+        # continuation page keeps the consolidated default and its figures are still added to the
+        # Group's — the same half-fix as leaving the scope unread altogether.
+        run_scope: str | None = None
         for page_src, f, state, margin, (lines, height) in zip(
                 pages, feats, path, margins, cache):
             page_src.kind = _KIND[state]
             page_src.classification_confidence = _confidence(margin)
+            # Every page, not just the faces: the viewer names any page the reader scrolls to.
+            page_src.printed_page = _printed_folio(lines, height)
             if state == _FACE:
                 named = _STATEMENT_ALIAS.get(f.statement or "", f.statement)
                 if named:
                     current = named
                 page_src.statement = current
                 # Scope is resolved again here because only the decode knows whether this face page
-                # sits after the notes — which is what makes an untitled one the Company statement.
-                scope, cols = _scope_of(f.matched_title, lines, height,
-                                        in_notes_region=seen_notes)
-                page_src.scope = f.scope or scope
+                # RE-presents, past the notes, a statement already shown as the Group's — which is
+                # what makes an untitled one the Company statement.
+                scope, cols = _scope_of(
+                    f.matched_title, lines, height,
+                    repeat_after_notes=bool(seen_notes and current
+                                            and current in consolidated_stmts))
+                resolved = f.scope or scope
+                if resolved is None and f.matched_title is None:
+                    # An untitled continuation of a titled run: the entity was named once, on the
+                    # page the run started. A page that DID resolve a title and still says nothing
+                    # keeps its silence — it is a new statement, not a continuation.
+                    resolved = run_scope
+                    if resolved is not None:
+                        ctx.log(f"classify:page={page_src.index}:entity_scope=carried({resolved})")
+                elif f.matched_title is not None:
+                    # Including None: a titled page whose own scope is unresolved ENDS the run's
+                    # verdict rather than passing it on to whatever follows.
+                    run_scope = resolved
+                    if resolved is None:
+                        # SAID WHETHER OR NOT THE NOTES HAVE BEEN SEEN. A titled statement page
+                        # whose entity could not be resolved is the same fact either way, and a
+                        # reader has to be able to tell a missing basis from a wrong one. This was
+                        # gated on ``seen_notes``, which meant the refusal went unlogged for a
+                        # filing whose statements come before any note — i.e. for the ordinary
+                        # case, and for every filing now that a front-matter page can no longer
+                        # latch the notes walk (``_notes_follow_the_face``). The reason names
+                        # which case it is, since past-the-notes is the one that matters for
+                        # deciding whether an untitled page re-presents the Group's statement.
+                        why = "face_after_notes" if seen_notes else "titled_page"
+                        ctx.log(f"classify:page={page_src.index}:entity_scope="
+                                f"unresolved({why}:{current or '?'})")
+                page_src.scope = resolved
                 page_src.scope_columns = f.scope_columns or cols
+                if resolved == "consolidated" and current:
+                    consolidated_stmts.add(current)
             else:
                 page_src.statement = None
                 current = None if state == _NOTES else current
+                # Stricter than ``current``, which survives a non-notes page: an entity verdict must
+                # not leak across back matter into whatever face page appears next.
+                run_scope = None
             if state == _NOTES:
                 seen_notes = True
             page_src.evidence = {"state": state, "matched_title": f.matched_title,

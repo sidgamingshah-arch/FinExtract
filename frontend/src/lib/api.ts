@@ -27,6 +27,19 @@ export function setStoredActiveDoc(id: string | null): void {
   else localStorage.removeItem(ACTIVE_DOC_KEY);
 }
 
+const NAV_KEY = "finex.nav.collapsed";
+/** Whether the navigation rail is collapsed. Collapsed is the DEFAULT — the screens that matter
+ *  here put a statement grid beside a page of the source document, and 214px of permanent menu is
+ *  taken from that. An explicit choice is remembered; no choice yet means collapsed. */
+export function getStoredNavCollapsed(): boolean {
+  if (typeof localStorage === "undefined") return true;
+  return localStorage.getItem(NAV_KEY) !== "0";
+}
+export function setStoredNavCollapsed(v: boolean): void {
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem(NAV_KEY, v ? "1" : "0");
+}
+
 /** Error carrying the HTTP status so callers (e.g. auth gating) can special-case 401.
  *  `detail` is the server's own explanation when it sent one — editors show it verbatim
  *  rather than a generic failure, so a rejected value says WHY it was rejected.
@@ -111,9 +124,11 @@ import type {
   CellContext,
   Commentary,
   DemoUser,
+  DocSearchResult,
   DocumentRunStatus,
-  ExtractionRunResponse,
   ExportFmt,
+  ExportOption,
+  ExtractionRunResponse,
   FxRate,
   FxRateInput,
   FxRateResolution,
@@ -132,13 +147,12 @@ import type {
   ProjectResponse,
   ReviewResponse,
   RulebookRecord,
-  TemplateRef,
   SettingsPatch,
   SourceDoc,
   StatementKey,
   StatementResponse,
+  TemplateRef,
   TemplateResponse,
-  ExportOption,
 } from "../types";
 
 export const api = {
@@ -258,7 +272,7 @@ export const api = {
     req<NotesResponse>(`/documents/${documentId}/notes`),
   /** One note's detail. `locale` is passed because the response now carries the note's own
    *  column labels, and their Current/Prior fallback is localized server-side. */
-  documentNote: (documentId: string, no: number, locale: Locale = "en") =>
+  documentNote: (documentId: string, no: string, locale: Locale = "en") =>
     req<NoteDetail>(`/documents/${documentId}/notes/${no}?locale=${locale}`),
   /** Edit ONE figure of a real extraction: a concept, in one basis, for one period.
    *  Basis and period are required, not defaulted — without them every edit landed on the
@@ -320,6 +334,12 @@ export const api = {
     req<CellContext>(
       `/documents/${documentId}/cell-context?sheet=${encodeURIComponent(sheet)}&cell=${encodeURIComponent(cell)}`,
     ),
+  /** Find text in a PDF's text layer: page + normalized box + the line it sits on. The viewer
+   *  renders page IMAGES, so it has no text of its own to search. */
+  searchDocument: (documentId: string, q: string, limit = 60) =>
+    req<DocSearchResult>(
+      `/documents/${documentId}/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+    ),
   /** PNG of a PDF page (auth'd fetch → blob), used as the click-to-source backdrop. */
   fetchPageImage: async (documentId: string, pageIndex: number): Promise<Blob> => {
     const res = await fetch(`${BASE}/documents/${documentId}/pages/${pageIndex}/image`, {
@@ -359,7 +379,7 @@ export const api = {
   revertLineItem: (id: string) =>
     req<{ id: string }>(`/projects/${PROJECT}/line-items/${id}`, { method: "DELETE" }),
   notes: (locale: Locale = "en") => req<NotesResponse>(`/projects/${PROJECT}/notes?locale=${locale}`),
-  note: (no: number, locale: Locale = "en") =>
+  note: (no: string, locale: Locale = "en") =>
     req<NoteDetail>(`/projects/${PROJECT}/notes/${no}?locale=${locale}`),
   review: (locale: Locale = "en") => req<ReviewResponse>(`/projects/${PROJECT}/review?locale=${locale}`),
   template: (locale: Locale = "en") => req<TemplateResponse>(`/projects/${PROJECT}/template?locale=${locale}`),

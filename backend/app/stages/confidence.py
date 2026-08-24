@@ -39,16 +39,20 @@ class ConfidenceStage:
                 ev.confidence.mapping = li.confidence.mapping
                 ev.confidence.method = li.confidence.method
 
-        by_key: dict[str, object] = {}
+        # A LIST per key, not the last row that claimed it. Two statements in one filing print the
+        # same lines — the Group's balance sheet and the Company's own — so a key is now genuinely
+        # held by more than one row, and keeping only the last one meant the identity was checked
+        # against whichever page came last and the other basis went unchecked entirely.
+        by_key: dict[str, list] = {}
         for li in doc.line_items:
             if li.canonical_key:
-                by_key[li.canonical_key] = li
+                by_key.setdefault(li.canonical_key, []).append(li)
 
         failed = 0
-        assets, eqliab = by_key.get(_ASSETS), by_key.get(_EQ_LIAB)
-        if assets is not None and eqliab is not None:
+        for assets in by_key.get(_ASSETS, []):
             for ev in assets.values.values():
-                match = next((e for e in eqliab.values.values()
+                match = next((e for eqliab in by_key.get(_EQ_LIAB, [])
+                              for e in eqliab.values.values()
                               if e.basis == ev.basis and e.period_label == ev.period_label), None)
                 a, e = _raw(ev), (_raw(match) if match else None)
                 if a is None or e is None:

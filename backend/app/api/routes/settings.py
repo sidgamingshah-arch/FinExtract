@@ -1,6 +1,6 @@
 """Application settings — the admin-facing view of configuration.
 
-``GET /settings`` returns a non-secret snapshot (LLM/OCR/embeddings/extraction config,
+``GET /settings`` returns a non-secret snapshot (LLM/OCR/extraction config,
 auth flags, feature flags). Any authenticated user may read it — the frontend needs
 the ``ui_localization`` flag to decide whether to localize the interface. ``PATCH
 /settings`` lets an admin change the runtime-mutable settings: the feature flags, the
@@ -67,7 +67,6 @@ def _snapshot() -> dict:
             "azure_deployment": s.llm.azure_deployment_name(),
         },
         "ocr": {"engine": s.ocr.engine, "languages": s.ocr.languages, "dpi": s.ocr.dpi},
-        "embeddings": {"provider": s.embeddings.provider, "model": s.embeddings.model},
         # Editable at runtime by an admin. ``fields`` describes each knob — bounds, step and
         # what it does — so the Settings screen renders and validates from the backend's own
         # definition instead of a second copy that can drift from it; ``defaults`` is what the

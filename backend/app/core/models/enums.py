@@ -13,6 +13,26 @@ class DocFormat(str, Enum):
     UNKNOWN = "unknown"
 
 
+class PrintedIn(str, Enum):
+    """Where an extracted row was PRINTED: on the face of a statement, or inside a note.
+
+    Named for the question rather than for "origin", because the statement payload already has an
+    ``origin`` and it answers a different question — whether a figure was read off the document or
+    typed by an analyst. Two fields called origin, one meaning face-vs-note and the other
+    machine-vs-human, is a confusion no comment survives.
+
+    The distinction is not cosmetic and it is not derivable downstream from anything else. Face and
+    note rows reach ``line_items`` through the same reader, they carry the same shape, and a note's
+    detail lines sum to a figure the face already reports — so adding the two together double-counts
+    the filing. An analyst reading a value also needs to know which one they are looking at before
+    they can trust it against the statement. ``note_number`` does not answer this: that field holds
+    the note a face row CITES, not the note a row lives in.
+    """
+
+    FACE = "face"
+    NOTES = "notes"
+
+
 class PageKind(str, Enum):
     """Classification of a page after the classify stage."""
 
@@ -94,6 +114,9 @@ class MappingMethod(str, Enum):
     EXACT = "exact"
     RULE = "rule"
     FUZZY = "fuzzy"
+    # No longer produced. Kept because a stored run records the method that mapped each of its
+    # rows, and the judgement layer compares an acceptance against the method it was made on — so
+    # deleting the member would make an old run's rows unreadable rather than historical.
     EMBEDDING = "embedding"
     LLM = "llm"
     UNMATCHED = "unmatched"

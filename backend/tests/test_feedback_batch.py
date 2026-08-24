@@ -1,7 +1,7 @@
 """Feedback-batch backend behaviours:
 
 * Fuzzy mapping is a LAST RESORT — weak fuzzy no longer auto-maps into the review queue;
-  strong (near-exact) fuzzy still maps; rule/embedding still win over fuzzy.
+  a near-exact typo is still nobody's row; a rule hint is what carries an unlisted wording.
 * Classification keeps a sticky NOTES section, so note-continuation pages (no "Notes to…"
   banner) are NOTES, not swept into FACE — the cause of "no notes extracted".
 * Entity-name detection from the opening pages.
@@ -30,7 +30,7 @@ def _ont() -> OntologyDefinition:
 
 
 def test_weak_fuzzy_is_not_auto_mapped():
-    """A middling fuzzy overlap (no rule/embedding evidence) must NOT become a low-confidence
+    """A caption no alias and no rule hint claims must NOT become a low-confidence
     mapping that clutters review — it is left unmapped for a human."""
     m = OntologyMatcher(_ont())
     r = m.match("Amounts recoverable from trade")   # overlaps 'trade' only → ~0.5–0.7 fuzzy
@@ -38,14 +38,15 @@ def test_weak_fuzzy_is_not_auto_mapped():
     assert r.method == MappingMethod.UNMATCHED and r.needs_review
 
 
-def test_strong_fuzzy_still_maps_as_last_resort():
+def test_a_near_exact_typo_is_still_not_mapped_by_resemblance():
+    """There is no last-resort string match. A single typo is as unmapped as any other caption
+    nothing can place, and it says so instead of asserting the concept it resembles."""
     m = OntologyMatcher(_ont())
-    r = m.match("Trade recievables")                # single typo → ~0.94, near-exact
-    assert r.canonical_key == "assets.current.receivables"
-    assert r.method == MappingMethod.FUZZY and not r.needs_review
+    r = m.match("Trade recievables")                # one typo, and still nobody's row
+    assert r.canonical_key is None and r.needs_review
 
 
-def test_rule_wins_over_fuzzy():
+def test_a_rule_hint_is_what_carries_an_unlisted_wording():
     m = OntologyMatcher(_ont())
     r = m.match("Cash at bank and in hand")          # keyword 'cash' → rule
     assert r.canonical_key == "assets.current.cash"

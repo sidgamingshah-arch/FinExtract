@@ -11,7 +11,10 @@
  * `appLocale` (see useAppLocale) is the effective locale for interface chrome. */
 import { create } from "zustand";
 
-import { getStoredActiveDoc, getToken, setStoredActiveDoc, setStoredToken } from "./lib/api";
+import {
+  getStoredActiveDoc, getStoredNavCollapsed, getToken, setStoredActiveDoc, setStoredNavCollapsed,
+  setStoredToken,
+} from "./lib/api";
 import type { Basis, ExportFmt, ExtractMode, Locale, StatementKey } from "./types";
 
 interface UIState {
@@ -25,7 +28,7 @@ interface UIState {
   statement: StatementKey;
   sel: string; // selected line-item id in the workspace
   editing: boolean; // inspector edit mode
-  note: number; // selected note (All Notes)
+  note: string; // selected note (All Notes), as the filing numbers it ("16(b)")
   openCheck: string; // expanded review check
   tplSel: string; // selected template node
   // The template VERSION chosen for the next run (null = whatever the server says is latest).
@@ -34,6 +37,8 @@ interface UIState {
   // first — the oldest. One field, holding the thing a run actually needs.
   selectedTemplateId: string | null;
   exportFmt: ExportFmt;
+  /** Navigation rail collapsed to icons. Persisted, and collapsed by default. */
+  navCollapsed: boolean;
 
   setLocale: (l: Locale) => void;
   setUiLocalization: (v: boolean) => void;
@@ -47,11 +52,12 @@ interface UIState {
   startEdit: () => void;
   cancelEdit: () => void;
   stopEditing: () => void;
-  setNote: (n: number) => void;
+  setNote: (n: string) => void;
   toggleCheck: (id: string) => void;
   setTpl: (id: string) => void;
   setSelectedTemplateId: (id: string | null) => void;
   setFmt: (f: ExportFmt) => void;
+  setNavCollapsed: (v: boolean) => void;
 }
 
 export const useUI = create<UIState>((set) => ({
@@ -64,11 +70,12 @@ export const useUI = create<UIState>((set) => ({
   statement: "balance_sheet",
   sel: "trade_recv",
   editing: false,
-  note: 12,
+  note: "12",
   openCheck: "bs",
   tplSel: "trade_recv",
   selectedTemplateId: null,
   exportFmt: "excel",
+  navCollapsed: getStoredNavCollapsed(),
 
   setLocale: (locale) => set({ locale }),
   setUiLocalization: (uiLocalization) => set({ uiLocalization }),
@@ -93,6 +100,10 @@ export const useUI = create<UIState>((set) => ({
   setTpl: (tplSel) => set({ tplSel }),
   setSelectedTemplateId: (selectedTemplateId) => set({ selectedTemplateId }),
   setFmt: (exportFmt) => set({ exportFmt }),
+  setNavCollapsed: (navCollapsed) => {
+    setStoredNavCollapsed(navCollapsed);
+    set({ navCollapsed });
+  },
 }));
 
 /** Effective locale for interface chrome: the chosen language only when an admin has

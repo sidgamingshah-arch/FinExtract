@@ -11,7 +11,6 @@ from app.ports.object_store import LocalObjectStore
 from app.ports.registry import registry
 
 from .stubs import (
-    StubEmbeddingProvider,
     StubLlmProvider,
     StubOcrProvider,
     StubTableStructureProvider,
@@ -24,7 +23,6 @@ def register_builtins() -> None:
     registry.register("ocr", "stub", StubOcrProvider)
     registry.register("table", "stub", StubTableStructureProvider)
     registry.register("llm", "stub", StubLlmProvider)
-    registry.register("embedding", "stub", StubEmbeddingProvider)
 
     # Real Claude adapter — registered under its own id so it's available when
     # llm.provider = "anthropic". The class is imported lazily and constructs its

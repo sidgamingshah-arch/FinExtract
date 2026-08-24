@@ -71,7 +71,7 @@ NoteUse = Literal["evidence_only", "decomposition_allowed"]
 # The sign the concept is EXPECTED to carry — a review trigger, not a transformation. Distinct
 # from `SignRule.convention`, which says how to normalise a value; a concept can want both.
 SignExpectation = Literal["positive_expected", "negative_expected", "either"]
-# Residual concepts are populated only by the section sweep, never by alias/regex/embedding.
+# Residual concepts are populated only by the section sweep, never by an alias or a rule hint.
 AliasMatching = Literal["enabled", "disabled"]
 
 
@@ -131,6 +131,15 @@ class OntologyMapping(BaseModel):
     # intangible parent − goodwill − IAUD; if reported exclusively, do not subtract").
     decomposition_rule: str | None = None
     others_rule: str | None = None
+    # WHICH ANALYST SECTION THIS CONCEPT'S ROWS ARE TAGGED WITH, when the printed section cannot
+    # say. Almost every concept is tagged from the section it is printed under, and this field is
+    # left unset for them. Interest is the case that needs it: no statement prints an interest
+    # section, so finance costs and interest income sit among the non-operating items and can only
+    # be identified by naming themselves. A rule in code looking for the word would also catch
+    # "Interests in associates" and "Non-controlling interests", which are not interest at all —
+    # which is precisely why this is authored per concept and editable rather than inferred.
+    # Must name one of ``services.buckets.BUCKET_KEYS``; the upload gate refuses anything else.
+    analyst_bucket: str | None = None
     aliases: list[str] = Field(default_factory=list)          # default-locale aliases
     aliases_i18n: dict[str, list[str]] = Field(default_factory=dict)  # per-locale
     keyword_hints: list[str] = Field(default_factory=list)

@@ -12,7 +12,7 @@ import io
 import json
 
 from app.sample.demo import CONF_PCT
-from app.services.periods import concept_value, split_current_prior
+from app.services.periods import concept_value, split_current_prior, summable
 from app.services.review_lines import is_statement_line
 
 # Statement titles for the formatted export, localized like the rest of the app. Line-item
@@ -256,17 +256,25 @@ def _cell_value(group, basis: str, period: str):
 def _contribution_note(group: list[dict], basis: str, period: str) -> str | None:
     """The audit trail for a combined figure: every contributing caption with its own amount and
     the page it was printed on. A combined figure matches no single line in the document, so
-    without this the workbook shows a number the reader cannot find anywhere."""
+    without this the workbook shows a number the reader cannot find anywhere.
+
+    A line the total does NOT add is labelled as such. The total is deduplicated
+    (``periods.summable``: a fact printed on the face and restated in a note is one fact), so
+    listing every caption as an addend would print a column that does not sum to its own total —
+    and in a workbook, unlike on screen, there is nothing to click to find out why.
+    """
     if not group or len(group) <= 1:
         return None
+    counted = {id(row) for row, _ in summable(group, basis, period)}
     lines = [f"Combined from {len(group)} printed lines:"]
     for row in group:
         amount = _cell_value([row], basis, period)
         vals = row.get("values") or []
         where = _prov_str(vals[0].get("provenance")) if vals else ""
         shown = "—" if amount is None else f"{amount:,.0f}"
+        same_fact = "" if id(row) in counted else "  (same fact printed above — not added)"
         lines.append(f"  {row.get('source_label') or ''} = {shown}"
-                     + (f"  [{where}]" if where else ""))
+                     + (f"  [{where}]" if where else "") + same_fact)
     total = _cell_value(group, basis, period)
     lines.append(f"  Total = {'—' if total is None else f'{total:,.0f}'}")
     return "\n".join(lines)

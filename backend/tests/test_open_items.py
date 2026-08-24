@@ -1,6 +1,5 @@
 """Regression tests for the closed 'open items' batch:
 
-* m7  — the embedding tier of the mapping ensemble is functional (real cosine similarity).
 * o8  — statement chrome (label + canonical-key prefix) is derived from the template.
 * m8  — note-detail rows carry role (kind) + confidence end-to-end.
 * m1  — a persisted page scope actually restricts what extraction processes.
@@ -14,69 +13,16 @@ import pytest
 
 from app.core.models.enums import MappingMethod
 from app.schemas.ontology import OntologyDefinition, OntologyMapping
-from app.services.mapping import OntologyMatcher, _cosine
+from app.services.mapping import OntologyMatcher
 
 
-# --- m7: functional embedding tier ----------------------------------------------------------
-class _FakeEmbeddings:
-    """Deterministic stand-in for a semantic embedding model: it places 'cash-like' and
-    'receivable-like' phrases in orthogonal directions so a paraphrase with NO shared tokens
-    still resolves by cosine similarity."""
-
-    id = "fake"
-
-    def embed(self, texts):
-        out = []
-        for t in texts:
-            low = t.lower()
-            if any(w in low for w in ("cash", "bank", "monies", "liquid")):
-                out.append([1.0, 0.0, 0.0])
-            elif any(w in low for w in ("receivable", "debtor", "due from")):
-                out.append([0.0, 1.0, 0.0])
-            else:
-                out.append([0.0, 0.0, 1.0])
-        return out
-
-
-def _ontology() -> OntologyDefinition:
-    return OntologyDefinition(
-        ontology_key="test", target_template_key="t",
-        mappings=[
-            OntologyMapping(canonical_key="assets.current.cash",
-                            aliases=["Cash and cash equivalents", "Cash & bank balances"]),
-            OntologyMapping(canonical_key="assets.current.receivables",
-                            aliases=["Trade receivables", "Trade and other receivables"]),
-        ],
-    )
-
-
-def test_cosine_basic():
-    assert _cosine([1.0, 0.0], [1.0, 0.0]) == 1.0
-    assert _cosine([1.0, 0.0], [0.0, 1.0]) == 0.0
-    assert _cosine([0.0, 0.0], [1.0, 0.0]) == 0.0  # zero vector → 0, not a crash
-
-
-def test_embedding_tier_returns_ranked_candidates():
-    m = OntologyMatcher(_ontology(), embedding_provider=_FakeEmbeddings())
-    cands = m._embedding("Monies held at the bank")
-    assert cands, "embedding tier should now produce candidates (was a no-op)"
-    assert cands[0].canonical_key == "assets.current.cash"
-    assert cands[0].method == MappingMethod.EMBEDDING
-
-
-def test_embedding_resolves_paraphrase_with_no_shared_tokens():
-    """The whole point of the semantic tier: 'Monies held at the bank' shares no words with
-    any cash alias, so exact/rule/fuzzy can't place it — the embedding tier does."""
-    m = OntologyMatcher(_ontology(), embedding_provider=_FakeEmbeddings())
-    r = m.match("Monies held at the bank")
-    assert r.canonical_key == "assets.current.cash"
-    assert r.method == MappingMethod.EMBEDDING
-    assert "embedding" in r.scores
-
-
-def test_embedding_absent_provider_is_noop():
-    m = OntologyMatcher(_ontology())          # no provider
-    assert m._embedding("anything") == []
+# --- the semantic tier is the MODEL, not a vector distance ------------------------------------
+# There was an embedding tier here, with a fake provider and three tests. It never ran outside
+# them: the mapping stage builds the matcher with an LLM provider and no embedding provider, and
+# the only registered provider raised on use. It has been removed rather than wired, because as a
+# capability it judged the same way the deleted fuzzy tier did — by resemblance — and the concept
+# criteria the model reads (definition, include, exclude, confusable_with) are what a caption with
+# no shared tokens has to be judged on. See services/mapping's module docstring.
 
 
 # --- o8: statement chrome from the template -------------------------------------------------

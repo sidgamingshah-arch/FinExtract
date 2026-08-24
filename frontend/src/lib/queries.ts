@@ -492,7 +492,7 @@ export const useDocumentNotes = (documentId: string | undefined) =>
 /** One note's detail. `locale` is in the key as well as the request: the response carries the
  *  note's column labels, whose Current/Prior fallback is localized, so a cached English detail
  *  must not be reused for a zh reader. */
-export const useDocumentNote = (documentId: string | undefined, no: number, locale: Locale = "en") =>
+export const useDocumentNote = (documentId: string | undefined, no: string, locale: Locale = "en") =>
   useQuery({
     queryKey: ["document-note", documentId, no, locale],
     queryFn: () => api.documentNote(documentId as string, no, locale),
@@ -646,7 +646,7 @@ export const useReview = (locale: Locale = "en", enabled = true) =>
   useQuery({ queryKey: ["review", locale], queryFn: () => api.review(locale), enabled });
 export const useNotes = (locale: Locale = "en", enabled = true) =>
   useQuery({ queryKey: ["notes", locale], queryFn: () => api.notes(locale), enabled });
-export const useNote = (no: number, locale: Locale = "en", enabled = true) =>
+export const useNote = (no: string, locale: Locale = "en", enabled = true) =>
   useQuery({ queryKey: ["note", no, locale], queryFn: () => api.note(no, locale), enabled });
 export const useTemplate = (locale: Locale = "en") =>
   useQuery({ queryKey: ["template", locale], queryFn: () => api.template(locale) });
@@ -681,6 +681,17 @@ export const useDocumentPages = (documentId: string | undefined) =>
     queryFn: () => api.documentPages(documentId as string),
     enabled: !!documentId,
     retry: false,
+  });
+
+/** Text search over a document's source pages. Keyed on the SUBMITTED term (not what is being
+ *  typed), so a search is one request per query rather than one per keystroke. */
+export const useDocumentSearch = (documentId: string | undefined, q: string) =>
+  useQuery({
+    queryKey: ["document-search", documentId, q],
+    queryFn: () => api.searchDocument(documentId as string, q),
+    enabled: !!documentId && q.trim().length >= 2,
+    retry: false,
+    staleTime: 5 * 60 * 1000,
   });
 
 /** Persist the user's page selection for extraction; refreshes the pages view. */

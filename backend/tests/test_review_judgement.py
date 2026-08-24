@@ -17,7 +17,7 @@ import pytest
 
 pytest.importorskip("fitz")
 
-from tests.fixtures.generate import make_native_pdf
+from tests.fixtures.generate import make_unmapped_row_pdf
 
 
 def _row(key, cur, **extra):
@@ -902,7 +902,7 @@ def _extracted_with_findings(client) -> str:
     """A real document extracted with NO template, so every line lands unmapped and the review
     queue has real, content-keyed findings to judge."""
     doc_id = client.post("/api/v1/documents",
-                         files={"file": ("bs.pdf", make_native_pdf(),
+                         files={"file": ("bs.pdf", make_unmapped_row_pdf(),
                                          "application/pdf")}).json()["id"]
     client.post(f"/api/v1/documents/{doc_id}/extractions", json={})
     for _ in range(200):
@@ -1146,7 +1146,7 @@ def test_the_post_refuses_a_stale_digest_an_unknown_subject_and_a_blank_reason(c
 
 def test_judging_a_document_with_no_run_is_a_404(client):
     doc_id = client.post("/api/v1/documents",
-                         files={"file": ("norun.pdf", make_native_pdf(),
+                         files={"file": ("norun.pdf", make_unmapped_row_pdf(),
                                          "application/pdf")}).json()["id"]
     r = client.post(f"/api/v1/documents/{doc_id}/review/judgements",
                     json={"subject_key": "a" * 64, "evidence_digest": "b" * 64, "reason": "x"})
@@ -1160,7 +1160,7 @@ def test_only_a_reviewer_may_judge_while_an_analyst_keeps_the_edit_they_are_enti
     not — gating the fix on review:resolve would deny an analyst the one mechanical correction
     the role map entitles them to."""
     up = anon_client.post("/api/v1/documents",
-                          files={"file": ("rbac.pdf", make_native_pdf(), "application/pdf")},
+                          files={"file": ("rbac.pdf", make_unmapped_row_pdf(), "application/pdf")},
                           headers=auth("analyst"))
     doc_id = up.json()["id"]
     # Extracted against the real rulebook and template, so the PATCH below lands on a concept THIS
