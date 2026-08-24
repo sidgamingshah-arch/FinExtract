@@ -1200,8 +1200,16 @@ test("a review filter chip filters, and its count is the length of the list it p
 async function extractFixture(page: Page, file: string): Promise<string> {
   await page.goto("/upload", DCL);
   await page.setInputFiles('input[type="file"]', `e2e/fixtures/${file}`);
-  await expect(page.getByTestId("doc-row").filter({ hasText: file }))
+  // `.first()`: MORE THAN ONE ROW CAN CARRY ONE FILENAME, and asserting otherwise was asserting
+  // something this helper does not need and cannot promise. Documents are scoped to their owner, so
+  // the same bytes uploaded by two roles are two documents — and an admin sees both, which makes
+  // the unfiltered locator ambiguous the moment a suite uploads one fixture as more than one role.
+  // The list is newest-first (documents are ordered by created_at desc), so the first row is the
+  // upload just made; and the document this helper RETURNS is the one the app itself bound to,
+  // read from localStorage below, never a row picked out of the list.
+  await expect(page.getByTestId("doc-row").filter({ hasText: file }).first())
     .toBeVisible({ timeout: 15_000 });
+  // Acts on the app's active document — the one the upload just bound — not on a row.
   await page.getByRole("button", { name: /Extract directly/ }).click();
   await expect(page).toHaveURL(/\/extraction/);
   await expect(page.getByRole("heading", { name: "Extracted data" }))
