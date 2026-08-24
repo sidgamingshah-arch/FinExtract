@@ -325,6 +325,27 @@ def _covers_title(match: str, text: str) -> bool:
     return len(match) / max(len(text), 1) >= _TITLE_COVERAGE
 
 
+# A SUMMARY OF A STATEMENT IS NOT THE STATEMENT. A filing's Financial Highlights page prints
+# "SUMMARY OF STATEMENT OF PROFIT OR LOSS" / "損益表摘要" over a two-year extract with a % change
+# column, and that title matches the P&L pattern exactly — so the page arrived carrying a STRONG
+# title, which is worth +6 to the face state against the -4 that ``_BACKMATTER`` takes off it.
+#
+# Nothing else could catch it. The highlights page sits in FRONT matter, and the state that exists
+# for summaries (POST) is reachable only at a cost of 6.0 from PRE, because back matter does not
+# come before the statements. So the decode's real choice was PRE or FACE, and the strong title won.
+#
+# Measured on the China SCE 2023 filing: its highlights page was read as a P&L face page and
+# published EIGHT rows, three of which mapped — revenue, gross profit, and profit attributable to
+# owners — each colliding on its canonical key with the same concept read from the real P&L twenty
+# pages later, at different figures. The % change column landed as a third period.
+#
+# The qualifier is refused in either language and in either position: English puts it before
+# ("summary of …"), Chinese after ("損益表摘要").
+_SUMMARY_TITLE = re.compile(
+    r"\bsummar(?:y|ies)\b|\bhighlights?\b|\bextract(?:ed|s)?\s+from\b"
+    r"|[摘概][要要]|[概][覽览]", re.I)
+
+
 def _resolve_statement(cands: list[dict]) -> tuple[str | None, bool, str | None, bool]:
     """(statement, oci_combined, matched_title, ambiguous).
 
@@ -340,6 +361,8 @@ def _resolve_statement(cands: list[dict]) -> tuple[str | None, bool, str | None,
     for c in cands:
         t = c["text"]
         if _TITLE_NEGATIVE.search(t):        # note heading / contents line / auditor prose
+            continue
+        if _SUMMARY_TITLE.search(t):         # a summary OF a statement is not the statement
             continue
         low = t.lower()
         best: tuple[int, str] | None = None

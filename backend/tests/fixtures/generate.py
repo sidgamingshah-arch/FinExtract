@@ -406,6 +406,107 @@ def make_named_running_header_pdf() -> bytes:
     return buf.getvalue()
 
 
+def make_financial_highlights_pdf() -> bytes:
+    """A FINANCIAL HIGHLIGHTS page in the front matter, then the real P&L.
+
+    The shape measured on the China SCE 2023 filing: the highlights page prints
+    "SUMMARY OF STATEMENT OF PROFIT OR LOSS 損益表摘要" over a two-year extract with a percentage
+    change column. That title matches the P&L pattern outright, so the page arrived carrying a
+    STRONG title, and a strong title is worth more to the face state than the backmatter signal
+    takes off it — while the state that exists for summaries sits after the statements and cannot
+    be reached from front matter. The page was published as a P&L face page, and the figures it
+    repeats collided on their canonical keys with the same concepts read off the real statement.
+
+    Deliberately the SAME concepts on both pages, at DIFFERENT figures, because that is what makes
+    the duplication a wrong answer rather than a harmless one.
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+    from reportlab.pdfgen import canvas
+
+    # THE HAN TITLE IS THE ONE THAT MATCHED. On the real filing the classifier resolved the page
+    # from "損益表摘要" — 損益表 is the P&L statement and 摘要 trails it as the qualifier — not from
+    # the English line, which the coverage floor rejects because "SUMMARY OF" is a third of it.
+    # A fixture with only the English text is classified correctly for the wrong reason.
+    pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    _, height = A4
+
+    # FRONT MATTER FIRST, and it is load-bearing. The state a summary page would otherwise fall
+    # into is the one for BACK matter, which cannot be entered from front matter — that transition
+    # is deliberately expensive, because a five-year summary does not precede the statements. Reach
+    # the highlights page with the decode already in the front-matter state and its only remaining
+    # options are front matter or FACE, which is the position the real filing puts it in. Without
+    # these pages the fixture is classified correctly for the wrong reason and proves nothing.
+    c.setFont("Helvetica-Bold", 13)
+    c.drawString(72, height - 60, "CHAIRMAN'S STATEMENT")
+    c.setFont("Helvetica", 9)
+    y = height - 90
+    for line in ("The board presents its review of the year. Trading conditions in the period",
+                 "remained difficult, and the group continued to prioritise liquidity while",
+                 "completing the projects already under construction. We thank our staff."):
+        c.drawString(72, y, line)
+        y -= 14
+    c.showPage()
+
+    c.setFont("Helvetica-Bold", 13)
+    c.drawString(72, height - 60, "CORPORATE INFORMATION")
+    c.setFont("Helvetica", 9)
+    y = height - 90
+    for line in ("Registered office: Cricket Square, Grand Cayman", "Auditor: Ernst & Young",
+                 "Principal bankers: Bank of China (Hong Kong) Limited"):
+        c.drawString(72, y, line)
+        y -= 14
+    c.showPage()
+
+    c.setFont("Helvetica-Bold", 13)
+    c.drawString(72, height - 60, "FINANCIAL HIGHLIGHTS")
+    c.setFont("STSong-Light", 12)
+    # EACH LANGUAGE ON ITS OWN LINE, as the filing prints them and as the reader groups them: a
+    # candidate is one text line, so Han glued onto the English baseline gives a 46-character
+    # candidate in which 損益表 is 3 characters — below the title-coverage floor, and matching
+    # nothing. That is a fixture that cannot reproduce the defect, not a filing that lacks it.
+    c.drawString(72, height - 76, "財務摘要")
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(72, height - 100, "SUMMARY OF STATEMENT OF PROFIT OR LOSS")
+    c.setFont("STSong-Light", 12)
+    c.drawString(72, height - 118, "損益表摘要")
+    c.setFont("Helvetica", 9)
+    c.drawString(72, height - 136, "For the year ended 31 December")
+    y = height - 158
+    for label, cur, prior, change in [("Revenue", "20,960,968", "26,705,112", "-21.5"),
+                                      ("Gross profit", "2,630,992", "5,410,308", "-51.4"),
+                                      ("Total equity", "20,482,326", "36,625,241", "-44.1")]:
+        c.drawString(72, y, label)
+        c.drawRightString(330, y, cur)
+        c.drawRightString(420, y, prior)
+        c.drawRightString(500, y, change)
+        y -= 22
+    c.showPage()
+
+    # The statement itself, twenty pages later in a real filing and one here: the same concepts,
+    # different figures, and this is the page whose figures must survive.
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(72, height - 72, "CONSOLIDATED STATEMENT OF PROFIT OR LOSS")
+    c.setFont("STSong-Light", 12)
+    c.drawString(72, height - 90, "綜合損益表")
+    c.setFont("Helvetica", 10)
+    y = height - 120
+    for label, cur, prior in [("Revenue", "20,960,968", "26,705,112"),
+                              ("Cost of sales", "(18,329,976)", "(21,294,804)"),
+                              ("Gross profit", "2,630,992", "5,410,308")]:
+        c.drawString(72, y, label)
+        c.drawRightString(420, y, cur)
+        c.drawRightString(500, y, prior)
+        y -= 24
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
 def make_company_statement_after_notes_pdf() -> bytes:
     """THE HK HOUSE STYLE THAT MIS-LOADS: the Group's balance sheet, a note, then the COMPANY's own
     balance sheet printed after the notes with the SAME title minus the word "consolidated".

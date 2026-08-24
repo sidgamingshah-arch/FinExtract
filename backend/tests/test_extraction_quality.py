@@ -120,3 +120,62 @@ def test_the_notes_pages_of_that_filing_still_parse(rulebook, template):
     doc, _ = _run(make_named_running_header_pdf(), rulebook, template)
     assert [n.note_number for n in doc.notes] == ["16"]
     assert [li.source_label for li in doc.line_items][0] == "Trade receivables"
+
+
+# --- a summary of a statement is not the statement ----------------------------------------------
+
+def test_a_financial_highlights_page_is_not_a_face_statement(rulebook, template):
+    """The highlights page's title matches the P&L pattern outright — "SUMMARY OF STATEMENT OF
+    PROFIT OR LOSS" — so it reached the decode carrying a strong title, which outweighs the
+    backmatter signal. And the state meant for summaries comes AFTER the statements, so a
+    front-matter summary could not be routed there."""
+    from tests.fixtures.generate import make_financial_highlights_pdf
+
+    doc, _ = _run(make_financial_highlights_pdf(), rulebook, template)
+
+    kinds = {p.index: (p.kind.value, p.statement) for p in doc.pages}
+    # Pages 0-1 are front matter, 2 is the highlights page, 3 is the statement.
+    assert kinds[2] == ("other", None), f"the highlights page is a face page: {kinds[2]}"
+    assert kinds[3][0] == "face" and kinds[3][1] == "profit_and_loss"
+
+
+def test_the_figures_a_highlights_page_repeats_are_not_published_twice(rulebook, template):
+    """Why the page kind matters. The highlights page repeats concepts the statement also reports,
+    so publishing both puts two figures on one canonical key — and on a real filing they differ,
+    because a highlights table is rounded, re-based, or simply a different cut."""
+    from tests.fixtures.generate import make_financial_highlights_pdf
+
+    doc, _ = _run(make_financial_highlights_pdf(), rulebook, template)
+
+    pages = {p.index for p in doc.pages if p.kind.value == "face"}
+    for li in doc.line_items:
+        got = {ev.provenance.page_index for ev in li.values.values() if ev.provenance}
+        assert got <= pages, f"{li.source_label!r} carries a figure from a non-face page: {got}"
+    # One row per concept, and it is the statement's.
+    for key in ("pl_income__revenue_from_operations", "pl_gross_profit"):
+        rows = [li for li in doc.line_items if li.canonical_key == key]
+        assert len(rows) == 1, f"{key} published {len(rows)} times"
+
+
+def test_the_percentage_change_column_does_not_become_a_period(rulebook, template):
+    """The highlights table's third column is a % change, and a page read as a statement gives it
+    a period slot of its own — a ratio filed as money under a period nothing else has."""
+    from tests.fixtures.generate import make_financial_highlights_pdf
+
+    doc, _ = _run(make_financial_highlights_pdf(), rulebook, template)
+
+    periods = {ev.period_label for li in doc.line_items for ev in li.values.values()}
+    assert periods <= {"current", "prior"}, f"an extra period slot appeared: {sorted(periods)}"
+
+
+def test_a_real_statement_title_is_still_matched(rulebook, template):
+    """The guard is a qualifier test, not a ban on the word: the statements themselves are still
+    found, which the fixture above asserts, and a filing whose notes discuss a 'summary' of
+    anything is unaffected because only TITLE candidates are tested."""
+    from app.stages.classify import _SUMMARY_TITLE
+
+    assert _SUMMARY_TITLE.search("SUMMARY OF STATEMENT OF PROFIT OR LOSS")
+    assert _SUMMARY_TITLE.search("損益表摘要")                     # the qualifier trails, in Han
+    assert _SUMMARY_TITLE.search("FINANCIAL HIGHLIGHTS")
+    assert not _SUMMARY_TITLE.search("CONSOLIDATED STATEMENT OF PROFIT OR LOSS")
+    assert not _SUMMARY_TITLE.search("綜合現金流量表")
