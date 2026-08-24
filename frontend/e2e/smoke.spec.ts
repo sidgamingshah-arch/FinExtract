@@ -477,31 +477,36 @@ test("admin tunes the extraction thresholds and they persist", async ({ page }) 
 
   // Every control is rendered from the backend's field descriptors, so the knob is present
   // without the screen knowing anything about mapping.
-  const fuzzy = page.getByTestId("ex-fuzzy_accept");
-  await expect(fuzzy).toBeVisible({ timeout: 15_000 });
-  const shipped = await fuzzy.inputValue();
+  //
+  // `ex-evidence_floor`, not `ex-fuzzy_accept`: the string-similarity tier was deleted and its
+  // knob went with it, while this spec kept naming the old testid. That is not a flake — it is a
+  // hard failure, and in a serial suite it stopped the 33 tests after it from running at all,
+  // which is what made the suite look non-deterministic from the outside.
+  const floor = page.getByTestId("ex-evidence_floor");
+  await expect(floor).toBeVisible({ timeout: 15_000 });
+  const shipped = await floor.inputValue();
 
   // Save is inert until something actually changes.
   await expect(page.getByTestId("ex-save")).toBeDisabled();
 
-  await fuzzy.fill("0.62");
+  await floor.fill("0.62");
   await expect(page.getByTestId("ex-save")).toBeEnabled();
   await page.getByTestId("ex-save").click();
 
   // It round-trips: a reload reads the value back from the server, so the pipeline really
   // holds it — not just this form.
   await page.reload(DCL);
-  await expect(page.getByTestId("ex-fuzzy_accept")).toHaveValue("0.62", { timeout: 15_000 });
+  await expect(page.getByTestId("ex-evidence_floor")).toHaveValue("0.62", { timeout: 15_000 });
 
   // Out of range is refused before it can be sent, and says why.
-  await page.getByTestId("ex-fuzzy_accept").fill("1.4");
+  await page.getByTestId("ex-evidence_floor").fill("1.4");
   await expect(page.getByTestId("ex-save")).toBeDisabled();
   await expect(page.getByTestId("ex-message")).toContainText("at most 1");
 
   // Restore defaults puts the shipped configuration back — and leaves nothing behind for the
   // next run to inherit.
   await page.getByTestId("ex-reset").click();
-  await expect(page.getByTestId("ex-fuzzy_accept")).toHaveValue(shipped, { timeout: 15_000 });
+  await expect(page.getByTestId("ex-evidence_floor")).toHaveValue(shipped, { timeout: 15_000 });
 });
 
 test("a saved threshold is still in force for a browser that never saw the edit", async ({
@@ -543,9 +548,11 @@ test("an analyst cannot reach the extraction thresholds at all", async ({ page }
   await loginAs(page, "analyst");
   await page.goto("/settings", DCL);
 
-  await expect(page.getByTestId("ex-fuzzy_accept")).toHaveCount(0);
+  // Named against a knob that EXISTS for an admin. Asserting the absence of a control nothing
+  // renders any more passes whatever the role gate does, which is a test that cannot fail.
+  await expect(page.getByTestId("ex-evidence_floor")).toHaveCount(0);
   await expect(page.getByTestId("ex-save")).toHaveCount(0);
-  await expect(page.getByText("Fuzzy auto-accept")).toHaveCount(0);
+  await expect(page.getByText("Alias evidence floor")).toHaveCount(0);
 });
 
 test("the thresholds are still editable against a backend that omits the descriptors", async ({
@@ -568,17 +575,17 @@ test("the thresholds are still editable against a backend that omits the descrip
   await page.goto("/settings", DCL);
 
   // Inferred from the value's own type: a number input for a threshold…
-  const fuzzy = page.getByTestId("ex-fuzzy_accept");
-  await expect(fuzzy).toBeVisible({ timeout: 15_000 });
-  await expect(fuzzy).toHaveAttribute("type", "number");
+  const floor = page.getByTestId("ex-evidence_floor");
+  await expect(floor).toBeVisible({ timeout: 15_000 });
+  await expect(floor).toHaveAttribute("type", "number");
   // …a toggle for the boolean, and a readable label rather than the raw key.
   await expect(page.getByTestId("ex-llm_mapping")).toBeVisible();
-  await expect(page.getByText("Fuzzy accept")).toBeVisible();
+  await expect(page.getByText("Evidence floor")).toBeVisible();
   // And it is honest about the degraded mode.
   await expect(page.getByText(/did not describe these settings/i)).toBeVisible();
 
   // Still genuinely editable: the save round-trips through the real endpoint.
-  await fuzzy.fill("0.58");
+  await floor.fill("0.58");
   await page.getByTestId("ex-save").click();
   await expect(page.getByTestId("ex-save")).toBeDisabled({ timeout: 15_000 });
 
