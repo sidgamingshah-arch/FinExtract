@@ -1290,6 +1290,11 @@ _ASSERTED_DIFF_KEY = {
     "equity_tie": "diff",
     "structural": "diff",
     "calculated_mismatch": "diff",
+    # A containment gap declares one too — this target, in this column, is out by this much — and it
+    # is registered because the calculated path is tested against the cards above it. Registering it
+    # is what makes that true; absent from here it would assert nothing and the comment at its call
+    # site would be describing something that does not happen.
+    "containment_gap": "diff",
 }
 
 
