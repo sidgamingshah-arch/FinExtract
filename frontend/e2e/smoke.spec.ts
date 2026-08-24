@@ -2526,6 +2526,9 @@ interface NReview {
   checks: NCheck[];
   tabs: { label: string; count: number; types: string[] | null }[];
   summary: { open: number; accepted: number; stale: number; conflict: number; passed: number };
+  // Lines whose MAPPING is weak: counted, never carded. `passed` excludes them on BOTH paths, so a
+  // test that checks the tile's arithmetic has to read this too — see the two that do.
+  weak_mappings: number;
   judgements: { orphaned: unknown[] };
 }
 
@@ -3222,19 +3225,34 @@ test("the third header tile counts the lines the payload says carry no finding, 
   expect(demoNamed.size, "the sample's findings must name the lines they indict").toBeGreaterThan(0);
   const itemIds = new Set<string>();                 // the sample's LINE ITEMS — a narrower set …
   const lineIds = new Set<string>();                 // … than the lines the tile's label names
+  // Lines whose MAPPING is weak, in the SERVED spelling of the confidence band (the statement route
+  // projects the seeded `conf` into `confidence: {cat, pct}`). They raise no card — a mapping's
+  // strength is not one of the three things this queue reports — and the tile still excludes them,
+  // on both paths, because "no finding names this line" must not be read as "this line is clean".
+  const weakIds = new Set<string>();
   for (const s of ["balance_sheet", "profit_and_loss", "cash_flow"]) {
-    const stmt = await apiGet<{ rows: { id?: string; kind?: string }[] }>(
+    const stmt = await apiGet<{ rows: { id?: string; kind?: string;
+                                        confidence?: { cat?: string } | null }[] }>(
       page, `/api/v1/projects/demo/statements/${s}?basis=consolidated&locale=en`);
     for (const r of stmt.rows) {
       if (r.kind === "item") itemIds.add(String(r.id));
       if (isStatementLine(r)) lineIds.add(String(r.id));
+      if (isStatementLine(r) && r.confidence?.cat === "low") weakIds.add(String(r.id));
     }
   }
   expect(itemIds.size).toBeGreaterThan(0);
   const demoNamedItems = [...demoNamed].filter((n) => itemIds.has(n)).length;
   const demoNamedLines = [...demoNamed].filter((n) => lineIds.has(n)).length;
-  // The label's own arithmetic: statement lines, less the lines a finding names.
-  expect(demo.summary.passed).toBe(lineIds.size - demoNamedLines);
+  // The count is SERVED, and asserted to be the flagged lines — so if the sample ever routes a row
+  // to weak by score without the band saying so, that fails here rather than shifting the tile
+  // arithmetic below by a silent amount.
+  expect(demo.weak_mappings, "weak_mappings is not the sample's low-band lines").toBe(weakIds.size);
+  // The label's own arithmetic: statement lines, less the lines a finding names, less the lines
+  // whose mapping is weak. The union, not the sum: a weakly-mapped line a finding also names is
+  // one excluded line, not two.
+  const demoAccounted = new Set([...demoNamed].filter((n) => lineIds.has(n)));
+  for (const id of weakIds) demoAccounted.add(id);
+  expect(demo.summary.passed).toBe(lineIds.size - demoAccounted.size);
   // THE ASSERTION THAT WOULD HAVE CAUGHT TWO PATHS COUNTING TWO POPULATIONS. The sample's own
   // item-only count is a different number on this very data, so a route that answered with it —
   // which is what this route did, 31 against the real route's inclusive count — fails here instead
