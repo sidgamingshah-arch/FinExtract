@@ -2573,7 +2573,10 @@ test("every figure a card prints is fingerprinted, and nothing a figure can move
   // Admin: uploading needs documents:manage, editing needs extraction:edit, judging needs
   // review:resolve, and no other single role holds all three.
   await loginAs(page, "admin");
-  const doc = await extractFixture(page, "sample.pdf");
+  // `unmapped.pdf`: the anchor this test sweeps exists only on unmapped and low-confidence
+  // findings, and sample.pdf raises neither any more — every caption it prints is an exact
+  // alias, so all four rows map at 1.0. See the accept-and-reload test for the full account.
+  const doc = await extractFixture(page, "unmapped.pdf");
   await page.goto("/review", DCL);
   await expect(page.getByRole("heading", { name: "Review queue" })).toBeVisible({ timeout: 15_000 });
   await clearJudgements(page, doc);
@@ -2609,9 +2612,21 @@ test("every figure a card prints is fingerprinted, and nothing a figure can move
     .toBeGreaterThan(1);
   // Every member is PRINTED, not just fingerprinted: the note_tie defect was a card that printed a
   // set and hashed one member, and this is the same shape from the other side.
+  //
+  // A member with NO figure is the same fact in two spellings, not a gap. The evidence records it
+  // as `null` — deliberately, because a component that acquires a figure later has to make the
+  // acceptance go stale — and the card prints it as an em dash, which is what "no figure" looks
+  // like to a reader. Comparing the raw spellings would call that a card that hashes what it does
+  // not print, which is the defect this loop is for and not what is happening. This fixture has
+  // one: its unmappable caption is a component of the subtotal with nothing mapped to it.
   for (const value of Object.values(components)) {
-    expect(setCard!.calc.map(([, v]) => figureText(v)),
-           `the set card fingerprints ${value} without printing it`)
+    const printed = setCard!.calc.map(([, v]) => figureText(v));
+    if (value === null || value === undefined) {
+      expect(printed, "a component with no figure must still be printed, as an em dash")
+        .toContain("—");
+      continue;
+    }
+    expect(printed, `the set card fingerprints ${value} without printing it`)
       .toContain(figureText(String(value)));
   }
 
