@@ -13,8 +13,13 @@ class DocFormat(str, Enum):
     UNKNOWN = "unknown"
 
 
-class ItemOrigin(str, Enum):
+class PrintedIn(str, Enum):
     """Where an extracted row was PRINTED: on the face of a statement, or inside a note.
+
+    Named for the question rather than for "origin", because the statement payload already has an
+    ``origin`` and it answers a different question — whether a figure was read off the document or
+    typed by an analyst. Two fields called origin, one meaning face-vs-note and the other
+    machine-vs-human, is a confusion no comment survives.
 
     The distinction is not cosmetic and it is not derivable downstream from anything else. Face and
     note rows reach ``line_items`` through the same reader, they carry the same shape, and a note's

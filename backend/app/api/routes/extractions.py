@@ -311,9 +311,27 @@ def _maybe_cache_netting(session: Session, run, locale: str) -> None:
         session.rollback()
 
 
-def _serialize_rows(doc_model) -> list[dict]:
+def _serialize_rows(doc_model, ontology=None) -> list[dict]:
     """Extracted line items in a view-friendly shape, each value with its provenance
-    (sheet+cell for Excel, page+bbox for PDF) so the UI can show click-to-source."""
+    (sheet+cell for Excel, page+bbox for PDF) so the UI can show click-to-source.
+
+    Three things about a row that were computed by the pipeline and then left behind travel with it
+    from here, because every screen and every export reads THIS list:
+
+    * ``printed_in`` — face or note. Not derivable downstream: face and note rows have the same
+      shape, and a note's detail lines sum to a figure the face already reports, so adding the two
+      together double-counts the filing.
+    * ``bucket`` / ``bucket_label`` / ``section`` — which of the analyst sections the row belongs to
+      (``services.buckets``). The segmentation already decided it; this joins the answer to the row
+      instead of making every consumer re-derive it from the ontology.
+    * ``notes`` — the note numbers this row CITES and that were actually extracted as note tables,
+      resolved through the ``FaceNoteLink``s the link-notes stage built. A number the filing prints
+      with no note behind it is not in the list, so the linkage cannot promise detail that is not
+      there.
+    """
+    seg_of, label_of = _bucket_index(doc_model)
+    notes_of = _linked_notes(doc_model)
+    section_of = _section_index(ontology)
     rows = []
     for li in doc_model.line_items:
         values = []
@@ -348,6 +366,13 @@ def _serialize_rows(doc_model) -> list[dict]:
             "source_label": li.source_label,
             "canonical_key": li.canonical_key,
             "note": li.note_number,
+            # Where it was printed, which of the analyst sections it belongs to, and which extracted
+            # notes detail it — see this function's docstring for why each has to travel with the row.
+            "printed_in": (li.printed_in.value if li.printed_in else None),
+            "bucket": seg_of.get(str(li.id)),
+            "bucket_label": label_of.get(seg_of.get(str(li.id)) or ""),
+            "section": section_of.get(li.canonical_key or ""),
+            "notes": notes_of.get(str(li.id), []),
             "role": li.role.value,
             "mapping_method": li.confidence.method,
             "mapping_confidence": li.confidence.mapping,
@@ -355,6 +380,48 @@ def _serialize_rows(doc_model) -> list[dict]:
             "values": values,
         })
     return rows
+
+
+def _bucket_index(doc_model) -> tuple[dict[str, str], dict[str, str]]:
+    """(row id → bucket key, bucket key → label) from the segmentation this run already computed.
+
+    Empty when the segment stage did not run, which is how a partial pipeline stays serializable:
+    the field is then absent rather than guessed.
+    """
+    from app.services.buckets import BUCKET_LABELS
+
+    store = getattr(doc_model, "buckets", None)
+    if store is None:
+        return {}, {}
+    out = {row_id: seg.bucket for seg in store.segments for row_id in seg.face_item_ids}
+    return out, dict(BUCKET_LABELS)
+
+
+def _linked_notes(doc_model) -> dict[str, list[str]]:
+    """row id → the note numbers it cites THAT EXIST as extracted note tables, in citation order.
+
+    Read off the ``FaceNoteLink``s rather than off ``note_number``: that field holds what the page
+    printed in its note column, which is a promise the filing makes and not one this extraction can
+    keep — a note the run never parsed would otherwise be offered as a link to nothing.
+    """
+    out: dict[str, list[str]] = {}
+    for link in getattr(doc_model, "links", []) or []:
+        got = out.setdefault(str(link.face_item_id), [])
+        if link.note_number not in got:
+            got.append(link.note_number)
+    return out
+
+
+def _section_index(ontology) -> dict[str, str]:
+    """canonical_key → the template section id its concept was scoped to, for the rows that mapped.
+
+    The bucket is what a reader wants; the section is what a reviewer needs when the bucket looks
+    wrong, because it names the rulebook decision the bucket was derived from. Taken from the
+    ontology the RUN was pinned to — the same object the segmentation read — so the two cannot
+    disagree about which section a concept is in.
+    """
+    return {m.canonical_key: m.section_scope[0]
+            for m in (getattr(ontology, "mappings", []) or []) if m.section_scope}
 
 
 def _prov_dict(p):
@@ -631,7 +698,7 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
             "page_count": len(doc_model.pages),
             "line_item_count": len(doc_model.line_items),
             "notes": len(doc_model.notes),
-            "rows": _serialize_rows(doc_model),
+            "rows": _serialize_rows(doc_model, ontology),
             "note_details": _serialize_notes(doc_model),
             "disclosures": disclosures,
             "reconciliation": ([e.model_dump(mode="json") for e in recon.entries] if recon else []),

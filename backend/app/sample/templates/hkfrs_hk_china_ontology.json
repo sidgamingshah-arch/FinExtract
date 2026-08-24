@@ -4942,7 +4942,8 @@
         "资本化",
         "income",
         "收入"
-      ]
+      ],
+      "analyst_bucket": "interest"
     },
     {
       "canonical_key": "pl_non_operating_expenses__interest_income",
@@ -4982,7 +4983,8 @@
       "exclude_hints": [
         "received",
         "已收"
-      ]
+      ],
+      "analyst_bucket": "interest"
     },
     {
       "canonical_key": "pl_non_operating_expenses__investment_income",

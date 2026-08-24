@@ -2951,6 +2951,16 @@ def remap_review_row(document_id: str, body: RemapBody, locale: str = Query("en"
     target["canonical_key"] = key or None
     target["mapping_method"] = "manual_remap" if key else "manual_unmap"
     target["mapping_confidence"] = 1.0 if key else None
+    # THE SECTION TAG FOLLOWS THE CONCEPT, here and in the segmentation store. A row's analyst
+    # section is derived from the concept it maps to, so a re-map that left the tag alone would
+    # serve a row whose figure is now a current liability under Non-current liabilities — and the
+    # tag is the thing a reader groups by, so the error would be invisible in the row itself.
+    #
+    # Both places, because they are joined on the row id and disagree loudly if only one moves: the
+    # row carries the tag it is served with, and ``result["buckets"]`` carries the membership the
+    # bucket screens read. Nothing else about the segmentation is recomputed — a re-map is one row
+    # changing its mind, not a reason to re-run a stage over the document.
+    _retag_row(result, target, key, session, run)
     target["remap"] = {"from": prior, "to": key, "reason": body.reason.strip()[:2000],
                        "by": getattr(principal, "username", "") or "", "at": _now_iso()}
     # On the ROW's flags, not only in the payload: the export and the statement inspector both read
@@ -2976,6 +2986,54 @@ def remap_review_row(document_id: str, body: RemapBody, locale: str = Query("en"
     session.commit()
     return {"ok": True, "row_ref": ref, "label": target.get("source_label") or "",
             "from": prior, "to": key, "remap": target["remap"]}
+
+
+def _retag_row(result: dict, row: dict, key: str, session, run) -> None:
+    """Move one row's analyst-section tag, and its membership in the stored segmentation, to the
+    section its NEW concept belongs to. A row re-mapped to nothing loses its tag with its concept."""
+    from app.services.buckets import BUCKET_LABELS, bucket_of
+
+    ont = _ontology_for_run(session, run)
+    section = None
+    declared = None
+    if key and ont is not None:
+        concept = next((m for m in ont.mappings if m.canonical_key == key), None)
+        if concept is not None:
+            section = (concept.section_scope or [None])[0]
+            declared = concept.analyst_bucket
+    bucket = None
+    if key:
+        bucket, _why = bucket_of(section, None, declared)
+    row["section"] = section
+    row["bucket"] = bucket
+    row["bucket_label"] = BUCKET_LABELS.get(bucket or "")
+
+    store = result.get("buckets")
+    if not isinstance(store, dict):
+        return
+    row_id = row.get("id")
+    if not row_id:
+        return
+    for seg in store.get("segments") or []:
+        ids = seg.get("face_item_ids") or []
+        if row_id in ids:
+            seg["face_item_ids"] = [i for i in ids if i != row_id]
+    if bucket:
+        for seg in store.get("segments") or []:
+            if seg.get("bucket") == bucket:
+                seg["face_item_ids"] = list(seg.get("face_item_ids") or []) + [row_id]
+                if section and section not in (seg.get("sections") or []):
+                    seg["sections"] = sorted((seg.get("sections") or []) + [section])
+    else:
+        # Unmapped: it belongs to Others, and to the measurement that says Others holds it because
+        # nothing placed it rather than because it belongs there.
+        for seg in store.get("segments") or []:
+            if seg.get("bucket") == "others":
+                seg["face_item_ids"] = list(seg.get("face_item_ids") or []) + [row_id]
+        unresolved = store.get("unresolved_face_item_ids") or []
+        if row_id not in unresolved:
+            store["unresolved_face_item_ids"] = unresolved + [row_id]
+    result["buckets"] = store
 
 
 class LineItemEdit(BaseModel):
@@ -3585,6 +3643,25 @@ def _inspector(r: dict, cur: dict | None) -> dict:
                      if inferred else f"Mapped by {r.get('mapping_method') or 'ensemble'}")}
 
 
+def _ontology_for_run(session: Session, run):
+    """The RESOLVED rulebook this run was launched against, or None when it named none.
+
+    Resolved, because the section layer a v2 rulebook authors once per section only reaches a
+    concept through the fold — and the section is exactly what a re-map has to read.
+    """
+    from app.db.models import OntologyVersion
+    from app.schemas.loader import load_ontology
+
+    oid = (run.options or {}).get("ontology_version_id")
+    row = session.get(OntologyVersion, oid) if oid else None
+    if row is None:
+        return None
+    try:
+        return load_ontology(row.definition, resolve=True)
+    except Exception:  # noqa: BLE001 — a malformed rulebook must not break a re-map
+        return None
+
+
 def _netting_rules_for_run(session: Session, run) -> list:
     """The face-line netting rules from the ontology the run used (empty when none/unavailable)."""
     from app.db.models import OntologyVersion
@@ -4148,6 +4225,12 @@ def _face_prefixes(template_def: dict | None) -> set[str]:
     return out
 
 
+def _note_sort_key_str(no: str) -> tuple[int, str]:
+    """Note numbers in the order a filing prints them: numerically, with any sub-letter after."""
+    head = re.match(r"\d+", str(no) or "")
+    return (int(head.group(0)) if head else 10_000, str(no))
+
+
 def _build_statement(rows: list[dict], template_def: dict | None, statement_type: str,
                      filename: str, basis: str = "consolidated", locale: str = "en",
                      units_ctx: dict | None = None, company: str | None = None,
@@ -4417,6 +4500,24 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
             "source_label": r.get("source_label"), "kind": kind,
             "note": next((x.get("note") for x in group if x.get("note")), None),
             "note2": None, "status": "edited" if edited else None,
+            # WHERE THE FIGURE WAS PRINTED and WHICH ANALYST SECTION it belongs to, carried from the
+            # contributing rows. Not the same question as ``origin`` below, which says whether the
+            # figure was read off the document or typed by an analyst — a row can be printed on the
+            # face and still carry a manual value.
+            #
+            # ``face`` when ANY contributing line was printed on a statement face: a concept whose
+            # figure comes partly from the face is a face figure, and a reader needs to know the
+            # weaker case (it came only from a note) rather than have it averaged away.
+            "printed_in": ("face" if any(x.get("printed_in") == "face" for x in group)
+                           else next((x.get("printed_in") for x in group
+                                      if x.get("printed_in")), None)),
+            "bucket": next((x.get("bucket") for x in group if x.get("bucket")), None),
+            "bucket_label": next((x.get("bucket_label") for x in group
+                                  if x.get("bucket_label")), None),
+            # The notes that DETAIL this figure — every note any contributing line cites and that
+            # the run actually extracted, so the linkage cannot offer detail that is not there.
+            "notes": sorted({n for x in group for n in (x.get("notes") or [])},
+                            key=_note_sort_key_str) or None,
             # No confidence object at all when nothing measured one, rather than a category beside a
             # made-up percentage: `_conf_cat` used to answer ('med', 60) for a row that carries no
             # mapping confidence, and the inspector printed "60% confidence" over a figure nothing
@@ -4933,11 +5034,29 @@ def get_document_bucket(document_id: str, bucket: str,
     seg = next((x for x in store.get("segments", []) if x.get("bucket") == bucket), {})
     wanted = set(seg.get("face_item_ids") or [])
     unresolved = set(store.get("unresolved_face_item_ids") or [])
-    # Joined by id and served in the run's own row order, which is the order the rows were printed.
-    rows = [{**r, "unresolved": r.get("id") in unresolved}
-            for r in (run.result.get("rows") or []) if r.get("id") in wanted]
     numbers = {str(n) for n in (seg.get("note_numbers") or [])}
     notes = [n for n in (run.result.get("note_details") or []) if str(n.get("no")) in numbers]
+    by_number = {str(n.get("no")): n for n in notes}
+    # Joined by id and served in the run's own row order, which is the order the rows were printed.
+    #
+    # EACH FACE ROW CARRIES THE NOTES THAT DETAIL IT, in full, right here — not a note number the
+    # reader has to go and look up. ``notes`` on the row is the linkage the extraction recorded
+    # (only notes it actually parsed, see ``extractions._linked_notes``), and this resolves it
+    # against this section's own note bodies. Restricted to the notes filed in THIS section, so a
+    # borrowings note split across current and non-current appears under the row that cites it in
+    # the section being read, and a section's payload never smuggles in another's content.
+    #
+    # ``is_note`` is on every note object for the same reason ``printed_in`` is on every row: a note
+    # line and a face line have the same shape and a note's lines sum to a figure the face already
+    # reports, so anything adding both up double-counts the filing. The bifurcation has to be
+    # readable from the payload, not inferred from which key it arrived under.
+    rows = []
+    for r in (run.result.get("rows") or []):
+        if r.get("id") not in wanted:
+            continue
+        cited = [by_number[n] for n in (r.get("notes") or []) if n in by_number]
+        rows.append({**r, "unresolved": r.get("id") in unresolved,
+                     "note_details": [{**n, "is_note": True} for n in cited] or None})
     return {
         "segmented": True,
         "bucket": bucket,
@@ -4946,7 +5065,10 @@ def get_document_bucket(document_id: str, bucket: str,
         "face_pages": [p + 1 for p in (seg.get("face_pages") or [])],
         "note_pages": [p + 1 for p in (seg.get("note_pages") or [])],
         "rows": rows,
-        "notes": notes,
+        # The section's notes as a set as well as per row: a note this section holds that NO row in
+        # it cites (placed from its own content — see ``buckets._bucket_from_note_content``) belongs
+        # to the section and would otherwise be invisible here.
+        "notes": [{**n, "is_note": True} for n in notes],
         "shared_notes": list(seg.get("shared_notes") or []),
     }
 

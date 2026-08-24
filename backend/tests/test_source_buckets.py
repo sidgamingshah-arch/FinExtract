@@ -83,15 +83,52 @@ def test_the_five_balance_sheet_sections_each_get_their_own_bucket():
     assert bucket_of("bs_s5_equity", "balance_sheet")[0] == "equity"
 
 
-def test_a_whole_statement_resolves_without_consulting_its_sections():
-    """P&L and cash flow are ONE bucket each, so every section of them lands in the same place and
-    the taxonomy does not need to know that ``pl_s4_exceptional_items`` exists."""
-    for section in ("pl_s1_income", "pl_s4_exceptional_items", "pl_top_level"):
-        assert bucket_of(section, "profit_and_loss") == ("profit_and_loss", "statement")
-    for section in ("cf_s1_cash_flow_from_operating_activities", "cf_top_level"):
-        assert bucket_of(section, "cash_flow") == ("cash_flow", "statement")
-    # The statement of changes in equity is that section's movement, not a ninth bucket.
-    assert bucket_of(None, "equity_changes") == ("equity", "statement")
+def test_the_income_statement_and_the_cash_flow_are_read_section_by_section():
+    """The change this taxonomy IS. P&L and cash flow used to be one bucket each, so the statement
+    answered for every row on the page; now each of their sections is its own tag and only the
+    section can answer. A statement cannot decide a question its own sections disagree on."""
+    assert bucket_of("pl_s1_income", "profit_and_loss") == ("income", "section")
+    assert bucket_of("pl_s2_expenses", "profit_and_loss") == ("expenses", "section")
+    # Tax is an expense; exceptional items are the non-operating remainder.
+    assert bucket_of("pl_s5_tax_expense", "profit_and_loss") == ("expenses", "section")
+    assert bucket_of("pl_s3_non_operating_expenses", "profit_and_loss") == (
+        "non_operating", "section")
+    assert bucket_of("pl_s4_exceptional_items", "profit_and_loss") == ("non_operating", "section")
+    # Three activities, three tags.
+    assert bucket_of("cf_s1_cash_flow_from_operating_activities", "cash_flow") == (
+        "cash_flow_operating", "section")
+    assert bucket_of("cf_s2_cash_flow_from_investing_activities", "cash_flow") == (
+        "cash_flow_investing", "section")
+    assert bucket_of("cf_s3_cash_flow_from_financing_activities", "cash_flow") == (
+        "cash_flow_financing", "section")
+    # A statement's own totals span its sections, so no section tag can hold them.
+    for section in ("pl_top_level", "cf_top_level", "bs_top_level"):
+        assert bucket_of(section, None) == ("others", "statement_total")
+    # The one statement that still answers for its rows: the movement of a reserve through the year
+    # is that statement's content, not the balance sheet's closing position on the same reserve.
+    assert bucket_of(None, "equity_changes") == ("changes_in_equity", "statement")
+
+
+def test_a_section_the_taxonomy_does_not_name_is_reported_not_pulled_in_by_a_word():
+    """Other comprehensive income and the two "attributable to" sections are real sections this
+    taxonomy has no tag for. Two of the three contain the word "income", so leaving them to the
+    phrase matching would file them under the income statement's revenue section."""
+    for section in ("pl_s8_other_comprehensive_income", "pl_s6_profit_attributable_to",
+                    "pl_s7_total_comprehensive_income_attributable_to"):
+        assert bucket_of(section, "profit_and_loss") == ("others", "outside_taxonomy")
+
+
+def test_interest_is_tagged_by_the_concept_because_no_statement_prints_the_section():
+    """The one tag no section can produce. Finance costs and interest income are printed among the
+    non-operating items, so the concept declares the tag itself — and the reason it must be data is
+    the balance sheet, where "Interests in associates" and "Non-controlling interests" would be
+    caught by any rule that went looking for the word."""
+    assert bucket_of("pl_s3_non_operating_expenses", "profit_and_loss", "interest") == (
+        "interest", "declared")
+    # …and a declared tag that names nothing in the vocabulary is refused rather than obeyed: a
+    # fifteenth segment nothing renders would swallow its rows.
+    assert bucket_of("pl_s1_income", "profit_and_loss", "not_a_bucket") == (
+        "others", "unknown_declared_bucket")
 
 
 def test_the_balance_sheets_own_totals_are_others_and_say_so():
@@ -207,15 +244,22 @@ def test_every_face_row_lands_in_exactly_one_bucket(ontology):
 
 
 def test_one_balance_sheet_page_is_split_across_four_buckets_and_equity(ontology):
-    """The whole point of the change: a single page's rows reach five different buckets, which no
-    page-level classification could do."""
+    """The whole point of the change: a single page's rows reach five different tags, which no
+    page-level classification could do — and the P&L page's two rows separate into income and
+    expenses, which the old whole-statement bucket could not do either."""
     store = segment_source(_mixed_filing(), ontology)
     counts = {seg.bucket: len(seg.face_item_ids) for seg in store.segments}
 
     assert counts == {
-        "non_current_assets": 1, "current_assets": 1, "non_current_liabilities": 1,
-        "current_liabilities": 1, "equity": 1,
-        "profit_and_loss": 2, "cash_flow": 1,
+        # one balance-sheet page, five sections
+        "current_assets": 1, "non_current_assets": 1,
+        "current_liabilities": 1, "non_current_liabilities": 1, "equity": 1,
+        # one P&L page, two sections
+        "income": 1, "expenses": 1,
+        "interest": 0, "non_operating": 0,
+        # one cash-flow page, one activity
+        "cash_flow_operating": 1, "cash_flow_investing": 0, "cash_flow_financing": 0,
+        "changes_in_equity": 0,
         # Total assets (spans sections) and the caption nothing placed.
         "others": 2,
     }
@@ -296,9 +340,9 @@ def test_a_note_only_one_bucket_cites_is_not_marked_shared(ontology):
 
 
 def test_a_note_no_face_row_cites_is_placed_from_its_own_rows(ontology):
-    """The fallback, and it has to reach the P&L and cash-flow buckets too — a note on operating
-    expenses is printed on a notes page, so there is no statement to read and the section token
-    alone ("expenses") answers only for the balance sheet."""
+    """The fallback, and it has to reach the income-statement tags too — a note on operating
+    expenses is printed on a notes page, so there is no statement to read and the note's own rows
+    are all there is to place it by."""
     doc = _doc([], {0: (None, PageKind.NOTES)}, [
         _note("8", "Other operating expenses", 0, ["pl_expenses__other_operating_costs"]),
         _note("17", "Inventories", 0, ["bs_current_assets__inventories"]),
@@ -306,7 +350,7 @@ def test_a_note_no_face_row_cites_is_placed_from_its_own_rows(ontology):
     ])
     store = segment_source(doc, ontology)
 
-    assert store.segment("profit_and_loss").note_numbers == ["8"]
+    assert store.segment("expenses").note_numbers == ["8"]
     assert store.segment("current_assets").note_numbers == ["17"]
     assert store.segment("others").note_numbers == ["31"]
     # …and the one that reached Others by failure, not by belonging, is named.
@@ -342,18 +386,18 @@ def test_the_stage_records_the_segmentation_and_reports_what_it_could_not_place(
 
 
 def test_the_stage_survives_a_run_with_no_rulebook(ontology):
-    """Sections come from the rulebook. Without one, every row falls back to its page's statement —
-    P&L and cash flow still resolve, the balance sheet's five buckets cannot, and the rows say so
-    instead of being silently distributed."""
+    """Sections come from the rulebook, and every tag but one is a section — so without a rulebook
+    NOTHING resolves and every row says so, rather than being distributed by the page it was printed
+    on. That is a change from the whole-statement buckets, where a P&L page placed its rows with no
+    rulebook at all: the placement was the page's, not the row's, and it looked like coverage."""
     doc = _mixed_filing()
     ctx = PipelineContext(raw_bytes=b"")
     SegmentStage().run(doc, ctx)
 
     counts = {s.bucket: len(s.face_item_ids) for s in doc.buckets.segments}
-    assert counts["profit_and_loss"] == 2 and counts["cash_flow"] == 1
-    # Every balance-sheet row is in Others, and every one of them is reported unresolved.
-    assert counts["others"] == 7
-    assert len(doc.buckets.unresolved_face_item_ids) == 7
+    assert counts["others"] == len(doc.line_items) == 10
+    assert len(doc.buckets.unresolved_face_item_ids) == 10
+    assert sum(v for k, v in counts.items() if k != "others") == 0
 
 
 def test_no_fixture_in_this_module_names_a_concept_the_rulebook_does_not_have(ontology):
@@ -406,18 +450,21 @@ def _segmented_result(ontology) -> dict:
     return {"rows": rows, "note_details": notes, "buckets": store.model_dump(mode="json")}
 
 
-def test_the_index_serves_all_eight_buckets_in_reading_order(client, ontology):
-    """Eight rows, always, in the order a filing is read — a bucket a filing happens not to state
-    is served as zero rather than omitted, so the screen has a stable shape and an empty section is
-    visibly empty instead of missing."""
+def test_the_index_serves_every_section_in_reading_order(client, ontology):
+    """One row per tag, always, in the order a filing is read — a section a filing happens not to
+    state is served as zero rather than omitted, so the screen has a stable shape and an empty
+    section is visibly empty instead of missing."""
     doc_id = _seed_run(_segmented_result(ontology))
     body = client.get(f"/api/v1/documents/{doc_id}/buckets").json()
 
     assert body["segmented"] is True
     assert [b["bucket"] for b in body["buckets"]] == list(BUCKET_KEYS)
-    assert [b["label"] for b in body["buckets"]][:2] == ["Non-current assets", "Current assets"]
+    assert [b["label"] for b in body["buckets"]][:2] == ["Current assets", "Non-current assets"]
+    assert body["buckets"][-1]["label"] == "Others"
     counts = {b["bucket"]: b["face_rows"] for b in body["buckets"]}
-    assert counts["current_liabilities"] == 1 and counts["profit_and_loss"] == 2
+    assert counts["current_liabilities"] == 1
+    assert counts["income"] == 1 and counts["expenses"] == 1
+    assert counts["cash_flow_operating"] == 1
     # The measurement that stops Others reading as coverage.
     assert body["unresolved_face_rows"] == 1
     assert body["unknown_sections"] == []

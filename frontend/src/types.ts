@@ -269,6 +269,21 @@ export interface StatementRow {
   level?: number;
   note?: string | null;
   note2?: string | null;
+  /** Where the figure was PRINTED: on the face of a statement, or inside a note. A different
+   *  question from `origin` below, which says whether the figure was read off the document or typed
+   *  by an analyst — a row can be printed on the face and still carry a manual value. It matters
+   *  because a note's detail lines sum to a figure the face already reports, so a reader adding
+   *  both double-counts the filing. */
+  printed_in?: "face" | "notes" | null;
+  /** Which of the analyst sections this row belongs to — one of the thirteen the face of the
+   *  statements is read in, or `others`. `bucket` is the key, `bucket_label` the wording to show. */
+  bucket?: string | null;
+  bucket_label?: string | null;
+  /** The notes that DETAIL this figure: every note the contributing lines cite AND the run actually
+   *  extracted, so a chip here always has a note behind it. `note`/`note2` above are what the page
+   *  printed in its note column, which is a promise the filing makes rather than one this
+   *  extraction can keep. */
+  notes?: string[] | null;
   status?: "flag" | "recon" | "edited" | "missing" | null;
   confidence?: Confidence;
   editable?: boolean;

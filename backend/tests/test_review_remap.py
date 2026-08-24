@@ -378,3 +378,54 @@ def test_remap_targets_come_from_the_run_s_own_template(template):
     assert {t["canonical_key"] for t in _remap_targets(trimmed, "en")} == \
         {"bs_current_assets__inventories"}
     assert len(keys) > 1
+
+
+# --- the section tag follows the concept -------------------------------------------------------
+
+def test_a_re_map_moves_the_rows_analyst_section_with_it(client):
+    """The tag a reader groups by is derived from the concept, so it cannot be left behind. A row
+    re-mapped from a current asset to a non-current one and still tagged Current assets would be
+    served under the wrong heading with nothing in the row itself to show it."""
+    doc_id = _extracted(client)
+    _review, card = _offer(client, doc_id)
+    ref = card["remap"]["row_ref"]
+    target = "bs_non_current_assets__property_plant_and_equipment"
+
+    before = next(x for x in client.get(f"{API}/documents/{doc_id}/run").json()["result"]["rows"]
+                  if _row_ref(x) == ref)
+    r = client.post(f"{API}/documents/{doc_id}/review/remap",
+                    json={"row_ref": ref, "canonical_key": target, "reason": "it is a building"})
+    assert r.status_code == 200, r.text
+
+    result = client.get(f"{API}/documents/{doc_id}/run").json()["result"]
+    moved = next(x for x in result["rows"] if _row_ref(x) == ref)
+    assert moved["bucket"] == "non_current_assets"
+    assert moved["bucket_label"] == "Non-current assets"
+    assert moved["section"] == "bs_s1_non_current_assets"
+    assert moved["bucket"] != before.get("bucket")
+
+    # …and the stored segmentation the section screens read moved with it, so the row is not in two
+    # sections at once.
+    members = {seg["bucket"]: seg["face_item_ids"] for seg in result["buckets"]["segments"]}
+    assert moved["id"] in members["non_current_assets"]
+    assert sum(1 for ids in members.values() if moved["id"] in ids) == 1
+
+
+def test_un_mapping_a_row_takes_its_section_away_and_reports_it_unplaced(client):
+    """A row belonging to no concept belongs to no section either — and Others has to say it is
+    there because nothing placed it, not because it belongs there."""
+    doc_id = _extracted(client)
+    _review, card = _offer(client, doc_id)
+    ref = card["remap"]["row_ref"]
+    client.post(f"{API}/documents/{doc_id}/review/remap",
+                json={"row_ref": ref, "canonical_key": "bs_current_assets__inventories",
+                      "reason": "first, map it"})
+    client.post(f"{API}/documents/{doc_id}/review/remap",
+                json={"row_ref": ref, "canonical_key": "", "reason": "on reflection, nothing"})
+
+    result = client.get(f"{API}/documents/{doc_id}/run").json()["result"]
+    row = next(x for x in result["rows"] if _row_ref(x) == ref)
+    assert row["bucket"] is None and row["section"] is None and row["bucket_label"] is None
+    members = {seg["bucket"]: seg["face_item_ids"] for seg in result["buckets"]["segments"]}
+    assert row["id"] in members["others"]
+    assert row["id"] in result["buckets"]["unresolved_face_item_ids"]

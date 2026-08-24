@@ -377,6 +377,31 @@ const ORIGIN_CHIP: Record<Origin, { label: string; bg: string; fg: string; help:
                                + "components were extracted" },
 };
 
+/* ---- printed on the face, or inside a note ----
+ *
+ * Rendered only for the NOTE case, the same way OriginChip is rendered only for the unusual
+ * origins: a filing's statement rows are overwhelmingly face rows, and a chip on every one of them
+ * would cost every label the width of a cell that already ellipsises. The absence therefore means
+ * face, and the inspector says which it is IN WORDS for the row on show — so the reader never has
+ * to infer it from a missing chip.
+ *
+ * It has to be said at all because a note's detail lines sum to a figure the face already reports:
+ * a reader adding a face row and its note's lines counts the filing's money twice. */
+function PrintedInChip({ printedIn }: { printedIn?: StatementRow["printed_in"] }) {
+  if (printedIn !== "notes") return null;
+  return (
+    <span
+      title="Printed inside a note, not on the face of the statement"
+      data-testid="printed-in-notes"
+      style={{ fontSize: 9.5, fontWeight: 700, lineHeight: 1, padding: "3px 5px",
+               borderRadius: 4, background: color.amberBg, color: color.amberFg,
+               fontFamily: font.mono, flex: "0 0 auto" }}
+    >
+      note
+    </span>
+  );
+}
+
 function OriginChip({ origin }: { origin?: Origin }) {
   if (!origin || origin === "extracted") return null;
   const c = ORIGIN_CHIP[origin];
@@ -507,6 +532,7 @@ function OutputRow({
           {row.label}
         </span>
         <OriginChip origin={row.origin} />
+        <PrintedInChip printedIn={row.printed_in} />
         <StatusIcon status={row.status} />
       </div>
       <div style={{ ...colDiv, display: "flex", alignItems: "center", justifyContent: "center",
@@ -1678,6 +1704,53 @@ export default function WorkspaceScreen() {
                     }}
                   >
                     {isEdited ? `Edited · ${insp.tag}` : insp.tag}
+                  </span>
+                )}
+                {/* WHICH SECTION OF THE FACE this row belongs to, and WHERE IT WAS PRINTED —
+                    stated in words for the row on show, so neither has to be inferred from the
+                    presence or absence of a chip in the grid. The section is the analyst tag the
+                    backend resolved (services/buckets.py), not the template heading the grid groups
+                    by: the two usually agree and the tag is the one a reader groups the filing by. */}
+                {selRowObj?.bucket_label && (
+                  <span
+                    title="The analyst section this figure is tagged with"
+                    data-testid="inspector-section"
+                    style={{ fontSize: 10.5, fontWeight: 600, padding: "2px 8px",
+                             borderRadius: radius.pill, background: color.rowAltBg,
+                             color: color.sec2, border: `1px solid ${color.hairline3}` }}
+                  >
+                    {selRowObj.bucket_label}
+                  </span>
+                )}
+                {selRowObj?.printed_in && (
+                  <span
+                    data-testid={`inspector-printed-${selRowObj.printed_in}`}
+                    title={selRowObj.printed_in === "face"
+                      ? "Printed on the face of the statement"
+                      : "Printed inside a note — its lines detail a face figure, so adding both "
+                        + "counts the same money twice"}
+                    style={{ fontSize: 10.5, fontWeight: 600, padding: "2px 8px",
+                             borderRadius: radius.pill,
+                             background: selRowObj.printed_in === "face" ? color.rowAltBg
+                                                                        : color.amberBg,
+                             color: selRowObj.printed_in === "face" ? color.sec2 : color.amberFg,
+                             border: selRowObj.printed_in === "face"
+                               ? `1px solid ${color.hairline3}` : undefined }}
+                  >
+                    {selRowObj.printed_in === "face" ? "on the face" : "in a note"}
+                  </span>
+                )}
+                {/* THE NOTES THAT DETAIL THIS FIGURE — the linkage the extraction recorded, which
+                    is not the same list as the note column's chips: those are what the page printed,
+                    these are the notes this run actually read and can open. */}
+                {(selRowObj?.notes || []).length > 0 && (
+                  <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ fontSize: 10.5, color: color.muted }}>detailed by</span>
+                    {(selRowObj?.notes || []).map((n) => (
+                      <NoteChip key={n} onClick={(e) => { e?.stopPropagation(); openNote(n); }}>
+                        {n}
+                      </NoteChip>
+                    ))}
                   </span>
                 )}
                 {/* Which period everything below is about. */}

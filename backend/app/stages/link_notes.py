@@ -8,17 +8,36 @@ back to the face figure.
 """
 from __future__ import annotations
 
+import re
+
 from app.core.models import DocumentModel
 from app.core.models.enums import LinkRelationship, ReconciliationRole
 from app.core.models.line_item import FaceNoteLink
 from app.core.stage import PipelineContext
 
 
+_BASE_NUMBER = re.compile(r"^\s*(\d{1,3})")
+
+
 def _refs(li) -> list[str]:
-    """All note numbers a face line references (from parsed note_refs, or note_number)."""
+    """All note numbers a face line references, in citation order.
+
+    SUB-REFERENCES COUNT, and both spellings of them. A filing writes "16(b)" for a sub-note, which
+    the reader parses into ``NoteRef.subrefs`` and NOT into ``numbers`` — so a row citing only a
+    sub-note used to produce no link at all, and its note detail was unreachable from the face row
+    that pointed at it. Both are offered: the sub-reference as printed (a filing that numbers its
+    note tables "16(b)" too) and its base number (one that numbers the table "16" and its parts
+    inside), and whichever exists is the one that links.
+    """
     nums: list[str] = []
     for ref in li.note_refs:
         nums.extend(n for n in ref.numbers if n)
+        for sub in ref.subrefs:
+            if not sub:
+                continue
+            nums.append(sub)
+            if (base := _BASE_NUMBER.match(sub)) and base.group(1) not in nums:
+                nums.append(base.group(1))
     if not nums and li.note_number:
         nums.append(li.note_number)
     # de-dupe, preserve order

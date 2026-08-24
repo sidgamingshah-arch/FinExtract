@@ -4,7 +4,7 @@ every value carries page + normalized-bbox provenance regardless of source.
 """
 from __future__ import annotations
 
-from app.core.models.enums import ItemOrigin, PageKind, PageSourceKind
+from app.core.models.enums import PageKind, PageSourceKind, PrintedIn
 from app.core.models.geometry import BBox
 from app.core.stage import PipelineContext
 from app.services.row_reconstruct import Word, build_line_items
@@ -250,7 +250,7 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
             # the reader because it is scanned is left for the segment stage to attribute, which
             # is the last thing that sees every row and every page kind together.
             for li in items:
-                li.origin = ItemOrigin.FACE
+                li.printed_in = PrintedIn.FACE
         doc.line_items.extend(items)
         added += len(items)
     ctx.log(f"extract:pdf_line_items={added} note_tables={len(doc.notes)}")
