@@ -119,15 +119,30 @@ depends on nothing computed at upload and is reproducible from the file alone.
     visible rather than implied. A failure flags the participating line items and values.
 
 15. **Segment** (`stages/segment.py` + `services/buckets.py`) — files every face row and
-    every note into the eight buckets an analyst reads a filing in: non-current assets,
-    current assets, non-current liabilities, current liabilities, equity, P&L, cash flow,
-    Others. **Last by necessity, not by convention**: a balance sheet prints four of these
-    plus equity on a single page, so page classification can never separate them — only a
-    row's resolved `section_scope` can, which does not exist until `map_ontology` and
-    `residual` have run. The section → bucket edge is *derived* from the section id's own
-    phrase against `mapping.HEADING_ROW_SECTIONS`, so the rulebook and this layer cannot
-    drift into two ideas of what "current assets" is; a balance-sheet section with no
-    bucket is reported in `unknown_sections` rather than counted as Others.
+    every note into the **thirteen face sections** an analyst reads a filing in, plus Others:
+    the balance sheet's five (current / non-current assets, current / non-current
+    liabilities, equity & reserves), the income statement's four (income, expenses,
+    **interest**, non-operating income & expenses), the cash flow's three activities
+    (operating, investing, financing), and the statement of changes in equity.
+    **Last by necessity, not by convention**: a balance sheet prints five of these on a
+    single page, so page classification can never separate them — only a row's resolved
+    `section_scope` can, which does not exist until `map_ontology` and `residual` have run.
+    **Section first, statement second.** Only `equity_changes` still resolves from the
+    statement (a reserve's movement through the year is that statement's content, not the
+    balance sheet's closing position); P&L and cash flow are split BY section, so a row of
+    theirs whose concept resolved no section is Others/`unresolved` rather than filed under
+    its page — a coverage fact made visible. The section → tag edge is *derived* from the
+    section id's own phrase, and every banner the extractor can read
+    (`mapping.HEADING_ROW_SECTIONS`) is asserted at import to have a tag, so the rulebook
+    and this layer cannot drift into two ideas of what "current assets" is; a section with no
+    tag is reported in `unknown_sections` rather than counted as Others, and the three real
+    sections this taxonomy does not name (other comprehensive income, the two "attributable
+    to" sections) are listed explicitly so phrase matching cannot pull them into Income.
+    **Interest is declared, not derived**: no statement prints an interest section, so the
+    two concepts that are interest say so in the rulebook (`analyst_bucket`) — a rule in code
+    would also catch "Interests in associates" and "Non-controlling interests", which are not
+    interest at all. The stage also back-fills `printed_in` (face vs note) for any row no
+    reader stamped, since it is the last thing to see every row and every page kind together.
     Membership only — the figures stay on `line_items` / `notes` and the
     `/documents/{id}/buckets` endpoints join to them at serve time. Every face row lands in
     exactly ONE bucket (so that side is summable, and `unresolved_face_item_ids` separates

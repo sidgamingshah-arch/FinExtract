@@ -90,16 +90,28 @@ def test_a_row_synthesised_from_a_note_is_not_called_a_face_row(rulebook):
 
 
 def test_a_stamp_the_reader_already_made_is_not_overwritten(rulebook):
-    """The back-fill fills in blanks; it does not re-decide. The reader knows the page kind at the
-    moment it reads the page, and a later re-derivation that disagreed would be the same fact
-    computed twice."""
-    from app.core.models.line_item import LineItem
+    """The back-fill fills in blanks; it does not re-decide.
+
+    The fixture is built so the two answers DISAGREE — a row stamped FACE whose every figure was
+    provenanced to a notes page — because that is the only shape in which the guard does anything.
+    Without the disagreement the test passes with the guard deleted, which is the same as not
+    testing it."""
+    from app.core.models.document import PageSource
+    from app.core.models.enums import Basis, PageKind
+    from app.core.models.geometry import BBox, Provenance
+    from app.core.models.line_item import ExtractedValue, LineItem
 
     doc = DocumentModel(filename="f.pdf", fmt=DocFormat.PDF)
+    doc.pages = [PageSource(index=0, kind=PageKind.NOTES)]
     li = LineItem(source_label="Inventories", printed_in=PrintedIn.FACE)
+    li.values["k"] = ExtractedValue(
+        value=1, basis=Basis.CONSOLIDATED, period_label="current",
+        provenance=Provenance(page_index=0, bbox=BBox(x0=0, y0=0, x1=1, y1=1)))
     doc.line_items = [li]
+
     segment_source(doc, None)
-    assert li.printed_in is PrintedIn.FACE
+    assert li.printed_in is PrintedIn.FACE, (
+        "the back-fill re-decided a stamp the reader had already made")
 
 
 # --- the section tag ----------------------------------------------------------------------------
@@ -198,3 +210,21 @@ def test_a_note_reference_with_no_extracted_note_behind_it_is_not_offered_as_a_l
     assert rows["Trade receivables"]["note"] == "15"          # printed
     assert rows["Trade receivables"]["notes"] == []           # …and nothing extracted to link to
     assert doc.notes == []
+
+
+def test_the_linkage_never_names_a_note_the_run_did_not_publish(rulebook, template):
+    """``notes`` promises detail that exists, and the links are OLDER than the note list: they are
+    built before ``prune_notes`` drops every note no face row cites. So the promise cannot rest on
+    stage order — it is intersected with the notes the run actually published."""
+    from app.api.routes.extractions import _linked_notes
+    from tests.fixtures.generate import make_multipage_pdf
+
+    doc = _run(make_multipage_pdf(), rulebook, template)
+    face_id = str(doc.line_items[0].id)
+    assert _linked_notes(doc)[face_id] == ["14"]
+
+    # Now the note is gone — which is exactly what prune_notes does to an uncited one — while the
+    # link that named it is still on the document.
+    doc.notes = []
+    assert doc.links, "the fixture must keep its links, or it proves nothing"
+    assert _linked_notes(doc) == {}

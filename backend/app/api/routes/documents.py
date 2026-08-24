@@ -2991,6 +2991,7 @@ def remap_review_row(document_id: str, body: RemapBody, locale: str = Query("en"
 def _retag_row(result: dict, row: dict, key: str, session, run) -> None:
     """Move one row's analyst-section tag, and its membership in the stored segmentation, to the
     section its NEW concept belongs to. A row re-mapped to nothing loses its tag with its concept."""
+    from app.core.models.enums import PrintedIn
     from app.services.buckets import BUCKET_LABELS, bucket_of
 
     ont = _ontology_for_run(session, run)
@@ -3014,10 +3015,25 @@ def _retag_row(result: dict, row: dict, key: str, session, run) -> None:
     row_id = row.get("id")
     if not row_id:
         return
+    # THE TAG FOLLOWS THE CONCEPT; THE FACE MEMBERSHIP DOES NOT FOLLOW A NOTE ROW. A row printed
+    # inside a note is not a face row whatever concept a reviewer maps it to — the same test
+    # ``segment_source`` applies, and for the same reason: a note's lines sum to a figure the face
+    # already reports, so counting one as a face row puts the note's money in the section twice,
+    # once through the note and once through the row. The queue does offer a re-map on such a row
+    # (an unmapped card is raised for any row), so this is reachable and not theoretical.
+    if (row.get("printed_in") or "") == PrintedIn.NOTES.value:
+        return
     for seg in store.get("segments") or []:
         ids = seg.get("face_item_ids") or []
         if row_id in ids:
             seg["face_item_ids"] = [i for i in ids if i != row_id]
+    # The measurement of what nothing could place is membership too, and it leaves with the rest: a
+    # row a human has just placed is not a row nothing placed. Left behind it would be counted as
+    # uncovered by the index AND served with ``unresolved: true`` under the row's new section, so
+    # the analyst's own correction would read on screen as having failed. The unmapped branch below
+    # puts it back.
+    store["unresolved_face_item_ids"] = [i for i in (store.get("unresolved_face_item_ids") or [])
+                                         if i != row_id]
     if bucket:
         for seg in store.get("segments") or []:
             if seg.get("bucket") == bucket:
@@ -3030,9 +3046,8 @@ def _retag_row(result: dict, row: dict, key: str, session, run) -> None:
         for seg in store.get("segments") or []:
             if seg.get("bucket") == "others":
                 seg["face_item_ids"] = list(seg.get("face_item_ids") or []) + [row_id]
-        unresolved = store.get("unresolved_face_item_ids") or []
-        if row_id not in unresolved:
-            store["unresolved_face_item_ids"] = unresolved + [row_id]
+        store["unresolved_face_item_ids"] = list(
+            store.get("unresolved_face_item_ids") or []) + [row_id]
     result["buckets"] = store
 
 

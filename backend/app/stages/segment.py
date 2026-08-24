@@ -1,14 +1,16 @@
-"""Segment the finished document into the eight analyst buckets.
+"""Segment the finished document into the thirteen face sections an analyst reads it in, plus Others.
 
-LAST IN THE PIPELINE, and the position is the design. The buckets an analyst asks for are four
-balance-sheet sections plus equity, and a balance sheet prints all five on one page — so page
-classification, which answers "which statement is this", can never separate them. Only a row's own
-resolved section can, which means this runs after mapping and after the residual sweep has given
-every printed row somewhere to be.
+LAST IN THE PIPELINE, and the position is the design. The sections are the face of the statements
+section by section — the balance sheet prints five of them on ONE page, and the income statement and
+the cash flow are split by section too — so page classification, which answers "which statement is
+this", can never separate them. Only a row's own resolved section can, which means this runs after
+mapping and after the residual sweep has given every printed row somewhere to be.
 
 The stage computes nothing an earlier stage already knows: it reads sections and statements that
-already exist and records WHICH BUCKET each row and note belongs to. See ``services.buckets`` for
-the resolution rule and for what deliberately lands in Others.
+already exist and records WHICH SECTION each row and note belongs to. It also answers the one
+question about a row that nothing earlier could — whether it was printed on a face or inside a note
+— for the rows no reader stamped. See ``services.buckets`` for the resolution rule and for what
+deliberately lands in Others.
 """
 from __future__ import annotations
 

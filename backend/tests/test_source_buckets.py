@@ -502,6 +502,90 @@ def test_the_detail_marks_a_row_that_reached_others_by_failing_to_place(client, 
     assert marked == {"Total assets": False, "A caption nothing placed": True}
 
 
+def _linked_result(ontology) -> dict:
+    """The mixed filing with the row->note linkage the extraction records.
+
+    ``notes`` on a row is what ``extractions._linked_notes`` serves: the notes the row cites THAT
+    THE RUN PUBLISHED. Hand-built here, as the rows are, because what is under test is the route's
+    join of two independently stored facts — the rows and the segmentation — not the pipeline that
+    produced either.
+    """
+    result = _segmented_result(ontology)
+    cites = {"Property, plant and equipment": ["14"], "Trade and bills payables": ["22"]}
+    for row in result["rows"]:
+        row["notes"] = cites.get(row["source_label"], [])
+    for note in result["note_details"]:
+        note["rows"] = [{"label": f"Detail of note {note['no']}", "values": []}]
+    return result
+
+
+def test_a_face_row_carries_the_body_of_the_note_that_details_it(client, ontology):
+    """THE POINT OF THE SECTION VIEW: the note is under the row, in full, not a number to go and
+    look up. And every note object says ``is_note`` — a note line and a face line have the same
+    shape, so a caller adding both up double-counts the filing and nothing in the payload would
+    have told it."""
+    doc_id = _seed_run(_linked_result(ontology), "row-notes.pdf")
+    body = client.get(f"/api/v1/documents/{doc_id}/buckets/current_liabilities").json()
+
+    row = next(r for r in body["rows"] if r["source_label"] == "Trade and bills payables")
+    assert [n["no"] for n in row["note_details"]] == ["22"]
+    assert row["note_details"][0]["rows"] == [{"label": "Detail of note 22", "values": []}]
+    assert row["note_details"][0]["is_note"] is True
+    assert row["note_details"][0]["title"] == "Trade and other payables"
+
+
+def test_a_row_citing_nothing_carries_no_note_and_says_so_in_one_way(client, ontology):
+    """``None``, not ``[]`` — one absent-value spelling, so a screen testing truthiness and one
+    testing length agree."""
+    doc_id = _seed_run(_linked_result(ontology), "row-notes-none.pdf")
+    body = client.get(f"/api/v1/documents/{doc_id}/buckets/current_assets").json()
+
+    row = next(r for r in body["rows"] if r["source_label"] == "Inventories")
+    assert row["notes"] == [] and row["note_details"] is None
+
+
+def test_a_rows_note_that_this_section_does_not_hold_is_not_served_under_it(client, ontology):
+    """The restriction, on a store that DISAGREES with the rows — the only shape in which it does
+    anything, and one a stored run really can have: the linkage and the segmentation are written
+    separately and joined at read time, so a run stored before a change to either arrives here
+    inconsistent.
+
+    The fixture is built so the two behaviours differ. This section HOLDS note 22 (its trade
+    payables row cites it) and also has a borrowings row whose linkage names note 14, which is
+    filed under non-current assets. Serving the section's notes to every citing row would put the
+    payables note under the borrowings row — right shape, wrong money."""
+    items = [
+        _li(0, "Trade and bills payables",
+            "bs_current_liabilities__current_trade_payables", 900, page=0, notes=["22"]),
+        _li(1, "Bank borrowings (current)",
+            "bs_current_liabilities__current_borrowings", 500, page=0),
+        _li(2, "Property, plant and equipment",
+            "bs_non_current_assets__property_plant_and_equipment", 5000, page=0, notes=["14"]),
+    ]
+    doc = _doc(items, {0: ("balance_sheet", PageKind.FACE), 1: (None, PageKind.NOTES)},
+               [_note("22", "Trade and other payables", 1, [None]),
+                _note("14", "Property, plant and equipment", 1, [None])])
+    store = segment_source(doc, ontology)
+    # The borrowings row's linkage names a note this section does not hold — the inconsistency.
+    cites = {"Trade and bills payables": ["22"], "Bank borrowings (current)": ["14"],
+             "Property, plant and equipment": ["14"]}
+    rows = [{"id": str(li.id), "source_label": li.source_label,
+             "canonical_key": li.canonical_key, "role": li.role.value, "values": [],
+             "notes": cites[li.source_label]} for li in doc.line_items]
+    notes = [{"no": n.note_number, "title": n.title, "page": 2,
+              "rows": [{"label": f"Detail of note {n.note_number}", "values": []}]}
+             for n in doc.notes]
+    doc_id = _seed_run({"rows": rows, "note_details": notes,
+                        "buckets": store.model_dump(mode="json")}, "row-notes-disagree.pdf")
+
+    body = client.get(f"/api/v1/documents/{doc_id}/buckets/current_liabilities").json()
+    assert [n["no"] for n in body["notes"]] == ["22"], "the section holds one note"
+    served = {r["source_label"]: r["note_details"] for r in body["rows"]}
+    assert [n["no"] for n in served["Trade and bills payables"]] == ["22"]
+    assert served["Bank borrowings (current)"] is None, (
+        "a note filed in another section was served under this section's row")
+
+
 def _shared_note_result(ontology) -> dict:
     """A borrowings note cited from both the current and non-current liability rows."""
     items = [

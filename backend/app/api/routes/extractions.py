@@ -403,9 +403,19 @@ def _linked_notes(doc_model) -> dict[str, list[str]]:
     Read off the ``FaceNoteLink``s rather than off ``note_number``: that field holds what the page
     printed in its note column, which is a promise the filing makes and not one this extraction can
     keep — a note the run never parsed would otherwise be offered as a link to nothing.
+
+    AND INTERSECTED WITH THE NOTES THE RUN PUBLISHED, because the links are older than the note
+    list. ``link_notes`` runs before ``prune_notes``, which drops every note no face row cites, so a
+    link can name a table that is no longer in ``doc.notes`` by the time this serializes — and the
+    guarantee above would then be false for exactly the notes the run decided not to publish.
+    Intersecting here makes the guarantee independent of stage order.
     """
+    published = {str(nt.note_number).strip() for nt in (getattr(doc_model, "notes", []) or [])
+                 if nt.note_number is not None}
     out: dict[str, list[str]] = {}
     for link in getattr(doc_model, "links", []) or []:
+        if str(link.note_number).strip() not in published:
+            continue
         got = out.setdefault(str(link.face_item_id), [])
         if link.note_number not in got:
             got.append(link.note_number)

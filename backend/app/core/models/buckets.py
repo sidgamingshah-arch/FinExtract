@@ -1,4 +1,5 @@
-"""The eight analyst buckets a filing's source is segmented into, and what each one holds.
+"""The thirteen face sections a filing's source is segmented into, plus Others, and what each
+holds.
 
 WHY A SEGMENTATION AND NOT A COPY. Each segment names the face rows, notes and pages that belong
 to its bucket; it does not carry their figures. A figure stored twice is two places computing one

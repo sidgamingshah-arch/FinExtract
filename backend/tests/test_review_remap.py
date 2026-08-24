@@ -409,6 +409,11 @@ def test_a_re_map_moves_the_rows_analyst_section_with_it(client):
     members = {seg["bucket"]: seg["face_item_ids"] for seg in result["buckets"]["segments"]}
     assert moved["id"] in members["non_current_assets"]
     assert sum(1 for ids in members.values() if moved["id"] in ids) == 1
+    # A row a human has just placed is not a row nothing could place. Left in the coverage list it
+    # would be counted as uncovered by the index AND served with unresolved:true under its new
+    # section — the analyst's own correction reading as having failed.
+    detail = client.get(f"{API}/documents/{doc_id}/buckets/non_current_assets").json()
+    assert [r["unresolved"] for r in detail["rows"] if r["id"] == moved["id"]] == [False]
 
 
 def test_un_mapping_a_row_takes_its_section_away_and_reports_it_unplaced(client):
@@ -429,3 +434,82 @@ def test_un_mapping_a_row_takes_its_section_away_and_reports_it_unplaced(client)
     members = {seg["bucket"]: seg["face_item_ids"] for seg in result["buckets"]["segments"]}
     assert row["id"] in members["others"]
     assert row["id"] in result["buckets"]["unresolved_face_item_ids"]
+
+
+def _store_result(result: dict) -> None:
+    """Write a whole result back onto the latest run — for the row shapes the synthetic filing does
+    not produce (here: a row printed inside a note, which the residual sweep makes on real
+    filings)."""
+    from sqlalchemy.orm.attributes import flag_modified
+
+    from app.db.base import SessionLocal
+    from app.db.models import ExtractionRun
+
+    with SessionLocal() as s:
+        run = s.query(ExtractionRun).order_by(ExtractionRun.created_at.desc()).first()
+        run.result = result
+        flag_modified(run, "result")
+        s.commit()
+
+
+def test_re_mapping_a_row_printed_in_a_note_does_not_make_it_a_face_row(client):
+    """A row printed INSIDE a note is not a face row whatever concept a reviewer maps it to. The
+    queue offers a re-map on it like any other unmapped row, and counting it as a face row would put
+    the note's money in the section twice — once through the note, once through the row. The tag
+    still follows the concept; only the face membership is withheld."""
+    doc_id = _extracted(client)
+    result = client.get(f"{API}/documents/{doc_id}/run").json()["result"]
+    row = next(r for r in result["rows"] if r.get("bucket") == "current_assets")
+
+    # Make it a note row in the stored result, which is the shape the residual sweep produces.
+    row["printed_in"] = "notes"
+    _store_result(result)
+    before = client.get(f"{API}/documents/{doc_id}/run").json()["result"]["buckets"]
+    seen_before = sum(1 for seg in before["segments"] if row["id"] in seg["face_item_ids"])
+
+    client.post(f"{API}/documents/{doc_id}/review/remap",
+                json={"row_ref": _row_ref(row),
+                      "canonical_key": "bs_non_current_assets__property_plant_and_equipment",
+                      "reason": "it details the PPE note"})
+
+    after = client.get(f"{API}/documents/{doc_id}/run").json()["result"]
+    moved = next(r for r in after["rows"] if r["id"] == row["id"])
+    # The tag followed the concept…
+    assert moved["bucket"] == "non_current_assets"
+    # …and the face membership did not move, so no section gained a note row.
+    seen_after = sum(1 for seg in after["buckets"]["segments"]
+                     if row["id"] in seg["face_item_ids"])
+    assert seen_after == seen_before
+    assert row["id"] not in next(seg["face_item_ids"] for seg in after["buckets"]["segments"]
+                                 if seg["bucket"] == "non_current_assets")
+
+
+def test_placing_a_row_by_hand_stops_it_being_counted_as_unplaced(client):
+    """The coverage measurement is membership too. Un-mapping puts the row in
+    ``unresolved_face_item_ids`` (that is what it means); re-mapping it has to take it out again, or
+    the index counts a placed row as uncovered and the detail route serves it with
+    ``unresolved: true`` under its new section — the analyst's own correction reading as a failure.
+
+    The un-map comes first deliberately: without it the id was never in the list, and an assertion
+    that it is absent afterwards passes whether or not anything clears it."""
+    doc_id = _extracted(client)
+    _review, card = _offer(client, doc_id)
+    ref = card["remap"]["row_ref"]
+
+    client.post(f"{API}/documents/{doc_id}/review/remap",
+                json={"row_ref": ref, "canonical_key": "", "reason": "nothing, for now"})
+    unmapped = client.get(f"{API}/documents/{doc_id}/run").json()["result"]
+    row_id = next(r["id"] for r in unmapped["rows"] if _row_ref(r) == ref)
+    assert row_id in unmapped["buckets"]["unresolved_face_item_ids"], (
+        "the un-map must put the row in the coverage list, or this test proves nothing")
+
+    client.post(f"{API}/documents/{doc_id}/review/remap",
+                json={"row_ref": ref, "canonical_key": "bs_current_assets__inventories",
+                      "reason": "traced to p.1: inventory"})
+    after = client.get(f"{API}/documents/{doc_id}/run").json()["result"]
+    assert row_id not in after["buckets"]["unresolved_face_item_ids"]
+
+    index = client.get(f"{API}/documents/{doc_id}/buckets").json()
+    assert index["unresolved_face_rows"] == 0
+    detail = client.get(f"{API}/documents/{doc_id}/buckets/current_assets").json()
+    assert [r["unresolved"] for r in detail["rows"] if r["id"] == row_id] == [False]

@@ -69,7 +69,8 @@ class DocumentModel(BaseModel):
     links: list[FaceNoteLink] = Field(default_factory=list)
     reconciliation: ReconciliationReport | None = None
     structural: StructuralReport | None = None   # template rollup/identity validation
-    # Which of the eight analyst buckets each face row and each note belongs to. Membership only —
+    # Which of the thirteen face sections (or Others) each face row and each note belongs to.
+    # Membership only —
     # the figures stay on ``line_items``/``notes``; see ``core.models.buckets``.
     buckets: BucketedSource | None = None
     # Confirmed gap-closing decisions: leftover lines a model placed in a section's Others to
