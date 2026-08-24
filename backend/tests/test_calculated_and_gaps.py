@@ -280,36 +280,43 @@ class _Provider:
                 {"model": "fake-1", "input_tokens": 1, "output_tokens": 1})
 
 
-def test_a_confirmed_routing_moves_the_line_into_others_and_the_subtotal_ties():
-    from app.services.gap_closing import apply_routing, resolve_all
+def test_what_the_model_is_asked_and_what_it_is_not_asked():
+    """The prompt, on the row view the gap logic reads. The arithmetic is settled before the call:
+    the model is shown the gap and the options and asked only whether the lines BELONG."""
+    from app.services.gap_closing import resolve_all
 
-    rows = _gap_rows()
     provider = _Provider(option=1)
-    routings = resolve_all(provider, rows, TEMPLATE)
+    routings = resolve_all(provider, _gap_rows(), TEMPLATE)
     assert len(routings) == 1
     assert routings[0]["others_key"] == "bs_ca__others"
     assert routings[0]["labels"] == ["Pledged bank deposits"]
     assert routings[0]["model"] == "fake-1"
-    # The model was shown the gap and the options, and NOT asked to do arithmetic.
     payload = provider.payloads[0]
     assert payload["difference_current"] == "40" and payload["difference_prior"] == "20"
     assert payload["would_be_placed_in"] == "bs_ca__others"
 
-    assert apply_routing(rows, routings) == 1
-    d = _stmt(rows)
+
+def test_a_confirmed_routing_makes_the_subtotal_tie(monkeypatch):
+    """The outcome that matters, taken THROUGH THE STAGE and then through the serializer the API
+    uses — because that is the sequence a run performs.
+
+    This assertion used to be made against ``services.gap_closing.apply_routing``, which moves the
+    line inside a list of row dicts and which nothing in the pipeline calls. So the tie was proven
+    for code that never ran, while the code that did run crashed on a field ``LineItem`` does not
+    have. The twin is gone; this covers the real path."""
+    from app.api.routes.extractions import _serialize_rows
+
+    doc, _ = _run_stage(_gap_doc(), _Provider(option=1), monkeypatch)
+    d = _stmt(_serialize_rows(doc))
+
     total = _row_of(d, "bs_ca__total")
     # 100 + 30 + 40 = 170, which is what the document printed. The gap is gone.
     assert total["v1"] == 170 and total["reported1"] == 170
     assert total["status"] != "recon"
-    # The routed line is a listed contributor to Others, traceable to its page.
+    # The routed line is a listed contributor to Others, traceable to the page it was printed on.
     others = _row_of(d, "bs_ca__others")
     assert others["v1"] == 40
     assert others["source"]["page_index"] == 8
-    # And the reason it moved travels with the row.
-    moved = rows[3]
-    assert moved["mapping_method"] == "llm_gap_routing"
-    assert moved["routed_to_others"]["target_key"] == "bs_ca__total"
-    assert "current asset" in moved["routed_to_others"]["rationale"]
 
 
 def test_the_model_declining_routes_nothing():
@@ -585,3 +592,114 @@ def test_an_off_template_row_is_a_leftover_because_nothing_renders_it():
     assert "bs_ca__pledged_deposits" in offered
     # A row on a key the template DOES declare is placed, and stays out of the candidate set.
     assert "bs_ca__inventories" not in offered
+
+
+# --- the path the pipeline actually takes -------------------------------------------------------
+# ``apply_routing`` above operates on row DICTS and nothing in the pipeline calls it. The stage
+# applies a confirmed routing to the DOCUMENT MODEL, and that is the code a run executes — so it
+# gets its own test. Without one, the stage crashed every run in which the provider confirmed a
+# routing (it assigned a field ``LineItem`` does not define) while the suite stayed green.
+
+def _gap_doc():
+    """A document model whose serialized rows are the gap fixture above: a current-asset section
+    short by 40 in both periods, with 'Pledged bank deposits' unplaced and closing it exactly."""
+    from decimal import Decimal
+
+    from app.core.models.document import DocumentModel, PageSource
+    from app.core.models.enums import Basis, DocFormat, PageKind
+    from app.core.models.geometry import BBox, Provenance
+    from app.core.models.line_item import ExtractedValue, LineItem
+
+    def li(key, label, cur, prior, page=0):
+        item = LineItem(source_label=label, canonical_key=key)
+        for period, value in (("current", cur), ("prior", prior)):
+            if value is None:
+                continue
+            item.set_value(ExtractedValue(
+                value=Decimal(value), value_raw=Decimal(value), basis=Basis.CONSOLIDATED,
+                period_label=period,
+                provenance=Provenance(page_index=page, bbox=BBox(x0=0, y0=0, x1=1, y1=1))))
+        return item
+
+    doc = DocumentModel(filename="gap.pdf", fmt=DocFormat.PDF)
+    doc.pages = [PageSource(index=0, kind=PageKind.FACE, statement="balance_sheet")]
+    doc.line_items = [
+        li("bs_ca__inventories", "Inventories", 100, 90),
+        li("bs_ca__cash", "Cash", 30, 20),
+        li("bs_ca__total", "Total current assets", 170, 130),
+        li(None, "Pledged bank deposits", 40, 20, page=8),
+    ]
+    return doc
+
+
+def _run_stage(doc, provider, monkeypatch):
+    """The stage, with the fake provider wired in where a run would find the configured one."""
+    from app.config import get_settings
+    from app.core.stage import PipelineContext
+    from app.ports.registry import registry
+    from app.stages.gap_closing import GapClosingStage
+
+    settings = get_settings()
+    monkeypatch.setattr(settings.extraction, "llm_gap_routing", True, raising=False)
+    monkeypatch.setattr(settings.llm, "provider", "fake-gap", raising=False)
+    prev = registry._factories.get("llm", {}).get("fake-gap")
+    registry.register("llm", "fake-gap", lambda: provider)
+    try:
+        ctx = PipelineContext(raw_bytes=b"")
+        ctx.template_def = TEMPLATE
+        return GapClosingStage().run(doc, ctx), ctx
+    finally:
+        if prev is not None:
+            registry.register("llm", "fake-gap", prev)
+        else:
+            registry._factories.get("llm", {}).pop("fake-gap", None)
+
+
+def test_the_stage_moves_the_line_on_the_document_and_records_why(monkeypatch):
+    """The regression. This raised ValueError — '"LineItem" object has no field
+    "mapping_method"' — and took the whole run down at the gap_closing stage, on every filing
+    where the model CONFIRMED a routing. The method is recorded under the name the API serves it
+    by (``confidence.method`` -> ``mapping_method``), which is what made the wrong spelling read
+    as right."""
+    doc, _ = _run_stage(_gap_doc(), _Provider(option=1), monkeypatch)
+
+    moved = next(li for li in doc.line_items if li.source_label == "Pledged bank deposits")
+    assert moved.canonical_key == "bs_ca__others"
+    assert moved.confidence.method == "llm_gap_routing"
+    # The rest of the statement is untouched — only where the leftover lands changed.
+    assert [li.canonical_key for li in doc.line_items[:3]] == [
+        "bs_ca__inventories", "bs_ca__cash", "bs_ca__total"]
+
+
+def test_the_stage_serves_the_moved_line_under_the_name_the_api_uses(monkeypatch):
+    """End of the chain: the row a consumer reads says a model routed it. Asserted through
+    ``_serialize_rows`` rather than off the model, because the field the run failed on was named
+    after the SERVED key and not the model's."""
+    from app.api.routes.extractions import _serialize_rows
+
+    doc, _ = _run_stage(_gap_doc(), _Provider(option=1), monkeypatch)
+    row = next(r for r in _serialize_rows(doc) if r["source_label"] == "Pledged bank deposits")
+    assert row["canonical_key"] == "bs_ca__others"
+    assert row["mapping_method"] == "llm_gap_routing"
+
+
+def test_the_stage_records_the_routing_on_the_run_for_audit(monkeypatch):
+    """What the row-level ``routed_to_others`` dict was a second copy of: the rationale, the gap it
+    closed, the provider and the model, cached on the run and served as ``gap_routings``."""
+    doc, ctx = _run_stage(_gap_doc(), _Provider(option=1), monkeypatch)
+
+    assert len(doc.gap_routings) == 1
+    r = doc.gap_routings[0]
+    assert r["others_key"] == "bs_ca__others" and r["target_key"] == "bs_ca__total"
+    assert r["model"] == "fake-1" and "current asset" in r["rationale"]
+    assert any("gap(s) closed, 1 line(s) routed" in m for m in ctx.logs), ctx.logs
+
+
+def test_the_stage_leaves_the_document_alone_when_the_model_declines(monkeypatch):
+    """-1 is the answer the prompt asks for when nothing plausibly belongs, and it must not move a
+    line on arithmetic coincidence alone."""
+    doc, ctx = _run_stage(_gap_doc(), _Provider(option=-1), monkeypatch)
+
+    assert all(li.canonical_key != "bs_ca__others" for li in doc.line_items)
+    assert doc.gap_routings == []
+    assert any("none confirmed" in m for m in ctx.logs), ctx.logs
