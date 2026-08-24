@@ -1300,7 +1300,15 @@ test("a finding can be ACCEPTED, and the judgement is still there after a reload
   // Admin because this test needs BOTH capabilities: uploading (documents:manage) and judging
   // (review:resolve). The role map gives no single other role both.
   await loginAs(page, "admin");
-  const doc = await extractFixture(page, "sample.pdf");
+  // `unmapped.pdf`, not `sample.pdf`: this test needs a finding to judge, and sample.pdf raises
+  // none any more. Every one of its four captions is an exact alias of a concept, so all four map
+  // at confidence 1.0 and the queue comes back `open: 0, passed: 4` — the premise below then fails
+  // and, in a serial suite, stops every test after it. It used to raise a low-confidence finding
+  // because those captions were matched by the string-similarity tier at well under 1.0; deleting
+  // that tier removed the finding and with it this test's subject. The fixture now carries one
+  // caption the shipped rulebook deliberately cannot place, so the finding is the fixture's
+  // property rather than a side effect of how mapping happens to score.
+  const doc = await extractFixture(page, "unmapped.pdf");
 
   await page.goto("/review", DCL);
   await expect(page.getByRole("heading", { name: "Review queue" })).toBeVisible({ timeout: 15_000 });
