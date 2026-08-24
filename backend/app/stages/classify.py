@@ -615,6 +615,57 @@ def _emission(f: PageFeat, state: str) -> float:
     return s
 
 
+def _notes_follow_the_face(path: list[str], log=None) -> list[str]:
+    """THE ORDERING INVARIANT: no notes page precedes the face of the statements.
+
+    A filing states its statements and then explains them. The notes to the financial statements
+    are printed AFTER the face — always — so a page decoded as NOTES before any face page has been
+    seen is not a note, whatever its own evidence looked like.
+
+    The evidence that produces such a page is real and common: the numbered-heading feature
+    (``note_heading``) fires on any "1. …" / "2. …" run, and front matter is full of them —
+    a contents page, an auditor's report with numbered paragraphs, a corporate-information page,
+    a financial-highlights page quoting statement titles. The decode weighs those against document
+    order, but PRE -> NOTES costs only 1.0, so a strong enough numbered-heading page ahead of the
+    statements can enter the notes state early. Everything after it then reads as notes-or-later,
+    because NOTES -> FACE costs 3.0.
+
+    THIS IS NOT THE SAME CLAIM AS "the face never follows the notes", which would be false: an
+    HKEX filing prints the Company's own balance sheet PAST note 40, and recovering that page is
+    what the NOTES -> FACE transition exists for. Only the FIRST face page is anchored here —
+    anything after it is left exactly as the decode left it.
+
+    Fail-open, and the reason matters: with no face page anywhere, this cannot know where the face
+    would have been, and a document that really is only notes pages (a notes section uploaded on
+    its own) would lose every one of them. So the layer does nothing and says so, rather than
+    emptying the notes index to satisfy an invariant it cannot locate.
+
+    Corrected to PRE (served as OTHER) rather than to FACE: the page's own evidence did not look
+    like a statement — that is why the decode did not choose FACE for it — so the only thing this
+    invariant licenses is refusing the notes reading, never asserting a statement.
+
+    There is a second effect worth naming. ``seen_notes`` in the stage below drives
+    ``repeat_after_notes``, which is what makes an untitled face page read as the COMPANY's
+    statement rather than the Group's. A spurious notes page in the front matter set that flag
+    before the first statement was even reached, so the Group's own balance sheet could be read as
+    the Company's re-presentation of it. Anchoring the notes to the face fixes that too.
+    """
+    first_face = next((i for i, s in enumerate(path) if s == _FACE), None)
+    if first_face is None:
+        if _NOTES in path and log:
+            log("classify:notes_before_face=kept(no_face_page_in_filing)")
+        return path
+    moved = [i for i in range(first_face) if path[i] == _NOTES]
+    if not moved:
+        return path
+    out = list(path)
+    for i in moved:
+        out[i] = _PRE
+    if log:
+        log(f"classify:notes_before_face={moved}->other(first_face={first_face})")
+    return out
+
+
 def _decode(feats: list[PageFeat]) -> tuple[list[str], list[float]]:
     """Viterbi over the page sequence. Returns the state path and each page's decode MARGIN — how
     much better the chosen state was than the runner-up, which is a measured confidence rather than
@@ -764,6 +815,8 @@ class ClassifyStage:
             feats.append(_features(page_src.index, lines, height, text))
 
         path, margins = _decode(feats)
+        # The notes explain statements already printed, so none of them precedes the face.
+        path = _notes_follow_the_face(path, log=ctx.log)
 
         # A statement runs across several pages and only the first is titled, so a face page with no
         # resolvable title inherits the last one named. Reset when the face run ends.
@@ -809,9 +862,19 @@ class ClassifyStage:
                     # Including None: a titled page whose own scope is unresolved ENDS the run's
                     # verdict rather than passing it on to whatever follows.
                     run_scope = resolved
-                    if resolved is None and seen_notes:
+                    if resolved is None:
+                        # SAID WHETHER OR NOT THE NOTES HAVE BEEN SEEN. A titled statement page
+                        # whose entity could not be resolved is the same fact either way, and a
+                        # reader has to be able to tell a missing basis from a wrong one. This was
+                        # gated on ``seen_notes``, which meant the refusal went unlogged for a
+                        # filing whose statements come before any note — i.e. for the ordinary
+                        # case, and for every filing now that a front-matter page can no longer
+                        # latch the notes walk (``_notes_follow_the_face``). The reason names
+                        # which case it is, since past-the-notes is the one that matters for
+                        # deciding whether an untitled page re-presents the Group's statement.
+                        why = "face_after_notes" if seen_notes else "titled_page"
                         ctx.log(f"classify:page={page_src.index}:entity_scope="
-                                f"unresolved(face_after_notes:{current or '?'})")
+                                f"unresolved({why}:{current or '?'})")
                 page_src.scope = resolved
                 page_src.scope_columns = f.scope_columns or cols
                 if resolved == "consolidated" and current:

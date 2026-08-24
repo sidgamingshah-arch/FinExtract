@@ -117,7 +117,13 @@ def test_the_filers_own_name_is_not_a_scope_marker():
     assert sorted({ev.basis.value for li in doc.line_items
                    for ev in li.values.values()}) == ["consolidated"]
     # And the refusal is stated, so a missing basis is distinguishable from a wrong one.
-    assert any("entity_scope=unresolved(face_after_notes" in m for m in logs), logs
+    #
+    # `titled_page`, not `face_after_notes`: this filing's front matter used to be read as a notes
+    # page — a registered-office line matches the numbered-heading feature — which made its ONE
+    # statement look like it came after the notes. The ordering layer refuses a notes page before
+    # the face (classify._notes_follow_the_face), so the reason names what is actually true of this
+    # page: a titled statement whose entity could not be resolved.
+    assert any("entity_scope=unresolved(titled_page" in m for m in logs), logs
 
 
 def test_a_corporate_suffix_is_not_read_as_the_reporting_entity():
@@ -135,19 +141,28 @@ def test_a_corporate_suffix_is_not_read_as_the_reporting_entity():
     assert _scope_of("CONSOLIDATED BALANCE SHEET", [], 800.0)[0] == "consolidated"
 
 
-def test_position_past_the_notes_is_not_enough_on_its_own():
-    """The corroboration the notes-region inference now requires. ``seen_notes`` is a latch that one
-    front-matter line can set — a registered-office address matches ``_NOTE_ONE`` — so "this page is
-    past the notes" is not evidence that it is the Company's. What IS evidence is that the page
-    RE-presents a statement the filing already showed as the Group's, because that duplication is
-    what makes two sets of figures collide on one canonical key. This filing never presents a Group
-    statement, so its face page has nothing to repeat."""
+def test_front_matter_cannot_put_a_filing_past_its_own_notes():
+    """THE ORDERING INVARIANT, and what it was worth. The notes explain statements already printed,
+    so no notes page precedes the face — and this filing is why that matters beyond page kinds.
+
+    Its front matter carries a registered-office address, which matches the numbered-heading
+    feature, so the page was read as a note. That set ``seen_notes`` before the statements were
+    reached, and ``seen_notes`` is what licenses reading an untitled face page as the COMPANY's
+    re-presentation of a statement already shown as the Group's. A filing's own front matter could
+    therefore make its ONE balance sheet look like the Company's second copy of one.
+
+    Two things now stop it and this asserts both: the front-matter page is not a notes page at all,
+    and no page is read as the Company's. The corroboration rule that was the previous defence is
+    still in force and still tested — on a filing that really does print a Company statement past
+    real notes (``make_company_statement_after_notes_pdf``, the ``filing`` fixture above)."""
     pytest.importorskip("reportlab")
     from tests.fixtures.generate import make_issuer_named_untokened_face_pdf
 
-    doc, _ = _run(make_issuer_named_untokened_face_pdf())
-    latched = [p for p in doc.pages if p.kind.value == "notes"]
-    assert latched, "the fixture must actually latch the notes walk, or it proves nothing"
+    doc, logs = _run(make_issuer_named_untokened_face_pdf())
+    kinds = [p.kind.value for p in doc.pages]
+    assert "notes" not in kinds, f"a notes page before the face: {kinds}"
+    # Stated, not silent: a page whose kind was overruled has to be explainable.
+    assert any("notes_before_face=" in m for m in logs), logs
     assert all(p.scope != "company" for p in doc.pages)
 
 

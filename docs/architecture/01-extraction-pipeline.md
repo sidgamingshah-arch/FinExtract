@@ -52,6 +52,24 @@ depends on nothing computed at upload and is reproducible from the file alone.
    decided. There is **no LLM tie-break** in this stage. Notes pages are kept (needed for
    §20), and titles that looked like a statement and resolved to nothing land in
    `DocumentModel.unmapped_titles` so the lexicon's coverage is measurable.
+
+   **An ordering layer runs over the decoded sequence** (`_notes_follow_the_face`): a filing
+   states its statements and then explains them, so **no notes page precedes the face**. A
+   page decoded NOTES before any face page is corrected to OTHER — the numbered-heading
+   feature fires on any "1. …" run and front matter is full of them (contents, an auditor's
+   report, corporate information), while `PRE → NOTES` costs only 1.0, so a strong enough
+   numbered page ahead of the statements could enter the notes state early and everything
+   after it then read as notes-or-later. It is corrected to OTHER and never to FACE: the
+   page's own evidence did not look like a statement, so refusing the notes reading is all
+   the invariant licenses. This is **not** the claim that the face never follows the notes —
+   an HKEX filing prints the company-only balance sheet past note 40 — so only the FIRST
+   face page anchors it. With no face page anywhere the layer does nothing and logs why:
+   a notes section uploaded on its own would otherwise lose every page it has.
+
+   The layer also protects `seen_notes`, which licenses reading an untitled face page as the
+   COMPANY's re-presentation of a Group statement. A front-matter page latching that flag
+   before the statements were reached could make a filing's own balance sheet read as the
+   Company's second copy of one.
 5. **Extract** (`stages/extract.py`) — rows → `LineItem`s with values keyed by
    (basis, period), note refs, unit context, and provenance. **Table reconstruction happens
    inside this stage**, which is why there is no separate `reconstruct` stage (the comment

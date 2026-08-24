@@ -113,3 +113,53 @@ def test_integrity_gate_blocks_extraction(client):
     r = client.post(f"/api/v1/documents/{doc_id}/extractions", json={})
     assert r.status_code == 422
     assert r.json()["detail"]["error"] == "integrity_blocked"
+
+
+# --- the ordering layer: notes follow the face --------------------------------------------------
+
+def test_a_notes_page_before_the_face_is_refused():
+    """The invariant, on the decode path directly: a filing states its statements and then explains
+    them, so a page decoded as a note before any face page has been seen is not a note.
+
+    Corrected to the front-matter state rather than to FACE — the page's own evidence did not look
+    like a statement, which is why the decode did not choose FACE for it, so refusing the notes
+    reading is all this licenses."""
+    from app.stages.classify import _FACE, _NOTES, _POST, _PRE, _notes_follow_the_face
+
+    logs: list[str] = []
+    got = _notes_follow_the_face([_NOTES, _PRE, _FACE, _NOTES, _POST], log=logs.append)
+    assert got == [_PRE, _PRE, _FACE, _NOTES, _POST]
+    assert logs and "notes_before_face=[0]" in logs[0] and "first_face=2" in logs[0]
+
+
+def test_a_face_page_after_the_notes_is_left_alone():
+    """NOT the same claim as "the face never follows the notes", which is false: an HKEX filing
+    prints the Company's own balance sheet past note 40, and recovering that page is what the
+    notes-to-face transition exists for. Only the FIRST face page anchors the invariant."""
+    from app.stages.classify import _FACE, _NOTES, _notes_follow_the_face
+
+    path = [_FACE, _NOTES, _NOTES, _FACE, _NOTES]
+    assert _notes_follow_the_face(list(path)) == path
+
+
+def test_a_filing_with_no_face_page_keeps_its_notes():
+    """Fail-open, and the reason: with no face page anywhere this cannot know where the face would
+    have been, and a notes section uploaded on its own would lose every page it has. Doing nothing
+    and saying so beats emptying the notes index to satisfy an invariant it cannot locate."""
+    from app.stages.classify import _NOTES, _PRE, _notes_follow_the_face
+
+    logs: list[str] = []
+    path = [_PRE, _NOTES, _NOTES]
+    assert _notes_follow_the_face(list(path), log=logs.append) == path
+    assert any("no_face_page_in_filing" in m for m in logs), logs
+
+
+def test_a_filing_already_in_order_is_untouched_and_silent():
+    """No log for the ordinary case: a run's log is read when something looked wrong, so a line
+    that appears on every filing is noise that hides the ones that matter."""
+    from app.stages.classify import _FACE, _NOTES, _PRE, _notes_follow_the_face
+
+    logs: list[str] = []
+    path = [_PRE, _FACE, _FACE, _NOTES]
+    assert _notes_follow_the_face(list(path), log=logs.append) == path
+    assert logs == []
