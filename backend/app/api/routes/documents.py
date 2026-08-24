@@ -2121,6 +2121,22 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
     # and two rows can legitimately print the same caption, so matching those by label would credit
     # one row's finding to another.
     indicted: set[int] = set()
+    # A MATRIX ROW IS NOT A MAPPING FAILURE, and on a real filing it is most of them. The statement
+    # of changes in equity is a grid — movement rows against reserve columns ("At 1 January 2023",
+    # "Transfer to statutory surplus reserve", "Dividends paid to non-controlling shareholders") —
+    # and the template has no concept for a movement, because the statement is served through the
+    # matrix view instead (``documents._matrix_columns``). Those rows were never candidates for a
+    # canonical key, so reporting them as "extracted but unmapped" indicts the reader for not doing
+    # something nothing asked it to do.
+    #
+    # Measured on the China SCE 2023 filing: 32 of 44 unmapped rows are that one statement, and it
+    # has no mapped rows at all. Left in, the queue's largest category is noise, and the one thing
+    # the category is FOR — a face figure nobody could place — is buried under it.
+    #
+    # ``column_index`` is the positive signal, not the page's statement: it is set in exactly one
+    # place (``row_reconstruct`` matrix path, where it holds the printed left-to-right position of a
+    # component column) so a row carrying it came off a matrix, and a row that does not is judged as
+    # before whatever page it sits on.
     for i, r in enumerate(rows):
         if (r.get("canonical_key") or "") in named or (r.get("source_label") or "") in named:
             indicted.add(i)
@@ -2137,6 +2153,8 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
                 or (isinstance(conf, (int, float)) and conf < _low_conf_threshold()))
 
         if not key:
+            if any(v.get("column_index") is not None for v in (r.get("values") or [])):
+                continue
             unmapped += 1
             indicted.add(i)
             checks.append({
