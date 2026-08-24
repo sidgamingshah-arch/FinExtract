@@ -206,9 +206,35 @@ THE QUEUE CARRIES EXACTLY THREE THINGS, and this is a product rule rather than a
 implementation detail: an extracted figure from the **face** of a statement that reaches no
 line of the output; a **validation rule** that failed (the balance identity, the equity tie,
 the rulebook's relations and cross-concept guards); and a **section subtotal** that does not
-match the values extracted under it. Anything that is neither a defect nor actionable is
-kept out, because every card that is neither costs the analyst the attention the three real
-ones need.
+match the values extracted under it — a printed subtotal its own components do not come to
+(`calculated_mismatch`), a rollup relation that breaks (`structural`), or a printed combined
+total the lines that replaced it do not account for (`containment_gap`). Anything that is
+neither a defect nor actionable is kept out, because every card that is neither costs the
+analyst the attention the three real ones need. `_ACCOUNTING_TYPES` / `_ROW_SHAPED_TYPES` in
+`routes/documents.py` declare the legal kinds, the chips are built from them, and
+`_assert_known_kinds` fails a card that is in neither — a kind with no chip is invisible
+under every filter while still inside the "All" total.
+
+`containment_gap` is worth naming because of what it replaced. A filing that prints a
+combined caption AND its components on the face has printed the parent *gross*; filing both
+would count the money twice, so `map_ontology._enforce_containment` un-files the parent
+(clears its key, demotes it to a subtotal, records what replaced it). Where the components
+do not add up to it, part of the printed figure is now on **no line**, and that has to be
+reported. It used to be — by accident: the stage set `low_mapping_confidence` to route the
+row to review, so the finding arrived as a card about a mapping's *strength*, describing a
+row whose mapping was an exact match at 1.0. When that card went, the row still reached the
+queue, now as `unmapped`, printing "— (no confident match)" about a caption the mapper had
+recognised perfectly. On the real filing that was 5 of the 12 cards in the queue's most
+important category. The card now says what happened, and the *arithmetic recomputed from the
+served rows* decides whether it appears — not the stage's flag, so an analyst edit that
+opens a gap is reported and one that closes it stops being.
+
+**Tone is a severity, not a colour name** — `high` a failed check, `med` something to place
+or confirm, `low` informational — and the three surfaces that read it now agree. They did
+not: the TS type declared `indigo` (never sent), `toneColors` painted `low` red, the server
+sent `high` for every failing kind and `low` for the row-shaped one, and the sample sent
+`low` for its blocking balance card. On screen that meant every real failure rendered in the
+informational colour while the queue's mildest finding was the only red thing on it.
 
 Two card kinds were retired to that rule. A **weakly-mapped** row raises nothing — a
 mapping's strength is a property of the mapping, shown on the row's own confidence badge in

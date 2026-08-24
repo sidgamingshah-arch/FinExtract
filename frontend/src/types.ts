@@ -916,12 +916,29 @@ export type CoverageBlock =
 
 export interface ReviewCheck {
   id: string;
+  /** The card kind. One of the accounting kinds — `balance`, `equity_tie`, `structural`,
+   *  `calculated_mismatch`, `containment_gap` — or the row-shaped one, `unmapped`. The server
+   *  declares that set (`_ACCOUNTING_TYPES` / `_ROW_SHAPED_TYPES` in routes/documents.py) and
+   *  refuses to serve a card outside it, because a kind with no chip is invisible under every
+   *  filter. Kept as `string` rather than a union: the tabs carry the types they select, so this
+   *  screen never switches on the value, and a union here would make a server-side addition a
+   *  build error in a client that does not need to know. */
   type: string;
   icon: string;
   title: string;
   where: string;
   severity: string;
-  tone: "low" | "med" | "indigo";
+  /** How loudly the card is painted, and it is a SEVERITY rather than a colour name:
+   *  `high` a check that failed (arithmetic or a declared rule is broken), `med` something to place
+   *  or confirm, `low` informational.
+   *
+   *  It said `"low" | "med" | "indigo"` and the server has never sent "indigo" — while every failed
+   *  check it DOES send arrives as "high", which was in neither the type nor `toneColors`, so all
+   *  four failing kinds fell through to the informational branch and rendered indigo. The unmapped
+   *  card meanwhile said "low", which that function painted RED: the queue's loudest colour on its
+   *  mildest finding and its quietest on every real failure. The seeded sample had a third reading
+   *  again (`low` for the blocking balance card). One vocabulary now, both paths. */
+  tone: "high" | "med" | "low";
   delta: string;
   target: string;
   calc: [string, string, boolean][];

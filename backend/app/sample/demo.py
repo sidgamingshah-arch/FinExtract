@@ -268,20 +268,20 @@ DEFAULT_INSPECTOR = {"tag": "Direct", "src": "p.142 (face)", "formula": "direct 
 # not showing the one that matters most. It is now the `unmapped` card below.
 REVIEW = [
     {"id": "bs", "type": "balance", "icon": "≠", "title": "Balance sheet does not balance",
-     "where": "Consolidated · Assets vs Equity & Liabilities", "severity": "Blocking", "tone": "low",
+     "where": "Consolidated · Assets vs Equity & Liabilities", "severity": "Blocking", "tone": "high",
      "delta": "Δ 1,240", "target": "tot_assets",
      "calc": [["Total assets", "12,68,100", False], ["Total equity & liabilities", "12,66,860", False], ["Difference", "1,240", True]],
      "fix": "The 1,240 cr related-party receivable was netted from Trade receivables but not removed from Other financial assets. Apply the Note 12.3 netting rule to Other financial assets."},
     # The third category: a printed subtotal its own components do not come to.
     {"id": "sub", "type": "calculated_mismatch", "icon": "≠", "title": "Section subtotal mismatch — Non-current assets",
-     "where": "Extracted 7,49,830 vs calculated 7,48,590", "severity": "High", "tone": "med",
+     "where": "Extracted 7,49,830 vs calculated 7,48,590", "severity": "High", "tone": "high",
      "delta": "Δ 1,240", "target": "sub_nca",
      "calc": [["Sum of extracted line items", "7,48,590", False], ["Reported subtotal", "7,49,830", False], ["Difference", "1,240", True]],
      "fix": "A duplicated Loans line (Note 7) is counted in both current and non-current. Reassign the 1,240 cr to current per note reference."},
     # A failed validation rule: the rulebook's sign expectation for an expense concept. The real
     # route serves a cross-concept guard as `structural` too — one type for "a declared rule broke".
     {"id": "sign", "type": "structural", "icon": "±", "title": "Sign anomaly — Finance costs positive",
-     "where": "Statement of P&L · expense shown as credit", "severity": "Medium", "tone": "med",
+     "where": "Statement of P&L · expense shown as credit", "severity": "Medium", "tone": "high",
      "delta": "+18,400", "target": "fin",
      "calc": [["Extracted value", "+18,400", False], ["Expected sign (expense)", "negative", True], ["Ontology rule", "debit / negative", False]],
      "fix": "Ontology sign rule for Finance costs is expense = negative. Flip sign to −18,400 to match statement convention."},
@@ -289,7 +289,7 @@ REVIEW = [
     # reaches no line of the output. Here it is the second way in — the caption mapped to a concept
     # this template declares nowhere — which is why the card can name what it was placed on.
     {"id": "unmapped", "type": "unmapped", "icon": "?", "title": "Deposits paid for land acquisition",
-     "where": "Consolidated · p.142 · Non-current assets", "severity": "Unmapped", "tone": "low",
+     "where": "Consolidated · p.142 · Non-current assets", "severity": "Unmapped", "tone": "med",
      "delta": "—", "target": "Deposits paid for land acquisition",
      "calc": [["Source label", "Deposits paid for land acquisition", False],
               ["Mapped to", "bs_nca__deposits_for_land", True],

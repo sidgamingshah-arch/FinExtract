@@ -97,9 +97,16 @@ import type { RemapTarget, ReviewCheck } from "../types";
 const KNOWN_STATUS = new Set(["open", "accepted", "stale"]);
 const ACCEPTABLE_STATUS = new Set(["open", "stale"]);
 
-/** tone → { accent, iconBg } — mirrors ac / ib in the wireframe. */
+/** tone → { accent, iconBg }. `tone` is a SEVERITY, not a colour name — see `ReviewCheck.tone`.
+ *
+ *  RED IS FOR A FAILED CHECK. This read `low → red, med → amber, else indigo`, and the server sends
+ *  `high` for every failing kind (balance, structural, calculated_mismatch, containment_gap) and
+ *  `low` for the row-shaped one — so the failures all fell through to indigo and the mildest card on
+ *  the queue was the only red thing on the screen. The mapping is now the severity it is given, and
+ *  the fall-through is the quiet end rather than the loud one: an unrecognised tone under-paints a
+ *  card instead of crying wolf on it, and the type makes an unrecognised tone a build error anyway. */
 function toneColors(tone: ReviewCheck["tone"]): { ac: string; ib: string } {
-  if (tone === "low") return { ac: color.redFg, ib: color.redBg };
+  if (tone === "high") return { ac: color.redFg, ib: color.redBg };
   if (tone === "med") return { ac: color.amberFg, ib: color.amberBg };
   return { ac: color.indigo, ib: color.indigoTint2 };
 }

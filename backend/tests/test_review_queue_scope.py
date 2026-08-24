@@ -179,6 +179,16 @@ def test_the_sample_speaks_the_real_routes_check_vocabulary(client):
     assert served <= set(_ACCOUNTING_TYPES) | set(_ROW_SHAPED_TYPES), served
     # …and it shows BOTH shapes, so a reader meets the accounting checks and the row-shaped finding.
     assert served & set(_ACCOUNTING_TYPES) and served & set(_ROW_SHAPED_TYPES)
+    # …and the same TONE vocabulary, which is a severity and not a colour name. It diverged three
+    # ways: the type declared "indigo" (never sent), `toneColors` painted "low" red, the real route
+    # sent "high" for every failure and "low" for the row-shaped card, and the sample sent "low" for
+    # its blocking balance card. Result on screen: the failures indigo, the mildest finding red.
+    tones = {c["type"]: c["tone"] for c in review["checks"]}
+    assert set(tones.values()) <= {"high", "med", "low"}, tones
+    for kind, tone in tones.items():
+        expected = "high" if kind in _ACCOUNTING_TYPES else "med"
+        assert tone == expected, f"{kind} is {tone}, not {expected}"
+
     # The chips partition the list, and every chip selects something — see `_demo_review_tabs`.
     buckets = [t for t in review["tabs"] if t["types"] is not None]
     assert sum(t["count"] for t in buckets) == len(review["checks"])
@@ -209,3 +219,185 @@ def test_a_card_kind_with_no_chip_fails_loudly_instead_of_going_invisible():
     for kind in ("low_confidence", "off_template", "uncomputed", "note_tie", "sign", "subtotal"):
         with pytest.raises(AssertionError, match=kind):
             _assert_known_kinds([{"type": "balance"}, {"type": kind}])
+
+
+# --------------------------------------------------------------------------------------------
+# A DEMOTED GROSS PARENT: not a mapping failure, and the real defect said in its own words
+# --------------------------------------------------------------------------------------------
+#
+# `map_ontology._enforce_containment` un-files a parent whose components are also on the face —
+# clears its `canonical_key`, demotes it to a subtotal, and records what replaced it in
+# `contains_mapped_children`. Its money is on the face, through those components.
+#
+# The stage ALSO wrote `low_mapping_confidence` on it when the components did not add up, to route
+# the unexplained part to review; its own comment says why ("without that, unfiling silently removes
+# the unexplained part of the figure from the statement and every remaining check ties"). So the
+# finding arrived as a LOW-CONFIDENCE card about a row whose mapping was an exact match at 1.0, and
+# when that card went it arrived as UNMAPPED, printing "— (no confident match)" about a caption the
+# mapper had recognised perfectly. Both labels were wrong about the same real defect.
+#
+# Measured on the China SCE 2023 filing: 5 of the 12 cards in the unmapped category were these.
+
+def _parent(label, children, value, *, gap_of=None, prior=None):
+    """A row shaped as the containment pass leaves a demoted parent."""
+    flags = [f"contains_mapped_children:{','.join(children)}"]
+    if gap_of:
+        flags += [f"containment_unexplained:{gap_of}:1", "low_mapping_confidence"]
+    values = [_value(value=str(value))]
+    if prior is not None:
+        values.append({**_value(value=str(prior)), "period_label": "prior"})
+    return {"id": str(uuid.uuid4()), "source_label": label, "canonical_key": None,
+            "role": "subtotal", "values": values, "flags": flags,
+            "mapping_confidence": 1.0, "mapping_method": "exact", "printed_in": "face"}
+
+
+def _kid(key, value, prior=None):
+    values = [_value(value=str(value))]
+    if prior is not None:
+        values.append({**_value(value=str(prior)), "period_label": "prior"})
+    return {"id": str(uuid.uuid4()), "source_label": key, "canonical_key": key,
+            "values": values, "flags": [], "mapping_confidence": 1.0}
+
+
+def test_a_demoted_gross_parent_is_not_reported_as_an_unmapped_face_item(client):
+    """It has no key, and a missing key is the shape of BOTH a mapping failure and a deliberate
+    demotion. Only the flag tells them apart, which is why the guard reads the flag."""
+    doc_id = _seed([
+        _parent("Cash and cash equivalents", ["bs_current_assets__restricted_cash"], 100),
+        _kid("bs_current_assets__restricted_cash", 100),
+        _row("Deferred consideration payable"),
+    ], "queue-demoted.pdf")
+    body = client.get(f"/api/v1/documents/{doc_id}/review?locale=en").json()
+
+    unmapped = [c for c in body["checks"] if c["type"] == "unmapped"]
+    assert [c["title"] for c in unmapped] == ["Deferred consideration payable"]
+    # Its components account for it exactly, so nothing at all is raised about it: that is the
+    # outcome the containment pass exists to produce, not a finding.
+    assert not [c for c in body["checks"] if c["type"] == "containment_gap"]
+
+
+def test_a_demoted_parent_its_components_do_not_account_for_is_raised_as_what_it_is(client):
+    """THE ASSERTION THAT FAILS WITH THE DEFECT RESTORED, on both halves of it.
+
+    The 400 the components do not explain is on no line of the spread — the parent was removed and
+    the children only carry 600 — so it has to be reported, and reported as what it is rather than
+    as a caption nobody recognised.
+    """
+    doc_id = _seed([
+        _parent("Cash and cash equivalents",
+                ["bs_current_assets__restricted_cash"], 1000,
+                gap_of="bs_current_assets__cash_and_cash_equivalents"),
+        _kid("bs_current_assets__restricted_cash", 600),
+    ], "queue-gap.pdf")
+    body = client.get(f"/api/v1/documents/{doc_id}/review?locale=en").json()
+
+    gaps = [c for c in body["checks"] if c["type"] == "containment_gap"]
+    assert len(gaps) == 1
+    card = gaps[0]
+    assert card["target"] == "bs_current_assets__cash_and_cash_equivalents"
+    assert card["delta"] == "400"
+    printed = {row[0]: row[1] for row in card["calc"]}
+    assert printed["Printed in the document"] == "1,000"
+    assert printed["Sum of the lines that replaced it"] == "600"
+    assert printed["Not on any line"] == "400"
+    # It names the CHILDREN, which are the lines an analyst checks against the page, and not the
+    # parent — the parent carries no key, so no grid line is it.
+    assert card["names"] == ["bs_current_assets__restricted_cash"]
+    # …and it is NOT also reported as an unmapped face figure: one defect, one card.
+    assert not [c for c in body["checks"] if c["type"] == "unmapped"]
+
+
+def test_the_containment_card_offers_no_mechanical_fix_and_says_the_fix_in_words(client):
+    """Writing the printed total back over the components would close the card and leave the
+    defect — the same anti-fix `_calculated_checks` refuses. The card explains instead."""
+    doc_id = _seed([
+        _parent("Cash and cash equivalents", ["bs_current_assets__restricted_cash"], 1000,
+                gap_of="bs_current_assets__cash_and_cash_equivalents"),
+        _kid("bs_current_assets__restricted_cash", 600),
+    ], "queue-gap-fix.pdf")
+    card = next(c for c in client.get(f"/api/v1/documents/{doc_id}/review?locale=en").json()["checks"]
+                if c["type"] == "containment_gap")
+    assert card["fix_action"] is None and card["remap"] is None
+    assert "counting the money twice" in card["fix"]
+
+
+def test_the_prior_column_is_checked_too_like_the_relation_cards_beside_it(client):
+    """A break in the prior column is a real break: the figures are extracted, served and exported.
+    The relation checks cover both columns (9 and 9 on the filing this was measured against), so
+    this does too — deliberately unlike `_calculated_checks`, which is current-only for its own
+    reasons."""
+    doc_id = _seed([
+        _parent("Cash and cash equivalents", ["bs_current_assets__restricted_cash"], 1000,
+                gap_of="bs_current_assets__cash_and_cash_equivalents", prior=900),
+        _kid("bs_current_assets__restricted_cash", 1000, prior=500),
+    ], "queue-gap-prior.pdf")
+    body = client.get(f"/api/v1/documents/{doc_id}/review?locale=en").json()
+
+    gaps = {c["subject"]["period"]: c for c in body["checks"] if c["type"] == "containment_gap"}
+    # Current ties exactly and raises nothing; prior is out by 400 and is raised.
+    assert set(gaps) == {"prior"}
+    assert gaps["prior"]["delta"] == "400"
+
+
+def test_an_edit_that_breaks_a_containment_raises_the_card_the_stage_never_flagged(client):
+    """THE ARITHMETIC DECIDES, NOT THE STAGE'S FLAG — the case that made the difference.
+
+    `containment_unexplained` records whether the components accounted for the parent AT EXTRACTION
+    TIME. This queue is rebuilt from the current figures on every fetch, so an analyst editing a
+    child in this very screen can open a gap the stage never saw. Gated on the flag, that break
+    would be on no card at all; and the mirror case — an edit that CLOSES a gap the stage did flag —
+    would keep being reported after it was fixed.
+
+    The row below carries no gap flag (the stage found none) and its components no longer add up.
+    """
+    doc_id = _seed([
+        _parent("Cash and cash equivalents", ["bs_current_assets__restricted_cash"], 1000),
+        _kid("bs_current_assets__restricted_cash", 600),
+    ], "queue-edited-gap.pdf")
+    body = client.get(f"/api/v1/documents/{doc_id}/review?locale=en").json()
+
+    gaps = [c for c in body["checks"] if c["type"] == "containment_gap"]
+    assert len(gaps) == 1 and gaps[0]["delta"] == "400"
+    # With no flag there is no concept to name it by — the key was cleared when it was un-filed — so
+    # it is identified by the caption, exactly as the row-shaped card identifies a keyless row.
+    assert gaps[0]["target"] == "Cash and cash equivalents"
+
+
+def test_a_containment_the_stage_flagged_and_an_edit_fixed_is_no_longer_reported(client):
+    """The mirror of the case above, and the reason a stale flag may not decide: the components now
+    account for the parent exactly, so the card is gone even though the flag is still on the row."""
+    doc_id = _seed([
+        _parent("Cash and cash equivalents", ["bs_current_assets__restricted_cash"], 1000,
+                gap_of="bs_current_assets__cash_and_cash_equivalents"),
+        _kid("bs_current_assets__restricted_cash", 1000),
+    ], "queue-fixed-gap.pdf")
+    body = client.get(f"/api/v1/documents/{doc_id}/review?locale=en").json()
+
+    assert not [c for c in body["checks"] if c["type"] == "containment_gap"]
+    # …and it is still not reported as an unmapped face figure either: it is a demotion, and its
+    # money is now entirely on the face through the line that replaced it.
+    assert not [c for c in body["checks"] if c["type"] == "unmapped"]
+
+
+def test_the_real_route_paints_a_failed_check_loudly_and_a_placement_gently(client):
+    """The same tone rule the sample is held to, on the route that serves real runs.
+
+    Both halves matter and both were wrong: a failed check must be the loud one (it was rendering
+    informational-indigo, because the server's "high" was in neither the TS type nor `toneColors`),
+    and the row-shaped card must NOT be (it said "low", which that function painted red — the
+    loudest colour on the queue's mildest finding).
+    """
+    import tests.test_review_judgement as tj
+    from app.api.routes.documents import _ACCOUNTING_TYPES, _build_review
+
+    figures = {"bs_total_assets": 100, "bs_total_equity_and_liabilities": -90,
+               "bs_equity__total_equity": 40, "bs_liabilities__total_liabilities": 60}
+    rows = [tj._row(k, v) for k, v in figures.items()]
+    rows.append({"source_label": "A caption nothing placed", "canonical_key": None,
+                 "values": [{"basis": "consolidated", "period_label": "current", "value": "5"}]})
+    checks = _build_review(rows, "d.pdf", "en", [], tj._real_structural_rows(figures),
+                           tj._shipped_template())["checks"]
+    tones = {c["type"]: c["tone"] for c in checks}
+    assert {"balance", "structural", "unmapped"} <= set(tones), tones
+    for kind, tone in tones.items():
+        assert tone == ("high" if kind in _ACCOUNTING_TYPES else "med"), f"{kind}={tone}"

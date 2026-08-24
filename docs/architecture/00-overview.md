@@ -21,8 +21,8 @@ Upload
     `running` — per-stage record + log tail. There is no WebSocket.
   → Extraction screen /extraction (stages while it runs; rows + click-to-source after)
   → Workspace (side-by-side source ↔ editable template grid)
-  → Review queue (unplaced face figures + failed validation rules + subtotals that do not
-    match their components) → resolve
+  → Review queue (three things only: unplaced face figures, failed validation rules, and
+    subtotals that do not match their components) → resolve
   → Export (Excel / JSON)
 ```
 

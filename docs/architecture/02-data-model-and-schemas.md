@@ -250,7 +250,11 @@ a persisted rule catalog:
 reaches no line of the output, whether because nothing claimed the caption or because it was
 claimed for a concept the run's template declares nowhere. It serves the tabs (with the
 check types each selects), the summary counts, `weak_mappings` (lines whose mapping is weak:
-counted, never carded), the coverage block, the in-force judgements and `remap_targets`. There is **no `RuleDefinition` catalog and no
+counted, never carded), the coverage block, the in-force judgements and `remap_targets`. The
+accounting kinds are `balance`, `equity_tie`, `structural`, `calculated_mismatch` and
+`containment_gap` (a printed combined total the lines that replaced it do not account for);
+`_ACCOUNTING_TYPES` / `_ROW_SHAPED_TYPES` declare that set and `_assert_known_kinds` holds
+every served card to it. There is **no `RuleDefinition` catalog and no
 `ReviewItem` table**: the only persisted review state is the human verdict
 (`ReviewJudgement`), which is deliberate — a finding is derived from the run, so storing it
 would create a second copy to go stale.

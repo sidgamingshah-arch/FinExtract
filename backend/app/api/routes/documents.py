@@ -347,6 +347,65 @@ _TR.update({
     # The unmapped card's own subject matter. "Mapped to" carries the concept when the row DID map to
     # one the template does not declare — the two ways into that one category — and the em-dash
     # sentence when nothing claimed the caption at all.
+    # THE CARDS' SHARED CHROME AND THE TWO OLDEST CARDS' PROSE, which had no entries at all: the
+    # balance card's title and fix, the calculated card's title, fix and both calc labels, the
+    # severity every accounting card prints, and the accounting chip. Requirement 21 is input=output
+    # parity, and the queue's most prominent card was served in English under a Chinese, Arabic or
+    # French heading. Found by sweeping every string the route actually serves against this table
+    # (tests/test_review_locales.py does that sweep now, so it cannot silently regrow).
+    "Check failed": {"zh": "校验未通过", "ar": "فشل الفحص", "fr": "Contrôle en échec"},
+    "Checks": {"zh": "校验", "ar": "الفحوص", "fr": "Contrôles"},
+    "Balance sheet does not balance": {
+        "zh": "资产负债表不平衡", "ar": "الميزانية العمومية غير متوازنة",
+        "fr": "Le bilan n'est pas équilibré"},
+    "Assets do not equal equity plus liabilities. Check the extracted totals and their components "
+    "against the document.": {
+        "zh": "资产总额不等于权益与负债之和。请对照原文核对提取的合计及其组成项目。",
+        "ar": "الأصول لا تساوي حقوق الملكية زائد الالتزامات. راجع المجاميع المستخرجة ومكوّناتها "
+              "مقابل المستند.",
+        "fr": "L'actif n'égale pas les capitaux propres plus le passif. Vérifiez les totaux "
+              "extraits et leurs composantes par rapport au document."},
+    "Printed subtotal differs from its components": {
+        "zh": "列示小计与其组成项目不符", "ar": "المجموع الفرعي المطبوع يخالف مكوّناته",
+        "fr": "Le sous-total imprimé diffère de ses composantes"},
+    "The face shows the computed figure. The document printed a different one, so a component is "
+    "mis-mapped, missing, or double-counted — check the components below against the page.": {
+        "zh": "报表表面显示的是计算值。文件列示的数字与之不同，说明某个组成项目映射错误、缺失或被重复计算——"
+              "请对照原页核对下列组成项目。",
+        "ar": "يعرض وجه القائمة الرقم المحسوب، وقد طبع المستند رقمًا مختلفًا: أي أن أحد المكوّنات "
+              "مُطابَق خطأً أو مفقود أو محتسب مرتين — راجع المكوّنات أدناه مقابل الصفحة.",
+        "fr": "L'état affiche le chiffre calculé. Le document en a imprimé un autre : une "
+              "composante est mal rattachée, manquante ou comptée deux fois — vérifiez les "
+              "composantes ci-dessous par rapport à la page."},
+    "Printed in the document": {"zh": "文件列示值", "ar": "المطبوع في المستند",
+                                "fr": "Imprimé dans le document"},
+    "Computed from components": {"zh": "由组成项目计算", "ar": "محسوب من المكوّنات",
+                                 "fr": "Calculé à partir des composantes"},
+    # The containment card: a printed combined total the lines that replaced it do not account for.
+    "Printed total does not match the lines that replaced it": {
+        "zh": "列示合计与替代其的行不一致",
+        "ar": "الإجمالي المطبوع لا يطابق السطور التي حلّت محلّه",
+        "fr": "Le total imprimé ne correspond pas aux lignes qui l'ont remplacé"},
+    "Sum of the lines that replaced it": {
+        "zh": "替代其的各行合计", "ar": "مجموع السطور التي حلّت محلّه",
+        "fr": "Somme des lignes qui l'ont remplacé"},
+    "Not on any line": {"zh": "未计入任何行", "ar": "غير مدرج في أي سطر",
+                        "fr": "Sur aucune ligne"},
+    "This caption was printed as a combined total and its components are on the face as well, so "
+    "the combined line was removed to stop the section counting the money twice. The components do "
+    "not add up to it, so the difference is on no line: a component is missing from the extraction, "
+    "or this caption is not their total. Check the page.": {
+        "zh": "该标签以合计形式列示，而其组成项目也出现在报表表面，因此已移除该合计行，以避免该分部重复计算金额。"
+              "各组成项目之和与该合计不符，故差额未计入任何行：可能是提取时遗漏了某个组成项目，或该标签并非"
+              "这些项目的合计。请核对原页。",
+        "ar": "طُبع هذا العنوان كإجمالي مجمَّع، ومكوّناته مدرجة على وجه القائمة أيضًا، فحُذف السطر المجمَّع "
+              "لمنع احتساب المبلغ مرتين في هذا القسم. ومجموع المكوّنات لا يساوي هذا الإجمالي، فالفرق غير "
+              "مدرج في أي سطر: إمّا أن مكوّنًا لم يُستخرج، أو أن هذا العنوان ليس إجماليها. راجع الصفحة.",
+        "fr": "Ce libellé était imprimé comme un total combiné et ses composantes figurent aussi sur "
+              "l'état : la ligne combinée a donc été retirée pour éviter que la section ne compte le "
+              "montant deux fois. Les composantes n'en font pas la somme, si bien que l'écart ne "
+              "figure sur aucune ligne : soit une composante manque à l'extraction, soit ce libellé "
+              "n'est pas leur total. Vérifiez la page."},
     "Source label": {"zh": "原始标签", "ar": "التسمية الأصلية", "fr": "Libellé source"},
     "Mapped to": {"zh": "映射到", "ar": "مطابق إلى", "fr": "Rattaché à"},
     "— (no confident match)": {"zh": "—（无可信匹配）", "ar": "— (لا تطابق موثوق)",
@@ -1205,7 +1264,8 @@ _Assertion = tuple[str, str, str, int]
 # `off_template` (folded into `unmapped`: one category, two ways in), `uncomputed` (a subtotal with no
 # components is a coverage fact, reported in the coverage band and the line's own note) and
 # `note_tie`.
-_ACCOUNTING_TYPES = frozenset({"balance", "equity_tie", "structural", "calculated_mismatch"})
+_ACCOUNTING_TYPES = frozenset({"balance", "equity_tie", "structural", "calculated_mismatch",
+                               "containment_gap"})
 _ROW_SHAPED_TYPES = frozenset({"unmapped"})
 
 
@@ -1231,6 +1291,140 @@ _ASSERTED_DIFF_KEY = {
     "structural": "diff",
     "calculated_mismatch": "diff",
 }
+
+
+_CHILDREN_FLAG = "contains_mapped_children:"
+_GAP_FLAG = "containment_unexplained:"
+
+
+def _demoted_parent(row: dict) -> list[str] | None:
+    """The concepts a DEMOTED GROSS PARENT was replaced by, or None if this row is not one.
+
+    A filing that prints "Cash and cash equivalents" and, under it, the restricted and pledged
+    balances that are part of it, has printed the parent GROSS. Filing both double-counts, so
+    ``map_ontology._enforce_containment`` un-files the parent — clears its ``canonical_key`` and
+    demotes it to a subtotal — and records what replaced it in this flag.
+
+    THE FLAG IS THE POSITIVE SIGNAL, and a cleared key is not: a row with no key is the shape of a
+    mapping failure AND the shape of a deliberate demotion, and only the flag tells them apart.
+    Read here so that both readers below ask one question — the queue, which must not report a
+    demotion as "nothing recognised this caption", and the containment card, which reports what
+    actually went wrong when something did.
+    """
+    flags = row.get("flags") or []
+    if row.get("canonical_key"):
+        return None
+    kids = next((f for f in flags if f.startswith(_CHILDREN_FLAG)), None)
+    if kids is None:
+        return None
+    return [k for k in kids[len(_CHILDREN_FLAG):].split(",") if k]
+
+
+def _containment_checks(rows: list[dict], locale: str, template_def: dict | None) -> list[dict]:
+    """A printed aggregate the components extracted under it do not account for.
+
+    THE THIRD CATEGORY, on the one shape of it that is not a template rollup. A gross parent whose
+    children are also on the face is un-filed to stop the section counting the money twice
+    (``map_ontology._enforce_containment``) — and where the children do not add up to the parent,
+    part of the printed figure now appears on NO line at all. The stage's own comment says why that
+    has to be reported: "without that, unfiling silently removes the unexplained part of the figure
+    from the statement and every remaining check ties."
+
+    IT USED TO BE REPORTED BY ACCIDENT, and that is what this replaces. The stage appended
+    ``low_mapping_confidence`` to route the row to review, so the finding arrived as a
+    low-confidence card — a card about a mapping's strength, describing a row whose mapping was an
+    EXACT match at 1.0. When that card went, this row still reached the queue, now as ``unmapped``,
+    printing "— (no confident match)" about a caption the mapper had recognised perfectly. Both
+    labels were wrong about the same real defect. This says what happened.
+
+    A demotion whose children DO account for the parent raises nothing: the money is all on the
+    face, through the children, which is the outcome the containment pass exists to produce.
+
+    THE ARITHMETIC IS RECOMPUTED FROM THE SERVED ROWS, not read off the stage's flag (which carries
+    only a column count). The card then prints the same figures the grid does — the rule this module
+    keeps everywhere: checking a different number than the reader is shown is worse than not
+    checking.
+    """
+    def L(s: str) -> str:
+        return _t(s, locale)
+
+    from app.services import judgement
+    from app.services.rollups import node_labels
+
+    names = node_labels(template_def, locale) if template_def else {}
+    groups: dict[str, list[dict]] = {}
+    for r in rows:
+        k = r.get("canonical_key")
+        if k:
+            groups.setdefault(k, []).append(r)
+
+    out: list[dict] = []
+    for i, r in enumerate(rows):
+        kids = _demoted_parent(r)
+        if not kids:
+            continue
+        # THE ARITHMETIC BELOW DECIDES, NOT THE STAGE'S FLAG. The stage writes
+        # `containment_unexplained` when the components did not account for the parent AT EXTRACTION
+        # TIME, and this queue is rebuilt from the current figures on every fetch: an analyst edit to
+        # a child can close a gap the stage found, or open one it did not. Gating on the flag would
+        # keep serving the first and never serve the second — a real break, on no card, after an edit
+        # the analyst made in this very screen. So the flag is read for the NAME only.
+        gap = next((f for f in (r.get("flags") or []) if f.startswith(_GAP_FLAG)), None)
+        # The concept this row WAS before it was un-filed. Only the flag remembers — the key was
+        # cleared — so with no flag the card is identified by the caption instead, exactly as the
+        # row-shaped card identifies a row with no concept. `target` is a caption there too.
+        aggregate = (gap[len(_GAP_FLAG):].rsplit(":", 1)[0] if gap
+                     else (r.get("source_label") or ""))
+        if not aggregate:
+            continue                # nothing to name it by at all: no card rather than a blank one
+        label = r.get("source_label") or names.get(aggregate, aggregate)
+        # BOTH COLUMNS, like the relation checks beside it (9 current + 9 prior on the filing this
+        # was measured against) and unlike the calculated path, which is current-only. A break in the
+        # prior column is a real break — the figures are extracted, served and exported — and this
+        # card's arithmetic is available per column, so there is nothing to scope away. Do not narrow
+        # it to current for symmetry with `_calculated_checks`; that path's limit is its own.
+        for basis in ("consolidated", "standalone"):
+            for period in ("current", "prior"):
+                # A group of ONE, deliberately: the same reader the components go through and the
+                # same one the grid uses, so the figures on the card are the figures on screen.
+                printed = _concept_value([r], basis, period)
+                if printed is None:
+                    continue
+                parts = [(k, _concept_value(groups.get(k, []), basis, period)) for k in kids]
+                got = [(k, v) for k, v in parts if v is not None]
+                if not got:
+                    continue        # nothing to compare in this column, not a disagreement
+                total = sum(v for _k, v in got)
+                diff = printed - total
+                if abs(diff) <= _CALC_TOLERANCE:
+                    continue
+                out.append({
+                    "id": f"chk-containment-{i}-{basis}-{period}",
+                    "type": "containment_gap", "icon": "⊃",
+                    "title": L("Printed total does not match the lines that replaced it"),
+                    "where": f"{label} · {basis}/{period}",
+                    "severity": L("Check failed"), "tone": "high",
+                    "delta": f"{diff:,.0f}", "target": aggregate,
+                    # The parent is NOT named: it carries no key, so no grid line is it. The children
+                    # are, because they are the lines an analyst checks against the page.
+                    "names": [k for k, _v in got],
+                    "calc": [[L("Printed in the document"), f"{printed:,.0f}", False],
+                             [L("Sum of the lines that replaced it"), f"{total:,.0f}", True],
+                             [L("Not on any line"), f"{diff:,.0f}", False],
+                             *[[names.get(k, k), f"{v:,.0f}", False] for k, v in got]],
+                    "fix": L("This caption was printed as a combined total and its components are "
+                             "on the face as well, so the combined line was removed to stop the "
+                             "section counting the money twice. The components do not add up to "
+                             "it, so the difference is on no line: a component is missing from the "
+                             "extraction, or this caption is not their total. Check the page."),
+                    "subject": {"k": "containment_gap", "key": aggregate, "basis": basis,
+                                "period": period},
+                    "evidence": {"printed": judgement.q(printed),
+                                 "components_total": judgement.q(total),
+                                 "diff": judgement.q(diff),
+                                 "components": {k: judgement.q(v) for k, v in got}},
+                })
+    return out
 
 
 def _card_scope(check: dict) -> tuple[str, str] | None:
@@ -1554,6 +1748,10 @@ def _accounting_checks(rows: list[dict], reconciliation: list[dict], locale: str
         # card anywhere reported it.
         stats["failed_reported_elsewhere"] = sum(
             1 for res in (structural or []) if _relation_reported_elsewhere(res, reported))
+    # Before the calculated path, so its assertions are in the set that path is tested against: a
+    # containment gap and a template rollup on the same line in the same column are the same
+    # difference, and the reader needs it once.
+    checks += _containment_checks(rows, locale, template_def)
     # The assertions are taken here — AFTER the relations, because a relation card is exactly what
     # legitimately covers a calculated line's mismatch: a rollup relation and a calculated line's
     # mismatch are the same arithmetic over the same components, so their assertions coincide and the
@@ -2124,6 +2322,16 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
                             and i not in on_a_matrix)
 
         if not key or off_template:
+            # A DEMOTED GROSS PARENT IS NOT A MAPPING FAILURE. It mapped — often exactly — and was
+            # then un-filed on purpose, because its components are on the face too and filing both
+            # would count the money twice (`map_ontology._enforce_containment`). Its money IS on the
+            # face, through those components. Reporting it here told the reader "nothing recognised
+            # this caption" about a caption recognised at 1.0, and on the real filing it was 5 of the
+            # 12 cards in this category. Where the components do NOT add up to it, that IS a finding
+            # and `_containment_checks` raises it as what it is: a printed total the lines that
+            # replaced it do not account for.
+            if _demoted_parent(r) is not None:
+                continue
             # ON THE FACE OF THE STATEMENTS, which is the whole of this category. Two positive
             # signals exclude a row, and both are POSITIVE on purpose — a row the extraction could
             # not place anywhere is judged as before, so an unstamped row cannot fall out of the
@@ -2151,7 +2359,11 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
             checks.append({
                 "id": f"chk-unmapped-{i}", "type": "unmapped", "icon": "?",
                 "title": r.get("source_label", "Line item"), "where": where,
-                "severity": L("Unmapped"), "tone": "low", "delta": "—",
+                # `med`, not `high`: this is a figure to PLACE, not an arithmetic failure. It
+                # used to say `low`, which the screen painted red — the loudest colour on the queue
+                # went to its mildest finding while every failed check rendered informational-indigo.
+                # See `toneColors` in Review.tsx for the vocabulary all three now share.
+                "severity": L("Unmapped"), "tone": "med", "delta": "—",
                 "target": r.get("source_label", ""),
                 # Localized like every other card's labels: "Value" already had a translation that
                 # this expression never asked for, which is a translation that does not reach the
