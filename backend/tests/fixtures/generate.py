@@ -82,6 +82,62 @@ def make_unmapped_row_pdf() -> bytes:
     return buf.getvalue()
 
 
+def make_containment_gap_pdf() -> bytes:
+    """A gross parent printed beside a component it contains, not accounted for by it.
+
+    The shipped rulebook declares that ``bs_current_assets__cash_and_cash_equivalents`` CONTAINS
+    ``bs_current_assets__restricted_cash``, so printing both means the parent was printed gross:
+    ``map_ontology._enforce_containment`` un-files the parent to stop the section counting the money
+    twice, and 1,204 − 500 = 704 of the printed figure then sits on no line. That is one
+    ``containment_gap`` card.
+
+    FOR THE PATHS THAT NEED A FINDING OVER A MAPPED CONCEPT — one whose figures can then be moved
+    through the line-item PATCH, which is what makes an accepted judgement go stale. Three properties
+    are deliberate, and each was arrived at by a fixture that lacked it:
+
+    * ONE card, with a UNIQUE identity. A printed subtotal that disagrees with its components raises
+      the section's rollup AND its reconciliation — two cards under ONE ``subject_key``, an ambiguous
+      pair — so a locator keyed on that identity matches twice and accepting one accepts both.
+    * a card that NAMES AN EXTRACTED LINE (``names`` is the child), so there is a real row to edit.
+      A relation card names every concept its section declares, most of which this filing has no row
+      for, and its own target is a CALCULATED line that a printed figure may not be written onto.
+    * a PRIOR COLUMN THAT TIES (1,100 against 1,100), so an edit to the current column leaves the
+      prior one alone and "exactly one card went stale" is a real assertion rather than an artefact
+      of there being only one card in the queue.
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    _width, height = A4
+    y = height - 72
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(72, y, "Balance Sheet")
+    c.setFont("Helvetica", 9)
+    y -= 20
+    c.drawRightString(470, y, "2023")
+    c.drawRightString(540, y, "2022")
+    c.setFont("Helvetica", 10)
+    # NO SECTION SUBTOTAL is printed, on purpose: one would raise the section's relations as well,
+    # which is the ambiguous pair the docstring above is about.
+    for label, note, cur, prior in [
+            ("Current assets", "", "", ""),
+            ("Cash and cash equivalents", "Note 14", "1,204", "1,100"),
+            ("Restricted cash", "Note 16", "500", "1,100")]:
+        y -= 24
+        c.drawString(72, y, label)
+        if note:
+            c.drawString(320, y, note)
+        if cur:
+            c.drawRightString(470, y, cur)
+        if prior:
+            c.drawRightString(540, y, prior)
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
 def make_dual_basis_pdf() -> bytes:
     """A native PDF whose columns are a two-level Consolidated | Standalone header, each with
     a current + prior period — for testing consolidated+standalone extraction in one pass."""

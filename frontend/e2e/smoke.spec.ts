@@ -1825,6 +1825,10 @@ async function apiSend(
  * `undefined` and quietly satisfying a comparison. */
 interface JCheck {
   id: string; type: string; title: string; where: string; status: string; delta: string;
+  // `target` is the line the card is ABOUT and `names` the extracted lines it indicts — read
+  // together to find a concept whose figure can be moved, without this file needing to know which
+  // subject field each card kind happens to carry its concept in.
+  target: string; names: string[] | null;
   subject: Record<string, unknown>; subject_key: string | null;
   evidence: Record<string, unknown>; evidence_digest: string;
   calc: [string, string, boolean][];
@@ -2272,8 +2276,7 @@ test("an acceptance stops reading 'accepted' the moment the figures it was made 
   // rule stayed "accepted" on the strength of one person having examined one of them, and dropped
   // out of the open count entirely. The digest now fingerprints the violation SET.
   //
-  // That cannot be driven from this browser: none of the three e2e fixtures fails a rulebook guard
-  // (sample.pdf raises one low-confidence finding; comparative.pdf and sample.xlsx raise none), so
+  // That cannot be driven from this browser: none of the e2e fixtures fails a rulebook guard, so
   // making an acceptance on a guard go stale needs a filing that violates one — a fixture this
   // suite does not have. The per-guard-kind proof is in the backend suite. What only a browser can
   // prove, and what nothing proved before, is that the stale state reaches the screen at all: that
@@ -2281,10 +2284,21 @@ test("an acceptance stops reading 'accepted' the moment the figures it was made 
   // rather than the ones now on the card.
   test.setTimeout(240_000);
   await loginAs(page, "admin");
-  // `unmapped.pdf`: this test needs a card on the review queue, and sample.pdf raises none —
-  // its captions are all exact aliases, so every row maps at 1.0 and the queue comes back
-  // `open: 0, passed: 4`. See the accept-and-reload test above for the full account.
-  const doc = await extractFixture(page, "unmapped.pdf");
+  // `containment-gap.pdf`, not `unmapped.pdf`. This test needs a finding OVER A MAPPED CONCEPT,
+  // because what it does next is move that concept's figure — and `unmapped.pdf`'s one finding is
+  // about a caption nothing placed, which has no concept to edit. It used to have one, through a
+  // LOW-CONFIDENCE card over a mapped row; that card is retired (a mapping's strength is not one of
+  // the three things this queue reports), so this test's vehicle went with it.
+  //
+  // The fixture prints a gross parent beside a component it contains, so the finding is a property
+  // of its FIGURES rather than of how the mapper happens to score — the same reason `unmapped.pdf`
+  // is shaped the way it is. It raises ONE card, under a UNIQUE identity, naming an EXTRACTED line,
+  // with a prior column that ties; each of those is load-bearing here and each was learned from a
+  // fixture that lacked it (see `make_containment_gap_pdf`). A printed subtotal that disagrees with
+  // its components looked like the obvious choice and is not: it raises the section's rollup AND its
+  // reconciliation under one `subject_key`, so `cardForSubject` matches two elements and accepting
+  // one accepts both.
+  const doc = await extractFixture(page, "containment-gap.pdf");
   await page.goto("/review", DCL);
   await expect(page.getByRole("heading", { name: "Review queue" })).toBeVisible({ timeout: 15_000 });
   await clearJudgements(page, doc);
@@ -2292,14 +2306,28 @@ test("an acceptance stops reading 'accepted' the moment the figures it was made 
   await expect(page.getByRole("heading", { name: "Review queue" })).toBeVisible({ timeout: 15_000 });
 
   const rev = await apiGet<JReview>(page, `/api/v1/documents/${doc}/review?locale=en`);
-  // A finding whose figure can be moved needs a canonical key to edit. Stated as a failure rather
-  // than skipped: a test that quietly asserts nothing is worse than one that says out loud that
-  // the fixture stopped raising what it was written for.
-  const target = rev.checks.find(
-    (c) => c.status === "open" && !!c.subject_key && typeof c.subject.key === "string");
-  expect(target, "the fixture must raise a judgeable finding over a MAPPED line, whose figure can "
-                 + "then be moved").toBeTruthy();
-  const key = target!.subject.key as string;
+  const rows = (await apiGet<NRun>(page, `/api/v1/documents/${doc}/run`)).result.rows;
+  const extracted = new Set(rows.map((r) => r.canonical_key).filter(Boolean) as string[]);
+  // The concept to move is taken from what the card SAYS IT INDICTS (`names`), not from one subject
+  // field: a relation card names its target and its components, a calculated card carries
+  // `subject.key`, and this test is about the staleness mechanism rather than either card's shape.
+  //
+  // A COMPONENT, NOT THE TARGET. A section relation's target is a CALCULATED line, and writing a
+  // printed figure onto one is the anti-fix this queue refuses to offer; a component is a real
+  // extracted line, and checking one against the page is what the card's own fix text asks for.
+  // Restricted to concepts this run actually extracted, because `names` lists every concept the
+  // section declares and a PATCH to one with no row would fail for an unrelated reason.
+  let target: (typeof rev.checks)[number] | undefined;
+  let key = "";
+  for (const c of rev.checks) {
+    if (c.status !== "open" || !c.subject_key) continue;
+    const editable = (c.names ?? []).find((n) => n !== c.target && extracted.has(n));
+    if (editable) { target = c; key = editable; break; }
+  }
+  // Stated as a failure rather than skipped: a test that quietly asserts nothing is worse than one
+  // that says out loud that the fixture stopped raising what it was written for.
+  expect(target, "the fixture must raise a judgeable finding naming an extracted concept whose "
+                 + "figure can then be moved").toBeTruthy();
 
   const card = cardForSubject(page, target!.subject_key as string);
   await expect(card).toHaveAttribute("data-status", "open", { timeout: 20_000 });
