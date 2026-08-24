@@ -314,6 +314,45 @@ def make_multipage_pdf() -> bytes:
     return buf.getvalue()
 
 
+def make_sub_note_pdf() -> bytes:
+    """A face row citing a SUB-NOTE of a note table numbered without the sub-part.
+
+    The shape a real HK filing prints and the one the citation rule exists for: the balance sheet
+    says "16(b)" beside trade receivables, and the notes section prints ONE table numbered 16 with
+    (a) and (b) inside it. The printed citation therefore matches no note table by name, and every
+    stage that reads citations by name — link, prune, section segmentation — has to fall back to
+    the parent or leave the figure with nothing behind it.
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    width, height = A4
+
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(72, height - 72, "Consolidated Statement of Financial Position")
+    c.setFont("Helvetica", 10)
+    y = height - 100
+    for label, note, value in [("Trade receivables", "16(b)", "3,410"),
+                               ("Cash and cash equivalents", "17", "1,204")]:
+        c.drawString(72, y, label)
+        c.drawString(320, y, f"Note {note}")
+        c.drawRightString(500, y, value)
+        y -= 24
+    c.showPage()
+
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(72, height - 72, "Notes to the Financial Statements")
+    c.setFont("Helvetica", 10)
+    c.drawString(72, height - 100, "Note 16: Trade and other receivables")
+    c.drawString(72, height - 120, "Trade receivables      3,410")
+    c.drawString(72, height - 140, "Prepayments      120")
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
 def make_company_statement_after_notes_pdf() -> bytes:
     """THE HK HOUSE STYLE THAT MIS-LOADS: the Group's balance sheet, a note, then the COMPANY's own
     balance sheet printed after the notes with the SAME title minus the word "consolidated".

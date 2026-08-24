@@ -81,10 +81,20 @@ depends on nothing computed at upload and is reproducible from the file alone.
    transformation** — a figure arriving with the opposite sign is flagged and its sign
    confidence drops; the value is left as reported.
 9. **Link notes** (`stages/link_notes.py`) — builds `FaceNoteLink`s from each face line's
-   `note_refs` / `note_number` against an index of the extracted `NotesTable`s, labelling
-   the relationship (`ONE_TO_ONE` / `NOTE_SPLITS_TO_MANY_FACE` / `MANY_NOTES_TO_ONE_FACE`)
-   from the citation counts. Amount validation is the **reconcile** stage's job, not this
-   one's — see [03-reconciliation](03-reconciliation.md).
+   citations against an index of the extracted `NotesTable`s, labelling the relationship
+   (`ONE_TO_ONE` / `NOTE_SPLITS_TO_MANY_FACE` / `MANY_NOTES_TO_ONE_FACE`) from the citation
+   counts. Amount validation is the **reconcile** stage's job, not this one's — see
+   [03-reconciliation](03-reconciliation.md).
+
+   **Which notes a row cites is one definition, `LineItem.cited_notes_among`**, shared with
+   *prune notes* (what gets published) and the **segment** stage (which section a note is filed
+   under). Three stages reading citations three ways meant a filing could have a note published
+   but unlinked, or linked but filed where its citing row could not see it. A printed
+   sub-reference resolves to its **parent** note when the sub-part is not itself a table —
+   a balance sheet saying `16(b)` beside a figure and a notes section printing one table
+   numbered `16` is the common HK house style, and the citation as printed matches nothing. The
+   fallback applies only when the citation itself names no table, so no row is ever tied to both
+   a sub-note and its parent — the reconciliation would subtract the same detail twice.
 10. **Reconcile** (`stages/reconcile.py` + `services/reconcile.py`) — the §20 subtraction
     and the note→face tie grading (see [03-reconciliation](03-reconciliation.md)).
 11. **Prune notes** (`stages/prune_notes.py`) — publishes only the notes a face line

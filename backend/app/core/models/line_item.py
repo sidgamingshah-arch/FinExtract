@@ -6,6 +6,8 @@ represented uniformly and reconciliation/validation operate per basket.
 """
 from __future__ import annotations
 
+import re
+from collections.abc import Container
 from datetime import date
 from decimal import Decimal
 from uuid import UUID, uuid4
@@ -40,6 +42,21 @@ class NoteRef(BaseModel):
     raw: str
     numbers: list[str] = Field(default_factory=list)   # "5", ranges expanded
     subrefs: list[str] = Field(default_factory=list)    # "12(a)"
+
+
+_NOTE_BASE = re.compile(r"^\s*(\d{1,3})")
+
+
+def base_note_number(token: str | None) -> str | None:
+    """The parent note a printed sub-reference belongs to — ``"16(b)"`` -> ``"16"``.
+
+    ``None`` for a citation that is already a bare number, so a caller can tell "this token has a
+    parent" from "this token IS the parent" without comparing strings.
+    """
+    m = _NOTE_BASE.match(token or "")
+    if m is None:
+        return None
+    return None if m.group(1) == (token or "").strip() else m.group(1)
 
 
 class ValueKey(BaseModel, frozen=True):
@@ -138,6 +155,52 @@ class LineItem(BaseModel):
     is_computed: bool = False
     source: ValueSource = ValueSource.MACHINE
     confidence: ConfidenceVector = Field(default_factory=ConfidenceVector)
+
+    def cited_notes(self) -> list[str]:
+        """Every note number this row cites, AS PRINTED, in citation order.
+
+        One definition of "which notes does this row point at", because three stages need it and
+        each had written its own: ``link_notes`` (what to link), ``prune_notes`` (what to publish)
+        and ``services.buckets`` (which section to file a note under). They disagreed, so a filing
+        could have a note published but unlinked, or linked but filed in the wrong section.
+
+        BOTH SPELLINGS OF A SUB-REFERENCE. ``NoteRef`` has a ``subrefs`` field for "16(b)", but
+        neither reader uses it — ``row_reconstruct`` and ``excel_extract`` both put the whole
+        printed token into ``numbers``, sub-reference and all. Reading only ``subrefs`` therefore
+        reads a field that is always empty, so both are read here.
+
+        ``note_number`` is the fallback for a row whose reference was scanned from the note column
+        without being parsed into a ``NoteRef`` — the shape ``residual`` gives a face row it
+        synthesised out of a note item.
+        """
+        out: list[str] = []
+        for ref in self.note_refs:
+            for token in (*ref.numbers, *ref.subrefs):
+                token = (token or "").strip()
+                if token and token not in out:
+                    out.append(token)
+        if not out and self.note_number:
+            out.append(self.note_number.strip())
+        return [t for t in out if t]
+
+    def cited_notes_among(self, available: Container[str]) -> list[str]:
+        """The notes this row cites THAT EXIST in ``available``, in citation order.
+
+        A SUB-REFERENCE FALLS BACK TO ITS PARENT NOTE. A filing writes "16(b)" beside a face row and
+        prints one note table numbered "16" with (a), (b), (c) inside it — so the citation as
+        printed matches no table, and the row was left with no note behind it at all: unlinked,
+        its note unpublished, and its section holding nothing that explains the figure.
+
+        The parent is used ONLY when the citation itself names nothing, so a filing that numbers
+        the table "16(b)" links to that table exactly, and no row is ever tied to both a sub-note
+        and its parent (which would let the reconciliation subtract the same detail twice).
+        """
+        out: list[str] = []
+        for token in self.cited_notes():
+            hit = token if token in available else base_note_number(token)
+            if hit and hit in available and hit not in out:
+                out.append(hit)
+        return out
 
     def set_value(self, ev: ExtractedValue) -> None:
         self.values[ev.key.model_dump_json()] = ev

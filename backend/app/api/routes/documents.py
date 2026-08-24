@@ -4742,11 +4742,23 @@ def _note_no(raw) -> int | None:
 
 
 def _rows_by_note(rows: list[dict]) -> dict[int, list[dict]]:
+    """Face rows grouped by the note they cite — the "linked line" the notes screen names.
+
+    Keyed off the row's RESOLVED linkage (``notes``, see ``extractions._linked_notes``) rather than
+    off the note column as printed. A row citing "16(b)" of a table numbered "16" belongs under
+    note 16; re-deriving that here from the printed token would file it under nothing, and would be
+    a fourth place answering "which notes does this row cite" — the rule lives in
+    ``LineItem.cited_notes_among`` and the linkage is what it produced.
+
+    The printed column is the fallback for a run stored before rows carried their linkage.
+    """
     grouped: dict[int, list[dict]] = {}
     for r in rows:
-        n = _note_no(r.get("note"))
-        if n is not None:
-            grouped.setdefault(n, []).append(r)
+        cited = r.get("notes") or ([r.get("note")] if r.get("note") else [])
+        for raw in cited:
+            n = _note_no(raw)
+            if n is not None:
+                grouped.setdefault(n, []).append(r)
     return grouped
 
 

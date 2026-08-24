@@ -278,6 +278,7 @@ def _pages_of_item(li) -> list[int]:
 def segment_source(doc: DocumentModel, ontology=None) -> BucketedSource:
     """The whole segmentation. Every face row and every note lands in exactly one bucket."""
     section_by_key = _section_by_key(ontology) if ontology is not None else {}
+    note_numbers = {str(n.note_number) for n in doc.notes if n.note_number is not None}
     declared_by_key = _declared_bucket_by_key(ontology) if ontology is not None else {}
     stmt_by_page = _statement_by_page(doc)
     note_pages = {p.index for p in doc.pages if p.kind == PageKind.NOTES}
@@ -325,10 +326,13 @@ def segment_source(doc: DocumentModel, ontology=None) -> BucketedSource:
             out.unresolved_face_item_ids.append(str(li.id))
         elif reason == "unknown_section" and section:
             unknown.add(section)
-        for ref in li.note_refs:
-            for number in (ref.numbers or ([ref.raw] if ref.raw else [])):
-                cited_by.setdefault(str(number), {}).setdefault(bucket, 0)
-                cited_by[str(number)][bucket] += 1
+        # WHICH NOTES THIS ROW CITES, resolved against the notes that exist by the same rule the
+        # linker uses (``LineItem.cited_notes_among``) — so a note is filed under the section of
+        # every row the API will show it under, and a row citing "16(b)" of a note table numbered
+        # "16" files note 16 here instead of filing nothing and leaving the figure unexplained.
+        for number in li.cited_notes_among(note_numbers):
+            cited_by.setdefault(number, {}).setdefault(bucket, 0)
+            cited_by[number][bucket] += 1
 
     for note in doc.notes:
         citing = cited_by.get(note.note_number) or {}
