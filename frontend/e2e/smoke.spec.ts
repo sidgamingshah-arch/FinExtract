@@ -1463,7 +1463,10 @@ test("the coverage band counts RELATIONS, and every number in it is the API's fo
   // the queue, and that role holds no review:resolve — so the judgement controls must be absent
   // while everything else renders.
   await loginAs(page, "analyst");
-  const doc = await extractFixture(page, "sample.pdf");
+  // `unmapped.pdf`: this test needs a card on the review queue, and sample.pdf raises none —
+  // its captions are all exact aliases, so every row maps at 1.0 and the queue comes back
+  // `open: 0, passed: 4`. See the accept-and-reload test above for the full account.
+  const doc = await extractFixture(page, "unmapped.pdf");
   await page.goto("/review", DCL);
   await expect(page.getByRole("heading", { name: "Review queue" })).toBeVisible({ timeout: 15_000 });
 
@@ -1861,7 +1864,10 @@ test("accepting one finding records the verdict against THAT identity and re-lab
   // Admin: uploading needs documents:manage and judging needs review:resolve, and no other single
   // role holds both.
   await loginAs(page, "admin");
-  const doc = await extractFixture(page, "sample.pdf");
+  // `unmapped.pdf`: this test needs a card on the review queue, and sample.pdf raises none —
+  // its captions are all exact aliases, so every row maps at 1.0 and the queue comes back
+  // `open: 0, passed: 4`. See the accept-and-reload test above for the full account.
+  const doc = await extractFixture(page, "unmapped.pdf");
 
   await page.goto("/review", DCL);
   await expect(page.getByRole("heading", { name: "Review queue" })).toBeVisible({ timeout: 15_000 });
@@ -2014,7 +2020,10 @@ test("a finding the queue cannot tell apart from another offers no acceptance an
   // saw these numbers.
   test.setTimeout(240_000);
   await loginAs(page, "admin");
-  const doc = await extractFixture(page, "sample.pdf");
+  // `unmapped.pdf`: this test needs a card on the review queue, and sample.pdf raises none —
+  // its captions are all exact aliases, so every row maps at 1.0 and the queue comes back
+  // `open: 0, passed: 4`. See the accept-and-reload test above for the full account.
+  const doc = await extractFixture(page, "unmapped.pdf");
   await page.goto("/review", DCL);
   await expect(page.getByRole("heading", { name: "Review queue" })).toBeVisible({ timeout: 15_000 });
   await clearJudgements(page, doc);
@@ -2176,7 +2185,10 @@ test("a refused acceptance is explained by the cause the server named, not the o
   // on the card that asked, and records nothing.
   test.setTimeout(240_000);
   await loginAs(page, "admin");
-  const doc = await extractFixture(page, "sample.pdf");
+  // `unmapped.pdf`: this test needs a card on the review queue, and sample.pdf raises none —
+  // its captions are all exact aliases, so every row maps at 1.0 and the queue comes back
+  // `open: 0, passed: 4`. See the accept-and-reload test above for the full account.
+  const doc = await extractFixture(page, "unmapped.pdf");
   await page.goto("/review", DCL);
   await expect(page.getByRole("heading", { name: "Review queue" })).toBeVisible({ timeout: 15_000 });
   await clearJudgements(page, doc);
@@ -2253,7 +2265,10 @@ test("an acceptance stops reading 'accepted' the moment the figures it was made 
   // rather than the ones now on the card.
   test.setTimeout(240_000);
   await loginAs(page, "admin");
-  const doc = await extractFixture(page, "sample.pdf");
+  // `unmapped.pdf`: this test needs a card on the review queue, and sample.pdf raises none —
+  // its captions are all exact aliases, so every row maps at 1.0 and the queue comes back
+  // `open: 0, passed: 4`. See the accept-and-reload test above for the full account.
+  const doc = await extractFixture(page, "unmapped.pdf");
   await page.goto("/review", DCL);
   await expect(page.getByRole("heading", { name: "Review queue" })).toBeVisible({ timeout: 15_000 });
   await clearJudgements(page, doc);
@@ -2767,7 +2782,10 @@ test("a note that does not tie prints EVERY face line it failed to tie, and a gr
   // own evidence lacks.
   test.setTimeout(240_000);
   await loginAs(page, "admin");
-  const doc = await extractFixture(page, "sample.pdf");
+  // `unmapped.pdf`: this test needs a card on the review queue, and sample.pdf raises none —
+  // its captions are all exact aliases, so every row maps at 1.0 and the queue comes back
+  // `open: 0, passed: 4`. See the accept-and-reload test above for the full account.
+  const doc = await extractFixture(page, "unmapped.pdf");
   await page.goto("/review", DCL);
   await expect(page.getByRole("heading", { name: "Review queue" })).toBeVisible({ timeout: 15_000 });
   await clearJudgements(page, doc);
@@ -2963,7 +2981,10 @@ test("a WITHHELD acceptance can be withdrawn: the control is on the card that sh
   // reaches the endpoint and leaves nothing behind.
   test.setTimeout(240_000);
   await loginAs(page, "admin");
-  const doc = await extractFixture(page, "sample.pdf");
+  // `unmapped.pdf`: this test needs a card on the review queue, and sample.pdf raises none —
+  // its captions are all exact aliases, so every row maps at 1.0 and the queue comes back
+  // `open: 0, passed: 4`. See the accept-and-reload test above for the full account.
+  const doc = await extractFixture(page, "unmapped.pdf");
   await page.goto("/review", DCL);
   await expect(page.getByRole("heading", { name: "Review queue" })).toBeVisible({ timeout: 15_000 });
   await clearJudgements(page, doc);
@@ -3512,7 +3533,10 @@ test("an ORPHANED acceptance is still in force and can be withdrawn from the row
   // Admin: uploading needs documents:manage, editing needs extraction:edit and judging needs
   // review:resolve, and no other single role holds all three.
   await loginAs(page, "admin");
-  const doc = await extractFixture(page, "sample.pdf");
+  // `unmapped.pdf`: this test needs a card on the review queue, and sample.pdf raises none —
+  // its captions are all exact aliases, so every row maps at 1.0 and the queue comes back
+  // `open: 0, passed: 4`. See the accept-and-reload test above for the full account.
+  const doc = await extractFixture(page, "unmapped.pdf");
   await page.goto("/review", DCL);
   await expect(page.getByRole("heading", { name: "Review queue" })).toBeVisible({ timeout: 15_000 });
   await clearJudgements(page, doc);
