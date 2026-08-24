@@ -53,6 +53,62 @@ def _text_lines(page) -> list[dict]:
     return [line for block in blocks for line in block.get("lines", [])]
 
 
+_CHROME_BAND = 0.12          # the top eighth of the page, where a running header is printed
+_CHROME_MIN_PAGES = 3        # fewer repeats than this is a coincidence, not a template
+
+
+def _chrome_key(text: str) -> str:
+    """A top-of-page caption reduced to what repeats: case-folded, collapsed whitespace, and with
+    every run of digits dropped.
+
+    The digits are what makes a running header LOOK different on every page — "Acme Holdings
+    Limited / Annual Report 2024   64" and the same line on page 65 are the same header. Dropping
+    them is also why the key is never compared against a financial caption: those are matched
+    whole, by a reader that has the row's figures, not by this.
+    """
+    import re as _re
+
+    return " ".join(_re.sub(r"\d+", "", str(text or "")).split()).casefold()
+
+
+def _page_chrome(pdf, targets) -> frozenset[str]:
+    """The captions this filing prints at the top of page after page — its own running header.
+
+    WHY NOT A WORD LIST. Both the classifier and the row reader carry a regex of header wording
+    ("annual report", "年報", …), and a filing whose running header is just its own name — which
+    is the common HK house style — matches neither. The header then reached the reader as an
+    ordinary label and, on a page where a figure happened to sit on its baseline, was published as
+    a line item: an entity name carrying money, on the face of a statement.
+
+    The signal used instead is structural and needs no vocabulary: a caption printed in the top
+    band of at least ``_CHROME_MIN_PAGES`` of the pages being read is the page template, not a
+    financial line. A statement caption cannot qualify — "Trade receivables" is printed once, on
+    one page, in the body — and the threshold is on PAGES rather than occurrences so a word
+    repeated many times down one page is untouched.
+
+    Read from the text layer only. A scanned page contributes nothing here (it has no lines to
+    read), and it does not need to: the header it repeats is the same one the native pages state.
+    """
+    counts: dict[str, set[int]] = {}
+    for ps in targets:
+        if ps.index >= pdf.page_count:
+            continue
+        try:
+            page = pdf[ps.index]
+            height = max(page.rect.height, 1.0)
+            for line in _text_lines(page):
+                box = line.get("bbox") or (0, 0, 0, 0)
+                if box[3] / height > _CHROME_BAND:
+                    continue
+                text = "".join(sp.get("text", "") for sp in line.get("spans", []))
+                key = _chrome_key(text)
+                if key:
+                    counts.setdefault(key, set()).add(ps.index)
+        except Exception:                    # a malformed page must not stop extraction
+            continue
+    return frozenset(k for k, pages in counts.items() if len(pages) >= _CHROME_MIN_PAGES)
+
+
 def _dir_rotation(direction) -> int:
     """One text line's ``dir`` unit vector as a rotation in the sense :func:`text_rotation` returns.
 
@@ -187,6 +243,9 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
             ctx.log(f"extract:page_scope_applied={sorted(ctx.included_pages)}")
 
     number_format = _resolve_number_format(ctx, doc)
+    chrome = _page_chrome(pdf, targets)
+    if chrome:
+        ctx.log(f"extract:page_chrome={sorted(chrome)[:6]}")
     ocr = None
     added = 0
     ordinal = len(doc.line_items)
@@ -242,7 +301,10 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
             page_scope=ps.scope,
             # The title the classifier matched on this page, so the reader can tell it from a
             # wrapped caption head: they have the same shape and sit in the same place.
-            page_title=str((ps.evidence or {}).get("matched_title") or "") or None)
+            page_title=str((ps.evidence or {}).get("matched_title") or "") or None,
+            # The captions this filing prints at the top of page after page — its own running
+            # header, whatever it happens to say. See ``_page_chrome``.
+            page_chrome=chrome)
         if ps.kind == PageKind.FACE:
             # Said HERE because here is where it is known: this branch reads the FACE of a
             # statement (the notes branch above returns note tables, not line items). Only a page

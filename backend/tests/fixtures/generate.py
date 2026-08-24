@@ -353,6 +353,59 @@ def make_sub_note_pdf() -> bytes:
     return buf.getvalue()
 
 
+def make_named_running_header_pdf() -> bytes:
+    """A filing whose running header is JUST THE COMPANY NAME, with a figure on its baseline.
+
+    The HK house style no word list catches: no "Annual Report", no 年報 — only the entity, printed
+    at the top of every page, and on one page a page-number-ish figure sitting on the same
+    baseline. The header then reads as an ordinary caption carrying an amount, and was published
+    as a line item on the face of a statement.
+
+    Four pages so the header clears the repeat threshold, and the amount beside it is a real one
+    (not a year or a day-of-month) so no existing date-fragment rule can catch it either.
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    _, height = A4
+
+    def header(page_no: int, with_amount: bool) -> None:
+        c.setFont("Helvetica", 8)
+        c.drawString(72, height - 40, "Lai Sun Garment (International) Limited")
+        if with_amount:
+            # Right-aligned on the SAME baseline as the header — where a value column sits.
+            c.drawRightString(500, height - 40, "8,461")
+        c.setFont("Helvetica", 10)
+
+    for page_no, (title, rows) in enumerate([
+        ("Consolidated Statement of Financial Position",
+         [("Trade receivables", "Note 16(b)", "3,410"),
+          ("Cash and cash equivalents", "Note 17", "1,204")]),
+        ("Notes to the Financial Statements",
+         [("Note 16: Trade and other receivables", "", ""),
+          ("Trade receivables", "", "3,410")]),
+        ("Corporate Information", [("Registered office", "", "")]),
+        ("Five Year Financial Summary", [("Revenue", "", "9,000")]),
+    ]):
+        header(page_no, with_amount=(page_no == 0))
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(72, height - 72, title)
+        c.setFont("Helvetica", 10)
+        y = height - 100
+        for label, note, value in rows:
+            c.drawString(72, y, label)
+            if note:
+                c.drawString(320, y, note)
+            if value:
+                c.drawRightString(500, y, value)
+            y -= 24
+        c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
 def make_company_statement_after_notes_pdf() -> bytes:
     """THE HK HOUSE STYLE THAT MIS-LOADS: the Group's balance sheet, a note, then the COMPANY's own
     balance sheet printed after the notes with the SAME title minus the word "consolidated".

@@ -4733,15 +4733,24 @@ def get_document_statement(
     return spread
 
 
-def _note_no(raw) -> int | None:
-    """Parse a note reference to an int; the notes index/detail key on numbers."""
-    try:
-        return int(str(raw).strip())
-    except (TypeError, ValueError):
-        return None
+def _note_key(raw) -> str | None:
+    """A note's number as the filing prints it — the key the notes index and detail are served on.
+
+    A STRING, not an int. This parsed to ``int`` and returned None on failure, which silently
+    dropped every note a filing does not number with a bare integer: a table printed as "16(b)" or
+    "7A" was absent from the index, absent from its own detail route, and absent from the face rows
+    grouped by note — the note existed, was linked, was filed in its section, and could not be
+    opened. Parsing the leading integer instead is not the fix either: it merges a table numbered
+    "16(b)" with one numbered "16" and serves the two as one note.
+
+    Order comes from ``_note_sort_key_str`` (numerically, sub-letter after), so the index still
+    reads in the order the filing prints, which is what the int key was really providing.
+    """
+    key = str(raw).strip() if raw is not None else ""
+    return key or None
 
 
-def _rows_by_note(rows: list[dict]) -> dict[int, list[dict]]:
+def _rows_by_note(rows: list[dict]) -> dict[str, list[dict]]:
     """Face rows grouped by the note they cite — the "linked line" the notes screen names.
 
     Keyed off the row's RESOLVED linkage (``notes``, see ``extractions._linked_notes``) rather than
@@ -4756,14 +4765,14 @@ def _rows_by_note(rows: list[dict]) -> dict[int, list[dict]]:
     for r in rows:
         cited = r.get("notes") or ([r.get("note")] if r.get("note") else [])
         for raw in cited:
-            n = _note_no(raw)
+            n = _note_key(raw)
             if n is not None:
                 grouped.setdefault(n, []).append(r)
     return grouped
 
 
-def _note_index(details: list[dict]) -> dict[int, dict]:
-    return {n: d for d in details if (n := _note_no(d.get("no"))) is not None}
+def _note_index(details: list[dict]) -> dict[str, dict]:
+    return {n: d for d in details if (n := _note_key(d.get("no"))) is not None}
 
 
 def _note_row_kind(row: dict) -> str | None:
@@ -4799,7 +4808,7 @@ def _entry_column(entry: dict) -> str:
     return f"{entry.get('basis') or '—'}/{entry.get('period_label') or '—'}"
 
 
-def _reconciliation_text(entries: list[dict], note_no: int) -> str | None:
+def _reconciliation_text(entries: list[dict], note_no: str) -> str | None:
     """A human-readable note→face reconciliation summary for one note, from the reconcile
     stage's entries. Prefers the consolidated / current-period entry.
 
@@ -4817,7 +4826,11 @@ def _reconciliation_text(entries: list[dict], note_no: int) -> str | None:
     belongs to, and the "Face figure … → reconciled …" clause above says which column IT is about —
     it is taken from ``mine[0]``, the best-graded entry, while the residual list spans all of them.
     """
-    mine = [e for e in entries if _note_no(e.get("note_number")) == note_no]
+    # Both sides through ``_note_key``, so this compares a key with a key. The caller passes the
+    # route's own path value and a reconciliation entry carries whatever the pipeline recorded —
+    # "12" and 12 are the same note, and a bare == between them silently found nothing.
+    want = _note_key(note_no)
+    mine = [e for e in entries if _note_key(e.get("note_number")) == want]
     if not mine:
         return None
     # An entry we could actually grade says more than an unconfirmed one, so prefer it; then
@@ -4882,21 +4895,23 @@ def get_document_notes(document_id: str, session: Session = Depends(db)) -> dict
     # there is no percentage to serve, and the screen must say so instead of printing the literal
     # its category happens to map to. Absent-versus-null is the distinction the client needs to
     # tell "no measurement" from "not sent".
+    # Sorted by ``_note_sort_key_str``, not by the key itself: the keys are strings now, so a plain
+    # sort would read 1, 10, 16(b), 2 — the printed order is numeric with any sub-letter after it.
     if details:
         notes = [{"no": n, "title": details[n].get("title") or f"Note {n}",
                   "conf": "high", "conf_pct": None}
-                 for n in sorted(details)]
+                 for n in sorted(details, key=_note_sort_key_str)]
         linked = sum(len(details[n].get("rows", [])) for n in details)
         return {"notes": notes, "count": len(notes), "linked": linked}
 
     grouped = _rows_by_note(run.result.get("rows", []))
     notes = [{"no": n, "title": f"Note {n}", "conf": "med", "conf_pct": None}
-             for n in sorted(grouped)]
+             for n in sorted(grouped, key=_note_sort_key_str)]
     return {"notes": notes, "count": len(notes), "linked": sum(len(v) for v in grouped.values())}
 
 
 @router.get("/{document_id}/notes/{note_no}", dependencies=[Depends(authorized_document)])
-def get_document_note(document_id: str, note_no: int, locale: str = Query("en"),
+def get_document_note(document_id: str, note_no: str, locale: str = Query("en"),
                       session: Session = Depends(db)) -> dict:
     """One note's detail for a real document: its EXTRACTED breakdown rows (label + period
     values) with the page they came from, plus the face line that cites it. Falls back to

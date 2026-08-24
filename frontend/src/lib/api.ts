@@ -272,7 +272,7 @@ export const api = {
     req<NotesResponse>(`/documents/${documentId}/notes`),
   /** One note's detail. `locale` is passed because the response now carries the note's own
    *  column labels, and their Current/Prior fallback is localized server-side. */
-  documentNote: (documentId: string, no: number, locale: Locale = "en") =>
+  documentNote: (documentId: string, no: string, locale: Locale = "en") =>
     req<NoteDetail>(`/documents/${documentId}/notes/${no}?locale=${locale}`),
   /** Edit ONE figure of a real extraction: a concept, in one basis, for one period.
    *  Basis and period are required, not defaulted — without them every edit landed on the
@@ -379,7 +379,7 @@ export const api = {
   revertLineItem: (id: string) =>
     req<{ id: string }>(`/projects/${PROJECT}/line-items/${id}`, { method: "DELETE" }),
   notes: (locale: Locale = "en") => req<NotesResponse>(`/projects/${PROJECT}/notes?locale=${locale}`),
-  note: (no: number, locale: Locale = "en") =>
+  note: (no: string, locale: Locale = "en") =>
     req<NoteDetail>(`/projects/${PROJECT}/notes/${no}?locale=${locale}`),
   review: (locale: Locale = "en") => req<ReviewResponse>(`/projects/${PROJECT}/review?locale=${locale}`),
   template: (locale: Locale = "en") => req<TemplateResponse>(`/projects/${PROJECT}/template?locale=${locale}`),

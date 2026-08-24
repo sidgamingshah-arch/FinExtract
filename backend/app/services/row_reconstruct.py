@@ -35,7 +35,7 @@ from app.services.han import to_simplified
 # reading a banner here uses the same function mapping does rather than a second copy of it.
 from app.services.mapping import section_of_banner, section_of_banner_only
 
-_NUM = re.compile(r"^\(?-?[\d,]*\.?\d+\)?%?$")
+_NUM = re.compile(r"^\(?-?[\d,]*\.?\d+\)?$")
 _NOTE = re.compile(r"^note[s]?\.?$", re.IGNORECASE)
 # A column header for the note-reference column (English + Chinese). Real statements print it
 # once at the top; the cells beneath it hold bare note numbers, not monetary values.
@@ -97,6 +97,14 @@ _HDR_LABEL = re.compile(
     re.IGNORECASE)
 
 
+def _chrome_key(text: str) -> str:
+    """The page-chrome spelling of a caption — imported from the detector that builds the set, so
+    the key a row is tested with and the key the set was keyed on cannot drift apart."""
+    from app.services.pdf_extract import _chrome_key as key
+
+    return key(text)
+
+
 def _is_date_ish(d) -> bool:
     """A value that is really a date fragment: a year (1990–2099) or a day-of-month (1–31),
     with no fractional part (so a real figure like 0.45 or 12,345 never qualifies)."""
@@ -156,7 +164,8 @@ def _is_heading_with_note_only(label: str, vals: list) -> bool:
 
 def _is_noise_row(label: str, vals: list,
                   steps: tuple[tuple[str, object], ...] = (),
-                  signals: tuple[tuple[Basis, str], ...] = ()) -> bool:
+                  signals: tuple[tuple[Basis, str], ...] = (),
+                  page_chrome: frozenset[str] = frozenset()) -> bool:
     """A title / running-header / period-caption line that leaked in as a row. Dropped only when
     the label is header-like AND every extracted value is a date fragment — so a genuine line that
     merely mentions a statement name (its value being a real amount) is never removed.
@@ -168,6 +177,14 @@ def _is_noise_row(label: str, vals: list,
     whose amount was a year.
     """
     if _RUNNING_HDR.search(label):
+        return True
+    # THE FILING'S OWN RUNNING HEADER, whatever it says. The regex above is a word list and a
+    # filing whose header is just its own name matches none of it; ``pdf_extract._page_chrome``
+    # answers the same question structurally, from the caption being printed at the top of page
+    # after page. Unlike every other rule here this one does NOT require the values to be date
+    # fragments: a header that landed on a figure's baseline carries that figure, and the figure
+    # is exactly what made it publishable as a line item.
+    if page_chrome and _chrome_key(label) in page_chrome:
         return True
     norm = apply_pipeline(label, steps)
     if _is_period_only_label(norm or label):
@@ -199,10 +216,20 @@ class Word:
 
 
 def _num(t: str, fmt=None) -> Decimal | None:
-    """Parse a token to a Decimal. With no ``fmt`` this uses the fast US-format path (comma
-    thousands, dot decimal) — unchanged behaviour. When a locale ``NumberFormat`` is supplied
-    it delegates to ``services.numbers.parse_number`` so EU decimal-comma (``1.234,56``),
-    Indian grouping (``1,23,456``) and Arabic-Indic digits parse correctly (Req 12)."""
+    """Parse a token to a MONETARY Decimal. With no ``fmt`` this uses the fast US-format path
+    (comma thousands, dot decimal); when a locale ``NumberFormat`` is supplied it delegates to
+    ``services.numbers.parse_number`` so EU decimal-comma (``1.234,56``), Indian grouping
+    (``1,23,456``) and Arabic-Indic digits parse correctly (Req 12).
+
+    A PERCENTAGE IS NOT A FIGURE THIS READS. ``_NUM`` used to end in ``%?`` and the body stripped
+    the sign, so "45.2%" became the amount 45.2 and "(3.1)%" the amount -3.1 — filed on a template
+    line, summed into a subtotal, and exported as money. Filings print percentages in their own
+    columns ("% of revenue", effective tax rate, gearing), and nothing downstream can tell such a
+    figure from a real one once it is a bare Decimal on a line item. Refused at the door, before
+    either path, so the locale parser cannot let "45,2%" through the other side.
+    """
+    if "%" in t:
+        return None
     if fmt is not None:
         from app.services.numbers import parse_number
 
@@ -210,7 +237,7 @@ def _num(t: str, fmt=None) -> Decimal | None:
         return p.value_raw if p.ok else None
     if not _NUM.match(t.strip()):
         return None
-    s = t.strip().replace(",", "").replace("%", "")
+    s = t.strip().replace(",", "")
     neg = s.startswith("(") and s.endswith(")")
     s = s.strip("()")
     try:
@@ -2207,7 +2234,9 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                      normalisation: Normalisation | None = None,
                      on_face: bool = True,
                      page_scope: str | None = None,
-                     page_title: str | None = None) -> tuple[list[LineItem], int]:
+                     page_title: str | None = None,
+                     page_chrome: frozenset[str] = frozenset()
+                     ) -> tuple[list[LineItem], int]:
     """Reconstruct line items from positioned words. Returns (items, next_ordinal).
 
     Both bases are extracted in one pass: a two-basis header band (Group | Company,
@@ -2402,7 +2431,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         # Drop running-header / statement-title / period-caption lines that leaked in as rows
         # (their only "value" is a date fragment) — never a genuine financial line.
         row_vals = [d for d in (_num(w.text, number_format) for w in value_words) if d is not None]
-        if _is_noise_row(label, row_vals, steps, entity_signals):
+        if _is_noise_row(label, row_vals, steps, entity_signals, page_chrome):
             continue
 
         # A heading is often printed on the SAME line as its first figure, so it never appears as

@@ -419,6 +419,23 @@ function OriginChip({ origin }: { origin?: Origin }) {
 }
 
 /* ---- right output-panel row ---- */
+/** Which note a printed reference actually OPENS, out of the notes this row resolved to.
+ *
+ * The chip shows what the page printed ("16(b)"); the note that exists may be the parent table
+ * ("16"), and only the notes in `row.notes` can be opened at all — the backend put them there
+ * having already applied the exact-then-parent rule (`LineItem.cited_notes_among`). This picks
+ * which of the row's own resolved notes a given printed chip corresponds to, and it does NOT
+ * re-derive that rule: exact match, else the reference's leading number if the row resolved it,
+ * else the reference unchanged so the failure is visible rather than silently redirected.
+ */
+function openable(ref: string, row: StatementRow): string {
+  const notes = row.notes || [];
+  if (notes.includes(ref)) return ref;
+  const base = ref.match(/^\d+/)?.[0];
+  return base && notes.includes(base) ? base : ref;
+}
+
+
 function OutputRow({
   row,
   sel,
@@ -538,7 +555,9 @@ function OutputRow({
       <div style={{ ...colDiv, display: "flex", alignItems: "center", justifyContent: "center",
                     gap: 4, flexWrap: "wrap" }}>
         {noteRefs.map((n) => (
-          <NoteChip key={n} onClick={(e) => { e?.stopPropagation(); onOpenNote(n); }}>{n}</NoteChip>
+          <NoteChip key={n} onClick={(e) => { e?.stopPropagation(); onOpenNote(openable(n, row)); }}>
+            {n}
+          </NoteChip>
         ))}
       </div>
       {valueCell("current", v1, links1, vwt, vfg)}
@@ -970,12 +989,15 @@ export default function WorkspaceScreen() {
   // cursor:pointer and no handler, so it read as a filter that did nothing.
   const [lowFilter, setLowFilter] = useState(false);
   // Open a note reference: select it and jump to the All Notes screen.
+  //
+  // The reference is passed through AS PRINTED. It used to be parseInt'd and dropped when that
+  // failed, so a chip reading "16(b)" — the HK house style for a sub-note — was a control that did
+  // nothing at all. Note numbers are strings on the wire for the same reason.
   const openNote = (ref: string) => {
-    const n = parseInt(ref, 10);
-    if (!Number.isNaN(n)) {
-      setNote(n);
-      navigate(SCREENS.notes.path);
-    }
+    const no = ref.trim();
+    if (!no) return;
+    setNote(no);
+    navigate(SCREENS.notes.path);
   };
   const activeDocumentId = useUI((s) => s.activeDocumentId);
   const usingReal = !!activeDocumentId;

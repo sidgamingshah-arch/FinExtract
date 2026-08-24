@@ -251,6 +251,9 @@ def get_notes(project_id: str, locale: str = Query("en")) -> dict:
     if not _active():
         return {"notes": [], "count": 0, "linked": 0}
     notes = deepcopy(DEMO["notes_index"])
+    for n in notes:
+        # The wire key is a string on both paths — see ``get_note``.
+        n["no"] = str(n["no"])
     if locale != "en":
         for n in notes:
             n["title"] = tr(n["title"], locale)
@@ -268,7 +271,7 @@ def _demo_linked_lines(notes: list[dict]) -> int:
 
 
 @router.get("/{project_id}/notes/{note_no}")
-def get_note(project_id: str, note_no: int, locale: str = Query("en")) -> dict:
+def get_note(project_id: str, note_no: str, locale: str = Query("en")) -> dict:
     # `periods` is read from the SAME list get_statement serves (DEMO["project"]["periods"]), which
     # is what makes the sample Workspace and the sample Notes screen structurally unable to label
     # the same figures differently. A blank pair is the empty-state shape; the client treats blank
@@ -276,14 +279,18 @@ def get_note(project_id: str, note_no: int, locale: str = Query("en")) -> dict:
     if not _active():
         return {"no": note_no, "title": "", "rows": [], "periods": ["", ""],
                 "reconciliation": None}
-    detail = DEMO["note_detail"].get(note_no)
+    # The sample's own note numbers are int literals in ``sample/demo.py``; the WIRE key is a
+    # string, because a real filing numbers a note "16(b)" and the two paths serve one shared type.
+    # Compared as strings here rather than restating the sample data in a second spelling.
+    detail = next((d for k, d in DEMO["note_detail"].items() if str(k) == note_no), None)
     if detail is None:
-        idx = next((n for n in DEMO["notes_index"] if n["no"] == note_no), None)
+        idx = next((n for n in DEMO["notes_index"] if str(n["no"]) == note_no), None)
         if idx is None:
             raise HTTPException(404, "Unknown note")
         return {"no": note_no, "title": tr(idx["title"], locale), "rows": [],
                 "periods": ["", ""], "reconciliation": None}
     detail = deepcopy(detail)
+    detail["no"] = str(detail["no"])
     detail["periods"] = list(DEMO["project"]["periods"])
     if locale != "en":
         detail["title"] = tr(detail["title"], locale)

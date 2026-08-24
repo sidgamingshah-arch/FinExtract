@@ -348,10 +348,10 @@ def test_real_notes_index_and_detail(client):
     doc_id = _extract_with_ontology(client)
     notes = client.get(f"/api/v1/documents/{doc_id}/notes").json()
     assert notes["count"] >= 1 and notes["linked"] >= 1
-    assert any(n["no"] == 15 for n in notes["notes"])        # make_native_pdf cites "Note 15"
+    assert any(n["no"] == "15" for n in notes["notes"])      # make_native_pdf cites "Note 15"
 
     detail = client.get(f"/api/v1/documents/{doc_id}/notes/15").json()
-    assert detail["no"] == 15 and detail["linked_label"]
+    assert detail["no"] == "15" and detail["linked_label"]
     assert detail["rows"] and detail["reconciliation"] is None
 
 
@@ -387,10 +387,10 @@ def test_extracted_note_detail_served_and_exported(client):
 
     # All-Notes index prefers the extracted detail tables (high-confidence, with rows).
     notes = client.get(f"/api/v1/documents/{doc_id}/notes").json()
-    assert any(n["no"] == 14 and n["conf"] == "high" for n in notes["notes"])
+    assert any(n["no"] == "14" and n["conf"] == "high" for n in notes["notes"])
 
     detail = client.get(f"/api/v1/documents/{doc_id}/notes/14").json()
-    assert detail["no"] == 14 and detail["page"] == 2       # notes page (1-based)
+    assert detail["no"] == "14" and detail["page"] == 2     # notes page (1-based)
     row_labels = {r["label"] for r in detail["rows"]}
     assert any("Cash on hand" in lbl for lbl in row_labels)
     hand = next(r for r in detail["rows"] if "Cash on hand" in r["label"])

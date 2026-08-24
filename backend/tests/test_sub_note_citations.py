@@ -167,7 +167,60 @@ def test_the_notes_screen_names_the_face_row_that_cites_a_sub_note(client):
     else:
         raise AssertionError("extraction did not finish")
 
-    assert [n["no"] for n in client.get(f"/api/v1/documents/{doc_id}/notes").json()["notes"]] == [16]
+    assert [n["no"] for n in
+            client.get(f"/api/v1/documents/{doc_id}/notes").json()["notes"]] == ["16"]
     detail = client.get(f"/api/v1/documents/{doc_id}/notes/16").json()
     assert detail["linked_label"] == "Trade receivables"
     assert detail["linked_line"] == "bs_current_assets__trade_receivables"
+
+
+def test_a_note_the_filing_numbers_with_a_sub_part_is_served_not_dropped(client):
+    """A note table numbered "16(b)" rather than "16" — the other half of the same defect.
+
+    The notes index and its detail route parsed the number to an int and dropped anything that
+    failed, so such a note was absent from the index, absent from its own route, and unopenable,
+    while the row citing it said it had detail. The key is the number AS PRINTED now, and the
+    index reads in printed order rather than in string order (1, 10, 2)."""
+    doc_id = _seed_note_run(client, [
+        {"no": "16(b)", "title": "Trade receivables", "page": 2, "rows": [
+            {"label": "Trade receivables", "values": []}]},
+        {"no": "7", "title": "Segment information", "page": 2, "rows": []},
+        {"no": "16", "title": "Trade and other receivables", "page": 2, "rows": []},
+    ], rows=[{"id": "r1", "source_label": "Trade receivables", "note": "16(b)",
+              "notes": ["16(b)"], "values": []}])
+
+    index = client.get(f"/api/v1/documents/{doc_id}/notes").json()
+    assert [n["no"] for n in index["notes"]] == ["7", "16", "16(b)"], (
+        "printed order: numerically, with the sub-letter after its parent")
+
+    detail = client.get(f"/api/v1/documents/{doc_id}/notes/16(b)").json()
+    assert detail["no"] == "16(b)"
+    assert detail["title"] == "Trade receivables"
+    assert [r["label"] for r in detail["rows"]] == ["Trade receivables"]
+    # …and it is the row citing THAT table, not the parent, that is named beside it.
+    assert detail["linked_label"] == "Trade receivables"
+
+
+def _seed_note_run(client, note_details: list[dict], rows: list[dict]) -> str:
+    """A document with one stored run carrying these notes and rows.
+
+    Seeded rather than extracted: what is under test is how the notes routes KEY a note, and a
+    fixture PDF cannot make the reader number a table "16(b)" on demand.
+    """
+    import uuid
+
+    from app.db.base import SessionLocal, init_db
+    from app.db.models import Document, ExtractionRun
+
+    init_db()
+    with SessionLocal() as session:
+        doc = Document(filename="subnote-table.pdf", fmt="pdf", byte_size=1, page_count=2,
+                       content_hash=uuid.uuid4().hex, object_key="k", owner="admin",
+                       status="extracted")
+        session.add(doc)
+        session.flush()
+        session.add(ExtractionRun(document_id=doc.id, status="succeeded", options={},
+                                  result={"filename": "subnote-table.pdf", "rows": rows,
+                                          "note_details": note_details}))
+        session.commit()
+        return doc.id

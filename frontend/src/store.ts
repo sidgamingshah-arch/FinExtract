@@ -28,7 +28,7 @@ interface UIState {
   statement: StatementKey;
   sel: string; // selected line-item id in the workspace
   editing: boolean; // inspector edit mode
-  note: number; // selected note (All Notes)
+  note: string; // selected note (All Notes), as the filing numbers it ("16(b)")
   openCheck: string; // expanded review check
   tplSel: string; // selected template node
   // The template VERSION chosen for the next run (null = whatever the server says is latest).
@@ -52,7 +52,7 @@ interface UIState {
   startEdit: () => void;
   cancelEdit: () => void;
   stopEditing: () => void;
-  setNote: (n: number) => void;
+  setNote: (n: string) => void;
   toggleCheck: (id: string) => void;
   setTpl: (id: string) => void;
   setSelectedTemplateId: (id: string | null) => void;
@@ -70,7 +70,7 @@ export const useUI = create<UIState>((set) => ({
   statement: "balance_sheet",
   sel: "trade_recv",
   editing: false,
-  note: 12,
+  note: "12",
   openCheck: "bs",
   tplSel: "trade_recv",
   selectedTemplateId: null,

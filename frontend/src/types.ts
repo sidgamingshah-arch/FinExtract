@@ -1044,7 +1044,8 @@ export interface ReviewResponse {
 }
 
 export interface NoteIndexItem {
-  no: number;
+  /** As the filing prints it — a string, because a note can be numbered "16(b)" or "7A". */
+  no: string;
   title: string;
   conf: ConfCat;
 }
@@ -1061,7 +1062,8 @@ export interface NoteDetailRow {
   kind?: "sub" | "tot";
 }
 export interface NoteDetail {
-  no: number;
+  /** As the filing prints it — see NoteIndexItem.no. */
+  no: string;
   title: string;
   page: number;
   linked_line: string;
