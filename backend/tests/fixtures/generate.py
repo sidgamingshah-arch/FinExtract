@@ -507,6 +507,69 @@ def make_financial_highlights_pdf() -> bytes:
     return buf.getvalue()
 
 
+def make_decomposed_note_pdf(cross_section: bool = False) -> bytes:
+    """A combined caption on the FACE, itemised in the NOTE it cites.
+
+    The shape the same-section split exists for. The balance sheet prints one line --
+    "Prepayments, other receivables and other assets 5,000" citing note 18 -- and note 18 lists the
+    components, each of which is a template concept in the SAME section (current assets), summing
+    exactly to the printed line in both periods.
+
+    ``cross_section=True`` prints the same filing with one component swapped for a caption whose
+    concept lives in a DIFFERENT section (a non-current asset), which must leave the aggregate
+    standing rather than split it.
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    _, height = A4
+
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(72, height - 72, "Consolidated Statement of Financial Position")
+    c.setFont("Helvetica", 10)
+    y = height - 104
+    c.drawString(72, y, "CURRENT ASSETS")
+    y -= 22
+    for label, note, cur, prior in [
+            ("Prepayments, other receivables and other assets", "18", "5,000", "4,400"),
+            ("Cash and cash equivalents", "19", "1,204", "1,100")]:
+        c.drawString(72, y, label)
+        c.drawString(360, y, f"Note {note}")
+        c.drawRightString(452, y, cur)
+        c.drawRightString(520, y, prior)
+        y -= 22
+    c.showPage()
+
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(72, height - 72, "Notes to the Financial Statements")
+    c.setFont("Helvetica", 10)
+    c.drawString(72, height - 100, "Note 18: Prepayments, other receivables and other assets")
+    y = height - 124
+    # 3,410 + 1,000 + 590 = 5,000 and 3,000 + 900 + 500 = 4,400 -- the aggregate, exactly.
+    third = ("Property, plant and equipment" if cross_section
+             else "Prepaid income tax")
+    # ONE CONCEPT ITEMISED TWICE. A note routinely splits a single template concept across two
+    # disclosed rows (here under a mainland and an overseas heading), so the components are summed
+    # per concept rather than assumed one-to-one: 400 + 190 = 590 is what the aggregate needs.
+    for label, cur, prior in [("Trade receivables", "3,410", "3,000"),
+                              ("Due from related parties", "1,000", "900"),
+                              (third, "400", "340"),
+                              (third, "190", "160")]:
+        c.drawString(72, y, label)
+        c.drawRightString(452, y, cur)
+        c.drawRightString(520, y, prior)
+        y -= 22
+    # The note's own total, which must not be counted as a component.
+    c.drawString(72, y, "Total")
+    c.drawRightString(452, y, "5,000")
+    c.drawRightString(520, y, "4,400")
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
 def make_company_statement_after_notes_pdf() -> bytes:
     """THE HK HOUSE STYLE THAT MIS-LOADS: the Group's balance sheet, a note, then the COMPANY's own
     balance sheet printed after the notes with the SAME title minus the word "consolidated".

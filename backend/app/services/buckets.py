@@ -309,7 +309,14 @@ def segment_source(doc: DocumentModel, ontology=None) -> BucketedSource:
         # ``row_reconstruct``, not the note a row lives in — its own docstring says otherwise and is
         # wrong. Reading it as membership emptied the face buckets of every row that cites a note,
         # which on a real filing is most of them: a four-row balance sheet placed one row.
-        if pages and all(p in note_pages for p in pages):
+        # THE STAMP IS THE TEST, so the tag above and the placement here cannot disagree — they are
+        # now one expression rather than two copies of it. Identical to the page test it replaces for
+        # every row the reader produced, and different for exactly one case: a row a stage stamped
+        # FACE whose figures were read off a NOTES page. That is what a decomposition looks like
+        # (``map_ontology._split_from_disclosure`` publishes a face concept from the itemised rows of
+        # the note that explains it), and excluding it would leave the section with neither the
+        # components nor the aggregate they replaced.
+        if li.printed_in is PrintedIn.NOTES:
             continue
         section = section_by_key.get(li.canonical_key or "")
         statement = next((stmt_by_page[p] for p in pages if p in stmt_by_page), None)

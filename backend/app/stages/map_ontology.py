@@ -15,13 +15,22 @@ document rather than about one caption:
   ``global_rules.mutually_exclusive_groups``), and two captions the rulebook declares to be one fact
   (``equivalence``) may not disagree in silence. Both are only decidable once every row has a
   concept, so they run as a pass over the mapped document.
+* **decomposition from a disclosure** — a combined caption whose components the filing itemises
+  somewhere else is split into those components, but ONLY when every one of them belongs to the
+  combined caption's own section (:meth:`MapOntologyStage._split_from_disclosure`).
+
+The three run in escalating order over the same declarations, and each hands the case it cannot
+settle to the next: children printed on the FACE -> containment; children itemised in a cited
+DISCLOSURE -> the split; a subtotal with exactly one declared child and nothing evidencing a
+split -> ``sole_component_of``.
 """
 from __future__ import annotations
 
+import re
 from decimal import Decimal
 
 from app.core.models import DocumentModel
-from app.core.models.enums import AllocationStatus, LineRole, MappingMethod
+from app.core.models.enums import AllocationStatus, LineRole, MappingMethod, PrintedIn
 from app.core.models.line_item import LineItem
 from app.core.stage import PipelineContext
 from app.services.mapping import OntologyMatcher, normalize_label
@@ -98,6 +107,105 @@ def _pairs_to_keep_apart(ontology) -> list[tuple[str, list[str], str]]:
             if (m.canonical_key, tuple(m.children_if_decomposed)) in seen:
                 continue
             out.append((m.canonical_key, list(m.children_if_decomposed), "is_gross_parent"))
+    return out
+
+
+# A DISCLOSURE'S OWN TOTAL ROW, which must never be counted as one of its components.
+#
+# ``role`` cannot answer this: every ``NoteItem`` in production is ``LineRole.LINE``, because all
+# three readers that build one hardcode that role and only the face passes ever promote a row to
+# SUBTOTAL. So reconcile's "a note's own subtotal isn't a detail" guard never fires either — see the
+# note in :meth:`MapOntologyStage._split_from_disclosure`. The caption is the available signal, in
+# both languages the shipped rulebook supports.
+# A PREFIX match, and the trade-off is deliberate. "Total trade receivables" — a note's per-component
+# subtotal — must be excluded, and a semantic matcher has every reason to resolve it to trade
+# receivables, which would then be counted twice. But "Total return swap receivable" is a real
+# instrument, and it is excluded too. That costs a split: the components fall short of the aggregate,
+# the arithmetic gate refuses, and the aggregate stands as printed. Both mistakes therefore end in a
+# DECLINED split rather than a wrong figure, which is why the prefix is worth having — it catches the
+# common shape, and its false positives fail safe.
+#
+# "net" and "aggregate" were tried as prefixes and removed: "Net investment in leases" and "Net book
+# value" are ordinary component captions, so those prefixes cost splits without catching a shape
+# filings actually print.
+_DISCLOSURE_TOTAL = re.compile(
+    r"^\s*(total|sub-?total|合\s*計|總\s*計|小\s*計|合\s*计|总\s*计)", re.I)
+
+
+def _summed_columns(sources: list) -> dict[tuple[str, str], tuple[Decimal, object]]:
+    """(basis, period) -> (summed value, one contributing ExtractedValue to copy shape from).
+
+    Summed because a disclosure routinely itemises finer than the template: "trade receivables --
+    third parties" and "-- related parties" are two disclosed rows and one template concept. The
+    kept ``ExtractedValue`` supplies the period, basis, unit context and provenance; only the number
+    is replaced, so a summed figure still points at a printed row rather than at nothing.
+    """
+    out: dict[tuple[str, str], tuple[Decimal, object]] = {}
+    for it in sources:
+        for ev in it.values.values():
+            if ev.value is None:
+                continue
+            col = (ev.basis.value, ev.period_label or "")
+            prev = out.get(col)
+            out[col] = ((prev[0] if prev else Decimal(0)) + Decimal(ev.value),
+                        prev[1] if prev else ev)
+    return out
+
+
+def _columns_not_accounted_for(parent, hits: dict, tol: Decimal) -> list[str]:
+    """The (basis, period) columns where the disclosed components do not sum to the aggregate.
+
+    The arithmetic support ``global_rules.parent_child_allocation`` asks for, and the only one of its
+    four kinds this stage can test. Every column the AGGREGATE carries a figure in must be accounted
+    for: a column the components are silent about is a failure, not a column to skip, because
+    publishing components for one period and nothing for the other leaves the other period's figure
+    deleted from the statement.
+    """
+    totals: dict[tuple[str, str], Decimal] = {}
+    for sources in hits.values():
+        for col, (value, _ev) in _summed_columns(sources).items():
+            totals[col] = totals.get(col, Decimal(0)) + value
+    out: list[str] = []
+    for ev in parent.values.values():
+        if ev.value is None:
+            continue
+        col = (ev.basis.value, ev.period_label or "")
+        got = totals.get(col)
+        if got is None or abs(Decimal(ev.value) - got) > tol:
+            out.append(f"{col[0]}/{col[1]}")
+    return out
+
+
+def _same_section_decompositions(ontology) -> list[tuple[str, list[str], str]]:
+    """(aggregate, children, section) for every declared containment whose children ALL sit in the
+    aggregate's OWN section.
+
+    THIS IS THE GATE, and it is the whole of the product rule: a combined caption may be split into
+    its components when those components belong where the combined caption is printed, and may not
+    when they do not. Splitting across sections would mean deciding how much of one printed amount
+    falls on each side of a boundary the page never drew — the twelve-month cut between current and
+    non-current borrowings is the standard case, and the maturity profile that would settle it lives
+    in a note this stage is not reading as arithmetic.
+
+    Measured on the shipped rulebook: five of the seven declared gross parents pass (prepayments and
+    other receivables, cash and cash equivalents, other payables and accruals, reserves, share of
+    profit of associates and JVs) and two do not — ``pl_income__other_income`` and
+    ``pl_expenses__other_expenses``, whose declared children sit in the non-operating and
+    exceptional-item sections rather than in income and expenses.
+
+    ``section_scope`` is read off the RESOLVED ontology (the loader applies ``inherits``), so a
+    concept that states nothing itself is judged by its section's defaults, which is where almost
+    every concept's scope actually comes from.
+    """
+    section_of = {m.canonical_key: tuple(m.section_scope or ()) for m in ontology.mappings}
+    out: list[tuple[str, list[str], str]] = []
+    for aggregate, children, _why in _pairs_to_keep_apart(ontology):
+        own = section_of.get(aggregate, ())
+        if len(own) != 1:
+            # No single home section, so "the same section" is not a question this can answer.
+            continue
+        if children and all(section_of.get(k, ()) == own for k in children):
+            out.append((aggregate, list(children), own[0]))
     return out
 
 
@@ -293,6 +401,12 @@ class MapOntologyStage:
         # Whole-document rules, which need every row to have a concept first.
         mapped -= self._enforce_containment(doc, ontology, ctx)
         self._check_equivalence(doc, ontology, ctx)
+        # Escalating over the same declarations: containment above handled components printed on
+        # the FACE; this handles components itemised in a cited DISCLOSURE; sole-components below
+        # handles a subtotal with one declared child and nothing evidencing a split. Order matters —
+        # a parent this pass decomposes has children filed by the time the last one looks, which is
+        # exactly the condition that makes it decline.
+        mapped += self._split_from_disclosure(doc, ontology, matcher, ctx)
         mapped += self._infer_sole_components(doc, ontology, ctx)
 
         # Roll the mapper's LLM usage up onto the context for the audit log.
@@ -443,6 +557,125 @@ class MapOntologyStage:
             ctx.log(f"map_ontology:containment({why}):{aggregate}"
                     f" unfiled_rows={len(filed)} components={','.join(present)}")
         return unfiled
+
+    def _split_from_disclosure(self, doc: DocumentModel, ontology, matcher,
+                               ctx: PipelineContext) -> int:
+        """Split a combined caption into the components the filing itemises elsewhere — but only
+        into components that belong in the combined caption's OWN section. Returns rows added.
+
+        THE RULE, and why the section is the boundary. A filing that prints one line for
+        "Prepayments, other receivables and other assets" and itemises it in the note it cites is
+        reporting the components; reading them is not an inference, it is reading. What IS an
+        inference is deciding how much of a single printed amount falls on each side of a boundary
+        the page never drew — the twelve-month cut between current and non-current borrowings, whose
+        answer lives in a maturity table this stage does not read as arithmetic. So components in the
+        aggregate's own section are published, and components anywhere else leave the aggregate
+        standing. ``_same_section_decompositions`` is that gate.
+
+        THE GATE IS ALSO STRUCTURAL, not just a test. Every note caption is matched with the
+        aggregate's declared section as the candidate scope, so a concept outside that section cannot
+        be produced at all: asked under current assets, a borrowings caption resolves to nothing.
+        The section test and the section-scoped match are two expressions of one rule, and the
+        second is the one that holds if the first is ever edited wrongly.
+
+        WHAT IT REFUSES, each because publishing would be worse than leaving the aggregate:
+        * fewer than two components — a single child is ``sole_component_of``'s question, and this
+          pass must not answer it with a note row instead of that declaration's own evidence rules;
+        * components that do not ACCOUNT FOR the aggregate, per (basis, period) column, within
+          ``recon_abs_tolerance`` — the arithmetic is the only support this stage can test for
+          ``global_rules.parent_child_allocation``, and a split that does not tie is a fabricated
+          decomposition however plausible the captions;
+        * a disclosure that itemises nothing this section claims, or none at all.
+
+        A DISCLOSURE'S OWN TOTAL ROW is excluded by caption (``_DISCLOSURE_TOTAL``), not by role.
+        Every ``NoteItem`` in production carries ``LineRole.LINE`` — the readers hardcode it — so the
+        role test that reconcile uses for the same purpose never fires. Counting the note's total as
+        a component would double the sum and fail the arithmetic gate, which is a safe failure; the
+        caption test is what makes the common case work rather than silently decline.
+
+        WHAT THE SPLIT ROWS CARRY. Each component's figures are the DISCLOSURE ROW'S OWN
+        ``ExtractedValue`` copies, so click-to-source lands on the itemised line the figure was read
+        from, on the page it was printed on. They are stamped ``printed_in = FACE`` because that is
+        what they are — a face concept of this statement, sourced from the note — and the segment
+        stage honours an explicit stamp (``services.buckets``). The aggregate is NOT deleted: it is
+        un-filed and demoted to a subtotal carrying ``decomposed_into``, exactly as the containment
+        pass treats a parent whose children were printed on the face, so the printed combined figure
+        stays auditable and the section does not count the money twice.
+
+        NOTE ITEMS ARE NOT MUTATED. ``NoteItem.canonical_key`` is a field nothing in the codebase
+        writes, and two live readers consume it — reconcile's ``maps_to_distinct_template_line`` and
+        ``buckets._bucket_from_note_content`` — so both are inert today. Writing it here would wake
+        both inside a change about something else; the mapping is kept local to this pass and those
+        two are left for their own change.
+        """
+        decls = _same_section_decompositions(ontology)
+        if not decls:
+            return 0
+        tol = Decimal(str(ctx.settings.extraction.recon_abs_tolerance))
+        stmt_by_page = {p.index: p.statement for p in doc.pages if p.statement}
+        added = 0
+        for aggregate, children, section in decls:
+            parents = [li for li in doc.line_items if li.canonical_key == aggregate]
+            if len(parents) != 1:
+                # Zero: either not printed, or the containment pass already un-filed it because the
+                # children were on the face — nothing to do either way. More than one is a mapping
+                # problem reported elsewhere, and decomposing an ambiguous total would compound it.
+                if len(parents) > 1:
+                    ctx.log(f"map_ontology:split_declined({aggregate}):"
+                            f" {len(parents)} rows carry it")
+                continue
+            parent = parents[0]
+            if any(li.canonical_key in children for li in doc.line_items):
+                continue                  # a component is already filed; containment owns this case
+            cited = _cited_notes([parent])
+            tables = [t for t in doc.notes if str(t.note_number) in cited]
+            if not tables:
+                continue
+            statement = stmt_by_page.get(_page_of(parent) or -1)
+            rows = [it for t in tables for it in t.items
+                    if it.values and not _DISCLOSURE_TOTAL.match(it.raw_label or "")]
+            hits: dict[str, list] = {}
+            for it in rows:
+                res = matcher.match(it.raw_label or "", statement=statement, section=section)
+                if res and res.canonical_key in children:
+                    hits.setdefault(res.canonical_key, []).append(it)
+            if len(hits) < 2:
+                ctx.log(f"map_ontology:split_declined({aggregate}):"
+                        f" the disclosure itemises {len(hits)} of this section's concepts")
+                continue
+            short = _columns_not_accounted_for(parent, hits, tol)
+            if short:
+                ctx.log(f"map_ontology:split_declined({aggregate}):"
+                        f" components do not account for it in {','.join(short)}")
+                continue
+            for key, sources in hits.items():
+                row = LineItem(source_label=sources[0].raw_label or key, canonical_key=key,
+                               ordinal=parent.ordinal, role=LineRole.LINE,
+                               printed_in=PrintedIn.FACE, note_number=parent.note_number,
+                               section_hint=parent.section_hint)
+                for col, total in _summed_columns(sources).items():
+                    ev = total[1].model_copy(deep=True)
+                    ev.value, ev.value_raw = total[0], total[0]
+                    row.set_value(ev)
+                row.confidence.mapping = min(parent.confidence.mapping or 0.75, 0.75)
+                row.confidence.method = MappingMethod.RULE.value
+                row.confidence.flags.append(f"split_from:{aggregate}")
+                if len(sources) > 1:
+                    # The disclosure itemises finer than the template does, so this concept's figure
+                    # is the sum of several disclosed rows. Said on the row, because its provenance
+                    # can only point at one of them.
+                    row.confidence.flags.append(f"split_summed_rows:{len(sources)}")
+                doc.line_items.append(row)
+                added += 1
+            parent.canonical_key = None
+            if parent.role is LineRole.LINE:
+                parent.role = LineRole.SUBTOTAL
+            parent.confidence.flags.append(
+                f"alloc:{AllocationStatus.PARENT_GROSS_EVIDENCE_ONLY.value}")
+            parent.confidence.flags.append(f"decomposed_into:{','.join(sorted(hits))}")
+            ctx.log(f"map_ontology:split({aggregate}) into {len(hits)} concepts"
+                    f" from note {','.join(sorted({str(t.note_number) for t in tables}))}")
+        return added
 
     @staticmethod
     def _infer_sole_components(doc: DocumentModel, ontology, ctx: PipelineContext) -> int:
