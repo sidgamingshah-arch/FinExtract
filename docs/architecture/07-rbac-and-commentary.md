@@ -40,9 +40,9 @@ Admin-controlled feature flag (Settings screen; default **on**). It governs the
   (`export:run`, no `review:submit`).
 
 Crucially, this flag never removes the **human-in-the-loop Review Queue** (the accounting
-checks — balance, subtotals, signs, note ties, the template's and rulebook's declared
-arithmetic — plus the three row-shaped findings: unmapped, off-template and
-low-confidence). That QA screen stays available to the analyst in both
+checks — balance, subtotals, signs, the template's and rulebook's declared arithmetic —
+plus the one row-shaped finding: a face figure that reaches no line of the output). That QA
+screen stays available to the analyst in both
 modes — the flag only changes who performs the final sign-off/hand-off. Implemented as
 `effective_permissions(role)` (adjusts the analyst's export vs submit at runtime); screen
 visibility is unaffected by the flag.

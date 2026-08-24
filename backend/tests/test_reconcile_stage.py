@@ -155,23 +155,31 @@ def test_reconciliation_surfaces_on_notes_endpoint_and_export(client):
     assert "Reconciliation" in text and "residual" in text.lower()
 
 
-def test_check_reconciliation_flags_untied_notes():
-    from app.services.checks import check_reconciliation
+def test_tie_status_grades_a_note_against_its_face():
+    """The GRADE, which is what decides whether a note tie is a finding at all.
 
-    ok = check_reconciliation([{"note_number": "14", "basis": "consolidated",
-                                "period_label": "current", "raw_face": 1204,
-                                "residual": 0, "within_tolerance": True}])
-    assert ok[0].status == "pass" and ok[0].type == "note_tie"
-    bad = check_reconciliation([{"note_number": "9", "basis": "consolidated",
-                                 "period_label": "current", "raw_face": 1000,
-                                 "residual": 20, "within_tolerance": False}])
-    assert bad[0].status == "fail" and bad[0].delta == 20
+    Asked of ``services/reconcile.py::tie_status`` — the live grader that the reconcile stage, the
+    note detail route and the export all read. It used to be asked through
+    ``services.checks.check_reconciliation``, an adapter that turned these entries into
+    ``note_tie`` check objects; that module had no caller in the app and is deleted, and note-tie
+    CARDS are not raised any more either. The three-way grade survives both, because it is what the
+    stage stores on every entry and what the note detail prose is written from.
+    """
+    from app.services.reconcile import tie_status
 
-    # A note whose total is nowhere near the face figure is not a breakdown of it, so there is
-    # nothing to pass or fail — it produces no check at all.
-    assert check_reconciliation([{"note_number": "8", "basis": "consolidated",
-                                  "period_label": "current", "raw_face": 1000,
-                                  "residual": 250, "within_tolerance": False}]) == []
+    def grade(**over):
+        base = {"note_number": "14", "basis": "consolidated", "period_label": "current",
+                "raw_face": 1204, "residual": 0, "within_tolerance": True}
+        return tie_status({**base, **over})
+
+    # The breakdown adds up: the note IS a decomposition of the face figure, and it ties.
+    assert grade() == "tied"
+    # It is a decomposition and it does NOT add up — the case worth a human's time.
+    assert grade(note_number="9", raw_face=1000, residual=20, within_tolerance=False) == "untied"
+    # A note whose total is nowhere near the face figure is not a breakdown of it (an analysis
+    # note, a segment table), so there is nothing to assert either way and nothing is claimed.
+    assert grade(note_number="8", raw_face=1000, residual=250,
+                 within_tolerance=False) == "unconfirmed"
 
 
 def test_the_review_fixtures_reconciliation_entry_is_the_shape_the_stage_emits():

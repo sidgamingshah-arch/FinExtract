@@ -344,9 +344,9 @@ _TR.update({
     "Rule": {"zh": "规则", "ar": "القاعدة", "fr": "Règle"},
     "Lines in violation": {"zh": "违反规则的行", "ar": "السطور المخالفة",
                            "fr": "Lignes en infraction"},
-    # The low-confidence card's own subject matter: the mapping's method and how strong it was, plus
-    # the BAND the acceptance is fingerprinted on (`_confidence_evidence`). The band is labelled as a
-    # band in every locale, so nobody reads "40-49%" as the measured score.
+    # The unmapped card's own subject matter. "Mapped to" carries the concept when the row DID map to
+    # one the template does not declare — the two ways into that one category — and the em-dash
+    # sentence when nothing claimed the caption at all.
     "Source label": {"zh": "原始标签", "ar": "التسمية الأصلية", "fr": "Libellé source"},
     "Mapped to": {"zh": "映射到", "ar": "مطابق إلى", "fr": "Rattaché à"},
     "— (no confident match)": {"zh": "—（无可信匹配）", "ar": "— (لا تطابق موثوق)",
@@ -871,48 +871,15 @@ def _low_conf_threshold() -> float:
     return get_settings().extraction.auto_accept_confidence
 
 
-# Width, in printed percentage points, of one confidence band. See `_confidence_evidence`.
-_CONF_BAND = 10
-
-
-def _confidence_evidence(conf, method) -> dict:
-    """The mapping's strength and method, as the low-confidence card's fingerprint carries them.
-
-    A low-confidence finding is a statement ABOUT THE MAPPING — "this label really is this concept,
-    weak score notwithstanding" — and the card prints the score twice (its collapsed ``delta`` and
-    its "Confidence" row) plus the method. Leaving them out of the evidence made the one thing the
-    finding is about unable to move the digest: 0.41/'fuzzy' accepted, then 0.02/'llm' served as
-    'accepted' with ``changed == []`` while the card read "Method llm · Confidence 2%" under the
-    reviewer's name. Every other served type fingerprints what it prints.
-
-    They are QUANTIZED rather than omitted, the same answer ``_prov_anchor`` gave to the same worry:
-
-    * ``confidence_band`` is the printed percentage floored into ``_CONF_BAND``-point bands, so 41%
-      and 44% are one band and a collapse to 2% is four bands away. THE FAILURE DIRECTIONS ARE NOT
-      SYMMETRIC and this is chosen on them: too coarse and a collapse hides behind an acceptance
-      nobody re-made, which puts a named verdict on a mapping that is now barely a guess; too fine
-      and a re-scored 0.41→0.39 withdraws a sound acceptance and nags. 10 points is the coarsest
-      band that cannot contain a collapse — the queue only raises this finding below the
-      auto-accept threshold, so the whole reachable range is a handful of bands and any real
-      deterioration crosses one. Jitter that straddles a band edge re-opens the finding, which is
-      the direction worth accepting: it asks for another look rather than asserting one happened.
-    * ``method`` is EXACT, unbucketed. A method change is not jitter — 'fuzzy' and 'llm' are
-      different kinds of evidence for the same claim, and a reviewer who accepted a fuzzy alias
-      match has not thereby accepted a model's guess. There is nothing to quantize: the value is
-      one of a handful of names, and a re-run does not wobble between them by accident.
-
-    ``None`` for a card raised by the ``low_mapping_confidence`` flag with no score at all: the band
-    is absent rather than a fabricated number, and the card prints "—" over the same absence.
-
-    The band is stored as the RANGE it stands for ("40-49%") and not as a bucket index, because this
-    dict is also what the accepted-figures panel renders back to a reader (``_evidence_rows``): "4"
-    under a confidence label would be a number that means nothing it appears to mean.
-    """
-    band = None
-    if isinstance(conf, (int, float)):
-        lo = (int(round(conf * 100)) // _CONF_BAND) * _CONF_BAND
-        band = f"{lo}-{min(lo + _CONF_BAND - 1, 100)}%"
-    return {"confidence_band": band, "method": str(method or "")}
+# DELETED with the low-confidence card: `_CONF_BAND` and `_confidence_evidence`.
+#
+# They quantized a mapping's score into 10-point bands so an acceptance survived jitter but not a
+# collapse, and kept the METHOD exact because 'fuzzy' and 'llm' are different kinds of evidence for
+# the same claim. Both were right, and both were about a card that no longer exists: a mapping's
+# strength is not one of the three things this queue reports, so no acceptance is fingerprinted on
+# it. The band-quantizing idea survives in `_prov_anchor` (geometry) and `judgement.q` (figures),
+# which are the two places a re-run still wobbles. See the git history of this file for the reasoning
+# and tests/test_review_judgement.py for the five tests that went with them.
 
 
 def _row_value(rows: list[dict], key: str, basis: str = "consolidated", period: str = "current"):
@@ -1194,8 +1161,10 @@ def _guard_check(res: dict, d: dict, locale: str) -> dict:
 # ONE assertion a served card makes: this target, in this scope, is out by this much. Every finding
 # that reports a difference is suppressed on ASSERTIONS and never on bare targets, because "a card
 # mentions this target" and "a card already tells the reader about this difference" are different facts,
-# and only the second one makes a second card a duplicate. (The one finding that reports no difference
-# at all is asked the weaker question below.)
+# and only the second one makes a second card a duplicate. There used to be a weaker question beside
+# it — "does this template line already have a card here at all" — for the one finding that reported no
+# difference to compare (`uncomputed`); that finding is no longer raised, and the weaker test went with
+# it, so an assertion is now the ONLY grounds on which a card is dropped.
 #
 # `covered` used to be a set of bare target strings, and that cost two blocking findings on the
 # shipped rulebook. An equity-closing card whose target is bs_equity__total_equity — asserting a
@@ -1207,27 +1176,55 @@ def _guard_check(res: dict, d: dict, locale: str) -> dict:
 # deleted a 900 break in the STANDALONE column it makes no claim about at all.
 _Assertion = tuple[str, str, str, int]
 
-# ONE target a served card already has a card about, and THE COLUMN it has it in — the other, weaker
-# question: not "is this difference already reported" but "does this template line already have a card
-# here at all". It is the only question a finding that reports NO difference can be asked, which is why
-# it exists beside the assertion: an `uncomputed` card's delta is the literal "—".
-#
-# It carries the scope for the same reason the assertion does. Keyed on the bare template key, this set
-# let `chk-balance` — hardcoded consolidated/current — delete the STANDALONE column's card for the same
-# line, and nothing counts a dropped calculated card (`failed_reported_elsewhere` sums relations only),
-# so it left the queue with nothing anywhere saying it had.
-_Claim = tuple[str, str, str]
-
 # Where each card kind keeps the difference it prints — EVERY kind that prints one, because this map
 # is what a card declares about itself, read both to build the set of what is already on screen and to
 # ask whether a new card would restate it.
 #
 # A kind absent from this map declares NO assertion and therefore suppresses nothing, which is the
-# safe default and a real case rather than a hypothetical one: `uncomputed`'s delta is the literal "—"
-# because none of the components could be computed, so it makes no claim about a difference and cannot
-# be the duplicate of a relation that found one (it yields through the weaker question instead —
-# `_claimed_targets`). A guard is absent for a stronger reason still: see `_assertion_of`. A card type
-# added later without a key here over-reports; it cannot lose a finding.
+# safe default: it over-reports, and it cannot lose a finding. The row-shaped kind (`unmapped`) is
+# absent because it names a CAPTION rather than a template line and prints no difference; a guard is
+# absent for a stronger reason still — see `_assertion_of`. A card type added later without a key here
+# is over-reported until someone adds one, which is the failure direction to prefer.
+# EVERY CARD KIND THIS QUEUE MAY SERVE, in its two shapes — the product rule, written down.
+#
+# The queue carries exactly three things: an extracted figure from the FACE of a statement that
+# reaches no line of the output; a validation rule that failed; and a section subtotal that does not
+# match the values under it. The first is row-shaped (one printed line, one caption, a re-map offer);
+# the second and third are accounting findings (a relation between concepts, no single edit to offer).
+#
+# Declared here rather than left implicit in the builders' literals, because THREE readers have to
+# agree about it and two of them are not in this module: the chip set below, whose `types` partition
+# the served list, and the seeded sample (api/routes/projects.py::_DEMO_TAB_LABELS), which is the
+# first thing a new user sees. The sample used to speak its own vocabulary — `subtotal`, `sign`,
+# `note` — and so advertised a "Note reconciliation" category the real route does not raise while
+# showing no card at all for the category that matters most. `_assert_known_kinds` holds every card
+# to this, so a kind added without a chip fails loudly here instead of going invisible on screen.
+#
+# Retired, and not to be re-added without the product decision that put them here: `low_confidence`
+# (a mapping's strength is a property of the mapping, not a finding — counted as `weak_mappings`),
+# `off_template` (folded into `unmapped`: one category, two ways in), `uncomputed` (a subtotal with no
+# components is a coverage fact, reported in the coverage band and the line's own note) and
+# `note_tie`.
+_ACCOUNTING_TYPES = frozenset({"balance", "equity_tie", "structural", "calculated_mismatch"})
+_ROW_SHAPED_TYPES = frozenset({"unmapped"})
+
+
+def _assert_known_kinds(checks: list[dict]) -> None:
+    """Every served card is a kind the queue declares. Raises rather than serving an unlisted one.
+
+    A new kind reaches the screen through the chips, and the chips are built from the declaration
+    above — so an unlisted kind is a card no chip counts: invisible under every filter, and counted
+    in the "All" total that then disagrees with the sum of the others. That is the
+    counts-disagree-with-content defect this file has been bitten by repeatedly, and it is cheaper to
+    fail here than to find it on a screen.
+    """
+    unknown = sorted({str(c.get("type")) for c in checks} - _ACCOUNTING_TYPES - _ROW_SHAPED_TYPES)
+    if unknown:
+        raise AssertionError(
+            f"review card kinds not declared in _ACCOUNTING_TYPES/_ROW_SHAPED_TYPES: {unknown}. "
+            "Add the kind to the right set AND give it a chip, or the card is invisible on screen.")
+
+
 _ASSERTED_DIFF_KEY = {
     "balance": "diff",
     "equity_tie": "diff",
@@ -1298,33 +1295,6 @@ def _reported_assertions(checks: list[dict]) -> set[_Assertion]:
     about to build.
     """
     return {a for a in (_assertion_of(c) for c in checks) if a is not None}
-
-
-def _claimed_targets(checks: list[dict]) -> set[_Claim]:
-    """The (target, basis, period) triples served cards OWN — the only ones that may suppress a
-    second card about the same line in the same column.
-
-    Read by the one finding with no difference of its own to compare, so that this is the only
-    question it can be asked: ``uncomputed`` in ``_calculated_checks``. Everything that does report a
-    difference is compared on the difference (``_assertion_of``).
-
-    A GUARD OWNS NOTHING HERE, and that is the whole point of the function. A guard card's ``target``
-    is ``violations[0]["key"]`` under sign_expectation (services/structural_checks.py::_guard_slot),
-    derived from the FIGURES — so letting it into this set means WHICH LINE IS MIS-SIGNED decides
-    whether a different card exists: mis-sign bs_total_equity_and_liabilities and the "Printed subtotal
-    could not be verified" card for that very line disappears from the queue. That is the defect that
-    dropped the guard card itself (see ``_structural_checks``), one field along, and it got worse the
-    moment guards started being emitted unconditionally — so a guard is excluded from BOTH suppression
-    questions, here and in ``_assertion_of``.
-
-    Every other kind's ``target`` is DECLARED: the balance identity's side, a relation's template
-    target, a calculated line's key. Those may legitimately stop a second card about that line — but
-    only in the column the card actually looked at, which is what ``_card_scope`` supplies and what a
-    bare set of key strings could not say. A card that names no column names no claim at all.
-    """
-    claims = ((c.get("target"), _card_scope(c)) for c in checks
-              if (c.get("subject") or {}).get("k") != "guard")
-    return {(str(target), *scope) for target, scope in claims if target and scope}
 
 
 def _relation_reported_elsewhere(res: dict, reported: set[_Assertion]) -> bool:
@@ -1584,53 +1554,43 @@ def _accounting_checks(rows: list[dict], reconciliation: list[dict], locale: str
         # card anywhere reported it.
         stats["failed_reported_elsewhere"] = sum(
             1 for res in (structural or []) if _relation_reported_elsewhere(res, reported))
-    # The calculated path asks BOTH questions, one per finding it raises, and both sets are taken here
-    # — after the relations, because a relation card is exactly what legitimately covers a calculated
-    # line's mismatch (they are the same arithmetic over the same components). A subtotal nobody could
-    # verify has no difference to compare, so it yields to any card about its line in its column; a
-    # subtotal that DISAGREES with its components has one, and yields only to a card reporting that
-    # same difference.
+    # The assertions are taken here — AFTER the relations, because a relation card is exactly what
+    # legitimately covers a calculated line's mismatch: a rollup relation and a calculated line's
+    # mismatch are the same arithmetic over the same components, so their assertions coincide and the
+    # second card would restate the first.
     checks += _calculated_checks(rows, template_def, locale,
-                                 covered=_claimed_targets(checks),
                                  asserted=_reported_assertions(checks))
     return checks
 
 
 def _calculated_checks(rows: list[dict], template_def: dict | None, locale: str,
-                       covered: set[_Claim], asserted: set[_Assertion]) -> list[dict]:
-    """Review items for the template's CALCULATED lines — the face now shows the computed figure,
-    so the printed one has to be accounted for somewhere.
+                       asserted: set[_Assertion]) -> list[dict]:
+    """ONE review item for the template's CALCULATED lines: the document printed a subtotal that its
+    own components do not come to.
 
-    Two findings, and the distinction is what an analyst does next:
+    The face now shows the COMPUTED figure, so the printed one has to be accounted for somewhere.
+    Either a component is mis-mapped or missing, or the filing's own arithmetic is being read
+    wrongly — either way this card says what was printed instead. It is the third of the three
+    things this queue reports: a section subtotal that does not match the extracted values.
 
-    * the document printed a subtotal that its own components do not come to. Either a component
-      is mis-mapped or missing, or the filing's own arithmetic is being read wrongly. Either way
-      the face is showing the computed figure, and this says what was printed instead.
-    * a calculated line had NO extracted components at all, so there was nothing to compute from
-      and the printed figure is on the face unverified.
+    THERE USED TO BE A SECOND FINDING HERE, ``uncomputed`` — a calculated line with no extracted
+    components at all, whose printed figure is therefore on the face unverified. That is a coverage
+    fact rather than a defect (nothing disagrees with anything), so it is no longer a card; see the
+    ``if not c.computable`` branch below for where the reader is told instead.
 
-    THE TWO FINDINGS YIELD TO A CARD ABOVE ON DIFFERENT TERMS, because they say different things, and
-    conflating them cost a real break twice over. Nothing here is counted anywhere —
-    ``failed_reported_elsewhere`` sums relations only — so unlike a dropped relation, a calculated card
-    dropped in error leaves no trace on the screen at all:
+    A mismatch reports a difference, so it yields only to a card that reports THE SAME difference
+    about the same line in the same column (``asserted``). Under an earlier target-keyed rule a
+    balance card asserting 100 on total assets deleted a 250 break between that printed subtotal and
+    its own components — a different fact, on no card, in no counter. The relation card for the same
+    line does still cover it: a rollup relation and a calculated line's mismatch are the same
+    arithmetic over the same components, so their assertions coincide. Nothing here is counted
+    anywhere — ``failed_reported_elsewhere`` sums relations only — so a calculated card dropped in
+    error leaves no trace on the screen at all, which is why the test is the strict one.
 
-    * ``uncomputed`` reports no difference (its delta is the literal "—"), so there is nothing to
-      compare and the only honest rule is the weaker one: it yields when the line already has a card
-      IN THIS COLUMN (``covered``, keyed on target + basis + period). Keyed on the bare template key,
-      that test let ``chk-balance`` — hardcoded consolidated/current — delete the STANDALONE column's
-      card for the same line;
-    * ``calculated_mismatch`` reports a difference, so it yields only to a card that reports THE SAME
-      difference about the same line in the same column (``asserted``). Under the target-keyed rule a
-      balance card asserting 100 on total assets deleted a 250 break between that printed subtotal and
-      its own components — a different fact, on no card, in no counter. The relation card for the same
-      line does still cover it: a rollup relation and a calculated line's mismatch are the same
-      arithmetic over the same components, so their assertions coincide.
-
-    NEITHER finding offers a mechanical fix, and the mismatch case is the important one: writing
-    the PRINTED figure over the computed subtotal would close the card while hiding the
-    mis-mapped, missing or double-counted component that caused it. That is the anti-fix — it
-    makes the symptom disappear and leaves the defect — so no button is offered and nobody may
-    re-add one.
+    IT OFFERS NO MECHANICAL FIX, deliberately: writing the PRINTED figure over the computed subtotal
+    would close the card while hiding the mis-mapped, missing or double-counted component that caused
+    it. That is the anti-fix — it makes the symptom disappear and leaves the defect — so no button is
+    offered and nobody may re-add one.
     """
     def L(s: str) -> str:
         return _t(s, locale)
@@ -1668,37 +1628,14 @@ def _calculated_checks(rows: list[dict], template_def: dict | None, locale: str,
             parts = [[comp.label, "—" if comp.value is None else f"{comp.value:,.0f}", False]
                      for comp in c.components]
             if not c.computable:
-                if reported is None or (key, basis, period) in covered:
-                    continue        # neither printed nor computable, or the line is spoken for here
-                out.append({
-                    "id": f"chk-uncomputed-{basis}-{key}", "type": "uncomputed", "icon": "∅",
-                    "title": L("Printed subtotal could not be verified"),
-                    "where": where, "severity": L("Not computable"), "tone": "med",
-                    "delta": "—", "target": key,
-                    # The subtotal itself; its components are by definition not extracted here
-                    # (that is what "uncomputed" means), so there is no extracted line to name.
-                    "names": [key],
-                    # COUNTED, not the literal "0" this row used to print. It is always zero here
-                    # (`computable` is False exactly when no component carried a value), but a
-                    # number on a card has to be derived from the data it sits above — otherwise a
-                    # later change to what "not computable" means leaves a false 0 behind.
-                    "calc": [[L("Printed in the document"), f"{reported:,.0f}", True],
-                             [L("Components extracted"),
-                              str(sum(1 for comp in c.components if comp.value is not None)),
-                              False], *parts],
-                    "fix": L("None of the lines this subtotal is made of were extracted, so it "
-                             "could not be recomputed. The printed figure is on the face "
-                             "unverified — map its components, or accept it as reported."),
-                    "subject": {"k": "uncomputed", "key": key, "basis": basis,
-                                "period": period},
-                    # This check's `delta` is the literal "—", so `reported` is the ONLY thing
-                    # standing between an acceptance and a silently changed printed figure.
-                    # Components are keyed by canonical_key, never comp.label, which
-                    # node_labels() localizes — a locale must not change an identity.
-                    "evidence": {"reported": judgement.q(reported),
-                                 "components": {comp.canonical_key: judgement.q(comp.value)
-                                                for comp in c.components}},
-                })
+                # NO CARD. A subtotal whose components were never extracted is a COVERAGE
+                # fact, not a defect: nothing disagrees with anything, and the printed figure is
+                # served as the face shows it. It used to raise 'Printed subtotal could not be
+                # verified', which is a true sentence and not one of the three things this queue
+                # is for — and it competed for attention with the subtotals that genuinely do
+                # not match. What the line still carries is its own inspector note saying the
+                # figure is unverified, and the coverage band still reports the relation as
+                # unevaluated, which is where an un-checkable relation belongs.
                 continue
             if reported is None:
                 continue            # computed cleanly and the document never printed it: fine
@@ -1919,17 +1856,16 @@ _EVIDENCE_LABELS: dict[str, dict[str, str]] = {
               "violations": "Violations"},
     "calculated_mismatch": {"reported": "Printed", "computed": "Computed",
                             "diff": "Difference", "components": "Components"},
-    "uncomputed": {"reported": "Printed", "components": "Components"},
+    # The one row-shaped card. The concept it mapped to — when it mapped to one the template does not
+    # declare — lives in the SUBJECT rather than here: what a reviewer accepts is that the caption
+    # really is that concept, so a re-run that files the row elsewhere is a different claim, not the
+    # same one re-confirmed. What travels here is the FIGURE, which is what the card prints.
+    #
+    # `uncomputed`, `off_template` and `low_confidence` had entries here and no longer do, with their
+    # cards. `off_template`'s findings are raised as `unmapped` (one category, two ways in); the other
+    # two are not raised at all. An accepted judgement stored against one of them is served as
+    # ORPHANED rather than silently dropped — see `_serve_judgements`.
     "unmapped": {"value": "Value"},
-    # The off-template card carries the figure, and the mapping's band and method too when it also
-    # printed them (it pre-empts the low-confidence card, so it inherits that card's subject matter —
-    # see where it is built). The template's own version is deliberately not fingerprinted; its
-    # identity lives in the SUBJECT, not here.
-    "off_template": {"value": "Value", "confidence_band": "Confidence band", "method": "Method"},
-    # `confidence_band` is the printed confidence quantized (`_confidence_evidence`), so it is shown
-    # under a label that says BAND — a reader of an accepted card must not read "40-49%" as the score.
-    "low_confidence": {"value": "Value", "confidence_band": "Confidence band",
-                       "method": "Method"},
 }
 
 
@@ -2046,17 +1982,29 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
                   judgements: list[dict] | None = None,
                   run_id: str = "",
                   coverage_block: dict | None = None) -> dict:
-    """Derive the human-in-the-loop review queue from a real extraction: failed accounting
-    checks (balance identity, note ties, template structure) plus the three ROW-shaped findings —
-    unmapped, off-template and low-confidence line items — become review items (the QA the analyst
-    works before export). No demo data involved.
+    """Derive the human-in-the-loop review queue from a real extraction — the QA the analyst works
+    before export. No demo data involved.
 
-    The row-shaped three are the queue's account of every printed figure the spread does not simply
-    show. Two of them mean the figure is absent from the grid entirely: an unmapped row was placed
-    nowhere, and an off-template row was placed on a concept the run's own template puts on no
-    statement. The grid does not add either one — it renders the template's lines and nothing else —
-    so this queue is where those figures are reported, and all three end at the same ``remap``
-    control, which is what makes the report an action rather than a complaint.
+    THREE THINGS REACH THIS QUEUE AND NOTHING ELSE:
+
+    1. a figure extracted from the face of a statement that reaches NO LINE of the output — either
+       nothing claimed the caption, or something claimed it for a concept the run's own template puts
+       on no statement. One card kind (``unmapped``), two ways in, because from the output's point of
+       view they are the same fact: the grid renders the template's lines and nothing else, so such a
+       figure appears nowhere at all unless this queue reports it. It ends at a ``remap`` control,
+       which is what makes the report an action rather than a complaint.
+    2. a VALIDATION RULE that fails — the balance identity, the equity tie, the rulebook's relations
+       and its cross-concept guards.
+    3. a SECTION SUBTOTAL that does not match the extracted values — a printed subtotal its own
+       components do not come to (``calculated_mismatch``), or a rollup relation that breaks.
+
+    WHAT DELIBERATELY DOES NOT REACH IT, though each was a card once: a weakly-mapped line (a
+    mapping's strength is a property of the mapping, shown on the row's own confidence badge, and the
+    right answer to a weak match is to match it better rather than to bill an analyst for it — it is
+    still COUNTED, see ``weak_mappings``), and a calculated line with no extracted components (a
+    coverage fact, reported in the coverage band and in the line's own inspector note, where an
+    un-checkable relation belongs). Neither is one of the three, and both competed for attention
+    with findings that are.
 
     ``judgements`` are the in-force ACCEPTED judgement rows for this document; each check comes
     back carrying its ``status`` (open / accepted / stale) so the queue distinguishes "nobody has
@@ -2064,14 +2012,12 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
 
     What travels in the fingerprint, and what deliberately does NOT:
 
-    * ``mapping_confidence`` and ``mapping_method`` are IN the low-confidence card's evidence,
-      quantized — see ``_confidence_evidence``. They used to be excluded as "why the finding was
-      raised rather than what was confirmed", and that was half right and ended in the wrong place: a
-      low-confidence finding is a statement about the mapping, so the mapping's strength and method
-      are what the acceptance is about, and the card prints both. Excluded, a collapse from 0.41
-      'fuzzy' to 0.02 'llm' was served 'accepted' with nothing changed. The churn worry is answered
-      by bucketing the score, not by omitting it; the RAW score still travels on the judgement row's
-      ``context``, where it records what the reviewer was shown without controlling identity.
+    * ``mapping_confidence`` and ``mapping_method`` travel in NO card's evidence, because no card is
+      about a mapping's strength any more. They were quantized into the low-confidence card's
+      fingerprint for a reason that was sound at the time — a collapse from 0.41 'fuzzy' to 0.02
+      'llm' was otherwise served 'accepted' with nothing changed — and the mechanism went with the
+      card. The lesson did not: it is why ``_prov_anchor`` and ``judgement.q`` bucket rather than
+      omit.
     * every localized string — title, where, severity, fix, calc labels — because one judgement
       has to hold in all four locales.
     * the formatted ``delta``, the row index and the check id.
@@ -2106,7 +2052,18 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
     # The extracted lines the accounting findings NAME, each contributed by the builder that knows
     # which lines its card indicts. The header's third tile counts the rows in none of them.
     named = {k for c in accounting for k in (c.get("names") or []) if k}
-    unmapped = low_conf = off_template = 0
+    unmapped = 0
+    # WEAK MAPPINGS ARE COUNTED BUT NOT QUEUED. The queue carries three things — a face figure
+    # nobody could place, a failed validation rule, a section subtotal that does not match its
+    # components — and a mapping the engine made at low confidence is none of them: the figure IS
+    # published, and the row carries its own score for the Workspace badge to colour.
+    #
+    # Counted anyway, because two surfaces would otherwise report that the data got better when all
+    # that happened is that this queue stopped asking: the credit commentary's "figures are
+    # provisional pending sign-off" caveat keys off outstanding review work, and the "lines carrying
+    # no finding" tile would absorb every weakly-mapped line and certify it clean. Neither is a
+    # queue, and neither is entitled to the improvement.
+    weak_mappings: set[int] = set()
     # WHETHER THIS RUN HAS A TEMPLATE AT ALL is `template_def is None` and nothing else — the same
     # spelling `_build_statement` gates its no-template fallback on, so the grid and the queue cannot
     # disagree about it. It is deliberately not "are there any declared keys": a pinned definition
@@ -2146,14 +2103,48 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
         first = (r.get("values") or [{}])[0]
         val = first.get("value")
         where = f"{filename} · {_prov_label(first.get('provenance'))}"
-        pct = f"{round(conf * 100)}%" if isinstance(conf, (int, float)) else "—"
-        # Whether the MAPPING is weak, spelled once. The off-template card pre-empts the
-        # low-confidence one and has to carry the same subject matter when both hold — see there.
+        # Whether the MAPPING is weak, spelled once. It raises no card — see `weak_mappings` — but
+        # it is counted, because two other surfaces must not report better data because this queue
+        # stopped asking.
         weak = ("low_mapping_confidence" in flags
                 or (isinstance(conf, (int, float)) and conf < _low_conf_threshold()))
+        if key and weak:
+            weak_mappings.add(i)
+        # REACHES NO LINE IN THE OUTPUT — one category, two ways in. Either nothing claimed the
+        # caption, or something claimed it for a concept THIS TEMPLATE DOES NOT DECLARE, and from the
+        # output's point of view those are the same fact: an extracted face figure that appears on no
+        # line of the spread. The second used to be its own kind (`off_template`); deleting it
+        # outright would have been worse than keeping it, because such a row reaches no grid either,
+        # so with no card it reaches nothing at all and disappears in silence. It is reported here
+        # instead — the queue keeps its three categories and no figure is lost.
+        #
+        # A row the MATRIX shows is exempt: the equity statement is served as a grid, so its
+        # movements do reach the output even though no template LINE declares them.
+        off_template = bool(key and templated and key not in declared_keys
+                            and i not in on_a_matrix)
 
-        if not key:
+        if not key or off_template:
+            # ON THE FACE OF THE STATEMENTS, which is the whole of this category. Two positive
+            # signals exclude a row, and both are POSITIVE on purpose — a row the extraction could
+            # not place anywhere is judged as before, so an unstamped row cannot fall out of the
+            # queue for want of a stamp:
+            #
+            # * `column_index` says the row came off a MATRIX. It is set in exactly one place
+            #   (``row_reconstruct``'s matrix path, where it holds the printed left-to-right
+            #   position of a component column), so a row carrying it is an equity-statement
+            #   movement served through the matrix view rather than a template line. Those rows were
+            #   never candidates for a canonical key. Measured on the China SCE 2023 filing: 32 of
+            #   44 unmapped rows were that one statement, and it has no mapped rows at all — left
+            #   in, the queue's largest category is noise and the one thing it is FOR is buried.
+            # * `printed_in is NOTES` says the row was printed in the NOTES rather than on a face
+            #   statement. A note's detail lines are served through the Notes tab and the note-detail
+            #   routes; they are not lines of the spread and were never going to be, so an unplaced
+            #   one is not the defect this category names. (On the real filing every unplaced row is
+            #   already a face row, so this changes no count today — it is here so a filing whose
+            #   notes carry unplaceable captions cannot fill the queue with them.)
             if any(v.get("column_index") is not None for v in (r.get("values") or [])):
+                continue
+            if str(r.get("printed_in") or "").lower() == "notes":
                 continue
             unmapped += 1
             indicted.add(i)
@@ -2167,7 +2158,12 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
                 # screen it was written for.
                 "calc": [
                     [L("Source label"), r.get("source_label", ""), False],
-                    [L("Mapped to"), L("— (no confident match)"), True],
+                    # WHICH OF THE TWO REASONS IT IS. A row that mapped to a concept this template
+                    # does not declare has a concept to name, and naming it is the difference
+                    # between "nothing recognised this caption" and "the rulebook and the template
+                    # disagree about this line" — different fixes, same category.
+                    [L("Mapped to"),
+                     key if off_template else L("— (no confident match)"), True],
                     [L("Value"), str(val) if val is not None else "—", False],
                 ],
                 "fix": L(_UNMAPPED_FIX),
@@ -2180,132 +2176,20 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
                 # `anchor` is `_prov_anchor`, NOT the "p.1" the card prints: a page label makes
                 # every unmapped line on a page one identity, and accepting one of two "Others"
                 # lines then fabricated a judgement on the other.
+                # THE CONCEPT IS PART OF THE IDENTITY WHEN THERE IS ONE. For a row that mapped to
+                # something the template does not declare, what a reviewer accepts is "this caption
+                # really is that concept, and the template is what needs fixing" — so a re-run that
+                # files the row elsewhere is a DIFFERENT claim, not the same one re-confirmed. A row
+                # nothing claimed has no concept to put here, and its identity is the caption and
+                # its geometry alone.
                 "subject": {"k": "unmapped", "label": judgement.norm(r.get("source_label")),
-                            "anchor": _prov_anchor(first.get("provenance"))},
+                            "anchor": _prov_anchor(first.get("provenance")),
+                            **({"key": key} if off_template else {})},
                 # The card prints str(val), so string equality invents no rounding the screen
                 # never applied.
                 "evidence": {"value": str(val) if val is not None else None},
                 # …and the fix the sentence above promises. `_UNMAPPED_FIX` has always said "Pick the
                 # correct template line item"; until this there was nothing on the card that could.
-                "remap": _remap_offer(r, locale),
-            })
-        elif key and templated and key not in declared_keys and i not in on_a_matrix:
-            # A MAPPING ONTO A CONCEPT THIS RUN'S TEMPLATE DOES NOT CARRY. The grid used to
-            # render these under an "Other extracted items" heading appended after every template
-            # section — lines the template does not define, on a spread whose whole value is that its
-            # shape is the template's, and (against a superseded pinned template) the very lines
-            # whose position a revision had just corrected, back at the end again.
-            #
-            # Removing that heading would have made a real extracted figure invisible, which this
-            # codebase does not do. So the figure is reported HERE instead, as the finding it always
-            # was: the mapper placed it somewhere the spread cannot show it, and the analyst either
-            # re-maps it onto a line the template does declare, un-maps it, or re-extracts against a
-            # template that declares it. All three are stated on the card and the first two are one
-            # `remap` call away.
-            #
-            # RAISED BEFORE the low-confidence card, and instead of it, when a row qualifies for
-            # both. "Confirm the concept is correct or reassign it" is advice that cannot be taken
-            # about a concept the template does not have, and it says nothing about the figure being
-            # absent from every spread — which is the fact the reader needs first. Both cards resolve
-            # through the same re-map control, so raising both would put one row in the queue twice
-            # under one action. An acceptance recorded against the low-confidence subject is not lost
-            # by the swap: it orphans, and `judgements.orphaned` says so by name.
-            #
-            # PRE-EMPTING IT MEANS INHERITING WHAT IT WAS ABOUT. When the mapping is also weak the
-            # card prints the method and the score and fingerprints the quantized band, exactly as the
-            # low-confidence card does — otherwise swallowing that card would have swallowed the one
-            # property `_confidence_evidence` exists for: an acceptance made at 0.41 'fuzzy' surviving
-            # a re-run at 0.02 'llm' with `changed == []`, the reviewer never shown the collapse.
-            off_template += 1
-            indicted.add(i)
-            checks.append({
-                "id": f"chk-offtpl-{i}", "type": "off_template", "icon": "⌖",
-                "title": r.get("source_label", "Line item"), "where": where,
-                # Tone `med`, not `low`: an unmapped row is a figure nobody could place, while this is
-                # a figure the mapper DID place and the spread still cannot show — a disagreement
-                # between the rulebook and the template, which is a configuration defect.
-                # `delta` collapses to the score when there is a weak one to warn about, as the
-                # low-confidence card's does, and to "—" when the mapping was confident.
-                "severity": L("Off template"), "tone": "med", "delta": pct if weak else "—",
-                "target": r.get("source_label", ""),
-                "calc": [
-                    [L("Source label"), r.get("source_label", ""), False],
-                    [L("Mapped to"), key, True],
-                    [L("Not on this template"),
-                     L("Mapped, but not on any statement in this template"), True],
-                    *([[L("Method"), r.get("mapping_method") or "—", False],
-                       [L("Confidence"), pct, False]] if weak else []),
-                    [L("Value"), str(val) if val is not None else "—", False],
-                ],
-                "fix": L(_OFFTPL_FIX),
-                # `i` is a render key only, as on the two cards above. The MAPPED CONCEPT is in the
-                # subject for the same reason it is in the low-confidence one: the claim being judged
-                # is about this caption landing on this concept, and a re-run that files the row under
-                # a different off-template concept is a different claim, not the same one re-confirmed.
-                "subject": {"k": "off_template", "label": judgement.norm(r.get("source_label")),
-                            "anchor": _prov_anchor(first.get("provenance")), "key": key},
-                # The figure, plus the mapping's strength and method WHEN THE CARD PRINTS THEM — the
-                # rule everywhere here is that identity turns on what was displayed, and quantized so
-                # jitter does not withdraw a sound acceptance (`_confidence_evidence`).
-                #
-                # The template's own version is deliberately NOT in here: publishing a new template
-                # version would then withdraw every acceptance on this card, including for rows the
-                # new version still does not declare — churn carrying no new information. When a
-                # revision DOES declare the key the finding stops being raised at all, which the
-                # judgement layer already reports as orphaned rather than as accepted.
-                "evidence": {"value": str(val) if val is not None else None,
-                             **(_confidence_evidence(conf, r.get("mapping_method")) if weak
-                                else {})},
-                # The RAW score beside the banded digest, only when there is one the reviewer was
-                # shown — the same division of labour as on the low-confidence card.
-                **({"context": {"confidence": r.get("mapping_confidence"),
-                                "method": r.get("mapping_method") or ""}} if weak else {}),
-                # The control the fix text names. Un-mapping ("") is offered by the same endpoint and
-                # is the honest answer for a row that belongs on no line at all.
-                "remap": _remap_offer(r, locale),
-            })
-        elif weak:
-            low_conf += 1
-            indicted.add(i)
-            checks.append({
-                "id": f"chk-lowconf-{i}", "type": "low_confidence", "icon": "!",
-                "title": r.get("source_label", "Line item"), "where": where,
-                "severity": L("Low confidence"), "tone": "med", "delta": pct,
-                "target": r.get("source_label", ""),
-                # `Method` and `Confidence` are the finding's own subject matter, and both are in the
-                # evidence digest (quantized — see `_confidence_evidence`), so the reader sees exactly
-                # what the acceptance is a statement about.
-                "calc": [
-                    [L("Source label"), r.get("source_label", ""), False],
-                    [L("Mapped to"), key, True],
-                    [L("Method"), r.get("mapping_method") or "—", False],
-                    [L("Confidence"), pct, False],
-                    [L("Value"), str(val) if val is not None else "—", False],
-                ],
-                "fix": L(_LOWCONF_FIX),
-                # Same render-key-only note as chk-unmapped-{i} above: `i` is a list key, not an
-                # identity. The MAPPED CONCEPT is in the subject because the judgement being made
-                # is "this label really is this concept" — a re-run mapping it somewhere else is a
-                # different finding, not the same one re-confirmed.
-                "subject": {"k": "low_confidence", "label": judgement.norm(r.get("source_label")),
-                            "anchor": _prov_anchor(first.get("provenance")), "key": key},
-                # THE MAPPING'S STRENGTH AND METHOD ARE PART OF WHAT WAS JUDGED, because a
-                # low-confidence finding IS a statement about the mapping — and the card prints both,
-                # as its collapsed `delta` and as its Method and Confidence rows. With only `value` in
-                # here, run 1 at 0.41 / 'fuzzy' accepted by "41% fuzzy — checked p.42, the concept is
-                # right" served run 2 at 0.02 / 'llm' as 'accepted', digest byte-identical, changed
-                # == [] — the card printing "Method llm · Confidence 2%" under that reviewer's name.
-                # The churn worry that kept them out is real and is answered by QUANTIZING, the way
-                # `_prov_anchor` answered it for geometry, not by omitting.
-                "evidence": {"value": str(val) if val is not None else None,
-                             **_confidence_evidence(conf, r.get("mapping_method"))},
-                # Kept, and now beside the digest rather than instead of it: this is the RAW score,
-                # recorded on the judgement row so a reader can see the exact number the reviewer was
-                # shown. The evidence carries the band, which is what identity turns on.
-                "context": {"confidence": r.get("mapping_confidence"),
-                            "method": r.get("mapping_method") or ""},
-                # `_LOWCONF_FIX` says "Confirm the concept is correct or reassign it". Reassigning is
-                # this, and it is the half the card could not previously do.
                 "remap": _remap_offer(r, locale),
             })
     for c in checks:
@@ -2361,7 +2245,13 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
     # here as `len(rows) - len(indicted)`, it counted every serialized row including subtotals and
     # totals, while the sample counted only its `kind == "item"` rows: two populations under one
     # label, and the sample understated its own by the 8 subtotal/total rows no finding named.
-    passed = review_lines.lines_with_no_finding(rows, lambda i, _r: i in indicted)
+    # A WEAKLY-MAPPED LINE IS NOT A CLEAN LINE, even though it no longer raises a card. Without
+    # this the tile would grow by every retired low-confidence finding — on the filing this was
+    # measured against, 56 lines moving from red to green because the queue stopped asking about
+    # them — and a green counter beside a red one is exactly where a reader looks for "how much of
+    # this is settled".
+    passed = review_lines.lines_with_no_finding(
+        rows, lambda i, _r: i in indicted or i in weak_mappings)
     # Each tab carries the check TYPES it selects, so the client filters by what the tab means
     # rather than by its position in this list. `types: None` is the everything tab. Positional
     # agreement between a server list and a client array is the bug that made the page-scope
@@ -2371,6 +2261,7 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
     # is added: a second predicate would have to be spelled once here for the counts and once in
     # the TSX for the rows, and that drift is the counts-disagree-with-content bug the last three
     # commits closed. An accepted finding therefore stays in its tab and stays on screen.
+    _assert_known_kinds(checks)
     accounting_types = sorted({c["type"] for c in accounting})
     return {
         "run_id": run_id,
@@ -2378,19 +2269,23 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
         "tabs": [
             {"label": L("All"), "count": total, "types": None},
             {"label": L("Checks"), "count": len(accounting), "types": accounting_types},
-            {"label": L("Unmapped"), "count": unmapped, "types": ["unmapped"]},
-            {"label": L("Low confidence"), "count": low_conf, "types": ["low_confidence"]},
-            # Its own bucket rather than folded into one of the others: the tabs PARTITION the list,
-            # so a type with no tab of its own is a finding invisible under every filter, and this
-            # one is a different question from the two beside it — not "which concept is this line?"
-            # but "why does a mapped line reach no spread?", answered by fixing the rulebook or the
-            # template rather than by reading the page again.
-            {"label": L("Off template"), "count": off_template, "types": ["off_template"]},
+            {"label": L("Unmapped"), "count": unmapped, "types": sorted(_ROW_SHAPED_TYPES)},
+            # TWO CHIPS, ONE PER SHAPE, and no chip for a kind that cannot be emitted. The tabs
+            # partition the list, so a chip whose `types` select nothing renders as a permanent "0"
+            # that filters the list to empty — a control that looks like a filter and is a dead end.
+            # "Low confidence" and "Off template" went with their cards. The accounting chip carries
+            # the types actually EMITTED on this run rather than all of `_ACCOUNTING_TYPES`, so
+            # clicking it selects exactly the cards below it.
         ],
         # `open` is outstanding work, so it includes the stale cards — someone vouched for figures
         # that have since moved, which is more urgent than an untouched finding, not less — and the
         # conflict cards, which nobody can accept at all. `stale` and `conflict` are those subsets,
         # reported separately so the screen can say each one out loud.
+        # SERVED, not recomputed by each reader. A weak mapping raises no card, but two consumers
+        # need to know how many there are — the commentary (so its data-quality caveat does not
+        # lapse because this queue narrowed) and the header tile (so a weakly-mapped line is not
+        # counted as carrying no finding). Both read it from here.
+        "weak_mappings": len(weak_mappings),
         "summary": {"open": counts["open"] + counts["stale"] + counts["conflict"],
                     "accepted": counts["accepted"], "stale": counts["stale"],
                     "conflict": counts["conflict"], "passed": passed},
@@ -2622,8 +2517,16 @@ def get_document_commentary(document_id: str, locale: str = Query("en"),
                            run.result.get("structural", []), _template_for_run(session, run),
                            judgements=_inforce_judgements(session, doc), run_id=run.id)
     units = run.result.get("units") or {}
+    # OUTSTANDING WORK, NOT QUEUE LENGTH. The commentary's "some reported figures are provisional
+    # pending sign-off" caveat, and its refusal to call a filing's data strong, key off this number
+    # — so handing it the queue's own length would make the assessment improve every time the queue
+    # narrows. It just did: a mapping made at low confidence no longer raises a card, and on the
+    # filing this was measured against that is 56 rows. The figures are exactly as provisional as
+    # they were; only the queue changed. So the weak mappings are added back in here, where the
+    # question is "how much of this should a reader trust", not "what is there to work on".
+    weak = review.get("weak_mappings", 0)
     c = build_commentary_from_rows(
-        rows, open_review_items=review["summary"]["open"], basis=basis,
+        rows, open_review_items=review["summary"]["open"] + weak, basis=basis,
         currency=units.get("currency") or "", units=units.get("units_label") or "")
     return _localize_commentary(c, locale)
 
@@ -4063,9 +3966,14 @@ _CALC_NOTES = {
                   "finding rather than a number.",
     "manual": "A value entered by hand, which stands over the computed one. The components below "
               "are what the template says this line is made of.",
+    # NOT "it is in the review queue", which it no longer is: a subtotal with no components is a
+    # coverage fact rather than a defect, so it raises no card (`_calculated_checks`). This note and
+    # the coverage band's unevaluated relation are where the reader is told, so the sentence has to
+    # carry the whole of it — say only "unverified" here and nothing anywhere says why.
     "reported_uncomputed": "None of the components this line is made of were extracted, so there "
                            "was nothing to compute from and the document's printed figure is "
-                           "shown unverified. It is in the review queue.",
+                           "shown unverified. Nothing disagrees with it — there was nothing to "
+                           "disagree — so it raises no review item; check it against the page.",
 }
 
 

@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-from decimal import Decimal
-
-from app.sample.demo import BALANCE_SHEET
-from app.services import checks as ce
 
 
 def test_project_and_statement(client):
@@ -162,11 +158,26 @@ def test_sample_counts_describe_the_lists_they_head(client):
     # them, 8 of which no finding names. Read off `names` — the field the real route serves for the
     # same purpose — not re-derived here.
     named = {n for c in review["checks"] for n in c["names"]}
-    assert named == {c["target"] for c in review["checks"]}
+    # Every ACCOUNTING finding names the line it is about; the row-shaped one names nothing, because
+    # its target is a printed CAPTION rather than a line of the spread — that IS the finding, that
+    # the figure reaches no line. Naming it would claim to indict a row that is not there.
+    assert named == {c["target"] for c in review["checks"] if c["type"] != "unmapped"}
+    assert [c["names"] for c in review["checks"] if c["type"] == "unmapped"] == [[]]
     rows = [r for s in statements.values() for r in s["rows"]]
     lines = [r for r in rows if r.get("kind") not in ("section", "subhead")]
+    # A WEAKLY-MAPPED LINE IS EXCLUDED TOO, on both paths. It raises no card — a mapping's strength is
+    # not one of the three things this queue reports — but "no finding names it" must not be read as
+    # "it is clean", so the tile does not count it and the count of them is served separately.
+    def weak(r):
+        # The SERVED spelling of the confidence band, which is not the seeded one: the statement
+        # route projects `conf: "low"` into `confidence: {cat, pct}`. Read what the screen reads.
+        return ((r.get("confidence") or {}).get("cat")) == "low"
+
     indicted = [r for r in lines if r.get("id") in named]
-    assert review["summary"]["passed"] == len(lines) - len(indicted)
+    accounted = [r for r in lines if r.get("id") in named or weak(r)]
+    assert review["summary"]["passed"] == len(lines) - len(accounted)
+    assert review["weak_mappings"] == len([r for r in lines if weak(r)])
+    assert review["weak_mappings"] > 0        # the sample seeds some, so the assertion above bites
     # THE ASSERTION THAT FAILS WITH THE DEFECT RESTORED: the two populations are provably different
     # numbers on this very data, so the item-only count cannot pass as the served one.
     assert len(lines) > items
@@ -215,35 +226,19 @@ def test_export_xlsx_and_json(client):
     assert r.content[:2] == b"PK"  # xlsx is a zip container
 
 
-# --- generic checks engine (used for real extractions) ---
-
-def test_balance_check_passes_on_balanced_sheet():
-    rows = [{"id": r["id"], "label": r["label"], "kind": r.get("kind", "item"),
-             "v1": r.get("v1"), "v2": r.get("v2")} for r in BALANCE_SHEET]
-    results = ce.check_balance(rows)
-    assert results and results[0].status == "pass"
-    assert results[0].delta == Decimal(0)
-
-
-def test_balance_check_fails_on_imbalance():
-    rows = [{"id": "tot_assets", "kind": "total", "v1": 1268100},
-            {"id": "tot_eq", "kind": "total", "v1": 1266860}]
-    r = ce.check_balance(rows)[0]
-    assert r.status == "fail" and r.delta == Decimal(1240)
-
-
-def test_subtotal_rollup_detects_mismatch():
-    rows = [
-        {"id": "sh", "kind": "subhead", "label": "X"},
-        {"id": "a", "kind": "item", "label": "a", "v1": 100},
-        {"id": "b", "kind": "item", "label": "b", "v1": 200},
-        {"id": "sub", "kind": "subtotal", "label": "Sub", "v1": 310},  # should be 300
-    ]
-    checks = ce.check_subtotals(rows)
-    assert checks[0].status == "fail" and checks[0].delta == Decimal(10)
-
-
-def test_sign_anomaly_flags_positive_expense():
-    rows = [{"id": "fin", "kind": "item", "label": "Finance costs", "v1": 18400}]
-    checks = ce.check_signs(rows)
-    assert checks and checks[0].type == "sign" and checks[0].target == "fin"
+# DELETED with `app/services/checks.py`, a parallel checks engine with NO CALLER in the app.
+#
+#   test_balance_check_passes_on_balanced_sheet
+#   test_balance_check_fails_on_imbalance
+#   test_subtotal_rollup_detects_mismatch
+#   test_sign_anomaly_flags_positive_expense
+#
+# Its module docstring said "used for real uploaded extractions" and it was not: the balance
+# identity, the subtotal rollups and the sign expectation are all evaluated by
+# `services/structural_checks.py` against the TEMPLATE's declared relations and the rulebook's
+# guards, and served by `documents.py::_accounting_checks`. Those are tested in
+# tests/test_structural_checks.py and tests/test_review_checks.py, against the code that actually
+# runs. Keeping a second engine meant two definitions of "does this balance" — one of them
+# unexercised by any request — and it was also where the review queue's retired vocabulary
+# (`subtotal`, `sign`, `note_tie`) was still written down, which is how the seeded sample came to
+# advertise categories the real path does not raise.

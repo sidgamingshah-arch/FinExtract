@@ -253,29 +253,48 @@ DEFAULT_INSPECTOR = {"tag": "Direct", "src": "p.142 (face)", "formula": "direct 
 # --- Review queue (screen 5) -----------------------------------------------
 # The four seeded checks from the design handoff. They tell one coherent story: a
 # 1,240 cr related-party netting error propagates through the balance identity and a
-# section subtotal, plus a sign anomaly and a pending note reconciliation.
-
+# section subtotal, plus a mis-signed expense and a face figure that reaches no template line.
+#
+# THE `type` OF EACH CHECK IS THE REAL ROUTE'S VOCABULARY, not a second one. The queue carries
+# exactly three things — a face figure that reaches no line of the output (`unmapped`), a validation
+# rule that failed (`balance`, `equity_tie`, `structural`), and a section subtotal that does not
+# match the values under it (`calculated_mismatch`) — and the sample is the first thing a new user
+# sees, so it must teach those and only those.
+#
+# It used to speak its own: `subtotal`, `sign` and `note`, of which only `balance` was ever a kind
+# the real route serves. Those names came from `app/services/checks.py`, a parallel checks engine
+# with no caller, now deleted. The fourth card was a NOTE-TIE, a category the real route does not
+# raise at all any more — so the sample was advertising a queue category that cannot occur, while
+# not showing the one that matters most. It is now the `unmapped` card below.
 REVIEW = [
     {"id": "bs", "type": "balance", "icon": "≠", "title": "Balance sheet does not balance",
      "where": "Consolidated · Assets vs Equity & Liabilities", "severity": "Blocking", "tone": "low",
      "delta": "Δ 1,240", "target": "tot_assets",
      "calc": [["Total assets", "12,68,100", False], ["Total equity & liabilities", "12,66,860", False], ["Difference", "1,240", True]],
      "fix": "The 1,240 cr related-party receivable was netted from Trade receivables but not removed from Other financial assets. Apply the Note 12.3 netting rule to Other financial assets."},
-    {"id": "sub", "type": "subtotal", "icon": "Σ", "title": "Section subtotal mismatch — Non-current assets",
+    # The third category: a printed subtotal its own components do not come to.
+    {"id": "sub", "type": "calculated_mismatch", "icon": "≠", "title": "Section subtotal mismatch — Non-current assets",
      "where": "Extracted 7,49,830 vs calculated 7,48,590", "severity": "High", "tone": "med",
      "delta": "Δ 1,240", "target": "sub_nca",
      "calc": [["Sum of extracted line items", "7,48,590", False], ["Reported subtotal", "7,49,830", False], ["Difference", "1,240", True]],
      "fix": "A duplicated Loans line (Note 7) is counted in both current and non-current. Reassign the 1,240 cr to current per note reference."},
-    {"id": "sign", "type": "sign", "icon": "±", "title": "Sign anomaly — Finance costs positive",
+    # A failed validation rule: the rulebook's sign expectation for an expense concept. The real
+    # route serves a cross-concept guard as `structural` too — one type for "a declared rule broke".
+    {"id": "sign", "type": "structural", "icon": "±", "title": "Sign anomaly — Finance costs positive",
      "where": "Statement of P&L · expense shown as credit", "severity": "Medium", "tone": "med",
      "delta": "+18,400", "target": "fin",
      "calc": [["Extracted value", "+18,400", False], ["Expected sign (expense)", "negative", True], ["Ontology rule", "debit / negative", False]],
      "fix": "Ontology sign rule for Finance costs is expense = negative. Flip sign to −18,400 to match statement convention."},
-    {"id": "note", "type": "note", "icon": "⇄", "title": "Note reconciliation pending — Trade receivables",
-     "where": "Face 84,500 vs Note 12 total 96,900", "severity": "Medium", "tone": "indigo",
-     "delta": "Δ 12,400", "target": "trade_recv",
-     "calc": [["Note 12 total", "96,900", False], ["Less: related-party (12.3)", "(12,400)", False], ["Net to face", "84,500", True]],
-     "fix": "Netting rule matches. Confirm the related-party amount is carried under Other financial assets, then mark reconciled."},
+    # The FIRST category, and the one the sample was missing: a figure printed on the face that
+    # reaches no line of the output. Here it is the second way in — the caption mapped to a concept
+    # this template declares nowhere — which is why the card can name what it was placed on.
+    {"id": "unmapped", "type": "unmapped", "icon": "?", "title": "Deposits paid for land acquisition",
+     "where": "Consolidated · p.142 · Non-current assets", "severity": "Unmapped", "tone": "low",
+     "delta": "—", "target": "Deposits paid for land acquisition",
+     "calc": [["Source label", "Deposits paid for land acquisition", False],
+              ["Mapped to", "bs_nca__deposits_for_land", True],
+              ["Value", "31,900", False]],
+     "fix": "The rulebook placed this caption on a concept this template puts on no statement, so the figure appears on no line. Pick the correct template line item, or confirm the template needs the concept added."},
 ]
 # No REVIEW_TABS / REVIEW_SUMMARY here. Both were stored counts that disagreed with the four
 # checks above — "All 12" over a list of four, "open: 12, passed: 136" over the same four — and

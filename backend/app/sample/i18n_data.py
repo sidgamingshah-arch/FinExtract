@@ -50,11 +50,12 @@ TR: dict[str, dict[str, str]] = {
     "Balance sheet does not balance": {"zh": "资产负债表不平衡", "ar": "الميزانية العمومية غير متوازنة", "fr": "Le bilan n'est pas équilibré"},
     "Section subtotal mismatch — Non-current assets": {"zh": "分部小计不符 — 非流动资产", "ar": "عدم تطابق المجموع الفرعي — الأصول غير المتداولة", "fr": "Écart de sous-total — Actifs non courants"},
     "Sign anomaly — Finance costs positive": {"zh": "符号异常 — 财务费用为正", "ar": "شذوذ في الإشارة — تكاليف التمويل موجبة", "fr": "Anomalie de signe — Charges financières positives"},
-    "Note reconciliation pending — Trade receivables": {"zh": "附注核对待处理 — 应收账款", "ar": "تسوية الإيضاح معلقة — الذمم المدينة التجارية", "fr": "Rapprochement de note en attente — Créances clients"},
+    "Deposits paid for land acquisition": {"zh": "购地已付定金", "ar": "دفعات مقدمة لشراء أرض", "fr": "Acomptes versés pour acquisition de terrain"},
     "Consolidated · Assets vs Equity & Liabilities": {"zh": "合并 · 资产 对 权益与负债", "ar": "موحّد · الأصول مقابل حقوق الملكية والالتزامات", "fr": "Consolidé · Actif vs Capitaux propres et passif"},
     "Extracted 7,49,830 vs calculated 7,48,590": {"zh": "提取值 7,49,830 对 计算值 7,48,590", "ar": "المستخرج 7,49,830 مقابل المحسوب 7,48,590", "fr": "Extrait 7,49,830 vs calculé 7,48,590"},
     "Statement of P&L · expense shown as credit": {"zh": "利润表 · 费用列示为贷方", "ar": "قائمة الأرباح والخسائر · مصروف مُدرج كدائن", "fr": "Compte de résultat · charge présentée en crédit"},
-    "Face 84,500 vs Note 12 total 96,900": {"zh": "表面值 84,500 对 附注 12 合计 96,900", "ar": "القيمة الظاهرة 84,500 مقابل إجمالي الإيضاح 12 وهو 96,900", "fr": "Valeur au bilan 84,500 vs total Note 12 96,900"},
+    "Consolidated · p.142 · Non-current assets": {"zh": "合并 · 第142页 · 非流动资产", "ar": "موحّد · ص.142 · الأصول غير المتداولة", "fr": "Consolidé · p.142 · Actifs non courants"},
+    "Unmapped": {"zh": "未映射", "ar": "غير مطابق", "fr": "Non rattaché"},
     "Blocking": {"zh": "阻断", "ar": "معيق", "fr": "Bloquant"},
     "High": {"zh": "高", "ar": "عالٍ", "fr": "Élevé"},
     "Medium": {"zh": "中", "ar": "متوسط", "fr": "Moyen"},
@@ -73,10 +74,10 @@ TR: dict[str, dict[str, str]] = {
         "ar": "قاعدة الإشارة في الأنطولوجيا لتكاليف التمويل هي مصروف = سالب. اقلب الإشارة إلى −18,400 لمطابقة عرف القائمة.",
         "fr": "La règle de signe de l'ontologie pour les charges financières est charge = négatif. Inversez le signe en −18 400 pour respecter la convention.",
     },
-    "Netting rule matches. Confirm the related-party amount is carried under Other financial assets, then mark reconciled.": {
-        "zh": "抵减规则匹配。请确认关联方金额已列入其他金融资产，然后标记为已核对。",
-        "ar": "قاعدة الصافي متطابقة. أكّد إدراج مبلغ الأطراف ذات العلاقة ضمن الأصول المالية الأخرى ثم ضع علامة تمت التسوية.",
-        "fr": "La règle de nettage correspond. Confirmez que le montant des parties liées figure en autres actifs financiers, puis marquez comme rapproché.",
+    "The rulebook placed this caption on a concept this template puts on no statement, so the figure appears on no line. Pick the correct template line item, or confirm the template needs the concept added.": {
+        "zh": "规则手册将该标签映射到本模板未在任何报表中列示的概念，因此该数字未出现在任何行上。请选择正确的模板行项目，或确认模板需要新增该概念。",
+        "ar": "أسند كتاب القواعد هذه التسمية إلى مفهوم لا يضعه هذا القالب في أي قائمة، فلا يظهر الرقم في أي سطر. اختر بند القالب الصحيح، أو أكّد أن القالب بحاجة إلى إضافة المفهوم.",
+        "fr": "Le référentiel a rattaché ce libellé à un concept que ce modèle ne place sur aucun état : le montant n'apparaît donc sur aucune ligne. Choisissez le bon poste du modèle, ou confirmez que le concept doit y être ajouté.",
     },
     # Review reconciliation calc-row labels
     "Total assets": {"zh": "资产总计", "ar": "إجمالي الأصول", "fr": "Total de l'actif"},
@@ -89,15 +90,15 @@ TR: dict[str, dict[str, str]] = {
     "negative": {"zh": "负值", "ar": "سالب", "fr": "négatif"},
     "Ontology rule": {"zh": "本体规则", "ar": "قاعدة الأنطولوجيا", "fr": "Règle d'ontologie"},
     "debit / negative": {"zh": "借方 / 负值", "ar": "مدين / سالب", "fr": "débit / négatif"},
-    "Note 12 total": {"zh": "附注 12 合计", "ar": "إجمالي الإيضاح 12", "fr": "Total Note 12"},
-    "Less: related-party (12.3)": {"zh": "减：关联方（12.3）", "ar": "ناقص: أطراف ذات علاقة (12.3)", "fr": "Moins : parties liées (12.3)"},
-    "Net to face": {"zh": "净额计入表面", "ar": "الصافي إلى الوجه", "fr": "Net porté au bilan"},
-    # Review tabs
+    "Source label": {"zh": "原始标签", "ar": "التسمية الأصلية", "fr": "Libellé source"},
+    "Mapped to": {"zh": "映射到", "ar": "مطابق إلى", "fr": "Rattaché à"},
+    "Value": {"zh": "数值", "ar": "القيمة", "fr": "Valeur"},
+    # Review chips. Two, matching the real route's, because the queue carries two shapes of
+    # finding: the accounting checks and the one row-shaped kind. "Subtotals", "Sign anomalies"
+    # and "Note reconciliation" were chips for types the real route does not serve, and went with
+    # the sample's own check vocabulary.
     "All": {"zh": "全部", "ar": "الكل", "fr": "Tous"},
-    "Balance check": {"zh": "平衡检查", "ar": "فحص التوازن", "fr": "Contrôle d'équilibre"},
-    "Subtotals": {"zh": "小计", "ar": "المجاميع الفرعية", "fr": "Sous-totaux"},
-    "Sign anomalies": {"zh": "符号异常", "ar": "شذوذ الإشارة", "fr": "Anomalies de signe"},
-    "Note reconciliation": {"zh": "附注核对", "ar": "تسوية الإيضاحات", "fr": "Rapprochement de notes"},
+    "Checks": {"zh": "校验", "ar": "الفحوص", "fr": "Contrôles"},
 
     # ---- Page scope ----
     "Statement of P&L": {"zh": "利润表", "ar": "قائمة الأرباح والخسائر", "fr": "Compte de résultat"},

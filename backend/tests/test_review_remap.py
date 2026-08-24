@@ -59,26 +59,38 @@ def _lowconf(label, key, value, y=0.3):
 
 # --- what the card offers -----------------------------------------------------------------------
 
-def test_both_row_shaped_cards_carry_a_remap_offer_and_no_other_card_does(template):
-    # The low-confidence key must be one the template DECLARES: a weak mapping onto a concept the
-    # template puts on no statement is raised as `off_template` instead — a third row-shaped card,
-    # covered in tests/test_no_template_additions.py, which carries the same offer.
-    rows = [_unmapped("Deposits paid for acquisition of land", 60),
-            _lowconf("Sundry receivables",
-                     "bs_current_assets__prepayments_other_receivables_and_other_assets", 25)]
-    review = _build_review(rows, "d.pdf", "en", template_def=template)
-    by_type = {c["type"]: c for c in review["checks"]}
+def test_the_row_shaped_card_carries_a_remap_offer_and_no_other_card_does(template):
+    """``unmapped`` is the ONE row-shaped kind, and it is the only kind that offers a re-map.
 
-    for kind in ("unmapped", "low_confidence"):
-        offer = by_type[kind]["remap"]
+    A weak mapping used to be a second one (``low_confidence``) and a mapping onto a concept the
+    template declares nowhere a third (``off_template``). The first is no longer a finding at all; the
+    second is raised as ``unmapped`` — the same category, reached the other way — and that path is
+    what the second half of this test covers, because it is the case where the offer has a
+    ``current_key`` to pre-select.
+    """
+    rows = [_unmapped("Deposits paid for acquisition of land", 60),
+            # Mapped, confidently, onto a concept the template puts on no statement: it reaches no
+            # line of the spread, so it is the other way into the unmapped category.
+            {"source_label": "Sundry receivables", "canonical_key": "bs_ca__not_in_this_template",
+             "mapping_confidence": 0.95,
+             "values": [{"basis": "consolidated", "period_label": "current", "value": "25"}]}]
+    review = _build_review(rows, "d.pdf", "en", template_def=template)
+    cards = [c for c in review["checks"] if c["type"] == "unmapped"]
+    by_label = {c["title"]: c for c in cards}
+    assert set(by_label) == {"Deposits paid for acquisition of land", "Sundry receivables"}
+
+    for card in cards:
+        offer = card["remap"]
         assert offer["row_ref"] and offer["remapped"] is None
-        assert offer["label"] == by_type[kind]["title"]
-    assert by_type["unmapped"]["remap"]["current_key"] == ""
-    assert by_type["low_confidence"]["remap"]["current_key"] == \
-        "bs_current_assets__prepayments_other_receivables_and_other_assets"
+        assert offer["label"] == card["title"]
+    # Nothing claimed the first caption, so there is no concept to pre-select…
+    assert by_label["Deposits paid for acquisition of land"]["remap"]["current_key"] == ""
+    # …and the second mapped to one the template does not declare, which the offer carries so the
+    # analyst can see what it was placed on before choosing where it belongs.
+    assert by_label["Sundry receivables"]["remap"]["current_key"] == "bs_ca__not_in_this_template"
     # Every other builder is explicit about having no offer rather than leaving the key absent.
     for c in review["checks"]:
-        if c["type"] not in ("unmapped", "low_confidence", "off_template"):
+        if c["type"] != "unmapped":
             assert c["remap"] is None, c["type"]
 
 
@@ -233,21 +245,27 @@ def _inject(rows_to_add: list[dict]) -> None:
         s.commit()
 
 
-def test_re_mapping_a_low_confidence_row_clears_the_flag_that_raised_the_finding(client):
-    """The analyst's decision ANSWERS the finding. Left in place, ``low_mapping_confidence`` brings
-    the same card back on the next fetch — re-mapped and still flagged — which reads as the action
-    having failed, and the row would stay out of auto-accept forever on a mapping a human chose."""
+def test_re_mapping_a_weakly_mapped_row_clears_the_flag_that_marked_it(client):
+    """A human's choice is not a weak match, and the flag has to say so.
+
+    THE ROUTE IN CHANGED AND THE INVARIANT DID NOT. A weak mapping used to raise its own review card,
+    and this test used to reach the endpoint through it; a mapping's strength is no longer one of the
+    three things the queue reports, so there is no card and the endpoint is called directly — which is
+    also how the Workspace calls it, from the row rather than from a card. What ``low_mapping_confidence``
+    still decides is real and unchanged: the row's confidence badge in the grid, the ``weak_mappings``
+    count the queue serves beside its findings, and whether the row is eligible for auto-accept. Left
+    in place, a row a human placed by hand reads as a guess forever.
+    """
     doc_id = _extracted(client)
-    # A key the shipped template declares, so the card raised is the low-confidence one this test is
-    # about rather than the `off_template` card a mapping onto an undeclared concept now raises.
     row = _lowconf("Sundry receivables",
                    "bs_current_assets__prepayments_other_receivables_and_other_assets", 25, y=0.71)
     _inject([row])
     ref = _row_ref(row)
 
+    # It is counted as weak and raises NO card — the two halves of the decision this queue made.
     review = client.get(f"{API}/documents/{doc_id}/review").json()
-    card = next(c for c in review["checks"] if (c.get("remap") or {}).get("row_ref") == ref)
-    assert card["type"] == "low_confidence"
+    assert review["weak_mappings"] >= 1
+    assert not [c for c in review["checks"] if (c.get("remap") or {}).get("row_ref") == ref]
 
     r = client.post(f"{API}/documents/{doc_id}/review/remap",
                     json={"row_ref": ref, "canonical_key": "bs_current_assets__inventories",
@@ -263,8 +281,9 @@ def test_re_mapping_a_low_confidence_row_clears_the_flag_that_raised_the_finding
     conf = moved["values"][0]["confidence"]
     assert conf["mapping"] == 1.0 and "low_mapping_confidence" not in conf["flags"]
 
+    # …and the count comes down with the flag, so the tile stops reporting a weak mapping nobody has.
     after = client.get(f"{API}/documents/{doc_id}/review").json()
-    assert ref not in [(c.get("remap") or {}).get("row_ref") for c in after["checks"]]
+    assert after["weak_mappings"] == review["weak_mappings"] - 1
 
 
 def test_a_target_the_template_does_not_offer_is_refused(client):

@@ -1,5 +1,13 @@
 """NO LINE THE TEMPLATE DOES NOT DEFINE MAY REACH A STATEMENT.
 
+A row mapped to a concept the template does not declare is reported as ``unmapped`` — the queue's
+"reaches no line in the output" category — and not under a kind of its own. It used to have one
+(``off_template``); the queue now carries three categories, and this row belongs in the first of
+them because that is what it IS from the output's point of view: an extracted face figure that
+appears on no line of the spread. What the card still does is NAME the concept it mapped to, which
+is the difference between "nothing recognised this caption" and "the rulebook and the template
+disagree" — different fixes, same category.
+
 Reported by the user as two symptoms of one defect: "recheck whether any line item can be added to
 the template and where — there should be no additions", and "Gross Profit and the other calculated
 totals still render at the END of the template on the front end despite the positioning the spec
@@ -155,7 +163,7 @@ def test_the_off_template_row_is_exactly_one_review_finding_with_a_working_remap
     review = _build_review([_row("bs_current_assets__inventories", "Inventories", 100, y=0.20),
                             off], "d.pdf", "en", template_def=MINI)
 
-    assert [c["type"] for c in review["checks"]] == ["off_template"]
+    assert [c["type"] for c in review["checks"]] == ["unmapped"]
     card = review["checks"][0]
     # The figure the grid no longer shows is printed on the card, so it is visible somewhere.
     assert ["Value", "4200", False] in card["calc"]
@@ -167,7 +175,7 @@ def test_the_off_template_row_is_exactly_one_review_finding_with_a_working_remap
     assert card["remap"]["remapped"] is None
     # Its own identity: caption + label geometry + the concept, so two off-template rows on one page
     # are two findings and a re-run filing the row elsewhere is a different claim.
-    assert card["subject"]["k"] == "off_template"
+    assert card["subject"]["k"] == "unmapped"
     assert card["subject"]["key"] == OFF_KEY
     assert card["subject"]["label"] == "prepaid rates and government levies"
     assert card["subject_key"] and card["evidence_digest"]
@@ -190,7 +198,7 @@ def test_a_statement_level_total_is_declared_even_though_it_is_no_re_map_target(
     statement-level total — and it is excluded from ``_remap_targets`` because a printed figure must
     not be written onto a computed line. That exclusion is a different question from whether the
     template declares the line: reading the target list as the declaration would raise an
-    off-template finding against a row the reader can plainly see on the grid."""
+    "on no line of the output" finding against a row the reader can plainly see on the grid."""
     from app.api.routes.documents import _remap_targets
 
     template = _shipped()
@@ -198,10 +206,12 @@ def test_a_statement_level_total_is_declared_even_though_it_is_no_re_map_target(
     assert "bs_total_assets" not in {t["canonical_key"] for t in _remap_targets(template, "en")}
     grid = _build_statement(rows, template, "balance_sheet", "f.pdf")
     assert any(r["id"] == "bs_total_assets" for r in grid["rows"])
-    # (The `uncomputed` card is the template saying this total's components were not extracted —
-    # a different finding about a row that IS on the grid.)
-    types = [c["type"] for c in _build_review(rows, "d.pdf", "en", template_def=template)["checks"]]
-    assert "off_template" not in types
+    # No card of any kind: the row is on the grid, and a printed total whose components were never
+    # extracted is a coverage fact rather than a defect (it used to raise `uncomputed`, which is
+    # retired — see tests/test_calculated_and_gaps.py). The assertion that matters is the first one:
+    # the row is not reported as reaching no line.
+    review = _build_review(rows, "d.pdf", "en", template_def=template)
+    assert "unmapped" not in [c["type"] for c in review["checks"]]
 
 
 def test_a_pinned_template_that_declares_nothing_refuses_the_grid_AND_names_every_figure():
@@ -218,7 +228,7 @@ def test_a_pinned_template_that_declares_nothing_refuses_the_grid_AND_names_ever
     assert grid["refused"]["reason"] == "statement_not_in_template"
     # …and the promise the refusal makes is kept: both figures are named.
     checks = _build_review(rows, "d.pdf", "en", template_def=empty)["checks"]
-    assert [c["type"] for c in checks] == ["off_template", "off_template"]
+    assert [c["type"] for c in checks] == ["unmapped", "unmapped"]
     assert [c["remap"]["current_key"] for c in checks] == [
         "bs_current_assets__inventories", "bs_current_assets__cash"]
 
@@ -258,41 +268,25 @@ def test_a_row_mapped_to_a_declared_equity_line_is_still_reported():
                                                    "f.pdf")["rows"]]
     assert [c["type"] for c in _build_review([row], "d.pdf", "en",
                                              template_def=declared_equity)["checks"]] \
-        == ["off_template"]
+        == ["unmapped"]
 
 
-def test_the_off_template_card_inherits_what_the_low_confidence_card_was_about():
-    """It PRE-EMPTS that card, so it has to carry its subject matter. Without the mapping's method and
-    banded score in the evidence, swallowing the low-confidence card swallowed the one property
-    ``_confidence_evidence`` exists for: an acceptance made at 0.41 'fuzzy' surviving a re-run at 0.02
-    'llm' with nothing reported as changed."""
-    def card(conf, method):
-        row = {**_row(OFF_KEY, "Sundry balances", 9, conf=conf, y=0.30),
-               "mapping_method": method, "flags": ["low_mapping_confidence"]}
-        return _build_review([row], "d.pdf", "en", template_def=MINI)["checks"][0]
+# DELETED: test_the_off_template_card_inherits_what_the_low_confidence_card_was_about.
+#
+# Its subject was that this card collapsed its `delta` to the mapping score and fingerprinted
+# the confidence band WHEN THE MAPPING WAS ALSO WEAK -- so that pre-empting the low-confidence
+# card did not swallow what that card was about. There is no low-confidence card to pre-empt any
+# more: a weak mapping raises nothing, and this card reports a different fact (the figure
+# reaches no line of the spread) whose severity does not depend on how confidently it was
+# mapped. The property it defended cannot be violated because the thing it protected is gone.
 
-    weak = card(0.41, "fuzzy")
-    assert weak["type"] == "off_template"
-    assert weak["delta"] == "41%"
-    printed = {r[0]: r[1] for r in weak["calc"]}
-    assert printed["Method"] == "fuzzy" and printed["Confidence"] == "41%"
-    assert weak["evidence"]["confidence_band"] == "40-49%"
-    assert weak["evidence"]["method"] == "fuzzy"
-    # The raw score the reviewer was shown travels beside the banded digest, not inside it.
-    assert weak["context"] == {"confidence": 0.41, "method": "fuzzy"}
-    # A COLLAPSE therefore moves the digest, so the acceptance goes stale instead of standing.
-    assert card(0.02, "llm")["evidence_digest"] != weak["evidence_digest"]
+def test_the_tabs_still_partition_the_queue_with_both_routes_into_the_category_present():
+    """A type with no tab of its own is a finding invisible under every filter.
 
-    # A confident mapping prints no score, so it fingerprints none — the rule everywhere here is that
-    # identity turns on what was displayed.
-    strong = _build_review([_row(OFF_KEY, "Sundry balances", 9, conf=1.0, y=0.30)], "d.pdf", "en",
-                           template_def=MINI)["checks"][0]
-    assert strong["delta"] == "—" and "Confidence" not in {r[0] for r in strong["calc"]}
-    assert strong["evidence"] == {"value": "9"} and "context" not in strong
-
-
-def test_the_tabs_still_partition_the_queue_with_an_off_template_finding_present():
-    """A type with no tab of its own is a finding invisible under every filter."""
+    Both ways into the one row-shaped category are present below — a row mapped to an undeclared
+    concept, and a row nothing claimed — because they are one type and therefore one tab. When they
+    were two types this test proved the second had a tab; now it proves they did not become two.
+    """
     review = _build_review([_row(OFF_KEY, "Prepaid rates", 4_200, y=0.30),
                             {**_row(None, "Unplaceable", 5, y=0.40), "mapping_confidence": None}],
                            "d.pdf", "en", template_def=MINI)
@@ -418,13 +412,13 @@ def test_a_movement_on_a_declared_matrix_is_not_reported_as_reaching_no_spread()
               "canonical_key": "eq_movement__loss_for_the_year", "mapping_confidence": 1.0}
     served = _build_statement([mapped], _WITH_EQUITY, "changes_in_equity", "f.pdf")
     assert [r["label"] for r in served["rows"]] == ["Loss for the year"]
-    assert "off_template" not in [c["type"] for c in
+    assert "unmapped" not in [c["type"] for c in
                                  _build_review([mapped], "d.pdf", "en",
                                                template_def=_WITH_EQUITY)["checks"]]
     # …and with the statement NOT declared the row reaches nothing, so the finding IS raised.
     assert _build_statement([mapped], MINI, "changes_in_equity", "f.pdf")["rows"] == []
     assert [c["type"] for c in _build_review([mapped], "d.pdf", "en",
-                                             template_def=MINI)["checks"]] == ["off_template"]
+                                             template_def=MINI)["checks"]] == ["unmapped"]
 
 
 def test_no_template_at_all_still_serves_the_movements_it_extracted():
@@ -538,7 +532,7 @@ def test_the_off_template_finding_is_resolved_by_re_mapping_the_row(client):
                            off], template_def=MINI)
 
     review = client.get(f"{API}/documents/{doc_id}/review").json()
-    card = next(c for c in review["checks"] if c["type"] == "off_template")
+    card = next(c for c in review["checks"] if c["type"] == "unmapped")
     assert card["remap"]["row_ref"] == _row_ref(off)
     assert OFF_KEY not in [r["id"] for r in _statement(client, doc_id)["rows"]]
 

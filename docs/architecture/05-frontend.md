@@ -176,9 +176,13 @@ fillable. Two consequences:
   superseded template it re-appended the very lines whose position a template revision had
   corrected. It is gone, front and back.
 * A mapped figure still never vanishes in silence. A row mapped to a concept the run's
-  template puts on no statement is raised as an **`off_template` review finding** carrying a
+  template puts on no statement is raised as an **`unmapped` review finding** carrying a
   re-map offer, so the queue both reports that the figure reaches no spread and offers the
-  control that fixes it.
+  control that fixes it. (It had its own `off_template` kind once; it is now the second way
+  into the one row-shaped category, because from the output's point of view "nothing claimed
+  this caption" and "something claimed it for a concept this template does not declare" are
+  the same fact — a figure on no line of the spread. The card names the concept when there
+  is one, so the two remain distinguishable to the reader without being two categories.)
 
 The **"Additional items"** Workspace view is likewise gone (`DERIVED_STATEMENTS` in
 `src/types.ts` now lists `kpi` alone) — for the same reason: it was a second place that
@@ -198,9 +202,30 @@ are read-only — the fix for a wrong ratio is to fix the line items it came fro
 
 ## Review queue (`/review`, `src/screens/Review.tsx`)
 
+THE QUEUE CARRIES EXACTLY THREE THINGS, and this is a product rule rather than an
+implementation detail: an extracted figure from the **face** of a statement that reaches no
+line of the output; a **validation rule** that failed (the balance identity, the equity tie,
+the rulebook's relations and cross-concept guards); and a **section subtotal** that does not
+match the values extracted under it. Anything that is neither a defect nor actionable is
+kept out, because every card that is neither costs the analyst the attention the three real
+ones need.
+
+Two card kinds were retired to that rule. A **weakly-mapped** row raises nothing — a
+mapping's strength is a property of the mapping, shown on the row's own confidence badge in
+the Workspace, and the right answer to a weak match is to match it better rather than to
+bill an analyst for it. It is still *counted*: `weak_mappings` is served beside the findings
+and stated in a sentence under the header, so narrowing the queue cannot read as the data
+having improved, and both the "lines with no finding" tile and the commentary's
+data-quality caveat still exclude those lines. A **calculated line with no extracted
+components** likewise raises nothing — nothing disagrees with anything — and is reported in
+the coverage band and in the line's own inspector note, which is where an un-checkable
+relation belongs.
+
 Findings grouped by type, with tabs the **server** defines (each tab carries the check
-types it selects, so the client never filters by list position): All · Checks · Unmapped ·
-Low confidence · **Off template**. Each card expands into the reconciliation breakdown, the
+types it selects, so the client never filters by list position): All · Checks · Unmapped.
+A tab is never served for a kind that cannot be emitted: the tabs partition the list, so a
+chip selecting nothing renders as a permanent "0" that filters the list to empty — a control
+that looks like a filter and is a dead end. Each card expands into the reconciliation breakdown, the
 suggested fix, and up to three controls:
 
 * **Accept / withdraw a judgement** (`review:resolve`) — a named person, a timestamp and a
@@ -211,8 +236,8 @@ suggested fix, and up to three controls:
   resolved exactly one row to flip. Every other card gets a sentence saying the fix is
   manual instead of a button that would do nothing.
 * **Re-map** (`extraction:edit`) — `POST /documents/{id}/review/remap` with the row
-  reference and the target canonical key, which is what **resolves** a row-shaped finding
-  (unmapped / off-template / low-confidence). The candidate list is served once per payload
+  reference and the target canonical key, which is what **resolves** the row-shaped finding
+  (`unmapped`, by either route in). The candidate list is served once per payload
   as `remap_targets` (not per card); an empty target key un-maps the row, recording that it
   belongs to no template concept. The accounting findings carry no offer — a relation
   between several concepts gives no answer to which one to re-map.

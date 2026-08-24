@@ -89,7 +89,7 @@ def test_real_review_and_export_from_extraction(client):
     # Review queue derives from the real rows.
     rev = client.get(f"/api/v1/documents/{doc_id}/review").json()
     assert set(rev) == {"run_id", "checks", "tabs", "summary", "judgements", "coverage",
-                        "remap_targets"}
+                        "remap_targets", "weak_mappings"}
     assert rev["tabs"][0]["label"] == "All"
     assert rev["summary"]["open"] + rev["summary"]["passed"] >= 1
 
@@ -482,8 +482,8 @@ def test_review_and_run_404_before_extraction(client):
                               "passed": 0}
     # The empty queue is the SAME shape as a real one — every tab, not the one-tab literal this
     # branch used to hand-write — so the screen has no second empty-state to render.
-    assert [t["label"] for t in rev["tabs"]] == ["All", "Checks", "Unmapped", "Low confidence",
-                                                 "Off template"]
+    # Three tabs, not five: a tab whose types select nothing is a filter that empties the list.
+    assert [t["label"] for t in rev["tabs"]] == ["All", "Checks", "Unmapped"]
     assert rev["coverage"] == {"available": False, "reason": "not_extracted",
                                "reason_label": rev["coverage"]["reason_label"]}
     assert rev["coverage"]["reason_label"]

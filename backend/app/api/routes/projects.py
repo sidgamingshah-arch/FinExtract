@@ -306,15 +306,28 @@ def get_note(project_id: str, note_no: str, locale: str = Query("en")) -> dict:
 # finding cannot be judged: the sample has no run and no document row to key a judgement to, so
 # the accept control is absent here rather than rendered and dead. `fix_action: None` says the same
 # about the mechanical fix — the two buttons that did nothing disappear on the demo path too.
+# The row-shaped kinds, whose ``target`` is a printed CAPTION rather than a statement line id. Held
+# here as a set for the same reason the real route holds one: it is read to decide what a card may
+# claim to indict, and a second spelling is how the two paths drift.
+_ROW_SHAPED = frozenset({"unmapped"})
+
+
 def _sample_check(check: dict) -> dict:
     """One sample finding in the same shape the real route serves.
 
     ``names`` — the lines a finding indicts — is DERIVED from the check's own ``target`` rather than
     stored beside it: the sample states one target per finding, and the review header counts the
     line items no finding names. A hand-written second list would be the same quantity twice.
+
+    A ROW-SHAPED FINDING NAMES NOTHING, matching the real route (documents.py sets ``names: []`` on
+    the unmapped card). Its ``target`` is the caption printed in the document, not a line of the
+    spread — that is the whole finding: the figure reaches no line. Deriving a name from it would
+    claim to indict a row that by definition is not there, and would indict a real one outright if a
+    caption ever matched a row id.
     """
-    return {**check, **_SAMPLE_JUDGEMENT_FIELDS,
-            "names": [check["target"]] if check.get("target") else []}
+    named = [] if check.get("type") in _ROW_SHAPED else (
+        [check["target"]] if check.get("target") else [])
+    return {**check, **_SAMPLE_JUDGEMENT_FIELDS, "names": named}
 
 
 _SAMPLE_JUDGEMENT_FIELDS = {
@@ -334,12 +347,9 @@ _SAMPLE_JUDGEMENT_FIELDS = {
 @router.get("/{project_id}/review")
 def get_review(project_id: str, locale: str = Query("en")) -> dict:
     if not _active():
-        return {"run_id": "", "checks": [], "tabs": [],
-                # Greenfield: no checks and no statements, so every count derives to zero from
-                # the empty inputs rather than being written out as four zeros.
-                "summary": _demo_review_summary([], statements={}),
-                "judgements": {"orphaned": []},
-                "coverage": _sample_coverage(locale), "remap_targets": []}
+        # Greenfield: no checks and no statements, so every count derives to zero from the empty
+        # inputs rather than being written out as five zeros.
+        return _demo_review_payload([], [], {}, locale)
     checks = [_sample_check(c) for c in deepcopy(DEMO["review"])]
     tabs = _demo_review_tabs(checks)
     if locale != "en":
@@ -351,12 +361,7 @@ def get_review(project_id: str, locale: str = Query("en")) -> dict:
             c["calc"] = [[tr(row[0], locale), tr(row[1], locale), row[2]] for row in c["calc"]]
         for t in tabs:
             t["label"] = tr(t["label"], locale)
-    return {"run_id": "", "checks": checks, "tabs": tabs,
-            "summary": _demo_review_summary(checks),
-            "judgements": {"orphaned": []},
-            # No run means no rows to re-map, so the sample offers no targets — the same reason
-            # every sample check carries `remap: None`.
-            "coverage": _sample_coverage(locale), "remap_targets": []}
+    return _demo_review_payload(checks, tabs, None, locale)
 
 
 def _sample_coverage(locale: str) -> dict:
@@ -370,23 +375,63 @@ def _sample_coverage(locale: str) -> dict:
                                locale)}
 
 
-# Tab labels for the sample's check types, in the order the tabs are shown. The COUNTS are never
+# The chips, in the order they are shown, each with the check types it selects. The COUNTS are never
 # written here — see `_demo_review_tabs`.
-_DEMO_TAB_LABELS = (("balance", "Balance check"), ("subtotal", "Subtotals"),
-                    ("sign", "Sign anomalies"), ("note", "Note reconciliation"))
+#
+# THE REAL ROUTE'S CHIP SET, spelled the same way: one chip for the accounting checks and one for
+# the row-shaped finding, each carrying the types it selects (documents.py::_build_review). The tabs
+# PARTITION the queue, so every type a sample check can carry has to appear in exactly one entry
+# here — a card no chip counts is a card invisible under every filter, and a chip selecting nothing
+# is a permanent "0" that filters the list to empty.
+def _demo_tab_labels() -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """Read from the real route's declaration, not written out again here.
+
+    A second list would be the sample's vocabulary all over again: it drifted once already, and the
+    drift was invisible because nothing compared the two. Imported inside the function because
+    ``routes/documents`` imports from this module too.
+    """
+    from app.api.routes.documents import _ACCOUNTING_TYPES, _ROW_SHAPED_TYPES
+
+    return (("Checks", tuple(sorted(_ACCOUNTING_TYPES))),
+            ("Unmapped", tuple(sorted(_ROW_SHAPED_TYPES))))
 
 
 def _demo_review_tabs(checks: list[dict]) -> list[dict]:
-    """One tab per check type, counted from `checks`, and carrying the type it selects.
+    """The chips, each counted from `checks` and carrying the types it selects.
 
     The literals these replace claimed "All 12 · Balance check 1 · Subtotals 4 · Sign anomalies 3
     · Note reconciliation 4" over a list of four checks, one of each type. `types` is what the
     client filters by — see the same field on the real route in api/routes/documents.py.
+
+    A chip is served even at zero, unlike the real route, and the difference is deliberate: the
+    sample's four findings are FIXED, so both chips always have something to select, and dropping
+    one at zero would make the sample's chip set depend on data that never varies. The real route
+    omits a chip whose types cannot be emitted, which is a different question.
     """
     return [{"label": "All", "count": len(checks), "types": None}] + [
-        {"label": label, "count": sum(1 for c in checks if c.get("type") == kind),
-         "types": [kind]}
-        for kind, label in _DEMO_TAB_LABELS]
+        {"label": label,
+         "count": sum(1 for c in checks if c.get("type") in kinds),
+         "types": list(kinds)}
+        for label, kinds in _demo_tab_labels()]
+
+
+def _demo_weak_mappings(statements: dict) -> int:
+    """The sample's statement lines whose MAPPING is weak — the count the real route serves as
+    ``weak_mappings``, spelled in the sample's own vocabulary.
+
+    A weak mapping raises no review card on either path (see documents.py::_build_review): the right
+    answer to a weak match is to match it better, not to bill an analyst for it. It is still counted,
+    on both paths and for the same two readers — the header's "lines with no finding" tile, which
+    must not certify a weakly-mapped line as clean, and the commentary's data-quality caveat.
+
+    The sample's substrate is the display ``conf`` band the grid colours each figure from, because
+    that is the only thing the seeded rows say about a mapping's strength. Derived from what is
+    SERVED rather than written as a constant, for the reason the conflict count is: a hand-written
+    number beside a counted one is how the two shapes drift.
+    """
+    rows = [r for s in statements.values() for r in s["rows"]]
+    return sum(1 for r in rows
+               if review_lines.is_statement_line(r) and str(r.get("conf") or "") == "low")
 
 
 def _demo_lines_with_no_finding(statements: dict, checks: list[dict]) -> int:
@@ -406,8 +451,12 @@ def _demo_lines_with_no_finding(statements: dict, checks: list[dict]) -> int:
     """
     named = {n for c in checks for n in (c.get("names") or [])}
     rows = [r for s in statements.values() for r in s["rows"]]
+    # A WEAKLY-MAPPED LINE IS NOT A LINE WITH NO FINDING, even though it raises no card, and the real
+    # route excludes it from this count for that reason. Excluded here too, or the tile would report
+    # that the sample's data got better than the real path's on the same definition.
     return review_lines.lines_with_no_finding(
-        rows, lambda _i, r: str(r.get("id") or "") in named)
+        rows, lambda _i, r: (str(r.get("id") or "") in named
+                             or str(r.get("conf") or "") == "low"))
 
 
 def _demo_review_summary(checks: list[dict], statements: dict | None = None) -> dict:
@@ -436,6 +485,25 @@ def _demo_review_summary(checks: list[dict], statements: dict | None = None) -> 
     open_count = sum(1 for c in checks if c.get("status") != "accepted")
     return {"open": open_count, "accepted": accepted, "stale": stale, "conflict": conflict,
             "passed": _demo_lines_with_no_finding(statements, checks)}
+
+
+def _demo_review_payload(checks: list[dict], tabs: list[dict], statements: dict | None,
+                         locale: str) -> dict:
+    """The sample review payload, ONE construction for both branches.
+
+    The greenfield branch and the seeded branch write the same nine keys, and the pair of them is
+    where a key added to the real route quietly reaches only one of the sample's two shapes — which
+    is what happened to ``weak_mappings``. Spelled once so a reader adding the tenth cannot miss one.
+    """
+    if statements is None:
+        statements = DEMO["statements"]
+    return {"run_id": "", "checks": checks, "tabs": tabs,
+            "summary": _demo_review_summary(checks, statements=statements),
+            "weak_mappings": _demo_weak_mappings(statements),
+            "judgements": {"orphaned": []},
+            # No run means no rows to re-map, so the sample offers no targets — the same reason
+            # every sample check carries `remap: None`.
+            "coverage": _sample_coverage(locale), "remap_targets": []}
 
 
 @router.get("/{project_id}/template",

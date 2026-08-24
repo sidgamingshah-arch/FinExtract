@@ -972,10 +972,13 @@ export interface ReviewCheck {
    *  un-removable. */
   judgement_withheld: boolean;
   fix_action: FixAction | null;
-  /** Row-shaped findings only — see `RemapOffer`. Those are `unmapped`, `low_confidence`, and
-   *  `off_template`: a printed row the extraction placed on no template line, which the server now
-   *  raises here instead of parking in a Workspace bucket. `off_template` is the case the offer
-   *  matters most for, since re-mapping is the ONLY way such a row reaches a statement at all. */
+  /** The row-shaped finding only — see `RemapOffer`. That is `unmapped`, and it is now the ONE kind:
+   *  a printed row that reaches no line of the output, whether because nothing claimed the caption or
+   *  because it was claimed for a concept this template declares nowhere (what used to be its own
+   *  `off_template` kind). Re-mapping is the only way such a row reaches a statement at all, which is
+   *  why this is the kind that carries the offer. `low_confidence` no longer exists — a mapping's
+   *  strength is not a finding — so no card is served for a weakly-mapped row; see
+   *  `ReviewPayload.weak_mappings` for how many there are. */
   remap: RemapOffer | null;
   /** Structural checks only. `run.result["structural"]` is written once by the pipeline and is
    *  never recomputed on an edit, so the relation is not re-evaluated until the next extraction:
@@ -1032,10 +1035,20 @@ export interface ReviewResponse {
    *  `open` / `accepted` / `stale` / `conflict` count CARDS. `passed` counts LINES: extracted line
    *  items that NO served finding names, which is what the header tile above it says in all four
    *  locales. It was rows minus (unmapped + low-confidence) — a narrower set, so a line indicted
-   *  by a balance, note-tie, structural, guard, calculated_mismatch or uncomputed finding counted
-   *  as having none — and both the real route and the sample route now derive the definition the
-   *  label states. Never recompute it client-side: one quantity, derived where it is served. */
+   *  by a balance, note-tie, structural, guard or calculated_mismatch finding counted as having
+   *  none — and both the real route and the sample route now derive the definition the label
+   *  states. A WEAKLY-MAPPED LINE IS ALSO EXCLUDED even though it raises no card, or the tile would
+   *  certify it clean. Never recompute it client-side: one quantity, derived where it is served. */
   summary: { open: number; accepted: number; stale: number; conflict: number; passed: number };
+  /** Lines whose MAPPING is weak. Not a finding and not in `checks`: this queue reports three things
+   *  — a face figure that reaches no line, a validation rule that failed, and a subtotal that does
+   *  not match its components — and the right answer to a weak match is to match it better, not to
+   *  bill an analyst for it. The row still shows its own confidence badge in the Workspace.
+   *
+   *  Served because two readers must not conclude the data improved when all that happened is that
+   *  this queue narrowed: the `passed` tile (which excludes these lines) and the commentary's
+   *  data-quality caveat. Shown on this screen as a plain sentence, never as a card or a tab. */
+  weak_mappings: number;
   judgements: { orphaned: OrphanedJudgement[] };
   coverage: CoverageBlock;
   /** Empty when the run named no template — which is also when no card carries an offer, because

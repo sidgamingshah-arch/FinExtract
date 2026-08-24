@@ -108,12 +108,16 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "contains it.",
          minimum=0.0, maximum=1.0, step=0.01),
     Knob("mapping_margin", "number", "Winner margin",
-         "How far the winning concept must beat the runner-up before the mapping is accepted "
-         "without review. A close call is routed to a human instead of guessed.",
+         "How far the winning concept must beat the runner-up before the mapping is accepted. "
+         "Below the margin the mapping is declined rather than guessed, and the line is reported "
+         "as reaching no template line at all.",
          minimum=0.0, maximum=1.0, step=0.01),
     Knob("auto_accept_confidence", "number", "Auto-accept confidence",
-         "Combined confidence at or above which a mapped line is accepted without review. "
-         "Anything below lands in the review queue as low confidence.",
+         "Combined confidence at or above which a mapped line is treated as settled. A line "
+         "mapped below it is still mapped and still shown, marked as a weak match on its own "
+         "confidence badge — it raises no review item, because the answer to a weak match is a "
+         "better match rather than an analyst's time. The count of them is served with the review "
+         "queue so narrowing that queue cannot read as better data.",
          minimum=0.0, maximum=1.0, step=0.01),
     Knob("recon_abs_tolerance", "number", "Reconciliation tolerance (absolute)",
          "Absolute floor when comparing a note total to the face figure it supports, in the "

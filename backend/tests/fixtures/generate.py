@@ -56,17 +56,27 @@ def make_unmapped_row_pdf() -> bytes:
     c.setFont("Helvetica-Bold", 14)
     c.drawString(72, y, "Balance Sheet")
     c.setFont("Helvetica", 10)
-    rows = [
-        ("Cash and cash equivalents", "Note 14", "1,204"),
-        ("Trade receivables", "Note 15", "3,410"),
-        ("Sundry widgets held pending resale", "Note 9", "560"),
-        ("Total assets", "", "5,174"),
-    ]
-    for label, note, value in rows:
+    for label, note, value in [("Cash and cash equivalents", "Note 14", "1,204"),
+                               ("Trade receivables", "Note 15", "3,410"),
+                               ("Total assets", "", "4,614")]:
         y -= 24
         c.drawString(72, y, label)
         c.drawString(320, y, note)
         c.drawRightString(500, y, value)
+    c.showPage()
+
+    # THE UNPLACEABLE ROW IS ON ITS OWN PAGE, and that is what makes it unplaceable. Printed among
+    # the current assets it was swept into that section's residual concept instead
+    # (``bs_current_assets__others`` at 0.4, flagged ``residual_combined``) — which is the residual
+    # framework working: an unclaimed face row whose section resolves always reaches the face, so
+    # ``unmapped_remaining`` was 0 and this fixture raised a LOW-CONFIDENCE finding rather than the
+    # unmapped one its name promises. With no section resolvable around it the sweep reports the row
+    # ineligible and it stays unmapped, which is the finding every caller of this fixture is after.
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(72, height - 72, "Balance Sheet (continued)")
+    c.setFont("Helvetica", 10)
+    c.drawString(72, height - 100, "Sundry widgets held pending resale")
+    c.drawRightString(500, height - 100, "560")
     c.showPage()
     c.save()
     return buf.getvalue()

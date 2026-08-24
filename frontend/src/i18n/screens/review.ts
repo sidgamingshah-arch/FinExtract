@@ -70,10 +70,15 @@ export const review: Record<Locale, Record<string, string>> = {
     "r.ambiguousNote": "identical findings share this judgement — accepting one accepts them all",
     "r.orphanedTitle": "prior judgements match no finding in this run",
     "r.orphanedNote":
-      "The findings they were recorded against were corrected, or are no longer raised. Nothing is deleted, and none of these count towards the queue above.",
+      "The findings they were recorded against were corrected, are no longer raised, or belong to a category this queue no longer carries. Nothing is deleted, and none of these count towards the queue above.",
     "r.orphanedInForce":
       "Each of these acceptances is still in force: if the same finding is raised again with the same figures it will come back already accepted, under a verdict nobody re-made.",
     "r.orphanedWithdrawHint": "Withdraw any that should not carry forward.",
+    // A COUNT, NOT A QUEUE. A weakly-mapped line raises no finding — this queue reports unplaced face
+    // figures, failed validation rules, and subtotals that do not match — but the number must be
+    // visible somewhere, or narrowing the queue reads as the data having improved. A plain sentence,
+    // never a card and never a tab: there is nothing here to work through.
+    "r.weakMappings": "lines carry a weak mapping. No finding is raised for them — a weak match is answered by matching it better, not by review — and each one shows its own confidence in the Workspace.",
     "r.flipSignOf": "Flip the sign of",
     "r.manualFixOnly": "No automatic correction — apply the fix above by hand.",
     "r.remapHead": "MAP TO A DIFFERENT LINE ITEM",
@@ -140,10 +145,11 @@ export const review: Record<Locale, Record<string, string>> = {
     "r.ambiguousNote": "条完全相同的发现共用此判断——认可其中一条即认可全部",
     "r.orphanedTitle": "条既往判断在本次运行中已无对应的发现",
     "r.orphanedNote":
-      "其所针对的发现已被更正，或已不再被提出。记录不会被删除，且这些判断均不计入上方队列。",
+      "其所针对的发现已被更正、已不再被提出，或属于本队列不再收录的类别。记录不会被删除，且这些判断均不计入上方队列。",
     "r.orphanedInForce":
       "这些接受判断仍然有效：若同一发现再次以相同数字被提出，它将直接显示为已接受，而该结论无人重新作出。",
     "r.orphanedWithdrawHint": "如不应继续沿用，请予撤回。",
+    "r.weakMappings": "行的映射置信度偏低。系统不会为其生成待办发现——置信度偏低应通过改进映射来解决，而非交由复核——每一行在工作区中都会显示其自身的置信度。",
     "r.flipSignOf": "反转符号：",
     "r.manualFixOnly": "无自动更正——请按上述建议手动处理。",
     "r.remapHead": "映射到其他行项目",
@@ -210,10 +216,11 @@ export const review: Record<Locale, Record<string, string>> = {
     "r.ambiguousNote": "ملاحظات متطابقة تتشارك هذا الحكم — قبول واحدة يقبلها جميعًا",
     "r.orphanedTitle": "أحكام سابقة لا تطابق أي ملاحظة في هذه العملية",
     "r.orphanedNote":
-      "الملاحظات التي سُجِّلت عليها صُحِّحت، أو لم تُثَر مرة أخرى. لا يُحذف شيء، ولا يُحتسب أي منها في القائمة أعلاه.",
+      "الملاحظات التي سُجِّلت عليها صُحِّحت، أو لم تُثَر مرة أخرى، أو تنتمي إلى فئة لم تعد هذه القائمة تتضمنها. لا يُحذف شيء، ولا يُحتسب أي منها في القائمة أعلاه.",
     "r.orphanedInForce":
       "كل قبول من هذه القبولات ما زال ساريًا: فإذا أُثير الملحظ ذاته مرة أخرى بالأرقام ذاتها عاد مقبولًا بالفعل، بحكم لم يُعِد أحد إصداره.",
     "r.orphanedWithdrawHint": "اسحب ما لا ينبغي أن يستمر منها.",
+    "r.weakMappings": "سطرًا مطابقتها ضعيفة. لا تُثار ملاحظة لها — فالمطابقة الضعيفة تُعالَج بمطابقة أفضل لا بالمراجعة — ويُظهر كل سطر درجة ثقته في مساحة العمل.",
     "r.flipSignOf": "اقلب إشارة",
     "r.manualFixOnly": "لا يوجد تصحيح آلي — طبّق التصحيح أعلاه يدويًا.",
     "r.remapHead": "الربط ببند آخر",
@@ -282,10 +289,11 @@ export const review: Record<Locale, Record<string, string>> = {
     "r.ambiguousNote": "constats identiques partagent ce jugement — en accepter un les accepte tous",
     "r.orphanedTitle": "jugements antérieurs ne correspondent à aucun constat de cette exécution",
     "r.orphanedNote":
-      "Les constats visés ont été corrigés, ou ne sont plus soulevés. Rien n'est supprimé, et aucun d'eux ne compte dans la file ci-dessus.",
+      "Les constats visés ont été corrigés, ne sont plus soulevés, ou relèvent d'une catégorie que cette file ne porte plus. Rien n'est supprimé, et aucun d'eux ne compte dans la file ci-dessus.",
     "r.orphanedInForce":
       "Chacune de ces acceptations reste en vigueur : si le même constat est soulevé de nouveau avec les mêmes chiffres, il reviendra déjà accepté, sous un jugement que personne n'a refait.",
     "r.orphanedWithdrawHint": "Retirez celles qui ne doivent pas être reportées.",
+    "r.weakMappings": "lignes portent un rattachement faible. Aucun constat n'est levé pour elles — un rattachement faible se corrige en le rattachant mieux, pas par la revue — et chacune affiche sa propre confiance dans l'espace de travail.",
     "r.flipSignOf": "Inverser le signe de",
     "r.manualFixOnly": "Aucune correction automatique — appliquez la correction ci-dessus à la main.",
     "r.remapHead": "RATTACHER À UN AUTRE POSTE",

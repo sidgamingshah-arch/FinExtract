@@ -84,8 +84,15 @@ async function indexRowFocusable(page: Page): Promise<boolean> {
  *  accounting finding, being a relation between several concepts, carries none and gives no answer to
  *  WHICH concept to move. And these are the types with a review chip of their own: the tabs PARTITION
  *  the queue (documents.py::_build_review), so everything else is counted by the accounting chip,
- *  which is how the fixture near the end of this file finds that chip without naming it. */
-const ROW_SHAPED_TYPES = new Set(["unmapped", "low_confidence", "off_template"]);
+ *  which is how the fixture near the end of this file finds that chip without naming it.
+ *
+ *  A SET WITH ONE MEMBER, kept as a set. `low_confidence` and `off_template` were the other two and
+ *  are gone: the queue carries three things — an unplaced FACE figure, a failed validation rule, and a
+ *  subtotal that does not match its components — and a weak mapping is none of them (it is counted as
+ *  `weak_mappings`, never carded). `off_template`'s findings are raised as `unmapped`, the same
+ *  category reached the other way. Left as a set because nothing about these assertions is
+ *  one-member-specific and a fourth row-shaped kind would join here rather than rewrite them. */
+const ROW_SHAPED_TYPES = new Set(["unmapped"]);
 
 test.describe.configure({ mode: "serial" });
 
@@ -682,7 +689,7 @@ test("real extraction: prior-year links, an edit that sticks, KPIs and Additiona
   // This used to hop through an "Additional items" tab on the way. That tab is gone front and back
   // (Workspace.tsx's segment list and `_build_statement` both say so): the spread now renders the
   // template's declared lines and nothing else, and a mapped figure the template does not declare is
-  // reported as an `off_template` review finding instead of appended to the statement. So the tab's
+  // reported as an `unmapped` review finding instead of appended to the statement. So the tab's
   // ABSENCE is what is asserted — a returning tab would be the spread quietly gaining rows again —
   // and the claim this block was written for is made directly, KPI → statement.
   await expect(page.getByTestId("seg-additional_items")).toHaveCount(0);
@@ -1907,8 +1914,9 @@ test("accepting one finding records the verdict against THAT identity and re-lab
       expect(v, `${c.id}: a page label is standing in for a source anchor`)
         .not.toMatch(/^p\.\s*\d+$/);
     }
-    if (c.type === "unmapped" || c.type === "low_confidence") {
-      // These are the two builders whose subject is {kind, label, anchor}. The anchor has to
+    if (ROW_SHAPED_TYPES.has(c.type)) {
+      // The row-shaped builder's subject is {kind, label, anchor} (plus the concept, when the row
+      // mapped to one this template does not declare). The anchor has to
       // locate the line WITHIN its source — a quantized bbox under its page, or sheet!cell — or
       // two lines printed one under the other under one caption collapse onto one identity again.
       // The documented sentinels (`#noprov`, `p{n}#nobox`) are honest fallbacks for an adapter
@@ -2631,21 +2639,19 @@ test("every figure a card prints is fingerprinted, and nothing a figure can move
   }
 
   // --- I2 and I3, over every card the run serves ---------------------------------------------
-  // The one exception is counted rather than waved through, and asserted to be that one exception:
-  // the EXACT confidence percentage a low-confidence card prints (its Confidence row and the delta
-  // that repeats it).
+  // EVERY FIGURE A CARD PRINTS IS IN ITS DIGEST. No exceptions, and the sweep below is written to
+  // permit none — an acceptance must not survive any figure the reviewer was shown moving.
   //
-  // ROUND 3's ITEM 3 REWROTE WHY. This block used to defend the mapping's strength and method being
-  // left out of the digest altogether, as churn defence — "fingerprinting them would re-open a
-  // confirmed concept because a re-run scored 0.42 instead of 0.41". Half right, wrong conclusion: a
-  // low-confidence finding IS a statement about the mapping, and with only `value` fingerprinted a
-  // reviewer's "41% fuzzy — checked p.42, the concept is right" kept an 'accepted' card over the same
-  // label re-scored 0.02 by 'llm', digest byte-identical, changed == []. The churn worry is answered
-  // by QUANTIZING, the way `_prov_anchor` answered it for geometry: the digest carries the printed
-  // percentage's 10-point BAND and the method EXACTLY (a method change is not jitter). So the
-  // exception below is a quantization, not an omission, and it is checked as one — the band the
-  // printed figure falls in has to be in the evidence, and so has the method.
-  const exceptions: string[] = [];
+  // THERE USED TO BE EXACTLY ONE, and how it closed is worth keeping. A low-confidence card printed
+  // the mapping's score, and the score sat outside the digest as churn defence: "fingerprinting it
+  // would re-open a confirmed concept because a re-run scored 0.42 instead of 0.41". Half right,
+  // wrong conclusion — a reviewer's "41% fuzzy, checked p.42, the concept is right" kept an
+  // 'accepted' card over the same label re-scored 0.02 by 'llm', digest byte-identical, changed ==
+  // []. The answer was to QUANTIZE rather than omit: the digest carried the printed percentage's
+  // 10-point band and the method exactly. Then the card itself went — a mapping's strength is not
+  // one of the three things this queue reports — and the exception went with it. The quantizing IDEA
+  // did not: `_prov_anchor` still buckets geometry and `judgement.q` still buckets figures, and both
+  // are asserted elsewhere in this file.
   for (const c of rev.checks) {
     const printed: [string, string][] = c.calc.map(([label, value]) => [label, value]);
     // The header's own figure, which the reader sees before expanding anything.
@@ -2653,42 +2659,9 @@ test("every figure a card prints is fingerprinted, and nothing a figure can move
     const fingerprinted = evidenceFigures(c.evidence);
     for (const [label, value] of printed) {
       if (!/\d/.test(value)) continue;                 // a caption or a concept key, not a figure
-      if (fingerprinted.has(figureText(value))) continue;
-      exceptions.push(`${c.type} · ${label} = ${value}`);
-      expect(c.type, `${c.id}: prints ${value} under "${label}" and the digest does not cover it, `
-                     + "so an acceptance survives it moving").toBe("low_confidence");
-      expect(label === "Confidence" || label === "(the card's delta)",
-             `${c.id}: the only figure allowed outside a low-confidence digest is the confidence `
-             + "percentage — its Confidence row and the delta that repeats it").toBeTruthy();
-      expect(value.endsWith("%"),
-             `${c.id}: "${label}" is not the confidence percentage`).toBeTruthy();
-      // THE QUANTIZATION, asserted where the omission used to be excused. The exact figure may sit
-      // outside the digest only because the BAND it falls in is inside it: 41% and 44% are one band,
-      // so jitter leaves the acceptance standing, while a collapse to 2% is four bands away and
-      // withdraws it.
-      const ev = c.evidence as { confidence_band?: unknown; method?: unknown };
-      const band = String(ev.confidence_band ?? "");
-      expect(band, `${c.id}: prints ${value} and the digest carries no confidence band, so a mapping `
-                   + "that collapses keeps an acceptance nobody re-made").toMatch(/^\d+-\d+%$/);
-      const [lo, hi] = band.replace("%", "").split("-").map(Number);
-      const printedPct = Number(value.replace("%", ""));
-      expect(printedPct >= lo && printedPct <= hi,
-             `${c.id}: prints ${value} over a ${band} band — the digest is quantizing a different `
-             + "figure from the one on the card").toBeTruthy();
-    }
-    // …and the METHOD, which is not quantized at all: 'fuzzy' and 'llm' are different kinds of
-    // evidence for the same claim, so a reviewer who accepted a fuzzy alias match has not thereby
-    // accepted a model's guess. It carries no digit, so the sweep above skips it — and it is checked
-    // against what the card PRINTS, so a card printing no method ("—") is asked for nothing.
-    if (c.type === "low_confidence") {
-      const row = c.calc.find(([label]) => label === "Method");
-      const printedMethod = row ? row[1] : "";
-      if (printedMethod && printedMethod !== "—") {
-        expect(String((c.evidence as { method?: unknown }).method ?? ""),
-               `${c.id}: prints "Method ${printedMethod}" and the digest does not carry it — a `
-               + "method change is not jitter, and an acceptance must not survive one")
-          .toBe(printedMethod);
-      }
+      expect(fingerprinted.has(figureText(value)),
+             `${c.id} (${c.type}): prints ${value} under "${label}" and the digest does not cover `
+             + "it, so an acceptance survives that figure moving").toBeTruthy();
     }
     // I3: no value the identity is built from is a figure the card prints. Whole-value equality,
     // not containment — a coordinate bucket that happens to share digits with a figure is not a
@@ -2702,19 +2675,15 @@ test("every figure a card prints is fingerprinted, and nothing a figure can move
       }
     }
   }
-  // Recorded so a reviewer can see WHICH figures sit outside a digest today: the confidence
-  // percentage, on low-confidence cards, and nothing else.
-  expect(exceptions.every((e) => e.startsWith("low_confidence")), exceptions.join(" | "))
-    .toBeTruthy();
 
   // --- the anchor is the caption's geometry, not the figure's ---------------------------------
   let anchored = 0;
   for (const c of rev.checks) {
-    const m = /^chk-(unmapped|lowconf)-(\d+)$/.exec(c.id);
+    const m = /^chk-unmapped-(\d+)$/.exec(c.id);
     if (!m) continue;
     // The index in the id is a RENDER key that the backend documents as one; it is used here only
     // to reach the row, and the label cross-check below is what proves it reached the right one.
-    const row = rows[Number(m[2])];
+    const row = rows[Number(m[1])];
     expect(row, `${c.id}: names a row position this run does not have`).toBeTruthy();
     expect(c.title).toBe(row.source_label);
     const prov = row.values[0]?.provenance ?? null;
@@ -2915,10 +2884,11 @@ test("a note that does not tie prints EVERY face line it failed to tie, and a gr
       // of the list clicking it produces. That is a defect the suite asserts against elsewhere, and
       // a fixture must not introduce it to prove something else.
       //
-      // Identified by ELIMINATION of the row-shaped tabs rather than by "the one that is not
-      // unmapped or low_confidence": the queue gained a third row-shaped tab this round (Off
-      // template), and that older test would have added note_tie to it as well — two chips selecting
-      // one card, which is the very partition break the paragraph above refuses to introduce.
+      // Identified by ELIMINATION of the row-shaped tabs rather than by naming the one that is not
+      // Unmapped. The set of row-shaped kinds has both grown and shrunk since (Off template arrived
+      // and then folded into Unmapped; Low confidence went entirely), and a test that named them
+      // individually would have added note_tie to whichever it had not heard of — two chips
+      // selecting one card, the very partition break the paragraph above refuses to introduce.
       if (tb.types.some((ty) => ROW_SHAPED_TYPES.has(ty))) return tb;
       return { ...tb, types: [...tb.types, "note_tie"], count: tb.count + 1 };
     });
@@ -3193,8 +3163,8 @@ test("the third header tile counts the lines the payload says carry no finding, 
   //
   // ROUND 2's HALF. The tile was relabelled from "passed" to "lines with no finding" in all four
   // locales, over `summary.passed` — which was `len(rows) - (unmapped + low_confidence)`. So every
-  // line indicted by a balance, note_tie, structural, guard, calculated_mismatch or uncomputed
-  // finding counted as having none: the reviewers' 9-row run with 4 checks against 4 of those rows
+  // line indicted by a balance, note_tie, structural, guard or calculated_mismatch finding counted
+  // as having none: the reviewers' 9-row run with 4 checks against 4 of those rows
   // rendered "4 open · 0 accepted · 9 lines with no finding". The number never changed in that
   // relabelling; the old word did not assert WHICH lines it counted and the new one does, and it
   // was false.
@@ -3283,8 +3253,8 @@ test("the third header tile counts the lines the payload says carry no finding, 
    * Positions, not keys: an unmapped row has no canonical key and two rows can legitimately print
    * one caption, so crediting a finding by caption would name the wrong row. The accounting cards
    * name lines in `names`; the two row-shaped types are about the row they were built FROM, whose
-   * position is in the card id (`chk-unmapped-{i}` / `chk-lowconf-{i}`) — documented as a render
-   * key, and used here only for that. */
+   * position is in the card id (`chk-unmapped-{i}`) — documented as a render key, and used here only
+   * for that. */
   const indicted = (rev: NReview): Set<number> => {
     const named = new Set(rev.checks.flatMap((c) => c.names ?? []));
     const hit = new Set<number>();
@@ -3293,16 +3263,28 @@ test("the third header tile counts the lines the payload says carry no finding, 
           || (r.source_label && named.has(r.source_label))) hit.add(i);
     });
     for (const c of rev.checks) {
-      const m = /^chk-(unmapped|lowconf)-(\d+)$/.exec(c.id);
-      if (m) hit.add(Number(m[2]));
+      const m = /^chk-unmapped-(\d+)$/.exec(c.id);
+      if (m) hit.add(Number(m[1]));
     }
     return hit;
   };
-  /** What the tile used to count: rows less the two row-shaped findings, which is what made the
-   *  new label false. */
+  /** What the tile used to count: rows less the row-shaped findings, which is what made the new
+   *  label false — an accounting finding names lines and this formula never noticed. */
   const oldFormula = (rev: NReview): number =>
-    rows.length - rev.checks.filter((c) => c.type === "unmapped" || c.type === "low_confidence")
-                            .length;
+    rows.length - rev.checks.filter((c) => ROW_SHAPED_TYPES.has(c.type)).length;
+  /** The row positions whose MAPPING is weak — excluded from the tile alongside the indicted ones.
+   *
+   *  A weak mapping raises no card, so `indicted` cannot see it, and the tile excludes it anyway:
+   *  "no finding names this line" must not be read as "this line is clean". Derived from the flag
+   *  the mapper sets, and cross-checked against the payload's own `weak_mappings` below so the
+   *  assumption is stated rather than hoped for. */
+  const weakRows = (): Set<number> => {
+    const hit = new Set<number>();
+    rows.forEach((r, i) => {
+      if (r.canonical_key && (r.flags ?? []).includes("low_mapping_confidence")) hit.add(i);
+    });
+    return hit;
+  };
   /** The lines this run has that no served finding names — THE SAME PREDICATE the sample path was
    *  held to above, asked of the real serializer's spelling (`role`) instead of the sample's `kind`.
    *  Counted per row rather than as one total minus another, which is also what the server does now,
@@ -3314,10 +3296,16 @@ test("the third header tile counts the lines the payload says carry no finding, 
    *  (test_review_checks.py::test_the_lines_with_no_finding_tile_counts_subtotals_and_totals_but_not_captions). */
   const passedLines = (rev: NReview): number => {
     const hit = indicted(rev);
-    return rows.filter((r, i) => isStatementLine(r) && !hit.has(i)).length;
+    const weak = weakRows();
+    return rows.filter((r, i) => isStatementLine(r) && !hit.has(i) && !weak.has(i)).length;
   };
 
   const before = await apiGet<NReview>(page, `/api/v1/documents/${doc}/review?locale=en`);
+  // The flag is the whole of "weak" on this fixture, which is what lets `passedLines` use it. If the
+  // mapper ever routes a row to weak by SCORE without setting the flag, this fails here rather than
+  // silently shifting the tile arithmetic below.
+  expect(before.weak_mappings, "weak_mappings is not the flagged rows — passedLines is now wrong")
+    .toBe(weakRows().size);
   expect(before.summary.passed).toBe(passedLines(before));
   await expect(tile).toContainText(String(before.summary.passed), { timeout: 20_000 });
   await expect(tile).toContainText("lines with no finding");
@@ -3348,7 +3336,7 @@ test("the third header tile counts the lines the payload says carry no finding, 
   expect(after.summary.passed).toBe(passedLines(after));
   // THE ASSERTION THAT FAILS WITH THE DEFECT RESTORED. The accounting finding names a row, so the
   // served count must be strictly below the old formula — which is unchanged by it, because no
-  // extra row became unmapped or low-confidence.
+  // extra row became unmapped.
   expect(now.size).toBeGreaterThan(indicted(before).size);
   expect(after.summary.passed,
          "a line named by an accounting finding is still being counted as having no finding — the "

@@ -97,8 +97,8 @@ Documents & Template → Integrity → Page Scope → **Extraction** (`/extracti
 the pipeline and reports its stages and log while it runs, then the extracted rows with
 click-to-source) → **Workspace** (side-by-side source ↔ template, inline edit + formulas,
 confidence scores, KPIs) → All Notes (note-to-face reconciliation) → Review Queue
-(accounting checks + unmapped / off-template / low-confidence rows, with accept, flip-sign
-and **re-map** actions) → **Analysis** (one-page financial commentary — ratios,
+(exactly three things: an unplaced face figure, a failed validation rule, and a subtotal
+that does not match its components — with accept, flip-sign and **re-map** actions) → **Analysis** (one-page financial commentary — ratios,
 **year-on-year trends**, strengths/risks) → Template & Ontology (incl. the note-netting
 rule) → **Settings** (admin) → Export (Excel/JSON). Eleven in all
 (`frontend/src/screens/config.ts`), filtered per role by `GET /me`.

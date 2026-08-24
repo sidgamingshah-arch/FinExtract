@@ -55,8 +55,9 @@ class FeatureSettings(BaseModel):
     ui_localization: bool = False
     # Require a second-person reviewer SIGN-OFF on the analyst's output. When False the
     # workflow closes at the analyst (they finalize & export directly). This governs the
-    # sign-off/hand-off only — the human-in-the-loop Review Queue (checks + low-confidence
-    # QA) stays available to the analyst either way. Admin-flippable at runtime.
+    # sign-off/hand-off only — the human-in-the-loop Review Queue (unplaced face figures, failed
+    # validation rules, subtotals that do not match) stays available to the analyst either way.
+    # Admin-flippable at runtime.
     review_required: bool = True
     # Load the seeded sample project at startup. Off by default → the app starts
     # greenfield (empty); an admin can load/clear the sample at runtime from Settings.

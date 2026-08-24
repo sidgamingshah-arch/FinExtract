@@ -198,11 +198,30 @@ def test_a_subtotal_that_agrees_with_its_components_raises_nothing():
     assert [c for c in checks if c["type"] == "calculated_mismatch"] == []
 
 
-def test_a_printed_subtotal_with_no_components_is_flagged_as_unverified():
+def test_a_printed_subtotal_with_no_components_raises_nothing_and_says_so_on_the_line():
+    """It used to raise "Printed subtotal could not be verified", and that card is gone.
+
+    A subtotal whose components were never extracted is a COVERAGE fact, not a defect: nothing
+    disagrees with anything, and the printed figure is served as the face shows it. The sentence was
+    true and it was not one of the three things this queue is for — extracted-but-unplaced face
+    figures, failed validation rules, and subtotals that do not match their components — and it
+    competed for attention with the third of those, which it superficially resembles.
+
+    SO THE READER STILL HAS TO BE TOLD, and that is what this pins: the figure is served unverified,
+    the line's own note says why, and nothing in the queue does.
+    """
     rows = [_row("bs_ca__total", "Total current assets", 999)]
-    checks = _accounting_checks(rows, [], "en", [], TEMPLATE)
-    item = next(c for c in checks if c["type"] == "uncomputed")
-    assert item["target"] == "bs_ca__total" and item["tone"] == "med"
+    assert _accounting_checks(rows, [], "en", [], TEMPLATE) == []
+
+    row = _row_of(_stmt(rows), "bs_ca__total")
+    assert row["v1"] == 999 and row["origin"] == "reported_uncomputed"
+    # The INSPECTOR note carries the whole of it: that there was nothing to compute from, that the
+    # figure is therefore unverified, and that no review item is coming. (``row["note"]`` is the
+    # filing's note NUMBER, a different field entirely.)
+    note = row["inspector"]["note"]
+    assert "nothing to compute from" in note and "unverified" in note
+    assert "raises no review item" in note
+    assert row["inspector"]["tag"] == "printed, not computable"
 
 
 # --------------------------------------------------------------------------------------

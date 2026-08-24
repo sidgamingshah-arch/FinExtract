@@ -47,9 +47,10 @@ def _value(column_index=None, value="1000"):
             "provenance": {"page_index": 0, "bbox": {"x0": 0, "y0": 0, "x1": 1, "y1": 1}}}
 
 
-def _row(label: str, key=None, column_index=None):
+def _row(label: str, key=None, column_index=None, printed_in=None):
     return {"id": str(uuid.uuid4()), "source_label": label, "canonical_key": key,
-            "values": [_value(column_index)], "flags": [], "mapping_confidence": None}
+            "values": [_value(column_index)], "flags": [], "mapping_confidence": None,
+            "printed_in": printed_in}
 
 
 def test_a_matrix_row_is_not_reported_as_an_unmapped_face_item(client):
@@ -111,3 +112,100 @@ def test_the_signal_is_set_in_exactly_one_place():
                for i, line in enumerate(p.read_text().splitlines(), 1)
                if re.search(r"column_index\s*=(?!=)", line) and "def " not in line]
     assert writers == ["services/row_reconstruct.py:2203"], writers
+
+
+# --------------------------------------------------------------------------------------------
+# The other half of "on the face of the statements": a note's detail line is not a face figure
+# --------------------------------------------------------------------------------------------
+
+def test_an_unplaced_note_row_is_not_reported_as_an_unmapped_face_item(client):
+    """The category is "extracted but unmapped items ON THE FACE of statements", and a note detail
+    line is not one.
+
+    A note's rows are served through the Notes tab and the note-detail routes; they are not lines of
+    the statement spread and were never candidates for a template line, so an unplaced one is not
+    the defect this category names. On the real filing every unplaced row is already a face row, so
+    this guard changes no count there — it is here so a filing whose notes carry unplaceable captions
+    (a maturity table, a segment breakdown, a movement schedule) cannot fill the queue with them.
+    """
+    doc_id = _seed([
+        _row("Within one year", printed_in="notes"),
+        _row("Analysis of movements in the year", printed_in="notes"),
+        _row("Deferred consideration payable", printed_in="face"),
+    ], "queue-notes.pdf")
+    body = client.get(f"/api/v1/documents/{doc_id}/review?locale=en").json()
+
+    unmapped = [c for c in body["checks"] if c["type"] == "unmapped"]
+    assert [c["title"] for c in unmapped] == ["Deferred consideration payable"]
+
+
+def test_an_unstamped_row_is_still_reported(client):
+    """BOTH guards are POSITIVE signals, and this is why that matters.
+
+    Not every row carries a ``printed_in`` stamp — it is set where the extraction can tell, and a row
+    it could not place on either side of the filing has none. Testing for "is it stamped face" rather
+    than "is it stamped notes" would drop exactly those rows: the ones the extraction understood
+    least, which are the ones most likely to be a real mapping failure. The queue would then get
+    quieter the worse the extraction got.
+    """
+    doc_id = _seed([_row("A caption on a page nothing classified")], "queue-unstamped.pdf")
+    body = client.get(f"/api/v1/documents/{doc_id}/review?locale=en").json()
+
+    assert [c["type"] for c in body["checks"]] == ["unmapped"]
+
+
+# --------------------------------------------------------------------------------------------
+# The SEEDED SAMPLE teaches the same three categories, in the same words
+# --------------------------------------------------------------------------------------------
+
+def test_the_sample_speaks_the_real_routes_check_vocabulary(client):
+    """The sample is the first thing a new user sees, so a category it shows had better exist.
+
+    It used to speak its own: `subtotal`, `sign` and `note`, of which only `balance` was ever a kind
+    the real route serves. Those names came from ``app/services/checks.py``, a parallel checks engine
+    with no caller in the app (now deleted). The `note` card was worse than a synonym — note-tie
+    findings are not raised at all any more, so the sample advertised a queue category that cannot
+    occur, while showing NO card for the category that matters most.
+
+    Derived from the real route's own maps rather than from a list written twice here: a kind added
+    to `_ACCOUNTING_TYPES` or a new row-shaped kind is admitted automatically, and a kind the sample
+    invents fails.
+    """
+    from app.api.routes.documents import _ACCOUNTING_TYPES, _ROW_SHAPED_TYPES
+
+    review = client.get("/api/v1/projects/demo/review?locale=en").json()
+    served = {c["type"] for c in review["checks"]}
+    assert served, "the sample must serve findings at all"
+    assert served <= set(_ACCOUNTING_TYPES) | set(_ROW_SHAPED_TYPES), served
+    # …and it shows BOTH shapes, so a reader meets the accounting checks and the row-shaped finding.
+    assert served & set(_ACCOUNTING_TYPES) and served & set(_ROW_SHAPED_TYPES)
+    # The chips partition the list, and every chip selects something — see `_demo_review_tabs`.
+    buckets = [t for t in review["tabs"] if t["types"] is not None]
+    assert sum(t["count"] for t in buckets) == len(review["checks"])
+    for tab in buckets:
+        assert tab["count"] == len([c for c in review["checks"] if c["type"] in tab["types"]])
+        assert tab["count"] > 0, tab["label"]
+
+
+def test_a_card_kind_with_no_chip_fails_loudly_instead_of_going_invisible():
+    """``_assert_known_kinds`` is the guard rail on the declaration above.
+
+    A card reaches the screen through the chips, and the chips are built from
+    ``_ACCOUNTING_TYPES``/``_ROW_SHAPED_TYPES``. So a kind nobody registered is a card no chip
+    counts: invisible under every filter, while still inside the "All" total — which then disagrees
+    with the sum of the chips beside it. That is the counts-disagree-with-content defect this file's
+    module docstring is about, and it is cheaper to raise here than to find it on a screen.
+    """
+    import pytest
+
+    from app.api.routes.documents import _assert_known_kinds
+
+    # Everything the queue declares passes, asked of the declaration rather than of a copy of it.
+    from app.api.routes.documents import _ACCOUNTING_TYPES, _ROW_SHAPED_TYPES
+    _assert_known_kinds([{"type": t} for t in _ACCOUNTING_TYPES | _ROW_SHAPED_TYPES])
+
+    # A retired kind is exactly as unregistered as an invented one, which is the point: bringing one
+    # back means making the product decision again, not re-adding a literal.
+    for kind in ("low_confidence", "off_template", "uncomputed", "note_tie", "sign", "subtotal"):
+        with pytest.raises(AssertionError, match=kind):
+            _assert_known_kinds([{"type": "balance"}, {"type": kind}])

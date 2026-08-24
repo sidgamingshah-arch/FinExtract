@@ -393,11 +393,14 @@ export default function ReviewScreen() {
             `passed` counts LINES, not cards and not relations: extracted line items that NO
             served finding names. It used to be rows minus (unmapped + low-confidence) while the
             label already read "lines with no finding", so every line indicted by a balance, note
-            tie, structural, guard, calculated_mismatch or uncomputed finding was counted as
+            tie, structural, guard or calculated_mismatch finding was counted as
             having none — the label asserted a membership the number did not have. The server now
             derives it from the lines each builder says its card indicts, identically on the real
             and sample paths (documents.py::_build_review, projects.py::_demo_review_summary), so
-            the tile is read straight off `summary.passed` and nothing here recomputes it. */}
+            the tile is read straight off `summary.passed` and nothing here recomputes it. A weakly
+            mapped line is excluded from it too — it raises no card, but "no finding names it" must
+            not certify it — and how many there are is stated below rather than tiled here, because
+            it is not outstanding work and a fourth tile would read as a fourth queue. */}
         <div style={{ display: "flex", gap: 8 }}>
           <Counter value={summary.open} label={t("r.open")} fg={color.redFg} testid="rv-open" />
           <Counter value={summary.accepted} label={t("r.accepted")} fg={color.greenFg}
@@ -435,6 +438,24 @@ export default function ReviewScreen() {
           }}
         >
           {summary.conflict} {t("r.conflictStrip")}
+        </div>
+      )}
+
+      {/* NOT A QUEUE AND NOT A TILE. A weak mapping is no longer a finding — this screen reports a
+          face figure that reaches no line, a validation rule that failed, and a subtotal that does
+          not match its components — but the count has to appear somewhere, or the queue getting
+          shorter reads as the extraction getting better. Stated in a sentence, in the server's own
+          number, and absent rather than showing a zero. */}
+      {data.weak_mappings > 0 && (
+        <div
+          data-testid="rv-weak-strip"
+          style={{
+            marginBottom: 12, padding: "8px 12px", borderRadius: 9,
+            background: color.surface, border: `1px solid ${color.cardBorder}`,
+            color: color.sec, fontSize: 11.5, lineHeight: 1.5,
+          }}
+        >
+          <b style={{ color: color.ink }}>{data.weak_mappings}</b> {t("r.weakMappings")}
         </div>
       )}
 

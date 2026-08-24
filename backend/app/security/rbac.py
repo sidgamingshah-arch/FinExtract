@@ -79,7 +79,8 @@ PERMISSIONS: dict[Role, set[Permission]] = {
 }
 
 # Which screens each role sees (drives the frontend nav). The Review Queue is the
-# human-in-the-loop QA surface (balance/subtotal/sign checks + low-confidence items) and
+# human-in-the-loop QA surface (unplaced face figures, failed validation rules, and subtotals
+# that do not match their extracted components) and
 # is available to everyone who works an extraction — the analyst included — independent
 # of the ``review_required`` flag. That flag governs only the second-person reviewer
 # SIGN-OFF (analyst submits vs. finalizes), never the QA screen itself.

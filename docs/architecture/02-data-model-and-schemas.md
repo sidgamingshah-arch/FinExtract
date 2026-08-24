@@ -245,10 +245,12 @@ a persisted rule catalog:
   nil and is listed in `assumed_zero`. Nothing is derived or back-filled to make a
   relation balance.
 
-`GET /documents/{id}/review` assembles the queue from those results plus the three
-**row-shaped** findings — `unmapped`, `off_template`, `low_confidence` — and serves the
-tabs (with the check types each selects), the summary counts, the coverage block, the
-in-force judgements and `remap_targets`. There is **no `RuleDefinition` catalog and no
+`GET /documents/{id}/review` assembles the queue from those results plus the one
+**row-shaped** finding — `unmapped`: a figure extracted from the FACE of a statement that
+reaches no line of the output, whether because nothing claimed the caption or because it was
+claimed for a concept the run's template declares nowhere. It serves the tabs (with the
+check types each selects), the summary counts, `weak_mappings` (lines whose mapping is weak:
+counted, never carded), the coverage block, the in-force judgements and `remap_targets`. There is **no `RuleDefinition` catalog and no
 `ReviewItem` table**: the only persisted review state is the human verdict
 (`ReviewJudgement`), which is deliberate — a finding is derived from the run, so storing it
 would create a second copy to go stale.

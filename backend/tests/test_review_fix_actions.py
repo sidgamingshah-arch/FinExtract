@@ -129,21 +129,23 @@ def test_no_flip_when_the_suspect_has_no_figure_or_a_zero_one(template_def):
 
 
 def test_no_other_check_type_offers_a_fix(template_def):
-    """balance, equity_tie, calculated_mismatch, uncomputed, unmapped and low_confidence all carry
-    null — none of them implies a single edit. note_tie is not in the list because note-tie cards are
-    no longer raised at all."""
+    """balance, calculated_mismatch and unmapped all carry null — none of them implies a single edit.
+
+    Two kinds are absent from that list because they are no longer raised at all: ``note_tie``, and
+    ``low_confidence`` (a mapping's strength is not a review finding). ``uncomputed`` is gone too, for
+    the same reason — see tests/test_calculated_and_gaps.py.
+    """
     from app.api.routes.documents import _build_review
 
     rows = [
         # balance: 100 vs 90
         _row("bs_total_assets", 100), _row("bs_total_equity_and_liabilities", 90),
-        # calculated_mismatch / uncomputed on the template's current-assets subtotal
+        # calculated_mismatch on the template's current-assets subtotal
         _row(_SUSPECT, 2200), _row(_OTHER, 1310), _row(_TARGET, 9999),
         {"source_label": "Unplaceable", "canonical_key": None,
          "values": [{"basis": "consolidated", "period_label": "current", "value": "5"}]},
-        # A template line, weakly matched. The key has to be one the template DECLARES: a
-        # low-confidence mapping onto a concept the template puts on no statement is raised as
-        # `off_template` instead, which is a different card about a different problem.
+        # A template line, weakly matched — kept in the input on purpose. It raises no card, and this
+        # test asserts over every card there is, so leaving it in proves the weak row adds none.
         {"source_label": "A shaky match",
          "canonical_key": "bs_current_assets__cash_and_cash_equivalents",
          "mapping_confidence": 0.2, "flags": ["low_mapping_confidence"],
@@ -153,9 +155,9 @@ def test_no_other_check_type_offers_a_fix(template_def):
               "raw_face": 1000, "residual": 20, "within_tolerance": False}]
     checks = _build_review(rows, "d.pdf", "en", recon, [], template_def)["checks"]
     types = {c["type"] for c in checks}
-    assert {"balance", "unmapped", "low_confidence"} <= types
-    assert "note_tie" not in types      # note-tie cards are no longer raised
-    assert types & {"calculated_mismatch", "uncomputed"}
+    assert {"balance", "unmapped", "calculated_mismatch"} <= types
+    # The three retired kinds, none of which may come back through this path.
+    assert not types & {"note_tie", "low_confidence", "uncomputed", "off_template"}
     for c in checks:
         assert c["fix_action"] is None, c["type"]
         # …and nothing but a structural card can claim edited inputs.

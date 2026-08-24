@@ -1444,79 +1444,6 @@ def _lowconf_card(conf, method="fuzzy", judgements=None):
     return _build_review(rows, "d.pdf", "en", judgements=judgements)
 
 
-def test_a_collapsed_mapping_confidence_withdraws_the_acceptance_it_was_given():
-    """FINDING 3. The card PRINTS the confidence twice (its collapsed delta and its Confidence row)
-    and the method beside them, and the evidence was ``{"value": …}`` only. So run 1 at 0.41 'fuzzy',
-    accepted with "41% fuzzy — checked p.42, the concept is right", served run 2 at 0.02 'llm' as
-    ``status: 'accepted'`` with a byte-identical digest and ``changed == []`` — while the card read
-    "Method llm · Confidence 2%" under that reviewer's name.
-    """
-    first = _lowconf_card(0.41)["checks"][0]
-    assert first["delta"] == "41%"
-    printed = {row[0]: row[1] for row in first["calc"]}
-    assert printed["Confidence"] == "41%" and printed["Method"] == "fuzzy"
-    assert first["evidence"]["confidence_band"] == "40-49%"
-    assert first["evidence"]["method"] == "fuzzy"
-    judged = [_accepted(first, reason="41% fuzzy — checked p.42, the concept is right.")]
-
-    collapsed = _lowconf_card(0.02, method="llm", judgements=judged)
-    card = collapsed["checks"][0]
-    # THE ASSERTIONS THAT FAIL WITH THE DEFECT RESTORED.
-    assert card["status"] == "stale" and card["status"] != "accepted"
-    assert card["subject_key"] == first["subject_key"]          # same claim, come look again
-    assert card["judgement"]["changed"] == ["confidence_band", "method"]
-    assert collapsed["summary"]["open"] == 1 and collapsed["summary"]["accepted"] == 0
-    assert collapsed["judgements"]["orphaned"] == []
-
-
-def test_ordinary_confidence_jitter_does_not_withdraw_an_acceptance():
-    """The other failure direction, which is why the fingerprint is bucketed rather than exact: a
-    re-run scoring the same mapping 0.44 instead of 0.41 is not something the reviewer could act on,
-    and re-opening a sound acceptance for it is the churn that kept these figures out of the digest
-    altogether."""
-    first = _lowconf_card(0.41)["checks"][0]
-    judged = [_accepted(first)]
-    for conf in (0.40, 0.44, 0.49):
-        again = _lowconf_card(conf, judgements=judged)["checks"][0]
-        assert again["status"] == "accepted", conf
-        assert again["evidence"]["confidence_band"] == "40-49%"
-
-
-def test_a_method_change_is_not_jitter_and_withdraws_the_acceptance():
-    """A method is not a measurement, so there is nothing to quantize: 'fuzzy' and 'llm' are
-    different kinds of evidence for one claim, and a reviewer who accepted an alias match has not
-    accepted a model's guess at the same score."""
-    first = _lowconf_card(0.41, method="fuzzy")["checks"][0]
-    same_score = _lowconf_card(0.41, method="llm", judgements=[_accepted(first)])["checks"][0]
-    assert same_score["status"] == "stale"
-    assert same_score["judgement"]["changed"] == ["method"]
-
-
-def test_a_confidence_band_that_crosses_re_opens_rather_than_hiding_a_move():
-    """The chosen band is 10 printed points, and the direction it errs in is stated out loud: a score
-    that straddles an edge re-opens the finding (it asks for another look) and a collapse can never
-    sit inside one band."""
-    first = _lowconf_card(0.40)["checks"][0]
-    edge = _lowconf_card(0.39, judgements=[_accepted(first)])["checks"][0]
-    assert edge["status"] == "stale"                       # 2 points, one band edge → look again
-    assert edge["evidence"]["confidence_band"] == "30-39%"
-
-
-def test_a_finding_raised_with_no_score_at_all_carries_no_confidence_figure():
-    """The card is also raised by the ``low_mapping_confidence`` FLAG, with no number behind it. The
-    band is then absent rather than fabricated, and the card prints "—" over the same absence."""
-    from app.api.routes.documents import _build_review
-
-    row = {"source_label": "Sundry balances", "canonical_key": "bs_ca__others",
-           "mapping_confidence": None, "flags": ["low_mapping_confidence"],
-           "mapping_method": "", "values": [{"basis": "consolidated",
-                                             "period_label": "current", "value": "4200"}]}
-    card = _build_review([row], "d.pdf", "en")["checks"][0]
-    assert card["type"] == "low_confidence" and card["delta"] == "—"
-    assert {r[0]: r[1] for r in card["calc"]}["Confidence"] == "—"
-    assert card["evidence"]["confidence_band"] is None
-
-
 def _shipped_template() -> dict:
     import json
     from pathlib import Path
@@ -1531,16 +1458,23 @@ def _shipped_template() -> dict:
 def test_a_guards_figure_derived_target_suppresses_no_other_cards_finding_either():
     """R1, on the OTHER card a guard's target could delete.
 
-    ``_calculated_checks`` is handed the targets of the cards above it so one difference is not raised
-    twice — and a guard card carries ``target = violations[0]["key"]``, derived from the figures. So
-    WHICH LINE IS MIS-SIGNED decided whether the "Printed subtotal could not be verified" card existed:
-    mis-sign bs_total_equity_and_liabilities and its own uncomputed card left the queue. Making guards
-    emit unconditionally (finding 1) made this reachable on every mis-signed run, so both suppression
-    sets are now built from DECLARED targets only.
-    """
-    from app.api.routes.documents import _accounting_checks
+    ``_calculated_checks`` and ``_structural_checks`` are handed what the cards above them already
+    assert, so one difference is not raised twice — and a guard card carries
+    ``target = violations[0]["key"]``, derived from the FIGURES. So WHICH LINE IS MIS-SIGNED must not
+    decide whether some other card exists, and once it did: mis-sign bs_total_equity_and_liabilities
+    and that line's own card left the queue.
 
-    figures = {"bs_total_assets": 100, "bs_total_equity_and_liabilities": -90}
+    A guard is excluded for two independent reasons, and both are pinned here because either alone
+    would be enough to lose: ``_assertion_of`` returns None for a guard outright, and a guard's
+    evidence carries no difference for it to assert even if that branch went. Making guards emit
+    unconditionally made this reachable on every mis-signed run.
+    """
+    from app.api.routes.documents import _accounting_checks, _ASSERTED_DIFF_KEY, _assertion_of
+
+    # A rollup whose components do not come to the printed figure, on the very line the sign guard
+    # will name — so the guard card and a real relation card land on one key in one column.
+    figures = {"bs_total_assets": 100, "bs_total_equity_and_liabilities": -90,
+               "bs_equity__total_equity": 40, "bs_liabilities__total_liabilities": 60}
     rows = [_row(k, v) for k, v in figures.items()]
     structural = _real_structural_rows(figures)
     guard = next(r for r in structural
@@ -1549,10 +1483,36 @@ def test_a_guards_figure_derived_target_suppresses_no_other_cards_finding_either
 
     cards = _accounting_checks(rows, [], "en", structural, _shipped_template())
     kinds = {(c["subject"]["k"], c["target"]) for c in cards}
-    # THE ASSERTION THAT FAILS WITH THE DEFECT RESTORED: the printed subtotal nobody could verify is
-    # still raised, beside the guard, because a guard is not a duplicate of it.
-    assert ("uncomputed", "bs_total_equity_and_liabilities") in kinds
+    # THE ASSERTION THAT FAILS WITH THE DEFECT RESTORED: the -190 break between that printed total
+    # and its own components is still raised, beside the guard, because a guard is not a duplicate
+    # of it — a guard asserts a CONDITION, not an equality.
+    assert ("structural", "bs_total_equity_and_liabilities") in kinds
     assert ("guard", "bs_total_equity_and_liabilities") in kinds
-    # …and the declared targets still suppress: the balance card owns bs_total_assets, so no second
-    # card restates that difference.
+
+    # …and both reasons a guard suppresses nothing, so neither can be removed silently.
+    guard_card = next(c for c in cards if c["subject"]["k"] == "guard")
+    assert _assertion_of(guard_card) is None
+    assert not (set(guard_card["evidence"]) & set(_ASSERTED_DIFF_KEY.values()))
+
+    # Declared targets still suppress on the DIFFERENCE and not on the target: the balance card
+    # asserts the same 190 on bs_total_assets, and it is a different line, so both stand.
+    assert ("balance", "bs_total_assets") in kinds
     assert len([c for c in cards if c["target"] == "bs_total_assets"]) == 1
+
+
+# DELETED with the low-confidence card, whose confidence fingerprint they were entirely about:
+#   test_a_collapsed_mapping_confidence_withdraws_the_acceptance_it_was_given
+#   test_ordinary_confidence_jitter_does_not_withdraw_an_acceptance
+#   test_a_method_change_is_not_jitter_and_withdraws_the_acceptance
+#   test_a_confidence_band_that_crosses_re_opens_rather_than_hiding_a_move
+#   test_a_finding_raised_with_no_score_at_all_carries_no_confidence_figure
+#
+# Each pinned a property of `_confidence_evidence`: that an acceptance made at 0.41 'fuzzy' does not
+# survive a re-run at 0.02 'llm', that ordinary jitter inside a band does not churn it, that the
+# METHOD is part of what was judged. Those were real lessons and the mechanism was built for them --
+# but a mapping's strength is no longer a review finding, so there is no acceptance keyed to a
+# confidence band for any of them to be true or false about. The mechanism went with the card; the
+# reasoning is in the history of this file and of `documents._confidence_evidence`.
+#
+# The band-quantizing IDEA outlives them: `_prov_anchor` answers the same churn worry for geometry,
+# and `judgement.q` for figures. Both are still tested.
