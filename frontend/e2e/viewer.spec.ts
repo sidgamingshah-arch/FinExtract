@@ -3,7 +3,10 @@
  *  Both are about the same thing — the screens here put a statement grid beside a page of the
  *  filing, so the menu should not hold 214px permanently, and the reader has to be able to reach a
  *  page by what it SAYS and not only by which extracted value they happened to click. */
-import { test, expect, Page } from "@playwright/test";
+// `test` comes from ./fixtures, not from @playwright/test: it carries an auto fixture that
+// ABORTS any request leaving this machine. See e2e/fixtures.ts — an off-box asset on the
+// critical path is what made this suite fail at a different test on each run.
+import { expect, type Page, test } from "./fixtures";
 
 const DCL = { waitUntil: "domcontentloaded" as const };
 

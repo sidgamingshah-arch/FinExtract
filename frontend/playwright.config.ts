@@ -4,8 +4,12 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "@playwright/test";
 
 // Frontend smoke regression. Boots the FastAPI backend + Vite dev server (which proxies
-// /api → backend) and drives the real UI in the preinstalled Chromium. Serial + single
-// worker because the "load sample" flow toggles process-wide backend state.
+// /api → backend) and drives the real UI in the preinstalled Chromium. One worker and no parallel
+// files, because the "load sample" flow toggles process-wide backend state — that pair is what
+// makes the suite safe against the single shared backend. It is NOT the same thing as
+// `describe.configure({ mode: "serial" })`, which smoke.spec.ts used to apply to all 46 of its
+// tests: that adds nothing to the safety and costs you every result after the first failure. See
+// the comment where it was removed.
 
 // THE SUITE'S OWN DATABASE AND OBJECT STORE — not the developer's.
 //
@@ -31,6 +35,18 @@ const SCRATCH = join(HERE, "e2e", ".scratch");
 export default defineConfig({
   testDir: "./e2e",
   timeout: 60_000,
+  // ONE STATED BUDGET FOR A WEB-FIRST ASSERTION. There was no `expect` block at all, so
+  // `toBeVisible`/`toHaveURL` fell to Playwright's 5s default while this file's heavier assertions
+  // passed 15s/60s explicitly — two budgets, one of them never written down. With every navigation
+  // costing 12.9s on a font request to an unreachable host (see e2e/fixtures.ts), a 5s assertion
+  // was a coin flip, and raising it would have been the wrong fix: a suite that passes by waiting
+  // longer cannot tell you the product got slower.
+  //
+  // The dependency is gone, so navigations are sub-second and this number is slack rather than the
+  // thing under test. 10s is deliberately not generous: it is long enough to absorb a cold vite
+  // transform on the first hit of a route, and short enough that a real regression in how long a
+  // screen takes to settle still fails here instead of being absorbed.
+  expect: { timeout: 10_000 },
   workers: 1,
   fullyParallel: false,
   reporter: [["list"]],

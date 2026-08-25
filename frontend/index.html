@@ -3,12 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
+    <!-- NO FONT CDN LINK HERE, AND NOTHING ELSE CROSS-ORIGIN EITHER. A <link rel="stylesheet">
+         in <head> blocks execution of the module script below it, and DOMContentLoaded waits for
+         that deferred module — so a stylesheet fetched from another host gates the whole app's
+         boot on that host answering. It cost 12.9s per navigation on a machine whose egress to
+         fonts.googleapis.com was being reset; see the comment at the top of src/index.css for the
+         measurements. IBM Plex is vendored under src/assets/fonts and declared there instead. -->
     <title>FinExtract</title>
   </head>
   <body>

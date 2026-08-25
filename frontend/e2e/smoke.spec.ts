@@ -1,4 +1,7 @@
-import { test, expect, Page } from "@playwright/test";
+// `test` comes from ./fixtures, not from @playwright/test: it carries an auto fixture that
+// ABORTS any request leaving this machine. See e2e/fixtures.ts — an off-box asset on the
+// critical path is what made this suite fail at a different test on each run.
+import { expect, type Page, test } from "./fixtures";
 
 const DCL = { waitUntil: "domcontentloaded" as const };
 
@@ -94,7 +97,19 @@ async function indexRowFocusable(page: Page): Promise<boolean> {
  *  one-member-specific and a fourth row-shaped kind would join here rather than rewrite them. */
 const ROW_SHAPED_TYPES = new Set(["unmapped"]);
 
-test.describe.configure({ mode: "serial" });
+// NO FILE-SCOPE SERIAL. It was here, over all 46 tests, and it was not what made the suite safe
+// against the single shared backend — `workers: 1` + `fullyParallel: false` in playwright.config.ts
+// already forbid concurrency, and each test establishes its own preconditions (setSampleLoaded,
+// resetThresholds, openTemplateDetail) rather than inheriting a predecessor's.
+//
+// What it DID do was convert one failure into 39 unreported results, and that is precisely what
+// disguised a timing problem as a mystery: two runs of one unchanged tree failed at test 7 and at
+// test 13, and each time the ~33-39 tests after it were skipped rather than run. The suite could
+// not tell us that everything else still passed, so each run looked like a different, larger
+// defect. A failure should cost you its own test and nothing else.
+//
+// If a genuinely chained pair turns up, wrap THAT PAIR in its own `test.describe.serial` — never
+// the file.
 
 test("greenfield: the app is empty before any project is loaded", async ({ page }) => {
   await loginAs(page, "admin");
