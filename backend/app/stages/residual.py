@@ -151,9 +151,20 @@ _ATTRIBUTION = re.compile(
 # A per-share figure is a ratio in cents, not an amount: added into a section subtotal it is
 # nonsense, and it is small enough that no rollup notices.
 _PER_SHARE = re.compile(r"per share|per ordinary share|每股|hk cents|rmb cents", re.IGNORECASE)
-# "Note 12", "附註12", "(a)", "" — a row whose caption identifies nothing at all.
-_NOTE_REF_ONLY = re.compile(r"^\W*(?:note|notes|附注|附註)?\s*[\d.]*\s*[\w.()]{0,3}\W*$",
-                            re.IGNORECASE)
+# "Note 12", "附註12", "(a)", "12", "" — a row whose caption identifies nothing at all.
+#
+# EVERY ALTERNATIVE IS REFERENCE-SHAPED. The single pattern this replaces made every part optional
+# and ended in ``[\w.()]{0,3}``, so it matched ANY caption of three characters or fewer — and a
+# three-letter caption can be a whole line of a statement. Measured on a real HK income statement,
+# "Tax" was ruled out as "a caption that identifies nothing at all", so the tax line never reached
+# the residual router and an analyst saw it as unmapped; "VAT" and "Fee" go the same way. A
+# reference is a NUMBER or a bracketed letter, not an arbitrary short word.
+_NOTE_REF_ONLY = re.compile(
+    r"^\W*(?:notes?|附注|附註)\s*[\d.]*\s*[\w.()]{0,3}\W*$"   # "Note", "Note 12", "note 12(a)"
+    r"|^\W*[\d.]+\s*[()\w]{0,3}\W*$"                         # "12", "12.", "12(a)"
+    r"|^\W*[(（]\s*[a-z0-9ivx]{1,3}\s*[)）]\W*$"                # "(a)", "(iv)", "(12)"
+    r"|^\W*$",                                                # nothing at all
+    re.IGNORECASE)
 # The bare sub-captions of a per-share block. An HKEX income statement prints
 #
 #     LOSS PER SHARE

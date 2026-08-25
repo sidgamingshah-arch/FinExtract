@@ -198,6 +198,26 @@ def calculated_nodes(template_def: dict | None) -> dict[str, dict]:
     return out
 
 
+def node_roles(template_def: dict | None) -> dict[str, str]:
+    """canonical_key -> the ROLE the template declares for it ("line"/"subtotal"/"total"/"header").
+
+    The template is the only thing that knows a caption is a subtotal. A filing does not mark them:
+    "Gross profit", "LOSS FROM OPERATING ACTIVITIES", "LOSS BEFORE TAX" and "LOSS FOR THE YEAR" are
+    printed exactly like the lines they total, so a reader of the PAGE cannot tell, and every one of
+    them reached the pipeline as ``LineRole.LINE``. The template declares each of them a total, and
+    that verdict has two consequences a line does not get: its figure is the sum of its children
+    rather than a reading of the page, and it is never swept into a section residual.
+    """
+    out: dict[str, str] = {}
+    for stmt in (template_def or {}).get("statements", []):
+        for sec in stmt.get("sections") or []:
+            for node in [sec, *(sec.get("children") or [])]:
+                key, role = node.get("canonical_key"), node.get("role")
+                if key and role:
+                    out[key] = role
+    return out
+
+
 def node_labels(template_def: dict | None, locale: str = "en") -> dict[str, str]:
     """canonical_key → the template's label for it, so a component can be named."""
     out: dict[str, str] = {}

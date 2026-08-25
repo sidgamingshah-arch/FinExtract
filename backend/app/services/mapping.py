@@ -975,6 +975,19 @@ class OntologyMatcher:
         lowercasing would silently invert the meaning of ``\S``, ``\B``, ``\W`` and ``\D``.
 
         ``regex_hints`` is matched the same way in :meth:`_rule` for the same reason.
+
+        AN EXCLUSION OUTRANKS THE CONCEPT'S OWN ALIAS, and it has to: the whole point of the field
+        is that an editor looking at a mis-mapping can add one line and have it stop. If an alias
+        could override it there would be mis-mappings no exclusion could reach.
+
+        THAT MAKES A SELF-CONTRADICTING CONCEPT A SILENT DEATH, so it is refused at LOAD time
+        instead — see ``schemas.loader``. A hint broad enough to match the concept's own alias
+        deletes that alias with no signal at all: the row maps to nothing, the alias sits in the
+        file looking like it should have worked, and there is nowhere to look. Eight aliases in the
+        shipped rulebook were dying that way, every one a NEGATION killed by the thing it negates —
+        'Other revenue and gains' by 'revenue', 'Taxes other than income tax' by 'income tax',
+        'Impairment losses on non-financial assets' by 'financial asset'. The first cost a real
+        filing its income line. The fix is a narrower hint, which the loader now insists on.
         """
         m = self._by_key.get(canonical_key)
         if m is None or not m.exclude_hints:

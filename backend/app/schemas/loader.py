@@ -50,7 +50,57 @@ def load_ontology(data: dict, *, resolve: bool = False) -> OntologyDefinition:
     """
     if resolve:
         data = resolve_inherits(data)
-    return OntologyDefinition.model_validate(data)
+    definition = OntologyDefinition.model_validate(data)
+    _refuse_self_vetoing_concepts(definition)
+    return definition
+
+
+def _refuse_self_vetoing_concepts(definition: OntologyDefinition) -> None:
+    """Refuse a concept whose own ``exclude_hints`` match its own alias.
+
+    An exclusion outranks an alias at match time, and it has to — the field exists so an editor
+    looking at a mis-mapping can add one line and have it stop. The consequence is that a hint broad
+    enough to match the concept's OWN alias deletes that alias with no signal whatever: the caption
+    resolves to nothing, the alias sits in the file looking like it should have worked, and there is
+    nowhere to look for the reason.
+
+    Eight aliases in the shipped rulebook were dying that way when this check was written, and every
+    one was a NEGATION killed by the thing it negates — "Other revenue and gains" by ``revenue``,
+    "Taxes other than income tax" by ``income tax``, "Impairment losses on non-financial assets" by
+    ``financial asset``, "息税前利润" by ``税前``. The first cost a real HK filing its income line,
+    which then failed the residual router's sign test and reached an analyst as unmapped, with the
+    alias it should have matched sitting three lines above the hint that killed it.
+
+    So the contradiction is an AUTHORING ERROR and is refused at the door, in the same spirit as an
+    unknown canonical key. The fix is always a narrower hint — anchoring ``revenue`` to ``^revenue``
+    keeps the top-line caption out without eating "other revenue and gains" — and the message names
+    the alias, the hint and the concept so it can be made without a search.
+    """
+    import re as _re
+
+    bad: list[str] = []
+    for m in definition.mappings:
+        hints = m.exclude_hints or []
+        if not hints:
+            continue
+        aliases = list(m.aliases or [])
+        for per_locale in (m.aliases_i18n or {}).values():
+            aliases.extend(per_locale or [])
+        for alias in dict.fromkeys(a for a in aliases if a):
+            for hint in hints:
+                try:
+                    if _re.search(hint, alias.lower(), _re.IGNORECASE):
+                        bad.append(f"{m.canonical_key}: alias {alias!r} is excluded by its own "
+                                   f"exclude_hint {hint!r}")
+                        break
+                except _re.error:
+                    # A malformed hint is a different fault and is reported by whoever compiles it;
+                    # it cannot veto anything, so it cannot cause this one.
+                    continue
+    if bad:
+        raise ValueError(
+            "ontology declares aliases its own exclude_hints delete, which would fail silently at "
+            "match time — narrow the hint:\n  " + "\n  ".join(bad))
 
 
 def resolve_inherits(data: dict) -> dict:

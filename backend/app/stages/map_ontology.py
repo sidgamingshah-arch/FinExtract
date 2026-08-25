@@ -500,6 +500,7 @@ class MapOntologyStage:
         # exactly the condition that makes it decline.
         mapped += self._split_from_disclosure(doc, ontology, matcher, ctx)
         mapped += self._infer_sole_components(doc, ontology, ctx)
+        self._adopt_template_roles(doc, ctx)
 
         # Roll the mapper's LLM usage up onto the context for the audit log.
         ctx.llm_input_tokens += matcher.usage["input_tokens"]
@@ -887,6 +888,53 @@ class MapOntologyStage:
                     f" from note {','.join(sorted({str(t.note_number) for t in tables}))}"
                     f"{' (signs flipped to the face convention)' if orientation < 0 else ''}")
         return added
+
+    @staticmethod
+    def _adopt_template_roles(doc: DocumentModel, ctx: PipelineContext) -> int:
+        """A row that resolved to a calculated template node IS a subtotal. Returns rows promoted.
+
+        A filing does not mark its subtotals. "Gross profit", "LOSS FROM OPERATING ACTIVITIES",
+        "LOSS BEFORE TAX" and "LOSS FOR THE YEAR" are printed exactly like the lines they total, so
+        reconstruction has nothing to read a role from and hands every one of them on as
+        ``LineRole.LINE``. The TEMPLATE declares them totals, and once a row is filed against a
+        template node that declaration is a fact about the row.
+
+        TWO THINGS FOLLOW, and both are what the product owner asked for. A subtotal's figure is the
+        SUM OF ITS CHILDREN rather than a reading of the page — ``rollups.figures_as_shown`` already
+        prefers the computed figure over the printed one and keeps the printed one as evidence, and
+        it can only do that for a node the template calls calculated. And a subtotal is NEVER SWEPT
+        INTO A SECTION RESIDUAL: ``residual``'s eligibility list rules out ``SUBTOTAL`` and ``TOTAL``
+        by role, so this promotion is what makes that rule apply. Before it, a subtotal the mapper
+        could not place went into the section's Others — on a real HK income statement "LOSS FROM
+        OPERATING ACTIVITIES" landed in ``pl_expenses__others`` alongside a genuine expense row, two
+        rows on one concept, and the rulebook's own exclusion for that concept says in as many words
+        "Section subtotals and statement totals".
+
+        A ROW'S OWN ROLE IS NOT OVERRULED when reconstruction did manage to read one: a printed
+        "Total" caption already arrives as ``TOTAL`` and stays that way. Only ``LINE`` is promoted,
+        so this adds a verdict where there was none rather than replacing one.
+        """
+        from app.services.rollups import node_roles
+
+        template = getattr(ctx, "template", None)
+        template_def = (template.model_dump(mode="json")
+                        if template is not None and hasattr(template, "model_dump") else template)
+        roles = node_roles(template_def)
+        if not roles:
+            return 0
+        wanted = {"subtotal": LineRole.SUBTOTAL, "total": LineRole.TOTAL}
+        promoted = 0
+        for li in doc.line_items:
+            if li.role is not LineRole.LINE or not li.canonical_key:
+                continue
+            role = wanted.get((roles.get(li.canonical_key) or "").lower())
+            if role is None:
+                continue
+            li.role = role
+            promoted += 1
+        if promoted:
+            ctx.log(f"map_ontology:template_roles_adopted={promoted}")
+        return promoted
 
     @staticmethod
     def _infer_sole_components(doc: DocumentModel, ontology, ctx: PipelineContext) -> int:

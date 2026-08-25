@@ -4204,7 +4204,7 @@
       ],
       "exclude_hints": [
         "total income",
-        "revenue",
+        "^revenue",
         "营业收入",
         "总收入",
         "finance income",
@@ -4436,7 +4436,7 @@
         "pl_tax_expense__total_tax_expense"
       ],
       "exclude_hints": [
-        "income tax",
+        "^income tax",
         "所得税",
         "所得稅",
         "deferred"
@@ -4742,7 +4742,7 @@
         "销售",
         "operating",
         "营业",
-        "经营",
+        "^经营",
         "income",
         "收入",
         "收益",
@@ -4855,7 +4855,13 @@
         "Profit from operations",
         "Operating profit / EBIT",
         "EBIT",
-        "Results from operating activities"
+        "Results from operating activities",
+        "Loss from operating activities",
+        "Profit from operating activities",
+        "Profit/(loss) from operating activities",
+        "Operating loss",
+        "Operating profit/(loss)",
+        "Loss from operations"
       ],
       "aliases_i18n": {
         "en": [
@@ -4863,7 +4869,13 @@
           "Profit from operations",
           "Operating profit / EBIT",
           "EBIT",
-          "Results from operating activities"
+          "Results from operating activities",
+          "Loss from operating activities",
+          "Profit from operating activities",
+          "Profit/(loss) from operating activities",
+          "Operating loss",
+          "Operating profit/(loss)",
+          "Loss from operations"
         ],
         "zh": [
           "营业利润",
@@ -4887,7 +4899,7 @@
         "ebitda",
         "before tax",
         "除税前",
-        "税前"
+        "^税前"
       ]
     },
     {
@@ -5486,8 +5498,8 @@
         "pl_exceptional_items__credit_impairment_losses"
       ],
       "exclude_hints": [
-        "financial asset",
-        "金融资产",
+        "(?<!non-)(?<!non )financial asset",
+        "(?<!非)金融资产",
         "credit",
         "信用",
         "expected credit",
@@ -5704,6 +5716,7 @@
         "Income tax credit",
         "Income tax",
         "Tax expense",
+        "Tax",
         "Taxation",
         "Tax charge for the year",
         "Total tax expense",
@@ -5823,7 +5836,7 @@
         "^年内(溢利|亏损)$"
       ],
       "exclude_hints": [
-        "total comprehensive",
+        "^total comprehensive",
         "other comprehensive",
         "全面",
         "attributable",

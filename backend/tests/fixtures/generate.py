@@ -938,6 +938,82 @@ def make_issuer_named_untokened_face_pdf() -> bytes:
     return buf.getvalue()
 
 
+def make_hk_income_statement_pdf() -> bytes:
+    """A real HK consolidated income statement, caption for caption and figure for figure.
+
+    Transcribed from a published HKEX annual report (Lai Sun Garment 2024-25, p.184) because four
+    separate defects were measured on it and a 14MB PDF is not a regression test. Every caption here
+    is one an HKFRS filing actually prints, and the arithmetic is the filing's own:
+
+        Gross profit                    4,995,768 - 3,929,910         = 1,065,858
+        LOSS FROM OPERATING ACTIVITIES  1,065,858 + 562,160 - 191,447
+                                        - 797,203 - 1,026,959 - 508,569 = (896,160)
+        LOSS BEFORE TAX                 (896,160) - 1,164,778 + 4,991
+                                        - 1,130,120                     = (3,186,067)
+        LOSS FOR THE YEAR               (3,186,067) - 51,790            = (3,237,857)
+
+    WHAT MAKES IT AWKWARD, and all of it is ordinary for the format:
+
+    * NO SECTION BANNERS. A flat income statement prints no "REVENUE"/"EXPENSES" headings at all,
+      so every row's section_hint is None and the section gate — the mapper's main defence against
+      an ambiguous caption — is simply off. Everything rests on the caption and the statement.
+    * THE SUBTOTALS ARE ORDINARY ROWS to the reader. "Gross profit", "LOSS FROM OPERATING
+      ACTIVITIES", "LOSS BEFORE TAX" and "LOSS FOR THE YEAR" carry no marker distinguishing them
+      from the lines they total; only the TEMPLATE knows they are calculated.
+    * THE TAX LINE IS ONE WORD. "Tax", not "Income tax expense".
+    * EVERY FIGURE IS A LOSS, so the statement is mostly parenthesised negatives and a sign bug
+      cannot hide behind a positive column.
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    _width, height = A4
+
+    c.setFont("Helvetica", 8)
+    c.drawString(72, height - 52, "184")
+    c.drawString(110, height - 52, "LAI SUN GARMENT   Annual Report 2024 - 2025")
+    c.setFont("Helvetica-Bold", 13)
+    c.drawString(72, height - 76, "Consolidated Income Statement")
+    c.setFont("Helvetica", 9)
+    c.drawString(72, height - 92, "Year ended 31 July 2025")
+    y = height - 116
+    c.drawRightString(400, y, "Notes")
+    c.drawRightString(462, y, "2025")
+    c.drawRightString(530, y, "2024")
+    y -= 12
+    c.drawRightString(462, y, "HK$'000")
+    c.drawRightString(530, y, "HK$'000")
+
+    c.setFont("Helvetica", 10)
+    for label, note, cur, prior in [
+            ("TURNOVER", "6", "4,995,768", "6,096,141"),
+            ("Cost of sales", "", "(3,929,910)", "(4,492,125)"),
+            ("Gross profit", "", "1,065,858", "1,604,016"),
+            ("Other revenue and gains", "6", "562,160", "480,983"),
+            ("Selling and marketing expenses", "", "(191,447)", "(279,931)"),
+            ("Administrative expenses", "", "(797,203)", "(839,684)"),
+            ("Other operating expenses", "", "(1,026,959)", "(1,706,040)"),
+            ("Fair value losses on investment properties, net", "15", "(508,569)", "(927,888)"),
+            ("LOSS FROM OPERATING ACTIVITIES", "7", "(896,160)", "(1,668,544)"),
+            ("Finance costs", "8", "(1,164,778)", "(1,403,086)"),
+            ("Share of profits and losses of associates", "", "4,991", "11,671"),
+            ("Share of profits and losses of joint ventures", "", "(1,130,120)", "(796,305)"),
+            ("LOSS BEFORE TAX", "", "(3,186,067)", "(3,856,264)"),
+            ("Tax", "11", "(51,790)", "(399,715)"),
+            ("LOSS FOR THE YEAR", "", "(3,237,857)", "(4,255,979)")]:
+        y -= 20
+        c.drawString(72, y, label)
+        if note:
+            c.drawRightString(400, y, note)
+        c.drawRightString(462, y, cur)
+        c.drawRightString(530, y, prior)
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
 def make_statement_spanning_three_pages_pdf() -> bytes:
     """A cash-flow statement over THREE pages, where only the first and last carry the title.
 
