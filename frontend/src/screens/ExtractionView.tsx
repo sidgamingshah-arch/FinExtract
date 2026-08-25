@@ -216,7 +216,7 @@ function AnalysisSection({ id, locale, t }: { id: string; locale: Locale; t: (k:
             <span style={{ fontSize: 12, color: color.ink }}>{d.label}</span>
             <span style={{ fontSize: 10.5, fontWeight: 700,
                            color: d.present ? color.greenFg : color.faint }}>
-              {d.present ? `p.${d.page}` : "—"}
+              {d.present ? t("view.folioN").replace("{n}", String(d.page)) : "—"}
             </span>
             <span style={{ fontSize: 11, color: color.muted, fontStyle: d.snippet ? "italic" : "normal",
                            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>

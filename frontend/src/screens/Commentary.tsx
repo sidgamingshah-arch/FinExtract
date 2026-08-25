@@ -302,7 +302,10 @@ function CreditPanel({
               <span style={{ fontSize: 11, fontWeight: 700, color: color.amberFg, flex: "0 0 auto" }}>⚑</span>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 12.5, fontWeight: 600, color: color.amberFg }}>
-                  {fl.label}{fl.page ? ` · ${t("cm.creditPage")}${fl.page}` : ""}
+                  {fl.label}
+                  {fl.page
+                    ? ` · ${t("view.folioN").replace("{n}", String(fl.page))}`
+                    : ""}
                 </div>
                 <div style={{ fontSize: 11.5, color: color.sec, lineHeight: 1.5 }}>{fl.implication}</div>
               </div>
