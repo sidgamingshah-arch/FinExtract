@@ -190,38 +190,68 @@ def test_one_concept_itemised_twice_is_summed_not_taken_once(split):
     assert "split_summed_rows:2" in child.confidence.flags
 
 
-def test_a_disclosures_own_total_row_is_refused_as_a_component():
-    """``_DISCLOSURE_TOTAL`` tested directly, and the docstring says why it is not tested through
-    the pipeline: on the deterministic path a total caption maps to NOTHING ("Total trade
-    receivables" resolves to None, there being no string-similarity tier), so it never reaches the
-    sum and the guard cannot be shown to bite. It bites on the LLM path, where a semantic matcher
-    reading "Total trade receivables" against a trade-receivables definition has every reason to
-    accept it — and then the concept is counted twice, the sum doubles, and a legitimate split is
-    refused by an arithmetic failure that came from the note's own layout.
+def test_a_disclosures_own_total_row_is_refused_as_a_component(split):
+    """A note's own total is not one of its details, decided ONCE by the row's role.
 
-    Asserting it here rather than pretending a fixture covers it: a test that passes with the guard
-    deleted is not evidence, and this one at least fails if the pattern stops matching.
+    THIS USED TO BE A UNIT TEST OF A REGEX, and its docstring said the guard could not be shown to
+    bite through the pipeline. That was wrong in a way worth recording: it could not be shown
+    through the DISCLOSURE SPLIT (on the deterministic path "Total trade receivables" maps to
+    nothing, so it never reaches the sum), but the identical guard in ``stages.reconcile`` bites on
+    every note that prints its own total — which is most of them — and it was never firing, because
+    every ``NoteItem`` was built ``LineRole.LINE``. A note's printed total was therefore summed
+    alongside the rows it totals, so a note that ties came out at ``residual = face - 2 x total``.
 
-    ``role`` cannot do this job. Every NoteItem in production carries ``LineRole.LINE`` — all three
-    readers hardcode it — which is also why reconcile's identical guard never fires."""
-    from app.stages.map_ontology import _DISCLOSURE_TOTAL
+    Measured on a real 270-page bilingual HKEX filing: 453 note rows, and of 109 reconciliation
+    entries NOT ONE graded ``tied`` — with two of them served to the analyst as "does not tie"
+    assertions that were false. With the role set, 14 tie at residual exactly 0.
 
-    for caption in ("Total", "Total trade receivables", "Sub-total", "Subtotal", "  TOTAL  ",
-                    "合計", "总计"):
-        assert _DISCLOSURE_TOTAL.match(caption), caption
+    So the assertion is now made where it counts: through the pipeline, on the fixture that prints
+    a note total, at residual 0.
+    """
+    from app.services.notes_extract import note_row_role
+
+    doc, _ctx = split
+    note = next(n for n in doc.notes if n.note_number == "18")
+    by_role = {}
+    for it in note.items:
+        by_role.setdefault(str(it.role), []).append(it.raw_label)
+    # The four itemised rows are details; the printed "Total" is not.
+    assert by_role["LineRole.TOTAL"] == ["Total"], by_role
+    assert len(by_role["LineRole.LINE"]) == 4, by_role
+
+    # THE ASSERTION THAT FAILS WITH THE DEFECT RESTORED. The note itemises exactly the aggregate,
+    # so it ties; with its own total counted as a detail the note total doubles and the residual is
+    # -5,000 rather than 0.
+    entries = {(e.face_key, e.period_label): e
+               for e in doc.reconciliation.entries if e.note_number == "18"}
+    face = "Prepayments, other receivables and other assets"
+    for period, raw in (("current", 5000), ("prior", 4400)):
+        entry = entries[(face, period)]
+        assert entry.tie_status == "tied", (period, entry.tie_status, entry.residual)
+        assert entry.residual == 0 and entry.raw_face == raw
+
+    # …and the caption test itself, in both languages the rulebook supports.
+    for caption in ("Total", "Total trade receivables", "  TOTAL  ", "合計", "总计", "總計"):
+        assert note_row_role(caption) is LineRole.TOTAL, caption
+    for caption in ("Sub-total", "Subtotal", "小計", "小计"):
+        assert note_row_role(caption) is LineRole.SUBTOTAL, caption
     for caption in ("Trade receivables", "Prepaid income tax", "Due from related parties",
-                    "Net investment in leases", "Net book value", "Notes receivable"):
-        assert not _DISCLOSURE_TOTAL.match(caption), caption
+                    "Net investment in leases", "Net book value", "Notes receivable",
+                    # The un-anchored variant in ``row_reconstruct._TOTAL_LABEL`` matches these two
+                    # by searching for 總額 anywhere; both are ordinary note rows, and adopting that
+                    # pattern would delete real details from the note total.
+                    "Share of the joint ventures' total comprehensive loss 應佔合營公司的全面虧損總額",
+                    "Aggregate carrying amount of the Group's investments 本集團的投資賬面總額"):
+        assert note_row_role(caption) is LineRole.LINE, caption
 
     # THE ACCEPTED COST, asserted so it is a decision on the record rather than a surprise: a real
-    # instrument whose caption begins with "Total" is excluded too. The components then fall short of
-    # the aggregate, the arithmetic gate refuses, and the aggregate stands exactly as printed — a
-    # declined split, never a wrong figure. Distinguishing the two lexically is not possible; both
-    # failure directions here end in a decline, which is what makes the prefix the right trade.
-    assert _DISCLOSURE_TOTAL.match("Total return swap receivable")
+    # instrument whose caption begins with "Total" is called a total too. It is then left out of the
+    # note total, the components fall short of the aggregate, the arithmetic gate refuses and the
+    # aggregate stands exactly as printed — a declined split, never a wrong figure. Distinguishing
+    # the two lexically is not possible; both failure directions end in a decline, which is what
+    # makes the prefix the right trade.
+    assert note_row_role("Total return swap receivable") is LineRole.TOTAL
 
-
-# --- what it refuses ----------------------------------------------------------------------------
 
 def test_a_component_in_another_section_leaves_the_aggregate_standing(refused):
     """The user's rule, end to end: one component of the same note is a NON-CURRENT asset, so this

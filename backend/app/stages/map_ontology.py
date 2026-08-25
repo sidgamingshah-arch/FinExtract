@@ -110,26 +110,19 @@ def _pairs_to_keep_apart(ontology) -> list[tuple[str, list[str], str]]:
     return out
 
 
-# A DISCLOSURE'S OWN TOTAL ROW, which must never be counted as one of its components.
+# A DISCLOSURE'S OWN TOTAL ROW, which must never be counted as one of its components, is now
+# answered by the row's ROLE — ``services.notes_extract.note_row_role`` decides it from the caption
+# where the ``NoteItem`` is built, and this pass reads the verdict instead of re-deriving it.
 #
-# ``role`` cannot answer this: every ``NoteItem`` in production is ``LineRole.LINE``, because all
-# three readers that build one hardcode that role and only the face passes ever promote a row to
-# SUBTOTAL. So reconcile's "a note's own subtotal isn't a detail" guard never fires either — see the
-# note in :meth:`MapOntologyStage._split_from_disclosure`. The caption is the available signal, in
-# both languages the shipped rulebook supports.
-# A PREFIX match, and the trade-off is deliberate. "Total trade receivables" — a note's per-component
-# subtotal — must be excluded, and a semantic matcher has every reason to resolve it to trade
-# receivables, which would then be counted twice. But "Total return swap receivable" is a real
-# instrument, and it is excluded too. That costs a split: the components fall short of the aggregate,
-# the arithmetic gate refuses, and the aggregate stands as printed. Both mistakes therefore end in a
-# DECLINED split rather than a wrong figure, which is why the prefix is worth having — it catches the
-# common shape, and its false positives fail safe.
-#
-# "net" and "aggregate" were tried as prefixes and removed: "Net investment in leases" and "Net book
-# value" are ordinary component captions, so those prefixes cost splits without catching a shape
-# filings actually print.
-_DISCLOSURE_TOTAL = re.compile(
-    r"^\s*(total|sub-?total|合\s*計|總\s*計|小\s*計|合\s*计|总\s*计)", re.I)
+# ``_DISCLOSURE_TOTAL`` used to live here, with a comment explaining that ``role`` could not answer
+# the question because every ``NoteItem`` is built ``LineRole.LINE``. That was true of the row
+# BUILDER rather than of the question, and the same regex was therefore needed by a second reader
+# that did not have it: ``stages.reconcile``'s "a note's own subtotal isn't a detail" guard, which
+# consequently never fired — a note's printed total was summed alongside the rows it totals, so on a
+# real filing not one of 109 reconciliation entries graded ``tied`` and two false "does not tie"
+# assertions reached the analyst. One definition, in the place that constructs the row, fixes both
+# readers at once. The reasoning about WHY the test is an anchored prefix, and why it is not
+# ``row_reconstruct._TOTAL_LABEL``, travelled with it.
 
 
 def _summed_columns(sources: list) -> dict[tuple[str, str], tuple[Decimal, object]]:
@@ -587,11 +580,15 @@ class MapOntologyStage:
           decomposition however plausible the captions;
         * a disclosure that itemises nothing this section claims, or none at all.
 
-        A DISCLOSURE'S OWN TOTAL ROW is excluded by caption (``_DISCLOSURE_TOTAL``), not by role.
-        Every ``NoteItem`` in production carries ``LineRole.LINE`` — the readers hardcode it — so the
-        role test that reconcile uses for the same purpose never fires. Counting the note's total as
-        a component would double the sum and fail the arithmetic gate, which is a safe failure; the
-        caption test is what makes the common case work rather than silently decline.
+        A DISCLOSURE'S OWN TOTAL ROW is excluded BY ROLE, which is now the one answer to that
+        question: ``services.notes_extract.note_row_role`` decides it from the caption where the
+        ``NoteItem`` is built, so this pass and reconcile's identical guard read the same verdict.
+        They did not. The caption test used to live here and reconcile's role test never fired,
+        because every ``NoteItem`` was built ``LineRole.LINE`` — so a note's printed total was
+        summed alongside the rows it totals and, on a real filing, not one of 109 reconciliation
+        entries graded ``tied``. Counting the note's total as a component here would double the sum
+        and fail the arithmetic gate, which is a safe failure; getting it right is what makes the
+        common case work rather than silently decline.
 
         WHAT THE SPLIT ROWS CARRY. Each component's figures are the DISCLOSURE ROW'S OWN
         ``ExtractedValue`` copies, so click-to-source lands on the itemised line the figure was read
@@ -633,7 +630,7 @@ class MapOntologyStage:
                 continue
             statement = stmt_by_page.get(_page_of(parent) or -1)
             rows = [it for t in tables for it in t.items
-                    if it.values and not _DISCLOSURE_TOTAL.match(it.raw_label or "")]
+                    if it.values and it.role is LineRole.LINE]
             hits: dict[str, list] = {}
             for it in rows:
                 res = matcher.match(it.raw_label or "", statement=statement, section=section)

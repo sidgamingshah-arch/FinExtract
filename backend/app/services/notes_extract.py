@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 
+from app.core.models.enums import LineRole
 from app.core.models.line_item import NoteItem, NotesTable
 from app.services.row_reconstruct import (
     Word, _group_rows, _scan_row, build_line_items, row_tolerance)
@@ -17,6 +18,72 @@ from app.services.row_reconstruct import (
 # "Note 15: Trade receivables", "Note 15 Trade receivables", "15. Trade receivables"
 _HEADING = re.compile(r"^(?:note[s]?\.?\s+)?(?P<no>\d{1,3})\s*[:.\)\-]?\s*(?P<title>.*)$",
                       re.IGNORECASE)
+
+# A NOTE'S OWN SUBTOTAL OR TOTAL ROW, from its caption, in both languages the shipped rulebook
+# supports. THE one definition of the question "is this note row a total rather than a detail".
+#
+# WHY IT LIVES HERE. It was written in ``stages.map_ontology`` as ``_DISCLOSURE_TOTAL``, to keep a
+# note's own total out of a declared decomposition's components, with a comment explaining that
+# ``role`` could not answer the question because every ``NoteItem`` is built ``LineRole.LINE``.
+# That was true of the ROW BUILDER and not of the question: the caption is decided here, where the
+# ``NoteItem`` is constructed, so the role can carry the verdict and every consumer reads one
+# answer instead of re-deriving it. Two consumers do: ``map_ontology``'s disclosure split, and
+# ``stages.reconcile``'s "a note's own subtotal isn't a detail" guard.
+#
+# THAT GUARD HAD NEVER FIRED, and this is the bug that makes this more than a tidy-up.
+# ``services.reconcile`` builds a note's total by summing the DETAILS it is handed
+# (``note_total += d.value``), so with every row a detail a note's printed total was summed
+# alongside the rows it totals: a note that ties perfectly came out at
+# ``residual = face - 2 x total = -face``. Measured on a real 270-page bilingual HKEX filing:
+# 453 note rows, every one ``LineRole.LINE``, and of 109 reconciliation entries NOT ONE graded
+# ``tied`` — 107 ``unconfirmed``, 2 ``untied``, and both of those ``untied`` were served to the
+# analyst as "does not tie" assertions that were false. With the role set, 14 entries tie with
+# residual exactly 0 (notes 6, 7, 20, 21, 26, 28) and both false assertions disappear.
+#
+# A PREFIX MATCH, and the asymmetry of the two failure directions is why. A MISS leaves a total
+# row a detail, the note total is double-counted, the residual lands nowhere near the face figure
+# and the tie grades ``unconfirmed`` — the same non-answer as before, and nothing is restated. A
+# FALSE POSITIVE removes a real detail from the note total, which can turn a genuine tie into a
+# reported break. So only the shape a filing prints at the START of a caption counts. Measured
+# over the same filing's 453 rows this matched 36, every one a printed total or subtotal
+# ("Subtotal 小計", "Total revenue 收益總額", "Total tax charge for the year 年內稅項開支總額").
+#
+# DELIBERATELY NOT ``row_reconstruct._TOTAL_LABEL``, which looks like the same thing: its Chinese
+# alternatives are un-anchored and it is used with ``.search()``. On the same 453 rows it matches
+# 7 that this rejects, and all 7 are ordinary details or prose — "Share of the joint ventures'
+# total comprehensive loss 應佔合營公司的全面虧損總額", "Aggregate carrying amount of the Group's
+# investments in the joint ventures 本集團於合營公司的投資賬面總額". Adopting it would delete real
+# details from the note total, which is the failure direction that manufactures findings.
+#
+# "net" and "aggregate" are NOT prefixes here, for the same reason they were rejected in
+# ``map_ontology``: "Net investment in leases", "Net book value", "Net carrying value 賬面淨值"
+# and "Net assets 資產淨值" are ordinary component captions.
+#
+# ``小计`` (simplified) is in this alternation and was NOT in ``_DISCLOSURE_TOTAL``, which carried
+# ``小計`` traditional and the simplified forms of the other two only. That gap was invisible there
+# and would have been an inconsistency here: the subtotal arm below recognises both forms, so
+# without it a simplified-Chinese "小计" was refused by the gate and then classifiable by the arm.
+# The failure direction was the safe one (a missed total stays a detail and the tie declines), which
+# is why nothing caught it.
+_NOTE_TOTAL = re.compile(
+    r"^\s*(total|sub-?total|合\s*計|總\s*計|小\s*計|合\s*计|总\s*计|小\s*计)", re.I)
+# The subtotal arm of the same alternation, read separately only to tell the two roles apart. A
+# note's SUBTOTAL is a partial sum inside the note; its TOTAL is the figure the face cites. Both
+# are excluded from the details, so nothing downstream depends on getting the distinction right —
+# it is served to the reader (the note pane emphasises them differently) and no arithmetic reads it.
+_NOTE_SUBTOTAL = re.compile(r"^\s*(sub-?total|小\s*計|小\s*计)", re.I)
+
+
+def note_row_role(caption: str | None) -> LineRole:
+    """The role a note detail row carries, from its printed caption.
+
+    ``LineRole.LINE`` unless the caption opens with a total or subtotal word — see ``_NOTE_TOTAL``
+    for why the test is a prefix and why it is not the pattern in ``row_reconstruct``.
+    """
+    text = caption or ""
+    if not _NOTE_TOTAL.match(text):
+        return LineRole.LINE
+    return LineRole.SUBTOTAL if _NOTE_SUBTOTAL.match(text) else LineRole.TOTAL
 
 
 def _is_heading(row: list[Word]) -> tuple[str, str] | None:
@@ -76,7 +143,13 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
             continue
         table = NotesTable(note_number=sec["no"], title=sec["title"], source_pages=[page_index])
         for li in items:
-            ni = NoteItem(raw_label=li.source_label, ordinal=li.ordinal, role=li.role,
+            # THE ROW BUILDER'S ROLE IS ALWAYS ``LINE`` — both ``LineItem`` construction sites in
+            # ``row_reconstruct`` hardcode it, and the promotion that would change it runs in
+            # ``map_ontology``, which never sees a note. So the caption decides it here instead of
+            # a field that cannot know. ``li.role`` is still honoured when it says something other
+            # than LINE, so a future builder that does classify a row is not overridden.
+            role = li.role if li.role is not LineRole.LINE else note_row_role(li.source_label)
+            ni = NoteItem(raw_label=li.source_label, ordinal=li.ordinal, role=role,
                           section_hint=li.section_hint,
                           provenance=li.values and next(iter(li.values.values())).provenance or None)
             for ev in li.values.values():
