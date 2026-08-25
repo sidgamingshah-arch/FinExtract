@@ -524,6 +524,32 @@ def _printed_folio(lines: list[dict], page_h: float) -> str | None:
     return best[2] if best else None
 
 
+# How many of a page's own opening lines count as "the top". A statement continuation puts its
+# folio, running header and column band there — six lines covers "191 | Annual Report … | 2025 |
+# 2024 | Notes | HK$'000 | HK$'000" — and a note puts its numbered heading first.
+_TOP_LINES = 7
+
+
+def _opens_with_note_heading(lines: list[dict]) -> bool:
+    """Whether a page OPENS as a note: a numbered note heading among its first lines.
+
+    Not anywhere on the page. A statement's continuation page is full of note REFERENCES ("6(d)")
+    and of rows that begin with a figure, and asking whether the page contains a numbered heading
+    somewhere answers a different question than whether it starts one.
+    """
+    seen = 0
+    for line in lines:
+        text = (line.get("text") or "").strip()
+        if not text or _RUNNING_HEADER.search(text):
+            continue
+        if _NUMBERED_HEADING.match(text):
+            return True
+        seen += 1
+        if seen >= _TOP_LINES:
+            return False
+    return False
+
+
 def _page_lines(page) -> tuple[list[dict], float]:
     """Lines as (text, y, size, bold), top-down. Read from the span dict rather than plain text
     because a title's position and weight are evidence the decode uses."""
@@ -765,6 +791,82 @@ class ClassifyStage:
     name = "classify"
 
     @staticmethod
+    def _reclaim_statement_continuations(pages: list, feats: list, cache: list,
+                                         ctx: PipelineContext) -> int:
+        """A NOTES page between two FACE pages is a face page. Returns how many were reclaimed.
+
+        THE STATEMENTS RUN CONTIGUOUSLY. A filing prints its statements one after another and then
+        its notes; a note never appears BETWEEN two pages of the statements. So a page classified
+        NOTES whose immediate neighbours are both FACE is not a note — it is a statement's
+        continuation page that the classifier had nothing to recognise.
+
+        WHY IT HAPPENS, and it is not a tuning failure. A statement running to three pages titles
+        only the first: the middle page re-prints the column header band ("2025 2024 Notes HK$'000
+        HK$'000") and nothing else. Measured on a 367-page filing, that is exactly page 193 of its
+        three-page cash-flow statement — titled neither, bounded by two titled cash-flow pages, and
+        classified NOTES. A whole page of the cash flow was therefore read as note detail rows
+        instead of face rows, which loses them from the statement silently: they are not missing,
+        they are somewhere else.
+
+        THE RULE AS STATED IS NOT QUITE TRUE, AND THE EXCEPTION IS THE HK HOUSE STYLE. A filing
+        prints the Group's statements, then the notes, then the COMPANY's own statement of financial
+        position — so the notes section really does sit between two face pages. What saves the
+        common case is that this tests the IMMEDIATE neighbours, so a notes section of two pages or
+        more is never touched. But a filing whose Company statement follows a SINGLE note page has
+        exactly the shape this rule looks for, and reclaiming that page would move a real note onto
+        the face.
+
+        SO THE VETO ASKS WHETHER THE PAGE OPENS AS A NOTE, which is the difference between the two:
+
+            a real note      "29. Cash and cash equivalents"                     <- its first line
+            a continuation   "191 | Annual Report … | 2025 | 2024 | Notes | …"   <- folio and band
+
+        A note starts with its numbered heading. A statement's continuation page starts with the
+        running header and the column band, and its first heading-shaped line is the section it is
+        continuing ("CASH FLOWS FROM OPERATING ACTIVITIES (continued)"). Only the TOP of the page is
+        read, because that is what "opens as" means — the whole-page ``note_heading`` feature fires
+        on any "1. …" run anywhere, its own docstring says so, and using it vetoed the very page
+        this rule exists for. The notes running header still vetoes on its own.
+
+        The page inherits the preceding face page's statement, scope and columns, because that is
+        what a continuation IS. Without the statement it would be a face page whose rows have no
+        statement to be gated by, which is a different way of losing them.
+        """
+        if len(pages) < 3:
+            return 0
+        reclaimed = 0
+        for pos in range(1, len(pages) - 1):
+            page, prev, nxt = pages[pos], pages[pos - 1], pages[pos + 1]
+            if page.kind is not PageKind.NOTES:
+                continue
+            if prev.kind is not PageKind.FACE or nxt.kind is not PageKind.FACE:
+                continue
+            # Consecutive in the DOCUMENT, not merely consecutive in this list: a filter upstream
+            # could have dropped a page between them, and then they are not neighbours at all.
+            if prev.index != page.index - 1 or nxt.index != page.index + 1:
+                continue
+            if feats[pos].notes_banner:
+                ctx.log(f"classify:page={page.index}:sandwiched_note_kept"
+                        " (carries the notes running header)")
+                continue
+            if _opens_with_note_heading(cache[pos][0]):
+                ctx.log(f"classify:page={page.index}:sandwiched_note_kept"
+                        " (opens with a numbered note heading)")
+                continue
+            page.kind = PageKind.FACE
+            page.statement = page.statement or prev.statement
+            page.scope = page.scope or prev.scope
+            page.scope_columns = page.scope_columns or prev.scope_columns
+            if isinstance(page.evidence, dict):
+                page.evidence["reclaimed_between_face_pages"] = True
+            reclaimed += 1
+            ctx.log(f"classify:page={page.index}:reclaimed_as_face"
+                    f"(between {prev.index} and {nxt.index}, statement={page.statement})")
+        if reclaimed:
+            ctx.log(f"classify:reclaimed_statement_continuations={reclaimed}")
+        return reclaimed
+
+    @staticmethod
     def _classify_workbook(doc: DocumentModel, data: bytes,
                            ctx: PipelineContext) -> DocumentModel:
         """Name each worksheet's statement, so a spreadsheet is scoped like a page.
@@ -915,6 +1017,8 @@ class ClassifyStage:
                                  "oci_combined": f.oci_combined}
             if f.unmapped:
                 doc.unmapped_titles.extend(f.unmapped[:3])
+
+        self._reclaim_statement_continuations(pages, feats, cache, ctx)
 
         pdf.close()
         doc.unmapped_titles = sorted(set(doc.unmapped_titles))[:60]

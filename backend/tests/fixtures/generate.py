@@ -938,6 +938,77 @@ def make_issuer_named_untokened_face_pdf() -> bytes:
     return buf.getvalue()
 
 
+def make_statement_spanning_three_pages_pdf() -> bytes:
+    """A cash-flow statement over THREE pages, where only the first and last carry the title.
+
+    THE SHAPE THAT LOSES A WHOLE PAGE OF A STATEMENT. A long statement titles its first page and
+    then, at a page break, re-prints only the column header band — "2025 2024 Notes HK$'000
+    HK$'000" — and carries on. The classifier has no title to recognise on that middle page and no
+    notes running header to reject it by, so it lands as NOTES and every row on it is read as note
+    detail instead of face. The figures are not missing; they are somewhere else, which is worse.
+
+    The middle page here carries no title AND no notes banner, exactly as the measured filing's
+    page 193 does, so it reproduces the misclassification rather than merely describing it. The
+    third page is titled again because the real filing's is — that is what makes the middle page
+    SANDWICHED, which is the fact the rule turns on.
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    def _page(c, height, title, rows, folio=None):
+        y = height - 52
+        if folio:
+            # The printed folio and the running header, which is ALL the real continuation page
+            # carries above its column band — and the folio is what made the noisy
+            # ``note_heading`` feature fire on it.
+            c.setFont("Helvetica", 8)
+            c.drawString(72, y, folio)
+            c.drawString(110, y, "Annual Report 2024 - 2025   EXAMPLE HOLDINGS")
+        y = height - 72
+        if title:
+            c.setFont("Helvetica-Bold", 13)
+            c.drawString(72, y, title)
+            c.setFont("Helvetica", 9)
+            y -= 20
+            c.drawString(72, y, "Year ended 31 July 2025")
+        y -= 22
+        c.setFont("Helvetica", 9)
+        c.drawRightString(430, y, "2025")
+        c.drawRightString(510, y, "2024")
+        y -= 12
+        c.drawRightString(430, y, "Notes")
+        y -= 12
+        c.drawRightString(430, y, "HK$'000")
+        c.drawRightString(510, y, "HK$'000")
+        c.setFont("Helvetica", 10)
+        for label, cur, pri in rows:
+            y -= 20
+            c.drawString(72, y, label)
+            c.drawRightString(430, y, cur)
+            c.drawRightString(510, y, pri)
+        c.showPage()
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    _, height = A4
+    _page(c, height, "CONSOLIDATED STATEMENT OF CASH FLOWS",
+          (("Profit before tax", "5,000", "4,200"),
+           ("Depreciation", "1,200", "1,100")))
+    # The continuation: no title, no notes banner, just the band and more rows.
+    _page(c, height, None,
+          (("Increase in trade receivables", "(2,400)", "(1,900)"),
+           # Below the page's opening lines, so it is not what the page OPENS with — and that is
+           # the distinction the reclaim rule turns on. It still trips the whole-page
+           # numbered-heading signal, which is what misclassifies this page in the first place.
+           ("16 Increase in trade payables", "1,750", "900"),
+           ("Interest paid", "(640)", "(580)")), folio="191")
+    _page(c, height, "CONSOLIDATED STATEMENT OF CASH FLOWS",
+          (("Net cash from operating activities", "4,910", "3,720"),
+           ("Cash and cash equivalents at end of year", "8,300", "7,100")))
+    c.save()
+    return buf.getvalue()
+
+
 def make_consolidated_statement_spanning_two_pages_pdf() -> bytes:
     """A consolidated balance sheet running over two pages, where only the FIRST carries the title.
 
