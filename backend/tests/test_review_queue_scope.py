@@ -102,16 +102,29 @@ def test_a_row_with_no_column_index_is_judged_exactly_as_before(client):
 def test_the_signal_is_set_in_exactly_one_place():
     """Why ``column_index`` can be trusted as "this row came off a matrix": the matrix path in
     ``row_reconstruct`` is its only writer. If a second writer appears, this guard starts excusing
-    rows it was never meant to, so the property is asserted rather than assumed."""
+    rows it was never meant to, so the property is asserted rather than assumed.
+
+    The writer is identified by the code AROUND it rather than by its line number. Pinning the line
+    guarded the same property and failed every time an unrelated edit above it shifted the file,
+    which trains a reader to re-stamp the number instead of asking what moved — so the check is the
+    thing that actually matters: exactly one writer, in ``row_reconstruct``, inside the block that
+    labels its provenance ``matrix``.
+    """
     import pathlib
     import re
 
     root = pathlib.Path(__file__).resolve().parent.parent / "app"
-    writers = [f"{p.relative_to(root)}:{i}"
+    writers = [(p.relative_to(root), i, lines)
                for p in root.rglob("*.py")
-               for i, line in enumerate(p.read_text().splitlines(), 1)
+               for lines in [p.read_text().splitlines()]
+               for i, line in enumerate(lines, 1)
                if re.search(r"column_index\s*=(?!=)", line) and "def " not in line]
-    assert writers == ["services/row_reconstruct.py:2203"], writers
+
+    assert len(writers) == 1, [(str(f), i) for f, i, _ in writers]
+    path, line_no, lines = writers[0]
+    assert str(path) == "services/row_reconstruct.py", str(path)
+    nearby = "\n".join(lines[max(0, line_no - 12):line_no + 8])
+    assert "matrix" in nearby, f"the sole writer at line {line_no} is no longer the matrix path"
 
 
 # --------------------------------------------------------------------------------------------

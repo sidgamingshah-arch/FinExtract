@@ -107,6 +107,106 @@ def test_the_banner_is_carried_from_the_page_onto_each_row():
     assert banners == ["NON-CURRENT LIABILITIES", "CURRENT LIABILITIES"], banners
 
 
+def test_a_wrapped_statement_title_does_not_scope_the_rows_beneath_it():
+    """A title that wraps leaves a second line which, read alone, IS a section banner.
+
+    "CONSOLIDATED STATEMENT OF PROFIT OR LOSS" / "AND OTHER COMPREHENSIVE INCOME" is how an HKEX
+    filing prints its income statement, and ``section_of_banner`` resolves that second line to the
+    other-comprehensive-income section — so the whole income statement was scoped into OCI and its
+    tax line resolved to an OCI concept instead of the tax total. Nothing in a financial statement
+    opens a section with "and", which is what makes the tail recognisable.
+
+    The assertion is that whatever gets recorded SCOPES NOTHING, not that nothing is recorded. The
+    title's FIRST line is still remembered — it is ALL-CAPS and label-only, so reconstruction cannot
+    tell it from a banner — but it resolves to no section, so the gate it feeds is a no-op. It is
+    the wrapped tail that resolves to a real section, and that is the one that did damage.
+    """
+    from app.core.models.geometry import BBox
+    from app.services.row_reconstruct import Word, build_line_items
+
+    def word(text: str, x: float, y: float) -> Word:
+        return Word(text=text, bbox=BBox(x0=x, y0=y, x1=x + 0.08, y1=y + 0.01))
+
+    words = [
+        word("CONSOLIDATED", 0.10, 0.06), word("STATEMENT", 0.22, 0.06),
+        word("OF", 0.32, 0.06), word("PROFIT", 0.36, 0.06), word("OR", 0.44, 0.06),
+        word("LOSS", 0.48, 0.06),
+        word("AND", 0.10, 0.09), word("OTHER", 0.15, 0.09),
+        word("COMPREHENSIVE", 0.23, 0.09), word("INCOME", 0.37, 0.09),
+        word("Income", 0.10, 0.14), word("tax", 0.18, 0.14), word("expense", 0.23, 0.14),
+        word("(189,504)", 0.70, 0.14),
+    ]
+    items, _ = build_line_items(words, page_index=0, document_id=None, source_kind="native")
+
+    from app.services.mapping import normalize_label, section_of_banner
+
+    assert [li.source_label for li in items] == ["Income tax expense"]
+    hint = items[0].section_hint
+    assert section_of_banner(normalize_label(hint or "")) is None, hint
+    # Specifically not the section the tail resolves to on its own, which is the whole defect.
+    assert section_of_banner(normalize_label("AND OTHER COMPREHENSIVE INCOME")) is not None
+
+
+def test_a_units_caption_is_not_a_banner_whatever_glyph_it_is_printed_with():
+    """The column-units line scoped every row beneath it, and for two compounding reasons.
+
+    The rulebook declares a unit-and-currency annotation strip, and it was matching only the
+    STRAIGHT apostrophe while a typeset filing prints the typographic one — so "RMB’000" survived
+    normalisation, and being ALL-CAPS with no colon it read as a banner. That is fixed in
+    ``_strip_literals``. This asserts the backstop as well, for a currency the rulebook was never
+    told about: the decision is made on the TOKENS, so an undeclared "HK$’000" is refused too.
+    """
+    from app.core.models.geometry import BBox
+    from app.services.row_reconstruct import Word, build_line_items, _strip_literals
+
+    # The declared strip itself, on both glyphs. Before the fix only the straight one was removed.
+    assert _strip_literals("RMB’000 RMB’000", ("RMB'000",)).strip() == ""
+    assert _strip_literals("RMB'000", ("RMB'000",)).strip() == ""
+
+    def word(text: str, x: float, y: float) -> Word:
+        return Word(text=text, bbox=BBox(x0=x, y0=y, x1=x + 0.08, y1=y + 0.01))
+
+    for units in ("RMB\u2019000", "HK$\u2019000"):
+        words = [
+            word("CURRENT", 0.10, 0.06), word("LIABILITIES", 0.19, 0.06),
+            word(units, 0.60, 0.10), word(units, 0.72, 0.10),
+            word("Trade", 0.10, 0.14), word("payables", 0.18, 0.14),
+            word("1,234", 0.70, 0.14),
+        ]
+        items, _ = build_line_items(words, page_index=0, document_id=None, source_kind="native")
+        assert [li.source_label for li in items] == ["Trade payables"], units
+        # The banner above the units line still scopes the row: a units caption is not a section,
+        # and it is not a section BOUNDARY either.
+        assert items[0].section_hint == "CURRENT LIABILITIES", (units, items[0].section_hint)
+
+
+def test_a_colon_sub_heading_is_kept_without_displacing_the_section():
+    """Two jobs, two fields. A colon sub-heading must not become the section — the rows under
+    "Adjustments for:" are still that section's rows — but discarding it loses the only thing that
+    names some of them, so it is carried as ``group_hint`` instead."""
+    from app.core.models.geometry import BBox
+    from app.services.row_reconstruct import Word, build_line_items
+
+    def word(text: str, x: float, y: float) -> Word:
+        return Word(text=text, bbox=BBox(x0=x, y0=y, x1=x + 0.08, y1=y + 0.01))
+
+    words = [
+        word("CURRENT", 0.10, 0.06), word("LIABILITIES", 0.19, 0.06),
+        word("Adjustments", 0.10, 0.10), word("for:", 0.22, 0.10),
+        word("Depreciation", 0.10, 0.14), word("1,234", 0.70, 0.14),
+        word("NON-CURRENT", 0.10, 0.18), word("LIABILITIES", 0.22, 0.18),
+        word("Borrowings", 0.10, 0.22), word("5,678", 0.70, 0.22),
+    ]
+    items, _ = build_line_items(words, page_index=0, document_id=None, source_kind="native")
+
+    assert [li.source_label for li in items] == ["Depreciation", "Borrowings"]
+    assert items[0].section_hint == "CURRENT LIABILITIES"
+    assert items[0].group_hint == "Adjustments for:"
+    # A new section ends the sub-heading's scope; it does not leak past the banner.
+    assert items[1].section_hint == "NON-CURRENT LIABILITIES"
+    assert items[1].group_hint == ""
+
+
 def test_two_concepts_may_claim_the_same_alias_and_the_banner_decides(matcher):
     """The income statement prints "Owners of the parent" and "Non-controlling interests" TWICE
     — once splitting profit for the year, once splitting total comprehensive income. Both

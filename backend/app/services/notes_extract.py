@@ -150,7 +150,7 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
             # than LINE, so a future builder that does classify a row is not overridden.
             role = li.role if li.role is not LineRole.LINE else note_row_role(li.source_label)
             ni = NoteItem(raw_label=li.source_label, ordinal=li.ordinal, role=role,
-                          section_hint=li.section_hint,
+                          section_hint=li.section_hint, group_hint=li.group_hint,
                           provenance=li.values and next(iter(li.values.values())).provenance or None)
             for ev in li.values.values():
                 ni.set_value(ev)

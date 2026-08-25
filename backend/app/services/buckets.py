@@ -355,7 +355,14 @@ def segment_source(doc: DocumentModel, ontology=None) -> BucketedSource:
             placed = [one]
         for bucket in placed:
             seg = segments[bucket]
-            seg.note_numbers.append(note.note_number)
+            # ONE ENTRY PER NOTE NUMBER, not per table. This loop walks ``doc.notes``, which holds a
+            # ``NotesTable`` per (heading occurrence, page) — so a note printed across two pages, or
+            # with a continuation heading, arrives here twice and appended its number twice. The
+            # count is served straight to the UI ("notes": len(note_numbers)), so a filing with 19
+            # multi-table notes reported more notes in a section than it has. The adjacent
+            # ``note_pages`` guard already works this way; this is the same rule for the numbers.
+            if note.note_number not in seg.note_numbers:
+                seg.note_numbers.append(note.note_number)
             for page in note.source_pages:
                 if page not in seg.note_pages:
                     seg.note_pages.append(page)
@@ -364,7 +371,7 @@ def segment_source(doc: DocumentModel, ontology=None) -> BucketedSource:
             # stops that becoming a silent double count is that each copy says so.
             if len(placed) > 1 and note.note_number not in seg.shared_notes:
                 seg.shared_notes.append(note.note_number)
-        if reason == "unresolved":
+        if reason == "unresolved" and note.note_number not in out.unresolved_note_numbers:
             out.unresolved_note_numbers.append(note.note_number)
 
     for seg in out.segments:

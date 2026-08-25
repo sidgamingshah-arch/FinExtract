@@ -37,6 +37,7 @@ from app.services.reconcile import (
     NoteDetail,
     ReconcileInput,
     reconcile_face,
+    tolerance,
 )
 
 # The reported periods a face figure can be tied against. Extraction also emits positional
@@ -84,9 +85,7 @@ class ReconcileStage:
             tables_by_link.setdefault((link.face_item_id, link.note_number), []).append(
                 (note, link))
 
-        def _outcome(face, note, ev):
-            """Reconcile one face value against one note table (None when the table has no
-            comparable detail for this basis/period)."""
+        def _details(face, note, ev) -> list[NoteDetail]:
             details: list[NoteDetail] = []
             for it in note.items:
                 if it.role in (LineRole.SUBTOTAL, LineRole.TOTAL):
@@ -98,10 +97,51 @@ class ReconcileStage:
                             and it.canonical_key != face.canonical_key)
                 details.append(NoteDetail(item_id=str(it.id), value=Decimal(dv),
                                           maps_to_distinct_template_line=maps))
+            return details
+
+        def _orientation(face, note) -> int:
+            """Which sign convention this note's figures are in, relative to this face line's.
+
+            A note is a schedule OF a charge and prints it positive; a P&L presents the same charge
+            as a deduction and prints it negative. Comparing the two without establishing which is
+            which reported a residual of twice the figure on a note that reconciles exactly, and
+            graded it ``unconfirmed`` — so the tie said "this note is not a breakdown of that
+            figure" about a note that is one, which is the opposite of what this grading is for.
+
+            ONE ORIENTATION FOR ALL OF THIS FACE LINE'S PERIODS, decided here rather than inside
+            the arithmetic, because a single period gives a flip nothing to be consistent with and
+            would let it absorb any sign error. Requiring every period to tie under the SAME
+            orientation makes it a claim about presentation, which a per-period error cannot meet.
+            The default stays ``1``, so a note that does not reconcile either way is graded exactly
+            as before.
+            """
+            for orientation in (1, -1):
+                ties = 0
+                for ev in face.values.values():
+                    raw = ev.value if ev.value is not None else ev.value_raw
+                    if raw is None or ev.period_label not in _TIE_PERIODS:
+                        continue
+                    details = _details(face, note, ev)
+                    if not details:
+                        return 1
+                    total = sum(d.value for d in details) * orientation
+                    if abs(Decimal(raw) - total) > tolerance(Decimal(raw), tol_abs, tol_rel):
+                        ties = 0
+                        break
+                    ties += 1
+                if ties:
+                    return orientation
+            return 1
+
+        def _outcome(face, note, ev, orientation):
+            """Reconcile one face value against one note table (None when the table has no
+            comparable detail for this basis/period)."""
+            details = _details(face, note, ev)
             if not details:
                 return None
             raw = ev.value if ev.value is not None else ev.value_raw
             return reconcile_face(ReconcileInput(
+                note_orientation=orientation,
                 face_item_id=str(face.id), note_number=note.note_number or "",
                 raw_face_value=Decimal(raw), details=details,
                 # From configuration, not the dataclass defaults — these are tunable from the
@@ -112,6 +152,9 @@ class ReconcileStage:
 
         for (face_id, note_number), pairs in tables_by_link.items():
             face = face_by_id[face_id]
+            # Established per (face line, table) BEFORE any period is graded, so every period of
+            # one face line is compared under the same convention.
+            orientations = {id(note): _orientation(face, note) for note, _link in pairs}
             for ev in face.values.values():
                 raw = ev.value if ev.value is not None else ev.value_raw
                 if raw is None or ev.period_label not in _TIE_PERIODS:
@@ -120,7 +163,7 @@ class ReconcileStage:
                 # down by; the rest are other tables that happen to share the note number.
                 best, best_link = None, None
                 for note, link in pairs:
-                    out = _outcome(face, note, ev)
+                    out = _outcome(face, note, ev, orientations[id(note)])
                     if out is None:
                         continue
                     if best is None or abs(out.residual) < abs(best.residual):

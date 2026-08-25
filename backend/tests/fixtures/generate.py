@@ -142,6 +142,109 @@ def make_tax_note_split_pdf() -> bytes:
     return buf.getvalue()
 
 
+def make_hkex_tax_note_pdf() -> bytes:
+    """THE REAL SHAPE of an HKEX tax note, which the round-numbered fixture above does not have.
+
+    Reproduced from a filing whose tax note the split could not read, and every awkward thing in
+    it is deliberate — each one on its own was enough to stop the decomposition:
+
+    * THE FACE PRINTS THE CHARGE NEGATIVE and the note prints it positive. The P&L presents tax as
+      a deduction — "(1,000)" — because the template's own rollup makes profit for the year the
+      SUM of profit before tax and the tax line. The note is a schedule of a charge, so it prints
+      the charge as a positive amount. The components can only be read against the face's sign.
+    * THE NOTE SPANS TWO PAGES and the continuation is a DIFFERENT TABLE — the effective-rate
+      reconciliation, a derivation from profit before tax down to the same charge, not a
+      decomposition of it. It restates components under their own captions -- which is exactly what
+      the real filing did, through the Chinese half of "LAT 土地增值稅" -- so a reader that pools
+      every table under the note number counts those amounts twice. The two restatements here
+      OFFSET each other, so the pooled total still equals the printed one and only the pooled
+      COMPONENTS are wrong; that is the case where pooling does real damage, because the arithmetic
+      gate cannot see it.
+    * A VALUE-LESS SUB-HEADING QUALIFIES THE ROW BENEATH IT. "Under-provision in prior years,
+      net:" is what makes "Mainland China 400" a tax figure; the caption alone is a geography.
+    * ONE COMPONENT IS DISCLOSED FINER THAN THE TEMPLATE. Current tax is three printed rows.
+    * THE PRIOR PERIOD IS SHORTER. Mainland China has a current-year figure and a dash, so the two
+      columns do not have the same number of components and the sign orientation has to hold for
+      both anyway.
+
+    Ground truth: current tax 600 + 600 + 400 = 1,600; deferred (600); total 1,000, printed on the
+    face as (1,000). Prior: 700 + 500 = 1,200, deferred (300), total 900, printed as (900).
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    _width, height = A4
+
+    def row(y, label, cur, prior, indent=0):
+        c.drawString(72 + indent, y, label)
+        if cur:
+            c.drawRightString(452, y, cur)
+        if prior:
+            c.drawRightString(520, y, prior)
+
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(72, height - 72, "Consolidated Statement of Profit or Loss")
+    c.setFont("Helvetica", 10)
+    y = height - 104
+    row(y, "Profit before tax", "5,000", "4,200")
+    y -= 22
+    c.drawString(360, y, "Note 11")
+    row(y, "Income tax expense", "(1,000)", "(900)")
+    y -= 22
+    row(y, "Profit for the year", "4,000", "3,300")
+    c.showPage()
+
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(72, height - 72, "Notes to the Financial Statements")
+    c.setFont("Helvetica", 10)
+    c.drawString(72, height - 100, "11. Income tax")
+    y = height - 124
+    for label, cur, prior, indent in [
+            ("Current charge for the year:", "", "", 0),
+            ("PRC corporate income tax", "600", "700", 12),
+            ("PRC land appreciation tax (\u201cLAT\u201d)", "600", "500", 12),
+            ("Under-provision in prior years, net:", "", "", 0),
+            ("Mainland China", "400", "\u2013", 12),
+            ("Deferred tax credited for the year (note 32)", "(600)", "(300)", 0),
+            ("Total tax charge for the year", "1,000", "900", 0)]:
+        row(y, label, cur, prior, indent)
+        y -= 22
+    c.showPage()
+
+    # The continuation: a DERIVATION, not a decomposition. Same note number, different table.
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(72, height - 72, "Notes to the Financial Statements")
+    c.setFont("Helvetica", 10)
+    c.drawString(72, height - 100, "11. Income tax (Continued)")
+    y = height - 124
+    for label, cur, prior in [
+            ("Profit before tax", "5,000", "4,200"),
+            ("At the statutory rate", "1,250", "1,050"),
+            ("Expenses not deductible for tax", "150", "250"),
+            # THE SAME COMPONENTS THE DECOMPOSITION ALREADY LISTS, restated under their own
+            # captions. This is the double count, and the pair is deliberately COMPENSATING: the
+            # restated current-tax row and the restated deferred row are equal and opposite IN
+            # EVERY COLUMN (600/500 against (600)/(500)), so pooling both tables leaves the TOTAL
+            # intact -- 2,200 - 1,200 = 1,000 and 1,700 - 800 = 900, the two figures the face prints
+            # -- while putting both COMPONENTS out by the restated amount. That is the only shape in
+            # which pooling is genuinely dangerous --
+            # an uncompensated double count fails the arithmetic gate on its own, so it proves
+            # nothing about which table gets read. Here both the components table alone AND the
+            # union account for the printed total, and only the ORDER decides which figures are
+            # published.
+            ("Land appreciation tax", "600", "500"),
+            ("Deferred tax", "(600)", "(500)"),
+            ("Income not subject to tax", "(1,000)", "(900)"),
+            ("Tax charge at the effective rate", "1,000", "900")]:
+        row(y, label, cur, prior)
+        y -= 22
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
 def make_containment_gap_pdf() -> bytes:
     """A gross parent printed beside a component it contains, not accounted for by it.
 

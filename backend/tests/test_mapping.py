@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from app.core.models.enums import MappingMethod
 from app.schemas.ontology import OntologyDefinition, OntologyMapping
 from app.services.mapping import OntologyMatcher, normalize_label
@@ -26,6 +28,47 @@ def _ontology() -> OntologyDefinition:
 
 def test_normalize_label():
     assert normalize_label("Cash & Bank  Balances!") == "cash bank balances"
+
+
+# --- what normalisation drops before the exact tier sees a caption -------------------------------
+#
+# Three things are stripped ahead of the punctuation fold, each because the fold turns the printed
+# decoration into a SPACE and leaves what was inside it behind as a WORD — so the caption gains a
+# token no alias carries and the exact tier misses a concept the rulebook already names. They are
+# on the hot path of the entire mapper, which is the reason each has its own case here: the risk
+# they carry is not that they fail to fire but that they fire on a caption that meant something.
+
+@pytest.mark.parametrize("printed,expected", [
+    # A QUOTED ABBREVIATION GLOSS: the short name a filing introduces for a term it just wrote out.
+    ('PRC corporate income tax (“CIT”)', "prc corporate income tax"),
+    ("PRC land appreciation tax (\"LAT\")", "prc land appreciation tax"),
+    ("中國企業所得稅（「企業所得稅」）", "中国企业所得税"),
+    # ...and the parentheticals that are NOT glosses, which carry meaning and must survive. None is
+    # quoted, which is exactly what tells them apart.
+    ("Profit/(loss) before tax", "profit loss before tax"),
+    ("Credited/(charged) to profit or loss", "credited charged to profit or loss"),
+    # A PRINTED NOTE CITATION: a pointer to where the detail lives, never part of the name.
+    ("Trade receivables (note 15)", "trade receivables"),
+    ("Depreciation of right-of-use assets (note 16(b))", "depreciation of right of use assets"),
+    ("受限制現金（附註12）", "受限制现金"),
+    ("Note 15: Trade receivables", "trade receivables"),
+    # A citation truncated mid-word by row reconstruction is still a citation.
+    ("Deferred tax credited for the year (note", "deferred tax credited for the year"),
+    # ...but an unbracketed "notes <number>" is NOT one, and this is the case that regressed: with
+    # optional brackets and no anchor, "Senior notes 2025" normalised to "senior 5" — the head noun
+    # deleted and a token fabricated, on a caption four shipped concepts carry aliases for.
+    ("Senior notes 2025", "senior notes 2025"),
+    ("Convertible notes 2024", "convertible notes 2024"),
+    ("Senior notes and domestic bonds", "senior notes and domestic bonds"),
+    ("Notes payable", "notes payable"),
+    # A BRACKETED BARE NUMBER: what label_segments leaves in the Latin half when it splits a
+    # bilingual caption by script and the Chinese citation's 附註 goes with the Han half.
+    ("Deferred tax credited for the year (32)", "deferred tax credited for the year"),
+    # ...and the sub-item letters that DO distinguish captions, which are not numbers.
+    ("Pledged deposits (a)", "pledged deposits a"),
+])
+def test_a_printed_decoration_is_dropped_but_a_meaning_is_not(printed, expected):
+    assert normalize_label(printed) == expected
 
 
 def test_exact_match_early_exits():

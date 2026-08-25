@@ -83,6 +83,35 @@ def test_the_five_balance_sheet_sections_each_get_their_own_bucket():
     assert bucket_of("bs_s5_equity", "balance_sheet")[0] == "equity"
 
 
+def test_a_note_printed_as_several_tables_is_counted_once_per_bucket():
+    """``doc.notes`` holds a ``NotesTable`` per (heading occurrence, page), not per NOTE.
+
+    A note that runs across two pages, or prints a "(Continued)" heading, arrives in this store
+    twice — and its number was appended once per table, so the count served to the UI ("notes":
+    len(note_numbers)) said a section held more notes than the filing has. On a real annual report
+    19 of the note numbers carry more than one table, so this was not an edge case. The neighbouring
+    ``note_pages`` list already deduped; the numbers now do too.
+    """
+    items = [LineItem(source_label="Trade receivables",
+                      canonical_key="bs_current_assets__trade_receivables",
+                      section_hint="CURRENT ASSETS", note_number="15",
+                      note_refs=[NoteRef(raw="15", numbers=["15"])])]
+    notes = [_note("15", "Trade receivables", 3, ["bs_current_assets__trade_receivables"]),
+             _note("15", "Trade receivables (Continued)", 4,
+                   ["bs_current_assets__trade_receivables"])]
+    doc = _doc(items, {0: ("balance_sheet", PageKind.FACE),
+                       3: (None, PageKind.NOTES), 4: (None, PageKind.NOTES)}, notes)
+
+    out = segment_source(doc)
+    holding = [s for s in out.segments if s.note_numbers]
+
+    assert holding, "the note reached no bucket at all"
+    for seg in holding:
+        assert seg.note_numbers == ["15"], (seg.bucket, seg.note_numbers)
+        # Both printed pages are still recorded — deduping the NUMBER must not lose a page.
+        assert seg.note_pages == [3, 4], (seg.bucket, seg.note_pages)
+
+
 def test_the_income_statement_and_the_cash_flow_are_read_section_by_section():
     """The change this taxonomy IS. P&L and cash flow used to be one bucket each, so the statement
     answered for every row on the page; now each of their sections is its own tag and only the

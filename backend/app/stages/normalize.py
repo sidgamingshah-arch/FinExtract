@@ -260,6 +260,20 @@ class NormalizeStage:
                 raw = ev.value_raw
                 if raw is None:
                     continue
+                if ev.sign_normalised:
+                    # ALREADY ORIENTED BY AN UPSTREAM DECISION, so re-deriving it from ``value_raw``
+                    # would undo that decision silently. The note→face split publishes a component
+                    # whose ``value_raw`` is the NOTE's figure and whose ``value`` carries the
+                    # FACE's convention, and it only publishes at all once the components account
+                    # for the aggregate in every column. Those rows keep the note row's caption, so
+                    # a note that prints "Add: Mainland China" or "Less: ..." reached this pass and
+                    # recomputed the figure back to the note's sign — leaving the children summing
+                    # to the wrong total against a parent whose canonical key the split had already
+                    # cleared, so nothing re-checked it, while ``sign_normalised`` and
+                    # ``split_sign_flipped`` still claimed the flip had happened. The flag exists to
+                    # say "the engine has settled this number's sign"; honouring it here is what
+                    # makes that true.
+                    continue
                 v = raw
                 if less:
                     v = -abs(raw)
@@ -322,6 +336,14 @@ class NormalizeStage:
             for ev in li.values.values():
                 figure = ev.value if ev.value is not None else ev.value_raw
                 if figure is None or figure == 0:
+                    continue
+                if ev.sign_normalised:
+                    # Out of the cohort entirely, not merely spared the negation. A value an
+                    # upstream stage has already oriented says nothing about how the FILING prints
+                    # its expenses, which is the only question the unanimity test asks — and a
+                    # split-published component is oriented to the face while its ``value_raw``
+                    # still holds the note's sign, so counting it would let the note's presentation
+                    # vote on the statement's.
                     continue
                 cohorts.setdefault(statement, []).append((li, ev, figure))
 

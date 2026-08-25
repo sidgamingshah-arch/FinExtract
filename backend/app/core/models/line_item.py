@@ -110,6 +110,13 @@ class LineItem(BaseModel):
     # borrowings" appears once as non-current and once as current — so the caption alone cannot
     # say which concept it is. Mapping uses this to tell them apart.
     section_hint: str | None = None
+    # The sub-heading printed above this row WITHIN its section — "Current charge for the year:",
+    # "Under-provision in prior years, net:", "Adjustments for:". Distinct from ``section_hint``
+    # because it must not scope the row the way a banner does (the rows under "Adjustments for:" are
+    # still that section's rows), and kept because some captions have no meaning without it: a tax
+    # note itemising an under-provision by geography prints a row whose caption is "Mainland China",
+    # and only the sub-heading says what the figure is.
+    group_hint: str = ""
     canonical_key: str | None = None
     template_node_id: str | None = None
     ordinal: int = 0
@@ -227,6 +234,10 @@ class NoteItem(BaseModel):
     # the sweep with no section, so the first of its three signals was unavailable for every figure
     # sourced from a note.
     section_hint: str | None = None
+    # The sub-heading printed above this row inside the note — see ``LineItem.group_hint``. A note
+    # is where breakdown-dimension captions live ("Mainland China", "Third parties"), so this is
+    # the field that carries their meaning.
+    group_hint: str = ""
     provenance: Provenance | None = None
     confidence: ConfidenceVector = Field(default_factory=ConfidenceVector)
 

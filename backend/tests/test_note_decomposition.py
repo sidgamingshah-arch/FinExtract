@@ -372,3 +372,385 @@ def test_a_component_read_from_the_note_says_so_and_points_at_the_note_row(tax_s
     prov = [ev.provenance for ev in child.values.values()]
     assert all(p is not None for p in prov)
     assert {p.page_index for p in prov} == {1}, "the note page, where the component is printed"
+
+
+# --- the awkward filing: two tables, a qualifying sub-heading, and the opposite sign -------------
+#
+# Everything above uses a tidy note: one table, self-describing captions, and figures printed in the
+# same orientation as the face. A real HKEX tax note has none of those, and each of the three
+# departures on its own was enough to stop the split reading it. This fixture reproduces all three
+# together, so the three fixes are pinned by the outcome and not only by their unit behaviour.
+
+@pytest.fixture(scope="module")
+def awkward_tax(rulebook, template):
+    from tests.fixtures.generate import make_hkex_tax_note_pdf
+
+    return _run(make_hkex_tax_note_pdf(), rulebook, template)
+
+
+def test_the_awkward_note_still_decomposes_the_face_line(awkward_tax):
+    """The outcome, in the face's own convention.
+
+    Ground truth: current tax is three printed rows (600 + 600 + 400 = 1,600) and deferred tax is a
+    credit of 600, printed in the note as positive charges; the face prints the total as ``(1,000)``.
+    So the components must reach the statement as -1,600 and +600, which come to the -1,000 the page
+    shows -- a deferred CREDIT is positive once the charge is negative, and getting that backwards
+    is the bug this asserts against.
+    """
+    doc, _ctx = awkward_tax
+    got = {li.canonical_key: {ev.period_label: ev.value for ev in li.values.values()}
+           for li in doc.line_items if li.canonical_key}
+
+    assert got["pl_tax_expense__current_tax"] == {"current": Decimal("-1600"),
+                                                  "prior": Decimal("-1200")}
+    assert got["pl_tax_expense__deferred_tax"] == {"current": Decimal("600"),
+                                                   "prior": Decimal("300")}
+    # And they tie into the rollup that motivated the orientation in the first place: the template
+    # makes profit for the year the SUM of profit before tax and the tax line.
+    assert got["pl_profit_before_tax"]["current"] == Decimal("5000")
+    assert (got["pl_tax_expense__current_tax"]["current"]
+            + got["pl_tax_expense__deferred_tax"]["current"]) == Decimal("-1000")
+
+
+def test_only_the_table_that_accounts_for_the_total_is_read(awkward_tax):
+    """D1: a cited note number is not one table, and the other one restates its components.
+
+    Note 11 prints the components on one page and the effective-rate reconciliation on the next. The
+    reconciliation lists "Land appreciation tax 600" -- the SAME 600 the components table already
+    lists as "PRC land appreciation tax" -- and "Deferred tax (600)", the same credit again. Reading
+    the union of both tables counts both twice: current tax becomes 2,200 instead of 1,600 and
+    deferred 1,200 instead of 600.
+
+    AND THE ARITHMETIC GATE CANNOT SEE IT, which is why the order of evaluation is the fix and not
+    the gate. The two restatements are equal and opposite in every column, so the pooled components
+    still come to the total the face printed; the total ties while both components are wrong. Only
+    reading a single table that accounts for the aggregate on its own -- and never looking at the
+    union once one does -- gets the components right.
+    """
+    doc, _ctx = awkward_tax
+    child = next(li for li in doc.line_items
+                 if li.canonical_key == "pl_tax_expense__current_tax")
+
+    assert "split_summed_rows:3" in child.confidence.flags, child.confidence.flags
+    assert {ev.value for ev in child.values.values()} == {Decimal("-1600"), Decimal("-1200")}
+    assert Decimal("-2200") not in {ev.value for ev in child.values.values()}, \
+        "the derivation table's restated component was counted as a second component"
+
+
+def test_a_row_whose_caption_is_a_geography_is_named_by_its_sub_heading(awkward_tax):
+    """D2: "Mainland China 400" is a tax figure only because of the line printed above it.
+
+    The note prints "Under-provision in prior years, net:" and then breaks it down by geography. The
+    caption alone names no concept -- and must not, since no alias should make a place into a tax --
+    so the sub-heading it sits under is what carries the meaning to it.
+    """
+    doc, _ctx = awkward_tax
+    rows = [it for t in doc.notes if str(t.note_number) == "11" for it in t.items]
+    geography = next(it for it in rows if (it.raw_label or "").startswith("Mainland China"))
+
+    assert geography.group_hint.startswith("Under-provision in prior years"), geography.group_hint
+    # The sub-heading is carried, not conflated: the rows that DO name themselves keep their own
+    # sub-heading and are unaffected by it.
+    cit = next(it for it in rows if (it.raw_label or "").startswith("PRC corporate"))
+    assert cit.group_hint == "Current charge for the year:"
+    # And the figure it contributes is in the published component.
+    child = next(li for li in doc.line_items
+                 if li.canonical_key == "pl_tax_expense__current_tax")
+    assert child.values, "the geography row's 400 never reached the face"
+    assert {ev.value_raw for ev in child.values.values()} == {Decimal("1600"), Decimal("1200")}
+
+
+def test_the_sign_flip_is_recorded_on_every_value_it_touched(awkward_tax):
+    """D3: the engine changed a reported sign, so it says so and keeps what the page said.
+
+    ``value_raw`` holds the note's own figure and ``value`` carries the face's convention, which is
+    the contract those two fields already have for the rulebook's own sign rule. Without
+    ``sign_normalised`` the pair is indistinguishable from a filing that printed it that way.
+    """
+    doc, _ctx = awkward_tax
+    children = [li for li in doc.line_items
+                if li.canonical_key in ("pl_tax_expense__current_tax",
+                                        "pl_tax_expense__deferred_tax")]
+    assert len(children) == 2
+
+    for child in children:
+        assert "split_sign_flipped" in child.confidence.flags, child.canonical_key
+        for ev in child.values.values():
+            assert ev.sign_normalised is True
+            assert ev.value == -ev.value_raw, (child.canonical_key, ev.period_label)
+
+
+def test_the_split_says_it_flipped_the_signs(awkward_tax):
+    """The log is where an analyst finds out why the note and the statement disagree on sign."""
+    _doc, ctx = awkward_tax
+    fired = [line for line in ctx.logs
+             if line.startswith("map_ontology:split(pl_tax_expense__total_tax_expense)")]
+    assert len(fired) == 1, ctx.logs
+    assert "signs flipped to the face convention" in fired[0]
+
+
+def test_the_note_tie_agrees_with_the_split_about_the_same_note(awkward_tax):
+    """The other note-vs-face comparator in the pipeline must not contradict this one.
+
+    ``reconcile`` grades how well a cited note ties back to the face figure, and it read the note's
+    figures in the note's own convention: against a face of (1,000) and a note total of 1,000 it
+    reported a residual of -2,000 and graded the note ``unconfirmed`` -- "this note is not a
+    breakdown of that figure" -- about the very note the split had just decomposed the figure with.
+    Two comparators disagreeing on the same evidence is worse than either being wrong, because a
+    reader has no way to tell which to believe.
+    """
+    doc, _ctx = awkward_tax
+    face = next(li for li in doc.line_items
+                if (li.source_label or "").startswith("Income tax expense"))
+    entries = [e for e in doc.reconciliation.entries if e.face_item_id == str(face.id)]
+
+    assert len(entries) == 2, [(e.period_label, str(e.residual)) for e in entries]
+    assert {e.period_label for e in entries} == {"current", "prior"}
+    for e in entries:
+        assert e.residual == Decimal(0), (e.period_label, e.residual)
+        assert e.within_tolerance is True, e.period_label
+
+
+def test_the_note_tie_orientation_needs_every_period_to_agree():
+    """And it is not free to flip one period to make it fit.
+
+    The orientation is settled for a whole face line before any of its periods is graded, so a note
+    that reconciles in one period and is sign-wrong in the other gets no flip at all and is graded
+    exactly as it was before this existed.
+    """
+    from decimal import Decimal as D
+
+    from app.core.models.enums import Basis
+    from app.core.models.line_item import ExtractedValue, LineItem, NoteItem, NotesTable
+    from app.services.reconcile import NoteDetail, ReconcileInput, reconcile_face
+
+    # The pure function honours whatever orientation it is handed, and defaults to the note's own.
+    details = [NoteDetail(item_id="a", value=D(1600), maps_to_distinct_template_line=False),
+               NoteDetail(item_id="b", value=D(-600), maps_to_distinct_template_line=False)]
+    plain = reconcile_face(ReconcileInput(face_item_id="f", note_number="11",
+                                          raw_face_value=D(-1000), details=details))
+    assert plain.residual == D(-2000)
+    flipped = reconcile_face(ReconcileInput(face_item_id="f", note_number="11",
+                                            raw_face_value=D(-1000), details=details,
+                                            note_orientation=-1))
+    assert flipped.residual == D(0)
+
+    # And the stage refuses the flip when the two periods do not agree about it. Here the CURRENT
+    # column ties exactly under the negation (-1,000 against a disclosed 1,000) and the prior column
+    # ties under neither (-900 against 500). A rule that settled the orientation column by column
+    # would take the flip on the strength of the one column that likes it, publish a residual of
+    # zero there, and hide the fact that the note does not reconcile at all.
+    def ev(value, period):
+        return ExtractedValue(value=D(str(value)), value_raw=D(str(value)),
+                              basis=Basis.CONSOLIDATED, period_label=period)
+
+    face = LineItem(source_label="Income tax expense", canonical_key="pl_tax_expense__x")
+    face.set_value(ev(-1000, "current"))
+    face.set_value(ev(-900, "prior"))
+    note = NotesTable(note_number="11")
+    row = NoteItem(raw_label="Current tax")
+    row.set_value(ev(1000, "current"))
+    row.set_value(ev(500, "prior"))
+    note.items.append(row)
+
+    from app.core.models.document import DocumentModel
+    from app.core.models.line_item import FaceNoteLink
+    from app.core.stage import PipelineContext
+    from app.stages.reconcile import ReconcileStage
+
+    doc = DocumentModel(filename="f.pdf")
+    doc.line_items.append(face)
+    doc.notes.append(note)
+    doc.links.append(FaceNoteLink(face_item_id=face.id, notes_table_id=note.id,
+                                  note_number="11"))
+    ReconcileStage().run(doc, PipelineContext(raw_bytes=b""))
+
+    got = {e.period_label: e.residual for e in doc.reconciliation.entries}
+    # As printed throughout, so both residuals report the real distance and neither is flattered.
+    assert got == {"current": Decimal(-2000), "prior": Decimal(-1400)}, got
+
+
+def test_a_later_stage_does_not_re_derive_the_sign_the_split_settled():
+    """The split runs BEFORE normalize, and normalize recomputes a sign from ``value_raw``.
+
+    A published component keeps the note row's caption, and a note routinely prints "Add: ..." or
+    "Less: ...". Normalize's sign pass keys on exactly those words and recomputes the figure from
+    ``value_raw`` -- which is the NOTE's figure -- so it silently undid the orientation while
+    ``sign_normalised`` and ``split_sign_flipped`` went on claiming the flip had happened. Nothing
+    caught it downstream either: the split clears the aggregate's ``canonical_key``, so the rollup
+    that would have failed no longer had a target.
+    """
+    from app.core.models.document import DocumentModel
+    from app.core.models.enums import Basis
+    from app.core.models.line_item import ExtractedValue, LineItem
+    from app.core.stage import PipelineContext
+    from app.stages.normalize import NormalizeStage
+
+    def fact(value, raw, period, flipped):
+        return ExtractedValue(value=Decimal(str(value)), value_raw=Decimal(str(raw)),
+                              basis=Basis.CONSOLIDATED, period_label=period,
+                              sign_normalised=flipped)
+
+    doc = DocumentModel(filename="f.pdf")
+    # As the split publishes it: the caption is the note row's, value_raw is the note's figure, and
+    # value carries the face's convention.
+    flipped_row = LineItem(source_label="Add: Mainland China",
+                           canonical_key="pl_tax_expense__current_tax")
+    flipped_row.set_value(fact(-1600, 1600, "current", True))
+    # An ordinary row with the same shape of caption, which normalize SHOULD still act on.
+    ordinary = LineItem(source_label="Less: accumulated depreciation",
+                        canonical_key="bs_non_current_assets__property_plant_and_equipment")
+    ordinary.set_value(fact(500, 500, "current", False))
+    doc.line_items += [flipped_row, ordinary]
+
+    NormalizeStage().run(doc, PipelineContext(raw_bytes=b""))
+
+    kept = next(iter(flipped_row.values.values()))
+    assert kept.value == Decimal(-1600), "normalize re-derived a sign the split had settled"
+    assert kept.value_raw == Decimal(1600), "the note's own figure must survive for the audit"
+    # ...and the pass is still doing its job on everything else.
+    assert next(iter(ordinary.values.values())).value == Decimal(-500)
+
+
+def test_only_the_columns_the_aggregate_printed_are_published(rulebook, template):
+    """The gate tests the columns the AGGREGATE carries. A column only the note has was never
+    tested against anything, so publishing it asserts an unchecked figure — and applies the
+    orientation to it, which is a sign decided by arithmetic that column took no part in.
+
+    Extraction emits a positional column for a table with extra numeric columns (a maturity date,
+    a coupon rate read as a figure), so this is not hypothetical: those arrive as ``col2``/``col3``
+    alongside the reported periods, and the note's rows carry them while the face's line does not.
+    """
+    from app.config import get_settings
+    from app.core.models.document import DocumentModel
+    from app.core.models.enums import Basis, PrintedIn
+    from app.core.models.line_item import (
+        ExtractedValue,
+        LineItem,
+        NoteItem,
+        NoteRef,
+        NotesTable,
+    )
+    from app.core.stage import PipelineContext
+    from app.services.mapping import OntologyMatcher
+    from app.stages.map_ontology import MapOntologyStage
+
+    def fact(value, period):
+        return ExtractedValue(value=Decimal(str(value)), value_raw=Decimal(str(value)),
+                              basis=Basis.CONSOLIDATED, period_label=period)
+
+    doc = DocumentModel(filename="f.pdf")
+    from app.core.models.document import PageSource
+    doc.pages.append(PageSource(index=0, statement="profit_and_loss"))
+    parent = LineItem(source_label="Income tax expense",
+                      canonical_key="pl_tax_expense__total_tax_expense",
+                      printed_in=PrintedIn.FACE, note_number="11",
+                      note_refs=[NoteRef(raw="11", numbers=["11"])])
+    parent.set_value(fact(-1000, "current"))
+    doc.line_items.append(parent)
+
+    note = NotesTable(note_number="11", source_pages=[1])
+    for caption, cur, extra in (("Current tax", 1600, 25), ("Deferred tax", -600, 7)):
+        row = NoteItem(raw_label=caption)
+        row.set_value(fact(cur, "current"))
+        row.set_value(fact(extra, "col2"))       # the column the face never printed
+        note.items.append(row)
+    doc.notes.append(note)
+
+    ctx = PipelineContext(raw_bytes=b"", settings=get_settings())
+    ctx.ontology, ctx.template = rulebook, template
+    matcher = OntologyMatcher(rulebook, settings=ctx.settings)
+    added = MapOntologyStage()._split_from_disclosure(doc, rulebook, matcher, ctx)
+
+    assert added == 2, ctx.logs
+    published = {li.canonical_key: {ev.period_label: ev.value for ev in li.values.values()}
+                 for li in doc.line_items if (li.canonical_key or "").startswith("pl_tax_expense__")}
+    assert published == {"pl_tax_expense__current_tax": {"current": Decimal("-1600")},
+                         "pl_tax_expense__deferred_tax": {"current": Decimal("600")}}, published
+
+
+# --- the orientation gate itself, at the unit -----------------------------------------------------
+
+def _fact(value, period, basis=None):
+    from app.core.models.enums import Basis
+    from app.core.models.line_item import ExtractedValue
+
+    return ExtractedValue(value=Decimal(str(value)), value_raw=Decimal(str(value)),
+                          basis=basis or Basis.CONSOLIDATED, period_label=period)
+
+
+def _rowlike(*facts):
+    from app.core.models.line_item import LineItem
+
+    li = LineItem()
+    for f in facts:
+        li.set_value(f)
+    return li
+
+
+def test_one_orientation_must_hold_for_every_column():
+    """The gate's whole protection: a flip is a statement about PRESENTATION, so it is true of the
+    entire disclosure or of none of it.
+
+    Components right in one period and sign-wrong in the other are a real error, and flipping
+    per column would wave it through -- which is exactly what this gate exists to catch. Here the
+    aggregate is negative in one column and positive in the other while the components are positive
+    in both, so EACH orientation accounts for one column and NEITHER accounts for both: as
+    disclosed the prior column ties and the current one does not, flipped it is the other way
+    round. A per-column rule would have accepted this outright.
+    """
+    from app.stages.map_ontology import _orientation_accounting_for
+
+    parent = _rowlike(_fact(-1000, "current"), _fact(900, "prior"))
+    hits = {"a": [_rowlike(_fact(600, "current"), _fact(600, "prior"))],
+            "b": [_rowlike(_fact(400, "current"), _fact(300, "prior"))]}
+
+    orientation, unaccounted = _orientation_accounting_for(parent, hits, Decimal(1))
+    assert orientation == 0
+    # Reported as-disclosed, which is the comparison an analyst can repeat against the printed note.
+    assert unaccounted == ["consolidated/current"]
+
+
+def test_the_flip_is_taken_only_when_the_negation_accounts_for_everything():
+    """And when it does hold across every column, it is taken and reported as -1."""
+    from app.stages.map_ontology import _orientation_accounting_for
+
+    parent = _rowlike(_fact(-1000, "current"), _fact(-900, "prior"))
+    hits = {"a": [_rowlike(_fact(1600, "current"), _fact(1200, "prior"))],
+            "b": [_rowlike(_fact(-600, "current"), _fact(-300, "prior"))]}
+
+    assert _orientation_accounting_for(parent, hits, Decimal(1)) == (-1, [])
+
+    # As-disclosed wins outright when it works, so a filing that needs no flip never gets one.
+    same = _rowlike(_fact(1000, "current"), _fact(900, "prior"))
+    assert _orientation_accounting_for(same, hits, Decimal(1)) == (1, [])
+
+
+def test_a_column_the_components_are_silent_about_is_a_failure():
+    """Not a column to skip: publishing components for one period and nothing for the other deletes
+    the other period's figure from the statement.
+
+    The current column here would reconcile under the flip -- -1,000 against a disclosed 1,000 --
+    and it is the SILENT prior column that refuses that orientation, which is the whole point: one
+    orientation has to account for every column the aggregate carries, and there is no orientation
+    under which a missing figure accounts for a printed one.
+    """
+    from app.stages.map_ontology import _orientation_accounting_for
+
+    parent = _rowlike(_fact(-1000, "current"), _fact(-900, "prior"))
+    hits = {"a": [_rowlike(_fact(1000, "current"))]}
+
+    orientation, unaccounted = _orientation_accounting_for(parent, hits, Decimal(1))
+    assert orientation == 0
+    assert unaccounted == ["consolidated/current", "consolidated/prior"]
+
+
+# --- the units caption is not a section ----------------------------------------------------------
+
+def test_a_doubled_units_caption_does_not_scope_the_rows_under_it(awkward_tax):
+    """A units caption is printed once per value column, so a two-period statement prints it twice
+    and the doubled form survives the normalisation that drops the single one. Taken as a banner it
+    put a unit where a section belongs on every row beneath it."""
+    doc, _ctx = awkward_tax
+    hints = {li.section_hint for li in doc.line_items}
+    assert not any(h and ("000" in h or "RMB" in h) for h in hints), hints

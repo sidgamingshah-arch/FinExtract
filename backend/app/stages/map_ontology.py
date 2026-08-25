@@ -145,28 +145,67 @@ def _summed_columns(sources: list) -> dict[tuple[str, str], tuple[Decimal, objec
     return out
 
 
-def _columns_not_accounted_for(parent, hits: dict, tol: Decimal) -> list[str]:
-    """The (basis, period) columns where the disclosed components do not sum to the aggregate.
+def _orientation_accounting_for(parent, hits: dict, tol: Decimal) -> tuple[int, list[str]]:
+    """Which sign orientation makes the disclosed components account for the aggregate.
 
-    The arithmetic support ``global_rules.parent_child_allocation`` asks for, and the only one of its
-    four kinds this stage can test. Every column the AGGREGATE carries a figure in must be accounted
-    for: a column the components are silent about is a failure, not a column to skip, because
-    publishing components for one period and nothing for the other leaves the other period's figure
-    deleted from the statement.
+    Returns ``(orientation, columns still not accounted for)``. The orientation is ``1`` when the
+    components sum to the aggregate exactly as the note printed them and ``-1`` when their NEGATION
+    does; the column list is empty only when ONE orientation accounts for EVERY column the aggregate
+    carries a figure in. ``(0, ...)`` means neither did.
+
+    This is the arithmetic support ``global_rules.parent_child_allocation`` asks for, and the only
+    one of its four kinds this stage can test. A column the components are silent about is a
+    failure, not a column to skip: publishing components for one period and nothing for the other
+    leaves the other period's figure deleted from the statement.
+
+    WHY A FLIP IS LEGITIMATE AT ALL, and why it is not a liberty taken with a reported number. A
+    note is a schedule OF a charge and prints the charge as a positive amount. The face presents
+    that same charge in the flow of the statement it sits in, which for a P&L expense means
+    negative -- "Income tax expense (189,504)". Neither is wrong. What decides which orientation the
+    template wants is THE TEMPLATE'S OWN ROLLUP: it makes profit for the year the SUM of profit
+    before tax and the tax line, which only holds with the tax carried negative (on the filing this
+    was measured against, -8,211,620 + -189,504 = -8,401,124, the printed figure). So the
+    AGGREGATE'S PRINTED SIGN is the convention of record -- the arithmetic the template asserts is
+    written against it -- and components published in the note's own orientation would break the
+    very subtotal they were read in order to satisfy.
+
+    ONE ORIENTATION FOR EVERY COLUMN, NEVER ONE PER COLUMN. Flipping per column would accept a
+    disclosure whose components are right in one period and sign-wrong in the other, which is
+    precisely the error this gate exists to catch. Requiring a single orientation keeps the flip a
+    statement about PRESENTATION -- true of the whole disclosure or of none of it -- and leaves a
+    real per-column sign error failing, as it should.
+
+    A ONE-COLUMN FILING GETS LESS PROTECTION FROM THIS, unavoidably. With a single period there is
+    nothing for the orientation to be consistent WITH, so components of the right magnitude and the
+    wrong sign cannot be told from a presentation difference. What still corroborates them there is
+    the magnitude itself, which is what the tolerance tests, and the same figures have to satisfy
+    the section's rollup afterwards.
     """
     totals: dict[tuple[str, str], Decimal] = {}
     for sources in hits.values():
         for col, (value, _ev) in _summed_columns(sources).items():
             totals[col] = totals.get(col, Decimal(0)) + value
-    out: list[str] = []
-    for ev in parent.values.values():
-        if ev.value is None:
-            continue
-        col = (ev.basis.value, ev.period_label or "")
-        got = totals.get(col)
-        if got is None or abs(Decimal(ev.value) - got) > tol:
-            out.append(f"{col[0]}/{col[1]}")
-    return out
+
+    def unaccounted(orientation: int) -> list[str]:
+        out: list[str] = []
+        for ev in parent.values.values():
+            if ev.value is None:
+                continue
+            col = (ev.basis.value, ev.period_label or "")
+            got = totals.get(col)
+            if got is None or abs(Decimal(ev.value) - orientation * got) > tol:
+                out.append(f"{col[0]}/{col[1]}")
+        return out
+
+    as_disclosed = unaccounted(1)
+    if not as_disclosed:
+        return 1, []
+    if not unaccounted(-1):
+        return -1, []
+    # Neither orientation accounts for it. The failure reported is the AS-DISCLOSED one, because
+    # that is the comparison an analyst can repeat against the printed note without first being
+    # told that a flip was tried and also failed.
+    return 0, as_disclosed
 
 
 def _same_section_decompositions(ontology) -> list[tuple[str, list[str], str]]:
@@ -704,34 +743,133 @@ class MapOntologyStage:
             if not tables:
                 continue
             statement = stmt_by_page.get(_page_of(parent) or -1)
-            rows = [it for t in tables for it in t.items
-                    if it.values and it.role is LineRole.LINE]
-            hits: dict[str, list] = {}
-            for it in rows:
-                res = matcher.match(it.raw_label or "", statement=statement, section=section)
-                if res and res.canonical_key in children:
-                    hits.setdefault(res.canonical_key, []).append(it)
-            if len(hits) < 2:
-                ctx.log(f"map_ontology:split_declined({aggregate}):"
-                        f" the disclosure itemises {len(hits)} of this section's concepts")
+
+            def concepts_in(group: list) -> dict[str, list]:
+                found: dict[str, list] = {}
+                for table in group:
+                    for it in table.items:
+                        if not it.values or it.role is not LineRole.LINE:
+                            continue
+                        res = matcher.match(it.raw_label or "", statement=statement,
+                                            section=section)
+                        if (res is None or res.canonical_key not in children) and it.group_hint:
+                            # THE CAPTION SAID NOTHING, SO ASK THE SUB-HEADING IT WAS PRINTED
+                            # UNDER. A note itemises by whatever dimension it likes, and the
+                            # dimension is often not a concept at all: under
+                            # "Under-provision in prior years, net:" the filing prints
+                            # "Mainland China 136,626", and no alias, rule or model should make a
+                            # geography into a tax concept. The sub-heading is what names it, which
+                            # is also how a person reads the page.
+                            #
+                            # CAPTION FIRST, ALWAYS. The fallback only runs when the row's own
+                            # words named none of THIS SECTION'S components, so a sub-heading can
+                            # never override a row that named itself — "Current charge for the
+                            # year:" does not get to re-home the CIT and LAT rows beneath it. The
+                            # test is on the resolved KEY and not on ``res is None``, because an
+                            # unmatched caption comes back as a result object carrying method
+                            # ``UNMATCHED`` and a null key rather than as ``None``, and testing the
+                            # object meant this fallback never ran at all. And several rows under
+                            # one sub-heading all resolving to it is correct, not a collision: they
+                            # are a breakdown of that one concept and ``_summed_columns`` adds them.
+                            res = matcher.match(it.group_hint, statement=statement,
+                                                section=section)
+                        if res and res.canonical_key in children:
+                            found.setdefault(res.canonical_key, []).append(it)
+                return found
+
+            # ONE TABLE AT A TIME, and the union of them only if no single table will do.
+            #
+            # A cited note number is not one table. ``notes_extract`` builds a ``NotesTable`` per
+            # (note section, page), and a note routinely prints several: the filing this was
+            # measured against has more than one table under 19 of its note numbers, and its tax
+            # note prints the components on one page and the EFFECTIVE-RATE RECONCILIATION on the
+            # next -- a derivation from profit before tax down to the same charge, not a
+            # decomposition of it. The reconciliation restates one of the components under its own
+            # caption ("LAT 90,588"), so reading the union of every table counted that amount TWICE
+            # and the arithmetic gate was the only thing standing between a double count and a
+            # published figure. Which way it fell was luck, not design.
+            #
+            # THE UNION IS STILL TRIED, SECOND, because one printed table that breaks across a page
+            # becomes two ``NotesTable`` objects here for a reason that is about the PDF and not
+            # about the disclosure — ``notes_extract`` cuts a section at each heading occurrence and
+            # stamps it with the one page it was read from, so a continuation that RE-PRINTS its
+            # heading ("11. Income tax (Continued)") starts a second table. Dropping the union
+            # outright would refuse those, so instead it is the fallback: when a single table
+            # accounts for the aggregate on its own, that is the table the filing meant, and nothing
+            # else is read.
+            #
+            # THE LIMIT OF THIS, stated because it is not obvious: the unit separated here is the
+            # heading, not the printed table. Two printed tables under ONE heading on ONE page are
+            # one ``NotesTable``, and this pass cannot tell them apart — the arithmetic gate is
+            # again the only thing between a restated component and a published figure there.
+            candidates = [([t], concepts_in([t])) for t in tables]
+            if len(tables) > 1:
+                candidates.append((tables, concepts_in(tables)))
+
+            def accounting_for(pool: list) -> list[tuple[list, dict, int]]:
+                out: list[tuple[list, dict, int]] = []
+                for group, found in pool:
+                    if len(found) < 2:
+                        continue
+                    orient, unaccounted = _orientation_accounting_for(parent, found, tol)
+                    if not unaccounted:
+                        out.append((group, found, orient))
+                return out
+
+            singles = [c for c in candidates if len(c[0]) == 1]
+            qualified = accounting_for(singles) or accounting_for(
+                [c for c in candidates if len(c[0]) > 1])
+            if not qualified:
+                itemised = max((len(found) for _g, found in candidates), default=0)
+                if itemised < 2:
+                    ctx.log(f"map_ontology:split_declined({aggregate}):"
+                            f" the disclosure itemises {itemised} of this section's concepts")
+                else:
+                    best = max(candidates, key=lambda c: len(c[1]))
+                    _o, short = _orientation_accounting_for(parent, best[1], tol)
+                    ctx.log(f"map_ontology:split_declined({aggregate}):"
+                            f" components do not account for it in {','.join(short)}")
                 continue
-            short = _columns_not_accounted_for(parent, hits, tol)
-            if short:
+            if len(qualified) > 1:
+                # Two tables of the same note each account for the aggregate. One of them is a
+                # restatement of the other and this stage cannot tell which, so it reads neither.
                 ctx.log(f"map_ontology:split_declined({aggregate}):"
-                        f" components do not account for it in {','.join(short)}")
+                        f" {len(qualified)} tables in the cited note each account for it")
                 continue
+            tables, hits, orientation = qualified[0]
             for key, sources in hits.items():
                 row = LineItem(source_label=sources[0].raw_label or key, canonical_key=key,
                                ordinal=parent.ordinal, role=LineRole.LINE,
                                printed_in=PrintedIn.FACE, note_number=parent.note_number,
                                section_hint=parent.section_hint)
+                columns = {(ev.basis.value, ev.period_label or "")
+                           for ev in parent.values.values() if ev.value is not None}
                 for col, total in _summed_columns(sources).items():
+                    if col not in columns:
+                        # A COLUMN THE AGGREGATE NEVER PRINTED IS NOT PART OF WHAT WAS CORROBORATED.
+                        # The gate tests every column the aggregate carries; a column only the note
+                        # has — an extra numeric column, a maturity or rate column extraction read
+                        # as a period — was never tested against anything, and publishing it would
+                        # put an unchecked figure on the face and, worse, apply the orientation to
+                        # it: a sign decided by arithmetic that column took no part in.
+                        continue
                     ev = total[1].model_copy(deep=True)
-                    ev.value, ev.value_raw = total[0], total[0]
+                    # ``value_raw`` keeps the note's own figure and ``value`` carries the face's
+                    # convention, which is the contract those two fields already have: raw is what
+                    # the page said, value is the sign-normalised number, and ``sign_normalised``
+                    # records that the engine changed a reported sign so the pair is an audit trail
+                    # rather than a silent rewrite.
+                    ev.value_raw = total[0]
+                    ev.value = total[0] * orientation
+                    ev.sign_normalised = ev.sign_normalised or orientation < 0
                     row.set_value(ev)
                 row.confidence.mapping = min(parent.confidence.mapping or 0.75, 0.75)
                 row.confidence.method = MappingMethod.RULE.value
                 row.confidence.flags.append(f"split_from:{aggregate}")
+                if orientation < 0:
+                    # Visible on the row, because an analyst comparing it to the note will see the
+                    # opposite sign there and the row has to say why.
+                    row.confidence.flags.append("split_sign_flipped")
                 if len(sources) > 1:
                     # The disclosure itemises finer than the template does, so this concept's figure
                     # is the sum of several disclosed rows. Said on the row, because its provenance
@@ -746,7 +884,8 @@ class MapOntologyStage:
                 f"alloc:{AllocationStatus.PARENT_GROSS_EVIDENCE_ONLY.value}")
             parent.confidence.flags.append(f"decomposed_into:{','.join(sorted(hits))}")
             ctx.log(f"map_ontology:split({aggregate}) into {len(hits)} concepts"
-                    f" from note {','.join(sorted({str(t.note_number) for t in tables}))}")
+                    f" from note {','.join(sorted({str(t.note_number) for t in tables}))}"
+                    f"{' (signs flipped to the face convention)' if orientation < 0 else ''}")
         return added
 
     @staticmethod

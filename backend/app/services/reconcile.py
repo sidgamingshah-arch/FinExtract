@@ -11,7 +11,9 @@ unit- and property-testable. The stage wraps it.
 Key invariants:
 * Reconciliation is computed **from the raw face value**, never from an already
   reconciled figure → re-running is idempotent.
-* Signs are respected: a detail that is itself negative is subtracted with its sign.
+* Signs are respected: a detail that is itself negative is subtracted with its sign — within the
+  note's own convention, which is not always the face's. ``ReconcileInput.note_orientation`` says
+  which way round the two are, and the caller establishes it across all of a face line's periods.
 * Values must share a unit context before subtraction (caller converts to base units).
 """
 from __future__ import annotations
@@ -39,6 +41,17 @@ class ReconcileInput:
     # How close the note total must come to the face figure before we accept that the note
     # really is a DECOMPOSITION of that figure. See ``tie_status`` below.
     corroboration_rel: Decimal = Decimal("0.05")
+    # WHICH SIGN CONVENTION THE NOTE'S FIGURES ARE IN, relative to the face's. ``1`` when they
+    # match, ``-1`` when the note prints the same quantity with the opposite sign — a note is a
+    # schedule OF a charge and prints it positive, while a P&L presents that charge as a deduction
+    # and prints it negative. Neither is wrong, and comparing them without saying which is which
+    # made the tie report a residual of TWICE the figure on a note that reconciles exactly.
+    #
+    # THE CALLER DECIDES IT, not this function, and that is the whole safety of it: with a single
+    # period there is nothing for an orientation to be consistent WITH, so a flip chosen here would
+    # turn every sign error into a tie. The stage chooses one orientation for ALL of a face line's
+    # periods at once, which is a claim about presentation that a per-column error cannot satisfy.
+    note_orientation: int = 1
 
 
 # A note table either decomposes the face figure or it does not, and the difference decides
@@ -123,9 +136,10 @@ def reconcile_face(inp: ReconcileInput) -> ReconcileOutput:
             warnings.append(f"duplicate detail {d.item_id} ignored")
             continue
         seen.add(d.item_id)
-        note_total += d.value
+        oriented = d.value * inp.note_orientation
+        note_total += oriented
         if d.maps_to_distinct_template_line:
-            subtracted += d.value
+            subtracted += oriented
 
     reconciled = inp.raw_face_value - subtracted
 

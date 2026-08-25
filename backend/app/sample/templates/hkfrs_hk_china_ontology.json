@@ -5618,7 +5618,11 @@
           "Hong Kong profits tax",
           "Current tax charge",
           "PRC land appreciation tax",
-          "Land appreciation tax"
+          "Land appreciation tax",
+          "Under-provision in prior years, net",
+          "Under-provision in prior years",
+          "Over-provision in prior years, net",
+          "Over-provision in prior years"
         ],
         "zh": [
           "当期所得税",
@@ -5626,7 +5630,9 @@
           "中国企业所得税",
           "香港利得税",
           "中国土地增值税",
-          "土地增值税"
+          "土地增值税",
+          "过往年度拨备不足净额",
+          "过往年度拨备超额净额"
         ]
       },
       "exclude": [

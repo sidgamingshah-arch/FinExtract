@@ -170,16 +170,33 @@ _ABBREV_GLOSS = re.compile(
 # could import, and that is the right eventual fix — but a note reference is one shape and both
 # copies must recognise it, so a change to either belongs in both until then.
 #
-# A DANGLING CITATION counts as one. The second alternative below matches an opening bracket and the
-# word with NOTHING after it — "Deferred tax credited for the year (note" — which is what a caption
+# EVERY FORM IS DELIMITED, and the delimiter is what makes this safe. The first version of this
+# pattern made both brackets optional and was unanchored, so it matched a bare "notes <digits>"
+# ANYWHERE — and because the digit run is capped at a note number's length, a four-digit year was
+# eaten only PARTLY: "Senior notes 2025" normalised to "senior 5", deleting the head noun the
+# shipped rulebook carries four aliases for and fabricating a token that appears nowhere in the
+# caption. The row then matched nothing and was swept into its section's residual, where every
+# subtotal still tied and nothing reported it. Hence brackets REQUIRED for the Latin form, the bare
+# CJK marker allowed because the rulebook names it unbracketed, and a leading citation allowed only
+# with the colon that delimits it. ``(?!\d)`` is the other half of the repair: a digit run longer
+# than a note number is not a note number, and half of one is not either.
+#
+# A DANGLING CITATION counts as one. The last alternative matches an opening bracket and the word
+# with NOTHING after it — "Deferred tax credited for the year (note" — which is what a caption
 # truncated mid-citation looks like, and it is exactly what a real filing produced: the row printed
 # "Deferred tax credited for the year (note 32) 年內計入遞延稅項（附註32）" and reached the matcher
 # with everything after "(note" lost. The truncation itself is a row-reconstruction defect and
 # belongs to that module; recognising the stump as the pointer it is costs nothing and is right
-# regardless, because a caption never ENDS on the word "note" as part of a concept's name. Anchored
-# to the end of the string so "Note 15: Trade receivables" — where the word leads — is untouched.
+# regardless, because a caption never ENDS on the word "note" as part of a concept's name.
 _NOTE_CITATION = re.compile(
-    r"[(（]?\s*(?:notes?|附註|附注)\s*\.?\s*\d{1,3}[a-z]?(?:\s*[(（][a-z0-9]{1,3}[)）])?\s*[)）]?"
+    # (note 12), （附註12）, (note 16(b)) — bracketed, the form the rulebook names.
+    r"[(（]\s*(?:notes?|附註|附注)\s*\.?\s*\d{1,3}(?!\d)[a-z]?"
+    r"(?:\s*[(（][a-z0-9]{1,3}[)）])?\s*[)）]"
+    # 附註12 — the bare CJK marker, which the rulebook names unbracketed.
+    r"|(?:附註|附注)\s*\d{1,3}(?!\d)"
+    # "Note 15: Trade receivables" — a citation LEADING a caption, delimited by its colon.
+    r"|^\s*notes?\s*\.?\s*\d{1,3}(?!\d)[a-z]?\s*[:：]"
+    # "... (note" — a citation truncated mid-word by row reconstruction.
     r"|[(（]\s*(?:notes?|附註|附注)\s*$",
     re.IGNORECASE)
 

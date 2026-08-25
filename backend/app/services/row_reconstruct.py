@@ -869,8 +869,21 @@ _WIDTH_MAP = {ord(c): "/" for c in "╱／⁄"} | {
     ord("；"): ";", ord("，"): ",", ord("　"): " ",
 }
 _SUPERSCRIPT = re.compile("[*\u2020\u2021#\u00b9\u00b2\u00b3\u2070-\u209f]+")
+# EVERY FORM IS DELIMITED. With both brackets optional and no anchor this matched a bare
+# "notes <digits>" anywhere, and the digit cap then ate a four-digit year only PARTLY:
+# "Senior notes 2025" became "Senior 5" — the head noun deleted and a token fabricated, on a
+# caption the shipped rulebook carries four aliases for. The rulebook's own footnote step names
+# only bracketed forms and the bare CJK marker ("trailing digits in parentheses, superscripts,
+# '(note 12)', '附註12', '(附注12)'"), so those are what this recognises, plus a citation leading a
+# caption with the colon that delimits it. ``(?!\d)`` refuses a digit run too long to be a note
+# number instead of taking a prefix of it. Duplicated in ``mapping._NOTE_CITATION`` — a note
+# reference is one shape and both copies must recognise it, so a change to either belongs in both.
 _NOTE_MARKER = re.compile(
-    r"[(（]?\s*(?:notes?|附註|附注)\s*\.?\s*\d{1,3}[a-z]?(?:\s*\([a-z0-9]{1,3}\))?\s*[)）]?",
+    r"[(（]\s*(?:notes?|附註|附注)\s*\.?\s*\d{1,3}(?!\d)[a-z]?"
+    r"(?:\s*[(（][a-z0-9]{1,3}[)）])?\s*[)）]"
+    r"|(?:附註|附注)\s*\d{1,3}(?!\d)"
+    r"|^\s*notes?\s*\.?\s*\d{1,3}(?!\d)[a-z]?\s*[:：]"
+    r"|[(（]\s*(?:notes?|附註|附注)\s*$",
     re.IGNORECASE)
 _TRAILING_PAREN_DIGITS = re.compile(r"\s*[(（]\s*\d{1,3}[a-z]?\s*[)）]\s*$")
 _LEADING_NUMBERING = re.compile(
@@ -920,15 +933,33 @@ def _drop_empty_brackets(text: str) -> str:
     return _EMPTY_BRACKETS.sub(" ", text)
 
 
+# Any glyph a filing may print where the declared literal writes a straight apostrophe. The units
+# annotation is the case that matters: a rulebook declares "RMB'000" and a real PDF prints RMB’000
+# with the typographic quote, which is a different codepoint.
+_APOSTROPHES = "'’‘`´"
+
+
 def _strip_literals(text: str, literals: tuple[str, ...]) -> str:
-    """Remove each declared literal, matched insensitively to spacing and apostrophe glyph."""
+    """Remove each declared literal, matched insensitively to spacing and apostrophe glyph.
+
+    THE APOSTROPHE INSENSITIVITY HAS TO BE IN THE PATTERN, not only in the fold. ``_fold_for_match``
+    normalises the LITERAL's quote to a straight one, and the pattern built from it was then matched
+    against the caption UNFOLDED — so the declared "RMB'000" stripped a caption printing the straight
+    quote and left one printing the typographic quote exactly as it was. Since a typographic quote is
+    what a typeset filing actually prints, the rulebook's declared unit-and-currency annotation step
+    was inert on the documents it exists for: "RMB’000" survived normalisation as a caption, and
+    being ALL-CAPS with no colon it was then read as a section banner and scoped every row beneath
+    it. Matching a character CLASS at the apostrophe's position is what makes the declared step do
+    what it says.
+    """
     for lit in literals:
         folded = _fold_for_match(lit)
         if not folded:
             continue
         # Rebuilt as a spacing-tolerant pattern rather than a plain replace: the printed caption
         # sets "RMB '000" and "人民幣 千元" with the space the alias does not carry.
-        pat = r"\s*".join(re.escape(ch) for ch in folded)
+        pat = r"\s*".join(f"[{re.escape(_APOSTROPHES)}]" if ch == "'" else re.escape(ch)
+                          for ch in folded)
         text = re.sub(pat, " ", text, flags=re.IGNORECASE)
     return text
 
@@ -1011,6 +1042,33 @@ def apply_pipeline(text: str, steps: tuple[tuple[str, object], ...] = (), *,
             continue
         text = fn(text)                          # type: ignore[operator]
     return text.strip()
+
+
+# Words that can only CONTINUE a caption, never open one. The mirror of ``_HEAD_INCOMPLETE``, which
+# catches a wrapped caption's HEAD ("TOTAL COMPREHENSIVE" / "LOSS FOR THE YEAR"); this catches its
+# TAIL. A statement title that wraps is the case that matters: "CONSOLIDATED STATEMENT OF PROFIT OR
+# LOSS" / "AND OTHER COMPREHENSIVE INCOME" prints a second line which, read on its own, IS the other
+# comprehensive income banner — so the title's leftovers scoped an entire income statement into OCI
+# and re-homed its tax line. Nothing in a financial statement opens a section with "and".
+_TAIL_CONTINUATION = re.compile(r"^\s*(and|or|及|与|與|和)\b", re.IGNORECASE)
+
+
+def _looks_like_wrapped_tail(caption: str) -> bool:
+    """Whether a normalised caption is the TAIL of a caption that wrapped, not a line of its own."""
+    return bool(caption) and _TAIL_CONTINUATION.match(caption) is not None
+
+
+def _is_units_caption(label_words: list[Word]) -> bool:
+    """Whether a label-only row is the column-units caption rather than a section banner.
+
+    A units caption is printed once per value column, so a two-period statement prints
+    "RMB'000 RMB'000" and its bilingual twin "人民幣千元 人民幣千元". The banner branch drops a
+    caption that NORMALISES AWAY, which catches the single form and not the repeated one — and the
+    repeated one then scoped every row beneath it to a unit. Every word has to be a units token, so
+    a genuine banner that merely mentions one ("TOTAL, in thousands") is untouched.
+    """
+    words = [w.text.strip() for w in label_words if w.text.strip()]
+    return bool(words) and all(_UNITS_TOKEN.search(w) for w in words)
 
 
 def _ends_with_colon(text: str, steps: tuple[tuple[str, object], ...]) -> bool:
@@ -2385,6 +2443,21 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         restated_cols=_restated_columns(raw_rows, value_bands, restated, number_format),
         log=log, page_index=page_index)
     section: str | None = None
+    # THE SUB-HEADING WITHIN THE SECTION, kept separately from it and for a different job.
+    #
+    # The banner branch below deliberately refuses to let a colon sub-heading DISPLACE the section,
+    # and that is right — the rows under "Adjustments for:" are still operating-activities rows. But
+    # refusing to let it displace the section is not the same as throwing it away, and throwing it
+    # away loses the only thing that gives some rows a meaning at all: a tax note printing
+    #
+    #     Under-provision in prior years, net:
+    #       Mainland China                          136,626
+    #
+    # has a row whose caption is a GEOGRAPHY. "Mainland China" is not a tax concept and no alias,
+    # rule or model should make it one; what makes that figure an under-provision of current tax is
+    # the line above it. So the sub-heading is carried as its own field, available to a reader that
+    # has failed on the caption, and it never touches the section gate.
+    group: str = ""
     for row in rows:
         label_words, note_ref, value_words = _scan_row(row, number_format)
         note_ref, value_words = _resolve_note_column(note_ref, value_words, note_x, number_format)
@@ -2396,6 +2469,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             merged_banner, label_words = _split_banner_prefix(label_words, steps)
             if merged_banner:
                 section = merged_banner
+                group = ""
         label = _join_words(_regroup_scripts(label_words))
         if not label or not value_words:
             # A label-only banner ("NON-CURRENT LIABILITIES", 流動負債) carries no amount, but it
@@ -2424,8 +2498,24 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             banner = section_of_banner(caption)
             if label and caption and not value_words and (_looks_like_header(label_words, steps)
                                                           or banner is not None):
+                if _is_units_caption(label_words):
+                    # A units caption is not a section, whatever it is printed in. The declared
+                    # unit-and-currency annotation step strips the currencies the RULEBOOK NAMES,
+                    # and it is now apostrophe-insensitive so it reaches the typographic quote a
+                    # real filing prints — but it can only strip what it was told about, and a
+                    # caption it has not been told about ("HK$'000") still arrives here ALL-CAPS
+                    # with no colon and would be read as a banner. This is the backstop for that,
+                    # and it is about the TOKENS rather than about the rulebook's vocabulary.
+                    continue
+                if _looks_like_wrapped_tail(caption):
+                    # The leftovers of a caption that wrapped, which is not a section even when it
+                    # reads as one on its own line — see ``_TAIL_CONTINUATION``.
+                    continue
                 if banner is not None or not _ends_with_colon(label, steps):
                     section = label
+                    group = ""          # a new section ends the sub-heading's scope
+                else:
+                    group = label
             continue
 
         # Drop running-header / statement-title / period-caption lines that leaked in as rows
@@ -2442,9 +2532,10 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         head = re.split(r"[:：]", label)[0] if re.search(r"[:：]", label) else ""
         if head and section_of_banner(head) is not None:
             section = head.strip()
+            group = ""
 
         li = LineItem(source_label=label, ordinal=ordinal, role=LineRole.LINE,
-                      section_hint=section, source=ValueSource.MACHINE)
+                      section_hint=section, group_hint=group, source=ValueSource.MACHINE)
         label_bbox = _union([w.source_bbox for w in label_words])
         # Place each value in its own column within its basis — by the column's period when the
         # page has columns, else by the order the figures are printed in.
