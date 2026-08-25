@@ -202,6 +202,66 @@ def _same_section_decompositions(ontology) -> list[tuple[str, list[str], str]]:
     return out
 
 
+def _note_permitted_decompositions(ontology, template) -> list[tuple[str, list[str], str]]:
+    """Aggregates the run's two definitions BETWEEN THEM authorise reading out of a note.
+
+    THIS IS REQUIREMENT 20's automatic arm, and neither half of it is an inference:
+
+    * WHICH LINES ARE THE COMPONENTS is the TEMPLATE's own ``rollup`` — "Income tax expense" is
+      declared a subtotal over ``current_tax`` and ``deferred_tax``, so reading those two out of the
+      tax note is reading the template's own arithmetic off the page the filing printed it on. The
+      alternative, inferring the parent/child relation from which captions happen to appear in a
+      note, is how a movement schedule gets mistaken for a decomposition.
+    * WHETHER A NOTE MAY BE THE SOURCE is the RULEBOOK's ``note_use``. It fires by default and the
+      rulebook overrides it: the shipped one states the policy as a section default —
+      "Concepts default to face_only: true. Notes are evidence for a face amount, never an
+      independent source of one, unless note_use is decomposition_allowed" — and then names its one
+      exception on the tax section, with the reason: "HKEX filings routinely print only 'Income tax
+      expense' on the face and split current/deferred in the tax note. Decomposition from that note
+      is permitted because the split is a reconciliation of the face." So on the shipped rulebook
+      this admits the tax aggregate and nothing else, which is the author's stated intent rather
+      than a limitation of this function.
+
+    WHY ``note_use`` AND NOT A NEW FIELD. ``stages.residual`` already reads it for the neighbouring
+    question — may a residual sweep invent a face row sourced from a note — with the same meaning
+    and the same override. The difference is only the default, and the reason for it: the sweep is
+    FABRICATING a line the filing never printed, so it demands opt-in; this pass is READING an
+    itemisation the filing did print, under a total the template already says is their sum. Two
+    defaults, one field, because it is one question about the same rulebook statement — do not
+    "unify" them into one default without re-reading both call sites.
+
+    Every gate ``_split_from_disclosure`` already applies still applies, and they are what make the
+    automatic arm safe: exactly one face row carries the aggregate, at least two of the declared
+    children are itemised in the cited note, the note's own total is excluded by ROLE, and the
+    components must account for the aggregate in every column or the split is declined.
+    """
+    from app.services.rollups import calculated_nodes
+
+    permitted = {m.canonical_key for m in ontology.mappings
+                 if getattr(m, "note_use", None) == "decomposition_allowed"}
+    if not permitted:
+        return []
+    section_of = {m.canonical_key: tuple(m.section_scope or ()) for m in ontology.mappings}
+    out: list[tuple[str, list[str], str]] = []
+    for key, node in calculated_nodes(template).items():
+        if key not in permitted:
+            continue
+        own = section_of.get(key, ())
+        if len(own) != 1:
+            # No single home section, so the section-scoped match below has no scope to ask under.
+            continue
+        children = [c for c in ((node.get("rollup") or {}).get("children") or [])
+                    # THE SAME-SECTION RULE, which is the product decision this pass was built on:
+                    # a component in another section is left alone. A rollup's children normally
+                    # share its section, so this is a guard rather than a filter — but a template may
+                    # declare a total over lines from two sections, and that is the case the rule is
+                    # about.
+                    if section_of.get(c, ()) == own]
+        if len(children) >= 2:
+            out.append((key, children, own[0]))
+    return out
+
+
 def _cited_notes(parents: list) -> set[str]:
     """The note numbers the subtotal's own rows cite — read the way ``stages.residual`` reads them,
     because ``link_notes`` has not run yet at this point in the pipeline."""
@@ -605,7 +665,22 @@ class MapOntologyStage:
         both inside a change about something else; the mapping is kept local to this pass and those
         two are left for their own change.
         """
+        # TWO SOURCES OF CANDIDATES, ONE PASS. The declared containment pairs
+        # (``is_gross_parent``/``mutually_exclusive_groups``) say "these two concepts may never both
+        # be populated"; the note-permitted aggregates (§20) say "this total may be read out of its
+        # note". Different authorities for the same act, so they share every gate below rather than
+        # growing a second pass that could answer the same question differently. Declared pairs
+        # first, so where a concept is both it is handled by the stronger statement.
+        # The TEMPLATE is what declares which lines are a total's components, so the §20 arm needs
+        # it. Taken off the context the same way the ontology is, and dumped to the plain dict shape
+        # ``rollups.calculated_nodes`` reads — the same shape the routes hand it.
+        template = getattr(ctx, "template", None)
+        template_def = (template.model_dump(mode="json")
+                        if template is not None and hasattr(template, "model_dump") else template)
         decls = _same_section_decompositions(ontology)
+        seen = {a for a, _c, _s in decls}
+        decls = decls + [d for d in _note_permitted_decompositions(ontology, template_def)
+                         if d[0] not in seen]
         if not decls:
             return 0
         tol = Decimal(str(ctx.settings.extraction.recon_abs_tolerance))

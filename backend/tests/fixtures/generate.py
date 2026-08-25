@@ -82,6 +82,66 @@ def make_unmapped_row_pdf() -> bytes:
     return buf.getvalue()
 
 
+def make_tax_note_split_pdf() -> bytes:
+    """THE SHAPE REQUIREMENT 20 IS ABOUT: one line on the face, its components only in the note.
+
+    A P&L printing a single "Income tax expense" citing note 11, and note 11 splitting it into
+    current and deferred tax which sum to it exactly. Both halves of the authority to read that
+    split are DECLARED rather than inferred, which is what the fixture exercises:
+
+    * the TEMPLATE declares ``pl_tax_expense__total_tax_expense`` a subtotal over
+      ``pl_tax_expense__current_tax`` and ``pl_tax_expense__deferred_tax`` — so which lines are the
+      components is the template's own arithmetic, not a guess from what the note happens to list;
+    * the RULEBOOK declares ``note_use: decomposition_allowed`` on that tax section, against a
+      default of ``evidence_only`` everywhere else, with the stated reason that HKEX filings
+      routinely print only the total on the face and split it in the tax note.
+
+    The figures are the real filing's shape with round numbers: a deferred CREDIT, so one component
+    is negative and the split is not merely additive. 1,200 - 200 = 1,000.
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    _width, height = A4
+
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(72, height - 72, "Consolidated Statement of Profit or Loss")
+    c.setFont("Helvetica", 10)
+    y = height - 104
+    for label, note, cur, prior in [
+            ("Profit before tax", "", "5,000", "4,200"),
+            ("Income tax expense", "11", "1,000", "900")]:
+        c.drawString(72, y, label)
+        if note:
+            c.drawString(360, y, f"Note {note}")
+        c.drawRightString(452, y, cur)
+        c.drawRightString(520, y, prior)
+        y -= 22
+    c.showPage()
+
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(72, height - 72, "Notes to the Financial Statements")
+    c.setFont("Helvetica", 10)
+    c.drawString(72, height - 100, "Note 11: Income tax")
+    y = height - 124
+    # 1,200 - 200 = 1,000 and 1,050 - 150 = 900 — the printed total, exactly, in both periods.
+    for label, cur, prior in [("Current tax", "1,200", "1,050"),
+                              ("Deferred tax", "(200)", "(150)")]:
+        c.drawString(72, y, label)
+        c.drawRightString(452, y, cur)
+        c.drawRightString(520, y, prior)
+        y -= 22
+    # The note's own total, which the ROLE keeps out of the components.
+    c.drawString(72, y, "Total tax charge for the year")
+    c.drawRightString(452, y, "1,000")
+    c.drawRightString(520, y, "900")
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
 def make_containment_gap_pdf() -> bytes:
     """A gross parent printed beside a component it contains, not accounted for by it.
 

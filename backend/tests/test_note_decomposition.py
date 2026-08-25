@@ -282,3 +282,93 @@ def test_the_refusal_is_logged_with_its_reason(refused):
     line = next(m for m in ctx.logs if "split_declined" in m)
     assert _AGGREGATE in line
     assert "account for" in line or "itemises" in line
+
+
+# ================================================================================================
+# REQUIREMENT 20: the face prints one line and only the note has the split
+# ================================================================================================
+#
+# The pass above splits a combined caption whose containment the RULEBOOK declares
+# (``is_gross_parent``/``mutually_exclusive_groups``). §20 is the other authority for the same act:
+# the TEMPLATE declares a total's components, and the rulebook's ``note_use`` says whether they may
+# be read out of the note. It fires automatically and the rulebook overrides it — the shipped
+# rulebook's section default is ``evidence_only`` ("Notes are evidence for a face amount, never an
+# independent source of one"), with the tax section named as its one exception and the reason given.
+
+@pytest.fixture(scope="module")
+def tax_split(rulebook, template):
+    from tests.fixtures.generate import make_tax_note_split_pdf
+
+    return _run(make_tax_note_split_pdf(), rulebook, template)
+
+
+def test_the_note_permitted_arm_admits_only_what_both_definitions_authorise(rulebook, template):
+    """Neither half is inferred, and on the shipped pair that admits exactly one aggregate.
+
+    A candidate needs BOTH: a template ``rollup`` naming its components, and a concept whose
+    ``note_use`` permits a note to be the source. The shipped rulebook permits it on the tax section
+    alone — its author's stated intent, not a limitation here — so this is also the assertion that
+    the default really is a refusal.
+    """
+    from app.stages.map_ontology import _note_permitted_decompositions
+
+    admitted = _note_permitted_decompositions(rulebook, template.model_dump(mode="json"))
+    assert admitted == [("pl_tax_expense__total_tax_expense",
+                         ["pl_tax_expense__current_tax", "pl_tax_expense__deferred_tax"],
+                         "pl_s5_tax_expense")]
+
+    # THE OVERRIDE, asserted rather than assumed: 180 of the 183 shipped concepts say
+    # ``evidence_only`` and are therefore refused, whatever the template declares about them.
+    permitted = {m.canonical_key for m in rulebook.mappings
+                 if m.note_use == "decomposition_allowed"}
+    assert len(permitted) == 3, permitted
+    refused = {m.canonical_key for m in rulebook.mappings if m.note_use == "evidence_only"}
+    assert len(refused) > 100 and "bs_current_assets__cash_and_cash_equivalents" in refused
+
+
+def test_the_face_total_is_replaced_by_the_components_the_note_prints(tax_split):
+    """§20 end to end. The filing prints ONE tax line; the split lives only in note 11."""
+    doc, _ctx = tax_split
+    got = {li.canonical_key: {ev.period_label: ev.value for ev in li.values.values()}
+           for li in doc.line_items if li.canonical_key}
+
+    assert got["pl_tax_expense__current_tax"] == {"current": Decimal("1200"),
+                                                  "prior": Decimal("1050")}
+    # The deferred CREDIT stays negative: the note prints it in parentheses and the split is
+    # therefore not merely additive, which is the case a sign bug would sail through.
+    assert got["pl_tax_expense__deferred_tax"] == {"current": Decimal("-200"),
+                                                   "prior": Decimal("-150")}
+
+
+def test_the_printed_tax_total_is_kept_but_no_longer_filed(tax_split):
+    """The money is counted once. The aggregate stays as an auditable subtotal — the filing printed
+    1,000 and a reader must be able to see it — but it is no longer a filed template line, so the
+    section does not carry both it and its components."""
+    doc, _ctx = tax_split
+    parent = next(li for li in doc.line_items
+                  if (li.source_label or "").startswith("Income tax expense"))
+
+    assert parent.canonical_key is None, "the total is still filed, so its money is counted twice"
+    assert parent.role is LineRole.SUBTOTAL
+    assert {ev.value for ev in parent.values.values()} == {Decimal("1000"), Decimal("900")}
+    # THE ASSERTION THAT MATTERS: the components come to what the face printed, in both columns.
+    for period, printed in (("current", Decimal("1000")), ("prior", Decimal("900"))):
+        total = sum(ev.value for li in doc.line_items
+                    if li.canonical_key in ("pl_tax_expense__current_tax",
+                                            "pl_tax_expense__deferred_tax")
+                    for ev in li.values.values() if ev.period_label == period)
+        assert total == printed, period
+
+
+def test_a_component_read_from_the_note_says_so_and_points_at_the_note_row(tax_split):
+    """A figure the face never printed under this caption must not be mistakable for one it did,
+    and click-to-source has to land on the note row it was read from."""
+    doc, _ctx = tax_split
+    child = next(li for li in doc.line_items
+                 if li.canonical_key == "pl_tax_expense__deferred_tax")
+
+    assert any(f == "split_from:pl_tax_expense__total_tax_expense"
+               for f in child.confidence.flags), child.confidence.flags
+    prov = [ev.provenance for ev in child.values.values()]
+    assert all(p is not None for p in prov)
+    assert {p.page_index for p in prov} == {1}, "the note page, where the component is printed"
