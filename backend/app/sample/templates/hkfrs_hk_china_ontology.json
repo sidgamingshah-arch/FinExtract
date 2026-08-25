@@ -5616,13 +5616,17 @@
           "Current income tax",
           "PRC corporate income tax",
           "Hong Kong profits tax",
-          "Current tax charge"
+          "Current tax charge",
+          "PRC land appreciation tax",
+          "Land appreciation tax"
         ],
         "zh": [
           "当期所得税",
           "当期税项",
           "中国企业所得税",
-          "香港利得税"
+          "香港利得税",
+          "中国土地增值税",
+          "土地增值税"
         ]
       },
       "exclude": [
@@ -5657,13 +5661,16 @@
           "Deferred tax",
           "Deferred income tax",
           "Deferred tax charge",
-          "Deferred tax credit"
+          "Deferred tax credit",
+          "Deferred tax credited for the year",
+          "Deferred tax charged for the year"
         ],
         "zh": [
           "递延所得税",
           "递延税项",
           "递延税项开支",
-          "递延税项抵免"
+          "递延税项抵免",
+          "年内计入递延税项"
         ]
       },
       "exclude": [
@@ -5693,7 +5700,8 @@
         "Tax expense",
         "Taxation",
         "Tax charge for the year",
-        "Total tax expense"
+        "Total tax expense",
+        "Total tax charge for the year"
       ],
       "aliases_i18n": {
         "en": [
@@ -5704,6 +5712,7 @@
           "Tax expense",
           "Taxation",
           "Tax charge for the year",
+          "Total tax charge for the year",
           "Total tax expense"
         ],
         "zh": [
@@ -5713,7 +5722,8 @@
           "所得税费用",
           "税项",
           "税务开支",
-          "年内税项开支"
+          "年内税项开支",
+          "年内税项开支总额"
         ]
       },
       "exclude": [

@@ -127,13 +127,90 @@ _LLM_BATCH_ADDENDUM = (
 )
 
 
+# A QUOTED ABBREVIATION GLOSS: the short name a filing introduces for a term it has just written
+# out, in brackets, in quotes — 'PRC corporate income tax ("CIT")',
+# 'PRC land appreciation tax ("LAT")', '中國企業所得稅（「企業所得稅」）'.
+#
+# WHY THE PUNCTUATION STRIPPER BELOW DOES NOT ALREADY HANDLE IT. It turns every non-word character
+# into a space, so the brackets and quotes do disappear on their own — and the abbreviation SURVIVES
+# AS A WORD: 'prc corporate income tax cit', which is not the alias 'prc corporate income tax' and
+# matches nothing. That one extra token is the whole defect, and it is why the exact tier misses a
+# caption whose alias the rulebook already carries.
+#
+# Measured on a real bilingual HKEX filing: it is what kept note 11's tax split unreadable, and so
+# kept the face's single "Income tax expense" line un-decomposed even though the note itemises it
+# exactly (633,137 + 90,588 + 136,626 − 670,847 = 189,504).
+#
+# THE QUOTES ARE THE SIGNAL, and requiring them is what keeps this narrow. A parenthetical is not
+# always a gloss, and most carry meaning that must not be dropped: 'Profit/(loss) before tax',
+# 'Credited/(charged) to profit or loss during the year', 'Pledged deposits (note (b))'. None is
+# quoted, so none is touched. Only a bracket whose content is wrapped in quotation marks — straight,
+# curly, or the CJK corner and lenticular brackets a Chinese filing uses — reads as the filing naming
+# an abbreviation for itself, which is a fact about the PROSE and not about the figure.
+_ABBREV_GLOSS = re.compile(
+    r"""[(（]\s*                     # an opening bracket, either width
+        ["'“”‘’「」『』《》]\s*        # …whose content opens with a quotation mark
+        [^)）]*?                      # the abbreviation itself, never crossing the bracket
+        \s*["'“”‘’「」『』《》]\s*     # …and closes with one
+        [)）]""",
+    re.VERBOSE)
+
+# A NOTE CITATION printed inside the caption — "Deferred tax credited for the year (note 32)",
+# "Depreciation of right-of-use assets (note 16(b))", "受限制現金（附註(a)）". It is a POINTER to
+# where the detail lives, never part of the concept's name, and the punctuation stripper leaves the
+# words behind exactly as the gloss above does: 'deferred tax credited for the year note 32', which
+# no alias equals. Before this, such a caption fell through to the fuzzy tier and was decided by
+# resemblance; now it is decided by the alias the rulebook actually carries.
+#
+# DUPLICATED FROM ``row_reconstruct._NOTE_MARKER``, ON PURPOSE AND UNDER PROTEST. That module
+# imports THIS one (``section_of_banner``), so this one cannot import it back, and the two patterns
+# serve pipelines with different contracts: there, one declared step of the rulebook-authored
+# normalisation pipeline, which a rulebook can reorder or drop; here, the matcher's own internal
+# normalisation, which is not the rulebook's to change. The shared home is a caption module both
+# could import, and that is the right eventual fix — but a note reference is one shape and both
+# copies must recognise it, so a change to either belongs in both until then.
+#
+# A DANGLING CITATION counts as one. The second alternative below matches an opening bracket and the
+# word with NOTHING after it — "Deferred tax credited for the year (note" — which is what a caption
+# truncated mid-citation looks like, and it is exactly what a real filing produced: the row printed
+# "Deferred tax credited for the year (note 32) 年內計入遞延稅項（附註32）" and reached the matcher
+# with everything after "(note" lost. The truncation itself is a row-reconstruction defect and
+# belongs to that module; recognising the stump as the pointer it is costs nothing and is right
+# regardless, because a caption never ENDS on the word "note" as part of a concept's name. Anchored
+# to the end of the string so "Note 15: Trade receivables" — where the word leads — is untouched.
+_NOTE_CITATION = re.compile(
+    r"[(（]?\s*(?:notes?|附註|附注)\s*\.?\s*\d{1,3}[a-z]?(?:\s*[(（][a-z0-9]{1,3}[)）])?\s*[)）]?"
+    r"|[(（]\s*(?:notes?|附註|附注)\s*$",
+    re.IGNORECASE)
+
+# A BRACKETED BARE NUMBER — "(32)", "（32）", "(2022)". Two things leave one behind, and both are
+# noise rather than name:
+#
+# * ``label_segments`` splits a bilingual caption by SCRIPT, and a note citation printed in Chinese
+#   is half Han and half digits: "（附註32）" loses 附註 to the Han segment and leaves "（32）" in the
+#   Latin one, where the pattern above no longer recognises it as a citation. That residue is why
+#   "Deferred tax credited for the year (note 32) 年內計入遞延稅項（附註32）" still missed its alias
+#   after note citations were stripped.
+# * a year in brackets ("(2022)") is a comparative marker, not part of the concept.
+#
+# It is NOT the same as ``row_reconstruct._TRAILING_PAREN_DIGITS``, which is anchored to the end of
+# the caption: this has to fire mid-string, because the Latin segment of a bilingual caption keeps
+# the residue wherever the Chinese half was. Bare digits only — "(a)", "(b)", "(i)" are sub-item
+# letters that DO distinguish captions ("Pledged deposits (note (b))") and are left alone.
+_BRACKETED_NUMBER = re.compile(r"[(（]\s*\d{1,4}\s*[)）]")
+
+
 def normalize_label(text: str) -> str:
     """Lowercase, strip accents/punctuation, collapse whitespace (locale-agnostic).
 
     Han text is folded to Simplified so a Traditional caption from a Hong Kong or Taiwan
     filing compares equal to a Simplified alias (and vice versa) — the same concept printed
     in the other script would otherwise never match.
+
+    A quoted abbreviation gloss is dropped first — see ``_ABBREV_GLOSS`` for why the punctuation
+    stripping below does not already do it.
     """
+    text = _BRACKETED_NUMBER.sub(" ", _NOTE_CITATION.sub(" ", _ABBREV_GLOSS.sub(" ", text)))
     text = to_simplified(text)
     text = unicodedata.normalize("NFKD", text)
     text = "".join(c for c in text if not unicodedata.combining(c))
