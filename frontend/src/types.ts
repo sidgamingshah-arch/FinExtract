@@ -1095,7 +1095,11 @@ export interface NoteDetail {
   /** As the filing prints it — see NoteIndexItem.no. */
   no: string;
   title: string;
+  /** Where the note STARTS. A note continued across pages is one note, so this is the lowest page
+   *  it was printed on — click-to-source lands on the note's own heading, not on a continuation. */
   page: number;
+  /** Every page the note spans, ascending. One entry for a note printed on a single page. */
+  pages?: number[];
   linked_line: string;
   linked_label: string;
   rows: NoteDetailRow[];

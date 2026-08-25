@@ -86,9 +86,41 @@ def note_row_role(caption: str | None) -> LineRole:
     return LineRole.SUBTOTAL if _NOTE_SUBTOTAL.match(text) else LineRole.TOTAL
 
 
+# CJK SENTENCE punctuation. A note's title is a name and carries none of it; the enumeration comma
+# 、 is a different mark and DOES appear in real titles ("收益、其他收入及收益", "現金及現金等價物、
+# 受限制現金"), so it is deliberately absent from this class.
+_CJK_SENTENCE = re.compile(r"[，。；]")
+
+
 def _is_heading(row: list[Word]) -> tuple[str, str] | None:
     """A heading row names a note (number + optional title) and carries no value column of
-    its own — that's what separates 'Note 15: Trade receivables' from a data row."""
+    its own — that's what separates 'Note 15: Trade receivables' from a data row.
+
+    THE PATTERN ALONE IS NOT ENOUGH, because it accepts any row opening with up to three digits and
+    a notes page is mostly PROSE. Measured on a 270-page bilingual HKEX filing it took three
+    sentence fragments for headings, and each one did more damage than an extra entry: the note
+    index is keyed by number, so a fragment claiming a number that a real note already has
+    overwrote — or was overwritten by — the real note's table.
+
+        '8,461,842,000元） （附註30(b)）。'                       -> note 8
+        '17. 內的合同，因此該等修訂對本集'                          -> note 17
+        'note 25 to the financial statements, the Group had the …' -> note 25
+
+    Two refusals, and each is a property of headings rather than a blocklist:
+
+    * a title must not open with a LOWERCASE Latin letter, punctuation or a digit. A heading names
+      something ("REVENUE, OTHER INCOME AND GAINS", "Trade receivables"); "to the financial
+      statements" is the middle of a sentence, and "36%" or ";" name nothing. This is also what
+      catches a number that is the head of a LONGER NUMERAL: the separator class this pattern
+      consumes does not include the comma, so "8,461,842,000" leaves its title opening on one —
+      and a percentage split across its decimal point ("28.36%" read as note 28) leaves a digit;
+    * a title must not contain CJK SENTENCE punctuation (，。；). Real titles use the ENUMERATION
+      comma 、 instead, so a Chinese-only heading is untouched while a Chinese sentence is refused.
+
+    A THIRD GUARD WAS WRITTEN AND REMOVED: an explicit test for a grouped numeral. Mutating it away
+    changed no test and no measured output, because the first refusal above already covers every
+    shape it was for. A guard that cannot fire reads like protection without being any.
+    """
     _, _, values = _scan_row(row)
     if values:
         return None
@@ -102,6 +134,13 @@ def _is_heading(row: list[Word]) -> tuple[str, str] | None:
     # Require an explicit "Note" prefix OR a title, so a bare number isn't a false heading.
     if not starts_note and not title:
         return None
+    if title:
+        if title[0].islower() and title[0].isascii():
+            return None
+        if not (title[0].isalpha() or ord(title[0]) > 0x2E7F):
+            return None                     # punctuation or a digit — names nothing
+        if _CJK_SENTENCE.search(title):
+            return None
     return no, title
 
 

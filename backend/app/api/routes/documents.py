@@ -4914,8 +4914,64 @@ def _rows_by_note(rows: list[dict]) -> dict[str, list[dict]]:
     return grouped
 
 
+# A CONTINUATION HEADING, in the forms an HKEX filing prints: "(Continued)", "（續）", "(续)".
+_CONTINUED = re.compile(r"\(\s*cont(?:inued|\.)?\s*\)|[（(]\s*[續续]\s*[)）]", re.IGNORECASE)
+
+
 def _note_index(details: list[dict]) -> dict[str, dict]:
-    return {n: d for d in details if (n := _note_key(d.get("no"))) is not None}
+    """One entry per NOTE, gathering every table the filing printed under that number.
+
+    THIS USED TO BE A DICT COMPREHENSION keyed by the note number, which meant a note printed as
+    more than one table did not merge — it OVERWROTE. Extraction builds a table per (heading
+    occurrence, page), so a note continued across pages with its heading repeated arrives here
+    several times, and the last one won. Measured on a 270-page bilingual HKEX filing: 63 tables
+    for 28 notes, note 38 in seven of them, notes 15 and 20 in five, note 6 in four. Every symptom
+    an analyst saw came from that one line:
+
+    * every title read "(Continued)", because the last table is a continuation;
+    * a note's detail pane showed the last fragment's rows — sometimes a single stray row — and
+      called it the note;
+    * the page served was the LAST fragment's, so click-to-source jumped to a continuation page
+      while the note's own heading and table sat on an earlier one. Two page numbers for one note,
+      and a link that lands on neither the note nor what the pane was showing.
+
+    So the note is assembled instead: rows concatenated in printed order, the page being where the
+    note STARTS, and ``pages`` listing every page it spans so the viewer can say so.
+
+    THE TABLES ARE NOT MERGED IN THE MODEL, and the distinction is the point. For READING, the note
+    number is the unit — an analyst asked for note 22 and a page break is not part of its meaning.
+    For ARITHMETIC it is not: a tax note prints the components in one table and the effective-rate
+    RECONCILIATION in another, and ``map_ontology``'s decomposition has to be able to tell them
+    apart or it counts a restated component twice. ``doc.notes`` therefore keeps one entry per
+    printed table and this index — the presentation layer — is where they become one note.
+    """
+    out: dict[str, dict] = {}
+    for d in details:
+        n = _note_key(d.get("no"))
+        if n is None:
+            continue
+        page = d.get("page") or 0
+        cur = out.get(n)
+        if cur is None:
+            out[n] = {**d, "rows": list(d.get("rows") or []),
+                      "pages": [page] if page else []}
+            continue
+        cur["rows"].extend(d.get("rows") or [])
+        if page:
+            if page not in cur["pages"]:
+                cur["pages"].append(page)
+            # The note starts at the LOWEST page it was printed on. Not the first one seen: the
+            # order tables arrive in is page order today, and a note's start must not depend on
+            # that staying true.
+            if not cur.get("page") or page < cur["page"]:
+                cur["page"] = page
+        # A continuation heading names the note no worse than the original, but it names it less
+        # well, so the first non-continuation title wins.
+        if _CONTINUED.search(cur.get("title") or "") and not _CONTINUED.search(d.get("title") or ""):
+            cur["title"] = d.get("title")
+    for d in out.values():
+        d["pages"] = sorted(d["pages"])
+    return out
 
 
 def _note_row_kind(row: dict) -> str | None:
@@ -5094,6 +5150,10 @@ def get_document_note(document_id: str, note_no: str, locale: str = Query("en"),
             })
         return {
             "no": note_no, "title": d.get("title") or f"Note {note_no}", "page": d.get("page", 0),
+            # EVERY page the note was printed on, not only the first. A note continued across pages
+            # is one note (see ``_note_index``), and a reader sent to its first page needs to know
+            # the rest of it is overleaf rather than missing.
+            "pages": d.get("pages") or ([d["page"]] if d.get("page") else []),
             "linked_line": linked_key, "linked_label": linked_label,
             "rows": detail_rows,
             # Derived from exactly the value lists whose split_current_prior above produced v1/v2,
@@ -5115,6 +5175,7 @@ def get_document_note(document_id: str, note_no: str, locale: str = Query("en"),
     return {
         "no": note_no, "title": f"Note {note_no}",
         "page": (prov.get("page_index", 0) + 1) if prov else 0,
+        "pages": [prov["page_index"] + 1] if prov else [],
         "linked_line": linked_key, "linked_label": linked_label,
         "rows": detail_rows,
         # Same consolidated default `_cur_prior` uses for these fallback rows, so the header names

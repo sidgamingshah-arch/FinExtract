@@ -60,6 +60,17 @@ function DetailRow({ row }: { row: NoteDetailRow }) {
   );
 }
 
+/** How the note's location reads: "276" for a note on one page, "276-277" when it runs on. A note
+ *  continued across pages is ONE note, and printing only its first page made the pane disagree with
+ *  what the viewer beside it was showing. First and last only — a run of pages is contiguous, and
+ *  listing every one of note 38's seven is noise. */
+function pageSpan(detail: NoteDetail): string {
+  const pages = detail.pages && detail.pages.length ? detail.pages : [detail.page];
+  const first = pages[0];
+  const last = pages[pages.length - 1];
+  return last > first ? `${first}-${last}` : `${first}`;
+}
+
 function Detail({ detail }: { detail: NoteDetail }) {
   const navigate = useNavigate();
   const t = useT();
@@ -79,7 +90,7 @@ function Detail({ detail }: { detail: NoteDetail }) {
         <h1 style={{ fontSize: 19, fontWeight: 600, margin: 0 }}>{detail.title}</h1>
       </div>
       <div style={{ fontSize: 12, color: color.muted, marginBottom: 18 }}>
-        {t("n.extractedFrom")}{detail.page} {t("n.linked")}{" "}
+        {t("n.extractedFrom")}{pageSpan(detail)} {t("n.linked")}{" "}
         <a
           href="#"
           onClick={(e) => {
@@ -286,7 +297,7 @@ export default function NotesScreen() {
               <span>{t("n.sourceView")}</span>
               {detail && detail.page > 0 && (
                 <span style={{ color: "#aab1bc", fontWeight: 400 }}>
-                  · {t("n.sourcePage")} {detail.page}
+                  · {t("n.sourcePage")} {pageSpan(detail)}
                 </span>
               )}
             </div>
@@ -295,7 +306,8 @@ export default function NotesScreen() {
                 documentId={activeDocumentId}
                 // Fall back to the note's own page when the run omits a page count, so a note
                 // beyond page 1 still renders (PageStack draws pages 0…n-1).
-                pageCount={Math.max(result?.page_count ?? 1, detail?.page ?? 1)}
+                pageCount={Math.max(result?.page_count ?? 1,
+                                    detail?.pages?.[detail.pages.length - 1] ?? detail?.page ?? 1)}
                 picked={picked}
                 maxHeight="100%"
               />
