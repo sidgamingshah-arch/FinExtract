@@ -629,7 +629,9 @@ export interface Disclosure {
   key: string;
   label: string;
   present: boolean;
-  page: number | null;
+  /** The folio the filing PRINTED on that page when it printed one (a string, and not always
+   *  numeric), falling back to the 1-based sheet position. Rendered, never arithmetic. */
+  page: number | string | null;
   snippet: string;
 }
 export interface FreeNote {
@@ -654,7 +656,8 @@ export interface CreditFlag {
   label: string;
   severity: "severe" | "high" | "watch";
   implication: string;
-  page: number | null;
+  /** Carried straight from the disclosure that raised the flag — see `Disclosure.page`. */
+  page: number | string | null;
   snippet: string;
 }
 export interface CreditNarrative {

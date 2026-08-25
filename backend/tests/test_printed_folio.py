@@ -20,11 +20,19 @@ into the judgement anchor would re-key every stored human acceptance.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
 
-from app.api.routes.documents import _note_index, _prov_anchor, _prov_label
+from app.api.routes.documents import (
+    _note_index,
+    _places_once,
+    _prov_anchor,
+    _prov_label,
+    _prov_place,
+    _serialize_document_integrity,
+)
 from app.core.models.document import DocumentModel, PageSource
 from app.core.models.enums import DocFormat
 from app.core.pipeline import default_pipeline
@@ -173,3 +181,194 @@ def test_a_document_with_no_folios_serves_none_everywhere():
     lookup = _folio_lookup(doc)
     assert lookup is not None
     assert lookup(0) is None and lookup(1) == "7"
+
+
+# --- the integrity screen -------------------------------------------------------------------------
+
+def _integrity_row(findings: list[dict], pages: list[dict]):
+    from types import SimpleNamespace
+    return SimpleNamespace(
+        integrity_report={"page_count": len(pages), "scanned_page_ratio": 0.0,
+                          "findings": findings},
+        pages=pages, page_count=len(pages))
+
+
+def test_an_integrity_finding_cites_the_printed_folio():
+    """The pre-flight screen is the FIRST page number a user ever sees for a filing, and it named
+    the sheet position while every citation downstream named the folio. One document, two numbering
+    schemes, no label saying which."""
+    row = _integrity_row(
+        [{"check_id": "ROTATED_PAGE", "severity": "warning",
+          "message": "This page is rotated 90°.", "page_index": 185}],
+        [{"index": i, "printed_page": str(i - 1)} for i in range(200)])
+
+    issue = _serialize_document_integrity(row)["issues"][0]
+    assert issue["pages"] == "p.184"
+
+
+def test_an_integrity_finding_on_a_page_with_no_folio_falls_back_to_the_sheet():
+    """Same fallback as every other citation, and the same one-based shape — a finding on the first
+    sheet reads "p.1", not "p.0"."""
+    row = _integrity_row(
+        [{"check_id": "BLANK_PAGE", "severity": "info", "message": "This page appears blank.",
+          "page_index": 0}],
+        [{"index": 0, "printed_page": None}, {"index": 1, "printed_page": "ii"}])
+
+    assert _serialize_document_integrity(row)["issues"][0]["pages"] == "p.1"
+
+
+def test_an_integrity_finding_with_no_page_is_still_document_wide():
+    row = _integrity_row(
+        [{"check_id": "CORRUPT", "severity": "blocker", "message": "PDF could not be opened."}],
+        [{"index": 0, "printed_page": "1"}])
+
+    assert _serialize_document_integrity(row)["issues"][0]["pages"] == "All"
+
+
+def test_an_integrity_finding_names_the_page_in_exactly_one_place():
+    """The prose used to carry the page too — and it carried the ZERO-BASED index, so the row read
+    "p.186 · Page 185 is rotated 90°": two numbers for one page, from one finding, neither labelled.
+    The label is now the only place a page is named, because it is the only one that knows about the
+    folio."""
+    import fitz
+
+    from app.stages.integrity import IntegrityStage
+
+    pdf = fitz.open()
+    page = pdf.new_page()
+    page.insert_text((72, 700), "Rotated page")
+    page.set_rotation(90)
+    pdf.new_page()                                              # blank -> BLANK_PAGE
+    data = pdf.tobytes()
+    pdf.close()
+
+    ctx = PipelineContext(raw_bytes=data)
+    doc = default_pipeline().run(DocumentModel(filename="r.pdf", fmt=DocFormat.PDF), ctx)
+
+    scoped = [f for f in doc.integrity.findings if f.page_index is not None]
+    assert {f.check_id for f in scoped} >= {"ROTATED_PAGE", "BLANK_PAGE"}, scoped
+    for f in scoped:
+        # The rotation angle is a fact about the page, not a page number; nothing else numeric may
+        # survive in the prose.
+        residue = re.sub(r"\d+°", "", f.message)
+        assert not re.search(r"\d", residue), f"{f.check_id} still names a page: {f.message!r}"
+
+
+# --- one entry per PLACE, not per label -----------------------------------------------------------
+
+def test_two_sources_that_render_the_same_citation_are_both_kept():
+    """THE ONE RISK THE FOLIO CHANGE INTRODUCED. A combined figure lists every page it drew from,
+    deduped so one page is not named twice. Deduping on the LABEL was safe only while the label was
+    the sheet number, which is unique per page by construction. A folio is not: a page whose footer
+    could not be read falls back to its sheet position, so sheet 5 with no folio and sheet 7
+    printing "6" both render "p.6" — and deduping on that string silently drops a real source."""
+    contributions = [
+        {"src": "p.6", "source": {"source_kind": "pdf", "page_index": 5}},
+        {"src": "p.6", "source": {"source_kind": "pdf", "page_index": 6, "printed_page": "6"}},
+    ]
+
+    assert _places_once(contributions) == ["p.6", "p.6"]
+
+
+def test_the_same_place_named_twice_is_still_named_once():
+    """The behaviour the dedupe exists for, unchanged: two lines printed on one page contribute one
+    citation, in first-seen order."""
+    contributions = [
+        {"src": "p.184", "source": {"source_kind": "pdf", "page_index": 185,
+                                    "printed_page": "184"}},
+        {"src": "p.184", "source": {"source_kind": "pdf", "page_index": 185,
+                                    "printed_page": "184"}},
+        {"src": "p.190", "source": {"source_kind": "pdf", "page_index": 191,
+                                    "printed_page": "190"}},
+    ]
+
+    assert _places_once(contributions) == ["p.184", "p.190"]
+
+
+def test_a_contribution_with_no_source_contributes_no_citation():
+    """A prior-only line has no current-period provenance, and an empty citation is not a page."""
+    assert _places_once([{"src": "", "source": None},
+                         {"src": None, "source": None}]) == []
+
+
+def test_a_spreadsheet_cell_is_its_own_place():
+    """Two cells on one sheet are two places, and the label already distinguishes them — the point
+    is that the place key does too, so a future label change cannot collapse them."""
+    contributions = [
+        {"src": "BS!C7", "source": {"source_kind": "spreadsheet", "sheet": "BS", "cell": "C7"}},
+        {"src": "BS!C8", "source": {"source_kind": "spreadsheet", "sheet": "BS", "cell": "C8"}},
+    ]
+
+    assert _places_once(contributions) == ["BS!C7", "BS!C8"]
+    assert (_prov_place(contributions[0]["source"])
+            != _prov_place(contributions[1]["source"]))
+
+
+def test_the_export_dedupes_by_place_too():
+    """The workbook's Source column ran the same label dedupe over the same contributions. Both
+    sides had to move together, or an exported combined figure would name fewer pages than the
+    screen it was exported from."""
+    import io
+
+    import openpyxl
+
+    from app.services.export import build_statement_workbook
+
+    # Two pages, ONE citation string: sheet 6 printed no folio (falls back to "p.6") and sheet 7
+    # printed folio "6".
+    prov_a = {"source_kind": "pdf", "page_index": 5}
+    prov_b = {"source_kind": "pdf", "page_index": 6, "printed_page": "6"}
+    assert _prov_str(prov_a) == _prov_str(prov_b) == "p.6"
+
+    template = {"schema_version": 1, "template_key": "t", "name": "T",
+                "statements": [{"type": "balance_sheet", "sections": [
+                    {"node_id": "s1", "label": "Assets", "role": "header", "children": [
+                        {"canonical_key": "bs_ca__cash", "label": "Cash", "role": "line"}]}]}]}
+    rows = [{"canonical_key": "bs_ca__cash", "source_label": lab,
+             "values": [{"basis": "consolidated", "period_label": "current",
+                         "value": val, "provenance": prov}]}
+            for lab, val, prov in (("Cash at bank", "10", prov_a),
+                                   ("Cash on hand", "5", prov_b))]
+
+    wb = openpyxl.load_workbook(io.BytesIO(
+        build_statement_workbook(rows, template, filename="f.pdf")))
+    ws = wb[wb.sheetnames[0]]
+    src_col = None
+    for r in range(1, 12):
+        for c in range(1, 12):
+            if str(ws.cell(r, c).value or "").strip().lower() == "source":
+                src_col = c
+                break
+        if src_col:
+            break
+    assert src_col, "no Source column in the exported sheet"
+
+    cells = [str(ws.cell(r, src_col).value or "") for r in range(1, 20)]
+    assert "p.6 · p.6" in cells, cells
+
+
+# --- the commentary screen and the credit narrative -----------------------------------------------
+
+def test_a_disclosure_scan_reports_the_printed_folio():
+    """This number is BOTH shown on the Commentary screen and handed to the credit-narrative model,
+    which writes it into prose no post-processing can relabel. So it has to be the folio at the
+    point of the scan, not corrected afterwards."""
+    from app.services.derived import scan_disclosures
+
+    pages = [(185, "The auditors have issued a qualified opinion on these financial statements.")]
+    folios = {185: "184"}
+
+    hits = [d for d in scan_disclosures(pages, folio_of=folios.get) if d.get("present")]
+    assert hits, "the fixture text matched no catalog item"
+    assert all(d["page"] == "184" for d in hits), hits
+
+
+def test_a_disclosure_scan_with_no_folio_map_keeps_the_sheet_position():
+    """Unchanged for every caller that has no page model to hand — and one-based, as it was."""
+    from app.services.derived import scan_disclosures
+
+    pages = [(185, "The auditors have issued a qualified opinion on these financial statements.")]
+
+    hits = [d for d in scan_disclosures(pages) if d.get("present")]
+    assert hits
+    assert all(d["page"] == 186 for d in hits), hits

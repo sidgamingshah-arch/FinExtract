@@ -669,6 +669,10 @@ def _serialize_document_integrity(row, locale: str = "en") -> dict:
         }
 
     findings = report.get("findings", []) or []
+    # The folios captured at upload (ingest -> classify runs before this is ever served), so an
+    # integrity finding cites the page by the number printed on it like every other citation does.
+    folios = {(pg.get("index", 0) or 0): pg.get("printed_page")
+              for pg in (row.pages or []) if isinstance(pg, dict)}
     page_count = report.get("page_count", row.page_count or 0)
     scanned_ratio = float(report.get("scanned_page_ratio", 0.0) or 0.0)
 
@@ -688,7 +692,8 @@ def _serialize_document_integrity(row, locale: str = "en") -> dict:
         issues.append({
             "title": L(title),
             "detail": f.get("message", ""),
-            "pages": f"p.{pidx + 1}" if isinstance(pidx, int) else "All",
+            "pages": (f"p.{folios.get(pidx) or pidx + 1}"
+                      if isinstance(pidx, int) else "All"),
             "note": sev.upper(),
             "status": L("Blocking") if blocking else L("Advisory"),
             "severity": fe_sev,
@@ -790,6 +795,35 @@ def _prov_label(prov: dict | None) -> str:
     if folio:
         return f"p.{folio}"
     return f"p.{(prov.get('page_index', 0) or 0) + 1}"
+
+
+def _prov_place(prov: dict | None) -> tuple:
+    """WHERE a value came from, as something to compare — never as something to print.
+
+    A list of sources dedupes so one page is not named twice, and it used to dedupe on the LABEL,
+    which was safe only while the label was the sheet number: sheet numbers are unique per page by
+    construction. A citation now names the printed folio, and that is not unique by construction —
+    a page whose footer could not be read falls back to its sheet position, so sheet 5 with no folio
+    and sheet 7 printing folio "6" both render "p.6". Deduping on that string drops one of two
+    genuinely different sources and the reader is never told.
+
+    So the comparison is the place and the printing is the label, the same separation ``_prov_label``
+    and ``_prov_anchor`` already keep for the judgement subject.
+    """
+    if not prov:
+        return ()
+    return (prov.get("source_kind"), prov.get("page_index"), prov.get("sheet"), prov.get("cell"))
+
+
+def _places_once(contributions: list[dict]) -> list[str]:
+    """Each contributing source's label, one per PLACE, in the order first seen."""
+    seen: dict[tuple, str] = {}
+    for c in contributions:
+        label = c.get("src")
+        if not label:
+            continue
+        seen.setdefault(_prov_place(c.get("source")), label)
+    return list(seen.values())
 
 
 # Grid the normalized bbox is snapped to for the identity anchor: thousandths of the page.
@@ -4663,8 +4697,9 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
             inspector = {**inspector, "tag": "combined",
                          "formula": printed,
                          "result": "" if v1 is None else f"{v1:,.0f}",
-                         "src": " · ".join(dict.fromkeys(
-                             c["src"] for c in contributions if c["src"])),
+                         # Deduped by PLACE, rendered by label — see ``_prov_place``. A dict keyed
+                         # on the place keeps first-seen order and one entry per page.
+                         "src": " · ".join(_places_once(contributions)),
                          "note": (f"Combined from {len(group)} printed lines that map to this "
                                   f"concept. Each line below keeps its own figure and page — "
                                   f"click one to jump to it in the document.")

@@ -636,7 +636,8 @@ def _snippet(text: str, match: re.Match, width: int = 90) -> str:
     return re.sub(r"\s+", " ", text[start:end]).strip()
 
 
-def scan_disclosures(pages: list[tuple[int, str]], locale: str = "en") -> list[dict]:
+def scan_disclosures(pages: list[tuple[int, str]], locale: str = "en",
+                     folio_of=None) -> list[dict]:
     """Scan page texts for the disclosure catalog. Returns one entry per catalog item with
     whether it was found, the page, and a surrounding snippet — a presence check, not a full
     parse (honest about what a generic scan can claim)."""
@@ -649,7 +650,12 @@ def scan_disclosures(pages: list[tuple[int, str]], locale: str = "en") -> list[d
             for pat in d["patterns"]:
                 m = re.search(pat, low)
                 if m:
-                    hit = {"page": page_index + 1, "snippet": _snippet(text, m)}
+                    # The folio the filing printed, falling back to the sheet position — the same
+                    # rule every other citation follows. This number is shown on the Commentary
+                    # screen AND handed to the credit-narrative model, which writes it into prose
+                    # no post-processing can relabel, so it has to be the one a reader can look up.
+                    folio = folio_of(page_index) if folio_of is not None else None
+                    hit = {"page": folio or (page_index + 1), "snippet": _snippet(text, m)}
                     break
             if hit:
                 break

@@ -767,13 +767,20 @@ def _emit_nodes(ws, nodes, by_key, period_cols, first_val, conf_col, src_col, lo
             ws.cell(r, conf_col, f"{round(conf * 100)}%" if conf is not None else "")
             # Every page a contributing line came from, so the source column stays truthful for
             # a combined figure instead of naming only the first.
-            srcs = []
+            # One entry per PLACE, not per label. Deduping on the label was safe only while the
+            # label was the sheet number, which is unique per page by construction; a printed folio
+            # is not, because a page whose footer could not be read falls back to its sheet position
+            # and can collide with another page's folio. That would drop a real source silently.
+            srcs: dict[tuple, str] = {}
             for x in group:
                 vals = x.get("values") or []
-                where = _prov_str(vals[0].get("provenance")) if vals else ""
-                if where and where not in srcs:
-                    srcs.append(where)
-            ws.cell(r, src_col, " · ".join(srcs))
+                prov = vals[0].get("provenance") if vals else None
+                where = _prov_str(prov)
+                if where:
+                    srcs.setdefault(
+                        ((prov or {}).get("source_kind"), (prov or {}).get("page_index"),
+                         (prov or {}).get("sheet"), (prov or {}).get("cell")), where)
+            ws.cell(r, src_col, " · ".join(srcs.values()))
             notes = []
             # Edited items carry their formula into the workbook as a cell note (the value is
             # the applied result; the formula is preserved for audit).

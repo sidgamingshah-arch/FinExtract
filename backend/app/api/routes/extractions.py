@@ -716,7 +716,7 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
         entity_name = None
         try:
             pages_text = document_text(data, doc_model.fmt.value)
-            disclosures = scan_disclosures(pages_text)
+            disclosures = scan_disclosures(pages_text, folio_of=_folio_lookup(doc_model))
             entity_name = detect_entity_name(pages_text)
         except Exception:  # noqa: BLE001 — a scan failure must not fail the extraction
             disclosures = []

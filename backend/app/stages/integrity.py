@@ -80,7 +80,11 @@ class IntegrityStage:
             if page.rotation % 360 != 0:
                 report.add(IntegrityFinding(
                     check_id="ROTATED_PAGE", severity=Severity.WARNING,
-                    message=f"Page {i} is rotated {page.rotation}°.",
+                    # NO PAGE NUMBER IN THE PROSE. It was the 0-BASED index while the same
+                    # finding's `pages` label is 1-based, so one finding named two different pages
+                    # in one row. The label is the single place a page is named, and it is the only
+                    # one that knows whether the filing printed a folio.
+                    message=f"This page is rotated {page.rotation}°.",
                     page_index=i, detail={"rotation": page.rotation},
                 ))
             dims.add((round(page.rect.width), round(page.rect.height)))
@@ -131,6 +135,6 @@ class IntegrityStage:
                     and p.image_area_coverage < 0.05):
                 report.add(IntegrityFinding(
                     check_id="BLANK_PAGE", severity=Severity.INFO,
-                    message=f"Page {p.index} appears blank.",
+                    message="This page appears blank.",
                     page_index=p.index,
                 ))
