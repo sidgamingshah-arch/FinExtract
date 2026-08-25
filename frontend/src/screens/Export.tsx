@@ -95,7 +95,10 @@ function provStr(r: ExtractionRow): string {
   const p = r.values?.[0]?.provenance;
   if (!p) return "";
   if (p.source_kind === "spreadsheet" && p.sheet) return `${p.sheet}!${p.cell ?? ""}`;
-  return `p.${p.page_index + 1}`;
+  // Character-for-character what `services/export._prov_str` writes into the downloaded file. This
+  // string appears in the JSON preview as well as the Source column, so a mismatch here would make
+  // the preview lie about the artifact.
+  return `p.${p.printed_page || p.page_index + 1}`;
 }
 
 /** Real export preview built from the document's actual extracted rows (no demo data). */

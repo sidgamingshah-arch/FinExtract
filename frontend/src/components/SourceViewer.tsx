@@ -13,7 +13,12 @@ import type { DocSearchHit, ExtractionProvenance } from "../types";
 /** A value's source location, resolved to what the Source panel needs to render it.
  *  PDF sources carry a page + bbox; spreadsheet sources carry a sheet + cell. */
 export type Picked =
-  | { kind: "pdf"; page_index: number; bbox: { x0: number; y0: number; x1: number; y1: number }; label: string }
+  | { kind: "pdf"; page_index: number; bbox: { x0: number; y0: number; x1: number; y1: number };
+      label: string;
+      /** The folio the filing printed on that page, when it printed one. Carried alongside
+       *  `page_index` and never instead of it: the index is the raster address the viewer scrolls
+       *  to, the folio is what a person cites. */
+      printed_page?: string | null }
   | { kind: "xlsx"; sheet: string; cell: string; label: string };
 
 export type PdfPick = Extract<Picked, { kind: "pdf" }>;
@@ -24,8 +29,39 @@ export function toPicked(p: ExtractionProvenance | null | undefined, label: stri
   if (!p) return null;
   if (p.source_kind === "spreadsheet" && p.sheet && p.cell)
     return { kind: "xlsx", sheet: p.sheet, cell: p.cell, label };
-  if (p.bbox) return { kind: "pdf", page_index: p.page_index, bbox: p.bbox, label };
+  if (p.bbox)
+    return { kind: "pdf", page_index: p.page_index, bbox: p.bbox, label,
+             printed_page: p.printed_page ?? null };
   return null;
+}
+
+/** How a page is named to a reader, given the folio the filing printed on it (or null).
+ *
+ *  A PDF page has TWO numbers and they are usually not the same: its position in the file, and the
+ *  folio the publisher printed on it. The gap is whatever front matter the report has, so it is a
+ *  property of the document and not something to compute — measured across two real HK filings the
+ *  offsets were 0 and 1.
+ *
+ *  `cite` is the number a person can act on: the printed folio, because that is what the page in
+ *  their hand says and what a colleague can look up. It is the same string the backend puts on a
+ *  review card and in the export, deliberately, so the screens agree.
+ *
+ *  `badge` is for the viewer's own page overlay — the one place BOTH numbers belong, because it
+ *  labels the image you are looking at while the surrounding UI addresses pages by position. It
+ *  used to print "p.186 · 184": both true, and nothing to say which was which. That is what a
+ *  reader reported as "it is showing 2 page numbers", and labelling it here is what makes a bare
+ *  "p.184" everywhere else unambiguous.
+ */
+export function pageNames(t: (k: string) => string, pageIndex: number, folio?: string | null) {
+  const sheet = pageIndex + 1;
+  // `{n}` substituted by hand, which is how every other placeholder in this app is filled — the
+  // i18n layer takes a key and nothing else (see i18n.ts::translate). It has to be a placeholder
+  // rather than label-then-number because Chinese puts the number INSIDE the phrase ("第186页").
+  const sheetName = t("view.sheetN").replace("{n}", String(sheet));
+  return {
+    cite: folio ? `p.${folio}` : `p.${sheet}`,
+    badge: folio ? `p.${folio} · ${sheetName}` : sheetName,
+  };
 }
 
 /** Shared chrome for a source panel: sticky column with a heading and a card. */
@@ -50,6 +86,7 @@ function PageSlot({ documentId, index, picked, pickedRef, printed }: {
   /** The folio printed on this page, when the document prints one. */
   printed?: string | null;
 }) {
+  const t = useT();
   const [url, setUrl] = useState<string | null>(null);
   const isPicked = picked?.page_index === index;
   // Eagerly load the first pages; also load the picked page immediately (don't wait for the
@@ -102,12 +139,12 @@ function PageSlot({ documentId, index, picked, pickedRef, printed }: {
       <div style={{ position: "absolute", top: 4, right: 6, zIndex: 1, fontFamily: font.mono,
                     fontSize: 9.5, color: color.faint, background: "rgba(255,255,255,0.8)",
                     borderRadius: 4, padding: "1px 5px" }}>
-        {/* BOTH numbers, because they are both true and they disagree. `index + 1` is the page's
-            position in the file — what this viewer scrolls to, what provenance carries, what the
-            Page Scope screen selects — and `printed` is the folio on the paper, which runs behind
-            it by however much front matter the report has. Showing only the first makes a correct
-            jump look like it landed two pages down. */}
-        p.{index + 1}{printed ? ` · ${printed}` : ""}
+        {/* BOTH numbers, LABELLED. They are both true and they disagree: `index + 1` is the
+            page's position in the file — what this viewer scrolls to, what provenance carries,
+            what the Page Scope screen selects — and `printed` is the folio on the paper, behind it
+            by however much front matter the report has. This printed them as "p.186 · 184", which
+            is correct and unreadable; see `pageNames`. */}
+        {pageNames(t, index, printed).badge}
       </div>
       {url
         ? <img src={url} alt="" style={{ display: "block", width: "100%" }} />
@@ -160,7 +197,14 @@ export function PageStack({ documentId, pageCount, picked, maxHeight = "78vh", s
   // The printed folios, from the same per-page payload the Page Scope screen reads (cached, so
   // hosting the viewer beside that screen costs nothing extra).
   const pages = useDocumentPages(documentId);
-  const folio = (i: number) => pages.data?.pages?.find((p) => p.no === i + 1)?.printed ?? null;
+  // A MAP, not a scan per slot. `find` inside the render loop is O(pages x slots) — quadratic on a
+  // 200-page filing, and rebuilt every render for a lookup that does not change.
+  const folios = React.useMemo(() => {
+    const m = new Map<number, string>();
+    for (const pg of pages.data?.pages ?? []) if (pg.printed) m.set(pg.no, pg.printed);
+    return m;
+  }, [pages.data]);
+  const folio = (i: number) => folios.get(i + 1) ?? null;
 
   const n = Math.max(1, pageCount);
   return (
@@ -252,8 +296,8 @@ function PageSearch({ documentId, onPick }: {
                 </span>
                 {hits[at] && (
                   <span style={{ color: color.faint }}>
-                    {` · p.${hits[at].page_index + 1}`}
-                    {hits[at].printed_page ? ` · ${hits[at].printed_page}` : ""}
+                    {` · ${pageNames(t, hits[at].page_index,
+                                                 hits[at].printed_page).badge}`}
                   </span>
                 )}
               </>
@@ -282,7 +326,9 @@ export function PagedSource({ documentId, pageCount, picked, t, width }: {
   return (
     <PanelShell t={t} width={width}>
       <div style={{ fontSize: 11, color: color.sec2, marginBottom: 8 }}>
-        {picked ? `${picked.label} · p.${picked.page_index + 1}` : `${n} ${t("ex.pagesLabel")}`}
+        {picked
+          ? `${picked.label} · ${pageNames(t, picked.page_index, picked.printed_page).cite}`
+          : `${n} ${t("ex.pagesLabel")}`}
       </div>
       <PageStack documentId={documentId} pageCount={pageCount} picked={picked} />
     </PanelShell>

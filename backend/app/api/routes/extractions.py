@@ -311,6 +311,21 @@ def _maybe_cache_netting(session: Session, run, locale: str) -> None:
         session.rollback()
 
 
+def _folio_lookup(doc_model):
+    """``page_index -> the folio printed on that page``, as a callable, or None when the document
+    has no folios at all (every spreadsheet, and a PDF whose footers the classifier could not read).
+
+    Built once per serialization and closed over, rather than scanned per provenance record: a
+    200-page filing has thousands of values, and a linear scan per value is quadratic for a lookup
+    that is a dict.
+    """
+    folios = {pg.index: pg.printed_page for pg in (doc_model.pages or [])
+              if getattr(pg, "printed_page", None)}
+    if not folios:
+        return None
+    return folios.get
+
+
 def _serialize_rows(doc_model, ontology=None) -> list[dict]:
     """Extracted line items in a view-friendly shape, each value with its provenance
     (sheet+cell for Excel, page+bbox for PDF) so the UI can show click-to-source.
@@ -332,6 +347,7 @@ def _serialize_rows(doc_model, ontology=None) -> list[dict]:
     seg_of, label_of = _bucket_index(doc_model)
     notes_of = _linked_notes(doc_model)
     section_of = _section_index(ontology)
+    folio_of = _folio_lookup(doc_model)
     rows = []
     for li in doc_model.line_items:
         values = []
@@ -339,7 +355,7 @@ def _serialize_rows(doc_model, ontology=None) -> list[dict]:
             p = ev.provenance
             prov = None
             if p is not None:
-                prov = _prov_dict(p)
+                prov = _prov_dict(p, folio_of)
             cv = ev.confidence
             values.append({
                 "period_label": ev.period_label,
@@ -434,7 +450,7 @@ def _section_index(ontology) -> dict[str, str]:
             for m in (getattr(ontology, "mappings", []) or []) if m.section_scope}
 
 
-def _prov_dict(p):
+def _prov_dict(p, folio_of=None):
     """One provenance record as the API serves it — ONE spelling, used by the face rows and the
     note rows alike (the face path used to carry an inline copy of this dict, and the two then
     disagreed about which fields exist).
@@ -447,11 +463,26 @@ def _prov_dict(p):
     means a reviewer's acceptance is reported as belonging to a finding that was corrected when the
     figure merely changed. The label box is what makes the anchor value-independent, and it never
     reached the anchor before because this serializer dropped it.
+
+    ``printed_page`` is the folio the PUBLISHER printed on that page, and it is here rather than
+    looked up per call site because this is the ONE serializer both face rows and note rows pass
+    through. Every citation in the product is a function of a provenance dict, so carrying the folio
+    alongside the sheet index is what lets a citation name the number the reader can actually look
+    up — without threading a page map through ``_build_statement``, ``_build_review`` and
+    ``_inspector``, whose positional signatures tests call directly.
+
+    A SIBLING, NEVER A REDEFINITION. ``page_index`` stays the 0-based sheet position: it is the
+    viewer's raster address, the input to the judgement anchor, and what the page-scope selection is
+    expressed in. The two are different facts about the same page and the product needs both. The
+    folio is None for a spreadsheet (a worksheet has no folio) and for any page whose footer the
+    classifier could not read — 5 of 270 on the filing this was measured against — so every reader
+    needs a fallback.
     """
     if p is None:
         return None
     return {
         "source_kind": p.source_kind, "page_index": p.page_index,
+        "printed_page": (folio_of(p.page_index) if folio_of is not None else None),
         "sheet": p.sheet, "cell": p.cell, "label_cell": p.label_cell,
         "bbox": (p.bbox.model_dump() if p.bbox is not None else None),
         "label_bbox": (p.label_bbox.model_dump() if p.label_bbox is not None else None),
@@ -462,6 +493,7 @@ def _prov_dict(p):
 def _serialize_notes(doc_model) -> list[dict]:
     """Extracted note detail tables → view/export shape: each note with its own breakdown
     rows (label + period values) and provenance."""
+    folio_of = _folio_lookup(doc_model)
     notes = []
     for nt in doc_model.notes:
         rows = []
@@ -475,14 +507,19 @@ def _serialize_notes(doc_model) -> list[dict]:
                 "period_display": ev.period_display,
                 "basis": ev.basis.value,
                 "value": (str(ev.value) if ev.value is not None else None),
-                "provenance": _prov_dict(ev.provenance),
+                "provenance": _prov_dict(ev.provenance, folio_of),
             } for ev in it.values.values()]
             # Carry the row's role (line/subtotal/total) and mapping confidence so the notes
             # detail renders subtotal/total emphasis and a per-row confidence badge.
             rows.append({"label": it.raw_label, "role": it.role.value,
                          "confidence": it.confidence.overall, "values": values})
         page = (nt.source_pages[0] if nt.source_pages else 0)
-        notes.append({"no": nt.note_number, "title": nt.title, "page": page + 1, "rows": rows})
+        # ``page`` stays the 1-based SHEET position: the Notes screen turns it straight back into an
+        # index to scroll the viewer and to size the page stack. ``printed_page`` is the folio, a
+        # sibling for the citation, and None when the classifier could not read one.
+        notes.append({"no": nt.note_number, "title": nt.title, "page": page + 1,
+                      "printed_page": (folio_of(page) if folio_of is not None else None),
+                      "rows": rows})
     return notes
 
 

@@ -761,11 +761,34 @@ def _run_template_id(run) -> str | None:
 def _prov_label(prov: dict | None) -> str:
     """The HUMAN-FACING source label a card prints. Page-level on purpose — "p.1" is what the
     reader wants to see. It is display text and nothing else: never put it in a judgement subject,
-    because two printed lines on one page share it. Use ``_prov_anchor`` for identity."""
+    because two printed lines on one page share it. Use ``_prov_anchor`` for identity.
+
+    THE NUMBER IS THE ONE PRINTED ON THE PAGE, when the filing printed one. A PDF page has two
+    numbers — its position in the file, and the folio the publisher put on it — and they are not the
+    same: on one measured HK filing sheet 186 carries folio 184, on another the two coincide. The
+    offset is a property of the document's front matter, not something to compute. A citation exists
+    so a person can go and look, and the only number they can look up is the one on the paper, so
+    that is the one this returns.
+
+    THE SHEET POSITION IS THE FALLBACK, unlabelled and unchanged, because it is the best available
+    answer and it is what this has always said: a spreadsheet has no folio, and neither does a page
+    whose footer the classifier could not read (5 of 270 on the filing measured). Keeping the same
+    "p.N" shape also keeps every existing reader — and the click-to-source e2e, which finds the chip
+    by that shape — working.
+
+    THE PAIR IS SHOWN AND LABELLED IN EXACTLY ONE PLACE, the viewer's own page badge, which sits on
+    the image and is inherently about position. That badge printed "p.186 · 184" — both numbers,
+    correct, and with nothing to say which was which. It is what a reader reported as "it is showing
+    2 page numbers", and labelling it there is what makes a bare "p.184" here unambiguous everywhere
+    else.
+    """
     if not prov:
         return "—"
     if prov.get("source_kind") == "spreadsheet" and prov.get("sheet"):
         return f"{prov['sheet']}!{prov.get('cell', '')}"
+    folio = prov.get("printed_page")
+    if folio:
+        return f"p.{folio}"
     return f"p.{(prov.get('page_index', 0) or 0) + 1}"
 
 
@@ -4954,9 +4977,16 @@ def _note_index(details: list[dict]) -> dict[str, dict]:
         cur = out.get(n)
         if cur is None:
             out[n] = {**d, "rows": list(d.get("rows") or []),
-                      "pages": [page] if page else []}
+                      "pages": [page] if page else [],
+                      # Kept as (sheet, folio) pairs so the folio of the note's FIRST page can be
+                      # named after the sheet pages are sorted. A folio is a string and sorts
+                      # lexicographically ('100' < '99'), so it can never be the sort key.
+                      "printed_by_page": ({page: d.get("printed_page")}
+                                          if page and d.get("printed_page") else {})}
             continue
         cur["rows"].extend(d.get("rows") or [])
+        if page and d.get("printed_page"):
+            cur.setdefault("printed_by_page", {})[page] = d["printed_page"]
         if page:
             if page not in cur["pages"]:
                 cur["pages"].append(page)
@@ -4971,6 +5001,9 @@ def _note_index(details: list[dict]) -> dict[str, dict]:
             cur["title"] = d.get("title")
     for d in out.values():
         d["pages"] = sorted(d["pages"])
+        by_page = d.pop("printed_by_page", {}) or {}
+        d["printed_pages"] = [f for f in (by_page.get(pg) for pg in d["pages"]) if f]
+        d["printed_page"] = by_page.get(d.get("page")) if d.get("page") else None
     return out
 
 
@@ -5154,6 +5187,11 @@ def get_document_note(document_id: str, note_no: str, locale: str = Query("en"),
             # is one note (see ``_note_index``), and a reader sent to its first page needs to know
             # the rest of it is overleaf rather than missing.
             "pages": d.get("pages") or ([d["page"]] if d.get("page") else []),
+            # The folios for the same span, so the screen can CITE the note by the number printed
+            # on its page while still scrolling the viewer by ``page``. Empty when the filing
+            # printed none, which is the normal case for a spreadsheet.
+            "printed_page": d.get("printed_page"),
+            "printed_pages": d.get("printed_pages") or [],
             "linked_line": linked_key, "linked_label": linked_label,
             "rows": detail_rows,
             # Derived from exactly the value lists whose split_current_prior above produced v1/v2,
@@ -5176,6 +5214,8 @@ def get_document_note(document_id: str, note_no: str, locale: str = Query("en"),
         "no": note_no, "title": f"Note {note_no}",
         "page": (prov.get("page_index", 0) + 1) if prov else 0,
         "pages": [prov["page_index"] + 1] if prov else [],
+        "printed_page": (prov.get("printed_page") if prov else None),
+        "printed_pages": ([prov["printed_page"]] if prov and prov.get("printed_page") else []),
         "linked_line": linked_key, "linked_label": linked_label,
         "rows": detail_rows,
         # Same consolidated default `_cur_prior` uses for these fallback rows, so the header names

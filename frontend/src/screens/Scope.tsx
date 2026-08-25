@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 
 import { Button, Toggle, confReadout } from "../components/ui";
 import { EmptyState } from "../components/EmptyState";
+import { pageNames } from "../components/SourceViewer";
 import { SCREENS } from "./config";
 import {
   useDocumentPages, usePages, useProjectLoaded, useSetDocumentScope,
@@ -17,8 +18,9 @@ import type { PageCard } from "../types";
 
 /** Rendered preview of a single PDF page (side-by-side with the page grid). Fetches the PNG
  *  directly (like ExtractionView's PageSlot) — no bbox overlay needed here. */
-function PagePreview({ docId, pageIndex, t, onClose }:
-  { docId: string; pageIndex: number; t: (k: string) => string; onClose: () => void }) {
+function PagePreview({ docId, pageIndex, folio, t, onClose }:
+  { docId: string; pageIndex: number; folio?: string | null;
+    t: (k: string) => string; onClose: () => void }) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
     let obj: string | null = null;
@@ -32,7 +34,9 @@ function PagePreview({ docId, pageIndex, t, onClose }:
   return (
     <div style={{ flex: "0 0 360px", position: "sticky", top: 0, alignSelf: "flex-start" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-        <span style={{ fontSize: 12.5, fontWeight: 600 }}>{t("sc.preview")} · p.{pageIndex + 1}</span>
+        <span style={{ fontSize: 12.5, fontWeight: 600 }}>
+          {t("sc.preview")} · {pageNames(t, pageIndex, folio).badge}
+        </span>
         <button onClick={onClose}
           style={{ fontSize: 11, fontWeight: 600, color: color.sec, background: "none",
                    border: `1px solid ${color.controlBorder}`, borderRadius: 6, padding: "3px 9px", cursor: "pointer" }}>
@@ -116,7 +120,10 @@ function PageCardTile(
             color: color.faint,
           }}
         >
-          p.{p.no}
+          {/* Both numbers, labelled, exactly as the viewer's own badge does it — this tile IS a
+              page, so the position is meaningful here, and the folio is what the tile's image
+              shows. `p.printed` was already in this payload and was being dropped. */}
+          {pageNames(t, p.no - 1, p.printed).badge}
         </span>
       </div>
       {/* Body */}
@@ -288,6 +295,8 @@ export default function ScopeScreen() {
         </div>
         {usingReal && activeDocumentId && previewIndex !== null && (
           <PagePreview docId={activeDocumentId} pageIndex={previewIndex} t={t}
+                       folio={data.pages.find(
+                         (pg: PageCard) => pg.no === previewIndex + 1)?.printed ?? null}
                        onClose={() => setPreviewIndex(null)} />
         )}
       </div>

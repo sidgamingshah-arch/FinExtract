@@ -75,7 +75,9 @@ function RowLine({ row, t, onPick, loc }: {
           const ref = p
             ? p.source_kind === "spreadsheet" && p.sheet
               ? `${p.sheet}!${p.cell ?? ""}`
-              : `p.${p.page_index + 1}`
+              // The folio the filing printed, falling back to the sheet position. Same string the
+              // backend puts on a review card and in the export.
+              : `p.${p.printed_page || p.page_index + 1}`
             : null;
           const clickable = !!picked;
           return (

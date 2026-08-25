@@ -84,10 +84,22 @@ _EXPORT_TR = {
 
 
 def _prov_str(prov: dict | None) -> str:
+    """The source citation written into the workbook and the JSON — the same string the screen
+    shows, from the same field, deliberately.
+
+    It names the folio PRINTED on the page when the filing printed one, falling back to the sheet
+    position. An exported citation travels further than an on-screen one: it is read by someone who
+    has the PDF and not the app, so the only number that helps them is the one on the paper. Kept
+    character-for-character identical to ``api.routes.documents._prov_label`` — a workbook that
+    cites a page differently from the screen it was exported from is a support call.
+    """
     if not prov:
         return ""
     if prov.get("source_kind") == "spreadsheet" and prov.get("sheet"):
         return f"{prov['sheet']}!{prov.get('cell', '')}"
+    folio = prov.get("printed_page")
+    if folio:
+        return f"p.{folio}"
     return f"p.{(prov.get('page_index', 0) or 0) + 1}"
 
 

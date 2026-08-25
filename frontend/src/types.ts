@@ -438,7 +438,14 @@ export interface ProjectResponse {
 /** Provenance of an extracted value — sheet+cell (Excel) or page+bbox (PDF). */
 export interface ExtractionProvenance {
   source_kind: string;
+  /** The page's POSITION in the file, 0-based. The viewer's raster address, the input to the
+   *  review queue's judgement anchor, and what the page-scope selection is expressed in. */
   page_index: number;
+  /** The folio the PUBLISHER printed on that page — what a reader can look up, and what every
+   *  citation names. A sibling of `page_index`, never a replacement: the two differ by whatever
+   *  front matter the report has (measured across two real HK filings: 0 and 1). Null for a
+   *  spreadsheet and for a page whose footer could not be read. */
+  printed_page?: string | null;
   sheet: string | null;
   cell: string | null;
   label_cell: string | null;
@@ -1100,6 +1107,10 @@ export interface NoteDetail {
   page: number;
   /** Every page the note spans, ascending. One entry for a note printed on a single page. */
   pages?: number[];
+  /** The folio printed on the note's FIRST page, and the folios across its span — siblings of
+   *  `page`/`pages`, which stay sheet positions because the viewer navigates by them. */
+  printed_page?: string | null;
+  printed_pages?: string[];
   linked_line: string;
   linked_label: string;
   rows: NoteDetailRow[];

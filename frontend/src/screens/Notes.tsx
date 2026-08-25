@@ -65,6 +65,19 @@ function DetailRow({ row }: { row: NoteDetailRow }) {
  *  what the viewer beside it was showing. First and last only — a run of pages is contiguous, and
  *  listing every one of note 38's seven is noise. */
 function pageSpan(detail: NoteDetail): string {
+  // THE FOLIOS WHEN THE FILING PRINTED THEM, because a citation exists so a person can go and
+  // look, and the only number they can look up is the one on the paper. The sheet positions are
+  // the fallback and stay untouched in `detail.page`/`pages`, which the viewer navigates by.
+  //
+  // Compared as SHEET positions either way. A folio is a string and sorts lexicographically
+  // ('100' < '99'), so `printed_pages` is already in the order its sheet pages were sorted into
+  // and its ends are simply read off — never re-compared.
+  const folios = detail.printed_pages ?? [];
+  if (folios.length) {
+    const first = folios[0];
+    const last = folios[folios.length - 1];
+    return last !== first ? `${first}-${last}` : `${first}`;
+  }
   const pages = detail.pages && detail.pages.length ? detail.pages : [detail.page];
   const first = pages[0];
   const last = pages[pages.length - 1];
@@ -90,7 +103,7 @@ function Detail({ detail }: { detail: NoteDetail }) {
         <h1 style={{ fontSize: 19, fontWeight: 600, margin: 0 }}>{detail.title}</h1>
       </div>
       <div style={{ fontSize: 12, color: color.muted, marginBottom: 18 }}>
-        {t("n.extractedFrom")}{pageSpan(detail)} {t("n.linked")}{" "}
+        {t("n.extractedFrom").replace("{p}", pageSpan(detail))} {t("n.linked")}{" "}
         <a
           href="#"
           onClick={(e) => {
@@ -297,7 +310,7 @@ export default function NotesScreen() {
               <span>{t("n.sourceView")}</span>
               {detail && detail.page > 0 && (
                 <span style={{ color: "#aab1bc", fontWeight: 400 }}>
-                  · {t("n.sourcePage")} {pageSpan(detail)}
+                  · {t("n.sourcePage").replace("{p}", pageSpan(detail))}
                 </span>
               )}
             </div>
