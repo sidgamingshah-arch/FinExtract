@@ -29,7 +29,11 @@ from decimal import Decimal
 
 from app.core.models import DocumentModel
 from app.core.models.enums import LineRole
-from app.core.models.reports import ReconciliationEntry, ReconciliationReport
+from app.core.models.reports import (
+    NoteBlockSubtotalCheck,
+    ReconciliationEntry,
+    ReconciliationReport,
+)
 from app.core.stage import PipelineContext
 from app.services.reconcile import (
     TIE_TIED,
@@ -54,6 +58,84 @@ def _note_value(item, basis, period_label) -> Decimal | None:
     return None
 
 
+def _check_block_subtotals(doc, report: ReconciliationReport, tol_abs, tol_rel, log) -> None:
+    """Check every subtotal a note printed on a bare line against the rows it totals.
+
+    THE ONE CHECK THAT NEEDS NO TEMPLATE AND NO MAPPING. A template rollup compares a face subtotal
+    to the components the rulebook declares; a note tie compares a note's total to a face figure.
+    Both need extraction to have RECOGNISED the lines first. This compares a figure the filing
+    printed to the figures printed directly above it, inside one note — so it corroborates numbers
+    the rulebook has never heard of, which is most of what a note contains.
+
+    It matters most exactly where §20 reads a note. That split re-derives a block's total by summing
+    the block's detail rows, and nothing compared that sum to the total the filing printed underneath
+    them: agreement was assumed. On the measured filing they do agree, and now that is a verified
+    fact rather than a coincidence nobody checked.
+
+    THE MEMBERS ARE TOLD TO US, NOT GUESSED. `component_ordinals` is recorded by the reconstruction
+    that promoted the row, off the rows it actually counted. Re-deriving them here from `group_hint`
+    equality was tried and was wrong twice over: a sub-heading's scope is not closed at the end of
+    its block, so rows printed AFTER the block still carry it and were pooled into the sum; and two
+    blocks in one note can carry the SAME heading (a "Current tax:" under Group and another under
+    Company), so the caption is not an identity in the first place. Both produced a "does not add up"
+    assertion on a note that adds up, which is worse than not checking.
+
+    ONLY A ROW WHOSE CAPTION WAS BORROWED from its block, which is the only row claiming to be the
+    sum of the rows above it. A note's SUBTOTAL role also arrives from `notes_extract.note_row_role`,
+    read off the printed caption — and a row the filing captioned "Sub-total" inside an effective-rate
+    RECONCILIATION is not a sum of anything: that table derives a charge from profit before tax, so
+    summing the rows above it produces a difference of the whole profit figure. A schedule that
+    derives is not a schedule that adds.
+
+    RUN BEFORE THE ``doc.links`` EARLY EXIT, and this is not incidental. A note's internal arithmetic
+    is checkable whether or not any face line happens to cite that note — a filing whose face cites
+    nothing still publishes notes that add up or do not. Putting this after the exit would silently
+    skip every note in exactly the runs where the face gave us least.
+    """
+    for note in doc.notes:
+        by_ordinal = {it.ordinal: it for it in note.items}
+        for it in note.items:
+            if it.role is not LineRole.SUBTOTAL or not it.caption_borrowed:
+                continue
+            components = [by_ordinal[o] for o in it.component_ordinals if o in by_ordinal]
+            if len(components) < 2:
+                # Nothing to check it against — the rows were pruned, or the builder counted fewer
+                # than it filed. Not reported as a pass: a check that could not run must never read
+                # as one that ran and held.
+                continue
+            for ev in it.values.values():
+                printed = ev.value if ev.value is not None else ev.value_raw
+                if printed is None or ev.period_label not in _TIE_PERIODS:
+                    continue
+                parts = [_note_value(c, ev.basis, ev.period_label) for c in components]
+                parts = [v for v in parts if v is not None]
+                # EVERY component must carry this column, not merely some. A block whose rows are
+                # ragged in a period — one row printing a figure only for the prior year — has no
+                # sum to compare, and a partial sum would report a break the page does not contain.
+                if len(parts) != len(components):
+                    continue
+                printed_d, computed = Decimal(printed), sum(parts)
+                diff = printed_d - computed
+                report.note_block_subtotals.append(NoteBlockSubtotalCheck(
+                    note_number=note.note_number or "", block=it.group_hint or "",
+                    basis=ev.basis.value, period_label=ev.period_label,
+                    printed=printed_d, computed=computed, difference=diff,
+                    within_tolerance=abs(diff) <= tolerance(printed_d, tol_abs, tol_rel),
+                    component_count=len(components)))
+
+    checks = report.note_block_subtotals
+    broken = [c for c in checks if not c.within_tolerance]
+    for c in broken:
+        report.failed_assertions.append(
+            f"Note {c.note_number} block {c.block!r} does not add up "
+            f"({c.basis}/{c.period_label}): printed {c.printed}, components sum to {c.computed} "
+            f"(difference {c.difference})")
+    if log and checks:
+        # Counted separately from the note→face ties below. They are different claims, and one
+        # number covering both would let a run with no face ties at all read as validated.
+        log(f"reconcile:block_subtotals={len(checks)} broken={len(broken)}")
+
+
 class ReconcileStage:
     name = "reconcile"
 
@@ -64,6 +146,9 @@ class ReconcileStage:
         corroboration = Decimal(str(getattr(ex, "recon_corroboration_rel", "0.05")))
 
         report = ReconciliationReport()
+        # BEFORE the early exit: see `_check_block_subtotals`. A note either adds up or it does
+        # not, and that is true of a filing whose face cites no note at all.
+        _check_block_subtotals(doc, report, tol_abs, tol_rel, ctx.log)
         if not doc.links:
             doc.reconciliation = report
             ctx.log("reconcile:no_links")

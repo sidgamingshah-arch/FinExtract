@@ -512,7 +512,19 @@ def _serialize_notes(doc_model) -> list[dict]:
             # Carry the row's role (line/subtotal/total) and mapping confidence so the notes
             # detail renders subtotal/total emphasis and a per-row confidence badge.
             rows.append({"label": it.raw_label, "role": it.role.value,
-                         "confidence": it.confidence.overall, "values": values})
+                         "confidence": it.confidence.overall, "values": values,
+                         # THE SUB-HEADING, AND WHETHER THIS ROW'S CAPTION IS ITS OWN.
+                         #
+                         # A note's block subtotal is printed on a bare line, so reconstruction
+                         # gives it the block's heading — a caption that appears nowhere on the page
+                         # in that position. Served unmarked it is indistinguishable from a printed
+                         # one, which is a small lie to the reader; and `note_block_subtotals` names
+                         # its block by this same `group_hint`, so without it a consumer of that
+                         # list has no key to find the block or its rows in this payload.
+                         "group": it.group_hint,
+                         "caption_borrowed": it.caption_borrowed,
+                         "component_ordinals": list(it.component_ordinals),
+                         "ordinal": it.ordinal})
         page = (nt.source_pages[0] if nt.source_pages else 0)
         # ``page`` stays the 1-based SHEET position: the Notes screen turns it straight back into an
         # index to scroll the viewer and to size the page stack. ``printed_page`` is the folio, a
@@ -749,6 +761,14 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
             "note_details": _serialize_notes(doc_model),
             "disclosures": disclosures,
             "reconciliation": ([e.model_dump(mode="json") for e in recon.entries] if recon else []),
+            # A note's OWN arithmetic: a block subtotal the filing printed on a bare line, against
+            # the rows above it. Served separately from `reconciliation` because it is a different
+            # claim — no face line takes part, and it is evaluated whether or not any face line
+            # cites the note. Serialized rather than only logged: the §20 split re-derives a block's
+            # total by summing the block's details, and the whole point of recovering the printed
+            # figure is that a disagreement reaches a person instead of a log line nobody reads.
+            "note_block_subtotals": ([c.model_dump(mode="json")
+                                      for c in recon.note_block_subtotals] if recon else []),
             # Template-structure validation: relations checked (pass/fail) AND the ones that
             # could not be checked, so partial coverage is visible rather than implied.
             "structural": ([r.model_dump(mode="json") for r in structural.results]

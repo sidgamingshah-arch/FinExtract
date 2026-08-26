@@ -32,9 +32,52 @@ class ReconciliationEntry(BaseModel):
     relationship: str
 
 
+class NoteBlockSubtotalCheck(BaseModel):
+    """A subtotal a note printed on a bare line, against the block's own rows.
+
+    This is arithmetic the FILING published, checked against itself, and it is a different claim
+    from every other check in the system: a template rollup compares a face subtotal to the
+    components the RULEBOOK declares, and a note tie compares a note's total to a face figure.
+    This one compares a printed figure to the rows printed above it, inside one note, with no
+    template and no mapping involved — so it is the only check that can corroborate a number the
+    rulebook has never heard of.
+
+    It matters most where the §20 decomposition reads a note: that split re-derives a block's total
+    by SUMMING the block's details, and until this check existed nothing compared that sum to the
+    figure the filing itself printed underneath them. Agreement was assumed; now it is verified, and
+    a disagreement is served with the run (`note_block_subtotals`, plus a line in
+    `failed_assertions`) instead of the computed figure standing in silently. It does not raise a
+    review-queue card of its own yet — see ``stages.reconcile._check_block_subtotals``.
+    """
+
+    note_number: str
+    # The sub-heading whose block this is, as printed ("Current tax:"). Named by the caption rather
+    # than by a row id: a row id is a per-run UUID, and a reader comparing two runs needs the same
+    # block to be the same block.
+    block: str
+    basis: str
+    period_label: str
+    printed: Decimal
+    computed: Decimal
+    # Kept even though it is exactly `printed - computed`. Every other check in the system reports
+    # its own difference (`RuleResult.difference`, `ReconciliationEntry.residual`), and a consumer
+    # that had to subtract these two itself would be the one place that re-derives a figure the
+    # producer already knows — which is how two screens come to disagree about the same break.
+    difference: Decimal
+    within_tolerance: bool
+    # How many of the block's rows the sum is over. Always at least two — a block with fewer is not
+    # recorded at all, because a check that could not run must never read as one that ran and held.
+    # Reported anyway, because "printed 1,200 = 600 + 600" and "printed 1,200 = the sum of nine
+    # rows" are different amounts of corroboration and the reader cannot see the rows from here.
+    component_count: int
+
+
 class ReconciliationReport(BaseModel):
     entries: list[ReconciliationEntry] = Field(default_factory=list)
     failed_assertions: list[str] = Field(default_factory=list)
+    # Kept separate from `entries`, which are note→FACE ties. These never involve a face line, are
+    # evaluated whether or not any face line cites the note, and answer a different question.
+    note_block_subtotals: list[NoteBlockSubtotalCheck] = Field(default_factory=list)
 
 
 class RuleResult(BaseModel):

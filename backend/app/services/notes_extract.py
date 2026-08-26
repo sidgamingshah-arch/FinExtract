@@ -182,13 +182,23 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
             continue
         table = NotesTable(note_number=sec["no"], title=sec["title"], source_pages=[page_index])
         for li in items:
-            # THE ROW BUILDER'S ROLE IS ALWAYS ``LINE`` — both ``LineItem`` construction sites in
-            # ``row_reconstruct`` hardcode it, and the promotion that would change it runs in
-            # ``map_ontology``, which never sees a note. So the caption decides it here instead of
-            # a field that cannot know. ``li.role`` is still honoured when it says something other
-            # than LINE, so a future builder that does classify a row is not overridden.
+            # THE CAPTION DECIDES THE ROLE, EXCEPT WHERE THE BUILDER ALREADY KNEW. Almost every
+            # row reaches here as ``LINE`` — the promotion that classifies a face row runs in
+            # ``map_ontology``, which never sees a note — so the printed caption is what is left to
+            # read it from. The one exception is a row whose caption the builder SYNTHESISED: a
+            # note's block subtotal is printed on a bare line, and ``row_reconstruct`` gives it the
+            # block's heading and the SUBTOTAL role, because the synthesised caption cannot be
+            # re-read to recover what the geometry told it. ``li.role`` therefore wins whenever it
+            # says anything other than LINE.
             role = li.role if li.role is not LineRole.LINE else note_row_role(li.source_label)
             ni = NoteItem(raw_label=li.source_label, ordinal=li.ordinal, role=role,
+                          # Carried, not re-derived: the caption on such a row is indistinguishable
+                          # from a row the filing captioned itself, and the note-internal arithmetic
+                          # check only acts on the rows that claim to total the ones above them.
+                          caption_borrowed=li.caption_borrowed,
+                          # The rows the builder counted, so the arithmetic check does not have to
+                          # guess them from a caption that is not an identity.
+                          component_ordinals=list(li.component_ordinals),
                           section_hint=li.section_hint, group_hint=li.group_hint,
                           provenance=li.values and next(iter(li.values.values())).provenance or None)
             for ev in li.values.values():

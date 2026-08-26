@@ -2285,6 +2285,29 @@ def _maybe_matrix(words: list[Word], *, statement: str | None,
     return m, _matrix_column_names(m)
 
 
+# How far a figure's RIGHT EDGE may sit from a column's, as a fraction of page width, and still be
+# the same column. Financial columns are right-aligned, so the right edge is the stable one — the
+# left edge moves with every digit.
+#
+# THE THIRD SAME-COLUMN TOLERANCE IN THIS FILE, and named separately on purpose, because it answers
+# a different question from the other two. `_COL_TOL` is the comparative path's CENTRE tolerance;
+# `_MATRIX_COL_TOL` (0.012) is the matrix path's right-edge tolerance, for clustering the cells of a
+# grid whose columns are already known to exist. This one asks whether ONE figure belongs to a
+# column established by two or three rows above it, with no grid to fall back on, so it is
+# deliberately looser: 0.02 of an A4 width is about 12pt — wider than the drift between two
+# right-aligned numbers, and far narrower than the gap between two period columns of a statement
+# (the measured filing's are 0.08 apart). One name per meaning, as `_MATRIX_COL_TOL`'s own comment
+# insists; tuning one of the three says nothing about the others.
+_COLUMN_EDGE_SLACK = 0.02
+
+# How far inboard of its heading a row must start to be INSIDE that heading's block, as a fraction
+# of page width. A block's details are indented; a row set flush with the caption has left it. The
+# measured filing indents by 12pt against an A4 width, so ~0.02 — this is half of that, small enough
+# that a filing indenting less still parses and large enough that sub-pixel drift on a row that is
+# genuinely flush does not read as an indent.
+_INDENT_MIN = 0.01
+
+
 def build_line_items(words: list[Word], *, page_index: int, document_id: str | None,
                      source_kind: str, ordinal_start: int = 0,
                      number_format=None, statement: str | None = None,
@@ -2458,6 +2481,28 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     # the line above it. So the sub-heading is carried as its own field, available to a reader that
     # has failed on the caption, and it never touches the section gate.
     group: str = ""
+    # WHICH VALUED ROWS THIS SUB-HEADING HAS GATHERED — their ordinals, not just a count. An
+    # uncaptioned figure below them is readable as their subtotal, and the row that gets promoted
+    # CARRIES THIS LIST so nothing downstream has to guess which rows it totals. Guessing was a
+    # defect: a sub-heading's scope is not closed at the end of its block, so a reader re-deriving
+    # the members from `group_hint` pooled in rows printed after the block and called a correct note
+    # broken.
+    #
+    # Two is the bar. One detail row plus a figure underneath it is just as likely a wrapped value or
+    # a comparative printed on its own line, and there is nothing for a subtotal to be a subtotal OF.
+    #
+    # MEMBERSHIP IS BY INDENT, measured against the heading's own left edge. A block's details are
+    # printed inboard of the caption that introduces them, and a row set flush with it has left the
+    # block whatever `group` still says — which is the difference between "Hong Kong 1,000" and the
+    # top-level "Deferred tax 5,000" two lines further down. Without it a flush row joined the sum.
+    block_ordinals: list[int] = []
+    # The RIGHT EDGES of the figures already filed under this sub-heading, which is what an
+    # uncaptioned figure has to line up with to be read as their total. See the promotion below.
+    block_value_x1s: list[float] = []
+    # The sub-heading's own left edge and label box: the first decides membership by indent, the
+    # second becomes the promoted row's `label_bbox`, since the caption it is given is the heading's.
+    group_x0: float | None = None
+    group_label_bbox: BBox | None = None
     for row in rows:
         label_words, note_ref, value_words = _scan_row(row, number_format)
         note_ref, value_words = _resolve_note_column(note_ref, value_words, note_x, number_format)
@@ -2471,6 +2516,91 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                 section = merged_banner
                 group = ""
         label = _join_words(_regroup_scripts(label_words))
+
+        # A FIGURE WITH NO CAPTION, DIRECTLY UNDER A BLOCK IT TOTALS.
+        #
+        # A note prints an intermediate subtotal on a bare line. The real filing's tax note is the
+        # measured case: "Current tax:" heads two detail rows, and the block's total is printed
+        # under them with no caption of its own, because the caption is the sub-heading two rows up
+        # and a typesetter does not repeat it.
+        #
+        # It was DROPPED, and by the first arm of the predicate below. That predicate was written
+        # for the label-only banner case (`not value_words`); the `not label` arm swept in the
+        # OPPOSITE shape — numeric columns, no caption — into a branch whose only escape is guarded
+        # by `label and caption`, both empty here, so control always reached the bare `continue`.
+        # The figure was never parsed, never given a `Provenance`, never appended: after that line
+        # it did not exist.
+        #
+        # It was recovered only INCIDENTALLY, and by coincidence. `map_ontology`'s §20 split
+        # re-derives the same number from `group_hint` by summing the block's detail rows, so on
+        # this one note the printed figure and the computed one agree — but that is a sum of
+        # components, not the figure the filing printed, it carries no box of its own to click, and
+        # it only happens at all for an aggregate the rulebook marks `decomposition_allowed`. Every
+        # other uncaptioned block subtotal in every other note was simply gone.
+        #
+        # THE ROLE IS THE LOAD-BEARING HALF, not the recovery. Filed as a `LINE` — the value both
+        # construction sites here hardcode — this row is a detail of its own block, and two live
+        # readers act on that:
+        #
+        #   * `stages/reconcile.py` excludes SUBTOTAL/TOTAL from a note's details precisely so a
+        #     note's own total is not added to the rows it totals. As a LINE the 3,000 joins the
+        #     1,000 and 2,000 it sums, and the note tie regrades to `unconfirmed`.
+        #   * `map_ontology`'s decomposition skips anything whose role is not LINE. As a LINE this
+        #     row ALSO resolves through the `group_hint` fallback, `_summed_columns` doubles, the
+        #     orientation search finds a column unaccounted for, and the whole §20 split declines.
+        #
+        # So "stop dropping it" on its own destroys the recovery it was meant to make principled.
+        # `notes_extract` already honours a builder role other than LINE, and it has to come from
+        # here: the synthesised caption cannot be re-read to recover it.
+        #
+        # NARROW ON PURPOSE. Notes only (`on_face` false) — a note is where an uncaptioned block
+        # subtotal is printed, while a bare number on a statement face is far likelier a stray. A
+        # block must actually be open, and have gathered at least two valued rows. The figure must
+        # sit under one of the page's own value columns, so a note reference in a narrow left
+        # column is not promoted into a total. And `_is_noise_row` still runs, so a date fragment
+        # or page chrome under an open block is refused like any other row.
+        promoted = False
+        # `group` is not tested here: members only accumulate under a heading, so two of them imply
+        # one. Testing both would be a guard that cannot fire, which this file has removed before.
+        if value_words and not label and not on_face and len(block_ordinals) >= 2:
+            # IN THE SAME COLUMN AS THE ROWS IT TOTALS, measured against those rows rather than
+            # against the page. Financial columns are right-aligned, so the RIGHT edge is what a
+            # column shares and the left edge is not (it moves with the digit count).
+            #
+            # Compared to the BLOCK's own figures, not to the page's `value_bands`, and that is what
+            # makes it a guard rather than a decoration: the bands need several rows of agreeing
+            # evidence before they report a column at all, so on a short table they are empty and a
+            # test written against them is inert exactly where a note is smallest. (A band test was
+            # written here first and then removed — deleting it left the whole suite green, which is
+            # the definition of a guard that is not one. Its stated job, rejecting a figure that
+            # shares an edge but sits outside every column, is unreachable in any case: the band
+            # tolerance is wider than this slack, so anything passing here is already inside a
+            # band.) A note reference printed in its own narrow column to the left has no edge in
+            # common with the block and is refused.
+            aligned = any(abs(w.bbox.x1 - x1) <= _COLUMN_EDGE_SLACK
+                          for w in value_words for x1 in block_value_x1s)
+            # A PERIOD HEADER THAT LEAKED IN AS A ROW is the one thing an open block above it must
+            # not turn into a total, and the general noise test cannot be used for it here: called
+            # with the empty label this row still has, `_is_noise_row`'s label-less arm fires on
+            # ANY row whose every figure is 1-31 or 1990-2099 — so it silently refused legitimate
+            # subtotals of 30, or of 1,995 in thousands, which is routine in a note reported in
+            # millions. Narrowed to the bare year, which is what a leaked column heading actually
+            # is. The row still faces the full noise test below, under the caption it ends up with.
+            bare_vals = [d for d in (_num(w.text, number_format) for w in value_words)
+                         if d is not None]
+            all_years = bool(bare_vals) and all(1990 <= abs(int(v)) <= 2099
+                                                for v in bare_vals if int(v) == v)
+            if aligned and not all_years:
+                # THE BLOCK'S OWN CAPTION, AS THE FILING PRINTED IT, and nothing appended. An
+                # earlier version appended the English word "subtotal", which put untranslated
+                # English inside a caption whose other half is the filing's words — "本年度即期稅項
+                # — subtotal" on a Chinese filing, shipped verbatim to a screen rendering in zh.
+                # Every other note row's label is the filing's own text and this one is too. What
+                # says the row is a total is its ROLE, and what says the caption was taken from
+                # elsewhere on the page is `caption_borrowed`; neither needs a word in one language.
+                label = group.rstrip(":：")
+                promoted = True
+
         if not label or not value_words:
             # A label-only banner ("NON-CURRENT LIABILITIES", 流動負債) carries no amount, but it
             # scopes every row beneath it — the same caption under two banners is two different
@@ -2516,6 +2646,14 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                     group = ""          # a new section ends the sub-heading's scope
                 else:
                     group = label
+                # THE ONE BOUNDARY THAT DECIDES ANYTHING, and three others were removed for saying
+                # so falsely: a promotion needs members, and members only accumulate under a
+                # heading, so a reset paired with `group = ""` is code a reader reasons about for
+                # nothing (each was deleted individually and the suite stayed green). A new block
+                # starts with no rows behind it, no column edges, and this heading's geometry.
+                block_ordinals, block_value_x1s = [], []
+                group_label_bbox = _union([w.source_bbox for w in label_words])
+                group_x0 = min((w.bbox.x0 for w in label_words), default=None)
             continue
 
         # Drop running-header / statement-title / period-caption lines that leaked in as rows
@@ -2534,9 +2672,24 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             section = head.strip()
             group = ""
 
-        li = LineItem(source_label=label, ordinal=ordinal, role=LineRole.LINE,
+        # SUBTOTAL only for the row this builder itself promoted. Deliberately not inferred from
+        # the caption: a caption test broad enough to catch "Total current tax" also catches
+        # "Total return on funds", which is a detail line, and demoting a detail out of a note's
+        # details breaks the note→face tie it belongs to. The promoted row is the one case where
+        # this function KNOWS, because it is the one it synthesised the caption for.
+        li = LineItem(source_label=label, ordinal=ordinal,
+                      role=LineRole.SUBTOTAL if promoted else LineRole.LINE,
+                      caption_borrowed=promoted,
+                      component_ordinals=list(block_ordinals) if promoted else [],
                       section_hint=section, group_hint=group, source=ValueSource.MACHINE)
-        label_bbox = _union([w.source_bbox for w in label_words])
+        # THE HEADING'S BOX FOR A BORROWED CAPTION. A promoted row has no label words of its own, so
+        # this was None — and `_prov_anchor` then falls back to the value box's vertical band alone,
+        # which two sub-tables printed on one baseline share. The judgement layer refuses to attribute
+        # an acceptance to a shared anchor, so the one note row a reviewer is most likely to correct
+        # would have been the one whose verdict could not be recorded. The caption is the heading's,
+        # so the heading's box is the honest one to cite.
+        label_bbox = (group_label_bbox if promoted
+                      else _union([w.source_bbox for w in label_words]))
         # Place each value in its own column within its basis — by the column's period when the
         # page has columns, else by the order the figures are printed in.
         per_basis: dict[Basis, int] = {}
@@ -2583,6 +2736,39 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             li.note_number = note_ref
         items.append(li)
         ordinal += 1
+        # A BLOCK'S MEMBERS END AT ITS SUBTOTAL, but `group` IS LEFT ALONE.
+        #
+        # Clearing it was tried and reverted. It looked right — the tax note prints "Deferred tax"
+        # straight after the current-tax subtotal with no sub-heading of its own — but the same
+        # assignment fires for a row that is still INDENTED under the heading, and `group_hint` is
+        # the only thing that gives such a row a meaning (a bare "Mainland China" is a geography
+        # until the line above it makes it a tax figure; see the comment where `group` is declared).
+        # Stripping it there would have taken the mapper's fallback away from exactly the rows that
+        # need it, so this change alters no row's scope. Whether a row after the subtotal is still in
+        # the block is a question about INDENT, and it is answered below for membership only.
+        #
+        # Emptying the member list is what stops a second bare figure promoting against a block that
+        # has already been totalled.
+        if promoted:
+            block_ordinals, block_value_x1s = [], []
+        elif not on_face and group_x0 is not None and label_words:
+            # A MEMBER OF THE BLOCK ONLY IF IT IS INDENTED INBOARD OF THE HEADING. A block's details
+            # are printed inside the caption that introduces them; a row set flush with it has left
+            # the block whatever `group` still says. Without this test the top-level "Deferred tax
+            # 5,000" two lines below a "Current tax:" block joined that block's sum, and the bare
+            # figure underneath was then reported as not adding up — a break invented by the reader,
+            # in a note that is correct.
+            #
+            # A flush-set block layout therefore recovers nothing, and that is the intended trade:
+            # accepting the first detail row's own edge as the block's indent would fix it and
+            # immediately reintroduce the worse failure, since there would be no outdent left to end
+            # the block on and it would swallow the next category.
+            #
+            # Nothing at all on a statement FACE, which is where nearly every row in a filing is:
+            # the promotion cannot fire there, so this bookkeeping is work for a closed branch.
+            if min(w.bbox.x0 for w in label_words) > group_x0 + _INDENT_MIN:
+                block_ordinals.append(ordinal - 1)      # `ordinal` was incremented just above
+                block_value_x1s.extend(w.bbox.x1 for w in value_words)
     return items, ordinal
 
 

@@ -142,7 +142,8 @@ def make_tax_note_split_pdf() -> bytes:
     return buf.getvalue()
 
 
-def make_hkex_tax_note_pdf() -> bytes:
+def make_hkex_tax_note_pdf(*, bare_block_subtotal: bool = False,
+                           with_rate_reconciliation: bool = True) -> bytes:
     """THE REAL SHAPE of an HKEX tax note, which the round-numbered fixture above does not have.
 
     Reproduced from a filing whose tax note the split could not read, and every awkward thing in
@@ -152,6 +153,14 @@ def make_hkex_tax_note_pdf() -> bytes:
       a deduction — "(1,000)" — because the template's own rollup makes profit for the year the
       SUM of profit before tax and the tax line. The note is a schedule of a charge, so it prints
       the charge as a positive amount. The components can only be read against the face's sign.
+    TWO FLAGS CHANGE WHAT THIS PRINTS, and the properties below are stated for the defaults.
+    ``bare_block_subtotal=True`` inserts the current-tax block's own total on an UNCAPTIONED line
+    (1,200 in both columns — 600 + 600 and 700 + 500), which is the shape
+    ``make_note_with_bare_block_subtotal_pdf`` needs; the ground truth at the end of this docstring
+    is unchanged by it, since a printed subtotal of rows already counted adds nothing to the total.
+    ``with_rate_reconciliation=False`` omits the continuation page described immediately below, so
+    the third bullet does not apply to a fixture built that way.
+
     * THE NOTE SPANS TWO PAGES and the continuation is a DIFFERENT TABLE — the effective-rate
       reconciliation, a derivation from profit before tax down to the same charge, not a
       decomposition of it. It restates components under their own captions -- which is exactly what
@@ -201,17 +210,31 @@ def make_hkex_tax_note_pdf() -> bytes:
     c.setFont("Helvetica", 10)
     c.drawString(72, height - 100, "11. Income tax")
     y = height - 124
-    for label, cur, prior, indent in [
-            ("Current charge for the year:", "", "", 0),
-            ("PRC corporate income tax", "600", "700", 12),
-            ("PRC land appreciation tax (\u201cLAT\u201d)", "600", "500", 12),
-            ("Under-provision in prior years, net:", "", "", 0),
-            ("Mainland China", "400", "\u2013", 12),
-            ("Deferred tax credited for the year (note 32)", "(600)", "(300)", 0),
-            ("Total tax charge for the year", "1,000", "900", 0)]:
+    note_rows = [
+        ("Current charge for the year:", "", "", 0),
+        ("PRC corporate income tax", "600", "700", 12),
+        ("PRC land appreciation tax (\u201cLAT\u201d)", "600", "500", 12),
+    ]
+    if bare_block_subtotal:
+        # THE BLOCK'S OWN TOTAL, ON A LINE WITH NO CAPTION — the shape a typesetter produces when
+        # the sub-heading is two rows up and repeating it would be noise. 600 + 600 and 700 + 500,
+        # so it is 1,200 in BOTH columns: deliberately not equal to either period's current tax
+        # (1,600 / 1,200), so a reader comparing it to the wrong thing cannot pass by coincidence in
+        # the current column.
+        note_rows.append(("", "1,200", "1,200", 12))
+    note_rows += [
+        ("Under-provision in prior years, net:", "", "", 0),
+        ("Mainland China", "400", "\u2013", 12),
+        ("Deferred tax credited for the year (note 32)", "(600)", "(300)", 0),
+        ("Total tax charge for the year", "1,000", "900", 0),
+    ]
+    for label, cur, prior, indent in note_rows:
         row(y, label, cur, prior, indent)
         y -= 22
     c.showPage()
+    if not with_rate_reconciliation:
+        c.save()
+        return buf.getvalue()
 
     # The continuation: a DERIVATION, not a decomposition. Same note number, different table.
     c.setFont("Helvetica-Bold", 14)
@@ -1305,3 +1328,20 @@ def make_comparative_pdf() -> bytes:
     c.showPage()
     c.save()
     return buf.getvalue()
+
+
+def make_note_with_bare_block_subtotal_pdf() -> bytes:
+    """The same tax note, with the current-tax block CARRYING ITS OWN TOTAL on an uncaptioned line.
+
+    Not a second copy of the layout: ``make_hkex_tax_note_pdf`` takes the flag, so the column
+    positions, the row pitch and the face wording the classifier keys on are defined once. Two
+    fixtures that drifted apart in those would be two different tests of two different products.
+
+    The effective-rate continuation page is left OFF here. That page is the other fixture's subject
+    — it is a derivation, and it exists to prove the split reads the decomposition table rather than
+    pooling both — and this fixture is about a block inside the first table. Keeping it would mean
+    every failure needed disentangling from the pooling question. The ground truth of the first
+    table is identical either way: current tax 600 + 600 + 400 = 1,600, deferred (600), total 1,000
+    printed on the face as (1,000); prior 700 + 500 = 1,200, deferred (300), total 900.
+    """
+    return make_hkex_tax_note_pdf(bare_block_subtotal=True, with_rate_reconciliation=False)

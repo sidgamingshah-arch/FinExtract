@@ -154,6 +154,24 @@ def extract_workbook(data: bytes, *, document_id: str | None = None, log=None,
                 if label_col >= len(row):
                     continue
                 label = row[label_col]
+                # A BLANK-LABEL ROW IS STILL DROPPED HERE, and the asymmetry with the PDF path is
+                # deliberate rather than an oversight. `row_reconstruct` recovers such a row inside a
+                # NOTE by giving it the block's sub-heading; neither half of that is available here:
+                #
+                #   * this reader has no notes scope at all — `extract_workbook` emits face items for
+                #     every sheet and nothing populates `doc.notes` from a workbook — so the
+                #     `on_face` restriction that bounds the risk on the PDF side has no analogue, and
+                #   * it tracks no sub-heading, so there is no block for a row to borrow an identity
+                #     from even if one were wanted.
+                #
+                # And the shape is genuinely ambiguous here in a way it is not on a page: openpyxl in
+                # read-only mode returns None for the non-anchor cells of a VERTICALLY MERGED label,
+                # so a merged caption produces blank-label rows carrying real figures in the same
+                # column as the row above — indistinguishable, on this reader's information, from a
+                # bare subtotal. Promoting them would fabricate a duplicate subtotal of the row above.
+                #
+                # The consequence to be honest about: a spreadsheet filing gets no note-internal
+                # arithmetic checks, so "no blocks disagreed" there means "no blocks were checked".
                 if not isinstance(label, str) or not label.strip():
                     continue
                 label = label.strip()

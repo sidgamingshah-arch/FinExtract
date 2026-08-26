@@ -117,6 +117,19 @@ class LineItem(BaseModel):
     # note itemising an under-provision by geography prints a row whose caption is "Mainland China",
     # and only the sub-heading says what the figure is.
     group_hint: str = ""
+    # THIS ROW'S CAPTION IS NOT THE FILING'S OWN. A note prints a block's total on a bare line —
+    # the caption is the sub-heading two rows up, and a typesetter does not repeat it — so
+    # reconstruction gives the row that heading and says here that it did. Two readers need to know:
+    # a reader deciding whether this row's arithmetic may be checked against the rows above it (only
+    # a borrowed caption means "I am their total"), and a person looking at a caption that does not
+    # appear on the page in that position.
+    caption_borrowed: bool = False
+    # THE ROWS THIS SUBTOTAL IS THE TOTAL OF, by their ordinal on the page, recorded by the
+    # reconstruction that promoted the row. NOT re-derived downstream from `group_hint`: a
+    # sub-heading's scope is not closed at the end of its block, so rows printed after it still
+    # carry it — and re-deriving pooled those rows into the sum and reported an arithmetically
+    # correct note as broken. The builder knows exactly which rows it counted; this is that list.
+    component_ordinals: list[int] = Field(default_factory=list)
     canonical_key: str | None = None
     template_node_id: str | None = None
     ordinal: int = 0
@@ -238,6 +251,19 @@ class NoteItem(BaseModel):
     # is where breakdown-dimension captions live ("Mainland China", "Third parties"), so this is
     # the field that carries their meaning.
     group_hint: str = ""
+    # THIS ROW'S CAPTION IS NOT THE FILING'S OWN. A note prints a block's total on a bare line —
+    # the caption is the sub-heading two rows up, and a typesetter does not repeat it — so
+    # reconstruction gives the row that heading and says here that it did. Two readers need to know:
+    # a reader deciding whether this row's arithmetic may be checked against the rows above it (only
+    # a borrowed caption means "I am their total"), and a person looking at a caption that does not
+    # appear on the page in that position.
+    caption_borrowed: bool = False
+    # THE ROWS THIS SUBTOTAL IS THE TOTAL OF, by their ordinal on the page, recorded by the
+    # reconstruction that promoted the row. NOT re-derived downstream from `group_hint`: a
+    # sub-heading's scope is not closed at the end of its block, so rows printed after it still
+    # carry it — and re-deriving pooled those rows into the sum and reported an arithmetically
+    # correct note as broken. The builder knows exactly which rows it counted; this is that list.
+    component_ordinals: list[int] = Field(default_factory=list)
     provenance: Provenance | None = None
     confidence: ConfidenceVector = Field(default_factory=ConfidenceVector)
 
