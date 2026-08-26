@@ -1,15 +1,20 @@
 """Identity for a human judgement on a review finding — content-derived, never id-derived.
 
 A reviewer who examines a finding and records that the figures stand is making a claim about
-WHAT was on the card, not about where that card happened to sit in a list. Two of the eight
-review-check builders key their ``id`` on the ROW INDEX of the extracted line
-(``chk-unmapped-{i}`` and ``chk-lowconf-{i}``, api/routes/documents.py:715 and :729), and a row
-index moves whenever extraction composition changes — one more line reconstructed, one fewer
-heading suppressed, a different page order. An id-keyed acceptance would then silently land on a
-DIFFERENT line item after a re-run, marking a real problem as vouched for by a named person who
-never saw it. That is strictly worse than having no acceptance mechanism at all, so identity here
-is the sha256 of the finding's canonicalized SUBJECT — the semantic thing being judged — and
-never the check id.
+WHAT was on the card, not about where that card happened to sit in a list. The row-shaped check
+builder keys its ``id`` on the ROW INDEX of the extracted line — ``chk-unmapped-{i}`` — and a row
+index moves whenever extraction composition changes: one more line reconstructed, one fewer heading
+suppressed, a different page order. An id-keyed acceptance would then silently land on a DIFFERENT
+line item after a re-run, marking a real problem as vouched for by a named person who never saw it.
+That is strictly worse than having no acceptance mechanism at all, so identity here is the sha256 of
+the finding's canonicalized SUBJECT — the semantic thing being judged — and never the check id.
+
+NO LINE NUMBERS AND NO DEAD NAMES IN THIS FILE'S PROSE. It named two builders and two line numbers,
+and by the time three separate reviewers read it one of the builders (``chk-lowconf-{i}``) had been
+deleted and both line numbers pointed at unrelated code. Each of them re-filed the bug this design
+already prevents, because a post-mortem written in the present tense reads as a live defect. The
+argument above needs no citation to stand; ``_ROW_SHAPED_TYPES`` in api/routes/documents.py is the
+current answer to "which builders are row-shaped", and it is one grep away.
 
 The second hash, over the finding's EVIDENCE, is what makes an acceptance withdraw itself when
 the figures move: the same subject carrying different numbers is a different claim, and it is

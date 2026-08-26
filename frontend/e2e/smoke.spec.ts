@@ -3547,10 +3547,14 @@ test("every failed rulebook rule is on the queue or owned by a card above it, an
   await expect(page.getByTestId("rv-check")).toHaveCount(rev.checks.length, { timeout: 20_000 });
   await expect(page.getByText("Rulebook guard failed")).toHaveCount(0);
 
-  // (3) THE CONTRACT. `covered` may only ever be the targets served cards OWN, and a guard owns
-  // nothing there: its target is violation-derived, so admitting it would let WHICH LINE BROKE decide
-  // whether some other card exists. Built here from the served payload, exactly as
-  // `_suppression_targets` builds it from the same list.
+  // (3) THE CONTRACT. A failed relation may only be suppressed by a card that OWNS its break, and a
+  // guard owns nothing: a guard's target is violation-derived, so admitting it would let WHICH LINE
+  // BROKE decide whether some other card exists. Built here from the served payload, mirroring the
+  // backend's own predicate — `_relation_reported_elsewhere` in api/routes/documents.py, which
+  // matches on target AND basis AND period AND magnitude, over the set `_reported_assertions`
+  // builds from what each card DECLARES (`_assertion_of`). This comment used to name
+  // `_suppression_targets`, a bare-target-string version that was deleted precisely because a
+  // target alone cannot express "this difference, in this scope, is already on screen".
   const owned = new Set(rev.checks.filter((c) => kindOf(c) !== "guard")
                                   .map((c) => c.target).filter(Boolean));
   const failed = structural.filter((s) => s.status === "fail");

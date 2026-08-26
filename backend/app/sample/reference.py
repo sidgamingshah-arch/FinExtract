@@ -260,9 +260,14 @@ def ensure_reference_data(session: Session, *, dry_run: bool = False) -> list[st
     try:
         return _refresh(session, dry_run=dry_run)
     except IntegrityError:
-        # TWO PROCESSES BOOTING AT ONCE, which is a normal state for this repo: the e2e suite starts
-        # its own uvicorn against the same ``backend/finex.db`` a developer's server already holds
-        # (frontend/playwright.config.ts). Both read the same newest version, both insert v N+1, and
+        # TWO PROCESSES BOOTING AT ONCE, which is a normal state for this repo: any two servers
+        # pointed at one sqlite file race here. (The e2e suite is no longer one of them — it sets
+        # FINEX_DATABASE_URL to its own scratch database and wipes it per run, so it stopped sharing
+        # ``backend/finex.db`` with a developer's server. The race is still reachable by two servers
+        # started by hand, and it is the wipe that makes the suite's own start-up safe: this
+        # function re-publishes the shipped template and rulebook from app/sample/templates/*.json
+        # on EVERY boot, so an empty database is re-seeded rather than left bare.) Both read the
+        # same newest version, both insert v N+1, and
         # the loser violates uq_tpl_ver / uq_ont_ver. Retried ONCE, because after the rollback the
         # winner's row is visible: if it carries the shipped content there is nothing left to do,
         # and if it does not, the next version number is now free. A second failure is a state this

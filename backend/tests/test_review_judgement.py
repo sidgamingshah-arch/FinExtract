@@ -2,12 +2,16 @@
 acceptance must never move onto a different finding.
 
 The single most important test in this file is
-``test_reordering_the_rows_does_not_move_an_acceptance_to_another_finding``. Two of the eight check
-builders key their id on the row INDEX (``chk-unmapped-{i}``, ``chk-lowconf-{i}``), so an id-keyed
-acceptance would silently follow the index onto whatever line item now sits there — marking a real
-problem as vouched for by someone who never saw it, which is strictly worse than having no
-acceptance mechanism at all. Identity is therefore the hash of the finding's SUBJECT, and this file
-holds that to it.
+``test_reordering_the_rows_does_not_move_an_acceptance_to_another_finding``. The row-shaped check
+builder keys its id on the row INDEX (``chk-unmapped-{i}``), so an id-keyed acceptance would
+silently follow the index onto whatever line item now sits there — marking a real problem as
+vouched for by someone who never saw it, which is strictly worse than having no acceptance
+mechanism at all. Identity is therefore the hash of the finding's SUBJECT, and this file holds that
+to it.
+
+(This paragraph used to name a second builder, ``chk-lowconf-{i}``, which no longer exists. Naming
+dead code in a rationale is not free: readers took the description for a live defect and re-filed
+it. ``_ROW_SHAPED_TYPES`` is where the current answer lives.)
 """
 from __future__ import annotations
 
