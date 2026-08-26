@@ -118,7 +118,15 @@ _PROGRESS_FIELDS = frozenset(_progress_payload(
     "", 0.0, started_at=datetime(1970, 1, 1, tzinfo=timezone.utc), stage_count=0))
 
 
-def _served_progress(record: dict | None) -> dict | None:
+# A run that has STOPPED. Named as the terminal set rather than the live one on purpose: the thing
+# that must be true is that a settled run's duration stops moving, and anything else — a status this
+# codebase does not have yet — is a run still going, which should get a clock. An allowlist would
+# silently freeze the clock on it instead. (It also had a dead member: "queued" is a progress PHASE,
+# never a run row's status; the row is created `running`, see `start_extraction`.)
+_SETTLED_STATUSES = frozenset({"succeeded", "failed"})
+
+
+def _served_progress(record: dict | None, status: str = "") -> dict | None:
     """A stored progress record, or None when the row does not carry this contract.
 
     Runs written before the contract existed hold ``{"phase": …, "pct": …}`` (or ``{}`` from the
@@ -127,10 +135,35 @@ def _served_progress(record: dict | None) -> dict | None:
     of a run whose pipeline is not recoverable, and ``ExtractionProgress`` declares every field
     required, so a screen would read ``undefined`` where the type promises a number. Saying "there is
     no progress record for this run" is the true answer; ``status`` still says how it ended.
+
+    ``elapsed_ms`` IS RE-DERIVED HERE FOR A RUN STILL IN FLIGHT, and that is the defect this closes.
+    ``_RunProgress`` writes one record per stage transition, and the elapsed figure was stamped into
+    it at write time — so between two stages, however long that took, every poll returned the SAME
+    number and the screen's Elapsed line sat frozen and then jumped. On a slow stage (mapping a long
+    filing through the LLM is the obvious one) it can sit still for minutes, which reads as a hung
+    run rather than a working one. The clock is not a per-stage measurement: it is
+    ``now - started_at``, and ``started_at`` is in the record, so the honest answer is computed when
+    it is asked for.
+
+    A SETTLED RUN KEEPS ITS STORED FIGURE, which is the whole reason this is conditional. That
+    number is the run's DURATION, measured when it finished; re-deriving it would make a finished
+    run's elapsed time keep climbing for as long as anyone left the screen open.
     """
     if not record or not _PROGRESS_FIELDS.issubset(record):
         return None
-    return record
+    if status in _SETTLED_STATUSES:
+        return record
+    try:
+        began = datetime.fromisoformat(str(record.get("started_at")))
+    except (TypeError, ValueError):
+        # A start stamp this endpoint cannot read is not a reason to serve nothing: the rest of the
+        # record is intact, and the stored elapsed figure is still the last true measurement.
+        return record
+    # A COPY. `record` is the run row's JSON column, and mutating it here would write a read-time
+    # figure into the object the session may flush.
+    return {**record,
+            "elapsed_ms": max(0, int((datetime.now(timezone.utc)
+                                      - _as_utc(began)).total_seconds() * 1000))}
 
 
 class _RunProgress:
@@ -1060,7 +1093,7 @@ def get_run(run_id: str, session: Session = Depends(db),
     return {"run_id": run.id, "status": run.status,
             # Null rather than a half-record for a run that predates this contract — see
             # :func:`_served_progress`.
-            "progress": _served_progress(run.progress),
+            "progress": _served_progress(run.progress, run.status),
             "rulebook": (run.options or {}).get("rulebook"),
             # The two things a progress screen needs beside `progress` and cannot derive: WHICH
             # stages this run passes through, and what the pipeline has been saying while it works.
@@ -1110,4 +1143,4 @@ def get_document_run_status(document_id: str, session: Session = Depends(db)) ->
             # Null rather than a half-record for a run that predates the progress contract — the
             # same rule :func:`get_run` applies (see :func:`_served_progress`), so the two reads of
             # one run cannot disagree about whether it has progress to report.
-            "progress": _served_progress(run.progress)}
+            "progress": _served_progress(run.progress, run.status)}

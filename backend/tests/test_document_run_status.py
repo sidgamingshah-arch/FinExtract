@@ -99,9 +99,17 @@ def test_a_run_with_no_result_yet_reads_as_running(client):
         served = _status(client, doc_id)
         assert served["status"] == "running", served
         assert served["run_id"] == run_id
-        # The progress record is passed through whole, so the caller has the run's own stage and
-        # elapsed time and never has to compute a stand-in for either.
-        assert served["progress"] == progress
+        # The progress record is passed through, so the caller has the run's own stage and never has
+        # to compute a stand-in for it. Every field is the stored one EXCEPT `elapsed_ms`, which is
+        # a fact about now rather than about the last write: one record is stored per stage
+        # transition, so a stamped figure sat frozen between stages and the screen's clock stopped
+        # (routes/extractions._served_progress). Compared field by field so this test states which
+        # of the two it is holding — `== progress` held both at once and could not distinguish the
+        # derived clock from a record the endpoint had rebuilt or dropped fields from.
+        assert {k: v for k, v in served["progress"].items() if k != "elapsed_ms"} \
+            == {k: v for k, v in progress.items() if k != "elapsed_ms"}
+        assert served["progress"]["elapsed_ms"] >= progress["elapsed_ms"], \
+            "the clock went backwards"
 
         # …and the read that could not say this still cannot: same document, same instant.
         assert client.get(f"/api/v1/documents/{doc_id}/run").status_code == 404

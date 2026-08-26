@@ -380,9 +380,45 @@ function currentStage(progress: ExtractionProgress | undefined): string {
   return progress.stage || (NON_STAGE_PHASES.has(progress.phase) ? "" : progress.phase);
 }
 
-/** How long the run has been going, from the elapsed time the RUN reports. Deliberately not a
- *  clock this screen starts on mount: a second timer disagrees with the first the moment a poll is
- *  late or the tab is backgrounded, and the pipeline's own figure is the one that means anything. */
+/** How long the run has been going: THE RUN'S OWN FIGURE, advanced by the time since it arrived.
+ *
+ *  Still not a clock this screen starts on mount — that timer would disagree with the pipeline's the
+ *  moment a poll came late or the tab was backgrounded, and the pipeline's figure is the one that
+ *  means anything. The anchor here is always the server's `elapsed_ms`; only the delta measured
+ *  locally SINCE that number arrived is added to it. So the two can never diverge by more than one
+ *  poll, and every poll snaps them back into agreement.
+ *
+ *  WHY IT IS NEEDED AT ALL. `elapsed_ms` used to be stamped into the progress record when the record
+ *  was WRITTEN, and `_RunProgress` writes one record per stage transition — so the figure was frozen
+ *  between stages and this line sat still and then jumped. On a slow stage (mapping a long filing
+ *  through the LLM) it can sit still for minutes, which reads as a hung run rather than a working
+ *  one. The server now derives it per request (`routes/extractions._served_progress`), which unfreezes
+ *  it; this makes it advance BETWEEN requests too, so a poll that is slow or dropped does not stop
+ *  the clock on a run that is plainly still going.
+ *
+ *  `Math.max` because the one visible glitch that matters is a clock ticking BACKWARDS, which is
+ *  what a stale anchor would produce on the single render between a new figure arriving and the
+ *  effect that re-anchors on it.
+ *
+ *  A SETTLED RUN IS LEFT ALONE. Its stored figure is a duration, measured when it finished, and it
+ *  must not climb for as long as somebody leaves the screen open. */
+function useLiveElapsed(elapsedMs: number | undefined, live: boolean): number | undefined {
+  const [anchor, setAnchor] = useState<{ ms: number; at: number } | null>(null);
+  const [, tick] = useState(0);
+  const known = elapsedMs != null && Number.isFinite(elapsedMs);
+  useEffect(() => {
+    if (known) setAnchor({ ms: elapsedMs as number, at: Date.now() });
+  }, [elapsedMs, known]);
+  useEffect(() => {
+    if (!live) return;
+    const id = window.setInterval(() => tick((n) => n + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [live]);
+  if (!known) return undefined;
+  if (!live || anchor === null) return elapsedMs;
+  return Math.max(elapsedMs as number, anchor.ms + Math.max(0, Date.now() - anchor.at));
+}
+
 /** WHAT THE RUN IS DOING, WHILE IT IS DOING IT.
  *
  *  For the whole of a multi-stage run this screen printed one static caption — "Extracting…" — over
@@ -394,10 +430,12 @@ function currentStage(progress: ExtractionProgress | undefined): string {
  *  recorded progress for says it is STARTING rather than printing a measured-looking 0%, a stage
  *  list the run has not reported is absent rather than assembled from a guess at the pipeline's
  *  shape, and the elapsed/percentage cards are simply not rendered when the run states neither. */
-function RunProgress({ progress, stages, logTail, t }: {
+function RunProgress({ progress, stages, logTail, live, t }: {
   progress: ExtractionProgress | undefined;
   stages: string[] | undefined;
   logTail: string | undefined;
+  /** Whether the run is still going, which is what decides between a clock and a duration. */
+  live: boolean;
   t: (k: string) => string;
 }) {
   const finished = new Set(progress?.stages_done ?? []);
@@ -419,8 +457,7 @@ function RunProgress({ progress, stages, logTail, t }: {
   const fraction = progress && Number.isFinite(progress.pct)
     && !(progress.pct === 0 && !current) ? progress.pct : null;
   const pct = fraction === null ? null : Math.max(0, Math.min(100, Math.round(fraction * 100)));
-  const elapsed = progress && Number.isFinite(progress.elapsed_ms)
-    ? fmtElapsed(progress.elapsed_ms) : "";
+  const elapsed = fmtElapsed(useLiveElapsed(progress?.elapsed_ms, live));
   // Queued is what the run says about itself; "starting" is what we say when it has said nothing.
   const phase = current ? stageLabel(current, t)
     : progress ? t("ex.run.queued") : t("ex.run.starting");
@@ -688,6 +725,11 @@ export default function ExtractionView() {
   const progress = extr.progress;
   const stages = extr.stages;
   const logTail = extr.logTail;
+  // THE RUN'S OWN STATUS, which is what separates a clock from a duration for the elapsed line
+  // below. Read off the run rather than inferred from which panel is showing: the panel condition
+  // happens to imply "in flight" today, and a timer that keeps running on a settled run is exactly
+  // the bug that inference would hide the next time the condition changes.
+  const runStatus = extr.status;
   // "none" is the read's own 200 answer — this document has never been extracted — and it is the
   // only thing to say to a reader who cannot start one. It is no longer inferred from a 404, which
   // was the same response the route gave for a run that was working.
@@ -798,7 +840,8 @@ export default function ExtractionView() {
           than raced. Before either exists the panel says "starting", because that is all that is
           true. */}
       {awaitingRun && (
-        <RunProgress progress={progress} stages={stages} logTail={logTail} t={t} />
+        <RunProgress progress={progress} stages={stages} logTail={logTail} t={t}
+                     live={runStatus !== "succeeded" && runStatus !== "failed"} />
       )}
       {/* A fetch, not a run. */}
       {awaitingRead && (

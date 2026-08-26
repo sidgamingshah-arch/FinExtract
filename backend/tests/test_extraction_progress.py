@@ -19,7 +19,7 @@ from __future__ import annotations
 import contextlib
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import event
@@ -566,3 +566,110 @@ def test_a_finished_run_reports_the_stage_list_it_actually_walked(client):
     assert served["stages"] == walked, "a finished run must not adopt a stage it never ran"
     assert served["progress"]["stage_count"] == len(served["stages"])
     assert served["progress"]["stages_done"] == served["stages"]
+
+
+# --- the elapsed clock is a fact about NOW, not about the last write ---------------------------
+
+def test_elapsed_advances_between_stages_while_the_run_is_in_flight():
+    """THE FROZEN-CLOCK DEFECT. ``_RunProgress`` writes one record per stage transition and stamped
+    ``elapsed_ms`` into it at write time, so between two stages — however long that took — every
+    poll returned the SAME number and the screen's Elapsed line sat still and then jumped. On a slow
+    stage (mapping a long filing through the LLM) it can sit still for minutes, which reads as a
+    hung run rather than a working one.
+
+    Asserted on ``_served_progress`` directly and not through a live run, because the point is
+    precisely that NOTHING WAS WRITTEN in between: two reads of one unchanged stored record have to
+    give two different elapsed figures.
+    """
+    from app.api.routes.extractions import _progress_payload, _served_progress
+
+    began = datetime.now(timezone.utc) - timedelta(seconds=30)
+    stored = _progress_payload("mapping", 0.4, started_at=began, stage_count=14,
+                               stage="map_ontology", stages_done=["ingest", "classify"])
+    first = _served_progress(stored, "running")["elapsed_ms"]
+    time.sleep(0.05)
+    second = _served_progress(stored, "running")["elapsed_ms"]
+
+    assert second > first, "the clock is frozen between stage writes"
+    # And it is measured from the RUN's start, not from this request: the stored record is 30s old.
+    assert first >= 30_000, f"elapsed was measured from the wrong instant: {first}"
+
+
+def test_a_settled_run_keeps_the_duration_it_finished_with():
+    """The other half, and the reason the re-derivation is conditional. A finished run's figure is
+    its DURATION, measured when it settled — re-deriving it would make the number climb for as long
+    as somebody left the screen open, and a run reported as having taken an hour when it took nine
+    seconds is worse than a frozen clock."""
+    from app.api.routes.extractions import _progress_payload, _served_progress
+
+    began = datetime.now(timezone.utc) - timedelta(seconds=45)
+    stored = _progress_payload("done", 1.0, started_at=began, stage_count=14)
+    stored["elapsed_ms"] = 9_000          # what the run actually took, as recorded when it settled
+
+    for status in ("succeeded", "failed"):
+        assert _served_progress(stored, status)["elapsed_ms"] == 9_000, status
+    assert _served_progress(stored, "running")["elapsed_ms"] >= 45_000, \
+        "a live run must not be given a settled run's stored figure"
+    # A STATUS THIS CODEBASE DOES NOT HAVE YET gets a clock, not a frozen figure. The set names the
+    # TERMINAL statuses for exactly this reason: freezing is the special case, and an allowlist of
+    # live ones would silently freeze the line on any status added later.
+    assert _served_progress(stored, "queued")["elapsed_ms"] >= 45_000
+    assert _served_progress(stored, "")["elapsed_ms"] >= 45_000
+
+
+def test_the_stored_record_is_never_mutated_by_being_read():
+    """``record`` is the run row's JSON column. Writing a read-time figure into it would put that
+    number in front of the session that may flush the row, so the served record is a COPY."""
+    from app.api.routes.extractions import _progress_payload, _served_progress
+
+    stored = _progress_payload("mapping", 0.4,
+                               started_at=datetime.now(timezone.utc) - timedelta(seconds=20),
+                               stage_count=14, stage="map_ontology")
+    before = dict(stored)
+    time.sleep(0.05)                      # so a fresh figure is DISTINGUISHABLE from the stored one
+    served = _served_progress(stored, "running")
+    assert stored == before, "reading the progress record changed it"
+    assert served is not stored, "the served record is the stored object itself"
+    assert served["elapsed_ms"] > before["elapsed_ms"], "the served figure is the stored one"
+
+
+def test_an_unreadable_start_stamp_still_serves_the_rest_of_the_record():
+    """A start stamp this endpoint cannot parse is not a reason to serve nothing: the rest of the
+    record is intact and the stored elapsed figure is still the last true measurement."""
+    from app.api.routes.extractions import _progress_payload, _served_progress
+
+    stored = _progress_payload("mapping", 0.4, started_at=datetime.now(timezone.utc),
+                              stage_count=14, stage="map_ontology")
+    stored["started_at"] = "not a timestamp"
+    stored["elapsed_ms"] = 1234
+    served = _served_progress(stored, "running")
+    assert served is not None and served["elapsed_ms"] == 1234
+    assert served["stage"] == "map_ontology"
+
+
+def test_a_run_still_going_reports_a_clock_through_the_route(client):
+    """End to end, through the endpoint a screen actually polls: two reads of a live run, with no
+    stage having completed in between, must not return the same elapsed figure."""
+    from app.db.base import SessionLocal
+    from app.db.models import ExtractionRun
+    from app.api.routes.extractions import _progress_payload
+
+    doc_id = _upload(client, "clock.pdf")
+    began = datetime.now(timezone.utc) - timedelta(seconds=12)
+    run_id = f"run-clock-{uuid.uuid4().hex[:8]}"
+    with SessionLocal() as session:
+        session.add(ExtractionRun(
+            id=run_id, document_id=doc_id, status="running", options={}, result={},
+            progress=_progress_payload("mapping", 0.4, started_at=began, stage_count=14,
+                                       stage="map_ontology", stages_done=["ingest"])))
+        session.commit()
+
+    first = client.get(f"/api/v1/extractions/{run_id}").json()["progress"]["elapsed_ms"]
+    time.sleep(0.05)
+    second = client.get(f"/api/v1/extractions/{run_id}").json()["progress"]["elapsed_ms"]
+    assert first >= 12_000 and second > first, (first, second)
+
+    # The document's own status route reads the same run and must answer the same way, or two
+    # screens polling one run would disagree about how long it has been going.
+    via_doc = client.get(f"/api/v1/documents/{doc_id}/run-status").json()["progress"]["elapsed_ms"]
+    assert via_doc >= first
