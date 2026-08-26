@@ -140,6 +140,15 @@ export const useAudit = (documentId?: string) =>
     queryFn: () => (documentId ? api.documentAudit(documentId) : api.audit()),
   });
 
+/** The DEPLOYMENT-WIDE run trail (admin only). Separate query key from `useAudit` because it is a
+ *  different question — every run against every filing, not this document's — and sharing a key
+ *  would serve one screen the other's rows. */
+export const useAdminAudit = (limit = 500) =>
+  useQuery({
+    queryKey: ["admin-audit", limit],
+    queryFn: () => api.adminAudit(limit),
+  });
+
 /** Trigger a live LLM analysis run; refreshes the audit log on completion. */
 export function useRunAnalysis() {
   const qc = useQueryClient();

@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import app.adapters  # noqa: F401 - registers built-in adapters on import
 from app.api.routes import (
+    audit,
     auth,
     documents,
     extractions,
@@ -65,6 +66,7 @@ def create_app() -> FastAPI:
     application.include_router(projects.router, prefix=prefix)
     application.include_router(auth.router, prefix=prefix)
     application.include_router(settings_routes.router, prefix=prefix)
+    application.include_router(audit.router, prefix=prefix)
     return application
 
 

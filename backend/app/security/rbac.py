@@ -91,8 +91,11 @@ PERMISSIONS: dict[Role, set[Permission]] = {
 # (``CONFIG_TEMPLATE``), enforced both on the write endpoints and on the screen's
 # editing controls.
 SCREENS_BY_ROLE: dict[Role, list[str]] = {
+    # "audit" is the deployment-wide run trail — every run against every filing, with what each
+    # spent. Admin only, and the only screen that crosses document ownership, which is why it is
+    # gated on AUDIT_VIEW rather than on COMMENTARY_VIEW like the per-document trail beside it.
     Role.ADMIN: ["upload", "integrity", "scope", "extraction", "workspace", "notes", "review",
-                 "commentary", "template", "settings", "export"],
+                 "commentary", "template", "settings", "audit", "export"],
     # A reviewer sees the extraction screen to READ a run — its stages, its log, its rows — and
     # cannot start one: PIPELINE_RUN is the analyst's and the admin's. Granting the screen without
     # the permission is deliberate, not an oversight; the screen's own re-extract control is gated on

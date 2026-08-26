@@ -1,0 +1,123 @@
+import type { Locale } from "../../types";
+
+/** Run Trail (admin) — the deployment-wide record of every extraction and LLM run.
+ *
+ *  `ad.truncated` is the load-bearing string here. The table is append-only and the read is capped,
+ *  so when the cap is reached the totals above it describe a WINDOW, not the deployment's lifetime
+ *  spend. Without this sentence the same figures read as the total, which is a number over a set of
+ *  rows that does not add up to it.
+ *
+ *  `ad.scopeGone` covers the row whose document was deleted. The entry outlives the document on
+ *  purpose — an audit row that vanishes with the file it describes is not an audit row — so the
+ *  filing column has to say that rather than sit empty and unattributable. */
+export const audit: Record<Locale, Record<string, string>> = {
+  en: {
+    "ad.title": "Run Trail",
+    "ad.subhead":
+      "Every extraction and LLM run in this deployment, newest first, with what each one spent.",
+    "ad.show": "Show",
+    "ad.truncated":
+      "The figures above cover only the runs listed below — there are older ones. Raise the row count to include them.",
+    "ad.empty": "No runs have been recorded yet.",
+    "ad.unavailable": "The run trail could not be loaded.",
+    "ad.scopeGone": "— document deleted —",
+    "ad.footnote":
+      "A run with no token count used no language model: its filing was mapped from the rulebook alone. Failed runs are listed too — they consume tokens as readily as successful ones.",
+    "ad.stat.runs": "RUNS",
+    "ad.stat.llmRuns": "USED THE MODEL",
+    "ad.stat.failed": "FAILED",
+    "ad.stat.inTok": "INPUT TOKENS",
+    "ad.stat.outTok": "OUTPUT TOKENS",
+    "ad.stat.totTok": "TOTAL TOKENS",
+    "ad.col.run": "RUN",
+    "ad.col.time": "WHEN",
+    "ad.col.document": "FILING",
+    "ad.col.action": "ACTION",
+    "ad.col.model": "MODEL",
+    "ad.col.took": "TOOK",
+    "ad.col.inTok": "IN",
+    "ad.col.outTok": "OUT",
+    "ad.col.totTok": "TOTAL",
+  },
+  zh: {
+    "ad.title": "运行记录",
+    "ad.subhead": "本部署中的每次提取与大模型运行，最新在前，并显示各自消耗。",
+    "ad.show": "显示",
+    "ad.truncated": "以上数字仅涵盖下方所列运行——尚有更早的记录。请提高行数以纳入其余。",
+    "ad.empty": "尚无运行记录。",
+    "ad.unavailable": "无法加载运行记录。",
+    "ad.scopeGone": "— 文档已删除 —",
+    "ad.footnote":
+      "没有词元计数的运行未使用语言模型：其报表仅凭规则库映射完成。失败的运行同样列出——它们与成功运行一样会消耗词元。",
+    "ad.stat.runs": "运行次数",
+    "ad.stat.llmRuns": "使用了模型",
+    "ad.stat.failed": "失败",
+    "ad.stat.inTok": "输入词元",
+    "ad.stat.outTok": "输出词元",
+    "ad.stat.totTok": "词元合计",
+    "ad.col.run": "运行",
+    "ad.col.time": "时间",
+    "ad.col.document": "报表",
+    "ad.col.action": "操作",
+    "ad.col.model": "模型",
+    "ad.col.took": "耗时",
+    "ad.col.inTok": "输入",
+    "ad.col.outTok": "输出",
+    "ad.col.totTok": "合计",
+  },
+  ar: {
+    "ad.title": "سجل التشغيل",
+    "ad.subhead": "كل عملية استخراج وتشغيل لنموذج لغوي في هذا النشر، الأحدث أولاً، مع ما استهلكه كل منها.",
+    "ad.show": "إظهار",
+    "ad.truncated":
+      "الأرقام أعلاه تشمل التشغيلات المدرجة أدناه فقط — وهناك أقدم منها. ارفع عدد الصفوف لتضمينها.",
+    "ad.empty": "لم يُسجَّل أي تشغيل بعد.",
+    "ad.unavailable": "تعذّر تحميل سجل التشغيل.",
+    "ad.scopeGone": "— حُذف المستند —",
+    "ad.footnote":
+      "التشغيل الذي لا يحمل عدد رموز لم يستخدم نموذجاً لغوياً: فقد تمّت مطابقة ملفه من دفتر القواعد وحده. التشغيلات الفاشلة مدرجة أيضاً — فهي تستهلك الرموز كما تستهلكها الناجحة.",
+    "ad.stat.runs": "التشغيلات",
+    "ad.stat.llmRuns": "استخدمت النموذج",
+    "ad.stat.failed": "فاشلة",
+    "ad.stat.inTok": "رموز الإدخال",
+    "ad.stat.outTok": "رموز الإخراج",
+    "ad.stat.totTok": "إجمالي الرموز",
+    "ad.col.run": "التشغيل",
+    "ad.col.time": "الوقت",
+    "ad.col.document": "الملف",
+    "ad.col.action": "الإجراء",
+    "ad.col.model": "النموذج",
+    "ad.col.took": "المدة",
+    "ad.col.inTok": "إدخال",
+    "ad.col.outTok": "إخراج",
+    "ad.col.totTok": "الإجمالي",
+  },
+  fr: {
+    "ad.title": "Journal des exécutions",
+    "ad.subhead":
+      "Chaque extraction et chaque appel au modèle de ce déploiement, du plus récent au plus ancien, avec ce que chacun a consommé.",
+    "ad.show": "Afficher",
+    "ad.truncated":
+      "Les chiffres ci-dessus ne couvrent que les exécutions listées ci-dessous — il en existe de plus anciennes. Augmentez le nombre de lignes pour les inclure.",
+    "ad.empty": "Aucune exécution enregistrée pour l'instant.",
+    "ad.unavailable": "Le journal des exécutions n'a pu être chargé.",
+    "ad.scopeGone": "— document supprimé —",
+    "ad.footnote":
+      "Une exécution sans compte de jetons n'a pas utilisé de modèle de langage : son dépôt a été mappé à partir du seul référentiel de règles. Les exécutions en échec sont listées aussi — elles consomment des jetons autant que les réussies.",
+    "ad.stat.runs": "EXÉCUTIONS",
+    "ad.stat.llmRuns": "ONT UTILISÉ LE MODÈLE",
+    "ad.stat.failed": "EN ÉCHEC",
+    "ad.stat.inTok": "JETONS D'ENTRÉE",
+    "ad.stat.outTok": "JETONS DE SORTIE",
+    "ad.stat.totTok": "TOTAL JETONS",
+    "ad.col.run": "EXÉCUTION",
+    "ad.col.time": "QUAND",
+    "ad.col.document": "DÉPÔT",
+    "ad.col.action": "ACTION",
+    "ad.col.model": "MODÈLE",
+    "ad.col.took": "DURÉE",
+    "ad.col.inTok": "ENTRÉE",
+    "ad.col.outTok": "SORTIE",
+    "ad.col.totTok": "TOTAL",
+  },
+};

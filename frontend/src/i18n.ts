@@ -14,6 +14,7 @@ import { template } from "./i18n/screens/template";
 import { exportScreen } from "./i18n/screens/export";
 import { commentary } from "./i18n/screens/commentary";
 import { extraction } from "./i18n/screens/extraction";
+import { audit } from "./i18n/screens/audit";
 
 export type Dict = Record<string, string>;
 export type LocaleDicts = Record<Locale, Dict>;
@@ -120,6 +121,7 @@ const core: LocaleDicts = {
     "conf.measuredHelp": "The confidence recorded for this line.",
     "nav.commentary": "Analysis",
     "nav.settings": "Settings",
+    "nav.audit": "Run Trail",
     "group.ANALYSIS": "ANALYSIS",
     "role.label": "Role",
     "role.admin": "Admin",
@@ -218,6 +220,7 @@ const core: LocaleDicts = {
     "conf.measuredHelp": "本行记录的置信度。",
     "nav.commentary": "分析",
     "nav.settings": "设置",
+    "nav.audit": "运行记录",
     "group.ANALYSIS": "分析",
     "role.label": "角色",
     "role.admin": "管理员",
@@ -316,6 +319,7 @@ const core: LocaleDicts = {
     "conf.measuredHelp": "درجة الثقة المسجَّلة لهذا البند.",
     "nav.commentary": "التحليل",
     "nav.settings": "الإعدادات",
+    "nav.audit": "سجل التشغيل",
     "group.ANALYSIS": "التحليل",
     "role.label": "الدور",
     "role.admin": "مسؤول",
@@ -414,6 +418,7 @@ const core: LocaleDicts = {
     "conf.measuredHelp": "La confiance consignée pour cette ligne.",
     "nav.commentary": "Analyse",
     "nav.settings": "Paramètres",
+    "nav.audit": "Journal des exécutions",
     "group.ANALYSIS": "ANALYSE",
     "role.label": "Rôle",
     "role.admin": "Administrateur",
@@ -430,7 +435,7 @@ const core: LocaleDicts = {
   },
 };
 
-const SCREEN_DICTS: LocaleDicts[] = [upload, integrity, scope, extraction, review, notes, template, exportScreen, commentary, settingsScreen];
+const SCREEN_DICTS: LocaleDicts[] = [upload, integrity, scope, extraction, review, notes, template, exportScreen, commentary, settingsScreen, audit];
 
 const DICT: LocaleDicts = { en: {}, zh: {}, ar: {}, fr: {} };
 (Object.keys(DICT) as Locale[]).forEach((loc) => {

@@ -87,6 +87,38 @@ export interface AuditResponse {
   entries: AuditEntry[];
 }
 
+/** One row of the DEPLOYMENT-WIDE trail — the same run record, plus which filing it was against.
+ *  The per-document trail has no need of those two fields: there, the document is the question. */
+export interface AdminAuditEntry extends AuditEntry {
+  /** The document id the run was recorded under, or the sample project's id. */
+  scope_key: string;
+  /** The uploaded file's name. Empty for the seeded sample project, and empty for a document that
+   *  has since been DELETED — an entry outlives the document it describes on purpose, so the trail
+   *  still records that the run happened and what it cost. */
+  document: string;
+  scope_kind: "document" | "other";
+}
+/** What the trail adds up to, OVER THE ENTRIES RETURNED — see `truncated`. */
+export interface AuditTotals {
+  runs: number;
+  /** Runs that used the LLM at all. Counted, not inferred from the token sum: a run that used the
+   *  model and was reported zero tokens still used it, and a reader dividing tokens by runs needs
+   *  the denominator to be the runs that could have spent any. */
+  llm_runs: number;
+  failed: number;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+}
+export interface AdminAuditResponse {
+  entries: AdminAuditEntry[];
+  totals: AuditTotals;
+  limit: number;
+  /** The cap was reached, so `totals` describes a WINDOW and not the whole table. The screen has to
+   *  say so: a total printed over "the newest 500 of more" reads as the deployment's lifetime spend. */
+  truncated: boolean;
+}
+
 /** Editable (non-secret) LLM configuration fields — the API key is never sent. */
 export interface LlmConfigPatch {
   provider?: string;

@@ -9,7 +9,9 @@ import {
 import { EmptyState } from "../components/EmptyState";
 import { useCan } from "../lib/rbac";
 import { useAppLocale, useUI } from "../store";
-import { color, fmtElapsed, fmtIN, font, radius } from "../theme";
+// `fmtTokens` / `fmtDuration` are shared with the deployment-wide trail (screens/Audit):
+// one quantity, one formatter, so "—" cannot become "0" on one of the two screens.
+import { color, fmtDuration, fmtIN, fmtTokens, font, radius } from "../theme";
 import type {
   AuditEntry, CommentaryMetric, CommentaryTrend, CreditAnalysis, CreditTone, Locale,
 } from "../types";
@@ -88,17 +90,6 @@ function PointList({ title, points, accent }: { title: string; points: string[];
   );
 }
 
-/** Format a token count with grouping, or an em-dash when the run used no LLM. */
-function tok(n: number | null): string {
-  return n === null || n === undefined ? "—" : n.toLocaleString();
-}
-
-/** A duration, or an em-dash when the entry describes something instantaneous (or predates the
- *  field). Never "0s" for an unmeasured run — see `theme.fmtElapsed`. */
-function dur(ms: number | null | undefined): string {
-  return fmtElapsed(ms) || "—";
-}
-
 /** The audit trail for what is being worked on.
  *
  *  `documentId` is what makes this the REAL filing's trail. Runs against an uploaded document are
@@ -166,16 +157,16 @@ function AuditLog({ t, documentId }: { t: (k: string) => string; documentId?: st
             <span style={{ fontFamily: font.mono, fontSize: 10.5, color: color.sec }}>{e.model}</span>
             <span style={{ fontFamily: font.mono, fontSize: 11.5, textAlign: "right",
                            color: color.sec2 }}>
-              {dur(e.duration_ms)}
+              {fmtDuration(e.duration_ms)}
             </span>
             <span style={{ fontFamily: font.mono, fontSize: 11.5, textAlign: "right", color: color.ink }}>
-              {tok(e.input_tokens)}
+              {fmtTokens(e.input_tokens)}
             </span>
             <span style={{ fontFamily: font.mono, fontSize: 11.5, textAlign: "right", color: color.ink }}>
-              {tok(e.output_tokens)}
+              {fmtTokens(e.output_tokens)}
             </span>
             <span style={{ fontFamily: font.mono, fontSize: 11.5, fontWeight: 600, textAlign: "right", color: color.ink }}>
-              {tok(e.total_tokens)}
+              {fmtTokens(e.total_tokens)}
             </span>
           </div>
         ))}

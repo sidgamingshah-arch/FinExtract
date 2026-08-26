@@ -116,6 +116,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 import type {
+  AdminAuditResponse,
   AnalysisResponse,
   AppSettings,
   AuditEntry,
@@ -458,6 +459,8 @@ export const api = {
     req<OntologyEditResult>(
       `/ontologies/${ontologyId}/netting-rules`,
       { method: "PATCH", body: JSON.stringify(edit) }),
+  /** The deployment-wide run trail (admin only — `audit:view`). */
+  adminAudit: (limit = 500) => req<AdminAuditResponse>(`/audit?limit=${limit}`),
   listTemplates: () =>
     req<{ id: string; template_key: string; name: string; version: number }[]>(`/templates`),
 };

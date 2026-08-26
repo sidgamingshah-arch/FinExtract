@@ -128,6 +128,20 @@ export const fmtElapsed = (ms: number | null | undefined): string => {
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`;
 };
 
+/** A token count with digit grouping, or an em-dash when the run used no LLM at all.
+ *
+ *  NULL IS A FACT HERE, not a missing value: the mapper resolved that filing lexically and never
+ *  called the model, which is a different thing from having called it and spent nothing. Printing
+ *  "0" for it would report a cost that was never incurred as a measured zero. Lives beside
+ *  `fmtElapsed` because two screens show this trail — one document's runs and the deployment's —
+ *  and a second copy of this is where "—" quietly becomes "0" on one of them. */
+export const fmtTokens = (n: number | null | undefined): string =>
+  n === null || n === undefined ? "—" : n.toLocaleString();
+
+/** A run's duration, or an em-dash for something instantaneous (handing output to a reviewer) or
+ *  for an entry recorded before the field existed. Never "0s" for an unmeasured run. */
+export const fmtDuration = (ms: number | null | undefined): string => fmtElapsed(ms) || "—";
+
 /** Indian-grouping accounting formatter: negatives in parentheses, e.g. 12,68,100
  * and (1,210). Used for read-only monetary display (statement conventions). */
 export const fmtIN = (n: number | null | undefined): string => {

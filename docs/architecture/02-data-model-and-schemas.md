@@ -293,6 +293,11 @@ WebSocket**), `GET /documents/{id}/run`.
 `GET /documents/{id}/commentary`, `POST /documents/{id}/credit-narrative`,
 `GET /documents/{id}/pages/{n}/image` (server-rasterized page PNG),
 `GET /documents/{id}/cell-context?sheet=&cell=`,
+`GET /audit` (`limit=`) is the deployment-wide run trail — every extraction and LLM run,
+newest first, with its token usage and duration, from the durable `audit_log` table.
+Admin only (`audit:view`): it is the one read that crosses document ownership. The
+per-document trail stays at `GET /documents/{id}/audit`.
+
 `GET /documents/{id}/export` (`fmt=excel|json|csv`, `layout=flat|statement`, `include=…`).
 `csv` is the flat form for a consumer that is another program: one sheet, a row per line item and
 a column per figure. It is as wide as the filing is — two columns ("Line item, Value") for a

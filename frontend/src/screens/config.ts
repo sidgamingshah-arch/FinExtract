@@ -24,6 +24,10 @@ export const SCREENS: Record<string, ScreenDef> = {
   commentary: { id: "commentary", path: "/commentary", label: "Analysis", icon: "✦" },
   template: { id: "template", path: "/template", label: "Template & Ontology", icon: "◆" },
   settings: { id: "settings", path: "/settings", label: "Settings", icon: "⚙" },
+  // The deployment-wide run trail. Not a pipeline step and not per-document: it is admin oversight,
+  // which is why it sits in CONFIGURE beside Settings rather than in ANALYSIS beside the
+  // per-document trail it resembles.
+  audit: { id: "audit", path: "/audit", label: "Run Trail", icon: "⧖" },
   export: { id: "export", path: "/export", label: "Export", icon: "⬎", step: 6 },
 };
 
@@ -47,7 +51,7 @@ export const NAV_GROUPS: { group: string; items: string[] }[] = [
   { group: "EXTRACT", items: ["extraction", "workspace", "notes"] },
   { group: "QUALITY", items: ["review"] },
   { group: "ANALYSIS", items: ["commentary"] },
-  { group: "CONFIGURE", items: ["template", "settings"] },
+  { group: "CONFIGURE", items: ["template", "settings", "audit"] },
   { group: "DELIVER", items: ["export"] },
 ];
 

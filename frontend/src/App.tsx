@@ -17,6 +17,7 @@ import NotesScreen from "./screens/Notes";
 import ReviewScreen from "./screens/Review";
 import ScopeScreen from "./screens/Scope";
 import SettingsScreen from "./screens/Settings";
+import AuditScreen from "./screens/Audit";
 import TemplateScreen from "./screens/Template";
 import UploadScreen from "./screens/Upload";
 import WorkspaceScreen from "./screens/Workspace";
@@ -87,6 +88,10 @@ function Shell() {
             <Route path="/commentary" element={<RequireScreen screen="commentary"><CommentaryScreen /></RequireScreen>} />
             <Route path="/template" element={<RequireScreen screen="template"><TemplateScreen /></RequireScreen>} />
             <Route path="/settings" element={<RequireScreen screen="settings"><SettingsScreen /></RequireScreen>} />
+            {/* Gated by the SCREEN list the server serves per role, the same as every other route
+                here — the endpoint behind it is separately gated on `audit:view`, so a non-admin who
+                reached the path would be refused by the API as well as by this guard. */}
+            <Route path="/audit" element={<RequireScreen screen="audit"><AuditScreen /></RequireScreen>} />
             <Route path="/export" element={<RequireScreen screen="export"><ExportScreen /></RequireScreen>} />
             <Route path="*" element={<Navigate to="/workspace" replace />} />
           </Routes>

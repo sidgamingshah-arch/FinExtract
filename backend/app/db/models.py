@@ -224,3 +224,48 @@ class SettingOverride(Base):
     # different from "no row".
     value: Mapped[dict] = mapped_column(JSON, default=dict)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+
+class AuditLogEntry(Base):
+    """One run against one document — what ran it, what it cost, and how it ended.
+
+    THE GAP THIS CLOSES. The trail was a process-local dict (``services/audit._LOG``), so every
+    token count the product had ever recorded was lost when the API restarted. That is the one
+    number in this system nobody can reconstruct after the fact: the rows can be re-extracted, the
+    checks re-run, but what a run SPENT is only knowable at the moment it spent it. An audit trail
+    that does not survive a restart is not an audit trail.
+
+    ``scope_key`` is the DOCUMENT this run was against — or the seeded sample project's id, which is
+    the one non-document scope, because the sample's own runs are recorded the same way. Not a
+    foreign key: an entry has to outlive the document it describes. Deleting an uploaded file must
+    not erase the record that an extraction was run on it and what that cost, and a ``ForeignKey``
+    with a cascade is precisely how an audit row silently disappears.
+
+    ``run_id`` is the human-readable id ``make_run_id`` mints (entity-slug + UTC stamp), unique
+    across the table: it is the id the screens key their rows on, and two rows claiming one run id
+    would render as one.
+
+    Token counts are NULLABLE and null is meaningful — the run used no LLM at all, which is a
+    different fact from having used zero tokens. Same for ``duration_ms``: handing output to a
+    reviewer is an instant, not an interval.
+    """
+
+    __tablename__ = "audit_log"
+    __table_args__ = (
+        UniqueConstraint("run_id", name="uq_audit_log_run_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    scope_key: Mapped[str] = mapped_column(String(64), index=True)
+    run_id: Mapped[str] = mapped_column(String(128), index=True)
+    entity: Mapped[str] = mapped_column(String(255), default="")
+    action: Mapped[str] = mapped_column(String(48), default="")
+    provider: Mapped[str] = mapped_column(String(48), default="")
+    model: Mapped[str] = mapped_column(String(128), default="")
+    input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="succeeded")
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Indexed because every read of this table is "newest first", and the admin view reads the
+    # whole table that way.
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, index=True)
