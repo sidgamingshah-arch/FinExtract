@@ -3492,9 +3492,11 @@ def export_document(
     side by side; ``flat`` is one row per line item. ``include`` is a comma-separated set of
     optional analysis sheets to add (note_details, ratios, disclosures) — omit for all. JSON
     carries the line items with formulas plus a derived-analysis block. CSV is the plainest
-    form: a single sheet of two columns, the line item and its figure, for a reader that is
-    another program rather than a person (``layout`` and ``include`` do not apply to it — a
-    two-column dump has no sections to shape and no sheets to add)."""
+    form: a single sheet, a row per line item and a column per figure — two columns for a filing
+    that printed one column of figures, three for one that printed two years, wider again when it
+    printed Group and Company as well — for a reader that is another program rather than a person
+    (``layout`` and ``include`` do not apply to it: it has no sections to shape and no room for
+    analysis sheets)."""
     from app.db.models import Document
     from app.services.export import (
         build_rows_csv, build_rows_json, build_rows_xlsx, build_statement_workbook, units_scale,
@@ -3518,11 +3520,11 @@ def export_document(
     narrative = run.result.get("credit_narrative")  # stored LLM narrative, if generated
     if fmt == "csv":
         # Branched before the template and coverage are resolved because this format carries
-        # neither, and the resolution is not free. It carries no validation caption either: two
-        # columns have nowhere to put one, which is the same position the flat workbook layout is
+        # neither, and the resolution is not free. It carries no validation caption either: a grid
+        # of figures has nowhere to put one, which is the same position the flat workbook layout is
         # in — the statement workbook is where that banner belongs, because that is the artifact
-        # that otherwise looks fully checked. `layout` and `include` are accepted and ignored;
-        # there is one shape a two-column dump can have.
+        # that otherwise looks fully checked. `layout` and `include` are accepted and ignored: the
+        # sheet's width is decided by what the filing printed, not by a request parameter.
         data = build_rows_csv(rows, locale=locale, scale=scale)
         return Response(content=data, media_type="text/csv; charset=utf-8",
                         headers={"Content-Disposition": f'attachment; filename="{name}.csv"'})

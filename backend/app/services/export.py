@@ -12,7 +12,7 @@ import io
 import json
 
 from app.sample.demo import CONF_PCT
-from app.services.periods import concept_value, split_current_prior, summable
+from app.services.periods import CURRENT, PRIOR, concept_value, split_current_prior, summable
 from app.services.review_lines import is_statement_line
 
 # Statement titles for the formatted export, localized like the rest of the app. Line-item
@@ -246,7 +246,10 @@ def build_rows_xlsx(rows: list[dict], *, filename: str, scale: float = 1.0) -> b
 
 
 # ---------------------------------------------------------------------------
-# Flat CSV — the whole extraction as a single sheet of two columns.
+# Flat CSV — the whole extraction on a single sheet, a row per line item and a
+# column per figure. As narrow as "Line item, Value" for a filing that printed
+# one column of figures; wider, with the periods (and both bases) as headings,
+# for one that printed more.
 # ---------------------------------------------------------------------------
 
 # Leading characters that Excel, LibreOffice and Google Sheets EXECUTE instead of displaying.
@@ -280,56 +283,100 @@ def _csv_figure(raw, scale: float):
     return round(n * scale) if scale != 1.0 else str(raw)
 
 
-def _slot_name(v: dict, *, with_basis: bool, locale: str) -> str:
-    """How one value slot is named when the caption alone would not identify it."""
-    period = str(v.get("period_display") or v.get("period_label") or "").strip()
-    if not with_basis:
-        return period
-    basis = v.get("basis") or "consolidated"
-    shown = _BASIS_LABEL.get(basis, {}).get(locale) or basis
-    return f"{shown} {period}".strip()
+# Which basis column comes first. Consolidated leads because it is the default reading of a filing
+# and the view every screen opens on; anything a future extractor labels neither sorts after both,
+# by name, so the column order is total rather than arbitrary.
+_BASIS_ORDER = {"consolidated": 0, "standalone": 1}
+
+
+def _slot_key(v: dict) -> tuple[str, str]:
+    """What makes one value column one column: the basis it was printed under, and the period."""
+    return ((v.get("basis") or "consolidated"), str(v.get("period_label") or ""))
+
+
+def _csv_columns(rows: list[dict]) -> list[tuple[tuple[str, str], dict]]:
+    """The value columns this file needs, in the order they belong in, each with a value that
+    carries its heading.
+
+    Grouped by basis, and WITHIN a basis in the order the columns were first read — which is the
+    order they were printed, because a row's values are appended left to right as the row is read.
+    Taking the order off the page rather than sorting the period labels is what keeps a matrix
+    statement's component columns ("Retained profits", "Translation reserve") in their printed
+    order, and what stops ``col10`` sorting in front of ``col3``. ``sorted`` is stable, so the
+    basis grouping is applied over that order without disturbing it.
+    """
+    first: dict[tuple[str, str], dict] = {}
+    for r in rows:
+        for v in (r.get("values") or []):
+            first.setdefault(_slot_key(v), v)
+    return sorted(first.items(), key=lambda kv: (_BASIS_ORDER.get(kv[0][0], 2), kv[0][0]))
+
+
+def _csv_headers(cols: list[tuple[tuple[str, str], dict]], locale: str) -> list[str]:
+    """One heading per value column.
+
+    A filing that printed a single column of figures gets the plain "Value": there is nothing to
+    tell apart, and naming the period there would put a heading on every ordinary two-column file
+    for the benefit of nobody. Past that, the heading is the period — and the basis as well, but
+    only when the file carries both, for the same reason.
+    """
+    if len(cols) <= 1:
+        return [_col("Value", locale)]
+    with_basis = len({basis for (basis, _), _ in cols}) > 1
+    names = []
+    for (basis, _label), v in cols:
+        period = str(v.get("period_display") or v.get("period_label") or "").strip()
+        # `current` / `prior` are POSITIONAL TOKENS the extractor writes when the filing printed no
+        # date it could resolve (services/periods.py), not words anyone wrote. Sent through the
+        # column vocabulary they become the same headings the flat workbook uses — "Current" and
+        # "Prior", and 本期 / 上期 for a zh reader — instead of a lowercase internal name standing
+        # untranslated in a file whose headings are its only prose. A resolved date wins over both.
+        period = _col(period.title(), locale) if period in (CURRENT, PRIOR) else period
+        if with_basis:
+            shown = _BASIS_LABEL.get(basis, {}).get(locale) or basis
+            period = f"{shown} {period}".strip()
+        names.append(period or _col("Value", locale))
+    # Two columns under one heading is not a cosmetic problem: most readers of a CSV keep exactly
+    # one of them, so a collision is silently LOST DATA in a file whose whole purpose is to be
+    # loaded by something. The printed position is what always distinguishes them.
+    return [f"{n} ({i})" if names.count(n) > 1 else n for i, n in enumerate(names, start=1)]
 
 
 def build_rows_csv(rows: list[dict], *, locale: str = "en", scale: float = 1.0) -> bytes:
-    """The whole extraction as one sheet of two columns: the line item, and its figure.
+    """The whole extraction as a single sheet: one row per line item, one column per figure.
 
     Deliberately the plainest artifact this module produces — no sections, no subtotal styling, no
     note, confidence or provenance column — because its readers are other programs: pasted into a
     model, loaded by pandas, diffed against last quarter. Anyone who wants the audit trail has the
     flat workbook and the JSON, both of which carry it.
 
-    ONE ROW PER FIGURE, NOT PER LINE ITEM, and the caption names the figure when there is more
-    than one. A filing prints two years side by side and often a Group and a Company column as
-    well; two columns have nowhere to put that, so the choice is between dropping every figure but
-    one and naming them. Dropping would make this the only export that quietly loses the
-    comparative year — and a consumer reading "Revenue" twice, with two different numbers and
-    nothing to tell them apart, is worse than either. So a slot is named, and named ONLY when the
-    file actually carries more than one, so the ordinary single-column filing comes out as the bare
-    two columns that were asked for.
+    THE SHEET IS AS WIDE AS THE FILING IS. A statement printing one column of figures comes out as
+    the two columns "Line item, Value". One printing two years comes out as three columns, headed
+    by the years. One printing Group and Company as well comes out with a column per pair, headed
+    by both. So the shape follows the document instead of the document being flattened into a
+    fixed shape — which is the whole reason not to name the period inside the caption: a caption is
+    the filing's own words, an analyst joins and greps on it, and "Revenue (2023)" is not a caption
+    any filing printed.
 
-    Slots keep the order the row carries them in, which is the order they were read off the page.
+    ONE ROW PER PRINTED LINE, never merged by caption. Two different sections legitimately print
+    "Total", and adding those together because they read alike would fabricate a figure. A line
+    with no figure under a given column leaves that cell empty, which is what the filing did.
     """
     import csv
 
+    cols = _csv_columns(rows)
+    # `or [None]` for a run that extracted no figure at all: the header still promises a Value
+    # column, so every row has to carry the cell. A row shorter than the header is what turns a
+    # readable file into a parse error three thousand lines in.
+    keys = [k for k, _ in cols] or [None]
     buf = io.StringIO(newline="")
     out = csv.writer(buf, lineterminator="\r\n")
-    slots = {((v.get("basis") or "consolidated"), str(v.get("period_label") or ""))
-             for r in rows for v in (r.get("values") or [])}
-    qualify = len(slots) > 1
-    with_basis = len({basis for basis, _ in slots}) > 1
-    out.writerow([_col("Line item", locale), _col("Value", locale)])
+    out.writerow([_col("Line item", locale), *_csv_headers(cols, locale)])
     for r in rows:
+        by_slot = {_slot_key(v): v for v in (r.get("values") or [])}
         label = str(r.get("source_label") or r.get("canonical_key") or "")
-        values = r.get("values") or []
-        if not values:
-            # A line item the extractor read a caption for and no figure. Carried, because it is a
-            # line the filing prints; the empty second column is the honest answer for it.
-            out.writerow([_csv_safe(label), ""])
-            continue
-        for v in values:
-            name = _slot_name(v, with_basis=with_basis, locale=locale) if qualify else ""
-            out.writerow([_csv_safe(f"{label} ({name})" if name else label),
-                          _csv_figure(v.get("value"), scale)])
+        out.writerow([_csv_safe(label),
+                      *(_csv_figure((by_slot.get(k) or {}).get("value"), scale) for k in keys)])
     # utf-8-SIG: the byte-order mark is what makes Excel open the file as UTF-8. Without it Excel
     # on Windows reads a CSV as the system code page, so a Chinese, Arabic or French caption — this
     # product supports all three — arrives as mojibake in the export whose whole content is
@@ -338,25 +385,23 @@ def build_rows_csv(rows: list[dict], *, locale: str = "en", scale: float = 1.0) 
 
 
 def build_statements_csv(statements: dict, *, locale: str = "en") -> bytes:
-    """The same two-column sheet for the seeded sample project, whose figures live in a
-    statement-shaped dict rather than extracted rows.
+    """The same sheet for the seeded sample project, whose figures live in a statement-shaped dict
+    rather than extracted rows. Three columns, because the sample prints two years.
 
     Section and sub-head rows are left out: they are the sheet's STRUCTURE, and this file's
-    contract is line items and figures. Both periods are carried, named the way the sample
-    workbook names its columns.
+    contract is line items and figures.
     """
     import csv
 
     buf = io.StringIO(newline="")
     out = csv.writer(buf, lineterminator="\r\n")
-    out.writerow([_col("Line item", locale), _col("Value", locale)])
+    out.writerow([_col("Line item", locale), "FY25", "FY24"])
     for st in statements.values():
         for r in st["rows"]:
             if r.get("kind") in ("section", "subhead"):
                 continue
-            label = _csv_safe(str(r.get("label") or ""))
-            for period, key in (("FY25", "v1"), ("FY24", "v2")):
-                out.writerow([f"{label} ({period})", _csv_figure(r.get(key), 1.0)])
+            out.writerow([_csv_safe(str(r.get("label") or "")),
+                          _csv_figure(r.get("v1"), 1.0), _csv_figure(r.get("v2"), 1.0)])
     return buf.getvalue().encode("utf-8-sig")
 
 

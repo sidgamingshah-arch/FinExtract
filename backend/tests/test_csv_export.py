@@ -1,18 +1,22 @@
-"""The two-column CSV export: the whole extraction on one sheet, line item and value.
+"""The flat CSV export: the whole extraction on one sheet, a row per line item, a column per figure.
 
 The plainest artifact the export module produces, and the one whose readers are other programs —
 pasted into a model, loaded by pandas, diffed against last quarter. So the properties worth holding
-are not about formatting: they are that the file has exactly two columns, that it does not lose a
-figure, that a figure it does carry cannot be mistaken for a different one, and that opening it
-does not execute anything.
+are not about formatting: they are that the sheet is rectangular, that it does not lose a figure or
+put one in the wrong column, and that opening it does not execute anything.
+
+THE SHEET IS AS WIDE AS THE FILING IS. Two columns for a statement that printed one column of
+figures; three for one that printed two years; wider again for one that printed Group and Company
+as well. The alternative — a fixed two columns with the period named inside the caption — was the
+first version of this format, and it was wrong in a way worth recording: a caption is the filing's
+own words, an analyst joins and greps on it, and "Revenue (2023)" is not a caption any filing
+printed.
 
 FOUR THINGS ARE EASY TO GET WRONG HERE and each has a test below.
 
-* A filing prints two years side by side, and often a Group and a Company column as well. Two
-  columns have nowhere to put that. Carrying only the first would make this the only export that
-  silently drops the comparative year; carrying all of them under an unqualified caption gives a
-  consumer "Revenue" twice with two different numbers and no way to tell them apart. So a slot is
-  NAMED, and only when the file actually holds more than one.
+* A figure has to land under its own column. Placing by position instead of by (basis, period)
+  puts last year's number under this year's heading on any row that skipped a column — silently,
+  and in a file nobody reads by eye.
 * A caption is text lifted out of an uploaded document. Excel, LibreOffice and Sheets EXECUTE a
   cell beginning "=", "+", "-" or "@", so a filing can carry a formula into the analyst's machine.
   The workbook path already guards this (openpyxl promotes a leading "=" to a live formula, which
@@ -38,7 +42,7 @@ from tests.fixtures.generate import make_native_pdf
 
 def _row(label: str, *values) -> dict:
     """An extracted row in served shape. ``values`` are (period_label, value) or
-    (period_label, value, basis) — the three fields the slot rule reads."""
+    (period_label, value, basis) — the three fields the column rule reads."""
     return {"source_label": label,
             "values": [{"period_label": v[0], "value": v[1],
                         "basis": (v[2] if len(v) > 2 else "consolidated"),
@@ -55,64 +59,133 @@ def _read(data: bytes) -> list[list[str]]:
     return list(csv.reader(io.StringIO(data.decode("utf-8-sig"))))
 
 
-# --- the shape asked for ---------------------------------------------------------------------
+# --- the sheet is as wide as the filing ------------------------------------------------------
 
-def test_every_row_is_exactly_two_columns():
-    """The whole contract of this format. Asserted over EVERY row rather than the header, because
-    a stray field on one line is what turns a two-column file into an unparseable one."""
-    data = build_rows_csv([_row("Cash", ("current", "1200")),
-                           _row("Trade receivables", ("current", "980"))], locale="en")
-    table = _read(data)
-    assert table[0] == ["Line item", "Value"]
-    assert table[1:] == [["Cash", "1200"], ["Trade receivables", "980"]]
-    assert {len(r) for r in table} == {2}
+def test_one_column_of_figures_gives_two_columns():
+    """A filing that printed a single column needs no heading to tell anything apart, and naming
+    the period there would put one on every ordinary file for the benefit of nobody."""
+    table = _read(build_rows_csv([_row("Cash", ("current", "1200")),
+                                  _row("Trade receivables", ("current", "980"))]))
+    assert table == [["Line item", "Value"], ["Cash", "1200"], ["Trade receivables", "980"]]
 
 
-def test_a_single_period_filing_gets_bare_captions():
-    """The ordinary case comes out as the bare two columns that were asked for — no qualifier
-    bolted onto a caption that needs no disambiguating."""
-    table = _read(build_rows_csv([_row("Revenue", ("current", "5000"))]))
-    assert table[1] == ["Revenue", "5000"]
+def test_two_years_give_three_columns_headed_by_the_years():
+    """THE WIDENING. The comparative year gets its own column rather than its own row, and the
+    caption stays the filing's own words."""
+    table = _read(build_rows_csv([_row("Revenue", ("2023", "5000"), ("2022", "4400")),
+                                  _row("Cost of sales", ("2023", "-3100"), ("2022", "-2800"))]))
+    assert table == [["Line item", "2023", "2022"],
+                     ["Revenue", "5000", "4400"],
+                     ["Cost of sales", "-3100", "-2800"]]
 
 
-def test_both_periods_are_carried_and_told_apart():
-    """The comparative year is NOT dropped, and the two figures for one caption are
-    distinguishable. Either half failing alone is a defect: dropping loses data, and not naming
-    hands a consumer two different numbers under one identical key."""
-    table = _read(build_rows_csv([_row("Revenue", ("2023", "5000"), ("2022", "4400"))]))
-    assert table[1:] == [["Revenue (2023)", "5000"], ["Revenue (2022)", "4400"]]
+def test_more_years_keep_widening():
+    """Three periods, five columns. Nothing about the shape is capped at two."""
+    table = _read(build_rows_csv([_row("Revenue", ("2023", "5000"), ("2022", "4400"),
+                                       ("2021", "3900"), ("2020", "3500"))]))
+    assert table[0] == ["Line item", "2023", "2022", "2021", "2020"]
+    assert table[1] == ["Revenue", "5000", "4400", "3900", "3500"]
+
+
+def test_group_and_company_get_their_own_columns_headed_by_both():
+    """Consolidated and standalone are separate columns, and the heading names the basis as well
+    as the period — a heading of just "2023" over two of them would be two columns most readers
+    of a CSV keep exactly one of."""
+    table = _read(build_rows_csv([
+        _row("Revenue", ("2023", "5000"), ("2022", "4400"),
+             ("2023", "3100", "standalone"), ("2022", "2700", "standalone"))]))
+    assert table[0] == ["Line item", "Consolidated 2023", "Consolidated 2022",
+                        "Standalone 2023", "Standalone 2022"]
+    assert table[1] == ["Revenue", "5000", "4400", "3100", "2700"]
 
 
 def test_the_basis_is_named_only_when_the_file_carries_two():
-    """A filing printing Group and Company needs the basis in the caption; one printing a single
-    basis does not, and adding it would put a word in every caption of every ordinary filing."""
-    both = _read(build_rows_csv([_row("Revenue", ("2023", "5000"), ("2023", "3100", "standalone"))]))
-    assert both[1:] == [["Revenue (Consolidated 2023)", "5000"],
-                        ["Revenue (Standalone 2023)", "3100"]]
-    one = _read(build_rows_csv([_row("Revenue", ("2023", "5000"), ("2022", "4400"))]))
-    assert one[1] == ["Revenue (2023)", "5000"], "the basis was named with only one basis present"
+    """One basis needs no basis word, or every caption of every ordinary filing carries one."""
+    table = _read(build_rows_csv([_row("Revenue", ("2023", "5000"), ("2022", "4400"))]))
+    assert table[0] == ["Line item", "2023", "2022"]
 
 
-def test_the_real_period_end_date_is_preferred_over_the_positional_label():
+def test_consolidated_columns_come_before_standalone():
+    """A total order on the columns, whatever order the rows happen to carry their values in.
+    Consolidated leads because it is the default reading of a filing and the view every screen
+    opens on."""
+    table = _read(build_rows_csv([
+        _row("Revenue", ("2023", "3100", "standalone"), ("2023", "5000", "consolidated"))]))
+    assert table[0] == ["Line item", "Consolidated 2023", "Standalone 2023"]
+    assert table[1] == ["Revenue", "5000", "3100"]
+
+
+def test_the_columns_keep_the_order_they_were_printed_in():
+    """Not sorted by heading — taken off the page. A matrix statement's component columns are
+    named, not dated, and "col10" must not sort in front of "col3"."""
+    table = _read(build_rows_csv([_row("Balance at 1 January",
+                                       ("Share capital", "100"), ("Retained profits", "900"),
+                                       ("Translation reserve", "-40"))]))
+    assert table[0] == ["Line item", "Share capital", "Retained profits", "Translation reserve"]
+
+
+def test_the_real_period_end_date_heads_the_column_when_there_is_one():
     """`period_label` is positional ("current"); `period_display` is the date the column actually
-    printed. A reader of this file has the latter or nothing."""
+    printed. A reader of this file has the heading or nothing."""
     rows = [{"source_label": "Revenue",
              "values": [{"period_label": "current", "period_display": "31 December 2023",
                          "value": "5000", "basis": "consolidated"},
                         {"period_label": "prior", "period_display": "31 December 2022",
                          "value": "4400", "basis": "consolidated"}]}]
-    table = _read(build_rows_csv(rows))
-    assert table[1][0] == "Revenue (31 December 2023)"
+    assert _read(build_rows_csv(rows))[0] == ["Line item", "31 December 2023", "31 December 2022"]
 
 
-def test_a_line_with_no_figure_keeps_its_caption():
-    """A line item the extractor read a caption for and no figure is still a line the filing
-    prints. Carried with an empty second column, not dropped — dropping is how a reader concludes
-    the filing never printed the line."""
-    table = _read(build_rows_csv([{"source_label": "Other reserves", "values": []},
-                                  _row("Cash", ("current", "1200"))]))
-    assert table[1] == ["Other reserves", ""]
-    assert table[2] == ["Cash", "1200"]
+# --- the sheet is rectangular, and every figure is under its own heading ----------------------
+
+def test_a_figure_lands_under_its_own_column_not_its_position():
+    """THE PLACEMENT DEFECT. A row that carries only the prior year must leave the current-year
+    cell EMPTY, not shift its figure left into it. Writing values positionally passes every test
+    above and puts last year's number under this year's heading here."""
+    table = _read(build_rows_csv([_row("Revenue", ("2023", "5000"), ("2022", "4400")),
+                                  _row("Discontinued operations", ("2022", "310"))]))
+    assert table[0] == ["Line item", "2023", "2022"]
+    assert table[2] == ["Discontinued operations", "", "310"], \
+        "a prior-year-only figure was filed under the current year"
+
+
+def test_every_row_has_exactly_as_many_cells_as_the_header():
+    """A row shorter than the header is what turns a readable file into a parse error three
+    thousand lines in. Asserted over a deliberately ragged set of rows."""
+    table = _read(build_rows_csv([
+        _row("Revenue", ("2023", "5000"), ("2022", "4400")),
+        _row("Other income", ("2023", "12")),
+        {"source_label": "Reserves", "values": []},
+        _row("Tax", ("2022", "-90"), ("2023", "-110", "standalone")),
+    ]))
+    assert len({len(r) for r in table}) == 1, "the sheet is not rectangular"
+    assert len(table[0]) == 4
+
+
+def test_a_run_with_no_figures_at_all_is_still_two_columns():
+    """The header promises a Value column, so every row has to carry the cell — even when nothing
+    was extracted to put in it."""
+    table = _read(build_rows_csv([{"source_label": "Other reserves", "values": []}]))
+    assert table == [["Line item", "Value"], ["Other reserves", ""]]
+
+
+def test_one_row_per_printed_line_never_merged_by_caption():
+    """Two sections legitimately print "Total". Adding those together because they read alike
+    would fabricate a figure that appears in no filing."""
+    table = _read(build_rows_csv([_row("Total", ("current", "500")),
+                                  _row("Total", ("current", "700"))]))
+    assert table[1:] == [["Total", "500"], ["Total", "700"]]
+
+
+def test_two_columns_cannot_share_a_heading():
+    """A collision is not cosmetic: most readers of a CSV keep exactly one of two identically
+    named columns, so it is silently lost data. The printed position distinguishes them."""
+    rows = [{"source_label": "Revenue",
+             "values": [{"period_label": "current", "period_display": "FY23", "value": "1",
+                         "basis": "consolidated"},
+                        {"period_label": "prior", "period_display": "FY23", "value": "2",
+                         "basis": "consolidated"}]}]
+    header = _read(build_rows_csv(rows))[0]
+    assert len(set(header)) == len(header), f"duplicate column heading in {header}"
 
 
 # --- what opening the file must not do ------------------------------------------------------
@@ -163,7 +236,7 @@ def test_a_figure_is_carried_at_the_precision_it_was_printed():
 
 def test_a_negative_is_a_minus_sign_not_a_bracket():
     """The screen shows accounting brackets; a machine-readable dump must not. And the injection
-    guard must not fire on the value column, which would turn -450 into the text "'-450"."""
+    guard must not fire on a value cell, which would turn -450 into the text "'-450"."""
     table = _read(build_rows_csv([_row("Finance costs", ("current", "-450"))]))
     assert table[1] == ["Finance costs", "-450"]
 
@@ -171,27 +244,36 @@ def test_a_negative_is_a_minus_sign_not_a_bracket():
 def test_requested_units_convert_the_figures():
     """The unit choice is a conversion of the FIGURES, so it reaches this format even though the
     Include list (which adds analysis SHEETS) cannot."""
-    table = _read(build_rows_csv([_row("Cash", ("current", "1200000"))], scale=1 / 1000))
-    assert table[1] == ["Cash", "1200"]
+    table = _read(build_rows_csv([_row("Cash", ("2023", "1200000"), ("2022", "900000"))],
+                                 scale=1 / 1000))
+    assert table[1] == ["Cash", "1200", "900"]
 
 
 def test_headers_are_localized():
-    """Two columns, and both of them are headers — an untranslated one is half the file's chrome."""
+    """The line-item column and the plain Value column both. An untranslated one is half the
+    chrome of a two-column file."""
     assert _read(build_rows_csv([_row("现金", ("current", "1"))], locale="zh"))[0] == ["项目", "金额"]
+
+
+def test_a_localized_basis_heads_the_column():
+    """When the basis is part of a heading it has to be in the reader's language too — the one
+    export whose headings are its only prose."""
+    header = _read(build_rows_csv(
+        [_row("现金", ("2023", "1"), ("2023", "2", "standalone"))], locale="zh"))[0]
+    assert header == ["项目", "合并 2023", "单独 2023"]
 
 
 # --- the sample project's own arm ------------------------------------------------------------
 
-def test_the_sample_csv_leaves_structure_out_and_carries_both_periods():
+def test_the_sample_csv_leaves_structure_out_and_gives_a_column_per_year():
     """Section and sub-head rows are the sheet's STRUCTURE; this file's contract is line items and
-    figures. Both periods are carried, named the way the sample workbook names its columns."""
+    figures. The sample prints two years, so it is three columns."""
     statements = {"balance_sheet": {"label": "Balance Sheet", "rows": [
         {"kind": "section", "label": "ASSETS"},
         {"kind": "item", "label": "Cash", "v1": 1200, "v2": 900},
     ]}}
     table = _read(build_statements_csv(statements))
-    assert table[1:] == [["Cash (FY25)", "1200"], ["Cash (FY24)", "900"]]
-    assert "ASSETS" not in [r[0] for r in table]
+    assert table == [["Line item", "FY25", "FY24"], ["Cash", "1200", "900"]]
 
 
 def test_the_sample_export_route_serves_csv_and_not_a_workbook(client):
@@ -201,7 +283,7 @@ def test_the_sample_export_route_serves_csv_and_not_a_workbook(client):
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/csv")
     assert r.content[:4] != b"PK\x03\x04", "an xlsx was served under a .csv name"
-    assert 'filename=spread.csv' in r.headers["content-disposition"]
+    assert "filename=spread.csv" in r.headers["content-disposition"]
 
 
 # --- end to end through the route -------------------------------------------------------------
@@ -219,19 +301,18 @@ def _extract(client) -> str:
     raise AssertionError("extraction did not finish")
 
 
-def test_the_route_serves_a_named_csv_of_the_run(client):
-    """The whole path: a real extraction, the format asked for, and a file named for the document
-    rather than for the format."""
+def test_the_route_serves_a_named_rectangular_csv_of_the_run(client):
+    """The whole path: a real extraction, the format asked for, a file named for the document
+    rather than for the format, and a row per extracted line."""
     doc_id = _extract(client)
     r = client.get(f"/api/v1/documents/{doc_id}/export", params={"fmt": "csv"})
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/csv")
     assert 'filename="bs.csv"' in r.headers["content-disposition"]
     table = _read(r.content)
-    assert {len(row) for row in table} == {2}
+    assert len({len(row) for row in table}) == 1, "the sheet is not rectangular"
     rows = client.get(f"/api/v1/documents/{doc_id}/run").json()["result"]["rows"]
-    assert len(table) - 1 == sum(max(1, len(row["values"] or [])) for row in rows), \
-        "the file carries a different number of figures from the run"
+    assert len(table) - 1 == len(rows), "the file carries a different number of lines from the run"
 
 
 def test_the_route_carries_every_figure_the_run_extracted(client):
@@ -241,8 +322,9 @@ def test_the_route_carries_every_figure_the_run_extracted(client):
     rows = client.get(f"/api/v1/documents/{doc_id}/run").json()["result"]["rows"]
     expected = sorted(v["value"] for row in rows for v in (row["values"] or [])
                       if v.get("value") is not None)
-    got = sorted(r[1] for r in _read(client.get(f"/api/v1/documents/{doc_id}/export",
-                                                params={"fmt": "csv"}).content)[1:] if r[1])
+    table = _read(client.get(f"/api/v1/documents/{doc_id}/export",
+                             params={"fmt": "csv"}).content)[1:]
+    got = sorted(cell for row in table for cell in row[1:] if cell)
     assert expected and got == expected
 
 
@@ -252,3 +334,14 @@ def test_an_unknown_format_is_still_refused(client):
     doc_id = _extract(client)
     assert client.get(f"/api/v1/documents/{doc_id}/export",
                       params={"fmt": "parquet"}).status_code == 422
+
+
+def test_a_positional_column_gets_the_same_heading_the_workbook_uses():
+    """`current` and `prior` are tokens the extractor writes when the filing printed no date it
+    could resolve — not words anyone wrote. A file whose headings are its only prose must not stand
+    a lowercase internal name in them, and must not disagree with the flat workbook's own columns.
+    A resolved period-end date still wins over both (see the test above)."""
+    table = _read(build_rows_csv([_row("Cash", ("current", "1200"), ("prior", "900"))]))
+    assert table[0] == ["Line item", "Current", "Prior"]
+    zh = _read(build_rows_csv([_row("现金", ("current", "1"), ("prior", "2"))], locale="zh"))
+    assert zh[0] == ["项目", "本期", "上期"]

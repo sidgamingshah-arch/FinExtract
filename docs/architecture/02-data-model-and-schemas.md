@@ -294,8 +294,11 @@ WebSocket**), `GET /documents/{id}/run`.
 `GET /documents/{id}/pages/{n}/image` (server-rasterized page PNG),
 `GET /documents/{id}/cell-context?sheet=&cell=`,
 `GET /documents/{id}/export` (`fmt=excel|json|csv`, `layout=flat|statement`, `include=…`).
-`csv` is the flat two-column form — line item and value, one sheet, one row per figure — for a
-consumer that is another program; `layout` and `include` do not apply to it.
+`csv` is the flat form for a consumer that is another program: one sheet, a row per line item and
+a column per figure. It is as wide as the filing is — two columns ("Line item, Value") for a
+statement that printed one column of figures, three headed by the years for one that printed two,
+wider again with a column per (basis, period) pair when Group and Company are both extracted.
+`layout` and `include` do not apply to it.
 
 **Editing & review**
 `PATCH`/`DELETE /documents/{id}/line-items/{key}` (value, formula, comment,

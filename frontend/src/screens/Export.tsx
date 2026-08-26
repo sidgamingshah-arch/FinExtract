@@ -4,7 +4,7 @@ import { useDocumentRun, useExportOptions, useProject, useProjectLoaded, useSubm
 import { EmptyState } from "../components/EmptyState";
 import { downloadDocumentExport, downloadExport } from "../lib/api";
 import { useUI } from "../store";
-import type { ExportFmt, ExtractionRow } from "../types";
+import type { ExportFmt, ExtractionRow, ExtractionValue } from "../types";
 import { EXPORT_EXT } from "../types";
 import { useT } from "../i18n";
 import { useCan } from "../lib/rbac";
@@ -102,12 +102,12 @@ function provStr(r: ExtractionRow): string {
   return `p.${p.printed_page || p.page_index + 1}`;
 }
 
-/** The two-column CSV as the server writes it, from the rows the screen already has.
+/** The CSV as the server writes it, from the rows the screen already has.
  *
- *  ONE ROW PER FIGURE, and the caption names the figure only when the file carries more than one
- *  — the same rule as `services/export.build_rows_csv`, because a preview whose row count differs
- *  from the download's is worse than no preview. Kept beside it deliberately: the rule is the
- *  interesting part of that format, and it is what a reader is checking here.
+ *  A ROW PER LINE ITEM AND A COLUMN PER FIGURE, widening with the filing — the same rule as
+ *  `services/export.build_rows_csv`, because a preview whose shape differs from the download's is
+ *  worse than no preview. Kept beside it deliberately: the widening is the interesting part of
+ *  that format, and it is what a reader is checking here.
  *
  *  The basis word comes from `ws.consolidated` / `ws.standalone`, the vocabulary the rest of this
  *  app shows. NOTE that `services/export._BASIS_LABEL` spells "standalone" differently in zh and
@@ -116,34 +116,42 @@ function provStr(r: ExtractionRow): string {
  *  download. Not settled silently in passing: which spelling is right is a wording decision, and
  *  the same two dictionaries head the statement workbook's columns and the Workspace's own tabs.
  */
-function csvPreviewRows(rows: ExtractionRow[], basisWord: (b: string) => string): [string, string][] {
-  const slots = new Set<string>();
-  const bases = new Set<string>();
+const BASIS_ORDER: Record<string, number> = { consolidated: 0, standalone: 1 };
+
+function csvPreviewGrid(
+  rows: ExtractionRow[], basisWord: (b: string) => string, valueWord: string,
+): { headers: string[]; body: string[][] } {
+  // First appearance IS printed order (a row's values are read left to right), and the sort by
+  // basis is stable, so it groups the bases without disturbing that.
+  const first = new Map<string, ExtractionValue>();
   for (const r of rows)
     for (const v of r.values ?? []) {
-      const b = v.basis || "consolidated";
-      bases.add(b);
-      slots.add(`${b}\u0000${v.period_label ?? ""}`);
+      const k = `${v.basis || "consolidated"}\u0000${v.period_label ?? ""}`;
+      if (!first.has(k)) first.set(k, v);
     }
-  const qualify = slots.size > 1;
-  const withBasis = bases.size > 1;
-  const out: [string, string][] = [];
-  for (const r of rows) {
-    const label = r.source_label || r.canonical_key || "";
-    const values = r.values ?? [];
-    if (values.length === 0) {
-      out.push([label, ""]);
-      continue;
-    }
-    for (const v of values) {
-      const period = String(v.period_display || v.period_label || "").trim();
-      const name = !qualify ? "" : withBasis
-        ? `${basisWord(v.basis || "consolidated")} ${period}`.trim()
-        : period;
-      out.push([name ? `${label} (${name})` : label, v.value == null ? "" : String(v.value)]);
-    }
-  }
-  return out;
+  const keys = [...first.keys()].sort(
+    (a, b) => (BASIS_ORDER[a.split("\u0000")[0]] ?? 2) - (BASIS_ORDER[b.split("\u0000")[0]] ?? 2));
+  const withBasis = new Set([...first.values()].map((v) => v.basis || "consolidated")).size > 1;
+  const names = keys.length <= 1 ? [valueWord] : keys.map((k) => {
+    const v = first.get(k)!;
+    const period = String(v.period_display || v.period_label || "").trim();
+    const named = withBasis ? `${basisWord(v.basis || "consolidated")} ${period}`.trim() : period;
+    return named || valueWord;
+  });
+  const headers = names.map((n, i) => (names.filter((m) => m === n).length > 1 ? `${n} (${i + 1})` : n));
+  // `keys.length || 1` cells per row: with nothing extracted the header still promises a Value
+  // column, so the row has to carry the cell or the sheet stops being rectangular.
+  const width = keys.length || 1;
+  const body = rows.map((r) => {
+    const bySlot = new Map(
+      (r.values ?? []).map((v) => [`${v.basis || "consolidated"}\u0000${v.period_label ?? ""}`, v]));
+    return [r.source_label || r.canonical_key || "",
+            ...Array.from({ length: width }, (_, i) => {
+              const v = keys[i] === undefined ? undefined : bySlot.get(keys[i]);
+              return v?.value == null ? "" : String(v.value);
+            })];
+  });
+  return { headers, body };
 }
 
 /** Real export preview built from the document's actual extracted rows (no demo data). */
@@ -151,26 +159,34 @@ function RealPreview({ rows, fmt }: { rows: ExtractionRow[]; fmt: ExportFmt }) {
   const t = useT();
   const isExcel = fmt === "excel";
   if (fmt === "csv") {
-    const pairs = csvPreviewRows(
-      rows, (b) => t(b === "standalone" ? "ws.standalone" : "ws.consolidated"));
-    const csvCols = "1fr 130px";
+    const { headers, body } = csvPreviewGrid(
+      rows, (b) => t(b === "standalone" ? "ws.standalone" : "ws.consolidated"), t("e.col.value"));
+    // The value columns are fixed-width and the caption takes the rest, so a filing with four of
+    // them still shows a readable caption; the whole grid scrolls sideways rather than the page.
+    const csvCols = `minmax(200px, 1fr) repeat(${headers.length}, 110px)`;
     return (
-      <div style={{ fontFamily: font.mono, fontSize: 11 }}>
-        <div style={{ display: "grid", gridTemplateColumns: csvCols, background: color.excelGreen,
-                      color: "#fff", fontWeight: 600 }}>
-          {[t("e.col.lineitem"), t("e.col.value")].map((h, i) => (
-            <div key={i} style={{ padding: "6px 8px", borderRight: "1px solid #1a5c37",
-                                  textAlign: i === 1 ? "right" : "left" }}>{h}</div>
+      <div style={{ fontFamily: font.mono, fontSize: 11, overflowX: "auto" }}>
+        <div style={{ minWidth: 200 + headers.length * 110 }}>
+          <div style={{ display: "grid", gridTemplateColumns: csvCols, background: color.excelGreen,
+                        color: "#fff", fontWeight: 600 }}>
+            {[t("e.col.lineitem"), ...headers].map((h, i) => (
+              <div key={i} style={{ padding: "6px 8px", borderRight: "1px solid #1a5c37",
+                                    textAlign: i === 0 ? "left" : "right" }}>{h}</div>
+            ))}
+          </div>
+          {body.slice(0, 60).map((cells, ri) => (
+            <div key={ri} style={{ display: "grid", gridTemplateColumns: csvCols,
+                                   background: ri % 2 ? "#f6f8f6" : "#fff",
+                                   borderBottom: "1px solid #e6ebe6" }}>
+              {cells.map((cell, ci) => (
+                <div key={ci} style={{ padding: "6px 8px", borderRight: "1px solid #eef1ee",
+                                       textAlign: ci === 0 ? "left" : "right" }}>
+                  {ci === 0 ? cell : cell || "—"}
+                </div>
+              ))}
+            </div>
           ))}
         </div>
-        {pairs.slice(0, 60).map(([label, value], ri) => (
-          <div key={ri} style={{ display: "grid", gridTemplateColumns: csvCols,
-                                 background: ri % 2 ? "#f6f8f6" : "#fff",
-                                 borderBottom: "1px solid #e6ebe6" }}>
-            <div style={{ padding: "6px 8px", borderRight: "1px solid #eef1ee" }}>{label}</div>
-            <div style={{ padding: "6px 8px", textAlign: "right" }}>{value || "—"}</div>
-          </div>
-        ))}
       </div>
     );
   }
