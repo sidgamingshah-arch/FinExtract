@@ -38,7 +38,17 @@ playwright-report/
 .vscode/
 
 # Claude Code local state + agent worktrees (never tracked)
-.claude/
+# `.claude/*` and not `.claude/`, because git does not descend into an excluded DIRECTORY and a
+# negation underneath one is therefore dead. Everything in here stays untracked...
+.claude/*
+# ...except the session CONFIGURATION, which has to travel with the repo to do its job. The
+# session-start hook exists to put a re-provisioned container's stale clone back on the pushed
+# branch; a hook that is itself untracked is wiped by the very rollback it is there to repair.
+!.claude/settings.json
+!.claude/dev-branch
+!.claude/hooks/
+.claude/hooks/*
+!.claude/hooks/*.sh
 
 # Generated on demand by backend/scripts/template_output_structure.py for template review — a
 # snapshot of one run's output shape, not source.
