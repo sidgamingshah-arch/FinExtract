@@ -34,7 +34,13 @@ from app.api.deps import db, settings as get_settings_dep
 # ``_latest_run`` is imported rather than re-spelled here: "the latest run for a document" is one
 # ordering rule (``created_at`` descending), and a second copy of it would let this route and every
 # other per-document read disagree about which run they are describing.
-from app.api.routes.documents import _can_access, _latest_run, authorized_document
+from app.api.routes.documents import (
+    _can_access,
+    _latest_run,
+    _run_ontology_id,
+    _run_template_id,
+    authorized_document,
+)
 from app.config import Settings
 from app.ports.object_store import LocalObjectStore
 from app.schemas.loader import load_ontology, load_template
@@ -575,12 +581,61 @@ class ExtractionOptions(BaseModel):
     basis: list[str] = []
     target_currency: str | None = None
     target_units: int | None = None
-    # Whether the user asked to review/adjust detected page scope before
-    # extraction. Defaults to auto (False): detect pages and extract in one pass.
-    confirm_scope: bool = False
+    # Whether the user asked to review/adjust detected page scope before extraction. Auto (False)
+    # when not stated: detect pages and extract in one pass.
+    #
+    # `None` rather than `False` as the default so NOT STATED is distinguishable from STATED FALSE.
+    # It is the difference between a screen mounting ("make sure this filing has been extracted")
+    # and the Scope screen asking for a confirm-scope run, and the idempotency check in
+    # ``start_extraction`` compares only what the caller actually stated. Stored normalised, so a
+    # run's options always carry a concrete bool.
+    confirm_scope: bool | None = None
     # Entity name used to mint the run id (entity-slug + timestamp). Falls back to the
     # document filename when omitted.
     entity: str | None = None
+    # RUN IT AGAIN even though this document already has a run on these same pins.
+    #
+    # Without this, POSTing an extraction is IDEMPOTENT per (document, template, rulebook) — see
+    # ``start_extraction`` — which is what a screen that fires the POST on arrival needs it to mean.
+    # Re-extracting is the one case where the caller means "another run of the same thing", and it
+    # has to be able to say so, or the two intentions are indistinguishable at the endpoint.
+    force: bool = False
+
+
+def _satisfies(existing, body) -> bool:
+    """Whether a run this document ALREADY has answers THIS request — the idempotency test
+    ``start_extraction`` applies.
+
+    JUDGED ON WHAT THE CALLER ACTUALLY STATED, and nothing else. A request that pins nothing is
+    asking "make sure this filing has been extracted", and any run of it answers that; a request
+    that pins a template is asking for that template specifically.
+
+    Comparing the RESOLVED options instead was the first version, and it is wrong in a way that only
+    shows up in use: the template default resolves to the latest one stored, so publishing a
+    template while a run was working would make an arriving screen's empty request look different
+    from the run already in flight — and the reader would be handed a conflict instead of their
+    extraction. Same for ``confirm_scope``: a run started from the Scope screen carries True, and a
+    screen merely mounting sends nothing, which must not read as a request for a different run.
+
+    Every field here steers the pipeline, so a caller who names one is asking for it. ``entity`` is
+    absent because it only names the run id, and ``force`` because it is the control that asks for
+    this test to be skipped.
+    """
+    opts = existing.options or {}
+    if body.template_version_id and body.template_version_id != _run_template_id(existing):
+        return False
+    if body.ontology_version_id and body.ontology_version_id != _run_ontology_id(existing):
+        return False
+    if body.confirm_scope is not None \
+            and bool(body.confirm_scope) != bool(opts.get("confirm_scope")):
+        return False
+    if body.basis and list(body.basis) != list(opts.get("basis") or []):
+        return False
+    if body.target_currency and body.target_currency != opts.get("target_currency"):
+        return False
+    if body.target_units is not None and body.target_units != opts.get("target_units"):
+        return False
+    return True
 
 
 def resolve_template_id(session: Session, pinned_template_id: str | None,
@@ -1002,6 +1057,56 @@ def start_extraction(
             "blockers": [f.get("message") for f in blockers],
         })
 
+    # --- ONE RUN PER REQUEST, NOT ONE PER ARRIVAL ----------------------------------------------
+    # THE DEFECT THIS CLOSES. Nothing here used to look for an existing run, so every POST minted a
+    # new one with a fresh `started_at` and launched a fresh pipeline. The extraction screen fires
+    # this POST when it mounts, so navigating away and back — or reloading, or opening a second tab,
+    # or double-clicking — started the filing over: a second pipeline racing the first, the LLM
+    # tokens spent twice, and the reader's elapsed clock jumping back to zero because it was
+    # honestly reporting a run that had just begun. The client held this together with a cached
+    # query, which is not a guarantee: a cache is evicted on a timer and gone on a reload, and the
+    # two-tab case it never covered at all.
+    #
+    # So the endpoint answers for itself. POSTing an extraction is IDEMPOTENT per (document,
+    # resolved template, resolved rulebook): asked for a run that already exists on the same pins,
+    # it hands back THAT run rather than starting another. Re-extracting stays possible and stays
+    # EXPLICIT — `force` is how a caller says "another run of the same thing", which is a different
+    # intention from "make sure this filing has been extracted" and could not be told apart before.
+    #
+    # Resolved ids, not the request's: two callers naming the pins differently — one pinning
+    # nothing, one pinning what the default resolves to — are asking for the same run, and comparing
+    # the requests would miss that.
+    existing = _latest_run(session, doc.id)
+    if existing is not None:
+        same_request = _satisfies(existing, body)
+        if existing.status == "running":
+            # A RUN IN FLIGHT IS NEVER RACED, force or not. The product has no notion of two
+            # concurrent pipelines over one filing — they would write the same run rows twice and
+            # the reader would be shown whichever finished last. Same pins: this is the run the
+            # caller wants, so hand it over. Different pins: the caller is asking for the filing to
+            # be read against other rules, which is a real request and cannot be answered by a run
+            # already reading it against these — so it is refused, naming the run to wait for.
+            if same_request:
+                return {"run_id": existing.id, "status": existing.status,
+                        "rulebook": (existing.options or {}).get("rulebook") or rulebook,
+                        "progress_url": f"/api/v1/extractions/{existing.id}",
+                        "adopted": True}
+            raise HTTPException(status_code=409, detail={
+                "error": "run_in_flight",
+                "message": ("A run is already extracting this document. Wait for it to "
+                            "finish before starting one with different options."),
+                "run_id": existing.id,
+            })
+        # A SETTLED run on the same pins is the answer to "extract this document" — the spread is
+        # already there. `force` is what distinguishes the re-extract button from a screen mounting.
+        # A FAILED run is not an answer, so it is retried rather than handed back: the caller asked
+        # for an extraction and does not have one.
+        if same_request and existing.status == "succeeded" and not body.force:
+            return {"run_id": existing.id, "status": existing.status,
+                    "rulebook": (existing.options or {}).get("rulebook") or rulebook,
+                    "progress_url": f"/api/v1/extractions/{existing.id}",
+                    "adopted": True}
+
     entity = body.entity or Path(doc.filename or "").stem or "document"
     run_id = audit_svc.make_run_id(entity)
     # A run has ONE start time. Stamped here and written to `created_at` as well as to the progress
@@ -1015,6 +1120,11 @@ def start_extraction(
     # figures. A run that says which rulebook it read the filing against and did not read it is
     # worse than one that says nothing.
     run_options = {**body.model_dump(),
+                   # A CONCRETE BOOL. The field is tri-state on the way in so that "not stated" can
+                   # be told from "stated False" by the idempotency test above; a run's stored
+                   # options must not carry that distinction onward — the worker and every later
+                   # reader want the effective value.
+                   "confirm_scope": bool(body.confirm_scope),
                    # THE RESOLVED IDS, not the request's, and for the same reason in both cases: a
                    # run must be able to say which template shaped its spread and which rulebook
                    # produced its figures. ``_run_template_id`` reads the column OR this key, so

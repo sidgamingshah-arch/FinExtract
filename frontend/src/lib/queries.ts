@@ -337,6 +337,11 @@ export function useReextract(documentId: string | undefined) {
     mutationFn: (vars: { ontologyId?: string; templateId?: string } = {}) =>
       api.runExtraction(documentId as string, {
         ontology_version_id: vars.ontologyId, template_version_id: vars.templateId,
+        // FORCED, because this is the one caller that means "run it again". POSTing an extraction
+        // is idempotent per (document, options) so that a screen mounting cannot restart the
+        // filing; without this flag the re-extract control would hit that same rule and hand back
+        // the run it was asked to replace — a button that does nothing.
+        force: true,
       }),
     onSuccess: (started, vars) => {
       // The same key `useExtraction` builds, so the mounted start query adopts this run rather

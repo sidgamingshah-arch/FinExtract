@@ -763,6 +763,18 @@ def _run_template_id(run) -> str | None:
     return run.template_version_id or (run.options or {}).get("template_version_id")
 
 
+def _run_ontology_id(run) -> str | None:
+    """Which rulebook a run was launched against — the same two-places problem as the template.
+
+    Written to the ``ontology_version_id`` column AND to ``options["ontology_version_id"]`` when a
+    run is created, and a run built straight from options leaves the column None. Answered here so
+    the idempotency check in ``start_extraction`` compares the same thing a reader of the run would
+    see: a run whose column is empty and whose option names the rulebook is not a run against NO
+    rulebook, and treating it as one would start a duplicate pipeline every time.
+    """
+    return run.ontology_version_id or (run.options or {}).get("ontology_version_id")
+
+
 def _prov_label(prov: dict | None) -> str:
     """The HUMAN-FACING source label a card prints. Page-level on purpose — "p.1" is what the
     reader wants to see. It is display text and nothing else: never put it in a judgement subject,

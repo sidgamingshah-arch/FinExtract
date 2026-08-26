@@ -217,11 +217,20 @@ export const api = {
   /** Start a run. The 202 carries the rulebook the run was CREATED with, so the screen can name
    *  what governs the figures from the moment the run exists rather than waiting for a result — or
    *  deciding for itself which rulebook that must have been. */
+  /** Start an extraction — or, without `force`, get back the run this document ALREADY has on the
+   *  same options. The endpoint is idempotent per (document, resolved template, resolved rulebook,
+   *  the options that steer the pipeline), which is what lets a screen fire this on arrival without
+   *  starting the filing over every time somebody navigates back to it. `force` is how the
+   *  re-extract control says "another run of the same thing", which is a different request and
+   *  cannot be told apart at the endpoint otherwise. `adopted` marks a response that handed back an
+   *  existing run rather than starting one. */
   runExtraction: (
     documentId: string,
-    body: { ontology_version_id?: string; template_version_id?: string } = {},
+    body: {
+      ontology_version_id?: string; template_version_id?: string; force?: boolean;
+    } = {},
   ) =>
-    req<{ run_id: string; status: string; rulebook?: RulebookRecord | null }>(
+    req<{ run_id: string; status: string; rulebook?: RulebookRecord | null; adopted?: boolean }>(
       `/documents/${documentId}/extractions`, {
         method: "POST",
         body: JSON.stringify(body),
