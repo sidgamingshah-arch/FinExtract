@@ -14,7 +14,7 @@ from app.sample.demo import CONF_PCT, DEMO, localize_label
 from app.sample.i18n_data import tr
 from app.security import Permission, current_principal, require
 from app.services import review_lines
-from app.services.export import build_json, build_xlsx
+from app.services.export import build_json, build_statements_csv, build_xlsx
 from app.services.page_scope import scope_counts
 
 # Every project endpoint requires an authenticated caller (session token, or the
@@ -697,6 +697,12 @@ def export_project(project_id: str, body: ExportBody) -> Response:
                           basis=body.basis, currency=body.currency, units=body.units)
         return Response(content=data, media_type="application/json",
                         headers={"Content-Disposition": "attachment; filename=extract.json"})
+    if body.format == "csv":
+        # The sample path needs its own arm or it would fall through to the workbook below and
+        # serve an .xlsx under a .csv name — the screen offers one Format control for both paths.
+        data = build_statements_csv(statements)
+        return Response(content=data, media_type="text/csv; charset=utf-8",
+                        headers={"Content-Disposition": "attachment; filename=spread.csv"})
     data = build_xlsx(statements, notes_index, note_detail, basis=body.basis,
                       currency=body.currency, units=body.units, include=body.include)
     return Response(

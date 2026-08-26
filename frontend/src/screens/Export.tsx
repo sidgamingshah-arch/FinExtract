@@ -4,7 +4,8 @@ import { useDocumentRun, useExportOptions, useProject, useProjectLoaded, useSubm
 import { EmptyState } from "../components/EmptyState";
 import { downloadDocumentExport, downloadExport } from "../lib/api";
 import { useUI } from "../store";
-import type { ExtractionRow } from "../types";
+import type { ExportFmt, ExtractionRow } from "../types";
+import { EXPORT_EXT } from "../types";
 import { useT } from "../i18n";
 import { useCan } from "../lib/rbac";
 import { color, font, radius } from "../theme";
@@ -101,9 +102,78 @@ function provStr(r: ExtractionRow): string {
   return `p.${p.printed_page || p.page_index + 1}`;
 }
 
+/** The two-column CSV as the server writes it, from the rows the screen already has.
+ *
+ *  ONE ROW PER FIGURE, and the caption names the figure only when the file carries more than one
+ *  — the same rule as `services/export.build_rows_csv`, because a preview whose row count differs
+ *  from the download's is worse than no preview. Kept beside it deliberately: the rule is the
+ *  interesting part of that format, and it is what a reader is checking here.
+ *
+ *  The basis word comes from `ws.consolidated` / `ws.standalone`, the vocabulary the rest of this
+ *  app shows. NOTE that `services/export._BASIS_LABEL` spells "standalone" differently in zh and
+ *  ar (单独 / مستقل there, 单体 / منفصل here) — a disagreement that predates this screen and that
+ *  the delivered file wins, so a zh or ar reader can see one word here and the other in the
+ *  download. Not settled silently in passing: which spelling is right is a wording decision, and
+ *  the same two dictionaries head the statement workbook's columns and the Workspace's own tabs.
+ */
+function csvPreviewRows(rows: ExtractionRow[], basisWord: (b: string) => string): [string, string][] {
+  const slots = new Set<string>();
+  const bases = new Set<string>();
+  for (const r of rows)
+    for (const v of r.values ?? []) {
+      const b = v.basis || "consolidated";
+      bases.add(b);
+      slots.add(`${b}\u0000${v.period_label ?? ""}`);
+    }
+  const qualify = slots.size > 1;
+  const withBasis = bases.size > 1;
+  const out: [string, string][] = [];
+  for (const r of rows) {
+    const label = r.source_label || r.canonical_key || "";
+    const values = r.values ?? [];
+    if (values.length === 0) {
+      out.push([label, ""]);
+      continue;
+    }
+    for (const v of values) {
+      const period = String(v.period_display || v.period_label || "").trim();
+      const name = !qualify ? "" : withBasis
+        ? `${basisWord(v.basis || "consolidated")} ${period}`.trim()
+        : period;
+      out.push([name ? `${label} (${name})` : label, v.value == null ? "" : String(v.value)]);
+    }
+  }
+  return out;
+}
+
 /** Real export preview built from the document's actual extracted rows (no demo data). */
-function RealPreview({ rows, isExcel }: { rows: ExtractionRow[]; isExcel: boolean }) {
+function RealPreview({ rows, fmt }: { rows: ExtractionRow[]; fmt: ExportFmt }) {
   const t = useT();
+  const isExcel = fmt === "excel";
+  if (fmt === "csv") {
+    const pairs = csvPreviewRows(
+      rows, (b) => t(b === "standalone" ? "ws.standalone" : "ws.consolidated"));
+    const csvCols = "1fr 130px";
+    return (
+      <div style={{ fontFamily: font.mono, fontSize: 11 }}>
+        <div style={{ display: "grid", gridTemplateColumns: csvCols, background: color.excelGreen,
+                      color: "#fff", fontWeight: 600 }}>
+          {[t("e.col.lineitem"), t("e.col.value")].map((h, i) => (
+            <div key={i} style={{ padding: "6px 8px", borderRight: "1px solid #1a5c37",
+                                  textAlign: i === 1 ? "right" : "left" }}>{h}</div>
+          ))}
+        </div>
+        {pairs.slice(0, 60).map(([label, value], ri) => (
+          <div key={ri} style={{ display: "grid", gridTemplateColumns: csvCols,
+                                 background: ri % 2 ? "#f6f8f6" : "#fff",
+                                 borderBottom: "1px solid #e6ebe6" }}>
+            <div style={{ padding: "6px 8px", borderRight: "1px solid #eef1ee" }}>{label}</div>
+            <div style={{ padding: "6px 8px", textAlign: "right" }}>{value || "—"}</div>
+          </div>
+        ))}
+      </div>
+    );
+  }
   if (!isExcel) {
     const sample = {
       source_document: "(this document)",
@@ -226,12 +296,21 @@ export default function ExportScreen() {
                 selected={isExcel}
                 onClick={() => setFmt("excel")}
               />
+              {/* `selected={!isExcel}` while there were two formats. With three, "not Excel" is
+                  not JSON, and the JSON card would have stayed lit under a CSV selection. */}
               <FormatCard
                 glyph="{ }"
                 label={t("e.json")}
                 sub={t("e.jsonSub")}
-                selected={!isExcel}
+                selected={exportFmt === "json"}
                 onClick={() => setFmt("json")}
+              />
+              <FormatCard
+                glyph="⋮⋮"
+                label={t("e.csv")}
+                sub={t("e.csvSub")}
+                selected={exportFmt === "csv"}
+                onClick={() => setFmt("csv")}
               />
             </div>
           </Card>
@@ -268,8 +347,11 @@ export default function ExportScreen() {
           )}
 
           {/* Real presentation control: convert figures to a chosen unit — enabled only when
-              the document declared its source units (otherwise we never guess a scale). */}
-          {usingReal && isExcel && (
+              the document declared its source units (otherwise we never guess a scale). Offered
+              for CSV as well as Excel: the unit is a conversion of the FIGURES, which that format
+              carries, unlike the Include list, which adds analysis SHEETS it has no room for.
+              JSON is left out because it reports the source units as data instead. */}
+          {usingReal && exportFmt !== "json" && (
             <Card>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{t("e.presentation")}</div>
               <div style={{ fontSize: 11, color: color.muted, marginBottom: 8 }}>
@@ -327,7 +409,7 @@ export default function ExportScreen() {
             }}
           >
             <span style={{ fontSize: 12.5, fontWeight: 600 }}>
-              {t("e.preview")} {isExcel ? "extract.xlsx" : "extract.json"}
+              {t("e.preview")} extract.{EXPORT_EXT[exportFmt]}
             </span>
             <span style={{ fontSize: 11, color: color.muted }}>{t("e.previewMeta")}</span>
           </div>
@@ -338,7 +420,7 @@ export default function ExportScreen() {
                 whose whole job is showing what the file will contain. There is nothing to preview
                 without a document, and saying so is the honest answer. */}
             {usingReal
-              ? <RealPreview rows={realRows} isExcel={isExcel} />
+              ? <RealPreview rows={realRows} fmt={exportFmt} />
               : <div style={{ padding: 22, fontSize: 12, color: color.muted, lineHeight: 1.6 }}>
                   {t("e.previewNeedsDoc")}
                 </div>}
@@ -403,7 +485,7 @@ export default function ExportScreen() {
                   border: "none", borderRadius: 9, padding: "10px 22px", cursor: "pointer",
                 }}
               >
-                {t("e.download")} {isExcel ? ".xlsx" : ".json"}
+                {t("e.download")} .{EXPORT_EXT[exportFmt]}
               </button>
             ) : canSubmit ? (
               // Analyst with the review step on: hand the final output to the reviewer.

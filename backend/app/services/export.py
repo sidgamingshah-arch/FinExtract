@@ -38,6 +38,7 @@ _COL = {
     "Prior": {"zh": "上期", "ar": "السابقة", "fr": "Précédent"},
     "Conf": {"zh": "置信度", "ar": "الثقة", "fr": "Conf."},
     "Source": {"zh": "来源", "ar": "المصدر", "fr": "Source"},
+    "Value": {"zh": "金额", "ar": "القيمة", "fr": "Montant"},
 }
 
 
@@ -242,6 +243,121 @@ def build_rows_xlsx(rows: list[dict], *, filename: str, scale: float = 1.0) -> b
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
+
+
+# ---------------------------------------------------------------------------
+# Flat CSV — the whole extraction as a single sheet of two columns.
+# ---------------------------------------------------------------------------
+
+# Leading characters that Excel, LibreOffice and Google Sheets EXECUTE instead of displaying.
+# Every caption in this file is text lifted out of an uploaded document, so a filing that prints a
+# row beginning "=cmd|..." would run on the machine of whoever opens the download. The workbook
+# path already carries this hazard — ``build_rows_xlsx`` forces its formula column to a string
+# type because openpyxl promotes a leading "=" to a live formula — but a CSV has no cell type to
+# force, so the only defence at this layer is the leading apostrophe. Those applications read it
+# as "the rest is literal text", and it is VISIBLE: a reader can see the caption was guarded,
+# rather than silently reading a mangled one as the filing's own words.
+_SPREADSHEET_LEAD = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_safe(text: str) -> str:
+    return "'" + text if text.startswith(_SPREADSHEET_LEAD) else text
+
+
+def _csv_figure(raw, scale: float):
+    """The figure as the file should carry it: verbatim, or converted to the requested units.
+
+    Verbatim when no conversion was asked for. ``_num`` would turn the extracted "1200" into
+    1200.0 and the file would read "1200.0" — the same number restated to a precision the filing
+    never printed, in the one export whose readers are other programs. A value that is not a
+    number at all is still carried rather than dropped; the flat workbook does the same.
+    """
+    if raw is None:
+        return ""
+    n = _num(raw)
+    if n is None:
+        return _csv_safe(str(raw))
+    return round(n * scale) if scale != 1.0 else str(raw)
+
+
+def _slot_name(v: dict, *, with_basis: bool, locale: str) -> str:
+    """How one value slot is named when the caption alone would not identify it."""
+    period = str(v.get("period_display") or v.get("period_label") or "").strip()
+    if not with_basis:
+        return period
+    basis = v.get("basis") or "consolidated"
+    shown = _BASIS_LABEL.get(basis, {}).get(locale) or basis
+    return f"{shown} {period}".strip()
+
+
+def build_rows_csv(rows: list[dict], *, locale: str = "en", scale: float = 1.0) -> bytes:
+    """The whole extraction as one sheet of two columns: the line item, and its figure.
+
+    Deliberately the plainest artifact this module produces — no sections, no subtotal styling, no
+    note, confidence or provenance column — because its readers are other programs: pasted into a
+    model, loaded by pandas, diffed against last quarter. Anyone who wants the audit trail has the
+    flat workbook and the JSON, both of which carry it.
+
+    ONE ROW PER FIGURE, NOT PER LINE ITEM, and the caption names the figure when there is more
+    than one. A filing prints two years side by side and often a Group and a Company column as
+    well; two columns have nowhere to put that, so the choice is between dropping every figure but
+    one and naming them. Dropping would make this the only export that quietly loses the
+    comparative year — and a consumer reading "Revenue" twice, with two different numbers and
+    nothing to tell them apart, is worse than either. So a slot is named, and named ONLY when the
+    file actually carries more than one, so the ordinary single-column filing comes out as the bare
+    two columns that were asked for.
+
+    Slots keep the order the row carries them in, which is the order they were read off the page.
+    """
+    import csv
+
+    buf = io.StringIO(newline="")
+    out = csv.writer(buf, lineterminator="\r\n")
+    slots = {((v.get("basis") or "consolidated"), str(v.get("period_label") or ""))
+             for r in rows for v in (r.get("values") or [])}
+    qualify = len(slots) > 1
+    with_basis = len({basis for basis, _ in slots}) > 1
+    out.writerow([_col("Line item", locale), _col("Value", locale)])
+    for r in rows:
+        label = str(r.get("source_label") or r.get("canonical_key") or "")
+        values = r.get("values") or []
+        if not values:
+            # A line item the extractor read a caption for and no figure. Carried, because it is a
+            # line the filing prints; the empty second column is the honest answer for it.
+            out.writerow([_csv_safe(label), ""])
+            continue
+        for v in values:
+            name = _slot_name(v, with_basis=with_basis, locale=locale) if qualify else ""
+            out.writerow([_csv_safe(f"{label} ({name})" if name else label),
+                          _csv_figure(v.get("value"), scale)])
+    # utf-8-SIG: the byte-order mark is what makes Excel open the file as UTF-8. Without it Excel
+    # on Windows reads a CSV as the system code page, so a Chinese, Arabic or French caption — this
+    # product supports all three — arrives as mojibake in the export whose whole content is
+    # captions. Every CSV reader that matters skips the mark.
+    return buf.getvalue().encode("utf-8-sig")
+
+
+def build_statements_csv(statements: dict, *, locale: str = "en") -> bytes:
+    """The same two-column sheet for the seeded sample project, whose figures live in a
+    statement-shaped dict rather than extracted rows.
+
+    Section and sub-head rows are left out: they are the sheet's STRUCTURE, and this file's
+    contract is line items and figures. Both periods are carried, named the way the sample
+    workbook names its columns.
+    """
+    import csv
+
+    buf = io.StringIO(newline="")
+    out = csv.writer(buf, lineterminator="\r\n")
+    out.writerow([_col("Line item", locale), _col("Value", locale)])
+    for st in statements.values():
+        for r in st["rows"]:
+            if r.get("kind") in ("section", "subhead"):
+                continue
+            label = _csv_safe(str(r.get("label") or ""))
+            for period, key in (("FY25", "v1"), ("FY24", "v2")):
+                out.writerow([f"{label} ({period})", _csv_figure(r.get(key), 1.0)])
+    return buf.getvalue().encode("utf-8-sig")
 
 
 # ---------------------------------------------------------------------------

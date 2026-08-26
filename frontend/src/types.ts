@@ -214,7 +214,10 @@ export type StatementKey = "balance_sheet" | "profit_and_loss" | "cash_flow"
 /** Views that exist only for a real extraction (there is no demo data behind them). */
 export const DERIVED_STATEMENTS: StatementKey[] = ["kpi"];
 export type RowKind = "section" | "subhead" | "item" | "subtotal" | "total";
-export type ExportFmt = "excel" | "json";
+export type ExportFmt = "excel" | "json" | "csv";
+/** File extension and MIME-ish suffix each format is delivered under — ONE mapping, so the
+ *  preview caption, the download button and the saved filename cannot name three things. */
+export const EXPORT_EXT: Record<ExportFmt, string> = { excel: "xlsx", json: "json", csv: "csv" };
 
 export interface Confidence {
   /** The BAND — the badge's colour, and its text when there is no measurement. */
@@ -464,6 +467,15 @@ export interface ExtractionValue {
   value: string | null;
   provenance: ExtractionProvenance | null;
   confidence?: ValueConfidence;
+  /** Which of the two column sets the figure was printed under. Served by `_serialize_rows` on
+   *  every value, but OPTIONAL here: a run's rows are persisted JSON, so a result serialized
+   *  before this field existed is still read back by this client and still has to render. */
+  basis?: Basis;
+  /** The column's real period-end date when extraction resolved one ("31 December 2023"), as
+   *  opposed to the positional `period_label` ("current"). Null when it did not. */
+  period_display?: string | null;
+  /** Printed left-to-right position of a matrix statement's component column; null otherwise. */
+  column_index?: number | null;
 }
 export interface ExtractionRow {
   source_label: string;

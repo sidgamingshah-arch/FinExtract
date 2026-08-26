@@ -4,7 +4,7 @@ Extracts financial data from documents (Excel, native PDF, scanned PDF/images â€
 often mixed within one file) into a **predefined, user-editable template**, with a
 **confidence score** and **click-to-source provenance** on every number, automated
 **checks-and-balances**, a human-in-the-loop **review queue**, and export to
-well-formatted **Excel or JSON**.
+well-formatted **Excel, JSON or CSV**.
 
 Analysts today manually re-key financials from the *face* of statements **and** the
 *notes*, reconcile them, and verify totals â€” slow, error-prone, and unauditable.

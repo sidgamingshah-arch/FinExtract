@@ -154,6 +154,9 @@ import type {
   TemplateRef,
   TemplateResponse,
 } from "../types";
+// A VALUE, not a type: the one extension-per-format map, so the saved filename cannot disagree
+// with the format that was requested (`format === "excel" ? ".xlsx" : ".json"` had no third arm).
+import { EXPORT_EXT } from "../types";
 
 export const api = {
   // --- auth / identity ---
@@ -477,7 +480,7 @@ export async function downloadExport(body: {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = body.format === "excel" ? "spread.xlsx" : "extract.json";
+  a.download = body.format === "excel" ? "spread.xlsx" : `extract.${EXPORT_EXT[body.format]}`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -528,7 +531,9 @@ export async function downloadOntologySkeleton(
 }
 
 /** GET a REAL document's export (built from its latest extraction) and download it. Excel
- * uses the formatted, template-driven statement layout, localized to `locale`. */
+ * uses the formatted, template-driven statement layout, localized to `locale`. CSV is the
+ * two-column flat dump; `units` still applies to it (it is a conversion of the figures),
+ * `include` does not (a two-column sheet has no analysis sheets to add). */
 export async function downloadDocumentExport(
   documentId: string, format: ExportFmt, locale: Locale = "en", include?: string[],
   units?: string,
@@ -544,7 +549,7 @@ export async function downloadDocumentExport(
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = format === "excel" ? "extract.xlsx" : "extract.json";
+  a.download = `extract.${EXPORT_EXT[format]}`;
   document.body.appendChild(a);
   a.click();
   a.remove();

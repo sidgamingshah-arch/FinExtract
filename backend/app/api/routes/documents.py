@@ -3477,7 +3477,7 @@ def revert_document_line_item(document_id: str, canonical_key: str,
             dependencies=[Depends(require(Permission.EXPORT_RUN)), Depends(authorized_document)])
 def export_document(
     document_id: str,
-    fmt: str = Query("excel", pattern="^(excel|json)$"),
+    fmt: str = Query("excel", pattern="^(excel|json|csv)$"),
     layout: str = Query("statement", pattern="^(statement|flat)$"),
     locale: str = Query("en"),
     include: str | None = Query(None),
@@ -3491,10 +3491,13 @@ def export_document(
     sections, subtotals, totals, ordering, localized labels, consolidated + standalone
     side by side; ``flat`` is one row per line item. ``include`` is a comma-separated set of
     optional analysis sheets to add (note_details, ratios, disclosures) — omit for all. JSON
-    carries the line items with formulas plus a derived-analysis block."""
+    carries the line items with formulas plus a derived-analysis block. CSV is the plainest
+    form: a single sheet of two columns, the line item and its figure, for a reader that is
+    another program rather than a person (``layout`` and ``include`` do not apply to it — a
+    two-column dump has no sections to shape and no sheets to add)."""
     from app.db.models import Document
     from app.services.export import (
-        build_rows_json, build_rows_xlsx, build_statement_workbook, units_scale,
+        build_rows_csv, build_rows_json, build_rows_xlsx, build_statement_workbook, units_scale,
     )
 
     doc = session.get(Document, document_id)
@@ -3513,6 +3516,16 @@ def export_document(
     ccy = (src_units or {}).get("currency")
     caption = (f"Amounts in {ccy + ' ' if ccy else ''}{unit_label}" if unit_label else None)
     narrative = run.result.get("credit_narrative")  # stored LLM narrative, if generated
+    if fmt == "csv":
+        # Branched before the template and coverage are resolved because this format carries
+        # neither, and the resolution is not free. It carries no validation caption either: two
+        # columns have nowhere to put one, which is the same position the flat workbook layout is
+        # in — the statement workbook is where that banner belongs, because that is the artifact
+        # that otherwise looks fully checked. `layout` and `include` are accepted and ignored;
+        # there is one shape a two-column dump can have.
+        data = build_rows_csv(rows, locale=locale, scale=scale)
+        return Response(content=data, media_type="text/csv; charset=utf-8",
+                        headers={"Content-Disposition": f'attachment; filename="{name}.csv"'})
     # Resolved BEFORE the format branch so both the workbook and the JSON carry it, and read through
     # the same `_coverage_block` the review screen is served — a second computation here is how the
     # sheet and the queue would come to disagree about whether anything was checked.

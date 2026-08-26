@@ -293,7 +293,9 @@ WebSocket**), `GET /documents/{id}/run`.
 `GET /documents/{id}/commentary`, `POST /documents/{id}/credit-narrative`,
 `GET /documents/{id}/pages/{n}/image` (server-rasterized page PNG),
 `GET /documents/{id}/cell-context?sheet=&cell=`,
-`GET /documents/{id}/export` (`fmt=excel|json`, `layout=flat|statement`, `include=…`).
+`GET /documents/{id}/export` (`fmt=excel|json|csv`, `layout=flat|statement`, `include=…`).
+`csv` is the flat two-column form — line item and value, one sheet, one row per figure — for a
+consumer that is another program; `layout` and `include` do not apply to it.
 
 **Editing & review**
 `PATCH`/`DELETE /documents/{id}/line-items/{key}` (value, formula, comment,
