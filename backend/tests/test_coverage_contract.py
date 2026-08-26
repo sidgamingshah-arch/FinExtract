@@ -317,13 +317,26 @@ def test_a_run_that_named_no_template_is_given_none(client):
     from app.db.models import ExtractionRun, TemplateVersion
 
     doc_id = _extracted(client, template=False)
+    # THE RUN NOW NAMES A TEMPLATE, and that is deliberate: ``resolve_template_id`` settles the
+    # latest stored template when the caller pins none, and PINS IT ON THE RUN. That is a default
+    # rather than the substitution this test was written about — the run records what it used and
+    # the screen names it, so nothing is attributed to a template the analyst cannot see.
+    #
+    # The invariant this test exists for is about READ time, so it is asserted where it lives:
+    # strip the run's template and the readers must answer "none" in agreement, rather than one of
+    # them finding a template to fall back to. (``tests/test_template_default.py`` holds the
+    # resolver's own half — including that a run genuinely naming none still resolves to None.)
     with SessionLocal() as session:
         # A template really is available to fall back to, so none of this is vacuous.
         assert session.execute(select(TemplateVersion)).scalars().first() is not None
         run = session.query(ExtractionRun).filter(
             ExtractionRun.document_id == doc_id).order_by(
                 ExtractionRun.created_at.desc()).first()
+        run.template_version_id = None
+        run.options = {**(run.options or {}), "template_version_id": None}
+        session.commit()
         assert _run_template_id(run) is None
+        assert _template_for_run(session, run) is None
 
     review = client.get(f"/api/v1/documents/{doc_id}/review").json()
     assert review["coverage"] == {"available": False, "reason": "no_template",
@@ -435,7 +448,20 @@ def test_the_three_unavailable_reasons_resolve_and_are_never_rendered_as_zeros(c
 
     # Extracted with the rulebook and NO template: structural validation never ran, while the lines
     # ARE mapped — so the template-derived builders would have had concepts to build cards from.
+    #
+    # The run's template is cleared explicitly, because a run created through the API now always
+    # NAMES one: ``resolve_template_id`` settles the latest stored template when the caller pins
+    # none. A run naming no template is still a state the product must serve honestly — runs stored
+    # before that resolver existed are exactly it — and this reason is how it says so.
+    from app.db.base import SessionLocal as _Session
+    from app.db.models import ExtractionRun as _Run
+
     no_tpl_doc = _extracted(client, template=False)
+    with _Session() as session:
+        run = session.query(_Run).filter(_Run.document_id == no_tpl_doc).one()
+        run.template_version_id = None
+        run.options = {**(run.options or {}), "template_version_id": None}
+        session.commit()
     no_tpl = _served(client, no_tpl_doc)
     assert no_tpl["reason"] == "no_template" and no_tpl["available"] is False
     # …AND NOT ONE TEMPLATE-DERIVED FINDING SITS ABOVE IT. This is the assertion the docstring

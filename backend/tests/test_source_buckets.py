@@ -691,13 +691,36 @@ def _shipped_rulebook(client) -> str:
     return max(rows, key=lambda o: o.get("version") or 0)["id"]
 
 
-def _extract(client, name: str, ontology_version_id: str | None = None) -> tuple[str, str]:
+def _shipped_template_id(client) -> str:
+    """The shipped template's id, for the tests here that must PIN it.
+
+    The template default is "the latest one stored" (``resolve_template_id``), so in a shared store
+    the newest template decides the spread — including a throwaway one a neighbouring test published
+    and left behind, which is what happens in this suite. These tests are about the RULEBOOK default,
+    and a rulebook is chosen for the template in force: leaving the template to chance would make
+    them assert the rulebook while a different test decided which template the question was even
+    about. Pinning it keeps each test's subject its own.
+    """
+    from app.sample.reference import shipped_template_key
+
+    key = shipped_template_key()
+    rows = [t for t in client.get("/api/v1/templates").json() if t["template_key"] == key]
+    assert rows, f"the shipped template {key!r} is not stored"
+    return rows[0]["id"]
+
+
+def _extract(client, name: str, ontology_version_id: str | None = None,
+             template_version_id: str | None = None) -> tuple[str, str]:
     from tests.fixtures.generate import make_native_pdf
 
     doc_id = client.post("/api/v1/documents",
                          files={"file": (name, make_native_pdf(),
                                          "application/pdf")}).json()["id"]
-    body = {"ontology_version_id": ontology_version_id} if ontology_version_id else {}
+    body: dict = {}
+    if ontology_version_id:
+        body["ontology_version_id"] = ontology_version_id
+    if template_version_id:
+        body["template_version_id"] = template_version_id
     started = client.post(f"/api/v1/documents/{doc_id}/extractions", json=body)
     assert started.status_code == 202, started.text
     run_id = started.json()["run_id"]
@@ -758,7 +781,12 @@ def test_an_extraction_that_pins_no_rulebook_still_uses_the_one_in_force(client)
     stores the id, so a later reader is told which rulebook produced the figures instead of having to
     reconstruct "whatever was in force at the time".
     """
-    doc_id, run_id = _extract(client, "buckets-default-rulebook.pdf")
+    # The TEMPLATE is pinned; the rulebook deliberately is not, because that is the subject. See
+    # ``_shipped_template_id``: the template default is the latest one stored, so a throwaway
+    # template from a neighbouring test would otherwise decide which template's rulebook this
+    # question is about.
+    doc_id, run_id = _extract(client, "buckets-default-rulebook.pdf",
+                              template_version_id=_shipped_template_id(client))
 
     served = client.get(f"/api/v1/extractions/{run_id}").json()["result"]
     assert served["rulebook"]["applied"] is True
@@ -780,7 +808,10 @@ def test_the_worker_reads_the_options_the_run_stores(client):
     from app.db.base import SessionLocal
     from app.db.models import ExtractionRun
 
-    _doc_id, run_id = _extract(client, "buckets-one-options-dict.pdf")
+    # Template pinned for the same reason as the test above: the subject is the RULEBOOK reaching
+    # the worker, and the rulebook is chosen for whichever template is in force.
+    _doc_id, run_id = _extract(client, "buckets-one-options-dict.pdf",
+                               template_version_id=_shipped_template_id(client))
     with SessionLocal() as session:
         run = session.get(ExtractionRun, run_id)
         stored = run.options.get("ontology_version_id")

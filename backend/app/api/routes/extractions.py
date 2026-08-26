@@ -25,6 +25,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from pathlib import Path
@@ -549,6 +550,54 @@ class ExtractionOptions(BaseModel):
     entity: str | None = None
 
 
+def resolve_template_id(session: Session, pinned_template_id: str | None,
+                        pinned_ontology_id: str | None = None) -> str | None:
+    """Which template lays out this run's spread: the caller's pin, else THE LATEST ONE STORED.
+
+    THE DEFAULT USED TO BE THE SHIPPED TEMPLATE, and that is the whole reason this function exists.
+    A run that pinned nothing resolved its rulebook against ``shipped_template_key()``, so an
+    uploaded template never became the default: it had to be pinned on every single run, and any
+    run where that was forgotten mapped the filing against the shipped HKFRS spread instead —
+    succeeding, and quietly laying the figures out on a grid nobody chose. Reported by the person
+    it happened to: a template and a 400-concept rulebook uploaded and tested against for days,
+    while runs that omitted the pin were reading neither.
+
+    "Latest" is the newest VERSION OF ANY TEMPLATE, not the newest key to appear: re-uploading a
+    revision of an older template makes that template current again, which is what an author
+    editing a spread means by publishing it. Ordered on ``created_at`` with ``version`` and ``id``
+    behind it, because two versions published inside one clock tick would otherwise resolve on
+    whatever order the database felt like returning — the same insertion-order dependence
+    ``services.ontology_select`` was written to remove from the rulebook half.
+
+    A PINNED RULEBOOK STILL DECIDES ITS OWN TEMPLATE. If the caller pinned a rulebook but no
+    template, the answer is the newest version of the template that rulebook is WRITTEN for, not
+    the newest template overall — otherwise defaulting the template would manufacture the very
+    mismatch ``start_extraction`` refuses, out of a request that named only one of the two. The
+    pair agrees by construction, and ``pin_mismatch`` goes on meaning what it says: a
+    contradiction the CALLER stated, not one this resolver introduced.
+
+    Returns None only when nothing is stored at all, which is a legitimate state — the template is
+    optional, and ``_template_for_run`` deliberately has no read-time fallback, so a run with no
+    template serves no template-derived findings rather than findings from a substituted one.
+    """
+    from app.db.models import OntologyVersion, TemplateVersion
+
+    if pinned_template_id:
+        return pinned_template_id
+
+    q = select(TemplateVersion)
+    if pinned_ontology_id:
+        ont = session.get(OntologyVersion, pinned_ontology_id)
+        target = (ont.target_template_key or "") if ont is not None else ""
+        if target:
+            q = q.where(TemplateVersion.template_key == target)
+    row = session.execute(
+        q.order_by(TemplateVersion.created_at.desc(), TemplateVersion.version.desc(),
+                   TemplateVersion.id.desc()).limit(1)
+    ).scalars().first()
+    return row.id if row is not None else None
+
+
 def resolve_rulebook_id(session: Session, pinned_ontology_id: str | None,
                         pinned_template_id: str | None) -> str | None:
     """Which rulebook this run reads the filing against, when the caller pinned none.
@@ -862,11 +911,18 @@ def start_extraction(
     if doc is None:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    # Settle which rulebook this run reads the filing against BEFORE it starts, and keep it on the
-    # run. The caller may legitimately pin a superseded rulebook (reproducing an earlier spread),
-    # and the run says so rather than letting the screen decide afterwards what it must have used.
+    # Settle BOTH of this run's pins BEFORE it starts, and keep them on the run. The caller may
+    # legitimately pin a superseded rulebook (reproducing an earlier spread), and the run says so
+    # rather than letting the screen decide afterwards what it must have used.
+    #
+    # THE TEMPLATE FIRST, because it is what the rulebook is scoped to. Defaulting it to the latest
+    # stored template (``resolve_template_id``) is what makes an uploaded template the one a run
+    # actually uses: the default was the SHIPPED template, so a run that pinned nothing laid the
+    # spread out on the shipped grid however many templates had been uploaded since.
+    template_version_id = resolve_template_id(session, body.template_version_id,
+                                              body.ontology_version_id)
     ontology_version_id = resolve_rulebook_id(session, body.ontology_version_id,
-                                              body.template_version_id)
+                                              template_version_id)
     rulebook = rulebook_record(session, ontology_version_id)
 
     # A pinned rulebook and a pinned template have to be about the SAME template, and nothing
@@ -882,6 +938,11 @@ def start_extraction(
     # request. Pinning one of the two, or neither, stays legal — both fields are optional, a run
     # naming no rulebook is read by the shipped default, and an id naming no stored row leaves
     # ``target_template_key`` empty, which is a missing pin rather than a conflicting one.
+    # BOTH PINS MUST BE THE CALLER'S for this to be a contradiction in the request. The template is
+    # now defaulted when the caller names none, and ``resolve_template_id`` derives that default
+    # from a pinned rulebook's own target — so a resolved-vs-pinned pair agrees by construction and
+    # can never reach here. Testing the RESOLVED id instead would turn a request naming one of the
+    # two into a 422 about a template the caller never chose.
     target_key = rulebook["target_template_key"]
     if body.template_version_id and target_key:
         tpl_row = session.get(TemplateVersion, body.template_version_id)
@@ -921,12 +982,18 @@ def start_extraction(
     # figures. A run that says which rulebook it read the filing against and did not read it is
     # worse than one that says nothing.
     run_options = {**body.model_dump(),
+                   # THE RESOLVED IDS, not the request's, and for the same reason in both cases: a
+                   # run must be able to say which template shaped its spread and which rulebook
+                   # produced its figures. ``_run_template_id`` reads the column OR this key, so
+                   # leaving the request's None here would have one of them answering "no template"
+                   # while the other named one.
+                   "template_version_id": template_version_id,
                    "ontology_version_id": ontology_version_id,
                    "rulebook": rulebook,
                    "stages": pipeline_stage_names()}
     run = ExtractionRun(
         id=run_id, document_id=doc.id,
-        template_version_id=body.template_version_id,
+        template_version_id=template_version_id,
         # The RESOLVED id, not the request's: a run must be able to say which rulebook produced
         # its figures, and "whatever was in force at the time" is not an answer a later reader can
         # reconstruct — the rulebook in force changes every time one is published.
