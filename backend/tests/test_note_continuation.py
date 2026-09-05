@@ -250,7 +250,7 @@ def test_a_narrative_only_note_keeps_its_fragment():
     all. It is the only fragment for its number, so there is nothing for it to duplicate — and
     services.contingent_liabilities reads exactly such a note.
     """
-    from app.services.notes_extract import _without_empty_duplicates
+    from app.services.notes_extract import without_empty_duplicates
 
     narrative = NotesTable(note_number="30", title="Contingent liabilities", items=[],
                            source_text="The Group had guarantees of RMB50,000,000.")
@@ -259,7 +259,7 @@ def test_a_narrative_only_note_keeps_its_fragment():
     empty_twin = NotesTable(note_number="11", title="Income tax", items=[],
                             source_text="Notes to the Financial Statements")
 
-    kept = _without_empty_duplicates([narrative, detail, empty_twin])
+    kept = without_empty_duplicates([narrative, detail, empty_twin])
     assert narrative in kept
     assert detail in kept
     assert empty_twin not in kept

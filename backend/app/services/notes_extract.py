@@ -289,10 +289,10 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                 ni.set_value(ev)
             table.items.append(ni)
         tables.append(table)
-    return _without_empty_duplicates(tables)
+    return without_empty_duplicates(tables)
 
 
-def _without_empty_duplicates(tables: list[NotesTable]) -> list[NotesTable]:
+def without_empty_duplicates(tables: list[NotesTable]) -> list[NotesTable]:
     """Drop a fragment that carries no rows when another fragment of the SAME note carries some.
 
     A note continued onto the next page is picked up by seeding a carried section with the
@@ -309,6 +309,14 @@ def _without_empty_duplicates(tables: list[NotesTable]) -> list[NotesTable]:
 
     A note that is entirely narrative keeps its fragment — it is the only one for its number, so
     there is nothing for it to be a duplicate of.
+
+    CALLED OVER THE WHOLE DOCUMENT as well as per page, because the fragments it has to compare
+    are not always produced together. The carry that continues a note onto the next page is
+    threaded across pages by ``services.pdf_extract``, so an empty fragment can be raised on one
+    page while the fragment with the rows was raised on the previous one — and a per-page pass
+    never sees the pair. That is not hypothetical: a backmatter page classified as notes
+    ("Corporate Information") inherited the carry from the last real note and published a second,
+    empty fragment under its number.
     """
     with_items = {t.note_number for t in tables if t.items}
     return [t for t in tables

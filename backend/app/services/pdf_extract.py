@@ -227,6 +227,7 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     # classify — a scanned page has no text layer to match a title against, so it would
     # otherwise be dropped before ever reaching the OCR path. Fall back to all pages if
     # nothing was classified at all.
+    from app.services.notes_extract import without_empty_duplicates
     from app.services.statements import ACTIVE_STATEMENTS
 
     targets = [p for p in doc.pages
@@ -352,6 +353,10 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                 li.printed_in = PrintedIn.FACE
         doc.line_items.extend(items)
         added += len(items)
+    # Applied over the accumulated tables, not only within a page: the note-continuation carry
+    # is threaded ACROSS pages here, so an empty fragment can be raised on one page while the
+    # fragment carrying the rows was raised on the one before it.
+    doc.notes[:] = without_empty_duplicates(doc.notes)
     ctx.log(f"extract:pdf_line_items={added} note_tables={len(doc.notes)}")
     return added
 
