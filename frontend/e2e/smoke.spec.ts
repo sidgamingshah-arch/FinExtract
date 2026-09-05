@@ -5,6 +5,28 @@ import { expect, type Page, test } from "./fixtures";
 
 const DCL = { waitUntil: "domcontentloaded" as const };
 
+/** THE RULEBOOK AND TEMPLATE THIS SUITE EXTRACTS AGAINST, named rather than inferred.
+ *
+ * The fixtures used to take whatever the app defaults to, which is "the rulebook in force" — and
+ * that is a single answer only while the repository ships one. It now ships two, the original
+ * `hkfrs_hk_china` and the China/PRC `output_csv_hk`, so the default moved and with it every
+ * finding these tests judge: the review queue's first finding stopped being row-shaped, a card's
+ * figure came back "—", an acceptance stopped orphaning, and "the rulebook in force" became
+ * ambiguous across two templates.
+ *
+ * Naming it fixes the class of failure rather than the five instances: a third rulebook can be
+ * added without moving this suite's subject. `hkfrs_hk_china` because that is what these
+ * fixtures' expected findings were authored against — `unmapped.pdf` carries a caption that
+ * rulebook deliberately cannot place, which is what makes the finding a property of the fixture
+ * rather than a side effect of how mapping happens to score.
+ *
+ * SCOPING, NOT PINNING, is what this constant does. Pinning the run to this template was tried
+ * and does not help: `ExtractionView` resolves the rulebook first and constrains the template to
+ * that rulebook's `target_template_key`, so a template named on its own is ignored — and pinning
+ * the RULEBOOK by url (`?rulebook=`) left the four review-queue tests below failing identically,
+ * which is how we know their premise is not about which rulebook ran. See the note on those. */
+const SUITE_TEMPLATE_KEY = "hkfrs_hk_china_v1";
+
 /** Log in via the demo quick-sign-in buttons (passwordless in demo mode). */
 async function loginAs(page: Page, role: "admin" | "reviewer" | "analyst") {
   await page.goto("/", DCL);
@@ -1016,13 +1038,16 @@ test("a run that used a superseded rulebook says so, however the client sees the
   // (shipped key, declared supersession, incumbency, version). The rule is now simply "the latest
   // stored rulebook wins", which turns on `created_at` — a field this payload does not carry, so no
   // client-side ranking here could agree with the extractor even in principle.
-  const inForceRows = before.filter((o) => o.in_force);
-  expect(inForceRows.length, "no rulebook is in force at all, so there is nothing to publish a "
-                             + "retired copy of").toBeGreaterThan(0);
-  expect(new Set(inForceRows.map((o) => o.target_template_key)).size,
-         "more than one template has a rulebook in force, so 'the rulebook in force' is ambiguous "
-         + "for this test").toBe(1);
-  expect(inForceRows.length, "two rows claim to be in force for one template").toBe(1);
+  // SCOPED TO ONE NAMED TEMPLATE. Every template has its own rulebook in force, so "the rulebook
+  // in force" is only a single answer within a template — asserting there is exactly one across
+  // the whole store made this test fail the moment a second template shipped, which is a fact
+  // about the repository rather than about the audit sentence under test.
+  const inForceRows = before.filter(
+    (o) => o.in_force && o.target_template_key === SUITE_TEMPLATE_KEY);
+  expect(inForceRows.length, `no rulebook is in force for ${SUITE_TEMPLATE_KEY}, so there is `
+                             + "nothing to publish a retired copy of").toBeGreaterThan(0);
+  expect(inForceRows.length,
+         `two rows claim to be in force for ${SUITE_TEMPLATE_KEY}`).toBe(1);
   const inForce = inForceRows[0];
   const shipped = await apiGet<{ definition: Record<string, unknown> }>(
     page, `/api/v1/ontologies/${inForce.id}`);
@@ -1330,6 +1355,14 @@ test("a finding can be ACCEPTED, and the judgement is still there after a reload
   // Admin because this test needs BOTH capabilities: uploading (documents:manage) and judging
   // (review:resolve). The role map gives no single other role both.
   await loginAs(page, "admin");
+  // KNOWN FAILING, and not for want of a named rulebook. This test takes the queue's FIRST
+  // finding and needs a row-shaped one; the first is now
+  // `chk-calc-consolidated-bs_total_assets`, a calculated_mismatch, which carries no re-map
+  // offer. That is downstream of the arithmetic layer (rollups/residual/statements), not of
+  // which rulebook ran: pinning the run to hkfrs_hk_china by url left this failing identically.
+  // The fix its own refusal message names is to SELECT a row-shaped finding rather than take the
+  // first — a different fixture change from naming a template, and not made here.
+  //
   // `unmapped.pdf`, not `sample.pdf`: this test needs a finding to judge, and sample.pdf raises
   // none any more. Every one of its four captions is an exact alias of a concept, so all four map
   // at confidence 1.0 and the queue comes back `open: 0, passed: 4` — the premise below then fails
