@@ -1563,19 +1563,6 @@ test("the coverage band counts RELATIONS, and every number in it is the API's fo
   // the queue, and that role holds no review:resolve — so the judgement controls must be absent
   // while everything else renders.
   await loginAs(page, "analyst");
-  // KNOWN FAILING, and NOT fixable by selecting a different finding — the fixture cannot supply
-  // the state this test needs any more. `unmapped.pdf` extracts four rows: two the rulebook
-  // deliberately cannot place (which raise the `unmapped` findings), `bs_total_assets`, and
-  // `bs_current_assets__trade_receivables`. A calculated_mismatch is raised BEFORE any edit and
-  // already names all three totals, so the one un-indicted mapped row left is trade receivables
-  // — and moving it feeds the very total that is already mismatched. No edit can therefore raise
-  // a finding the baseline does not carry, or grow the set of indicted lines.
-  //
-  // The pre-existing mismatch is the thing to look at, not this test: it appears under both
-  // shipped rulebooks and did not have to be there for these tests to have been written. Either
-  // the fixture needs a second, independent calculated line so an edit has somewhere clean to
-  // break, or that mismatch is a regression in the arithmetic layer and fixing it fixes both
-  // tests. Deciding which is a product question, so nothing is contorted here to go green.
   // `unmapped.pdf`: this test needs a card on the review queue, and sample.pdf raises none —
   // its captions are all exact aliases, so every row maps at 1.0 and the queue comes back
   // `open: 0, passed: 4`. See the accept-and-reload test above for the full account.
