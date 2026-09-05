@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useDocumentRun, useExportOptions, useProject, useProjectLoaded, useSubmitForReview } from "../lib/queries";
 import { EmptyState } from "../components/EmptyState";
 import { downloadDocumentExport, downloadExport } from "../lib/api";
-import { useUI } from "../store";
+import { usePinnedRun, useUI } from "../store";
 import type { ExportFmt, ExtractionRow, ExtractionValue } from "../types";
 import { EXPORT_EXT } from "../types";
 import { useT } from "../i18n";
@@ -250,6 +250,7 @@ export default function ExportScreen() {
   const canSubmit = useCan("review:submit");
   const submitReview = useSubmitForReview();
   const activeDocumentId = useUI((s) => s.activeDocumentId);
+  const pinnedRunId = usePinnedRun();
   const usingReal = !!activeDocumentId;
   const loaded = useProjectLoaded();
   // The sample footer's counts, as the demo project itself reports them — the same payload
@@ -484,8 +485,11 @@ export default function ExportScreen() {
               <button
                 onClick={() =>
                   usingReal && activeDocumentId
+                    // The pinned run reaches the download too: exporting the latest run while
+                    // the screens show an older one hands over a file that does not match what
+                    // was being read.
                     ? downloadDocumentExport(activeDocumentId, exportFmt, outputLocale, includeKeys,
-                                             targetUnits || undefined)
+                                             targetUnits || undefined, pinnedRunId)
                     : downloadExport({
                         format: exportFmt,
                         basis: "consolidated",

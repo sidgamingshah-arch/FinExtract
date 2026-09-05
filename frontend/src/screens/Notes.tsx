@@ -9,7 +9,7 @@ import { SCREENS } from "./config";
 import { useT } from "../i18n";
 import { useDocumentNote, useDocumentNotes, useDocumentRun, useNote, useNotes, useProjectLoaded } from "../lib/queries";
 import { EmptyState } from "../components/EmptyState";
-import { useUI } from "../store";
+import { usePinnedRun, useUI } from "../store";
 import { color, confStyle, fmtIN, font } from "../theme";
 import type { NoteDetail, NoteDetailRow } from "../types";
 
@@ -194,8 +194,11 @@ export default function NotesScreen() {
   const loaded = useProjectLoaded();
   const { note, setNote } = useUI();
   // Real document → notes from its extraction (line-item note references); else the demo.
-  const realNotes = useDocumentNotes(activeDocumentId ?? undefined);
-  const realDetail = useDocumentNote(activeDocumentId ?? undefined, note, locale);
+  // The same run the workspace grid is pinned to: a note read from the latest run beside a
+  // historical statement is a different extraction wearing the same heading.
+  const pinnedRunId = usePinnedRun();
+  const realNotes = useDocumentNotes(activeDocumentId ?? undefined, pinnedRunId);
+  const realDetail = useDocumentNote(activeDocumentId ?? undefined, note, locale, pinnedRunId);
   const demoNotes = useNotes(locale, !usingReal);
   const demoDetail = useNote(note, locale, !usingReal);
   const notes = usingReal ? realNotes.data : demoNotes.data;

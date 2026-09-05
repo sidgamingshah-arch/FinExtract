@@ -1006,7 +1006,10 @@ export default function WorkspaceScreen() {
   // document changes — a run id belongs to the document it was launched against, and carrying one
   // over onto a different document would either 404 or, worse, silently pick that document's run
   // with the same id (run ids are per-document but the state does not know that on its own).
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  // The pin lives in the store, not here: the notes pane and the export have to answer for the
+  // same run as this grid, and they are rendered by other screens.
+  const selectedRunId = useUI((st) => st.pinnedRunId);
+  const setSelectedRunId = useUI((st) => st.setPinnedRunId);
   useEffect(() => { setSelectedRunId(null); }, [activeDocumentId]);
   const runsQ = useDocumentRuns(activeDocumentId ?? undefined);
   const runs = runsQ.data?.runs ?? [];
@@ -1050,7 +1053,11 @@ export default function WorkspaceScreen() {
         ] as StatementKey[])
   )
     // Temporarily hidden from the front-end while these two statements are still settling.
-    .filter((key) => key !== "statement_setup" && key !== "covenants_supplemental")
+    // The predicate is annotated `: boolean` deliberately: without it TypeScript narrows the
+    // filtered element type to the members these comparisons leave behind, and the `concat`
+    // below — whose argument is the full StatementKey[] — then cannot widen back to it, which
+    // failed `tsc` and with it `npm run build`.
+    .filter((key): boolean => key !== "statement_setup" && key !== "covenants_supplemental")
     .concat(usingReal ? DERIVED_STATEMENTS : []);
   // A stored or deep-linked statement the offered set does not contain would render an empty grid
   // with no way to tell that from a statement the filing omits, so fall back to the first offered.

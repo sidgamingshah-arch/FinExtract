@@ -2,13 +2,52 @@
  * The stepper marks steps before the current pipeline position as done (green check). */
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { useDocuments, useMe, useProject } from "../../lib/queries";
+import { useDocumentRuns, useDocuments, useMe, useProject } from "../../lib/queries";
 import { useUI } from "../../store";
-import { color } from "../../theme";
+import { color, radius } from "../../theme";
 import { useT } from "../../i18n";
 import { STEPPER, stepIdForPath } from "../../screens/config";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { UserMenu } from "./UserMenu";
+
+/** Says, everywhere, that the session is reading a historical run.
+ *
+ * The pin is app-level, so it changes what the notes pane shows and what an export downloads on
+ * screens that have no picker of their own. A mode that quietly rewrites what every screen means
+ * has to be visible from every screen, and clearable from there too — otherwise a reader who
+ * pinned a run on the workspace an hour ago has no way to know why an export looks stale.
+ */
+function PinnedRunChip() {
+  const t = useT();
+  const activeDocumentId = useUI((s) => s.activeDocumentId);
+  const pinnedRunId = useUI((s) => s.pinnedRunId);
+  const setPinnedRunId = useUI((s) => s.setPinnedRunId);
+  // Only to name the run by its number; the pin itself is authoritative without it, so a run
+  // list that has not arrived yet shows the chip with a placeholder rather than hiding it.
+  const runsQ = useDocumentRuns(pinnedRunId ? (activeDocumentId ?? undefined) : undefined);
+  if (!pinnedRunId) return null;
+  const runNumber = runsQ.data?.runs?.find((r) => r.run_id === pinnedRunId)?.run_number;
+  return (
+    <div
+      data-testid="topbar-pinned-run"
+      data-run-id={pinnedRunId}
+      style={{ display: "flex", alignItems: "center", gap: 7, padding: "3px 8px",
+               borderRadius: radius.control, background: color.amberBg, color: color.amberFg,
+               fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}
+    >
+      <span>{t("ws.run.historical").replace("{n}", String(runNumber ?? "?"))}</span>
+      <button
+        type="button"
+        onClick={() => setPinnedRunId(null)}
+        title={t("ws.run.clearPin")}
+        style={{ border: "none", background: "transparent", color: "inherit", cursor: "pointer",
+                 font: "inherit", textDecoration: "underline", padding: 0 }}
+      >
+        {t("ws.run.clearPin")}
+      </button>
+    </div>
+  );
+}
 
 export function TopBar() {
   const nav = useNavigate();
@@ -85,6 +124,8 @@ export function TopBar() {
       </div>
 
       <div style={{ width: 1, height: 22, background: color.divider }} />
+
+      <PinnedRunChip />
 
       <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.25, minWidth: 0, overflow: "hidden" }}>
         <span style={{ fontWeight: 600, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
