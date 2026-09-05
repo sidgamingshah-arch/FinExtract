@@ -125,18 +125,29 @@ def _note_total(table: NotesTable, pk: PeriodKey) -> tuple[Decimal | None, str, 
             meta = {"note_number": table.note_number, "note_heading": table.title,
                     "line_item": item.raw_label, "value": str(ev.value), "provenance": ev.provenance}
             if item.role in (LineRole.TOTAL, LineRole.SUBTOTAL):
-                totals.append((ev.value, meta))
+                totals.append(((ev.value, meta), item.role))
             elif item.role == LineRole.LINE:
                 lines.append((ev.value, meta))
     if totals:
-        value = sum(v for v, _ in totals)
-        return value, currency, scale, [m for _, m in totals]
+        # §3.3: the note total is extracted ONCE. A note that prints a grand total as well as
+        # intermediate subtotals must contribute the grand total alone — adding both counts its
+        # contents twice. The TOTAL row is the note's own answer; SUBTOTAL rows are its parts.
+        grand = [(v, m) for (v, m), role in totals if role == LineRole.TOTAL]
+        chosen = grand or [(v, m) for (v, m), _ in totals]
+        return sum(v for v, _ in chosen), currency, scale, [m for _, m in chosen]
     if lines:
         return sum(v for v, _ in lines), currency, scale, [m for _, m in lines]
     return None, currency, scale, []
 
 
 def _deductions(table: NotesTable, pk: PeriodKey, *, ltp: bool) -> dict[str, _Signal]:
+    """The §4.2 deduction components found inside one already-identified note.
+
+    A component absent from a note whose lines were searchable is genuinely absent — the
+    inclusion test completed and returned nothing, which §5.3/§6.3 permit to be zero. A note
+    with no searchable lines at all is a different answer: the test could not be completed, and
+    the caller keeps the deduction null rather than assuming none was included.
+    """
     keys = {"derivatives": _DERIVATIVES_RE, "other_receivables": _OTHER_RECEIVABLES_RE}
     if ltp:
         keys.update({"related_party": _RELATED_PARTY_RE, "associate": _ASSOCIATE_RE, "jv": _JV_RE})
@@ -223,6 +234,8 @@ def compute(doc: DocumentModel) -> dict[PeriodKey, dict[str, SecurResult]]:
                     f"DEDUCTION_NOT_PROVEN_INCLUDED:{table.note_number}")
                 continue
             ded = _deductions(table, pk, ltp=(kind == "non_current"))
+            # The inclusion test completed for this note (its lines were searchable), so an
+            # absent component is a proven zero rather than an unknown.
             ded_total = _sum_or_none([s.usable for s in ded.values()]) or Decimal(0)
             mixed = any(s.mixed_units for s in ded.values())
             if kind == "current":

@@ -45,7 +45,7 @@ def test_p1_sums_direct_operating_expense_notes():
     assert result.status == "EXTRACTED_AND_COMPUTED"
 
 
-def test_p1_falls_back_to_pbt_specific_callout_when_no_opex_note():
+def test_p2_is_the_pbt_notes_opex_specific_callout():
     doc = _doc(
         _note("6", "Profit before taxation",
               [_item("Depreciation of property, plant and equipment", "80")],
@@ -53,10 +53,10 @@ def test_p1_falls_back_to_pbt_specific_callout_when_no_opex_note():
     )
     result = compute(doc)[("consolidated", "current")]["oper_exp"]
     assert result.value == Decimal("80")
-    assert result.priority_used == "P1"
+    assert result.priority_used == "P2"
 
 
-def test_p2_is_pbt_depreciation_minus_cos_depreciation():
+def test_p3_is_pbt_depreciation_minus_cos_depreciation():
     doc = _doc(
         _note("6", "Profit before taxation is arrived at after charging",
               [_item("Depreciation of property, plant and equipment", "500")]),
@@ -65,7 +65,7 @@ def test_p2_is_pbt_depreciation_minus_cos_depreciation():
     )
     result = compute(doc)[("consolidated", "current")]["oper_exp"]
     assert result.value == Decimal("200")
-    assert result.priority_used == "P2"
+    assert result.priority_used == "P3"
 
 
 def test_negative_candidate_is_skipped_not_zeroed():
@@ -127,7 +127,7 @@ def test_movement_reconciliation_rows_are_excluded_from_asset_notes():
     )
     result = compute(doc)[("consolidated", "current")]["oper_exp"]
     assert result.value == Decimal("50")
-    assert result.priority_used == "P3"
+    assert result.priority_used == "P4"
 
 
 def test_mixed_currency_within_a_dataset_is_not_used():
@@ -162,7 +162,7 @@ def test_explicit_opex_inclusion_callout_overrides_item_sum():
     )
     current = compute(doc)[("consolidated", "current")]
     assert current["oper_exp"].value == Decimal("529841")
-    assert current["oper_exp"].priority_used == "P1"
+    assert current["oper_exp"].priority_used == "P2"
     assert current["cos"].value == Decimal("306456") + Decimal("280961") - Decimal("529841")
     assert current["cos"].priority_used == "COS_P2"
     prior = compute(doc)[("consolidated", "prior")]
@@ -171,3 +171,131 @@ def test_explicit_opex_inclusion_callout_overrides_item_sum():
 
 def test_no_notes_yields_no_periods():
     assert compute(_doc()) == {}
+
+
+# ── the agreed cascade: P1 needs no cost-of-sales figure, and P3-P5 assume a zero deduction
+#    when the filing discloses no cost-of-sales depreciation ──────────────────────────────────
+def test_p1_wins_without_any_cost_of_sales_note():
+    doc = _doc(
+        _note("28", "Administrative expenses",
+              [_item("Depreciation of property, plant and equipment", "100")]),
+    )
+    result = compute(doc)[("consolidated", "current")]["oper_exp"]
+    assert result.value == Decimal("100")
+    assert result.priority_used == "P1"
+
+
+def test_p3_takes_the_whole_pbt_total_when_no_cost_of_sales_depreciation_is_disclosed():
+    # No cost-of-sales note anywhere: the deduction is zero, so the candidate reduces to the
+    # PBT note's own total rather than becoming incomputable.
+    doc = _doc(
+        _note("6", "Profit before taxation",
+              [_item("Depreciation of property, plant and equipment", "700")]),
+    )
+    result = compute(doc)[("consolidated", "current")]["oper_exp"]
+    assert result.value == Decimal("700")
+    assert result.priority_used == "P3"
+    assert "ASSUMED_ZERO_COS_DEPRECIATION" in result.flags
+
+
+def test_the_assumed_zero_is_reported_and_not_asserted_when_a_cos_note_exists():
+    doc = _doc(
+        _note("6", "Profit before taxation",
+              [_item("Depreciation of property, plant and equipment", "700")]),
+        _note("7", "Cost of sales", [_item("Depreciation", "200")]),
+    )
+    result = compute(doc)[("consolidated", "current")]["oper_exp"]
+    assert result.value == Decimal("500")
+    assert "ASSUMED_ZERO_COS_DEPRECIATION" not in result.flags
+
+
+def test_p4_assumes_a_zero_deduction_too():
+    doc = _doc(
+        _note("14", "Property, plant and equipment",
+              [_item("Depreciation charge for the year", "310")]),
+    )
+    result = compute(doc)[("consolidated", "current")]["oper_exp"]
+    assert result.value == Decimal("310")
+    assert result.priority_used == "P4"
+
+
+def test_p5_assumes_a_zero_deduction_too():
+    doc = _doc(
+        _note("31", "Cash generated from operations", [_item("Depreciation", "410")]),
+    )
+    result = compute(doc)[("consolidated", "current")]["oper_exp"]
+    assert result.value == Decimal("410")
+    assert result.priority_used == "P5"
+
+
+def test_cos_is_the_remainder_once_oper_exp_took_the_whole_pbt_total():
+    # P3 having claimed the entire PBT total, the COS remainder is zero — the arithmetic the
+    # assumed-zero deduction implies, reached without a second special case.
+    doc = _doc(
+        _note("6", "Profit before taxation",
+              [_item("Depreciation of property, plant and equipment", "700")]),
+    )
+    result = compute(doc)[("consolidated", "current")]["cos"]
+    assert result.value == Decimal("0")
+    assert result.priority_used == "COS_P2"
+
+
+def test_a_negative_p1_falls_through_to_the_next_priority_rather_than_ending_the_cascade():
+    doc = _doc(
+        _note("28", "Administrative expenses",
+              [_item("Depreciation of property, plant and equipment", "-40")]),
+        _note("6", "Profit before taxation",
+              [_item("Depreciation of property, plant and equipment", "90")],
+              source_text="Depreciation included in operating expenses of HK$90,000."),
+    )
+    result = compute(doc)[("consolidated", "current")]["oper_exp"]
+    assert result.value == Decimal("90")
+    assert result.priority_used == "P2"
+    assert "NEGATIVE_RESIDUAL" in result.flags
+
+
+# ── duplicate control (§3.1 bilingual printings, §3.4 restatement across notes) ───────────────
+def test_the_same_figure_restated_in_a_second_note_is_not_added_twice():
+    # The English and Traditional Chinese printings of one administrative-expenses note.
+    doc = _doc(
+        _note("28", "Administrative expenses",
+              [_item("Depreciation of property, plant and equipment", "100")]),
+        _note("28A", "行政開支", [_item("物業、廠房及設備折舊", "100")]),
+    )
+    result = compute(doc)[("consolidated", "current")]["oper_exp"]
+    assert result.value == Decimal("100")
+    assert any(f.startswith("POSSIBLE_DUPLICATE:") for f in result.flags)
+
+
+def test_two_lines_of_one_note_charging_the_same_amount_are_both_counted():
+    # Not a restatement: one note legitimately charging two asset classes the same amount.
+    doc = _doc(
+        _note("28", "Administrative expenses",
+              [_item("Depreciation of property, plant and equipment", "60"),
+               _item("Depreciation of investment property", "60")]),
+    )
+    result = compute(doc)[("consolidated", "current")]["oper_exp"]
+    assert result.value == Decimal("120")
+    assert not any(f.startswith("POSSIBLE_DUPLICATE:") for f in result.flags)
+
+
+def test_a_fixed_assets_parent_note_is_dropped_when_its_components_are_also_disclosed():
+    # §4.4: adding the "Fixed assets" charge to the PPE charge it contains double counts it.
+    doc = _doc(
+        _note("14", "Property, plant and equipment",
+              [_item("Depreciation charge for the year", "300")]),
+        _note("15", "Fixed assets", [_item("Depreciation charge for the year", "500")]),
+    )
+    result = compute(doc)[("consolidated", "current")]["oper_exp"]
+    assert result.value == Decimal("300")
+    assert result.priority_used == "P4"
+    assert "TOTAL_COMPONENT_OVERLAP:fixed_asset_depreciation" in result.flags
+
+
+def test_a_fixed_assets_note_stands_alone_when_no_component_note_is_disclosed():
+    doc = _doc(
+        _note("15", "Fixed assets", [_item("Depreciation charge for the year", "500")]),
+    )
+    result = compute(doc)[("consolidated", "current")]["oper_exp"]
+    assert result.value == Decimal("500")
+    assert "TOTAL_COMPONENT_OVERLAP:fixed_asset_depreciation" not in result.flags

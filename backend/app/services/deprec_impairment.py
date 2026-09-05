@@ -6,6 +6,19 @@ marketing, G&A, other operating expenses, profit-before-tax reconciliation, cost
 asset notes, cash flow from operations), then resolved by trying a fixed priority order of
 candidates and keeping the first one that is present, non-negative and unit-comparable — never by
 summing alternative sources together, since they routinely restate the same figure.
+
+The cascade for Oper Exp:
+
+    P1  opex_direct                                    (the four operating-expense notes)
+    P2  pbt_oper_exp_depreciation                      (the PBT note's opex-specific callout)
+    P3  pbt_depreciation        - cos_depreciation
+    P4  asset_note_depreciation - cos_depreciation
+    P5  cfo_depreciation        - cos_depreciation
+
+P1 and P2 need no cost-of-sales figure. For P3-P5, a filing that discloses no cost-of-sales
+depreciation is taken to charge none, so the deduction is zero and the candidate reduces to the
+total it was subtracting from — reported as ASSUMED_ZERO_COS_DEPRECIATION rather than left silent,
+and never treated as making the candidate incomputable.
 """
 from __future__ import annotations
 
@@ -115,7 +128,25 @@ class _Signal:
     mixed_units: bool = False
     evidence: list[dict] = field(default_factory=list)
 
+    duplicated: bool = False
+    _first_source: dict = field(default_factory=dict)   # fingerprint -> note that supplied it
+
     def add(self, amount: Decimal, currency: str, scale: Decimal, meta: dict) -> None:
+        # §3.1 forbids adding the English and Traditional Chinese printings of one disclosure,
+        # and §3.4 forbids adding a value restated in a second note. Both arrive here as an
+        # identical amount from a DIFFERENT note within the same dataset: keep the first as the
+        # source, keep the second only as corroborating evidence.
+        # Keyed on the NOTE, not the line: two different lines of one note may legitimately
+        # charge the same amount, while one amount arriving from a second note within the same
+        # dataset is the restatement §3.4 describes.
+        fingerprint = (amount, currency, scale)
+        note = meta.get("note_number")
+        earlier = self._first_source.get(fingerprint)
+        if earlier is not None and earlier != note:
+            self.duplicated = True
+            self.evidence.append({**meta, "duplicate_of_note": earlier})
+            return
+        self._first_source.setdefault(fingerprint, note)
         if self.currency is not None and (currency != self.currency or scale != self.scale):
             self.mixed_units = True
         else:
@@ -220,6 +251,24 @@ def _sum_available(values: list[Decimal | None]) -> Decimal | None:
     return sum(present) if present else None
 
 
+_FIXED_ASSET_COMPONENTS = ("ppe_depreciation", "investment_property_depreciation",
+                           "cip_depreciation", "prepaid_lease_depreciation")
+
+
+def _asset_note_keys(present: set[str]) -> tuple[tuple[str, ...], bool]:
+    """§4.4: which asset-note datasets may be added together for one (basis, period).
+
+    A "Fixed assets" note is the parent term for property, plant and equipment, investment
+    property and construction in progress. When the filing gives both the parent note and any of
+    its components, adding them counts the component twice — so the components win (they are the
+    granular reading) and the parent is dropped, with the overlap reported.
+    """
+    overlapping = [k for k in _FIXED_ASSET_COMPONENTS if k in present]
+    if "fixed_asset_depreciation" in present and overlapping:
+        return tuple(k for k in _ASSET_NOTE_KEYS if k != "fixed_asset_depreciation"), True
+    return _ASSET_NOTE_KEYS, False
+
+
 def _comparable(a: _Signal | None, b: _Signal | None) -> bool:
     if a is None or b is None or a.mixed_units or b.mixed_units:
         return False
@@ -264,12 +313,6 @@ def compute(doc: DocumentModel) -> dict[PeriodKey, dict[str, DeprecResult]]:
     for key, found in note_found.items():
         if not found:
             doc_flags.append(f"MISSING_NOTE:{key}")
-    # No Cost of Sales note anywhere in the filing means P2-P4 can never subtract a cos_depreciation
-    # they will never see, and P1 needs an explicit "included in operating expenses" callout this
-    # kind of filing never makes either — every candidate is structurally unreachable. Rather than
-    # report "not disclosed" for a figure the filing plainly shows (just not split by function),
-    # the whole pbt-note total is taken as Oper Exp with a review flag, never silently as COS.
-    cos_note_absent = not note_found.get("cos_depreciation", True)
 
     keys = set()
     for per_key in datasets.values():
@@ -287,78 +330,75 @@ def compute(doc: DocumentModel) -> dict[PeriodKey, dict[str, DeprecResult]]:
         flags = list(doc_flags)
         for name in datasets:
             s = sig(name)
-            if s is not None and s.mixed_units:
+            if s is None:
+                continue
+            if s.mixed_units:
                 flags.append(f"UNIT_MISMATCH:{name}")
+            if s.duplicated:
+                flags.append(f"POSSIBLE_DUPLICATE:{name}")
 
         opex_direct = _sum_available([val(k) for k in _OPEX_DIRECT_KEYS])
-        asset_note_depreciation = _sum_available([val(k) for k in _ASSET_NOTE_KEYS])
-        cos_dep = val("cos_depreciation")
+        asset_keys, parent_overlap = _asset_note_keys(
+            {k for k in _ASSET_NOTE_KEYS if val(k) is not None})
+        if parent_overlap:
+            flags.append("TOTAL_COMPONENT_OVERLAP:fixed_asset_depreciation")
+        asset_note_depreciation = _sum_available([val(k) for k in asset_keys])
         pbt_dep = val("pbt_depreciation")
         pbt_oper_specific = val("pbt_oper_exp_depreciation")
         cfo_dep = val("cfo_depreciation")
-        p5 = pbt_dep if cos_note_absent else None
 
-        p1_label, p1_val, p1_flags = _first_valid(
-            [("P1", opex_direct if opex_direct is not None else pbt_oper_specific)], {})
-        p2 = _subtract_if_comparable(pbt_dep, cos_dep, _comparable(sig("pbt_depreciation"), sig("cos_depreciation")))
-        p3 = _subtract_if_comparable(asset_note_depreciation, cos_dep,
-                                     _comparable(sig("ppe_depreciation") or sig("fixed_asset_depreciation"),
-                                                 sig("cos_depreciation")))
-        p4 = _subtract_if_comparable(cfo_dep, cos_dep, _comparable(sig("cfo_depreciation"), sig("cos_depreciation")))
+        # A filing that discloses no cost-of-sales depreciation is treated as charging none,
+        # rather than as making P3-P5 incomputable: the deduction is zero and the candidate
+        # reduces to the total it was subtracting from. The assumption is reported, never silent.
+        cos_dep = val("cos_depreciation")
+        if cos_dep is None:
+            flags.append("ASSUMED_ZERO_COS_DEPRECIATION")
 
-        oper_label, oper_val, oper_flags = _first_valid(
-            [("P1", opex_direct if opex_direct is not None else pbt_oper_specific),
-             ("P2", p2), ("P3", p3), ("P4", p4), ("P5", p5)], {})
-        if oper_label == "P5":
-            oper_flags.append("ASSUMED_NO_COS_SPLIT_DISCLOSED")
+        def less_cos(total: Decimal | None, operand: _Signal | None) -> Decimal | None:
+            """The candidate `total - cos_depreciation`, or `total` itself under the agreed
+            assumption that an undisclosed cost-of-sales depreciation is zero. Comparability
+            (§6) is only at issue when there are two figures to compare."""
+            if total is None or cos_dep is None:
+                return total
+            return _subtract_if_comparable(
+                total, cos_dep, _comparable(operand, sig("cos_depreciation")))
 
+        asset_signal = next((sig(k) for k in asset_keys if sig(k) is not None), None)
+        candidates = [
+            ("P1", opex_direct),                       # §5.1: needs no cost-of-sales figure
+            ("P2", pbt_oper_specific),                 # the PBT note's opex-specific callout
+            ("P3", less_cos(pbt_dep, sig("pbt_depreciation"))),
+            ("P4", less_cos(asset_note_depreciation, asset_signal)),
+            ("P5", less_cos(cfo_dep, sig("cfo_depreciation"))),
+        ]
+        oper_label, oper_val, oper_flags = _first_valid(candidates, {})
+
+        _EVIDENCE_SOURCES: dict[str, tuple[str, ...]] = {
+            "P1": _OPEX_DIRECT_KEYS,
+            "P2": ("pbt_oper_exp_depreciation",),
+            "P3": ("pbt_depreciation", "cos_depreciation"),
+            "P4": (*asset_keys, "cos_depreciation"),
+            "P5": ("cfo_depreciation", "cos_depreciation"),
+        }
         oper_evidence: list[dict] = []
-        if oper_label == "P1":
-            src = "opex_direct" if opex_direct is not None else "pbt_oper_exp_depreciation"
-            if src == "opex_direct":
-                for k in _OPEX_DIRECT_KEYS:
-                    s = sig(k)
-                    if s is not None:
-                        oper_evidence.extend(s.evidence)
-            else:
-                s = sig("pbt_oper_exp_depreciation")
-                if s is not None:
-                    oper_evidence.extend(s.evidence)
-        elif oper_label == "P2":
-            for name in ("pbt_depreciation", "cos_depreciation"):
-                s = sig(name)
-                if s is not None:
-                    oper_evidence.extend(s.evidence)
-        elif oper_label == "P3":
-            for k in (*_ASSET_NOTE_KEYS, "cos_depreciation"):
-                s = sig(k)
-                if s is not None:
-                    oper_evidence.extend(s.evidence)
-        elif oper_label == "P4":
-            for name in ("cfo_depreciation", "cos_depreciation"):
-                s = sig(name)
-                if s is not None:
-                    oper_evidence.extend(s.evidence)
-        elif oper_label == "P5":
-            s = sig("pbt_depreciation")
-            if s is not None:
-                oper_evidence.extend(s.evidence)
+        for name in _EVIDENCE_SOURCES.get(oper_label or "", ()):
+            source = sig(name)
+            if source is not None:
+                oper_evidence.extend(source.evidence)
 
-        oper_status = "EXTRACTED_AND_COMPUTED" if oper_val is not None else "NOT_FOUND_OR_NOT_COMPUTABLE"
+        oper_status = ("EXTRACTED_AND_COMPUTED" if oper_val is not None
+                       else "NOT_FOUND_OR_NOT_COMPUTABLE")
         oper_flags_all = flags + oper_flags
         if oper_val is None:
             oper_flags_all.append("NOT_FOUND_OR_NOT_COMPUTABLE")
 
         cos_p1 = cos_dep
         # `oper_val` is a resolved figure, not a dataset signal, so the comparability check falls
-        # back to the pbt signal's own unit consistency (the operand it is actually subtracted from).
-        # Not when P5 assigned the whole pbt total to Oper Exp: that assumption says nothing about
-        # how much of it is COS, so treating the remainder as a hard zero would trade one guess for
-        # another rather than leaving the genuinely unknown split unknown.
+        # back to the pbt signal's own unit consistency (the operand it is subtracted from).
         pbt_signal = sig("pbt_depreciation")
         cos_p2 = _subtract_if_comparable(
             pbt_dep, oper_val,
-            comparable=(oper_label != "P5" and pbt_signal is not None and not pbt_signal.mixed_units
+            comparable=(pbt_signal is not None and not pbt_signal.mixed_units
                        and oper_val is not None))
         cos_label, cos_val, cos_flags = _first_valid(
             [("COS_P1", cos_p1), ("COS_P2", cos_p2)], {})

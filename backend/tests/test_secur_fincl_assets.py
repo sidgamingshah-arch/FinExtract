@@ -100,3 +100,35 @@ def test_unclassified_note_is_not_used_for_either_field():
     results = compute(doc).get(("consolidated", "current"), {})
     assert not results.get("cp") or results["cp"].value is None
     assert not results.get("ltp") or results["ltp"].value is None
+
+
+def test_a_note_printing_both_a_subtotal_and_a_grand_total_is_counted_once():
+    # §3.3: "Extract the note total once." Summing the grand total together with the subtotals
+    # it already contains would count the note's contents twice.
+    doc = _doc(
+        [_note("9", "Financial assets at fair value through profit or loss", [
+             _item("Listed equity securities", "300"),
+             _item("Unlisted investments", "200"),
+             # A PARTIAL subtotal, covering the listed holdings only — so the grand total and
+             # the subtotals are different figures and the choice between them is observable.
+             _item("Total listed securities", "300", role=LineRole.SUBTOTAL),
+             _item("Total", "500", role=LineRole.TOTAL),
+         ]),
+         _note("30", "Fair value hierarchy", [_item("Level 3", "0")])],
+        [_face("9", "Current assets")],
+    )
+    result = compute(doc)[("consolidated", "current")]["cp"]
+    assert result.value == Decimal("500")
+
+
+def test_a_note_with_only_subtotals_still_reports_them():
+    doc = _doc(
+        [_note("11", "Other financial assets", [
+             _item("Debt investments", "120"),
+             _item("Subtotal", "120", role=LineRole.SUBTOTAL),
+         ]),
+         _note("30", "Fair value hierarchy", [_item("Level 3", "0")])],
+        [_face("11", "Current assets")],
+    )
+    result = compute(doc)[("consolidated", "current")]["cp"]
+    assert result.value == Decimal("120")
