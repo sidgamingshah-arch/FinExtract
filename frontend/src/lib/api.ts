@@ -283,13 +283,17 @@ export const api = {
   /** Derived analysis for a document: computed ratios, disclosure scan, free-form notes. */
   documentAnalysis: (documentId: string, locale: Locale = "en") =>
     req<AnalysisResponse>(`/documents/${documentId}/analysis?locale=${locale}`),
-  /** Real per-document notes index + detail, from line-item note references. */
-  documentNotes: (documentId: string) =>
-    req<NotesResponse>(`/documents/${documentId}/notes`),
+  /** Real per-document notes index + detail, from line-item note references — of the latest
+   *  run, or of one NAMED historical run when `runId` is given, so the notes shown beside a
+   *  pinned statement belong to the same extraction as the statement. */
+  documentNotes: (documentId: string, runId?: string) =>
+    req<NotesResponse>(`/documents/${documentId}/notes`
+      + (runId ? `?run_id=${encodeURIComponent(runId)}` : "")),
   /** One note's detail. `locale` is passed because the response now carries the note's own
    *  column labels, and their Current/Prior fallback is localized server-side. */
-  documentNote: (documentId: string, no: string, locale: Locale = "en") =>
-    req<NoteDetail>(`/documents/${documentId}/notes/${no}?locale=${locale}`),
+  documentNote: (documentId: string, no: string, locale: Locale = "en", runId?: string) =>
+    req<NoteDetail>(`/documents/${documentId}/notes/${no}?locale=${locale}`
+      + (runId ? `&run_id=${encodeURIComponent(runId)}` : "")),
   /** Edit ONE figure of a real extraction: a concept, in one basis, for one period.
    *  Basis and period are required, not defaulted — without them every edit landed on the
    *  consolidated current column, so editing the standalone grid or the prior year did nothing
@@ -559,12 +563,15 @@ export async function downloadOntologySkeleton(
  * `include` does not (a two-column sheet has no analysis sheets to add). */
 export async function downloadDocumentExport(
   documentId: string, format: ExportFmt, locale: Locale = "en", include?: string[],
-  units?: string,
+  units?: string, runId?: string,
 ): Promise<void> {
   const inc = include && format === "excel" ? `&include=${include.join(",")}` : "";
   const un = units ? `&units=${encodeURIComponent(units)}` : "";
+  // A pinned run must reach the download too: exporting the latest run while the screen shows
+  // an older one hands the analyst a file that does not match what they were reading.
+  const rid = runId ? `&run_id=${encodeURIComponent(runId)}` : "";
   const res = await fetch(
-    `${BASE}/documents/${documentId}/export?fmt=${format}&layout=statement&locale=${locale}${inc}${un}`,
+    `${BASE}/documents/${documentId}/export?fmt=${format}&layout=statement&locale=${locale}${inc}${un}${rid}`,
     { headers: { ...authHeader() } },
   );
   if (!res.ok) throw new Error(`Export failed: ${res.status}`);

@@ -508,20 +508,23 @@ export const useDocumentAnalysis = (documentId: string | undefined, locale: Loca
   });
 
 /** Real per-document notes index + one note's detail. */
-export const useDocumentNotes = (documentId: string | undefined) =>
+export const useDocumentNotes = (documentId: string | undefined, runId?: string) =>
   useQuery({
-    queryKey: ["document-notes", documentId],
-    queryFn: () => api.documentNotes(documentId as string),
+    // `runId` is in the key as well as the request: a cached latest-run index must not be
+    // reused for a pinned historical run, or the notes pane silently disagrees with the grid.
+    queryKey: ["document-notes", documentId, runId ?? "latest"],
+    queryFn: () => api.documentNotes(documentId as string, runId),
     enabled: !!documentId,
     retry: false,
   });
 /** One note's detail. `locale` is in the key as well as the request: the response carries the
  *  note's column labels, whose Current/Prior fallback is localized, so a cached English detail
  *  must not be reused for a zh reader. */
-export const useDocumentNote = (documentId: string | undefined, no: string, locale: Locale = "en") =>
+export const useDocumentNote = (documentId: string | undefined, no: string,
+                                locale: Locale = "en", runId?: string) =>
   useQuery({
-    queryKey: ["document-note", documentId, no, locale],
-    queryFn: () => api.documentNote(documentId as string, no, locale),
+    queryKey: ["document-note", documentId, no, locale, runId ?? "latest"],
+    queryFn: () => api.documentNote(documentId as string, no, locale, runId),
     enabled: !!documentId,
     retry: false,
   });

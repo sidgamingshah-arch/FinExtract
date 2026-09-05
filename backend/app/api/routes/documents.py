@@ -761,6 +761,28 @@ def _run_by_id(session: Session, document_id: str, run_id: str):
     ).scalars().first()
 
 
+def _run_for_read(session: Session, document_id: str, run_id: str | None):
+    """The run a READ is about: one named historical run, else the latest.
+
+    Every panel of the workspace resolves it through here, so a caller viewing run #3 cannot be
+    served run #3's statement beside the latest run's notes — a mixed spread that reads as one
+    extraction and is not. Writes deliberately do NOT use it: a historical run records what was
+    extracted then, and editing it would rewrite that record rather than correct today's figure.
+
+    A `run_id` that does not resolve is a 404 rather than a fall-back to the latest run. Falling
+    back would serve one extraction under another run's name with nothing in the response saying
+    so, and a reader comparing two runs would have no way to tell they were shown the same one.
+    An ABSENT `run_id` still answers None when the document has never been extracted, which is
+    the caller's own empty-state to render rather than an error.
+    """
+    if run_id:
+        run = _run_by_id(session, document_id, run_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="Run not found for this document")
+        return run
+    return _latest_run(session, document_id)
+
+
 def _run_template_id(run) -> str | None:
     """Which template version a run was launched against — ONE spelling of the answer.
 
@@ -2656,7 +2678,7 @@ def get_document_run(document_id: str, run_id: str | None = Query(None),
 
     if session.get(Document, document_id) is None:
         raise HTTPException(status_code=404, detail="Document not found")
-    run = _run_by_id(session, document_id, run_id) if run_id else _latest_run(session, document_id)
+    run = _run_for_read(session, document_id, run_id)
     if run is None or not run.result:
         raise HTTPException(status_code=404, detail="No extraction run yet for this document")
     # Which rulebook this run read the filing against, as the run recorded it (see
@@ -3532,6 +3554,7 @@ def export_document(
     locale: str = Query("en"),
     include: str | None = Query(None),
     units: str | None = Query(None),
+    run_id: str | None = Query(None),
     session: Session = Depends(db),
 ) -> Response:
     """Export a real document's extracted, mapped line items as Excel or JSON, built from
@@ -3555,7 +3578,7 @@ def export_document(
     doc = session.get(Document, document_id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Document not found")
-    run = _latest_run(session, document_id)
+    run = _run_for_read(session, document_id, run_id)
     if run is None or not run.result:
         raise HTTPException(status_code=404, detail="No extraction run yet for this document")
     rows = run.result.get("rows", [])
@@ -4998,7 +5021,7 @@ def get_document_statement(
     doc = session.get(Document, document_id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Document not found")
-    run = _run_by_id(session, document_id, run_id) if run_id else _latest_run(session, document_id)
+    run = _run_for_read(session, document_id, run_id)
     if run is None or not run.result:
         raise HTTPException(status_code=404, detail="No extraction run yet for this document")
     template_def = _template_for_run(session, run)
@@ -5263,11 +5286,15 @@ def _note_table_rows(rows: list[dict], periods: list[str]) -> dict:
 
 
 @router.get("/{document_id}/notes", dependencies=[Depends(authorized_document)])
-def get_document_notes(document_id: str, session: Session = Depends(db)) -> dict:
+def get_document_notes(document_id: str, run_id: str | None = Query(None),
+                       session: Session = Depends(db)) -> dict:
     """All-notes index for a real document. Prefers the EXTRACTED note detail tables (the
     breakdowns parsed from the notes pages); falls back to the notes referenced by face
-    line items when no detail tables were parsed."""
-    run = _latest_run(session, document_id)
+    line items when no detail tables were parsed.
+
+    Reads the latest run, or one NAMED historical run when ``run_id`` is given — so the notes beside a
+    historical statement are that run's notes."""
+    run = _run_for_read(session, document_id, run_id)
     if run is None or not run.result:
         return {"notes": [], "count": 0, "linked": 0}
 
@@ -5295,6 +5322,7 @@ def get_document_notes(document_id: str, session: Session = Depends(db)) -> dict
 
 @router.get("/{document_id}/notes/{note_no}", dependencies=[Depends(authorized_document)])
 def get_document_note(document_id: str, note_no: str, locale: str = Query("en"),
+                      run_id: str | None = Query(None),
                       session: Session = Depends(db)) -> dict:
     """One note's detail for a real document: its EXTRACTED breakdown rows (label + period
     values) with the page they came from, plus the face line that cites it. Falls back to
@@ -5305,7 +5333,7 @@ def get_document_note(document_id: str, note_no: str, locale: str = Query("en"),
     very columns, which said something different from the Workspace on any filing whose periods are
     not those two.
     """
-    run = _latest_run(session, document_id)
+    run = _run_for_read(session, document_id, run_id)
     result = run.result if run and run.result else {}
     details = _note_index(result.get("note_details", []))
     faces = _rows_by_note(result.get("rows", []))
@@ -5399,7 +5427,8 @@ def _bucket_store(run) -> dict | None:
 
 
 @router.get("/{document_id}/buckets", dependencies=[Depends(authorized_document)])
-def get_document_buckets(document_id: str, session: Session = Depends(db)) -> dict:
+def get_document_buckets(document_id: str, run_id: str | None = Query(None),
+                         session: Session = Depends(db)) -> dict:
     """What each bucket holds, in the order a filing is read.
 
     Counts and page ranges only — call the detail route for a bucket's own rows and notes. Every
@@ -5414,7 +5443,7 @@ def get_document_buckets(document_id: str, session: Session = Depends(db)) -> di
     """
     from app.services.buckets import BUCKETS
 
-    run = _latest_run(session, document_id)
+    run = _run_for_read(session, document_id, run_id)
     store = _bucket_store(run)
     if store is None:
         return {"segmented": False, "buckets": [], "unresolved_face_rows": 0,
@@ -5452,6 +5481,7 @@ def get_document_buckets(document_id: str, session: Session = Depends(db)) -> di
 
 @router.get("/{document_id}/buckets/{bucket}", dependencies=[Depends(authorized_document)])
 def get_document_bucket(document_id: str, bucket: str,
+                        run_id: str | None = Query(None),
                         session: Session = Depends(db)) -> dict:
     """One bucket's own source: its face rows and the notes filed under it.
 
@@ -5465,7 +5495,7 @@ def get_document_bucket(document_id: str, bucket: str,
 
     if bucket not in BUCKET_LABELS:
         raise HTTPException(status_code=404, detail=f"Unknown bucket: {bucket}")
-    run = _latest_run(session, document_id)
+    run = _run_for_read(session, document_id, run_id)
     store = _bucket_store(run)
     if store is None:
         return {"segmented": False, "bucket": bucket, "label": BUCKET_LABELS[bucket],

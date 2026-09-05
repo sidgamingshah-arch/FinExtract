@@ -1196,7 +1196,12 @@ export default function WorkspaceScreen() {
   // Not every row is a figure someone can correct. A KPI is computed (fix its inputs instead), a
   // line mapped to no concept has no address to save against, and an equity movement is a
   // component grid. Offering a control that cannot work is how "editing doesn't work" starts.
-  const canEditSel = !!selRowObj && selRowObj.editable !== false
+  // A PINNED historical run is a record of what was extracted then, and the edit endpoints
+  // write to the document's latest run — so an edit made while reading run #3 would silently
+  // land on run #7. The pin therefore makes the grid read-only rather than offering a control
+  // that saves somewhere the reader is not looking.
+  const viewingHistorical = usingReal && !!selectedRunId;
+  const canEditSel = !!selRowObj && selRowObj.editable !== false && !viewingHistorical
     && (selRowObj.kind === "item" || selRowObj.kind === "subtotal" || selRowObj.kind === "total");
   const saving = realEditMut.isPending || editMut.isPending;
   // The inspector describes ONE period, so it reads that period's origin rather than the row
@@ -1400,6 +1405,25 @@ export default function WorkspaceScreen() {
           produced, on the template it was launched against). */}
       {superseded?.superseded && (
         <SupersededBanner info={superseded} documentId={activeDocumentId ?? undefined} t={t} />
+      )}
+      {/* Read-only has to say WHY. A grid that silently refuses an edit reads as broken, and the
+          reason is not visible from the figures — it is which run is pinned. */}
+      {viewingHistorical && (
+        <div
+          data-testid="ws-historical-run"
+          data-run-id={selectedRunId ?? ""}
+          style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 9,
+                   flexWrap: "wrap", padding: "7px 16px", background: color.amberBg,
+                   borderBottom: `1px solid ${color.hairline}`, fontSize: 11.5,
+                   color: color.amberFg, lineHeight: 1.5 }}
+        >
+          <strong style={{ fontWeight: 600 }}>
+            {t("ws.run.historical").replace(
+              "{n}",
+              String(runs.find((r) => r.run_id === selectedRunId)?.run_number ?? "?"))}
+          </strong>
+          <span>{t("ws.run.historicalWhy")}</span>
+        </div>
       )}
       {/* The figures below are the only basis this filing labelled, answering a request for the
           other one. Said out loud, in the same strip: an empty grid used to be shown here instead,
