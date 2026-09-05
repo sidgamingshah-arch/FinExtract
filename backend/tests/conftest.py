@@ -9,6 +9,21 @@ import pytest
 _tmp = tempfile.mkdtemp(prefix="finex-test-")
 os.environ.setdefault("FINEX_DATABASE_URL", f"sqlite:///{_tmp}/test.db")
 os.environ.setdefault("FINEX_OBJECT_STORE_ROOT", f"{_tmp}/objects")
+# NO LIVE MODEL IN THE TEST SUITE. config.toml ships a real provider — an internal gateway
+# reached with a key from the environment — and nothing here overrode it, so every test that ran
+# the pipeline attempted a network call and died on the missing key:
+# "LlmConfigError: No API key found", and the RuntimeErrors that fall out of it when a mapping
+# batch cannot be refined. Nineteen failures came from that alone, which is enough noise to hide
+# whatever else is broken.
+#
+# The stub provider rather than switching the LLM tiers OFF. Disabling them was measured and is
+# worse — 62 failures against 44 — because a dozen tests exist to prove the LLM path is
+# consulted, and a disabled tier makes them fail for the opposite reason. The stub keeps the path
+# wired and answers deterministically, which is what a test needs from it.
+#
+# `setdefault`, so a developer can still point the suite at a real provider deliberately
+# (FINEX_LLM__PROVIDER=anthropic pytest ...) without editing this file.
+os.environ.setdefault("FINEX_LLM__PROVIDER", "stub")
 
 
 @pytest.fixture(autouse=True)
