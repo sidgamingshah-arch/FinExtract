@@ -768,8 +768,12 @@ test("an admin downloads the template as a workbook and publishes an edited vers
   const msg = page.getByTestId("tpl-auth-message");
   await expect(msg).toBeVisible({ timeout: 30_000 });
   await expect(msg).toContainText(/Published .* v\d+ — \d+ line items/);
-  const after = await picker.locator("option").allTextContents();
-  expect(after.length).toBe(before.length + 1);
+  // WEB-FIRST, not a single read. `allTextContents()` samples the DOM once, and the success
+  // message appears before the picker's own query has refetched — so the option count was read
+  // from the list as it stood a moment earlier. It passed for as long as the refetch happened to
+  // win the race and failed on a slower run, which is the shape of a flake rather than of a
+  // regression: the same test passes in isolation.
+  await expect(picker.locator("option")).toHaveCount(before.length + 1);
 });
 
 test("an analyst gets no template authoring affordances", async ({ page }) => {
