@@ -32,6 +32,7 @@ from app.api.routes.documents import _note_index
 from app.core.models.document import DocumentModel
 from app.core.models.enums import DocFormat
 from app.core.pipeline import default_pipeline
+from app.core.models.line_item import NoteItem, NotesTable
 from app.core.stage import PipelineContext
 from app.schemas.loader import load_ontology, load_template
 
@@ -213,3 +214,52 @@ def test_a_two_page_note_is_served_as_one_note_from_the_pipeline():
     labels = [r["label"] for r in note["rows"]]
     assert any(lab.startswith("PRC corporate income tax") for lab in labels), labels
     assert any(lab.startswith("At the statutory rate") for lab in labels), labels
+
+
+def test_a_running_page_header_does_not_leave_an_empty_fragment_for_the_note():
+    """A note continued across pages must not gain a third, empty fragment.
+
+    The continuation is picked up by seeding a carried section with the previous page's number
+    and title, which materialises on the first row that follows. Where the notes pages carry a
+    running header, that first row is the header — so when the note's own "(Continued)" heading
+    comes next, the carried section is left holding nothing but furniture. That fragment is
+    titled like the note and has no rows, which inflates the note count and can be served as a
+    note with no content.
+    """
+    from tests.fixtures.generate import make_hkex_tax_note_pdf
+
+    ontology = load_ontology(
+        json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8")),
+        resolve=True)
+    template = load_template(
+        json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text(encoding="utf-8")))
+    ctx = PipelineContext(raw_bytes=make_hkex_tax_note_pdf())
+    ctx.ontology, ctx.template = ontology, template
+    doc = default_pipeline().run(DocumentModel(filename="f.pdf", fmt=DocFormat.PDF), ctx)
+
+    fragments = [t for t in doc.notes if str(t.note_number) == "11"]
+    assert [len(t.items) for t in fragments] == [5, 7], [
+        (t.title, len(t.items), t.source_text[:40]) for t in fragments]
+    assert not any(t.items == [] for t in fragments)
+
+
+def test_a_narrative_only_note_keeps_its_fragment():
+    """The empty-fragment filter must not delete a note that legitimately has no rows.
+
+    A contingent-liability disclosure or an auditor's paragraph is prose with no detail table at
+    all. It is the only fragment for its number, so there is nothing for it to duplicate — and
+    services.contingent_liabilities reads exactly such a note.
+    """
+    from app.services.notes_extract import _without_empty_duplicates
+
+    narrative = NotesTable(note_number="30", title="Contingent liabilities", items=[],
+                           source_text="The Group had guarantees of RMB50,000,000.")
+    detail = NotesTable(note_number="11", title="Income tax",
+                        items=[NoteItem(raw_label="PRC corporate income tax")])
+    empty_twin = NotesTable(note_number="11", title="Income tax", items=[],
+                            source_text="Notes to the Financial Statements")
+
+    kept = _without_empty_duplicates([narrative, detail, empty_twin])
+    assert narrative in kept
+    assert detail in kept
+    assert empty_twin not in kept

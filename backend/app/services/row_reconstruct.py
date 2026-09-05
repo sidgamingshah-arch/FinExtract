@@ -484,7 +484,22 @@ def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True) -> t
             note_ref = _note_ref_value(row[i + 1].text)
             i += 2
             continue
-        if (extract_note_refs and note_ref is None and label_words and not value_words and _is_note_ref_token(tok)
+        # A BARE NOTE NUMBER STANDING BETWEEN THE LABEL AND THE FIGURES, as in
+        # "Revenue  6  45,230  40,110" — where 6 is note 6 and not the current-year amount.
+        #
+        # THE MONEY-LIKE LOOKAHEAD IS WHAT MAKES THAT SAFE, and without it this branch ate the
+        # first value column of any row whose figures are small: in "Costs 50 40 41" it took 50
+        # as a note reference. Worse than losing one cell, it collapsed the page's column
+        # geometry — with two of three rows down to two figures, the inferred columns became two,
+        # and a row that HAD kept three then had its leftmost figure fall outside them and
+        # dropped too. A three-column statement came back as two, with the years relabelled.
+        #
+        # `_resolve_note_column` already carries this rule with the guard (see its final clause),
+        # but it cannot help here: it returns early once `note_ref` is set, so a token taken on
+        # shape alone is never reconsidered. The guard therefore belongs on both.
+        if (extract_note_refs and note_ref is None and label_words and not value_words
+                and _is_note_ref_token(tok)
+                and any(_is_money_like(w.text, fmt) for w in row[i + 1:])
                 and not _tight_after(row[i - 1], row[i])):
             note_ref = _note_ref_value(tok)
             i += 1

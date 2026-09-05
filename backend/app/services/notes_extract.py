@@ -289,4 +289,27 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                 ni.set_value(ev)
             table.items.append(ni)
         tables.append(table)
-    return tables
+    return _without_empty_duplicates(tables)
+
+
+def _without_empty_duplicates(tables: list[NotesTable]) -> list[NotesTable]:
+    """Drop a fragment that carries no rows when another fragment of the SAME note carries some.
+
+    A note continued onto the next page is picked up by seeding a carried section with the
+    previous page's number and title, which materialises on the first row that follows. On a
+    filing whose notes pages carry a running header — "Notes to the Financial Statements" — that
+    first row is the header, and when the note's own "(Continued)" heading comes next the carried
+    section is left holding nothing but the furniture. The result was a third fragment for a
+    two-page note, titled like the note and empty, which inflates the note count and can be
+    served as a note with no content.
+
+    Keyed on having no ITEMS rather than on recognising the furniture, because "what is a running
+    header" is a per-filing question and this is not: a fragment with no rows, for a note that has
+    rows elsewhere, adds nothing to the note however it came about.
+
+    A note that is entirely narrative keeps its fragment — it is the only one for its number, so
+    there is nothing for it to be a duplicate of.
+    """
+    with_items = {t.note_number for t in tables if t.items}
+    return [t for t in tables
+            if t.items or t.note_number not in with_items]

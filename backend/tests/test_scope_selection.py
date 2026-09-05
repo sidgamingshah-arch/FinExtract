@@ -849,3 +849,40 @@ def test_a_fullwidth_colon_subheading_is_a_heading_not_a_wrapped_caption():
     items, _ = _build(words)
     assert [i.source_label for i in items] == ["折舊", "Bank charges", "Sundry losses"]
     assert {i.section_hint for i in items} == {"EXPENSES"}
+
+
+# --- a small figure is a figure ----------------------------------------------------------------
+def test_a_two_digit_first_figure_is_not_taken_for_a_note_reference():
+    """A bare 1-2 digit token between the label and the figures is a note reference only when a
+    real amount follows it — "Revenue 6 45,230 40,110". Read on shape alone it swallows the
+    leftmost value of any row whose figures are small, and the damage does not stop at one cell:
+    with some rows down to two figures the page's inferred column geometry collapses to two, and
+    a row that kept three has its leftmost figure fall outside them and dropped as well. A
+    three-column statement then comes back as two, with the years relabelled.
+    """
+    page = [
+        _w("2024", 0.62, 0.05), _w("2023", 0.74, 0.05),
+        # Every figure here is two digits, which is exactly the shape a note reference has.
+        _w("Costs", 0.10, 0.11), _w("50", 0.62, 0.11), _w("40", 0.74, 0.11),
+        _w("Profit", 0.10, 0.15), _w("70", 0.62, 0.15), _w("60", 0.74, 0.15),
+    ]
+    items, _ = _build(page)
+    costs = next(i for i in items if "Costs" in i.source_label)
+    assert _slots(costs) == {("consolidated", "current"): "50",
+                             ("consolidated", "prior"): "40"}
+    assert costs.note_number is None, costs.note_number
+
+
+def test_a_note_reference_before_real_amounts_is_still_read_as_one():
+    """The behaviour the guard must not remove: a genuine note column, proven by the amounts
+    that follow it carrying thousands separators."""
+    page = [
+        _w("2024", 0.62, 0.05), _w("2023", 0.74, 0.05),
+        _w("Revenue", 0.10, 0.11), _w("6", 0.40, 0.11),
+        _w("45,230", 0.62, 0.11), _w("40,110", 0.74, 0.11),
+    ]
+    items, _ = _build(page)
+    rev = next(i for i in items if "Revenue" in i.source_label)
+    assert _slots(rev) == {("consolidated", "current"): "45230",
+                           ("consolidated", "prior"): "40110"}
+    assert rev.note_number == "6"
