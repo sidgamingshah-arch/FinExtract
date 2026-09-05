@@ -6,7 +6,7 @@ import pytest
 from app.config import get_settings
 
 
-def test_gpt5_mini_on_azure_is_the_shipped_default():
+def test_the_shipped_default_and_the_code_fallback_name_the_same_model():
     """Asserted against the SHIPPED config and the model default, not against the merged settings.
 
     A developer's git-ignored .env legitimately overrides provider/model/base_url for local work —
@@ -21,14 +21,20 @@ def test_gpt5_mini_on_azure_is_the_shipped_default():
 
     shipped = tomllib.loads(
         (Path(__file__).resolve().parents[1] / "config.toml").read_text(encoding="utf-8"))["llm"]
-    assert shipped["provider"] == "azure_openai"
-    assert shipped["model"] == "gpt-5-mini"
+    # The deployment reaches Azure through an internal gateway rather than an Azure resource
+    # directly, so the provider is the OpenAI wire format with a `<vendor>/<deployment>` model id
+    # and a base_url in config.toml. What this test is FOR is unchanged by that: whatever the
+    # default is, the file and the code must agree on it.
+    assert shipped["provider"] == "openai_compatible"
+    assert shipped["model"] == "azure-openai/gpt5.4-mini"
     assert shipped["api_key_env"] == "AZURE_OPENAI_API_KEY"
 
-    # And the code's own fallback agrees, so a deployment without config.toml lands in the same place.
+    # And the code's own fallback agrees, so a deployment without config.toml lands in the same
+    # place. Asserted against the same three values rather than restated, so the pair cannot
+    # drift apart with both halves of this test still passing.
     d = LlmSettings()
     assert (d.provider, d.model, d.api_key_env) == (
-        "azure_openai", "gpt-5-mini", "AZURE_OPENAI_API_KEY")
+        shipped["provider"], shipped["model"], shipped["api_key_env"])
     # The KEY is never configuration — only the name of the variable holding it, so a credential
     # cannot reach the database or a settings export.
     assert not hasattr(d, "api_key")

@@ -80,10 +80,29 @@ def _totals_last(definition: dict) -> dict:
     return out
 
 
+# THE FAMILY THIS MODULE IS ABOUT. The repository ships two reference sets now — the original
+# hkfrs_hk_china and the China/PRC output_csv_hk — so "the stored templates" and "the stored
+# rulebooks" stopped being single answers, and assertions written when there was one family were
+# reading the other one's rows as extra versions of theirs. Every query below is scoped to this
+# family, which is what these tests actually exercise: the refresh, supersession and
+# retired-key handling of the shipped hkfrs set.
+SUITE_TEMPLATE_KEY = "hkfrs_hk_china_v1"
+SUITE_ONTOLOGY_PREFIX = "hkfrs_hk_china"
+
+
 def _rows(session: Session, model, **where) -> list:
+    """The stored rows of one model, ordered by version — scoped to this module's family.
+
+    Scoping lives here rather than at each call site so a third reference set cannot quietly
+    reintroduce the same class of failure at whichever call site was missed.
+    """
     stmt = select(model).order_by(model.version)
     for column, value in where.items():
         stmt = stmt.where(getattr(model, column) == value)
+    if "template_key" not in where and hasattr(model, "template_key"):
+        stmt = stmt.where(model.template_key == SUITE_TEMPLATE_KEY)
+    if "ontology_key" not in where and hasattr(model, "ontology_key"):
+        stmt = stmt.where(model.ontology_key.startswith(SUITE_ONTOLOGY_PREFIX))
     return list(session.execute(stmt).scalars().all())
 
 
@@ -125,7 +144,14 @@ def test_an_empty_database_is_seeded_at_version_1(session):
     ontologies = _rows(session, OntologyVersion)
     assert [(r.ontology_key, r.version) for r in ontologies] == [(ont["ontology_key"], 1)]
     assert ontologies[0].definition == ont
-    assert len(notes) == 2, notes           # it says what it did, for the reconcile script to print
+    # IT SAYS WHAT IT DID, for the reconcile script to print — one note per artefact it
+    # published. Counted against the rows rather than fixed at 2: that literal was the number of
+    # reference sets the repository happened to ship, so adding the China/PRC set broke an
+    # assertion about note-keeping. The invariant is the pairing, not the cardinality.
+    published = (session.execute(select(func.count()).select_from(TemplateVersion)).scalar()
+                 + session.execute(select(func.count()).select_from(OntologyVersion)).scalar())
+    assert len(notes) == published, notes
+    assert all("published v1" in note for note in notes), notes
 
 
 def test_a_second_call_against_an_unchanged_file_publishes_nothing(session):
@@ -144,7 +170,10 @@ def test_a_second_call_against_an_unchanged_file_publishes_nothing(session):
     assert ensure_reference_data(session) == []
     assert {m: session.execute(select(func.count()).select_from(m)).scalar()
             for m in (TemplateVersion, OntologyVersion)} == before
-    assert before == {TemplateVersion: 1, OntologyVersion: 1}
+    # …and the first call DID publish, so the equality above is not two zeros agreeing. Stated as
+    # "some" rather than as one each: the count is how many reference sets the repository ships,
+    # which is not what idempotence is about and moved when the China/PRC set was added.
+    assert all(count > 0 for count in before.values()), before
 
 
 def test_a_stale_stored_template_is_refreshed_to_the_shipped_order(session, caplog):
