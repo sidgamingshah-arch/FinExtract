@@ -1825,7 +1825,6 @@
       "definition": "Computed with an English-alias fallback: services.related_party_receivables takes the highest of three independent PRC-note-based related-party measurements (face/statement-linked disclosures, the receivable notes, the related-party note), excluding entrusted loans; if that PRC-specific logic finds nothing (e.g. an English-language filing with no matching Chinese note headings), an ordinary alias-matched face/note value is used instead. See docs/PRC_Related_Party_and_Other_Receivables_Extraction_Logic.md.",
       "aliases": [
         "Due from Related Parties(LTP)",
-        "Related Party Transactions",
         "Amount owning by related companies",
         "Due from related parties",
         "Due from related companies",
@@ -1842,16 +1841,12 @@
         "Loan to/Loan receivables from/Other receivables from Jointly controlled entities",
         "Due from fellow subsidiaries",
         "Loan to/Loan receivables from/Other receivables from fellow subsidiaries",
-        "Entrustment loan to related parties/associates/JV/Joint Ventures/Jointly controlled entities/ Subsidiaries/ Affiliates",
         "Directors current account",
         "Loan to/Loan receivables from/Other receivables from Directors",
         "Directors' C/A",
         "Subsidiaries current account",
         "Loans to/Loan receivables from/Other receivables from Subsidiaries",
-        "Subsidiaries' C/A",
-        "Entrusted loan receivables from shareholders",
-        "Entrustment loan from shareholders",
-        "Find 2: Sum of due from related parties included in Note"
+        "Subsidiaries' C/A"
       ],
       "keyword_hints": [
         "Due from Related Parties(LTP)"
@@ -1881,7 +1876,6 @@
       "aliases_i18n": {
         "en": [
           "Due from Related Parties(LTP)",
-          "Related Party Transactions",
           "Amount owning by related companies",
           "Due from related parties",
           "Due from related companies",
@@ -1898,25 +1892,32 @@
           "Loan to/Loan receivables from/Other receivables from Jointly controlled entities",
           "Due from fellow subsidiaries",
           "Loan to/Loan receivables from/Other receivables from fellow subsidiaries",
-          "Entrustment loan to related parties/associates/JV/Joint Ventures/Jointly controlled entities/ Subsidiaries/ Affiliates",
           "Directors current account",
           "Loan to/Loan receivables from/Other receivables from Directors",
           "Directors' C/A",
           "Subsidiaries current account",
           "Loans to/Loan receivables from/Other receivables from Subsidiaries",
-          "Subsidiaries' C/A",
-          "Entrusted loan receivables from shareholders",
-          "Entrustment loan from shareholders",
-          "Find 2: Sum of due from related parties included in Note"
+          "Subsidiaries' C/A"
         ],
         "zh": [
           "应收关联公司款项",
           "应收关联方款项",
           "应收关连人士款项",
           "应收同系附属公司款项",
-          "应收董事款项"
+          "应收董事款项",
+          "关联方资金往来",
+          "关联方往来款",
+          "其他应收关联方款项",
+          "一年内到期的长期应收款",
+          "长期应收款",
+          "发放贷款及垫款"
         ]
-      }
+      },
+      "exclude_hints": [
+        "委托贷款",
+        "委托借款",
+        "委托银行贷款"
+      ]
     },
     {
       "canonical_key": "bs_nca__entrusted_loan_receivables_shareholders_ltp",
@@ -2130,10 +2131,7 @@
         "Other debt investments",
         "Other financial assets",
         "investment securities",
-        "Derivative",
-        "Other receivables",
-        "Investment in related parties/associates/JV",
-        "fair value measurement/hierarchy"
+        "Financial assets at fair value through other comprehensive income"
       ],
       "keyword_hints": [
         "Secur & Other Fincl Assets(LTP)"
@@ -2173,25 +2171,22 @@
           "Other debt investments",
           "Other financial assets",
           "investment securities",
-          "Derivative",
-          "Other receivables",
-          "Investment in related parties/associates/JV",
-          "fair value measurement/hierarchy"
+          "Financial assets at fair value through profit or loss",
+          "Financial assets at fair value through other comprehensive income"
         ],
         "zh": [
           "以公允价值计量且其变动计入损益的金融资产",
-          "以摊余成本计量的金融资产",
-          "其他应收款项",
           "其他金融资产",
           "其他非流动金融资产",
-          "按金、预付款项及其他应收款",
-          "按金及预付款项",
-          "衍生金融工具",
-          "贸易及其他应收款",
-          "贸易应收款、预付款项及其他应收款",
-          "预付款项、其他应收款及其他资产",
-          "预付款项、按金及其他应收款项",
-          "预付款项及其他应收款项"
+          "按公平值计入损益的金融资产",
+          "按公平值计入其他全面收益的金融资产",
+          "金融资产",
+          "可供出售金融资产",
+          "持有至到期金融资产",
+          "含嵌入式衍生工具的结构性存款",
+          "债务投资",
+          "其他债务投资",
+          "投资证券"
         ]
       }
     },
@@ -3764,9 +3759,7 @@
         "Money market instruments",
         "Marketable securities",
         "short term money market deposits",
-        "Derivative",
-        "Other receivables",
-        "fair value measurement/hierarchy"
+        "Financial assets at fair value through other comprehensive income"
       ],
       "keyword_hints": [
         "Secur & Other Fincl Assets(CP)"
@@ -3781,7 +3774,7 @@
         "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
       ],
       "value_scope": "exclusive_leaf",
-      "extraction_mode": "extract",
+      "extraction_mode": "extract_or_derive",
       "match_priority": 80,
       "alias_matching": "enabled",
       "inherits": "bs_ca",
@@ -3809,24 +3802,25 @@
           "Money market instruments",
           "Marketable securities",
           "short term money market deposits",
-          "Derivative",
-          "Other receivables",
-          "fair value measurement/hierarchy"
+          "Financial assets at fair value through profit or loss",
+          "Financial assets at fair value through other comprehensive income"
         ],
         "zh": [
           "以公允价值计量且其变动计入损益的金融资产",
-          "以摊余成本计量的金融资产",
-          "其他应收款项",
           "其他金融资产",
           "其他非流动金融资产",
-          "按金、预付款项及其他应收款",
-          "按金及预付款项",
-          "衍生金融工具",
-          "贸易及其他应收款",
-          "贸易应收款、预付款项及其他应收款",
-          "预付款项、其他应收款及其他资产",
-          "预付款项、按金及其他应收款项",
-          "预付款项及其他应收款项"
+          "按公平值计入损益的金融资产",
+          "按公平值计入其他全面收益的金融资产",
+          "金融资产",
+          "可供出售金融资产",
+          "持有至到期金融资产",
+          "含嵌入式衍生工具的结构性存款",
+          "债务投资",
+          "其他债务投资",
+          "投资证券",
+          "货币市场工具",
+          "有价证券",
+          "短期货币市场存款"
         ]
       }
     },
@@ -5147,7 +5141,7 @@
         "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
       ],
       "value_scope": "exclusive_leaf",
-      "extraction_mode": "extract",
+      "extraction_mode": "extract_or_derive",
       "match_priority": 81,
       "alias_matching": "enabled",
       "inherits": "bs_ca",
@@ -5182,8 +5176,6 @@
         ],
         "zh": [
           "其他应收款项",
-          "合同资产",
-          "合約資產",
           "应收客户合同工程款",
           "按金、预付款项及其他应收款",
           "按金及预付款项",
@@ -5192,7 +5184,12 @@
           "贸易应收款、预付款项及其他应收款",
           "预付款项、其他应收款及其他资产",
           "预付款项、按金及其他应收款项",
-          "预付款项及其他应收款项"
+          "预付款项及其他应收款项",
+          "其他应收款",
+          "一年内到期的长期应收款",
+          "一年内到期的贷款及垫款",
+          "拆出资金",
+          "往来款"
         ]
       }
     },
@@ -10588,13 +10585,15 @@
     {
       "canonical_key": "is_pl__sales_revenues",
       "label": "Sales(Revenues)",
-      "definition": "Extract the reported value for 'Sales(Revenues)' from the face of the income statement (English: Revenue/Turnover/Sales; PRC: \u4e3b\u8425\u4e1a\u52a1/\u4e3b\u8425\u4e1a\u52a1\u6536\u5165). When the face carries no value, services.sales_revenues falls back to the \u4e3b\u8425\u4e1a\u52a1/\u4e3b\u8425\u4e1a\u52a1\u6536\u5165 row of a \u8425\u4e1a\u6536\u5165 note, never the note's own combined total. See docs/PRC_Sales_Revenues_Extraction_Logic_Simplified.md.",
+      "definition": "Extract the reported value for 'Sales(Revenues)' from the face of the income statement (English: Revenue/Turnover/Sales; PRC: 主营业务/主营业务收入). When the face carries no value, services.sales_revenues falls back to the 主营业务/主营业务收入 row of a 营业收入 note, never the note's own combined total. See docs/PRC_Sales_Revenues_Extraction_Logic_Simplified.md.",
       "aliases": [
         "Sales(Revenues)",
         "Turnover/Sales/Revenues",
         "Turnover",
         "Revenue",
-        "Sales"
+        "Sales",
+        "Principal operations revenue",
+        "Revenue from principal operations"
       ],
       "keyword_hints": [
         "Sales(Revenues)"
@@ -10627,16 +10626,13 @@
           "Turnover/Sales/Revenues",
           "Turnover",
           "Revenue",
-          "Sales"
+          "Sales",
+          "Principal operations revenue",
+          "Revenue from principal operations"
         ],
         "zh": [
           "主营业务收入",
-          "客户合约收益",
-          "收益",
-          "营业总收入",
-          "营业收入",
-          "营业额",
-          "销售收入"
+          "主营业务"
         ]
       }
     },
@@ -11031,8 +11027,12 @@
         "Deprec & Impairment(COS)",
         "Depreciation of Property,plant and equipments / fixed assets",
         "Depreciation of property, plant and equipment",
-        "Impairment of property,plant and equipments/fixed assets",
-        "Property,plant and equipments / fixed assets"
+        "Depreciation of investment property",
+        "Depreciation of fixed assets",
+        "Depreciation of construction in progress",
+        "Amortisation of prepaid lease payment",
+        "Release of prepaid lease payments",
+        "Depreciation included in cost of sales"
       ],
       "keyword_hints": [
         "Deprec & Impairment(COS)"
@@ -11048,7 +11048,7 @@
         "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
       ],
       "value_scope": "exclusive_leaf",
-      "extraction_mode": "derive",
+      "extraction_mode": "extract_or_derive",
       "match_priority": 19,
       "alias_matching": "disabled",
       "inherits": "is_pl",
@@ -11065,8 +11065,22 @@
           "Deprec & Impairment(COS)",
           "Depreciation of Property,plant and equipments / fixed assets",
           "Depreciation of property, plant and equipment",
-          "Impairment of property,plant and equipments/fixed assets",
-          "Property,plant and equipments / fixed assets"
+          "Depreciation of investment property",
+          "Depreciation of fixed assets",
+          "Depreciation of construction in progress",
+          "Amortisation of prepaid lease payment",
+          "Release of prepaid lease payments",
+          "Depreciation included in cost of sales"
+        ],
+        "zh": [
+          "投资物业折旧",
+          "折旧",
+          "固定资产折旧",
+          "物业、厂房及设备折旧",
+          "在建工程折旧",
+          "预付租赁款项摊销",
+          "预付租赁款项转出",
+          "计入销售成本的折旧"
         ]
       }
     },
@@ -12350,10 +12364,11 @@
         "Depreciation of Investment Property",
         "Amortisation of prepaid lease payment",
         "Release of prepaid lease payments",
-        "Depreciation, impairment and amortisation",
-        "Prepaid land lease payment",
-        "Investment Property",
-        "Construction in progress"
+        "Depreciation of fixed assets",
+        "Depreciation of property, plant and equipment",
+        "Depreciation of construction in progress",
+        "Depreciation included in operating expenses",
+        "Depreciation charged to operating expenses"
       ],
       "keyword_hints": [
         "Deprec & Impairment(Oper Exp)"
@@ -12387,26 +12402,25 @@
           "Depreciation of Investment Property",
           "Amortisation of prepaid lease payment",
           "Release of prepaid lease payments",
-          "Depreciation, impairment and amortisation",
-          "Prepaid land lease payment",
-          "Investment Property",
-          "Construction in progress"
+          "Depreciation of fixed assets",
+          "Depreciation of property, plant and equipment",
+          "Depreciation of construction in progress",
+          "Depreciation included in operating expenses",
+          "Depreciation charged to operating expenses"
         ],
         "zh": [
           "使用权资产的折旧",
-          "固定资产",
-          "在建工程",
-          "在建资产",
-          "投资性房地产",
-          "投资物业",
           "折旧",
-          "折旧及摊销",
-          "折旧及摊销费用",
-          "摊销",
-          "无形资产摊销",
-          "物业、厂房及设备",
-          "物业及设备",
-          "物业及设备折旧"
+          "物业及设备折旧",
+          "投资物业折旧",
+          "固定资产折旧",
+          "物业、厂房及设备折旧",
+          "在建工程折旧",
+          "预付租赁款项摊销",
+          "预付租赁款项转出",
+          "计入经营开支的折旧",
+          "经营开支所包含的折旧",
+          "计入行政、销售、研发或其他经营开支的折旧"
         ]
       }
     },
@@ -20773,7 +20787,10 @@
         "Contingencies",
         "Guarantees",
         "Litigation and claims",
-        "Possible obligations"
+        "Possible obligations",
+        "Commitments and contingencies",
+        "Pending litigation",
+        "Pending arbitration"
       ],
       "keyword_hints": [
         "contingent",
@@ -20791,7 +20808,44 @@
         "Do not duplicate information already captured under a more specific note key.",
         "Do not infer a numeric zero from silence."
       ],
-      "inherits": "notes"
+      "inherits": "notes",
+      "aliases_i18n": {
+        "en": [
+          "Commitments and contingencies",
+          "Pending litigation",
+          "Pending arbitration"
+        ],
+        "zh": [
+          "或有负债",
+          "或有事项",
+          "关联方担保",
+          "关联担保",
+          "未决诉讼",
+          "未决仲裁",
+          "诉讼及仲裁事项",
+          "重大诉讼、仲裁事项",
+          "对外担保",
+          "担保事项",
+          "承诺及或有事项",
+          "承诺事项及或有事项"
+        ]
+      },
+      "exclude_hints": [
+        "授信额度",
+        "合同总额",
+        "累计发生额",
+        "交易金额",
+        "已偿还金额",
+        "已解除担保金额",
+        "已确认预计负债"
+      ],
+      "extraction_mode": "extract_or_derive",
+      "value_scope": "exclusive_leaf",
+      "match_priority": 40,
+      "section_disambiguation": "Bind only to Financial Statement Notes / notes.",
+      "template_note": "Classified narrative and tables per docs/PRC_Contingent_Liabilities_Extraction_Logic_Revised.md; the quantifiable total per currency also lands on this row.",
+      "decomposition_rule": "Classify each unique item in the fixed §5 priority order (Letters of Credit, Performance bonds, Bank guarantees, Corporate guarantees, then unclassified); never split or fabricate an exposure.",
+      "aggregation_note": "Sum unique items per type AND per currency; never convert currencies and never add a reported total to its own components."
     },
     {
       "canonical_key": "notes__auditor_s_opinion",
