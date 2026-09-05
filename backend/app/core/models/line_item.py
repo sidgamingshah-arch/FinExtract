@@ -172,6 +172,12 @@ class LineItem(BaseModel):
     reconciliation_role: ReconciliationRole = ReconciliationRole.NONE
 
     formula: dict | None = None
+    # HOW a service-computed figure was reached, per ``basis:period`` — see services.derivation.
+    # The eight concepts governed by docs/*_Extraction_Logic*.md are assembled from note datasets
+    # rather than read off a caption, so the figure alone is not checkable: this carries the rule
+    # that produced it and the note lines it consumed, which the statement inspector renders as
+    # contributions with click-to-source.
+    derivation: dict | None = None
     is_computed: bool = False
     source: ValueSource = ValueSource.MACHINE
     confidence: ConfidenceVector = Field(default_factory=ConfidenceVector)

@@ -602,6 +602,11 @@ def _serialize_rows(doc_model, ontology=None) -> list[dict]:
     * ``bucket`` / ``bucket_label`` / ``section`` — which of the analyst sections the row belongs to
       (``services.buckets``). The segmentation already decided it; this joins the answer to the row
       instead of making every consumer re-derive it from the ontology.
+    * ``derivation`` — for the eight concepts assembled from note datasets rather than read off a
+      caption, the rule that produced the figure and the note lines it consumed. Computed by the
+      services, and previously discarded here: only the first evidence item's page reference
+      survived as the value's provenance, leaving a reviewer the winning priority and nothing to
+      check it with.
     * ``notes`` — the note numbers this row CITES and that were actually extracted as note tables,
       resolved through the ``FaceNoteLink``s the link-notes stage built. A number the filing prints
       with no note behind it is not in the list, so the linkage cannot promise detail that is not
@@ -655,6 +660,9 @@ def _serialize_rows(doc_model, ontology=None) -> list[dict]:
             "mapping_method": li.confidence.method,
             "mapping_confidence": li.confidence.mapping,
             "flags": list(li.confidence.flags),
+            # How a service-computed figure was reached, per basis:period. Absent for a row read
+            # off a caption, which needs no explanation beyond its provenance.
+            **({"derivation": li.derivation} if li.derivation else {}),
             "values": values,
         })
     return rows

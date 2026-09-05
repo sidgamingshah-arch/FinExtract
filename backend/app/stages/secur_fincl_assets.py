@@ -10,6 +10,7 @@ from app.core.models.document import DocumentModel
 from app.core.models.enums import Basis
 from app.core.models.line_item import ExtractedValue, LineItem
 from app.core.stage import PipelineContext
+from app.services.derivation import build, input_from_evidence, record
 from app.services.secur_fincl_assets import CP_KEY, LTP_KEY, SecurResult, compute
 
 
@@ -29,6 +30,11 @@ def _apply(doc: DocumentModel, canonical_key: str, basis: str, period_label: str
                         provenance=src_prov)
     row.set_value(ev)
     row.confidence.method = f"computed:secur_fincl_assets:{result.formula_used}"
+    row.derivation = record(
+        row.derivation, basis=basis, period_label=period_label,
+        derivation=build(method="secur_fincl_assets", formula=result.formula_used,
+                         inputs=[input_from_evidence(e) for e in result.evidence],
+                         result=result.value, flags=result.flags))
     for flag in result.flags:
         if flag not in row.confidence.flags:
             row.confidence.flags.append(flag)

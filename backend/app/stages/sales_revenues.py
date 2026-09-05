@@ -12,6 +12,7 @@ from app.core.models.document import DocumentModel
 from app.core.models.enums import Basis
 from app.core.models.line_item import ExtractedValue, LineItem
 from app.core.stage import PipelineContext
+from app.services.derivation import build, input_from_evidence, record
 from app.services.sales_revenues import SALES_REVENUES_KEY, compute_note_fallback
 
 
@@ -48,6 +49,15 @@ class SalesRevenuesStage:
                                          basis=Basis(basis), period_label=period_label,
                                          provenance=src_prov))
             row.confidence.method = f"computed:sales_revenues:{result.priority_used}"
+            row.derivation = record(
+                row.derivation, basis=basis, period_label=period_label,
+                derivation=build(
+                    method="sales_revenues",
+                    # P2 is the only priority this module supplies: P1 is the face caption, read
+                    # by the ordinary mapper before this stage runs.
+                    formula="P2 · the 主营业务/主营业务收入 row of the 营业收入 note",
+                    inputs=[input_from_evidence(e) for e in result.evidence],
+                    result=result.value, flags=result.flags))
             for flag in result.flags:
                 if flag not in row.confidence.flags:
                     row.confidence.flags.append(flag)

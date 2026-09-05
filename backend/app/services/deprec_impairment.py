@@ -278,6 +278,21 @@ def _subtract_if_comparable(total: Decimal | None, deduction: Decimal | None,
     return total - deduction               # negativity is judged by the caller, never clamped here
 
 
+# What each priority MEANS, for the row's own explanation. A bare "P3" names the rule that won
+# without saying what it did, which is the difference between a label and an explanation.
+OPER_EXP_FORMULA = {
+    "P1": "P1 · sum of the R&D, selling, G&A and other operating-expense notes",
+    "P2": "P2 · the profit-before-tax note's operating-expense depreciation callout",
+    "P3": "P3 · profit-before-tax depreciation − cost-of-sales depreciation",
+    "P4": "P4 · asset-note depreciation − cost-of-sales depreciation",
+    "P5": "P5 · cash-flow depreciation − cost-of-sales depreciation",
+}
+COS_FORMULA = {
+    "COS_P1": "COS_P1 · depreciation disclosed in the cost-of-sales note",
+    "COS_P2": "COS_P2 · profit-before-tax depreciation − Deprec & Impairment (Oper Exp)",
+}
+
+
 @dataclass
 class DeprecResult:
     value: Decimal | None

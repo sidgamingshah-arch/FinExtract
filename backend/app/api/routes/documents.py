@@ -4727,6 +4727,11 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
         row["confidence"] = row.get("confidence")
         return row
 
+    def _merge_derivation(store: dict, basis_key: str) -> tuple[str | None, list[dict]]:
+        from app.services.derivation import merge_for_basis
+
+        return merge_for_basis(store, basis_key)
+
     def item_row(key: str, label: str, group: list[dict], kind: str = "item") -> dict:
         """One statement row from every extracted row that mapped to this concept.
 
@@ -4807,6 +4812,24 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
                                   f"click one to jump to it in the document.")
                                  + (f" A manual value replaces the combined figure; the printed "
                                     f"lines still add to {printed}." if edited else "")}
+        elif r.get("derivation"):
+            # A figure assembled from note datasets rather than read off a caption — see
+            # services.derivation. One printed line never carried it, so the combined-lines
+            # branch above cannot explain it, and without this the reviewer got the winning
+            # priority and a single page reference. Same contribution shape, same renderer,
+            # same click-to-source.
+            derived_formula, contributions = _merge_derivation(r["derivation"], basis)
+            arithmetic = derived_formula or arithmetic
+            counted = [c for c in contributions if c["counted"] and c["v1"] is not None]
+            inspector = {**inspector, "tag": "computed",
+                         "formula": derived_formula or "",
+                         "result": "" if v1 is None else f"{v1:,.0f}",
+                         "src": " · ".join(_places_once(contributions)),
+                         "note": (f"Assembled from {len(counted)} note "
+                                  f"{'line' if len(counted) == 1 else 'lines'} by the "
+                                  f"{r['derivation'].get(f'{basis}:current', {}).get('method') or 'extraction'} "
+                                  f"rule. Each input below keeps its own figure and page — click "
+                                  f"one to jump to it in the document.")}
         notes = {}
         for x in group:
             for slot, meta in (x.get("edit_comments") or {}).items():

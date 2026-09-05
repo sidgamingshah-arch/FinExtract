@@ -13,7 +13,9 @@ from app.core.models.document import DocumentModel
 from app.core.models.enums import Basis
 from app.core.models.line_item import ExtractedValue, LineItem
 from app.core.stage import PipelineContext
-from app.services.deprec_impairment import COS_KEY, OPER_EXP_KEY, DeprecResult, compute
+from app.services.derivation import build, input_from_evidence, record
+from app.services.deprec_impairment import (COS_FORMULA, COS_KEY, OPER_EXP_FORMULA, OPER_EXP_KEY,
+                                            DeprecResult, compute)
 
 
 def _apply(doc: DocumentModel, canonical_key: str, basis: str, period_label: str,
@@ -32,6 +34,13 @@ def _apply(doc: DocumentModel, canonical_key: str, basis: str, period_label: str
                         provenance=src_prov)
     row.set_value(ev)
     row.confidence.method = f"computed:deprec_impairment:{result.priority_used}"
+    formulae = COS_FORMULA if canonical_key == COS_KEY else OPER_EXP_FORMULA
+    row.derivation = record(
+        row.derivation, basis=basis, period_label=period_label,
+        derivation=build(method="deprec_impairment",
+                         formula=formulae.get(result.priority_used or "", result.priority_used),
+                         inputs=[input_from_evidence(e) for e in result.evidence],
+                         result=result.value, flags=result.flags))
     for flag in result.flags:
         if flag not in row.confidence.flags:
             row.confidence.flags.append(flag)
