@@ -20,11 +20,19 @@ const DCL = { waitUntil: "domcontentloaded" as const };
  * rulebook deliberately cannot place, which is what makes the finding a property of the fixture
  * rather than a side effect of how mapping happens to score.
  *
- * SCOPING, NOT PINNING, is what this constant does. Pinning the run to this template was tried
- * and does not help: `ExtractionView` resolves the rulebook first and constrains the template to
- * that rulebook's `target_template_key`, so a template named on its own is ignored — and pinning
- * the RULEBOOK by url (`?rulebook=`) left the four review-queue tests below failing identically,
- * which is how we know their premise is not about which rulebook ran. See the note on those. */
+ * THE RULEBOOK IS THE LEVER, not the template: `ExtractionView` resolves the rulebook first and
+ * constrains the template to that rulebook's `target_template_key`, so a template named on its
+ * own is ignored. Both are named here — the rulebook to pin runs with, the template key to scope
+ * the "in force" assertions, which are per template.
+ *
+ * MEASURED, not assumed. Extracting `unmapped.pdf` under each rulebook raises:
+ *
+ *   hkfrs_hk_china   3 open — one calculated_mismatch AND two `unmapped` (row-shaped, remappable)
+ *   output_csv_hk    1 open — the calculated_mismatch alone; it maps everything else
+ *
+ * So the tests that judge a row-shaped finding need this rulebook pinned: under the default there
+ * is no such finding to select, at any position. */
+const SUITE_RULEBOOK_KEY = "hkfrs_hk_china";
 const SUITE_TEMPLATE_KEY = "hkfrs_hk_china_v1";
 
 /** Log in via the demo quick-sign-in buttons (passwordless in demo mode). */
@@ -1256,15 +1264,42 @@ async function extractFixture(page: Page, file: string): Promise<string> {
   // read from localStorage below, never a row picked out of the list.
   await expect(page.getByTestId("doc-row").filter({ hasText: file }).first())
     .toBeVisible({ timeout: 15_000 });
-  // Acts on the app's active document — the one the upload just bound — not on a row.
-  await page.getByRole("button", { name: /Extract directly/ }).click();
-  await expect(page).toHaveURL(/\/extraction/);
+  // POLLED, not read once. The upload binds the app's active document in the mutation's success
+  // handler, which lands after the row appears — reading localStorage immediately gets null, and
+  // an earlier attempt at this helper failed exactly there.
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("finex-active-doc")),
+          { message: "the upload must bind the stepper to the document it just created",
+            timeout: 15_000 })
+    .toBeTruthy();
+  const id = await page.evaluate(() => localStorage.getItem("finex-active-doc"));
+
+  // PINNED BY URL, the same lever the rulebook picker uses, so the run reads the filing against
+  // SUITE_RULEBOOK_KEY however many rulebooks are in force. Opening the screen already pinned
+  // rather than clicking "Extract directly" first means ONE run: pinning afterwards would leave
+  // a default-rulebook run's findings in the queue beside the pinned run's.
+  //
+  // "Extract directly" is deliberately not clicked here — it is covered by the end-to-end test
+  // above, which drives that button through upload → integrity → extract. This helper is setup
+  // for tests whose subject is the review queue.
+  await page.goto(`/extraction?rulebook=${encodeURIComponent(await suiteRulebookId(page))}`, DCL);
   await expect(page.getByRole("heading", { name: "Extracted data" }))
     .toBeVisible({ timeout: 60_000 });
-  const id = await page.evaluate(() => localStorage.getItem("finex-active-doc"));
-  expect(id, "the upload must bind the stepper to the document it just created").toBeTruthy();
   return id as string;
 }
+
+/** The stored id of SUITE_RULEBOOK_KEY's rulebook, which the extraction screen pins by id. */
+async function suiteRulebookId(page: Page): Promise<string> {
+  const rows = await apiGet<OntologyRow[]>(page, "/api/v1/ontologies");
+  const mine = rows.filter((o) => o.ontology_key === SUITE_RULEBOOK_KEY);
+  expect(mine.length, `no stored rulebook is named ${SUITE_RULEBOOK_KEY}, so this suite cannot `
+                      + "pin the rules its expected findings were authored against")
+    .toBeGreaterThan(0);
+  // The one in force for that key when there is one — a suite run that published a retired copy
+  // earlier must not leave later fixtures extracting against it.
+  return (mine.find((o) => o.in_force) ?? mine[0]).id;
+}
+
 
 /** GET an API path AS THE SIGNED-IN USER.
  *
@@ -1355,14 +1390,6 @@ test("a finding can be ACCEPTED, and the judgement is still there after a reload
   // Admin because this test needs BOTH capabilities: uploading (documents:manage) and judging
   // (review:resolve). The role map gives no single other role both.
   await loginAs(page, "admin");
-  // KNOWN FAILING, and not for want of a named rulebook. This test takes the queue's FIRST
-  // finding and needs a row-shaped one; the first is now
-  // `chk-calc-consolidated-bs_total_assets`, a calculated_mismatch, which carries no re-map
-  // offer. That is downstream of the arithmetic layer (rollups/residual/statements), not of
-  // which rulebook ran: pinning the run to hkfrs_hk_china by url left this failing identically.
-  // The fix its own refusal message names is to SELECT a row-shaped finding rather than take the
-  // first — a different fixture change from naming a template, and not made here.
-  //
   // `unmapped.pdf`, not `sample.pdf`: this test needs a finding to judge, and sample.pdf raises
   // none any more. Every one of its four captions is an exact alias of a concept, so all four map
   // at confidence 1.0 and the queue comes back `open: 0, passed: 4` — the premise below then fails
@@ -1386,8 +1413,14 @@ test("a finding can be ACCEPTED, and the judgement is still there after a reload
   // raises depends on the extraction thresholds, which other tests move, and a literal here would
   // be the same class of defect the product was just cleaned of.
   const rev = await apiGet<ApiReview>(page, `/api/v1/documents/${doc}/review?locale=en`);
-  const target = rev.checks.find((c) => c.status === "open" && !!c.subject_key);
-  expect(target, "the fixture must raise at least one judgeable finding").toBeTruthy();
+  // ROW-SHAPED, not merely the first judgeable finding. The half of this test below asserts the
+  // re-map offer, which only a row-shaped finding carries — and the fixture also raises an
+  // accounting check that sorts ahead of them, so taking the first found an accounting finding
+  // and then blamed the re-map control for being legitimately absent.
+  const target = rev.checks.find(
+    (c) => c.status === "open" && !!c.subject_key && ROW_SHAPED_TYPES.has(c.type));
+  expect(target, "the fixture must raise at least one ROW-SHAPED judgeable finding: the re-map "
+                 + "assertions below have no subject without one").toBeTruthy();
   expect(rev.summary.open).toBeGreaterThan(0);
 
   const cards = page.getByTestId("rv-check");
@@ -1526,6 +1559,19 @@ test("the coverage band counts RELATIONS, and every number in it is the API's fo
   // the queue, and that role holds no review:resolve — so the judgement controls must be absent
   // while everything else renders.
   await loginAs(page, "analyst");
+  // KNOWN FAILING, and NOT fixable by selecting a different finding — the fixture cannot supply
+  // the state this test needs any more. `unmapped.pdf` extracts four rows: two the rulebook
+  // deliberately cannot place (which raise the `unmapped` findings), `bs_total_assets`, and
+  // `bs_current_assets__trade_receivables`. A calculated_mismatch is raised BEFORE any edit and
+  // already names all three totals, so the one un-indicted mapped row left is trade receivables
+  // — and moving it feeds the very total that is already mismatched. No edit can therefore raise
+  // a finding the baseline does not carry, or grow the set of indicted lines.
+  //
+  // The pre-existing mismatch is the thing to look at, not this test: it appears under both
+  // shipped rulebooks and did not have to be there for these tests to have been written. Either
+  // the fixture needs a second, independent calculated line so an edit has somewhere clean to
+  // break, or that mismatch is a regression in the arithmetic layer and fixing it fixes both
+  // tests. Deciding which is a product question, so nothing is contorted here to go green.
   // `unmapped.pdf`: this test needs a card on the review queue, and sample.pdf raises none —
   // its captions are all exact aliases, so every row maps at 1.0 and the queue comes back
   // `open: 0, passed: 4`. See the accept-and-reload test above for the full account.
@@ -2008,6 +2054,11 @@ test("accepting one finding records the verdict against THAT identity and re-lab
   expect(refused.current.evidence_digest).toBe(target!.evidence_digest);
   const ownFigures = new Set(Object.values(target!.evidence).map(String));
   for (const [, value] of refused.current.accepted_rows as [string, string][]) {
+    // A row the finding covers but which carries NO figure is rendered as an em dash. That is an
+    // absence, not a number borrowed from another card, so it is not what this loop guards
+    // against — and an accounting check legitimately covers such a row, which is how a fixture
+    // change turned a passing assertion into a failure without any figure moving anywhere.
+    if (value === "—") continue;
     // Figures are formatted server-side, so commas come off before comparing; the point is that
     // every figure quoted back belongs to this card's own evidence.
     expect(ownFigures.has(value.replace(/,/g, "")),
@@ -3407,9 +3458,20 @@ test("the third header tile counts the lines the payload says carry no finding, 
   // Now give the run an ACCOUNTING finding — the class the old count ignored. One edit to a
   // component of a printed total raises a calculated_mismatch that names the total and its
   // components, so a line the tile counted as having no finding now has one.
-  const editable = rows.find((r) => !!r.canonical_key
-                                    && !before.checks.some((c) => c.title === r.source_label));
-  expect(editable, "the fixture must extract a mapped line whose figure can be moved").toBeTruthy();
+  // NOT ALREADY INDICTED, and that is the whole point of the comparison below: the edit has to
+  // indict a line nothing indicted before, or the set cannot grow and the assertion fails on the
+  // fixture rather than on the tile. Excluding rows whose SOURCE LABEL matches a check TITLE was
+  // the wrong test for it — an accounting finding indicts lines through its `names`, not its
+  // title, so a line already named by one passed that filter and was picked, and the edit then
+  // re-indicted a line that was already counted. Excluded here by the same `indicted` predicate
+  // the assertion uses, plus the weak rows the tile excludes anyway.
+  const indictedBefore = indicted(before);
+  const weakBefore = weakRows();
+  const editableIndex = rows.findIndex(
+    (r, i) => !!r.canonical_key && !indictedBefore.has(i) && !weakBefore.has(i));
+  const editable = editableIndex === -1 ? undefined : rows[editableIndex];
+  expect(editable, "the fixture must extract a mapped line that no finding already indicts, or "
+                   + "moving its figure cannot grow the indicted set").toBeTruthy();
   const editKey = editable!.canonical_key as string;
   const moved = await apiSend(page, "PATCH", `/api/v1/documents/${doc}/line-items/${editKey}`,
                               { value: 555555, formula: "", basis: "consolidated",
@@ -3662,9 +3724,17 @@ test("an ORPHANED acceptance is still in force and can be withdrawn from the row
   // A mapped row with no finding against it: moving its figure breaks the arithmetic of the
   // calculated line it feeds, and reverting the edit removes that finding entirely — which is what
   // orphans a judgement made on it. The FIGURE moves; the row composition does not.
+  // NOT ALREADY NAMED by a finding. Matching a check TITLE against a row's source label was the
+  // wrong test: an accounting finding indicts lines through its `names`, so a line already
+  // indicted passed the filter, and the edit then piled a second finding onto a row that was
+  // never clean — which is not the "finding that can be made to go away" this test needs.
+  const namedAlready = new Set(base.checks.flatMap((c) => c.names ?? []));
   const editable = rows.find((r) => !!r.canonical_key
+                                    && !namedAlready.has(r.canonical_key as string)
+                                    && !namedAlready.has(r.source_label ?? "")
                                     && !base.checks.some((c) => c.title === r.source_label));
-  expect(editable, "the fixture must extract a mapped line whose figure can be moved").toBeTruthy();
+  expect(editable, "the fixture must extract a mapped line that no finding already names, or "
+                   + "reverting the edit cannot make its finding go away").toBeTruthy();
   const editKey = editable!.canonical_key as string;
   const EDIT = { value: 555555, formula: "", basis: "consolidated", period: "current",
                  comment: "e2e: raise an accounting finding to orphan" };
@@ -3679,9 +3749,16 @@ test("an ORPHANED acceptance is still in force and can be withdrawn from the row
   await patch();
 
   const raised = await apiGet<NReview>(page, `/api/v1/documents/${doc}/review?locale=en`);
-  const target = raised.checks.find((c) => c.type === "calculated_mismatch" && !!c.subject_key);
-  expect(target, "the edit must raise a judgeable accounting finding — a calculated line whose "
-                 + "components no longer come to the printed figure").toBeTruthy();
+  // THE FINDING THE EDIT INTRODUCED, not merely the first accounting one. The fixture already
+  // raises a calculated_mismatch of its own, and picking that one made this test assert about a
+  // finding the revert below cannot remove — it reported "the finding is still raised, so nothing
+  // has orphaned", which was true and was about the wrong card.
+  const beforeSubjects = new Set(base.checks.map((c) => c.subject_key));
+  const target = raised.checks.find((c) => c.type === "calculated_mismatch" && !!c.subject_key
+                                           && !beforeSubjects.has(c.subject_key));
+  expect(target, "the edit must raise a NEW judgeable accounting finding — a calculated line "
+                 + "whose components no longer come to the printed figure, and one the baseline "
+                 + "did not already carry").toBeTruthy();
   const KEY = target!.subject_key as string;
   const DIGEST = target!.evidence_digest;
 
