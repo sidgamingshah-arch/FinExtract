@@ -23,6 +23,9 @@ from pathlib import Path
 
 import openpyxl
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from app.services.spec_alias_curation import curate_aliases, denied_aliases  # noqa: E402
+
 # ── paths ─────────────────────────────────────────────────────────────────────
 
 ONTOLOGY_ZIP = Path(r"C:\Users\siddharthsha\Downloads\Output_CSV_Ontology_Revised_Extraction_Focused_v2.zip")
@@ -652,6 +655,26 @@ for section in (section for statement in statements for section in statement["se
         config = CONDITIONAL_ROLLUPS.get(node["canonical_key"])
         if config:
             node["rollup"] = {**(node.get("rollup") or {"op": "sum", "children": []}), **config}
+
+# ── 3b. Specification-derived alias curation ─────────────────────────────────
+# `extra_aliases` above is scraped from the Extraction Logic workbook's free-text formula column,
+# which quotes the components a formula DEDUCTS and the notes it merely reads alongside the
+# captions it matches. Left in, those aliases point the caption mapper at exactly the concepts a
+# specification excludes — see app/services/spec_alias_curation for the per-concept rules and
+# tests/test_spec_conformance.py for the same rules pinned against the generated file.
+_denied_total = 0
+for c in CONCEPTS:
+    ckey = c["canonical_key"]
+    for field_name in ("aliases_en", "aliases_zh"):
+        original = c.get(field_name) or []
+        removed = denied_aliases(ckey, original)
+        if removed:
+            c[field_name] = curate_aliases(ckey, original)
+            _denied_total += len(removed)
+            print(f"  curated {ckey}.{field_name}: dropped {len(removed)} "
+                  f"specification-excluded alias(es): {removed}")
+if _denied_total:
+    print(f"  specification alias curation removed {_denied_total} alias(es) in total")
 
 # ── 4. Build ontology JSON ────────────────────────────────────────────────────
 
