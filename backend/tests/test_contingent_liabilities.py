@@ -11,16 +11,16 @@ from app.services.contingent_liabilities import (
     UNCLASSIFIED, ContingentLiabilitiesNarrative, compute, enhance_with_llm)
 
 
-def _ev(value=None, basis="consolidated", period="current"):
+def _ev(value=None, basis="consolidated", period="current", currency="CNY", scale="1"):
     return ExtractedValue(value=None if value is None else Decimal(value),
                           value_raw=None if value is None else Decimal(value),
                           basis=Basis(basis), period_label=period,
-                          unit_ctx=UnitContext(currency="CNY", scale_factor=Decimal(1)))
+                          unit_ctx=UnitContext(currency=currency, scale_factor=Decimal(scale)))
 
 
-def _item(label, value=None, group_hint="", role=LineRole.LINE):
+def _item(label, value=None, group_hint="", role=LineRole.LINE, **kw):
     it = NoteItem(raw_label=label, group_hint=group_hint, role=role)
-    ev = _ev(value)
+    ev = _ev(value, **kw)
     it.values[ev.key.model_dump_json()] = ev
     return it
 
@@ -159,3 +159,90 @@ def test_mismatched_statement_count_is_discarded_not_misaligned():
 def test_enhance_is_a_no_op_when_there_is_nothing_to_narrate():
     doc = _doc(_note("10", "存货", [_item("原材料", "1000")]))
     assert compute(doc) == {}   # nothing to call enhance_with_llm with in the first place
+
+
+# ── §6.2: currency and unit control ──────────────────────────────────────────────────────────
+def test_each_currency_gets_its_own_row_rather_than_one_converted_sum():
+    doc = _doc(_note("35", "对外担保", [
+        _item("公司担保", "500", currency="CNY"),
+        _item("公司担保", "300", currency="USD"),
+    ]))
+    result = compute(doc)[("consolidated", "current")]
+    currencies = sorted(g["currency"] for g in result.classified_summary)
+    assert currencies == ["CNY", "USD"]
+
+
+def test_the_same_currency_in_two_scales_is_not_added():
+    # 500 thousand and 300 million are not 800 of anything.
+    doc = _doc(_note("35", "对外担保", [
+        _item("公司担保", "500", scale="1000"),
+        _item("企业担保", "300", scale="1000000"),
+    ]))
+    result = compute(doc)[("consolidated", "current")]
+    assert len(result.classified_summary) == 2
+    assert {g["amount"] for g in result.classified_summary} == {Decimal("500"), Decimal("300")}
+    # And no single total either: unlike scales are as unaddable as unlike currencies.
+    assert result.total_quantifiable is None
+    assert "MULTIPLE_CURRENCIES_NOT_AGGREGATED" in result.flags
+
+
+def test_no_single_total_is_published_across_unlike_units():
+    doc = _doc(_note("35", "对外担保", [
+        _item("公司担保", "500", currency="CNY"),
+        _item("公司担保", "300", currency="USD"),
+    ]))
+    result = compute(doc)[("consolidated", "current")]
+    assert result.total_quantifiable is None
+    assert "MULTIPLE_CURRENCIES_NOT_AGGREGATED" in result.flags
+
+
+def test_a_single_currency_still_publishes_its_total():
+    doc = _doc(_note("35", "对外担保", [
+        _item("公司担保", "500"), _item("银行保函", "200"),
+    ]))
+    result = compute(doc)[("consolidated", "current")]
+    assert result.total_quantifiable == Decimal("700")
+    assert "MULTIPLE_CURRENCIES_NOT_AGGREGATED" not in result.flags
+
+
+# ── §6.4: what makes two rows one item ───────────────────────────────────────────────────────
+def test_equal_guarantees_to_different_counterparties_are_two_exposures():
+    # The indicator §6.4 offers is the counterparty; collapsing on the amount alone would
+    # silently delete one of these two guarantees.
+    doc = _doc(
+        _note("35", "对外担保", [_item("公司担保", "500", group_hint="甲公司")]),
+        _note("36", "或有负债", [_item("公司担保", "500", group_hint="乙公司")]),
+    )
+    result = compute(doc)[("consolidated", "current")]
+    assert sum(g["item_count"] for g in result.classified_summary) == 2
+
+
+def test_a_repeat_within_one_note_is_not_a_cross_note_restatement():
+    doc = _doc(_note("35", "对外担保", [
+        _item("公司担保", "500"), _item("公司担保", "500"),
+    ]))
+    result = compute(doc)[("consolidated", "current")]
+    assert sum(g["item_count"] for g in result.classified_summary) == 2
+
+
+def test_an_item_with_no_amount_survives_deduplication():
+    # §6.5: it belongs in the narrative and the detail table, just never in a total.
+    doc = _doc(_note("36", "或有负债", [
+        _item("未决诉讼"), _item("未决仲裁"),
+    ]))
+    result = compute(doc)[("consolidated", "current")]
+    assert len(result.unclassified_items) == 2
+
+
+# ── §4.3: 履约保证金 needs bond language, or it is an ordinary refundable deposit ─────────────
+def test_a_performance_deposit_with_bond_language_is_a_performance_bond():
+    doc = _doc(_note("36", "或有负债", [_item("履约保证金及履约保函", "400")]))
+    result = compute(doc)[("consolidated", "current")]
+    assert [g["type"] for g in result.classified_summary] == ["Performance bonds"]
+
+
+def test_a_bare_refundable_performance_deposit_is_not_classified_as_a_bond():
+    doc = _doc(_note("36", "其他或有事项", [_item("履约保证金", "400")]))
+    result = compute(doc)[("consolidated", "current")]
+    assert result.classified_summary == []
+    assert len(result.unclassified_items) == 1

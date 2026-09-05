@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from app.core.models.document import DocumentModel
 from app.core.models.enums import LineRole
+from app.services.mapping import normalize_label
 from app.ports.llm import LlmMeta, LlmProvider
 
 PeriodKey = tuple[str, str]                 # (basis, period_label)
@@ -51,9 +52,16 @@ _LETTER_OF_CREDIT_RE = re.compile(
     r"|letters?\s+of\s+credit|standby\s+l/?c|documentary\s+credit",
     re.IGNORECASE)
 _PERFORMANCE_BOND_RE = re.compile(
-    r"履约保函|履约保证金|履约保证|履约担保|合同履约保函|工程履约保函"
+    # 履约保证(?!金): the guarantee term, but not as the prefix of 履约保证金 below.
+    r"履约保函|履约保证(?!金)|履约担保|合同履约保函|工程履约保函"
     r"|performance\s+bonds?|performance\s+guarantees?",
     re.IGNORECASE)
+# §4.3: 履约保证金 is a performance bond ONLY where the disclosure describes a contingent
+# guarantee or bond exposure. Standing alone it names an ordinary refundable deposit — an asset
+# the entity paid out, not an obligation it might owe — so it needs corroborating bond language.
+_PERFORMANCE_DEPOSIT_RE = re.compile(r"履约保证金")
+_BOND_EXPOSURE_RE = re.compile(
+    r"保函|担保|或有|guarantee|bond|contingen", re.IGNORECASE)
 _BANK_GUARANTEE_RE = re.compile(
     r"银行保函|银行保证|银行出具的保函|融资性保函|非融资性保函|付款保函|预付款保函|投标保函"
     r"|bank\s+guarantees?|banker'?s?\s+guarantees?|bid\s+bonds?",
@@ -91,6 +99,9 @@ def _classify(text: str) -> tuple[str, list[str]]:
         m = pattern.search(text)
         if m:
             return label, [m.group(0)]
+    deposit = _PERFORMANCE_DEPOSIT_RE.search(text)
+    if deposit and _BOND_EXPOSURE_RE.search(text):
+        return "Performance bonds", [deposit.group(0)]
     return UNCLASSIFIED, []
 
 
@@ -151,34 +162,72 @@ def _extract_items(doc: DocumentModel, pk: PeriodKey) -> tuple[list[ContingentIt
 
 
 def _dedupe(items: list[ContingentItem]) -> list[ContingentItem]:
-    """Section 6.4: the same underlying exposure repeated across notes is one item. A stable key
-    of (classification, rounded amount, currency) stands in for "same counterparty/case/amount" —
-    exact duplicates collapse; anything not an exact match is kept as a distinct item."""
+    """§6.4: the same underlying exposure repeated across notes is one item.
+
+    §6.4 names 或有负债, 关联方担保, 对外担保 and 未决诉讼 as places one exposure is printed more
+    than once, and says to "treat repeated descriptions of the same underlying exposure as one
+    item" — so differing wording is the expected shape of a restatement and cannot be part of the
+    key. The indicator that separates two exposures is the counterparty ("same counterparty or
+    case"), which is: two guarantees of equal size to DIFFERENT counterparties are two items,
+    while the same figure restated under a second note heading is one.
+
+    A repeat inside a single note is not a cross-note restatement, so the note number decides
+    whether two matching rows are one item or two.
+    """
     seen: dict[tuple, ContingentItem] = {}
     out: list[ContingentItem] = []
     for it in items:
-        key = (it.classification, str(it.amount) if it.amount is not None else None, it.currency)
-        if it.amount is not None and key in seen:
-            seen[key].duplicate_of = seen[key].duplicate_of or seen[key].note_number
+        if it.amount is None:
+            out.append(it)                      # §6.5: kept in the narrative, never in a total
             continue
-        seen[key] = it
+        key = (it.classification, str(it.amount), it.currency, it.scale,
+               normalize_label(it.counterparty or ""))
+        earlier = seen.get(key)
+        if earlier is not None and earlier.note_number != it.note_number:
+            earlier.duplicate_of = earlier.duplicate_of or it.note_number
+            continue
+        if earlier is None:
+            seen[key] = it
         out.append(it)
     return out
 
 
 def _classified_summary(items: list[ContingentItem]) -> list[dict]:
-    groups: dict[tuple[str, str | None], dict] = {}
+    """§6.2: one row per type AND per currency, and only compatible units are added.
+
+    A scale is part of what makes two amounts addable, so it joins the grouping key — a type
+    disclosed in both thousands and millions produces two rows rather than one wrong sum.
+    """
+    groups: dict[tuple[str, str | None, Decimal | None], dict] = {}
     for it in items:
         if it.classification == UNCLASSIFIED or it.amount is None:
             continue
-        key = (it.classification, it.currency)
+        key = (it.classification, it.currency, it.scale)
         g = groups.setdefault(key, {"type": it.classification, "amount": Decimal(0),
-                                    "currency": it.currency, "item_count": 0, "source_pages": []})
+                                    "currency": it.currency, "scale": it.scale,
+                                    "item_count": 0, "source_pages": []})
         g["amount"] += it.amount
         g["item_count"] += 1
         if it.page is not None and it.page not in g["source_pages"]:
             g["source_pages"].append(it.page)
     return list(groups.values())
+
+
+def _quantifiable_total(classified: list[dict]) -> tuple[Decimal | None, list[str]]:
+    """The one figure this concept publishes on its row, when one figure is meaningful.
+
+    §6.2 forbids converting currencies without a reported conversion, and a scale is part of
+    what makes two amounts addable. Where the classified groups span more than one
+    currency-and-scale, there is no single total to publish: the per-currency subtotals in
+    `classified_summary` are the answer, and the row reports none rather than a sum of unlike
+    units that would look authoritative.
+    """
+    if not classified:
+        return None, []
+    units = {(g["currency"], g["scale"]) for g in classified}
+    if len(units) > 1:
+        return None, ["MULTIPLE_CURRENCIES_NOT_AGGREGATED"]
+    return sum((g["amount"] for g in classified), Decimal(0)), []
 
 
 def _unclassified_statement(it: ContingentItem) -> str:
@@ -249,7 +298,8 @@ def compute(doc: DocumentModel) -> dict[PeriodKey, ContingentLiabilitiesResult]:
                 break
         classified = _classified_summary(items)
         unclassified = [it for it in items if it.classification == UNCLASSIFIED]
-        total = sum((g["amount"] for g in classified), Decimal(0)) if classified else None
+        total, total_flags = _quantifiable_total(classified)
+        flags.extend(total_flags)
         out[pk] = ContingentLiabilitiesResult(
             _summary_paragraph(classified, unclassified),
             classified,

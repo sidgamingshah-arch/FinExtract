@@ -1,8 +1,6 @@
 """services.related_party_receivables — Due from Related Parties (LTP) is MAX_VALID across three
 candidates; Other Receivables (CP) is a gross pool less its own proven related-party deduction.
-Per the reviewer's directive, a condition that would null the value under the strict spec instead
-populates the best-available figure with a review flag. See
-docs/PRC_Related_Party_and_Other_Receivables_Extraction_Logic.md."""
+See docs/PRC_Related_Party_and_Other_Receivables_Extraction_Logic.md."""
 from __future__ import annotations
 
 from decimal import Decimal
@@ -13,21 +11,21 @@ from app.core.models.line_item import ExtractedValue, LineItem, NoteItem, NotesT
 from app.services.related_party_receivables import _finalize_cp, compute
 
 
-def _ev(value, basis="consolidated", period="current"):
+def _ev(value, basis="consolidated", period="current", currency="CNY", scale="1"):
     return ExtractedValue(value=Decimal(value), value_raw=Decimal(value),
                           basis=Basis(basis), period_label=period,
-                          unit_ctx=UnitContext(currency="CNY", scale_factor=Decimal(1)))
+                          unit_ctx=UnitContext(currency=currency, scale_factor=Decimal(scale)))
 
 
-def _face(label, value, section_hint, group_hint=""):
+def _face(label, value, section_hint, group_hint="", **kw):
     li = LineItem(source_label=label, section_hint=section_hint, group_hint=group_hint)
-    li.set_value(_ev(value))
+    li.set_value(_ev(value, **kw))
     return li
 
 
-def _item(label, value, group_hint="", role=LineRole.LINE):
+def _item(label, value, group_hint="", role=LineRole.LINE, **kw):
     it = NoteItem(raw_label=label, group_hint=group_hint, role=role)
-    ev = _ev(value)
+    ev = _ev(value, **kw)
     it.values[ev.key.model_dump_json()] = ev
     return it
 
@@ -93,21 +91,104 @@ def test_cp_deduction_does_not_exclude_entrusted_loans_unlike_ltp():
     assert result.value == Decimal("0")
 
 
-def test_negative_cp_candidate_is_populated_with_a_review_flag_not_nulled():
-    # The deduction is a subset of the gross pool by construction in this pipeline (see
-    # _cp_pool), so a negative candidate is exercised directly against the arithmetic that would
-    # see one from a source that does not guarantee the subset relationship.
-    candidate, flags = _finalize_cp(Decimal("100"), Decimal("150"))
-    assert candidate == Decimal("-50")
+def test_a_negative_cp_candidate_is_nulled_rather_than_published():
+    # §5.4: a negative result "indicates an extraction, scope, unit, or duplication issue".
+    # This row is a summed child of Total Current Assets, so a negative asset would break the
+    # balance-sheet identity two levels up rather than flagging the row that actually failed.
+    candidate, status, flags = _finalize_cp(Decimal("100"), Decimal("150"), inspected=True)
+    assert candidate is None
+    assert status == "NEGATIVE_RESIDUAL"
     assert "NEGATIVE_RESIDUAL" in flags
 
 
-def test_missing_deduction_is_populated_from_gross_with_a_review_flag():
-    candidate, flags = _finalize_cp(Decimal("100"), None)
-    assert candidate == Decimal("100")
+def test_an_unestablished_deduction_is_nulled_rather_than_publishing_the_gross_pool():
+    # §8: returning the gross pool would put the same related-party money in this row and in
+    # Due from Related Parties (LTP) at once.
+    candidate, status, flags = _finalize_cp(Decimal("100"), None, inspected=False)
+    assert candidate is None
+    assert status == "RELATED_PARTY_DEDUCTION_NOT_ESTABLISHED"
     assert "RELATED_PARTY_DEDUCTION_NOT_ESTABLISHED" in flags
+
+
+def test_a_searched_pool_with_no_related_party_line_deducts_a_proven_zero():
+    # §3.6 permits zero "when all relevant notes have been searched and explicitly contain no
+    # qualifying amount" — the distinction that separates this case from the one above.
+    candidate, status, flags = _finalize_cp(Decimal("100"), None, inspected=True)
+    assert candidate == Decimal("100")
+    assert status == "COMPUTED"
+    assert "RELATED_PARTY_DEDUCTION_PROVEN_NIL" in flags
+    assert "RELATED_PARTY_DEDUCTION_NOT_ESTABLISHED" not in flags
+
+
+def test_an_ordinary_deduction_is_subtracted():
+    candidate, status, flags = _finalize_cp(Decimal("100"), Decimal("30"), inspected=True)
+    assert candidate == Decimal("70")
+    assert status == "COMPUTED"
 
 
 def test_nothing_found_at_all_stays_null():
     doc = _doc()
     assert compute(doc) == {}
+
+
+# ── §3.1/§9: units are normalised before addition, and a mix is reported not summed ───────────
+def test_a_candidate_mixing_scales_is_unusable_rather_than_silently_wrong():
+    doc = _doc(notes=[
+        _note("8", "其他应收款", [
+            _item("应收关联方款项", "500", scale="1"),
+            _item("关联方往来款", "2", scale="1000"),
+        ]),
+    ])
+    result = compute(doc)[("consolidated", "current")]["ltp"]
+    assert "UNIT_MISMATCH:Find_2" in result.flags
+    assert result.value is None
+    assert result.status == "NOT_COMPUTABLE"
+
+
+def test_a_candidate_mixing_currencies_is_reported():
+    doc = _doc(notes=[
+        _note("8", "其他应收款", [
+            _item("应收关联方款项", "500", currency="CNY"),
+            _item("关联方往来款", "300", currency="USD"),
+        ]),
+    ])
+    result = compute(doc)[("consolidated", "current")]["ltp"]
+    assert "CURRENCY_MISMATCH:Find_2" in result.flags
+
+
+# ── §4.5/§8: validity, and ties as corroboration ─────────────────────────────────────────────
+def test_a_negative_candidate_never_wins_the_maximum():
+    # Find_2 is negative and Find_3 positive: the negative is rejected, not merely out-maxed.
+    doc = _doc(notes=[
+        _note("8", "其他应收款", [_item("应收关联方款项", "-400")]),
+        _note("40", "关联方及关联交易", [_item("应收关联方款项", "250")]),
+    ])
+    result = compute(doc)[("consolidated", "current")]["ltp"]
+    assert result.value == Decimal("250")
+    assert any(f.startswith("NEGATIVE_RESIDUAL:") for f in result.flags)
+
+
+def test_all_candidates_negative_leaves_the_field_uncomputable():
+    doc = _doc(notes=[_note("8", "其他应收款", [_item("应收关联方款项", "-400")])])
+    result = compute(doc)[("consolidated", "current")]["ltp"]
+    assert result.value is None
+    assert result.status == "NOT_COMPUTABLE"
+
+
+def test_tied_candidates_corroborate_the_figure_instead_of_flagging_duplication():
+    # §4.5: "Select the value once. Retain all tied candidates as supporting sources."
+    doc = _doc(notes=[
+        _note("8", "其他应收款", [_item("应收关联方款项", "700")]),
+        _note("40", "关联方及关联交易", [_item("应收关联方款项", "700")]),
+    ])
+    result = compute(doc)[("consolidated", "current")]["ltp"]
+    assert result.value == Decimal("700")
+    assert "corroborated by" in (result.formula_used or "")
+    assert not any(f.startswith("POSSIBLE_DUPLICATE") for f in result.flags)
+
+
+def test_the_selected_candidate_carries_its_evidence():
+    doc = _doc(notes=[_note("8", "其他应收款", [_item("应收关联方款项", "700")])])
+    result = compute(doc)[("consolidated", "current")]["ltp"]
+    assert result.evidence
+    assert any(e.get("line_item") == "应收关联方款项" for e in result.evidence)

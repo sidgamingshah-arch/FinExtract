@@ -7,10 +7,12 @@ another. CP is a gross pool of five in-scope receivable classes less the related
 proven included in that same pool (never the LTP total, which can include amounts outside CP's
 pool entirely).
 
-UNLIKE services.deprec_impairment / services.secur_fincl_assets, a condition that would otherwise
-null a value here still returns the best-available figure, tagged with the review flag that
-explains why: a blank cell gives a reviewer nothing to check, and this framework's failure mode is
-requiring one number's arithmetic to check another, not the arithmetic that produced it.
+CP has three outcomes, not two. §3.6 lets a nil related-party deduction be a finding when the
+gross pool's own lines were searched and carried no related-party marker, so that case computes
+normally; a deduction that could not be established at all is null, because returning the gross
+pool would put the same related-party money in this row and in the LTP row at once. A negative
+candidate is null too: this row is a summed child of Total Current Assets, so publishing a
+negative asset breaks the balance-sheet identity two levels up instead of naming the row at fault.
 """
 from __future__ import annotations
 
@@ -54,12 +56,48 @@ _CP_NOTE_HEADING_RE = re.compile(
 
 @dataclass
 class _Signal:
+    """One candidate's running total, plus what it would take to trust it.
+
+    §3.1 requires units to be normalised before addition, and §9 has UNIT_MISMATCH and
+    CURRENCY_MISMATCH to report when they are not — so the currency and scale each contribution
+    arrives in are tracked, and a candidate mixing them is unusable rather than quietly wrong.
+    """
     value: Decimal | None = None
+    currency: str | None = None
+    scale: Decimal | None = None
+    mixed_currency: bool = False
+    mixed_scale: bool = False
     evidence: list[dict] = field(default_factory=list)
 
-    def add(self, amount: Decimal, meta: dict) -> None:
+    def add(self, amount: Decimal, currency: str | None, scale: Decimal | None,
+            meta: dict) -> None:
+        if self.currency is not None and currency != self.currency:
+            self.mixed_currency = True
+        if self.scale is not None and scale != self.scale:
+            self.mixed_scale = True
+        if self.currency is None:
+            self.currency = currency
+        if self.scale is None:
+            self.scale = scale
         self.value = amount if self.value is None else self.value + amount
         self.evidence.append(meta)
+
+    @property
+    def mixed_units(self) -> bool:
+        return self.mixed_currency or self.mixed_scale
+
+    @property
+    def usable(self) -> Decimal | None:
+        """The total, or None when the contributions were never comparable."""
+        return None if self.mixed_units else self.value
+
+    def unit_flags(self, name: str) -> list[str]:
+        out = []
+        if self.mixed_currency:
+            out.append(f"CURRENCY_MISMATCH:{name}")
+        if self.mixed_scale:
+            out.append(f"UNIT_MISMATCH:{name}")
+        return out
 
 
 def _note_matches(table: NotesTable, pattern: re.Pattern) -> bool:
@@ -69,12 +107,14 @@ def _note_matches(table: NotesTable, pattern: re.Pattern) -> bool:
 def _add_item(sig: _Signal, table_number: str, table_title: str, label: str, ev, pk: PeriodKey) -> bool:
     if ev.value is None or (ev.basis.value, ev.period_label or "") != pk:
         return False
-    sig.add(ev.value, {"note_number": table_number, "note_heading": table_title,
-                       "line_item": label, "value": str(ev.value), "provenance": ev.provenance})
+    unit = getattr(ev, "unit_ctx", None)
+    sig.add(ev.value, getattr(unit, "currency", None), getattr(unit, "scale_factor", None),
+            {"note_number": table_number, "note_heading": table_title,
+             "line_item": label, "value": str(ev.value), "provenance": ev.provenance})
     return True
 
 
-def _find_1(doc: DocumentModel, pk: PeriodKey, flags: list[str]) -> Decimal | None:
+def _find_1(doc: DocumentModel, pk: PeriodKey, flags: list[str]) -> _Signal:
     """Balance-sheet / statement-linked disclosures: face rows naming an in-scope class AND
     explicitly identified as related-party, excluding entrusted loans."""
     sig = _Signal()
@@ -89,10 +129,10 @@ def _find_1(doc: DocumentModel, pk: PeriodKey, flags: list[str]) -> Decimal | No
             continue
         for ev in li.values.values():
             _add_item(sig, li.note_number or "", li.section_hint or "", li.source_label, ev, pk)
-    return sig.value
+    return sig
 
 
-def _find_2(doc: DocumentModel, pk: PeriodKey, flags: list[str]) -> Decimal | None:
+def _find_2(doc: DocumentModel, pk: PeriodKey, flags: list[str]) -> _Signal:
     """The receivable notes: sum the related-party lines within each note the class heading
     identifies — the class is the note's own, so an item need only prove related-party and not
     an entrusted loan."""
@@ -115,10 +155,10 @@ def _find_2(doc: DocumentModel, pk: PeriodKey, flags: list[str]) -> Decimal | No
                 _add_item(sig, table.note_number, table.title, item.raw_label, ev, pk)
     if not found_note:
         flags.append("MISSING_NOTE:receivable_notes")
-    return sig.value
+    return sig
 
 
-def _find_3(doc: DocumentModel, pk: PeriodKey, flags: list[str]) -> Decimal | None:
+def _find_3(doc: DocumentModel, pk: PeriodKey, flags: list[str]) -> _Signal:
     """The related-party note: sum its own receivable-class lines, excluding payables/deposits/
     investment/guarantee lines and entrusted loans — the whole note is already related-party."""
     sig = _Signal()
@@ -142,23 +182,34 @@ def _find_3(doc: DocumentModel, pk: PeriodKey, flags: list[str]) -> Decimal | No
                 _add_item(sig, table.note_number, table.title, label, ev, pk)
     if not found_note:
         flags.append("MISSING_NOTE:related_party_note")
-    return sig.value
+    return sig
 
 
 def _cp_pool(doc: DocumentModel, pk: PeriodKey, flags: list[str]
-            ) -> tuple[Decimal | None, Decimal | None, list[dict]]:
+            ) -> tuple[_Signal, _Signal, bool]:
     """CP_Gross and CP_Related_Party_Deduction: every in-scope-class line (face + notes), and the
     subset of those SAME lines that are also explicitly related-party. Entrusted loans are NOT
-    excluded here — CP deducts whatever related-party amount its own gross pool actually carries."""
+    excluded here — CP deducts whatever related-party amount its own gross pool actually carries.
+
+    The third return value is whether the inclusion test COMPLETED. §3.6 permits zero "when all
+    relevant notes have been searched and explicitly contain no qualifying amount", so a gross
+    pool whose every line was inspected and carried no related-party marker yields a proven zero
+    deduction; a pool assembled without any in-scope note to search yields no answer at all.
+    """
     gross = _Signal()
     deduction = _Signal()
+    inspected = False
 
     def _scan(label: str, group_hint: str, note_number: str, note_title: str, ev) -> None:
+        nonlocal inspected
         text = f"{label} {group_hint}"
         if not _CP_CLASS_RE.search(text):
             return
         if not _add_item(gross, note_number, note_title, label, ev, pk):
             return
+        # This line belongs to the gross pool and has now been tested for a related-party
+        # marker, which is what makes a nil deduction a finding rather than a gap.
+        inspected = True
         if _RELATED_PARTY_RE.search(text):
             _add_item(deduction, note_number, note_title, label, ev, pk)
 
@@ -180,8 +231,10 @@ def _cp_pool(doc: DocumentModel, pk: PeriodKey, flags: list[str]
                 _scan(item.raw_label or "", item.group_hint, table.note_number, table.title, ev)
     if not found_note and gross.value is None:
         flags.append("MISSING_NOTE:cp_gross_notes")
+    flags.extend(gross.unit_flags("CP_Gross"))
+    flags.extend(deduction.unit_flags("CP_Related_Party_Deduction"))
 
-    return gross.value, deduction.value, gross.evidence + deduction.evidence
+    return gross, deduction, inspected
 
 
 @dataclass
@@ -206,49 +259,82 @@ def compute(doc: DocumentModel) -> dict[PeriodKey, dict[str, ReceivablesResult]]
     out: dict[PeriodKey, dict[str, ReceivablesResult]] = {}
     for pk in keys:
         ltp_flags: list[str] = []
-        find_1 = _find_1(doc, pk, ltp_flags)
-        find_2 = _find_2(doc, pk, ltp_flags)
-        find_3 = _find_3(doc, pk, ltp_flags)
-        candidates = {"Find_1": find_1, "Find_2": find_2, "Find_3": find_3}
-        present = {name: v for name, v in candidates.items() if v is not None}
-        if not present:
+        signals = {"Find_1": _find_1(doc, pk, ltp_flags),
+                   "Find_2": _find_2(doc, pk, ltp_flags),
+                   "Find_3": _find_3(doc, pk, ltp_flags)}
+        for name, signal in signals.items():
+            ltp_flags.extend(signal.unit_flags(name))
+
+        # §4.5: "A candidate is valid only when ... currency and unit are known or normalized",
+        # and §8's max_valid keeps only candidates that are present and non-negative. A negative
+        # related-party receivable is not a smaller measurement of the same concept, it is a
+        # broken one, and letting it win a MAX would publish it.
+        valid = {name: s.usable for name, s in signals.items()
+                 if s.usable is not None and s.usable >= 0}
+        rejected = [name for name, s in signals.items()
+                    if s.usable is not None and s.usable < 0]
+        if rejected:
+            ltp_flags.append(f"NEGATIVE_RESIDUAL:{','.join(sorted(rejected))}")
+
+        if not valid:
             ltp_result = ReceivablesResult(None, None, "NOT_COMPUTABLE",
                                            ltp_flags + ["NOT_COMPUTABLE"], [])
         else:
-            selected = max(present.values())
-            selected_name = next(name for name, v in present.items() if v == selected)
-            tied = [name for name, v in present.items() if v == selected]
-            flags = list(ltp_flags)
-            if selected < 0:
-                flags.append("NEGATIVE_RESIDUAL")
-            if len(tied) > 1:
-                flags.append(f"POSSIBLE_DUPLICATE:{','.join(tied)}")
-            ltp_result = ReceivablesResult(selected, f"MAX_VALID({selected_name})", "COMPUTED",
-                                           flags, [])
+            selected = max(valid.values())
+            # §4.5 tie handling: select the value once and retain every tied candidate as a
+            # supporting source. Agreement between independent measurements corroborates the
+            # figure — it is not the duplication §3.5 warns about.
+            tied = sorted(name for name, v in valid.items() if v == selected)
+            evidence = [e for name in tied for e in signals[name].evidence]
+            formula = (f"MAX_VALID({tied[0]})" if len(tied) == 1
+                       else f"MAX_VALID({tied[0]}; corroborated by {', '.join(tied[1:])})")
+            ltp_result = ReceivablesResult(selected, formula, "COMPUTED", ltp_flags, evidence)
         out.setdefault(pk, {})["ltp"] = ltp_result
 
         cp_flags: list[str] = []
-        cp_gross, cp_deduction, cp_evidence = _cp_pool(doc, pk, cp_flags)
+        gross_sig, deduction_sig, inspected = _cp_pool(doc, pk, cp_flags)
+        cp_evidence = gross_sig.evidence + deduction_sig.evidence
+        cp_gross = gross_sig.usable
         if cp_gross is None:
             cp_result = ReceivablesResult(None, None, "NOT_COMPUTABLE",
                                           cp_flags + ["NOT_COMPUTABLE"], cp_evidence)
         else:
-            candidate, extra_flags = _finalize_cp(cp_gross, cp_deduction)
-            cp_result = ReceivablesResult(candidate, "CP_Gross - CP_Related_Party_Deduction",
-                                          "COMPUTED", cp_flags + extra_flags, cp_evidence)
+            candidate, status, extra_flags = _finalize_cp(
+                cp_gross, deduction_sig.usable, inspected=inspected)
+            formula = ("CP_Gross - CP_Related_Party_Deduction" if candidate is not None else None)
+            cp_result = ReceivablesResult(candidate, formula, status,
+                                          cp_flags + extra_flags, cp_evidence)
         out[pk]["cp"] = cp_result
     return out
 
 
-def _finalize_cp(gross: Decimal, deduction: Decimal | None) -> tuple[Decimal, list[str]]:
-    """CP_Gross - CP_Related_Party_Deduction, populated even when the result is negative or the
-    deduction could not be established — a review flag, never a blank cell, is what tells a
-    reviewer this candidate needs a second look rather than giving them nothing to check."""
+def _finalize_cp(gross: Decimal, deduction: Decimal | None, *, inspected: bool
+                ) -> tuple[Decimal | None, str, list[str]]:
+    """CP_Gross - CP_Related_Party_Deduction (§5.4).
+
+    Two outcomes are deliberately null rather than a figure with a flag:
+
+    A deduction that could not be established (§8) would otherwise publish the GROSS pool as
+    though it were already net of related-party balances — putting the same related-party money
+    in this row AND in Due from Related Parties (LTP), which is the double count §3.5 and §5.3
+    exist to prevent. §3.6 still allows a zero deduction, but only for a completed search: hence
+    `inspected`, which says the gross pool's own lines were tested for a related-party marker
+    and carried none.
+
+    A negative candidate (§5.4) "indicates an extraction, scope, unit, or duplication issue".
+    This row is a summed child of Other Current Assets and Total Current Assets, so publishing a
+    negative asset would silently break the balance-sheet identity two levels up and send the
+    reviewer looking at a total whose own arithmetic is sound. A blank names the row that failed.
+    """
     flags: list[str] = []
     if deduction is None:
-        flags.append("RELATED_PARTY_DEDUCTION_NOT_ESTABLISHED")
+        if not inspected:
+            return None, "RELATED_PARTY_DEDUCTION_NOT_ESTABLISHED", [
+                "RELATED_PARTY_DEDUCTION_NOT_ESTABLISHED"]
+        # §3.6: searched and explicitly nothing there.
         deduction = Decimal(0)
+        flags.append("RELATED_PARTY_DEDUCTION_PROVEN_NIL")
     candidate = gross - deduction
     if candidate < 0:
-        flags.append("NEGATIVE_RESIDUAL")
-    return candidate, flags
+        return None, "NEGATIVE_RESIDUAL", flags + ["NEGATIVE_RESIDUAL"]
+    return candidate, "COMPUTED", flags
