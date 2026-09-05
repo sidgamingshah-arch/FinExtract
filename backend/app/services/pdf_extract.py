@@ -309,7 +309,19 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         split_y = evidence.get("matched_title_y")
         prior_statement = evidence.get("statement_before_title")
         prior_scope = evidence.get("scope_before_title")
-        batches = [(words, ps.statement, ps.scope, None)]
+        # THE PAGE'S OWN TITLE TRAVELS WITH THE DEFAULT BATCH. `build_line_items` needs it to
+        # tell the statement's heading from the head of a wrapped caption — they have the same
+        # shape and sit in the same place — and without it the title is glued onto the first
+        # caption beneath it: "Balance Sheet Cash and cash equivalents", which then maps to
+        # nothing and is counted as an unresolved face row. Every page used to pass it; the
+        # split-batch rewrite below kept it only for the batch AFTER a mid-page statement
+        # change, leaving the ordinary single-statement page — which is nearly every page — with
+        # None.
+        #
+        # The pre-split batch of a split page keeps None deliberately: its rows belong to the
+        # statement that ENDED above the title, whose own heading is on an earlier page.
+        batches = [(words, ps.statement, ps.scope,
+                    str(evidence.get("matched_title") or "") or None)]
         if (ps.kind == PageKind.FACE and prior_statement and isinstance(split_y, (int, float))
                 and 0.20 < split_y < 0.95):
             before = [word for word in words if (word.bbox.y0 + word.bbox.y1) / 2 < split_y]

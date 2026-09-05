@@ -228,3 +228,40 @@ def test_the_linkage_never_names_a_note_the_run_did_not_publish(rulebook, templa
     doc.notes = []
     assert doc.links, "the fixture must keep its links, or it proves nothing"
     assert _linked_notes(doc) == {}
+
+
+def test_the_page_title_is_not_glued_onto_the_first_caption_beneath_it():
+    """A statement's heading and the head of a wrapped caption have the same shape and sit in the
+    same place, so the reader is told which one the page title is. Without that it reads
+    "Balance Sheet Cash and cash equivalents" as one caption — which maps to no concept, counts
+    as an unresolved face row, and takes the filing's cash figure out of current assets.
+
+    Every page used to carry the title. A rewrite that splits a page carrying two statements
+    kept it only for the batch after the split, leaving the ordinary single-statement page — 
+    nearly every page — without it.
+    """
+    import json
+    from pathlib import Path
+
+    from app.core.models.document import DocumentModel
+    from app.core.models.enums import DocFormat
+    from app.core.pipeline import default_pipeline
+    from app.core.stage import PipelineContext
+    from app.schemas.loader import load_ontology, load_template
+    from tests.fixtures.generate import make_native_pdf
+
+    samples = Path(__file__).resolve().parents[1] / "app/sample/templates"
+    ctx = PipelineContext(raw_bytes=make_native_pdf())
+    ctx.ontology = load_ontology(
+        json.loads((samples / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8")),
+        resolve=True)
+    ctx.template = load_template(
+        json.loads((samples / "hkfrs_hk_china_template.json").read_text(encoding="utf-8")))
+    doc = default_pipeline().run(DocumentModel(filename="f.pdf", fmt=DocFormat.PDF), ctx)
+
+    labels = [li.source_label for li in doc.line_items]
+    assert "Cash and cash equivalents" in labels, labels
+    assert not any(lab.startswith("Balance Sheet") for lab in labels), labels
+    # …and it reaches a concept rather than the unresolved-face bucket.
+    cash = next(li for li in doc.line_items if li.source_label == "Cash and cash equivalents")
+    assert cash.canonical_key and not cash.canonical_key.startswith("engine_unclassified_face")

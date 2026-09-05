@@ -101,8 +101,11 @@ def test_a_mapped_row_the_template_does_not_declare_produces_no_statement_row():
     assert OFF_KEY not in ids
     # …and no row anywhere carries its figure, under any id.
     assert 4_200 not in [r.get("v1") for r in grid["rows"]]
-    # The grid is the template's skeleton exactly: one heading and its two declared lines.
-    assert ids == ["sec_s1", "bs_current_assets__inventories", "bs_current_assets__cash"]
+    # The grid is the template's skeleton exactly: its two declared lines, and NO section
+    # heading — a lone section groups nothing, so the server suppresses a header that would only
+    # repeat the tab's own title. MINI declares one section, which is what makes that visible
+    # here; a real statement has several and keeps them all.
+    assert ids == ["bs_current_assets__inventories", "bs_current_assets__cash"]
 
 
 def test_no_other_extracted_items_section_is_served_in_any_locale():
@@ -124,7 +127,7 @@ def test_a_row_that_mapped_to_nothing_reaches_no_grid_at_all():
     rows = [_row("bs_current_assets__inventories", "Inventories", 100, y=0.20),
             {**_row(None, "Something nobody could place", 77, y=0.30), "mapping_confidence": None}]
     assert [r["id"] for r in _mini_grid(rows)["rows"]] == [
-        "sec_s1", "bs_current_assets__inventories", "bs_current_assets__cash"]
+        "bs_current_assets__inventories", "bs_current_assets__cash"]
     # And on the no-template fallback, which renders the extracted concepts themselves.
     untemplated = _build_statement(rows, None, "balance_sheet", "f.pdf")
     assert [r["id"] for r in untemplated["rows"]] == ["bs_current_assets__inventories"]
@@ -510,7 +513,7 @@ def test_a_run_pinned_to_an_older_template_version_says_so_with_both_numbers(cli
                      "template_key": key}
     # The spread itself is unchanged — the run is still pinned to what it ran against.
     assert [r["id"] for r in _statement(client, doc_id)["rows"]] == [
-        "sec_s1", "bs_current_assets__inventories", "bs_current_assets__cash"]
+        "bs_current_assets__inventories", "bs_current_assets__cash"]
 
 
 def test_a_run_with_no_template_has_no_superseded_block_to_report(client):
