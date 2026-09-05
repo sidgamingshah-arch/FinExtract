@@ -67,6 +67,14 @@ _DIR = Path(__file__).resolve().parent / "templates"
 _TEMPLATE = _DIR / "hkfrs_hk_china_template.json"
 _ONTOLOGY = _DIR / "hkfrs_hk_china_ontology.json"
 
+# Additional shipped pairs seeded alongside the primary one. Each entry is
+# (template_path, ontology_path). Treated identically to the primary pair at
+# startup: published when the file differs from the newest stored version, skipped
+# when content is already stored, absent files skipped silently.
+_EXTRA_PAIRS: list[tuple[Path, Path]] = [
+    (_DIR / "output_csv_hk_v1_template.json", _DIR / "output_csv_hk_ontology.json"),
+]
+
 # The ontology keys this repo USED to ship the rulebook under, retired by naming them here.
 #
 # Two generations were seeded side by side until they were consolidated into one file keyed
@@ -110,7 +118,7 @@ def _key_in_file(path: str, mtime: float, field: str) -> str:
     ``_ONTOLOGY`` to point elsewhere, both change the key and are re-read.
     """
     try:
-        raw = json.loads(Path(path).read_text())
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         # A file that cannot be read or parsed is reported by ``ensure_reference_data``, loudly,
         # with the path in the message. Callers asking only "which key ships?" get "no answer" and
@@ -242,6 +250,62 @@ def _already_stored(session: Session, model, key_column, key: str, definition: o
         select(model).where(key_column == key)).scalars().all())
 
 
+def _seed_extra_pair(
+    session: Session,
+    tpl_path: Path,
+    ont_path: Path,
+    dry_run: bool,
+) -> tuple[list[str], list[str]]:
+    """Seed one extra (template, ontology) pair without the primary-pair legacy logic."""
+    from app.db.models import OntologyVersion, TemplateVersion
+
+    notes: list[str] = []
+    replaced: list[str] = []
+
+    if not tpl_path.exists() or not ont_path.exists():
+        return notes, replaced
+
+    try:
+        tpl_raw = json.loads(tpl_path.read_text(encoding="utf-8"))
+        template = _load_template(tpl_path, tpl_raw)
+        ont_raw = json.loads(ont_path.read_text(encoding="utf-8"))
+        _load_ontology(ont_path, ont_raw, template)
+    except ReferenceSeedError as exc:
+        _LOG.error("extra reference pair (%s, %s) refused: %s", tpl_path.name, ont_path.name, exc)
+        return notes, replaced
+
+    tpl_key = tpl_raw["template_key"]
+    newest_tpl = _newest(session, TemplateVersion, TemplateVersion.template_key, tpl_key)
+    if not _already_stored(session, TemplateVersion, TemplateVersion.template_key, tpl_key, tpl_raw):
+        version = 1 if newest_tpl is None else newest_tpl.version + 1
+        notes.append(f"template {tpl_key}: published v{version} from {tpl_path.name}")
+        if newest_tpl is not None:
+            replaced.append(f"template {tpl_key} v{newest_tpl.version} superseded by v{version}")
+        if not dry_run:
+            session.add(TemplateVersion(
+                template_key=tpl_key, name=tpl_raw.get("name", ""), version=version,
+                definition=tpl_raw, is_published=True,
+            ))
+
+    ont_key = ont_raw["ontology_key"]
+    newest_ont = _newest(session, OntologyVersion, OntologyVersion.ontology_key, ont_key)
+    if not _already_stored(session, OntologyVersion, OntologyVersion.ontology_key, ont_key, ont_raw):
+        version = 1 if newest_ont is None else newest_ont.version + 1
+        notes.append(f"ontology {ont_key}: published v{version} from {ont_path.name}")
+        if newest_ont is not None:
+            replaced.append(f"ontology {ont_key} v{newest_ont.version} superseded by v{version}")
+        if not dry_run:
+            session.add(OntologyVersion(
+                ontology_key=ont_key, target_template_key=ont_raw["target_template_key"],
+                version=version, definition=ont_raw,
+            ))
+
+    if not dry_run and notes:
+        session.commit()
+
+    return notes, replaced
+
+
 def ensure_reference_data(session: Session, *, dry_run: bool = False) -> list[str]:
     """Hold the stored template + ontology to the shipped files. Returns what it found and did.
 
@@ -288,10 +352,10 @@ def _refresh(session: Session, *, dry_run: bool) -> list[str]:
 
     if not _TEMPLATE.exists() or not _ONTOLOGY.exists():
         return []
-    tpl = json.loads(_TEMPLATE.read_text())
+    tpl = json.loads(_TEMPLATE.read_text(encoding='utf-8'))
     template = _load_template(_TEMPLATE, tpl)
 
-    raw_ontology = json.loads(_ONTOLOGY.read_text())
+    raw_ontology = json.loads(_ONTOLOGY.read_text(encoding='utf-8'))
     _load_ontology(_ONTOLOGY, raw_ontology, template)
 
     ont_key = raw_ontology["ontology_key"]
@@ -368,6 +432,13 @@ def _refresh(session: Session, *, dry_run: bool) -> list[str]:
     ).scalars().all()
     for key in sorted(retired_present):
         notes.append(f"ontology {key}: stored but retired — superseded by {ont_key}")
+
+    # Seed each extra shipped pair. No retirement handling or is_published flag — these are
+    # supplementary templates that live alongside the primary pair as a second user choice.
+    for tpl_path, ont_path in _EXTRA_PAIRS:
+        extra_notes, extra_replaced = _seed_extra_pair(session, tpl_path, ont_path, dry_run)
+        notes.extend(extra_notes)
+        replaced.extend(extra_replaced)
 
     if not dry_run:
         session.commit()

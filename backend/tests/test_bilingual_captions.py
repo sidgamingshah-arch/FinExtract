@@ -128,7 +128,7 @@ def _reference_matcher() -> OntologyMatcher:
 
     path = (pathlib.Path(__file__).resolve().parents[1]
             / "app/sample/templates/hkfrs_hk_china_ontology.json")
-    return OntologyMatcher(load_ontology(json.loads(path.read_text())))
+    return OntologyMatcher(load_ontology(json.loads(path.read_text(encoding="utf-8"))))
 
 
 def test_the_two_cash_flow_subtotals_from_the_real_filing_reach_their_own_concepts():

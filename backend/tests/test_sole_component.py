@@ -40,7 +40,7 @@ DEFERRED = "pl_tax_expense__deferred_tax"
 
 @pytest.fixture(scope="module")
 def raw_ontology() -> dict:
-    return json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text())
+    return json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8"))
 
 
 def _ontology(raw: dict):
@@ -145,7 +145,7 @@ def test_the_template_tax_rollup_now_computes_and_agrees_with_the_printed_total(
     """
     from app.services.rollups import evaluate_rows, figures_as_shown
 
-    template = json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text())
+    template = json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text(encoding="utf-8"))
     doc = _income_statement(_li(0, "Revenue", 5000), _li(1, "Direct costs", -3000),
                             _li(2, "Administrative expenses", -500),
                             _li(3, "Profit before taxation", 1500),

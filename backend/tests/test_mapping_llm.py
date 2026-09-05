@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from app.config import get_settings
 from app.core.models.enums import MappingMethod
 from app.schemas.ontology import OntologyDefinition, OntologyMapping
@@ -68,11 +70,11 @@ def test_description_based_beats_fuzzy():
     assert m.usage["calls"] == 1 and m.usage["input_tokens"] == 120
 
 
-def test_exact_alias_short_circuits_without_calling_llm():
+def test_exact_alias_requires_llm_refinement():
     m = OntologyMatcher(_ontology(), settings=get_settings(), llm_provider=_FakeLlm())
-    res = m.match("Trade receivables")  # exact normalized alias
-    assert res.method is MappingMethod.EXACT
-    assert m.usage["calls"] == 0  # no tokens spent on an identity match
+    res = m.match("Trade receivables")
+    assert m.usage["calls"] == 1
+    assert res.method is MappingMethod.UNMATCHED  # this fake abstains; exact is not accepted alone
 
 
 def test_ensemble_combines_methods_and_corroborates():
@@ -114,8 +116,8 @@ def test_ensemble_combines_methods_and_corroborates():
     assert "balancing plug" in seen["system"]
 
 
-def test_llm_abstains_falls_back_to_deterministic():
-    """If the LLM returns no concept, mapping falls back to the deterministic ensemble."""
+def test_llm_abstention_does_not_accept_unrefined_deterministic_evidence():
+    """If the LLM returns no concept, deterministic evidence remains review-only."""
     class _Abstain(_FakeLlm):
         def complete_structured(self, **kw):
             return LlmMappingDecision(canonical_key="", confidence=0.0), {
@@ -123,28 +125,32 @@ def test_llm_abstains_falls_back_to_deterministic():
 
     ont = _ontology()
     m = OntologyMatcher(ont, settings=get_settings(), llm_provider=_Abstain())
-    res = m.match("Cash and cash equivalents")  # exact alias → resolves even after abstain path
-    assert res.canonical_key == "cash_and_equivalents"
-    # A caption only resemblance could have matched now falls through to review: the deterministic
-    # fallback is the alias tier and the rule tier, and neither claims this wording.
+    res = m.match("Cash and cash equivalents")
+    assert res.canonical_key is None
+    assert res.needs_review
     assert m.match("Cash & cash equivalents").canonical_key is None
-    # Authoring a rule hint is how the fallback is extended — the tier the rulebook declares.
+    # Even authored deterministic rules are evidence only when semantic refinement is enabled.
     next(x for x in ont.mappings if x.canonical_key == "cash_and_equivalents").keyword_hints = [
         "cash"]
     m2 = OntologyMatcher(ont, settings=get_settings(), llm_provider=_Abstain())
-    assert m2.match("Cash & cash equivalents").canonical_key == "cash_and_equivalents"
+    assert m2.match("Cash & cash equivalents").canonical_key is None
 
 
-def test_per_statement_batch_maps_all_lines_in_one_call():
-    """per_statement mapping decides many captions in ONE grounded call; the LLM
-    references item_ids/keys (never values), and unlisted items fall back per-line."""
+def test_required_batch_retries_omitted_lines_with_the_llm():
+    """A required statement pass retries omissions as a batch, never deterministically."""
     calls = {"n": 0}
+    seen = {}
 
     class _BatchLlm:
         id = "fake"
 
         def complete_structured(self, *, system, messages, response_schema, temperature=0.0, max_tokens=2048):
             calls["n"] += 1
+            seen["payload"] = json.loads(messages[0]["content"])
+            if calls["n"] == 2:
+                return LlmBatchDecision(mappings=[
+                    LlmBatchItem(item_id="c", canonical_key="trade_receivables", confidence=0.9),
+                ]), {"model": "fake-llm", "input_tokens": 100, "output_tokens": 10}
             return LlmBatchDecision(mappings=[
                 LlmBatchItem(item_id="a", canonical_key="trade_receivables", confidence=0.9),
                 LlmBatchItem(item_id="b", canonical_key="cash_and_equivalents", confidence=0.95),
@@ -153,12 +159,15 @@ def test_per_statement_batch_maps_all_lines_in_one_call():
     m = OntologyMatcher(_ontology(), settings=get_settings(), llm_provider=_BatchLlm())
     res = m.match_batch([("a", "Amounts due from customers"),
                          ("b", "Cash at bank and in hand"),
-                         ("c", "Trade receivables")])   # exact alias → per-line fallback
-    assert calls["n"] == 1                               # ONE call for the whole statement
+                         ("c", "Trade receivables")], require_complete=True)
+    assert calls["n"] == 2
     assert res["a"].canonical_key == "trade_receivables"
     assert res["b"].canonical_key == "cash_and_equivalents"
     assert res["c"].canonical_key == "trade_receivables"
-    assert m.usage["input_tokens"] == 300
+    source = {item["item_id"]: item for item in seen["payload"]["source_items"]}
+    assert source["c"]["deterministic_suggestion"] == "trade_receivables"
+    assert "trade_receivables" in source["c"]["deterministic_candidates"]
+    assert m.usage["input_tokens"] == 400
 
 
 # --- the batch path's own hazards -------------------------------------------------------------
@@ -268,22 +277,27 @@ def test_batch_does_not_call_the_provider_with_an_empty_candidate_list():
     assert res["a"].method is MappingMethod.UNMATCHED
 
 
-def test_batch_failure_is_recorded_not_swallowed():
-    """A refused or truncated batch used to fall back per line in silence, so a run whose every
-    batch failed still reported itself as LLM-mapped with no error to point at."""
+def test_batch_failure_stops_the_run_instead_of_using_unrefined_mappings():
+    """A provider failure must not silently turn an LLM-refined run deterministic."""
 
     class _Boom:
         id = "fake"
 
+        def __init__(self):
+            self.calls = 0
+
         def complete_structured(self, **_kw):
+            self.calls += 1
             raise RuntimeError("truncated JSON")
 
-    m = OntologyMatcher(_ontology(), settings=get_settings(), llm_provider=_Boom())
-    res = m.match_batch([("a", "Trade receivables")])
+    provider = _Boom()
+    m = OntologyMatcher(_ontology(), settings=get_settings(), llm_provider=provider)
+    with pytest.raises(RuntimeError, match="LLM refinement failed"):
+        m.match_batch([("a", "Trade receivables"), ("b", "Trade receivables")])
 
     assert m.usage["failures"] == 1
+    assert provider.calls == 1
     assert "truncated JSON" in m.usage["last_error"]
-    assert res["a"].canonical_key == "trade_receivables"   # fell back, still answered
 
 
 def test_batch_refuses_a_wrong_section_answer_even_though_the_model_was_told_the_section():

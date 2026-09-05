@@ -20,7 +20,7 @@ def test_gpt5_mini_on_azure_is_the_shipped_default():
     from app.config import LlmSettings
 
     shipped = tomllib.loads(
-        (Path(__file__).resolve().parents[1] / "config.toml").read_text())["llm"]
+        (Path(__file__).resolve().parents[1] / "config.toml").read_text(encoding="utf-8"))["llm"]
     assert shipped["provider"] == "azure_openai"
     assert shipped["model"] == "gpt-5-mini"
     assert shipped["api_key_env"] == "AZURE_OPENAI_API_KEY"

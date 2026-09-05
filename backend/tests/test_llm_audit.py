@@ -43,6 +43,31 @@ def test_openai_provider_registered_and_builds_chat_body():
     assert body["response_format"] == {"type": "json_object"}
 
 
+def test_openai_provider_reads_the_completion_ceiling_from_gateway_errors():
+    from app.adapters.openai_llm import _completion_limit_from_error
+
+    message = ("max_tokens is too large: 4096000. This model supports at most "
+               "128000 completion tokens, whereas you provided 4096000.")
+    assert _completion_limit_from_error(message) == 128000
+    assert _completion_limit_from_error("some other request error") is None
+
+
+def test_mapping_json_does_not_request_reasoning_tokens(monkeypatch):
+    """A mapping batch must reserve its small completion budget for JSON, not hidden reasoning."""
+    from app.adapters.openai_llm import OpenAiLlmProvider
+    from app.config import LlmSettings, Settings
+    from app.services.mapping import LlmBatchDecision
+
+    settings = Settings()
+    settings.llm = LlmSettings(provider="openai", model="reasoning-model",
+                               reasoning_effort="medium")
+    provider = OpenAiLlmProvider(settings)
+    body = provider.build_body(system="SYS", messages=[{"role": "user", "content": "hi"}],
+                               response_schema=LlmBatchDecision, temperature=0.0, max_tokens=1456)
+
+    assert "reasoning_effort" not in body
+
+
 # --- audit endpoint: seeded token usage, input/output separate --------------
 def test_audit_endpoint_returns_seeded_token_usage(client):
     r = client.get("/api/v1/projects/demo/audit")

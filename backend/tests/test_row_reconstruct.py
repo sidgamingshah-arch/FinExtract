@@ -65,6 +65,23 @@ def test_a_note_reference_is_recorded_as_a_citation_on_both_fields():
     assert int(li.get_value(Basis.CONSOLIDATED, period_label="current").value) == 3410
 
 
+def test_a_chinese_chapter_prefixed_note_column_is_linked_to_its_subsection():
+    items = _build([
+        _w("项目", 0.10, 0.15, 0.16, 0.17),
+        _w("附注", 0.50, 0.15, 0.55, 0.17),
+        _w("2024", 0.70, 0.15, 0.76, 0.17),
+        _w("2023", 0.84, 0.15, 0.90, 0.17),
+        _w("货币资金", 0.10, 0.20, 0.20, 0.22),
+        _w("七、1", 0.52, 0.20, 0.57, 0.22),
+        _w("451,359,912.13", 0.70, 0.20, 0.80, 0.22),
+        _w("389,309,367.78", 0.84, 0.20, 0.94, 0.22),
+    ])
+
+    line = next(item for item in items if item.source_label == "货币资金")
+    assert line.note_number == "1"
+    assert [ref.numbers for ref in line.note_refs] == [["1"]]
+
+
 def test_wrapped_label_is_merged_into_the_valued_line():
     """A label that wraps across two tight, left-aligned lines is stitched back together
     rather than truncated to the fragment on the valued line."""

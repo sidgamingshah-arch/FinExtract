@@ -35,21 +35,33 @@ function tagColors(tag: SourceDoc["tag"]): { bg: string; fg: string } {
   return { bg: color.indigoTint2, fg: color.indigo };
 }
 
-function DocRow({ doc, onDelete, deleting }: { doc: SourceDoc; onDelete?: () => void; deleting?: boolean }) {
+function DocRow({ doc, onDelete, deleting, active, onSelect }: {
+  doc: SourceDoc; onDelete?: () => void; deleting?: boolean; active?: boolean;
+  onSelect?: () => void;
+}) {
   const t = useT();
   const ext = extColors(doc.ext);
   const tag = tagColors(doc.tag);
   return (
     <div
       data-testid="doc-row"
+      role={onSelect ? "button" : undefined}
+      tabIndex={onSelect ? 0 : undefined}
+      onClick={onSelect}
+      onKeyDown={(e) => {
+        if (onSelect && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onSelect(); }
+      }}
+      title={onSelect ? t("u.pickForExtraction") : undefined}
       style={{
         display: "flex",
         alignItems: "center",
         gap: 11,
         padding: "10px 12px",
-        border: `1px solid ${color.hairline3}`,
+        border: `1px solid ${active ? color.indigo : color.hairline3}`,
         borderRadius: 9,
         marginBottom: 8,
+        background: active ? color.indigoTint2 : "transparent",
+        cursor: onSelect ? "pointer" : undefined,
       }}
     >
       <span
@@ -85,9 +97,23 @@ function DocRow({ doc, onDelete, deleting }: { doc: SourceDoc; onDelete?: () => 
       >
         {doc.tag}
       </span>
+      {active && (
+        <span
+          style={{
+            fontSize: 10.5,
+            fontWeight: 600,
+            padding: "3px 8px",
+            borderRadius: radius.pill,
+            background: color.indigo,
+            color: "#fff",
+          }}
+        >
+          {t("u.activeDoc")}
+        </span>
+      )}
       {onDelete && (
         <button
-          onClick={onDelete}
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
           disabled={deleting}
           aria-label={t("u.deleteDoc")}
           title={t("u.deleteDoc")}
@@ -442,6 +468,7 @@ export default function UploadScreen() {
   const extractMode = useUI((s) => s.extractMode);
   const setExtractMode = useUI((s) => s.setExtractMode);
   const activeDocumentId = useUI((s) => s.activeDocumentId);
+  const setActiveDocumentId = useUI((s) => s.setActiveDocumentId);
   const { data, isPending } = useProject();
   const { data: docsData } = useDocuments();
   const upload = useUploadDocument();
@@ -547,6 +574,8 @@ export default function UploadScreen() {
             <DocRow
               key={d.id ?? d.name}
               doc={d}
+              active={!!d.id && d.id === activeDocumentId}
+              onSelect={d.id ? () => setActiveDocumentId(d.id as string) : undefined}
               deleting={del.isPending && del.variables === d.id}
               onDelete={
                 d.id && canUpload

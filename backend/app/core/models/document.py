@@ -77,6 +77,10 @@ class DocumentModel(BaseModel):
     # reconcile a printed subtotal with its components (see stages.gap_closing). Kept so the
     # routing is visible and auditable rather than an unexplained change of mapping.
     gap_routings: list[dict] = Field(default_factory=list)
+    # Contingent Liabilities' structured narrative + classified/unclassified tables (see
+    # services.contingent_liabilities) — a paragraph and two small tables, not a single figure, so
+    # it is kept here rather than forced into a LineItem's numeric ``value``.
+    contingent_liabilities: dict | None = None
     unit_context: UnitContext | None = None    # detected source currency + scale ("in ₹ crore")
     # Headings that LOOKED like a statement title and resolved to nothing. The lexicon's coverage is
     # otherwise unmeasurable — you cannot tell a filing whose titles are all recognised from one

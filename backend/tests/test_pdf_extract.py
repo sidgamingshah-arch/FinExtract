@@ -355,6 +355,32 @@ def test_real_notes_index_and_detail(client):
     assert detail["rows"] and detail["reconciliation"] is None
 
 
+def test_note_table_rows_prefers_printed_year_headers():
+    from app.api.routes.documents import _note_table_rows
+
+    rows = [
+        {
+            "label": "Value at start of the year",
+            "values": [
+                {"period_label": "current", "period_display": "2024", "value": "10"},
+                {"period_label": "prior", "period_display": "2025", "value": "12"},
+            ],
+        },
+        {
+            "label": "Amortisation provided during the year",
+            "values": [
+                {"period_label": "current", "period_display": "2024", "value": "2"},
+                {"period_label": "prior", "period_display": "2025", "value": "3"},
+            ],
+        },
+    ]
+
+    table = _note_table_rows(rows, ["current", "prior"])
+    assert table["columns"] == ["2024", "2025"]
+    assert table["rows"][0]["values"] == {"2024": "10", "2025": "12"}
+    assert table["rows"][1]["values"] == {"2024": "2", "2025": "3"}
+
+
 def test_note_detail_tables_extracted_from_notes_page():
     """A notes page ("Note 14: Cash and cash equivalents" + its breakdown rows) is parsed
     into a NotesTable with the detail line items behind the face figure."""

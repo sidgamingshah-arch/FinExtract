@@ -22,7 +22,7 @@ SHIPPED = (Path(__file__).resolve().parents[1] / "app" / "sample" / "templates"
 
 
 def _shipped() -> dict:
-    return json.loads(SHIPPED.read_text())
+    return json.loads(SHIPPED.read_text(encoding="utf-8"))
 
 
 def test_the_shipped_rulebook_round_trips_byte_for_byte():

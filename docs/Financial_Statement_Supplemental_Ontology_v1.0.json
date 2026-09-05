@@ -1,0 +1,2152 @@
+{
+  "ontology_metadata": {
+    "ontology_name": "financial_statement_supplemental_extraction",
+    "version": "1.0",
+    "scope": [
+      "statement_setup_controls",
+      "covenants_supplemental",
+      "financial_statement_notes"
+    ],
+    "source_template": "Copy of Output_CSV Template (1).xlsx",
+    "design_principles": [
+      "Do not duplicate extraction already performed by balance sheet, income statement, cash flow or equity ontologies.",
+      "Use derive mode for controls that must be populated from canonical outputs in existing statement ontologies.",
+      "Do not infer covenant thresholds from calculated financial ratios or management commentary.",
+      "Keep reported commitments, pledged assets, secured borrowings, derivatives and contingencies separate.",
+      "Preserve reported units, currency, date, scope and sign; normalize only in downstream transformation."
+    ]
+  },
+  "section_defaults": {
+    "statement_setup_metadata": {
+      "statement": "statement_setup",
+      "temporality": "instant",
+      "unit_of_account": "metadata",
+      "value_scope": "exclusive_leaf",
+      "extraction_mode": "extract",
+      "face_only": false,
+      "note_use": "allowed",
+      "sign_convention": "natural",
+      "match_priority": 90
+    },
+    "statement_setup_derived_controls": {
+      "statement": "statement_setup",
+      "temporality": "instant",
+      "unit_of_account": "control",
+      "value_scope": "derived_total",
+      "extraction_mode": "derive",
+      "face_only": false,
+      "note_use": "not_applicable",
+      "sign_convention": "natural",
+      "match_priority": 100
+    },
+    "supplemental_instant": {
+      "statement": "covenants_supplemental",
+      "temporality": "instant",
+      "unit_of_account": "balance",
+      "value_scope": "exclusive_leaf",
+      "extraction_mode": "extract",
+      "face_only": false,
+      "note_use": "primary_allowed",
+      "sign_convention": "natural",
+      "match_priority": 75
+    },
+    "supplemental_duration": {
+      "statement": "covenants_supplemental",
+      "temporality": "duration",
+      "unit_of_account": "flow",
+      "value_scope": "exclusive_leaf",
+      "extraction_mode": "extract",
+      "face_only": false,
+      "note_use": "primary_allowed",
+      "sign_convention": "natural",
+      "match_priority": 75
+    },
+    "covenant_threshold": {
+      "statement": "covenants_supplemental",
+      "temporality": "instant",
+      "unit_of_account": "threshold",
+      "value_scope": "exclusive_leaf",
+      "extraction_mode": "extract",
+      "face_only": false,
+      "note_use": "required",
+      "sign_convention": "natural",
+      "match_priority": 95
+    },
+    "commitment_balance": {
+      "statement": "covenants_supplemental",
+      "temporality": "instant",
+      "unit_of_account": "commitment",
+      "value_scope": "exclusive_leaf",
+      "extraction_mode": "extract",
+      "face_only": false,
+      "note_use": "required",
+      "sign_convention": "natural",
+      "match_priority": 85
+    },
+    "narrative_note": {
+      "statement": "financial_statement_notes",
+      "temporality": "mixed",
+      "unit_of_account": "text_disclosure",
+      "value_scope": "disclosure_block",
+      "extraction_mode": "extract_text",
+      "face_only": false,
+      "note_use": "required",
+      "sign_convention": "not_applicable",
+      "match_priority": 80
+    },
+    "workflow_control": {
+      "statement": "financial_statement_notes",
+      "temporality": "instant",
+      "unit_of_account": "workflow_status",
+      "value_scope": "exclusive_leaf",
+      "extraction_mode": "manual_control",
+      "face_only": false,
+      "note_use": "not_applicable",
+      "sign_convention": "not_applicable",
+      "match_priority": 100
+    }
+  },
+  "mappings": [
+    {
+      "canonical_key": "statement_setup_controls__customers_name",
+      "label": "Customer's Name",
+      "inherits": "statement_setup_metadata",
+      "definition": "Legal name of the reporting customer or entity for which the financial statements are presented.",
+      "aliases": [
+        "Customer's Name",
+        "Customer Name",
+        "Entity Name",
+        "Company Name",
+        "Name of reporting entity",
+        "Reporting entity"
+      ],
+      "keyword_hints": [
+        "entity",
+        "company",
+        "legal name",
+        "reporting entity"
+      ],
+      "include": [
+        "Use the legal entity name presented on the financial statements, cover page or corporate information section.",
+        "Retain legal suffixes and the reported language."
+      ],
+      "exclude": [
+        "Do not use a subsidiary, auditor, parent, brand, stock exchange or document issuer name unless it is the reporting entity."
+      ],
+      "data_type": "string"
+    },
+    {
+      "canonical_key": "statement_setup_controls__customer_statement_type",
+      "label": "Customer Statement Type",
+      "inherits": "statement_setup_metadata",
+      "definition": "Scope of the financial statements, such as consolidated, separate, standalone, company-only or combined.",
+      "aliases": [
+        "Customer Statement Type",
+        "Statement Scope",
+        "Reporting Scope",
+        "Consolidated/Standalone",
+        "Basis of presentation"
+      ],
+      "keyword_hints": [
+        "consolidated",
+        "separate",
+        "standalone",
+        "company",
+        "group",
+        "combined"
+      ],
+      "include": [
+        "Use the explicit scope stated in the title or basis-of-preparation note."
+      ],
+      "exclude": [
+        "Do not infer consolidated status solely because subsidiaries are mentioned."
+      ],
+      "data_type": "enum",
+      "allowed_values": [
+        "Consolidated",
+        "Separate",
+        "Standalone",
+        "Company-only",
+        "Combined",
+        "Unknown"
+      ]
+    },
+    {
+      "canonical_key": "statement_setup_controls__rounding",
+      "label": "Rounding",
+      "inherits": "statement_setup_metadata",
+      "definition": "Reported scaling or rounding basis applied to monetary values in the financial statements.",
+      "aliases": [
+        "Rounding",
+        "Units",
+        "Unit scale",
+        "Presented in",
+        "Amounts in",
+        "Figures in"
+      ],
+      "keyword_hints": [
+        "actual",
+        "units",
+        "thousand",
+        "million",
+        "billion",
+        "000",
+        "mn"
+      ],
+      "include": [
+        "Capture the scale exactly as reported, then map it to the controlled value."
+      ],
+      "exclude": [
+        "Do not derive rounding from the magnitude of values."
+      ],
+      "data_type": "enum",
+      "allowed_values": [
+        "ACTUAL",
+        "THOUSAND",
+        "MILLION",
+        "BILLION",
+        "UNKNOWN"
+      ]
+    },
+    {
+      "canonical_key": "statement_setup_controls__source_currency",
+      "label": "Source Currency",
+      "inherits": "statement_setup_metadata",
+      "definition": "Currency in which the source financial statements are presented.",
+      "aliases": [
+        "Source Currency",
+        "Presentation Currency",
+        "Reporting Currency",
+        "Presented in"
+      ],
+      "keyword_hints": [
+        "currency",
+        "presentation currency",
+        "reporting currency"
+      ],
+      "include": [
+        "Use the presentation currency explicitly stated in the statements or accounting-policy note.",
+        "Return ISO 4217 code where determinable."
+      ],
+      "exclude": [
+        "Do not use functional currency, transaction currency or share denomination unless it is also the presentation currency."
+      ],
+      "data_type": "currency_code"
+    },
+    {
+      "canonical_key": "statement_setup_controls__target_currency",
+      "label": "Target Currency",
+      "inherits": "statement_setup_metadata",
+      "definition": "Currency required by the target spreading or downstream system.",
+      "aliases": [
+        "Target Currency",
+        "Output Currency",
+        "Spread Currency"
+      ],
+      "keyword_hints": [
+        "target",
+        "output",
+        "spread currency"
+      ],
+      "include": [
+        "Extract only when explicitly supplied in the template, instruction or system metadata."
+      ],
+      "exclude": [
+        "Do not assume that target currency equals source currency."
+      ],
+      "data_type": "currency_code",
+      "provenance_requirement": "template_or_user_instruction"
+    },
+    {
+      "canonical_key": "statement_setup_controls__statement_date",
+      "label": "Statement Date",
+      "inherits": "statement_setup_metadata",
+      "definition": "Financial statement reporting date or period end date.",
+      "aliases": [
+        "Statement Date",
+        "Reporting Date",
+        "Balance Sheet Date",
+        "As at",
+        "As of",
+        "Year ended",
+        "Period ended"
+      ],
+      "keyword_hints": [
+        "as at",
+        "as of",
+        "year ended",
+        "period ended",
+        "reporting date"
+      ],
+      "include": [
+        "For annual or interim statements, use the end date of the reporting period."
+      ],
+      "exclude": [
+        "Do not use the auditor report date, publication date, approval date or comparative period date."
+      ],
+      "data_type": "date",
+      "output_format": "DD/MM/YYYY"
+    },
+    {
+      "canonical_key": "statement_setup_controls__periods",
+      "label": "Periods",
+      "inherits": "statement_setup_metadata",
+      "definition": "Number of months covered by the current reporting period.",
+      "aliases": [
+        "Periods",
+        "Months in Period",
+        "Reporting Period Months",
+        "Period Length"
+      ],
+      "keyword_hints": [
+        "months",
+        "year ended",
+        "six months",
+        "quarter",
+        "period"
+      ],
+      "include": [
+        "Derive from explicit current-period start and end dates or explicit duration when available."
+      ],
+      "exclude": [
+        "Do not default to 12 if the statements are interim, stub-period or cover a changed year end."
+      ],
+      "extraction_mode": "derive",
+      "data_type": "integer",
+      "derivation": "completed_months_between(period_start, statement_date)"
+    },
+    {
+      "canonical_key": "statement_setup_controls__total_assets",
+      "label": "Total Assets",
+      "inherits": "statement_setup_derived_controls",
+      "definition": "Control total equal to total assets for the current reporting date.",
+      "aliases": [
+        "Total Assets"
+      ],
+      "keyword_hints": [
+        "total",
+        "assets"
+      ],
+      "include": [
+        "Populate from the referenced canonical key in the existing statement ontology."
+      ],
+      "exclude": [
+        "Do not independently extract a second value when the canonical statement output is available."
+      ],
+      "dependencies": [
+        "balance_sheet__total_assets"
+      ],
+      "data_type": "number"
+    },
+    {
+      "canonical_key": "statement_setup_controls__total_equity_reserves_liabilities",
+      "label": "Total Equity & Reserves & Liab",
+      "inherits": "statement_setup_derived_controls",
+      "definition": "Control total equal to total equity and liabilities for the current reporting date.",
+      "aliases": [
+        "Total Equity & Reserves & Liab"
+      ],
+      "keyword_hints": [
+        "total",
+        "equity",
+        "reserves",
+        "liab"
+      ],
+      "include": [
+        "Populate from the referenced canonical key in the existing statement ontology."
+      ],
+      "exclude": [
+        "Do not independently extract a second value when the canonical statement output is available."
+      ],
+      "dependencies": [
+        "balance_sheet__total_equity_and_liabilities"
+      ],
+      "data_type": "number"
+    },
+    {
+      "canonical_key": "statement_setup_controls__total_income_expenses",
+      "label": "Total Income & Expenses",
+      "inherits": "statement_setup_derived_controls",
+      "definition": "Control result from the income statement for the current reporting period.",
+      "aliases": [
+        "Total Income & Expenses"
+      ],
+      "keyword_hints": [
+        "total",
+        "income",
+        "expenses"
+      ],
+      "include": [
+        "Populate from the referenced canonical key in the existing statement ontology."
+      ],
+      "exclude": [
+        "Do not independently extract a second value when the canonical statement output is available."
+      ],
+      "dependencies": [
+        "income_statement__profit_loss_for_period"
+      ],
+      "data_type": "number"
+    },
+    {
+      "canonical_key": "statement_setup_controls__unexplained_adjustment_retained_profits",
+      "label": "Unexplained Adj to Ret Profits",
+      "inherits": "statement_setup_derived_controls",
+      "definition": "Residual control needed to reconcile opening retained profits, current-period movements and closing retained profits.",
+      "aliases": [
+        "Unexplained Adj to Ret Profits"
+      ],
+      "keyword_hints": [
+        "unexplained",
+        "adj",
+        "to",
+        "ret",
+        "profits"
+      ],
+      "include": [
+        "Populate from the referenced canonical key in the existing statement ontology."
+      ],
+      "exclude": [
+        "Do not independently extract a second value when the canonical statement output is available."
+      ],
+      "dependencies": [
+        "equity_rollforward__unexplained_adjustment_retained_profits"
+      ],
+      "data_type": "number"
+    },
+    {
+      "canonical_key": "statement_setup_controls__difference",
+      "label": "Difference",
+      "inherits": "statement_setup_derived_controls",
+      "definition": "Balance-sheet reconciliation difference between total assets and total equity and liabilities.",
+      "aliases": [
+        "Difference",
+        "Balance Difference",
+        "Reconciliation Difference"
+      ],
+      "keyword_hints": [
+        "difference",
+        "reconciliation",
+        "balance"
+      ],
+      "include": [
+        "Calculate after both control totals have been populated."
+      ],
+      "exclude": [
+        "Do not extract a printed subtotal or balancing figure."
+      ],
+      "dependencies": [
+        "statement_setup_controls__total_assets",
+        "statement_setup_controls__total_equity_reserves_liabilities"
+      ],
+      "formula": "total_assets - total_equity_reserves_liabilities",
+      "data_type": "number"
+    },
+    {
+      "canonical_key": "statement_setup_controls__audit_opinion",
+      "label": "Audit Opinion(Stmt Source)",
+      "inherits": "statement_setup_metadata",
+      "definition": "Type of external auditor opinion expressed on the financial statements.",
+      "aliases": [
+        "Audit Opinion(Stmt Source)",
+        "Audit Opinion",
+        "Auditor Opinion",
+        "Opinion"
+      ],
+      "keyword_hints": [
+        "independent auditor",
+        "opinion",
+        "qualified",
+        "unqualified",
+        "adverse",
+        "disclaimer"
+      ],
+      "include": [
+        "Classify from the formal audit opinion paragraph."
+      ],
+      "exclude": [
+        "Do not classify from key audit matters, emphasis of matter, going-concern sections or management statements alone."
+      ],
+      "data_type": "enum",
+      "allowed_values": [
+        "Unqualified",
+        "Qualified",
+        "Adverse",
+        "Disclaimer",
+        "Not audited",
+        "Review conclusion",
+        "Unknown"
+      ]
+    },
+    {
+      "canonical_key": "statement_setup_controls__accounting_standard",
+      "label": "Accounting Standard",
+      "inherits": "statement_setup_metadata",
+      "definition": "Financial reporting framework explicitly used to prepare the statements.",
+      "aliases": [
+        "Accounting Standard",
+        "Reporting Framework",
+        "Basis of Preparation",
+        "GAAP",
+        "Financial Reporting Standards"
+      ],
+      "keyword_hints": [
+        "IFRS",
+        "HKFRS",
+        "Ind AS",
+        "US GAAP",
+        "local GAAP",
+        "accounting standards"
+      ],
+      "include": [
+        "Use the explicit framework in the basis-of-preparation or auditor report."
+      ],
+      "exclude": [
+        "Do not infer the framework from the country of incorporation."
+      ],
+      "data_type": "string"
+    },
+    {
+      "canonical_key": "statement_setup_controls__accountant",
+      "label": "Accountant",
+      "inherits": "statement_setup_metadata",
+      "definition": "Name of the external auditor or reporting accountant associated with the financial statements.",
+      "aliases": [
+        "Accountant",
+        "Auditor",
+        "Independent Auditor",
+        "Reporting Accountant"
+      ],
+      "keyword_hints": [
+        "auditor",
+        "accountant",
+        "audit firm"
+      ],
+      "include": [
+        "Use the audit firm signing the report; capture engagement partner separately only if another ontology requires it."
+      ],
+      "exclude": [
+        "Do not use internal finance personnel, directors or company secretary."
+      ],
+      "data_type": "string"
+    },
+    {
+      "canonical_key": "statement_setup_controls__analyst",
+      "label": "Analyst",
+      "inherits": "workflow_control",
+      "definition": "Analyst assigned to prepare or review the financial spread.",
+      "aliases": [
+        "Analyst",
+        "Prepared By",
+        "Spreading Analyst"
+      ],
+      "keyword_hints": [
+        "analyst",
+        "prepared by"
+      ],
+      "include": [
+        "Populate from workflow metadata or user input."
+      ],
+      "exclude": [
+        "Do not extract a financial analyst named in an annual report."
+      ],
+      "data_type": "string"
+    },
+    {
+      "canonical_key": "statement_setup_controls__statement_type",
+      "label": "Statement type",
+      "inherits": "statement_setup_metadata",
+      "definition": "Frequency or reporting nature of the source statements.",
+      "aliases": [
+        "Statement type",
+        "Statement Type",
+        "Reporting Type",
+        "Annual/Interim"
+      ],
+      "keyword_hints": [
+        "annual",
+        "interim",
+        "quarterly",
+        "half-year",
+        "management accounts"
+      ],
+      "include": [
+        "Use explicit document title and reporting period."
+      ],
+      "exclude": [
+        "Do not equate audited with annual."
+      ],
+      "data_type": "enum",
+      "allowed_values": [
+        "Annual",
+        "Interim",
+        "Quarterly",
+        "Half-year",
+        "Management accounts",
+        "Other"
+      ]
+    },
+    {
+      "canonical_key": "statement_setup_controls__status",
+      "label": "Status",
+      "inherits": "workflow_control",
+      "definition": "Workflow status of the extraction or financial spread.",
+      "aliases": [
+        "Status",
+        "Extraction Status",
+        "Spread Status"
+      ],
+      "keyword_hints": [
+        "status",
+        "work in progress",
+        "completed",
+        "review"
+      ],
+      "include": [
+        "Populate from workflow state."
+      ],
+      "exclude": [
+        "Do not extract corporate status, listing status or going-concern status."
+      ],
+      "data_type": "enum",
+      "allowed_values": [
+        "Not Started",
+        "Work In Progress",
+        "Pending Review",
+        "Completed",
+        "Rejected"
+      ]
+    },
+    {
+      "canonical_key": "statement_setup_controls__reconcile_to",
+      "label": "Reconcile To",
+      "inherits": "statement_setup_metadata",
+      "definition": "Comparative reporting date against which the current-period statement is reconciled.",
+      "aliases": [
+        "Reconcile To",
+        "Comparative Date",
+        "Prior Period Date",
+        "Previous Statement Date"
+      ],
+      "keyword_hints": [
+        "comparative",
+        "prior year",
+        "previous period",
+        "reconcile"
+      ],
+      "include": [
+        "Use the comparative column date corresponding to the current statement."
+      ],
+      "exclude": [
+        "Do not use the earliest date in a multi-year summary."
+      ],
+      "data_type": "date",
+      "output_format": "DD/MM/YYYY"
+    },
+    {
+      "canonical_key": "covenants_supplemental__exchange_rate_period_end",
+      "label": "Exchange Rate(Period End)",
+      "inherits": "supplemental_instant",
+      "definition": "Exchange rate applicable at the reporting date for converting source currency into target currency.",
+      "aliases": [
+        "Exchange Rate(Period End)",
+        "Period End Exchange Rate",
+        "Closing Exchange Rate",
+        "Spot Rate at Period End"
+      ],
+      "keyword_hints": [
+        "closing rate",
+        "period end",
+        "spot rate"
+      ],
+      "include": [
+        "Extract only an explicitly reported amount matching the defined scope.",
+        "Retain the reported date, currency, unit and consolidation scope."
+      ],
+      "exclude": [
+        "Do not derive from statement balances or combine unrelated disclosures.",
+        "Do not convert nil, not applicable or absent disclosures into numeric zero unless the source explicitly reports zero."
+      ],
+      "data_type": "number"
+    },
+    {
+      "canonical_key": "covenants_supplemental__number_outstanding_common_shares",
+      "label": "Num Outstanding Common Shares",
+      "inherits": "supplemental_instant",
+      "definition": "Number of ordinary or common shares outstanding at the reporting date.",
+      "aliases": [
+        "Num Outstanding Common Shares",
+        "Common Shares Outstanding",
+        "Ordinary Shares Outstanding",
+        "Issued ordinary shares"
+      ],
+      "keyword_hints": [
+        "ordinary shares",
+        "common shares",
+        "outstanding",
+        "issued shares"
+      ],
+      "include": [
+        "Extract only an explicitly reported amount matching the defined scope.",
+        "Retain the reported date, currency, unit and consolidation scope."
+      ],
+      "exclude": [
+        "Do not derive from statement balances or combine unrelated disclosures.",
+        "Do not convert nil, not applicable or absent disclosures into numeric zero unless the source explicitly reports zero."
+      ],
+      "data_type": "number"
+    },
+    {
+      "canonical_key": "covenants_supplemental__number_outstanding_preferred_shares",
+      "label": "Num Outstanding Preferred Shares",
+      "inherits": "supplemental_instant",
+      "definition": "Number of preference or preferred shares outstanding at the reporting date.",
+      "aliases": [
+        "Num Outstanding Preferred Shares",
+        "Preferred Shares Outstanding",
+        "Preference Shares Outstanding",
+        "Issued preference shares"
+      ],
+      "keyword_hints": [
+        "preference shares",
+        "preferred shares",
+        "outstanding"
+      ],
+      "include": [
+        "Extract only an explicitly reported amount matching the defined scope.",
+        "Retain the reported date, currency, unit and consolidation scope."
+      ],
+      "exclude": [
+        "Do not derive from statement balances or combine unrelated disclosures.",
+        "Do not convert nil, not applicable or absent disclosures into numeric zero unless the source explicitly reports zero."
+      ],
+      "data_type": "number"
+    },
+    {
+      "canonical_key": "covenants_supplemental__number_employees",
+      "label": "Num Employees",
+      "inherits": "supplemental_instant",
+      "definition": "Reported number of employees or workforce headcount at or near the reporting date.",
+      "aliases": [
+        "Num Employees",
+        "Number of Employees",
+        "Employees",
+        "Headcount",
+        "Workforce"
+      ],
+      "keyword_hints": [
+        "employees",
+        "headcount",
+        "workforce",
+        "staff"
+      ],
+      "include": [
+        "Extract only an explicitly reported amount matching the defined scope.",
+        "Retain the reported date, currency, unit and consolidation scope."
+      ],
+      "exclude": [
+        "Do not derive from statement balances or combine unrelated disclosures.",
+        "Do not convert nil, not applicable or absent disclosures into numeric zero unless the source explicitly reports zero."
+      ],
+      "data_type": "number"
+    },
+    {
+      "canonical_key": "covenants_supplemental__net_technical_reserve_equity",
+      "label": "Net Technical Reserve(Equity side)*Insur. Co. Only",
+      "inherits": "supplemental_instant",
+      "definition": "Insurance technical reserve presented within equity, net where explicitly reported.",
+      "aliases": [
+        "Net Technical Reserve(Equity side)*Insur. Co. Only",
+        "Technical reserves in equity",
+        "Insurance reserve within equity"
+      ],
+      "keyword_hints": [
+        "technical reserve",
+        "equity",
+        "insurance"
+      ],
+      "include": [
+        "Extract only an explicitly reported amount matching the defined scope.",
+        "Retain the reported date, currency, unit and consolidation scope."
+      ],
+      "exclude": [
+        "Do not derive from statement balances or combine unrelated disclosures.",
+        "Do not convert nil, not applicable or absent disclosures into numeric zero unless the source explicitly reports zero."
+      ],
+      "data_type": "number"
+    },
+    {
+      "canonical_key": "covenants_supplemental__net_technical_reserve_liability",
+      "label": "Net Technical Reserve(Liab. side)*Insur. Co. Only",
+      "inherits": "supplemental_instant",
+      "definition": "Insurance technical reserve presented as a liability, net where explicitly reported.",
+      "aliases": [
+        "Net Technical Reserve(Liab. side)*Insur. Co. Only",
+        "Technical provisions",
+        "Insurance contract liabilities",
+        "Technical reserves liability"
+      ],
+      "keyword_hints": [
+        "technical reserve",
+        "technical provisions",
+        "insurance contract liabilities"
+      ],
+      "include": [
+        "Extract only an explicitly reported amount matching the defined scope.",
+        "Retain the reported date, currency, unit and consolidation scope."
+      ],
+      "exclude": [
+        "Do not derive from statement balances or combine unrelated disclosures.",
+        "Do not convert nil, not applicable or absent disclosures into numeric zero unless the source explicitly reports zero."
+      ],
+      "data_type": "number"
+    },
+    {
+      "canonical_key": "covenants_supplemental__off_balance_sheet_assets",
+      "label": "Off Balance Sheet Assets",
+      "inherits": "supplemental_instant",
+      "definition": "Reported off-balance-sheet asset-side exposure or memorandum asset amount.",
+      "aliases": [
+        "Off Balance Sheet Assets",
+        "Off-balance-sheet assets",
+        "Memorandum assets",
+        "OBS assets"
+      ],
+      "keyword_hints": [
+        "off balance sheet",
+        "memorandum",
+        "assets"
+      ],
+      "include": [
+        "Extract only an explicitly reported amount matching the defined scope.",
+        "Retain the reported date, currency, unit and consolidation scope."
+      ],
+      "exclude": [
+        "Do not derive from statement balances or combine unrelated disclosures.",
+        "Do not convert nil, not applicable or absent disclosures into numeric zero unless the source explicitly reports zero."
+      ],
+      "data_type": "number"
+    },
+    {
+      "canonical_key": "covenants_supplemental__operating_lease_commitments",
+      "label": "Operating Lease Commitments",
+      "inherits": "supplemental_instant",
+      "definition": "Reported future operating lease commitments not recognized on the statement of financial position, where applicable.",
+      "aliases": [
+        "Operating Lease Commitments",
+        "Operating lease commitments",
+        "Non-cancellable operating leases",
+        "Future minimum lease payments"
+      ],
+      "keyword_hints": [
+        "operating lease",
+        "commitments",
+        "minimum lease payments"
+      ],
+      "include": [
+        "Extract only an explicitly reported amount matching the defined scope.",
+        "Retain the reported date, currency, unit and consolidation scope."
+      ],
+      "exclude": [
+        "Do not derive from statement balances or combine unrelated disclosures.",
+        "Do not convert nil, not applicable or absent disclosures into numeric zero unless the source explicitly reports zero."
+      ],
+      "data_type": "number"
+    },
+    {
+      "canonical_key": "covenants_supplemental__off_balance_sheet_liabilities",
+      "label": "Off Balance Sheet Liabilities",
+      "inherits": "supplemental_instant",
+      "definition": "Reported off-balance-sheet liability, guarantee or memorandum liability amount.",
+      "aliases": [
+        "Off Balance Sheet Liabilities",
+        "Off-balance-sheet liabilities",
+        "Memorandum liabilities",
+        "OBS liabilities"
+      ],
+      "keyword_hints": [
+        "off balance sheet",
+        "guarantees",
+        "liabilities",
+        "commitments"
+      ],
+      "include": [
+        "Extract only an explicitly reported amount matching the defined scope.",
+        "Retain the reported date, currency, unit and consolidation scope."
+      ],
+      "exclude": [
+        "Do not derive from statement balances or combine unrelated disclosures.",
+        "Do not convert nil, not applicable or absent disclosures into numeric zero unless the source explicitly reports zero."
+      ],
+      "data_type": "number"
+    },
+    {
+      "canonical_key": "covenants_supplemental__exchange_rate_period_average",
+      "label": "Exchange Rate(Period Average)",
+      "inherits": "supplemental_duration",
+      "definition": "Average exchange rate applicable across the reporting period for converting source currency into target currency.",
+      "aliases": [
+        "Exchange Rate(Period Average)",
+        "Average Exchange Rate",
+        "Period Average Rate",
+        "Weighted Average Exchange Rate"
+      ],
+      "keyword_hints": [
+        "average rate",
+        "period average",
+        "weighted average",
+        "exchange rate"
+      ],
+      "include": [
+        "Extract from explicit conversion instructions or supplied rate tables."
+      ],
+      "exclude": [
+        "Do not compute a simple average of opening and closing rates unless the methodology explicitly requires it."
+      ],
+      "data_type": "number"
+    },
+    {
+      "canonical_key": "covenants_supplemental__gross_premium_written",
+      "label": "Gross Premium Written*Insur. Co. Only",
+      "inherits": "supplemental_duration",
+      "definition": "Reported gross premium written for an insurance entity during the reporting period.",
+      "aliases": [
+        "Gross Premium Written*Insur. Co. Only",
+        "Gross premiums written",
+        "Gross written premium",
+        "GWP"
+      ],
+      "keyword_hints": [
+        "gross premiums written",
+        "gross written premium",
+        "gwp"
+      ],
+      "include": [
+        "Extract only for insurance entities and preserve gross/net and life/non-life scope."
+      ],
+      "exclude": [
+        "Do not substitute revenue, premium income, earned premium or investment gains unless the source uses the required concept."
+      ],
+      "data_type": "number",
+      "industry_applicability": [
+        "insurance"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__gross_premium_written_life",
+      "label": "Gross Premium Written - life*Insur. Co. Only",
+      "inherits": "supplemental_duration",
+      "definition": "Reported gross premium written - life for an insurance entity during the reporting period.",
+      "aliases": [
+        "Gross Premium Written - life*Insur. Co. Only",
+        "Life gross premiums written",
+        "Gross written premium - life"
+      ],
+      "keyword_hints": [
+        "life gross premiums written",
+        "gross written premium - life"
+      ],
+      "include": [
+        "Extract only for insurance entities and preserve gross/net and life/non-life scope."
+      ],
+      "exclude": [
+        "Do not substitute revenue, premium income, earned premium or investment gains unless the source uses the required concept."
+      ],
+      "data_type": "number",
+      "industry_applicability": [
+        "insurance"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__gross_premium_written_non_life",
+      "label": "Gross Premium Written - Non-life*Insur. Co. Only",
+      "inherits": "supplemental_duration",
+      "definition": "Reported gross premium written - non-life for an insurance entity during the reporting period.",
+      "aliases": [
+        "Gross Premium Written - Non-life*Insur. Co. Only",
+        "Non-life gross premiums written",
+        "General insurance gross written premium"
+      ],
+      "keyword_hints": [
+        "non-life gross premiums written",
+        "general insurance gross written premium"
+      ],
+      "include": [
+        "Extract only for insurance entities and preserve gross/net and life/non-life scope."
+      ],
+      "exclude": [
+        "Do not substitute revenue, premium income, earned premium or investment gains unless the source uses the required concept."
+      ],
+      "data_type": "number",
+      "industry_applicability": [
+        "insurance"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__net_premium_written",
+      "label": "Net Premium Written*Insur. Co. Only",
+      "inherits": "supplemental_duration",
+      "definition": "Reported net premium written for an insurance entity during the reporting period.",
+      "aliases": [
+        "Net Premium Written*Insur. Co. Only",
+        "Net premiums written",
+        "Net written premium",
+        "NWP"
+      ],
+      "keyword_hints": [
+        "net premiums written",
+        "net written premium",
+        "nwp"
+      ],
+      "include": [
+        "Extract only for insurance entities and preserve gross/net and life/non-life scope."
+      ],
+      "exclude": [
+        "Do not substitute revenue, premium income, earned premium or investment gains unless the source uses the required concept."
+      ],
+      "data_type": "number",
+      "industry_applicability": [
+        "insurance"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__net_investment_income_insurance",
+      "label": "Net Investment Income*Insur. Co. Only",
+      "inherits": "supplemental_duration",
+      "definition": "Reported net investment income for an insurance entity during the reporting period.",
+      "aliases": [
+        "Net Investment Income*Insur. Co. Only",
+        "Net investment income",
+        "Insurance investment income, net"
+      ],
+      "keyword_hints": [
+        "net investment income",
+        "insurance investment income, net"
+      ],
+      "include": [
+        "Extract only for insurance entities and preserve gross/net and life/non-life scope."
+      ],
+      "exclude": [
+        "Do not substitute revenue, premium income, earned premium or investment gains unless the source uses the required concept."
+      ],
+      "data_type": "number",
+      "industry_applicability": [
+        "insurance"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__minimum_working_capital",
+      "label": "Min Working Capital",
+      "inherits": "covenant_threshold",
+      "definition": "Minimum working capital required under a covenant.",
+      "aliases": [
+        "Min Working Capital",
+        "Minimum Working Capital"
+      ],
+      "keyword_hints": [
+        "working",
+        "capital"
+      ],
+      "include": [
+        "Extract the contractual threshold, operator, measurement basis, testing date/frequency and currency or ratio unit when stated."
+      ],
+      "exclude": [
+        "Do not populate with the entity's actual calculated ratio or balance.",
+        "Do not infer a covenant from management targets, regulatory ratios, forecasts or historical performance."
+      ],
+      "data_type": "number",
+      "capture_operator": true,
+      "value_unit": "monetary_amount",
+      "required_context": [
+        "covenant_operator",
+        "testing_frequency",
+        "measurement_definition"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__minimum_current_ratio",
+      "label": "Min Current Ratio",
+      "inherits": "covenant_threshold",
+      "definition": "Minimum current ratio required under a covenant.",
+      "aliases": [
+        "Min Current Ratio",
+        "Minimum Current Ratio"
+      ],
+      "keyword_hints": [
+        "current",
+        "ratio"
+      ],
+      "include": [
+        "Extract the contractual threshold, operator, measurement basis, testing date/frequency and currency or ratio unit when stated."
+      ],
+      "exclude": [
+        "Do not populate with the entity's actual calculated ratio or balance.",
+        "Do not infer a covenant from management targets, regulatory ratios, forecasts or historical performance."
+      ],
+      "data_type": "number",
+      "capture_operator": true,
+      "value_unit": "ratio_or_days",
+      "required_context": [
+        "covenant_operator",
+        "testing_frequency",
+        "measurement_definition"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__minimum_quick_ratio",
+      "label": "Min Quick Ratio",
+      "inherits": "covenant_threshold",
+      "definition": "Minimum quick ratio required under a covenant.",
+      "aliases": [
+        "Min Quick Ratio",
+        "Minimum Quick Ratio"
+      ],
+      "keyword_hints": [
+        "quick",
+        "ratio"
+      ],
+      "include": [
+        "Extract the contractual threshold, operator, measurement basis, testing date/frequency and currency or ratio unit when stated."
+      ],
+      "exclude": [
+        "Do not populate with the entity's actual calculated ratio or balance.",
+        "Do not infer a covenant from management targets, regulatory ratios, forecasts or historical performance."
+      ],
+      "data_type": "number",
+      "capture_operator": true,
+      "value_unit": "ratio_or_days",
+      "required_context": [
+        "covenant_operator",
+        "testing_frequency",
+        "measurement_definition"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__maximum_debt_to_tangible_worth",
+      "label": "Max Debt to Tangible Worth",
+      "inherits": "covenant_threshold",
+      "definition": "Maximum debt-to-tangible-net-worth ratio permitted under a covenant.",
+      "aliases": [
+        "Max Debt to Tangible Worth",
+        "Maximum Debt to Tangible Worth"
+      ],
+      "keyword_hints": [
+        "debt",
+        "to",
+        "tangible",
+        "worth"
+      ],
+      "include": [
+        "Extract the contractual threshold, operator, measurement basis, testing date/frequency and currency or ratio unit when stated."
+      ],
+      "exclude": [
+        "Do not populate with the entity's actual calculated ratio or balance.",
+        "Do not infer a covenant from management targets, regulatory ratios, forecasts or historical performance."
+      ],
+      "data_type": "number",
+      "capture_operator": true,
+      "value_unit": "ratio_or_days",
+      "required_context": [
+        "covenant_operator",
+        "testing_frequency",
+        "measurement_definition"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__minimum_interest_coverage",
+      "label": "Min Interest Coverage",
+      "inherits": "covenant_threshold",
+      "definition": "Minimum interest coverage ratio required under a covenant.",
+      "aliases": [
+        "Min Interest Coverage",
+        "Minimum Interest Coverage"
+      ],
+      "keyword_hints": [
+        "interest",
+        "coverage"
+      ],
+      "include": [
+        "Extract the contractual threshold, operator, measurement basis, testing date/frequency and currency or ratio unit when stated."
+      ],
+      "exclude": [
+        "Do not populate with the entity's actual calculated ratio or balance.",
+        "Do not infer a covenant from management targets, regulatory ratios, forecasts or historical performance."
+      ],
+      "data_type": "number",
+      "capture_operator": true,
+      "value_unit": "ratio_or_days",
+      "required_context": [
+        "covenant_operator",
+        "testing_frequency",
+        "measurement_definition"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__minimum_earnings_coverage",
+      "label": "Min Earnings Coverage",
+      "inherits": "covenant_threshold",
+      "definition": "Minimum earnings coverage ratio required under a covenant.",
+      "aliases": [
+        "Min Earnings Coverage",
+        "Minimum Earnings Coverage"
+      ],
+      "keyword_hints": [
+        "earnings",
+        "coverage"
+      ],
+      "include": [
+        "Extract the contractual threshold, operator, measurement basis, testing date/frequency and currency or ratio unit when stated."
+      ],
+      "exclude": [
+        "Do not populate with the entity's actual calculated ratio or balance.",
+        "Do not infer a covenant from management targets, regulatory ratios, forecasts or historical performance."
+      ],
+      "data_type": "number",
+      "capture_operator": true,
+      "value_unit": "ratio_or_days",
+      "required_context": [
+        "covenant_operator",
+        "testing_frequency",
+        "measurement_definition"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__minimum_cash_flow_coverage",
+      "label": "Min Cash Flow Coverage",
+      "inherits": "covenant_threshold",
+      "definition": "Minimum cash-flow coverage ratio required under a covenant.",
+      "aliases": [
+        "Min Cash Flow Coverage",
+        "Minimum Cash Flow Coverage"
+      ],
+      "keyword_hints": [
+        "cash",
+        "flow",
+        "coverage"
+      ],
+      "include": [
+        "Extract the contractual threshold, operator, measurement basis, testing date/frequency and currency or ratio unit when stated."
+      ],
+      "exclude": [
+        "Do not populate with the entity's actual calculated ratio or balance.",
+        "Do not infer a covenant from management targets, regulatory ratios, forecasts or historical performance."
+      ],
+      "data_type": "number",
+      "capture_operator": true,
+      "value_unit": "ratio_or_days",
+      "required_context": [
+        "covenant_operator",
+        "testing_frequency",
+        "measurement_definition"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__maximum_capital_expenditures",
+      "label": "Max Capital Expenditures",
+      "inherits": "covenant_threshold",
+      "definition": "Maximum capital expenditure amount permitted under a covenant.",
+      "aliases": [
+        "Max Capital Expenditures",
+        "Maximum Capital Expenditures"
+      ],
+      "keyword_hints": [
+        "capital",
+        "expenditures"
+      ],
+      "include": [
+        "Extract the contractual threshold, operator, measurement basis, testing date/frequency and currency or ratio unit when stated."
+      ],
+      "exclude": [
+        "Do not populate with the entity's actual calculated ratio or balance.",
+        "Do not infer a covenant from management targets, regulatory ratios, forecasts or historical performance."
+      ],
+      "data_type": "number",
+      "capture_operator": true,
+      "value_unit": "monetary_amount",
+      "required_context": [
+        "covenant_operator",
+        "testing_frequency",
+        "measurement_definition"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__maximum_off_balance_sheet_leverage",
+      "label": "Max Off Balance Sheet Leverage",
+      "inherits": "covenant_threshold",
+      "definition": "Maximum off-balance-sheet leverage permitted under a covenant.",
+      "aliases": [
+        "Max Off Balance Sheet Leverage",
+        "Maximum Off Balance Sheet Leverage"
+      ],
+      "keyword_hints": [
+        "off",
+        "balance",
+        "sheet",
+        "leverage"
+      ],
+      "include": [
+        "Extract the contractual threshold, operator, measurement basis, testing date/frequency and currency or ratio unit when stated."
+      ],
+      "exclude": [
+        "Do not populate with the entity's actual calculated ratio or balance.",
+        "Do not infer a covenant from management targets, regulatory ratios, forecasts or historical performance."
+      ],
+      "data_type": "number",
+      "capture_operator": true,
+      "value_unit": "ratio_or_days",
+      "required_context": [
+        "covenant_operator",
+        "testing_frequency",
+        "measurement_definition"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__minimum_net_profit_margin",
+      "label": "Min Net Profit Margin",
+      "inherits": "covenant_threshold",
+      "definition": "Minimum net profit margin required under a covenant.",
+      "aliases": [
+        "Min Net Profit Margin",
+        "Minimum Net Profit Margin"
+      ],
+      "keyword_hints": [
+        "net",
+        "profit",
+        "margin"
+      ],
+      "include": [
+        "Extract the contractual threshold, operator, measurement basis, testing date/frequency and currency or ratio unit when stated."
+      ],
+      "exclude": [
+        "Do not populate with the entity's actual calculated ratio or balance.",
+        "Do not infer a covenant from management targets, regulatory ratios, forecasts or historical performance."
+      ],
+      "data_type": "number",
+      "capture_operator": true,
+      "value_unit": "ratio_or_days",
+      "required_context": [
+        "covenant_operator",
+        "testing_frequency",
+        "measurement_definition"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__minimum_return_on_assets",
+      "label": "Min Return on Assets",
+      "inherits": "covenant_threshold",
+      "definition": "Minimum return on assets required under a covenant.",
+      "aliases": [
+        "Min Return on Assets",
+        "Minimum Return on Assets"
+      ],
+      "keyword_hints": [
+        "return",
+        "on",
+        "assets"
+      ],
+      "include": [
+        "Extract the contractual threshold, operator, measurement basis, testing date/frequency and currency or ratio unit when stated."
+      ],
+      "exclude": [
+        "Do not populate with the entity's actual calculated ratio or balance.",
+        "Do not infer a covenant from management targets, regulatory ratios, forecasts or historical performance."
+      ],
+      "data_type": "number",
+      "capture_operator": true,
+      "value_unit": "ratio_or_days",
+      "required_context": [
+        "covenant_operator",
+        "testing_frequency",
+        "measurement_definition"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__minimum_return_on_equity",
+      "label": "Min Return on Equity",
+      "inherits": "covenant_threshold",
+      "definition": "Minimum return on equity required under a covenant.",
+      "aliases": [
+        "Min Return on Equity",
+        "Minimum Return on Equity"
+      ],
+      "keyword_hints": [
+        "return",
+        "on",
+        "equity"
+      ],
+      "include": [
+        "Extract the contractual threshold, operator, measurement basis, testing date/frequency and currency or ratio unit when stated."
+      ],
+      "exclude": [
+        "Do not populate with the entity's actual calculated ratio or balance.",
+        "Do not infer a covenant from management targets, regulatory ratios, forecasts or historical performance."
+      ],
+      "data_type": "number",
+      "capture_operator": true,
+      "value_unit": "ratio_or_days",
+      "required_context": [
+        "covenant_operator",
+        "testing_frequency",
+        "measurement_definition"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__maximum_net_trade_receivable_days",
+      "label": "Max Net Trade Receivable Days",
+      "inherits": "covenant_threshold",
+      "definition": "Maximum net trade receivable days permitted under a covenant.",
+      "aliases": [
+        "Max Net Trade Receivable Days",
+        "Maximum Net Trade Receivable Days"
+      ],
+      "keyword_hints": [
+        "net",
+        "trade",
+        "receivable",
+        "days"
+      ],
+      "include": [
+        "Extract the contractual threshold, operator, measurement basis, testing date/frequency and currency or ratio unit when stated."
+      ],
+      "exclude": [
+        "Do not populate with the entity's actual calculated ratio or balance.",
+        "Do not infer a covenant from management targets, regulatory ratios, forecasts or historical performance."
+      ],
+      "data_type": "number",
+      "capture_operator": true,
+      "value_unit": "ratio_or_days",
+      "required_context": [
+        "covenant_operator",
+        "testing_frequency",
+        "measurement_definition"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__maximum_inventory_days",
+      "label": "Max Inventory Days",
+      "inherits": "covenant_threshold",
+      "definition": "Maximum inventory days permitted under a covenant.",
+      "aliases": [
+        "Max Inventory Days",
+        "Maximum Inventory Days"
+      ],
+      "keyword_hints": [
+        "inventory",
+        "days"
+      ],
+      "include": [
+        "Extract the contractual threshold, operator, measurement basis, testing date/frequency and currency or ratio unit when stated."
+      ],
+      "exclude": [
+        "Do not populate with the entity's actual calculated ratio or balance.",
+        "Do not infer a covenant from management targets, regulatory ratios, forecasts or historical performance."
+      ],
+      "data_type": "number",
+      "capture_operator": true,
+      "value_unit": "ratio_or_days",
+      "required_context": [
+        "covenant_operator",
+        "testing_frequency",
+        "measurement_definition"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__maximum_trade_payable_days",
+      "label": "Max Trade Payable Days",
+      "inherits": "covenant_threshold",
+      "definition": "Maximum trade payable days permitted under a covenant.",
+      "aliases": [
+        "Max Trade Payable Days",
+        "Maximum Trade Payable Days"
+      ],
+      "keyword_hints": [
+        "trade",
+        "payable",
+        "days"
+      ],
+      "include": [
+        "Extract the contractual threshold, operator, measurement basis, testing date/frequency and currency or ratio unit when stated."
+      ],
+      "exclude": [
+        "Do not populate with the entity's actual calculated ratio or balance.",
+        "Do not infer a covenant from management targets, regulatory ratios, forecasts or historical performance."
+      ],
+      "data_type": "number",
+      "capture_operator": true,
+      "value_unit": "ratio_or_days",
+      "required_context": [
+        "covenant_operator",
+        "testing_frequency",
+        "measurement_definition"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__maximum_sales_growth",
+      "label": "Max Sales Growth",
+      "inherits": "covenant_threshold",
+      "definition": "Maximum sales growth permitted under a covenant.",
+      "aliases": [
+        "Max Sales Growth",
+        "Maximum Sales Growth"
+      ],
+      "keyword_hints": [
+        "sales",
+        "growth"
+      ],
+      "include": [
+        "Extract the contractual threshold, operator, measurement basis, testing date/frequency and currency or ratio unit when stated."
+      ],
+      "exclude": [
+        "Do not populate with the entity's actual calculated ratio or balance.",
+        "Do not infer a covenant from management targets, regulatory ratios, forecasts or historical performance."
+      ],
+      "data_type": "number",
+      "capture_operator": true,
+      "value_unit": "ratio_or_days",
+      "required_context": [
+        "covenant_operator",
+        "testing_frequency",
+        "measurement_definition"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__minimum_tangible_net_worth",
+      "label": "Min Tangible Net Worth",
+      "inherits": "covenant_threshold",
+      "definition": "Minimum tangible net worth required under a covenant.",
+      "aliases": [
+        "Min Tangible Net Worth",
+        "Minimum Tangible Net Worth"
+      ],
+      "keyword_hints": [
+        "tangible",
+        "net",
+        "worth"
+      ],
+      "include": [
+        "Extract the contractual threshold, operator, measurement basis, testing date/frequency and currency or ratio unit when stated."
+      ],
+      "exclude": [
+        "Do not populate with the entity's actual calculated ratio or balance.",
+        "Do not infer a covenant from management targets, regulatory ratios, forecasts or historical performance."
+      ],
+      "data_type": "number",
+      "capture_operator": true,
+      "value_unit": "monetary_amount",
+      "required_context": [
+        "covenant_operator",
+        "testing_frequency",
+        "measurement_definition"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__maximum_subordinated_debt",
+      "label": "Max Subordinated Debt",
+      "inherits": "covenant_threshold",
+      "definition": "Maximum subordinated debt permitted under a covenant.",
+      "aliases": [
+        "Max Subordinated Debt",
+        "Maximum Subordinated Debt"
+      ],
+      "keyword_hints": [
+        "subordinated",
+        "debt"
+      ],
+      "include": [
+        "Extract the contractual threshold, operator, measurement basis, testing date/frequency and currency or ratio unit when stated."
+      ],
+      "exclude": [
+        "Do not populate with the entity's actual calculated ratio or balance.",
+        "Do not infer a covenant from management targets, regulatory ratios, forecasts or historical performance."
+      ],
+      "data_type": "number",
+      "capture_operator": true,
+      "value_unit": "monetary_amount",
+      "required_context": [
+        "covenant_operator",
+        "testing_frequency",
+        "measurement_definition"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__maximum_cash_dividends",
+      "label": "Max Cash Dividends",
+      "inherits": "covenant_threshold",
+      "definition": "Maximum cash dividends permitted under a covenant.",
+      "aliases": [
+        "Max Cash Dividends",
+        "Maximum Cash Dividends"
+      ],
+      "keyword_hints": [
+        "cash",
+        "dividends"
+      ],
+      "include": [
+        "Extract the contractual threshold, operator, measurement basis, testing date/frequency and currency or ratio unit when stated."
+      ],
+      "exclude": [
+        "Do not populate with the entity's actual calculated ratio or balance.",
+        "Do not infer a covenant from management targets, regulatory ratios, forecasts or historical performance."
+      ],
+      "data_type": "number",
+      "capture_operator": true,
+      "value_unit": "monetary_amount",
+      "required_context": [
+        "covenant_operator",
+        "testing_frequency",
+        "measurement_definition"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__minimum_cash_balance",
+      "label": "Min Cash Balance",
+      "inherits": "covenant_threshold",
+      "definition": "Minimum cash balance required under a covenant.",
+      "aliases": [
+        "Min Cash Balance",
+        "Minimum Cash Balance"
+      ],
+      "keyword_hints": [
+        "cash",
+        "balance"
+      ],
+      "include": [
+        "Extract the contractual threshold, operator, measurement basis, testing date/frequency and currency or ratio unit when stated."
+      ],
+      "exclude": [
+        "Do not populate with the entity's actual calculated ratio or balance.",
+        "Do not infer a covenant from management targets, regulatory ratios, forecasts or historical performance."
+      ],
+      "data_type": "number",
+      "capture_operator": true,
+      "value_unit": "monetary_amount",
+      "required_context": [
+        "covenant_operator",
+        "testing_frequency",
+        "measurement_definition"
+      ]
+    },
+    {
+      "canonical_key": "covenants_supplemental__capital_commitments_fixed_assets",
+      "label": "Capital commitments for fixed assets",
+      "inherits": "commitment_balance",
+      "definition": "Contracted or authorized capital commitments specifically for property, plant, equipment or other fixed assets.",
+      "aliases": [
+        "Capital commitments for fixed assets",
+        "Capital commitments for fixed assets"
+      ],
+      "keyword_hints": [
+        "capital",
+        "commitments",
+        "fixed",
+        "assets"
+      ],
+      "include": [
+        "Extract the current reporting-date commitment and preserve contracted/authorized scope and maturity bucket."
+      ],
+      "exclude": [
+        "Do not use capital expenditure incurred, carrying amount, purchase price already recognized or lease liabilities recognized on balance sheet.",
+        "Do not double count a total and its components."
+      ],
+      "data_type": "number",
+      "aggregation_role": "component"
+    },
+    {
+      "canonical_key": "covenants_supplemental__capital_commitments_long_term_assets",
+      "label": "Capital commitments for LT assets",
+      "inherits": "commitment_balance",
+      "definition": "Capital commitments specifically for non-current or long-term assets other than separately classified fixed, intangible or investment commitments.",
+      "aliases": [
+        "Capital commitments for LT assets",
+        "Capital commitments for Long-term assets"
+      ],
+      "keyword_hints": [
+        "capital",
+        "commitments",
+        "lt",
+        "assets"
+      ],
+      "include": [
+        "Extract the current reporting-date commitment and preserve contracted/authorized scope and maturity bucket."
+      ],
+      "exclude": [
+        "Do not use capital expenditure incurred, carrying amount, purchase price already recognized or lease liabilities recognized on balance sheet.",
+        "Do not double count a total and its components."
+      ],
+      "data_type": "number",
+      "aggregation_role": "component"
+    },
+    {
+      "canonical_key": "covenants_supplemental__capital_commitments_intangible_assets",
+      "label": "Capital commitments for intangible assets",
+      "inherits": "commitment_balance",
+      "definition": "Capital commitments specifically for intangible assets.",
+      "aliases": [
+        "Capital commitments for intangible assets",
+        "Capital commitments for intangible assets"
+      ],
+      "keyword_hints": [
+        "capital",
+        "commitments",
+        "intangible",
+        "assets"
+      ],
+      "include": [
+        "Extract the current reporting-date commitment and preserve contracted/authorized scope and maturity bucket."
+      ],
+      "exclude": [
+        "Do not use capital expenditure incurred, carrying amount, purchase price already recognized or lease liabilities recognized on balance sheet.",
+        "Do not double count a total and its components."
+      ],
+      "data_type": "number",
+      "aggregation_role": "component"
+    },
+    {
+      "canonical_key": "covenants_supplemental__capital_commitments_investments",
+      "label": "Capital Commitments for Investments",
+      "inherits": "commitment_balance",
+      "definition": "Capital commitments specifically for investments, associates, joint ventures or financial investments.",
+      "aliases": [
+        "Capital Commitments for Investments",
+        "Capital Commitments for Investments"
+      ],
+      "keyword_hints": [
+        "capital",
+        "commitments",
+        "investments"
+      ],
+      "include": [
+        "Extract the current reporting-date commitment and preserve contracted/authorized scope and maturity bucket."
+      ],
+      "exclude": [
+        "Do not use capital expenditure incurred, carrying amount, purchase price already recognized or lease liabilities recognized on balance sheet.",
+        "Do not double count a total and its components."
+      ],
+      "data_type": "number",
+      "aggregation_role": "component"
+    },
+    {
+      "canonical_key": "covenants_supplemental__capital_commitments_total",
+      "label": "Capital Commitments",
+      "inherits": "commitment_balance",
+      "definition": "Total reported capital commitments across relevant categories.",
+      "aliases": [
+        "Capital Commitments",
+        "Capital Commitments"
+      ],
+      "keyword_hints": [
+        "capital",
+        "commitments"
+      ],
+      "include": [
+        "Extract the current reporting-date commitment and preserve contracted/authorized scope and maturity bucket."
+      ],
+      "exclude": [
+        "Do not use capital expenditure incurred, carrying amount, purchase price already recognized or lease liabilities recognized on balance sheet.",
+        "Do not double count a total and its components."
+      ],
+      "data_type": "number",
+      "aggregation_role": "reported_total"
+    },
+    {
+      "canonical_key": "covenants_supplemental__operating_lease_commitments_notes",
+      "label": "Operating Lease Commitments (Notes)",
+      "inherits": "commitment_balance",
+      "definition": "Operating lease commitments disclosed in the notes, including maturity buckets where reported.",
+      "aliases": [
+        "Operating Lease Commitments (Notes)",
+        "Operating Lease Commitments (Notes)"
+      ],
+      "keyword_hints": [
+        "operating",
+        "lease",
+        "commitments",
+        "notes"
+      ],
+      "include": [
+        "Extract the current reporting-date commitment and preserve contracted/authorized scope and maturity bucket."
+      ],
+      "exclude": [
+        "Do not use capital expenditure incurred, carrying amount, purchase price already recognized or lease liabilities recognized on balance sheet.",
+        "Do not double count a total and its components."
+      ],
+      "data_type": "number",
+      "aggregation_role": "component"
+    },
+    {
+      "canonical_key": "financial_statement_notes__related_party_transactions",
+      "label": "Related Party Transactions",
+      "inherits": "narrative_note",
+      "definition": "Narrative and quantitative disclosure of transactions and balances with related parties, including relationship, transaction type, amount, outstanding balance and terms.",
+      "aliases": [
+        "Related Party Transactions",
+        "Related party transactions",
+        "Transactions with related parties",
+        "Connected party transactions"
+      ],
+      "keyword_hints": [
+        "related party",
+        "key management",
+        "associate",
+        "joint venture",
+        "parent",
+        "subsidiary"
+      ],
+      "include": [
+        "Capture the complete relevant disclosure with note number, reporting period, currency, unit, scope and exact source location.",
+        "Preserve separate amounts and categories as structured child facts where available."
+      ],
+      "exclude": [
+        "Do not replace the disclosure with an unsupported summary.",
+        "Do not duplicate information already captured under a more specific note key.",
+        "Do not infer a numeric zero from silence."
+      ],
+      "data_type": "object",
+      "output_fields": [
+        "summary",
+        "reported_facts",
+        "currency",
+        "unit",
+        "period",
+        "note_number",
+        "source_page",
+        "source_text"
+      ]
+    },
+    {
+      "canonical_key": "financial_statement_notes__pledged_assets",
+      "label": "Pledged Assets",
+      "inherits": "narrative_note",
+      "definition": "Narrative and quantitative disclosure of assets pledged, charged, mortgaged or otherwise provided as security.",
+      "aliases": [
+        "Pledged Assets",
+        "Pledged assets",
+        "Assets pledged as security",
+        "Charged assets",
+        "Mortgaged assets",
+        "Security over assets"
+      ],
+      "keyword_hints": [
+        "pledged",
+        "charged",
+        "mortgaged",
+        "security",
+        "collateral"
+      ],
+      "include": [
+        "Capture the complete relevant disclosure with note number, reporting period, currency, unit, scope and exact source location.",
+        "Preserve separate amounts and categories as structured child facts where available."
+      ],
+      "exclude": [
+        "Do not replace the disclosure with an unsupported summary.",
+        "Do not duplicate information already captured under a more specific note key.",
+        "Do not infer a numeric zero from silence."
+      ],
+      "data_type": "object",
+      "output_fields": [
+        "summary",
+        "reported_facts",
+        "currency",
+        "unit",
+        "period",
+        "note_number",
+        "source_page",
+        "source_text"
+      ]
+    },
+    {
+      "canonical_key": "financial_statement_notes__secured_borrowings",
+      "label": "Secure Borrowings",
+      "inherits": "narrative_note",
+      "definition": "Narrative and quantitative disclosure of secured borrowings, including instrument, current/non-current split, security, currency, rate and maturity.",
+      "aliases": [
+        "Secure Borrowings",
+        "Secure Borrowings",
+        "Secured Borrowings",
+        "Borrowings secured",
+        "Secured loans"
+      ],
+      "keyword_hints": [
+        "secured",
+        "borrowings",
+        "loans",
+        "security",
+        "charge"
+      ],
+      "include": [
+        "Capture the complete relevant disclosure with note number, reporting period, currency, unit, scope and exact source location.",
+        "Preserve separate amounts and categories as structured child facts where available."
+      ],
+      "exclude": [
+        "Do not replace the disclosure with an unsupported summary.",
+        "Do not duplicate information already captured under a more specific note key.",
+        "Do not infer a numeric zero from silence."
+      ],
+      "data_type": "object",
+      "output_fields": [
+        "summary",
+        "reported_facts",
+        "currency",
+        "unit",
+        "period",
+        "note_number",
+        "source_page",
+        "source_text"
+      ]
+    },
+    {
+      "canonical_key": "financial_statement_notes__derivatives",
+      "label": "Derivatives",
+      "inherits": "narrative_note",
+      "definition": "Narrative and quantitative disclosure of derivative instruments, including type, purpose, notional amount, fair value, asset/liability classification and hedge designation.",
+      "aliases": [
+        "Derivatives",
+        "Derivatives",
+        "Derivative financial instruments",
+        "Hedging instruments",
+        "Forward contracts",
+        "Swaps",
+        "Options"
+      ],
+      "keyword_hints": [
+        "derivative",
+        "forward",
+        "swap",
+        "option",
+        "hedge",
+        "notional",
+        "fair value"
+      ],
+      "include": [
+        "Capture the complete relevant disclosure with note number, reporting period, currency, unit, scope and exact source location.",
+        "Preserve separate amounts and categories as structured child facts where available."
+      ],
+      "exclude": [
+        "Do not replace the disclosure with an unsupported summary.",
+        "Do not duplicate information already captured under a more specific note key.",
+        "Do not infer a numeric zero from silence."
+      ],
+      "data_type": "object",
+      "output_fields": [
+        "summary",
+        "reported_facts",
+        "currency",
+        "unit",
+        "period",
+        "note_number",
+        "source_page",
+        "source_text"
+      ]
+    },
+    {
+      "canonical_key": "financial_statement_notes__contingent_liabilities",
+      "label": "Contingent liabilities",
+      "inherits": "narrative_note",
+      "definition": "Narrative and quantitative disclosure of possible obligations and contingent liabilities, including guarantees, litigation, claims and uncertain obligations.",
+      "aliases": [
+        "Contingent liabilities",
+        "Contingent liabilities",
+        "Contingencies",
+        "Guarantees",
+        "Litigation and claims",
+        "Possible obligations"
+      ],
+      "keyword_hints": [
+        "contingent",
+        "guarantee",
+        "litigation",
+        "claim",
+        "possible obligation"
+      ],
+      "include": [
+        "Capture the complete relevant disclosure with note number, reporting period, currency, unit, scope and exact source location.",
+        "Preserve separate amounts and categories as structured child facts where available."
+      ],
+      "exclude": [
+        "Do not replace the disclosure with an unsupported summary.",
+        "Do not duplicate information already captured under a more specific note key.",
+        "Do not infer a numeric zero from silence."
+      ],
+      "data_type": "object",
+      "output_fields": [
+        "summary",
+        "reported_facts",
+        "currency",
+        "unit",
+        "period",
+        "note_number",
+        "source_page",
+        "source_text"
+      ]
+    },
+    {
+      "canonical_key": "financial_statement_notes__auditors_opinion_text",
+      "label": "Auditor's opinion",
+      "inherits": "narrative_note",
+      "definition": "Verbatim classification-oriented summary of the independent auditor's opinion and separately identified opinion-related sections.",
+      "aliases": [
+        "Auditor's opinion",
+        "Auditor's opinion",
+        "Independent auditor's opinion",
+        "Basis for opinion",
+        "Emphasis of matter",
+        "Material uncertainty related to going concern"
+      ],
+      "keyword_hints": [
+        "opinion",
+        "qualified",
+        "unqualified",
+        "adverse",
+        "disclaimer",
+        "going concern",
+        "emphasis"
+      ],
+      "include": [
+        "Capture the complete relevant disclosure with note number, reporting period, currency, unit, scope and exact source location.",
+        "Preserve separate amounts and categories as structured child facts where available."
+      ],
+      "exclude": [
+        "Do not replace the disclosure with an unsupported summary.",
+        "Do not duplicate information already captured under a more specific note key.",
+        "Do not infer a numeric zero from silence."
+      ],
+      "data_type": "object",
+      "output_fields": [
+        "summary",
+        "reported_facts",
+        "currency",
+        "unit",
+        "period",
+        "note_number",
+        "source_page",
+        "source_text"
+      ]
+    },
+    {
+      "canonical_key": "financial_statement_notes__other_notes",
+      "label": "其他Notes",
+      "inherits": "narrative_note",
+      "definition": "Other material note disclosures required by the target workflow but not covered by a more specific canonical note key.",
+      "aliases": [
+        "其他Notes",
+        "其他Notes",
+        "Other Notes",
+        "Additional Notes",
+        "Other disclosures"
+      ],
+      "keyword_hints": [
+        "other",
+        "additional",
+        "material disclosure"
+      ],
+      "include": [
+        "Capture the complete relevant disclosure with note number, reporting period, currency, unit, scope and exact source location.",
+        "Preserve separate amounts and categories as structured child facts where available."
+      ],
+      "exclude": [
+        "Do not replace the disclosure with an unsupported summary.",
+        "Do not duplicate information already captured under a more specific note key.",
+        "Do not infer a numeric zero from silence."
+      ],
+      "data_type": "object",
+      "output_fields": [
+        "summary",
+        "reported_facts",
+        "currency",
+        "unit",
+        "period",
+        "note_number",
+        "source_page",
+        "source_text"
+      ]
+    },
+    {
+      "canonical_key": "financial_statement_notes__confirmed_with_rm",
+      "label": "Confirmed with RM",
+      "inherits": "workflow_control",
+      "definition": "Relationship-manager confirmation status for the extracted financial statement information.",
+      "aliases": [
+        "Confirmed with RM",
+        "RM Confirmation",
+        "Relationship Manager Confirmation"
+      ],
+      "keyword_hints": [
+        "confirmed",
+        "RM",
+        "relationship manager",
+        "confirmation"
+      ],
+      "include": [
+        "Populate only from workflow metadata or an explicit confirmation record."
+      ],
+      "exclude": [
+        "Do not infer confirmation from an email recipient, document author, analyst name or completed extraction status."
+      ],
+      "data_type": "enum",
+      "allowed_values": [
+        "Confirmed",
+        "Not Confirmed",
+        "Pending",
+        "Not Applicable"
+      ]
+    }
+  ],
+  "validation_rules": [
+    {
+      "rule_id": "setup_balance_check",
+      "expression": "statement_setup_controls__difference == 0",
+      "severity": "error",
+      "message": "Total assets must equal total equity and liabilities."
+    },
+    {
+      "rule_id": "target_currency_provenance",
+      "expression": "target_currency has template_or_user_instruction provenance",
+      "severity": "error",
+      "message": "Target currency cannot be inferred from source currency."
+    },
+    {
+      "rule_id": "covenant_not_actual",
+      "expression": "covenant thresholds must have contractual covenant evidence",
+      "severity": "error",
+      "message": "Do not populate covenant limits using actual ratios or computed statement values."
+    },
+    {
+      "rule_id": "insurance_applicability",
+      "expression": "insurance-only mappings require insurance entity applicability",
+      "severity": "warning",
+      "message": "Leave insurance-only fields null for non-insurance entities unless explicitly reported."
+    },
+    {
+      "rule_id": "commitment_no_double_count",
+      "expression": "reported total and components must not be summed together",
+      "severity": "error",
+      "message": "Avoid double counting commitment totals and components."
+    },
+    {
+      "rule_id": "absence_is_null",
+      "expression": "missing disclosure -> null, not zero",
+      "severity": "error",
+      "message": "A field may be zero only when the source explicitly reports nil, zero or no exposure."
+    },
+    {
+      "rule_id": "note_evidence",
+      "expression": "all narrative note outputs include source_text and source location",
+      "severity": "error",
+      "message": "Narrative note extraction must be auditable to exact source evidence."
+    }
+  ],
+  "null_policy": {
+    "not_reported": null,
+    "not_applicable": null,
+    "explicit_zero": 0,
+    "prohibited_behavior": [
+      "Do not convert blanks, dashes or absent disclosures to zero without resolving the source convention.",
+      "Do not populate illustrative dummy values from the template."
+    ]
+  },
+  "cross_ontology_dependencies": [
+    "balance_sheet__total_assets",
+    "balance_sheet__total_equity_and_liabilities",
+    "income_statement__profit_loss_for_period",
+    "equity_rollforward__unexplained_adjustment_retained_profits"
+  ]
+}

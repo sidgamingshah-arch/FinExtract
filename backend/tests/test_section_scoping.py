@@ -22,7 +22,7 @@ TEMPLATES = Path(__file__).resolve().parent.parent / "app" / "sample" / "templat
 
 @pytest.fixture(scope="module")
 def matcher() -> OntologyMatcher:
-    definition = json.loads((TEMPLATES / "hkfrs_hk_china_ontology.json").read_text())
+    definition = json.loads((TEMPLATES / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8"))
     return OntologyMatcher(load_ontology(definition), locale="zh")
 
 
@@ -282,6 +282,9 @@ def test_pl_section_banners_resolve():
     assert section_of_banner("Exceptional items") == "exceptional_items"
     assert section_of_banner("Income tax expense") == "tax_expense"
     assert section_of_banner("Taxation") == "tax_expense"
+    assert section_of_banner("Income & Expenses") == "income_and_expenses"
+    assert section_of_banner("Adjustments to Retained Profits") == (
+        "adjustments_to_retained_profits")
 
 
 def test_pl_section_keys_resolve_and_the_compound_wins():
@@ -299,6 +302,22 @@ def test_pl_section_keys_resolve_and_the_compound_wins():
     assert section_of_key("pl_profit_before_tax") is None
 
 
+def test_compact_output_template_sections_resolve_to_the_same_printed_tokens():
+    from app.services.mapping import section_of_key, section_token_of_scope
+
+    assert section_token_of_scope("bs_nca") == "non_current_assets"
+    assert section_token_of_scope("bs_ca") == "current_assets"
+    assert section_token_of_scope("cf_investing") == "cash_flow_from_investing_activities"
+    assert section_token_of_scope("is_pl") == "income_and_expenses"
+    assert section_token_of_scope("is_retained") == "adjustments_to_retained_profits"
+    assert section_of_key("bs_nca__investment_property_net") == "non_current_assets"
+    assert section_of_key("cf_financing__dividends_paid_fin") == (
+        "cash_flow_from_financing_activities")
+    assert section_of_key("is_pl__sales_revenues") == "income_and_expenses"
+    assert section_of_key("is_retained__prior_period_adjustments") == (
+        "adjustments_to_retained_profits")
+
+
 # --- collision families: the banner scopes a key that carries no section namespace ---------------
 # `section_of_key` reads the section out of the "_<token>__" in a canonical key, so a
 # statement-level key (`pl_profit_for_the_year`) has no section and `_in_section` waves it through
@@ -307,7 +326,7 @@ def test_pl_section_keys_resolve_and_the_compound_wins():
 
 @pytest.fixture(scope="module")
 def v2_matcher() -> OntologyMatcher:
-    definition = json.loads((TEMPLATES / "hkfrs_hk_china_ontology.json").read_text())
+    definition = json.loads((TEMPLATES / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8"))
     return OntologyMatcher(load_ontology(definition, resolve=True), locale="zh")
 
 
@@ -422,7 +441,7 @@ CASH_CAPTION = "Cash and cash equivalents 現金及現金等價物"
 
 
 def _matcher_with(edit) -> OntologyMatcher:
-    definition = json.loads((TEMPLATES / "hkfrs_hk_china_ontology.json").read_text())
+    definition = json.loads((TEMPLATES / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8"))
     edit(definition)
     return OntologyMatcher(load_ontology(definition, resolve=True), locale="zh")
 

@@ -38,8 +38,8 @@ def statement():
     from tests.fixtures.generate import make_hk_income_statement_pdf
 
     ontology = load_ontology(
-        json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text()), resolve=True)
-    template = load_template(json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text()))
+        json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8")), resolve=True)
+    template = load_template(json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text(encoding="utf-8")))
     ctx = PipelineContext(raw_bytes=make_hk_income_statement_pdf())
     ctx.ontology, ctx.template = ontology, template
     doc = default_pipeline().run(DocumentModel(filename="is.pdf", fmt=DocFormat.PDF), ctx)
@@ -107,7 +107,7 @@ def test_the_shipped_rulebook_declares_no_such_contradiction():
     """Eight aliases were dying this way when the check was written, every one a NEGATION killed by
     the thing it negates — 'Taxes other than income tax' by 'income tax', 'Impairment losses on
     non-financial assets' by 'financial asset'. Each hint has been narrowed."""
-    load_ontology(json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text()),
+    load_ontology(json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8")),
                   resolve=True)
 
 
@@ -117,7 +117,7 @@ def test_the_narrowed_hints_still_keep_out_what_they_were_written_for():
     from app.services.mapping import OntologyMatcher
 
     ontology = load_ontology(
-        json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text()), resolve=True)
+        json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8")), resolve=True)
     matcher = OntologyMatcher(ontology)
 
     assert matcher._vetoed("pl_income__other_income", "Revenue from contracts with customers")
@@ -158,7 +158,7 @@ def test_only_an_unread_role_is_promoted():
     doc.line_items += [already, plain]
     ctx = PipelineContext(raw_bytes=b"")
     ctx.template = load_template(
-        json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text()))
+        json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text(encoding="utf-8")))
 
     promoted = MapOntologyStage._adopt_template_roles(doc, ctx)
 

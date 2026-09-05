@@ -44,7 +44,7 @@ API = "/api/v1"
 SEEDED_TEMPLATE = "hkfrs_hk_china_v1"
 
 _DIR = Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
-TEMPLATE = json.loads((_DIR / "hkfrs_hk_china_template.json").read_text())
+TEMPLATE = json.loads((_DIR / "hkfrs_hk_china_template.json").read_text(encoding="utf-8"))
 
 
 def _statement(stype: str) -> dict:

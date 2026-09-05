@@ -25,7 +25,7 @@ _XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 def _shipped() -> dict:
     p = (pathlib.Path(__file__).resolve().parents[1]
          / "app/sample/templates/hkfrs_hk_china_template.json")
-    return json.loads(p.read_text())
+    return json.loads(p.read_text(encoding="utf-8"))
 
 
 def _sheet(data: bytes, name="Template"):

@@ -117,13 +117,13 @@ def test_unknown_keys_is_silent_on_the_shipped_definitions():
     from app.schemas.loader import unknown_keys
 
     d = Path(__file__).resolve().parents[1] / "app" / "sample" / "templates"
-    tpl = json.loads((d / "hkfrs_hk_china_template.json").read_text())
-    ont = json.loads((d / "hkfrs_hk_china_ontology.json").read_text())
+    tpl = json.loads((d / "hkfrs_hk_china_template.json").read_text(encoding="utf-8"))
+    ont = json.loads((d / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8"))
     assert unknown_keys(tpl, load_template(tpl)) == []
     assert unknown_keys(ont, load_ontology(ont)) == []
     # The v2.1 rulebook ships alongside them and goes through the same door (see
     # tests/test_ontology_v2.py for its section layer).
-    v2 = json.loads((d / "hkfrs_hk_china_ontology.json").read_text())
+    v2 = json.loads((d / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8"))
     assert unknown_keys(v2, load_ontology(v2)) == []
 
 

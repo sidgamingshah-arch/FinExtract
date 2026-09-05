@@ -51,7 +51,7 @@ import re
 from app.core.models.buckets import BucketedSource, BucketSegment
 from app.core.models.document import DocumentModel
 from app.core.models.enums import PageKind, PrintedIn
-from app.services.mapping import HEADING_ROW_SECTIONS
+from app.services.mapping import HEADING_ROW_SECTIONS, section_of_banner, section_of_key
 
 # In the reviewer's own order — this is a presentation vocabulary, and the order is the one an
 # analyst reads a filing in, not alphabetical.
@@ -74,6 +74,21 @@ BUCKETS: tuple[tuple[str, str], ...] = (
 BUCKET_KEYS: tuple[str, ...] = tuple(k for k, _ in BUCKETS)
 BUCKET_LABELS: dict[str, str] = dict(BUCKETS)
 OTHERS = "others"
+
+_COMPACT_SECTION_TOKENS: dict[str, str] = {
+    "bs_nca": "non_current_assets",
+    "bs_ca": "current_assets",
+    "bs_ncl": "non_current_liabilities",
+    "bs_cl": "current_liabilities",
+    "bs_equity": "equity",
+    "is_oci": "other_comprehensive_income",
+    "cf_oper_indirect": "cash_flow_from_operating_activities",
+    "cf_oper_direct": "cash_flow_from_operating_activities",
+    "cf_investing": "cash_flow_from_investing_activities",
+    "cf_financing": "cash_flow_from_financing_activities",
+    "is_pl": "income_and_expenses",
+    "is_retained": "adjustments_to_retained_profits",
+}
 
 # Section token → bucket. The tokens are the template's own section phrases with the statement and
 # ordinal stripped (``bs_s2_current_assets`` → ``current_assets``), so this table and a rulebook
@@ -117,6 +132,8 @@ assert HEADING_ROW_SECTIONS <= set(_SECTION_BUCKETS), (
 # came from, so a whole section of a filing is never silently swallowed.
 _OUTSIDE_TAXONOMY: frozenset[str] = frozenset({
     "other_comprehensive_income",
+    "income_and_expenses",
+    "adjustments_to_retained_profits",
     "profit_attributable_to",
     "total_comprehensive_income_attributable_to",
 })
@@ -196,7 +213,8 @@ def statement_of_section(section: str | None) -> str | None:
 
 def section_token(section: str) -> str:
     """The section phrase a template section id carries, with its statement and ordinal stripped."""
-    return _SECTION_PREFIX.sub("", section or "").strip().lower()
+    return (_COMPACT_SECTION_TOKENS.get(section or "")
+            or _SECTION_PREFIX.sub("", section or "").strip().lower())
 
 
 def bucket_of(section: str | None, statement: str | None,
@@ -245,25 +263,14 @@ def bucket_of(section: str | None, statement: str | None,
     return OTHERS, "unresolved"
 
 
-def _declared_bucket_by_key(ontology) -> dict[str, str]:
-    """canonical_key -> the analyst bucket the CONCEPT declares, for the concepts that declare one.
+def _section_of_row(hint: str | None, canonical_key: str | None) -> str | None:
+    """Section token for one row, from print context first and key namespace second.
 
-    Empty for a rulebook that declares none, which is every v1 rulebook and any v2 one that has not
-    been told about Interest — those fall through to the section, exactly as before.
+    The section banner printed on the page is authoritative. When a condensed statement prints no
+    banner, the mapped key's namespace is the fallback so face rows still land in a section bucket
+    without consulting ontology section scopes.
     """
-    return {m.canonical_key: m.analyst_bucket
-            for m in (getattr(ontology, "mappings", []) or [])
-            if getattr(m, "analyst_bucket", None)}
-
-
-def _section_by_key(ontology) -> dict[str, str]:
-    """canonical_key -> its resolved ``section_scope``. Empty for an unresolved definition, which
-    makes every row fall through to its page's statement rather than to a half-right section."""
-    out: dict[str, str] = {}
-    for m in getattr(ontology, "mappings", []) or []:
-        if m.section_scope:
-            out[m.canonical_key] = m.section_scope[0]
-    return out
+    return section_of_banner(hint or "") or section_of_key(canonical_key or "")
 
 
 def _statement_by_page(doc: DocumentModel) -> dict[int, str]:
@@ -277,9 +284,7 @@ def _pages_of_item(li) -> list[int]:
 
 def segment_source(doc: DocumentModel, ontology=None) -> BucketedSource:
     """The whole segmentation. Every face row and every note lands in exactly one bucket."""
-    section_by_key = _section_by_key(ontology) if ontology is not None else {}
     note_numbers = {str(n.note_number) for n in doc.notes if n.note_number is not None}
-    declared_by_key = _declared_bucket_by_key(ontology) if ontology is not None else {}
     stmt_by_page = _statement_by_page(doc)
     note_pages = {p.index for p in doc.pages if p.kind == PageKind.NOTES}
 
@@ -290,6 +295,8 @@ def segment_source(doc: DocumentModel, ontology=None) -> BucketedSource:
     cited_by: dict[str, dict[str, int]] = {}
 
     for li in doc.line_items:
+        from app.stages.face_mapping_contract import is_unclassified_face_key
+
         pages = _pages_of_item(li)
         # SAY WHERE THE ROW WAS PRINTED, for anything the reader could not. The face reader stamps
         # the rows it produces; what it cannot stamp is a row synthesised LATER — the residual sweep
@@ -318,10 +325,10 @@ def segment_source(doc: DocumentModel, ontology=None) -> BucketedSource:
         # components nor the aggregate they replaced.
         if li.printed_in is PrintedIn.NOTES:
             continue
-        section = section_by_key.get(li.canonical_key or "")
+        section = _section_of_row(getattr(li, "section_hint", None),
+                      getattr(li, "canonical_key", None))
         statement = next((stmt_by_page[p] for p in pages if p in stmt_by_page), None)
-        bucket, reason = bucket_of(section, statement,
-                                   declared_by_key.get(li.canonical_key or ""))
+        bucket, reason = bucket_of(section, statement, None)
         seg = segments[bucket]
         seg.face_item_ids.append(str(li.id))
         if section and section not in seg.sections:
@@ -329,7 +336,10 @@ def segment_source(doc: DocumentModel, ontology=None) -> BucketedSource:
         for p in pages:
             if p not in seg.face_pages:
                 seg.face_pages.append(p)
-        if reason == "unresolved":
+        if is_unclassified_face_key(li.canonical_key):
+            out.unresolved_face_item_ids.append(str(li.id))
+        elif reason == "unresolved" and statement == "equity_changes":
+            # Only changes-in-equity is allowed to stay unresolved at section granularity.
             out.unresolved_face_item_ids.append(str(li.id))
         elif reason == "unknown_section" and section:
             unknown.add(section)
@@ -351,8 +361,11 @@ def segment_source(doc: DocumentModel, ontology=None) -> BucketedSource:
             placed = sorted(citing, key=BUCKET_KEYS.index)
             reason = "cited_from_face"
         else:
-            one, reason = _bucket_from_note_content(note, section_by_key, declared_by_key)
-            placed = [one]
+            # Notes are stored under the face rows that cite them; an uncited note remains
+            # unresolved instead of being section-filed by note content alone.
+            if note.note_number not in out.unresolved_note_numbers:
+                out.unresolved_note_numbers.append(note.note_number)
+            continue
         for bucket in placed:
             seg = segments[bucket]
             # ONE ENTRY PER NOTE NUMBER, not per table. This loop walks ``doc.notes``, which holds a
@@ -382,26 +395,24 @@ def segment_source(doc: DocumentModel, ontology=None) -> BucketedSource:
     return out
 
 
-def _bucket_from_note_content(note, section_by_key: dict[str, str],
-                              declared_by_key: dict[str, str] | None = None) -> tuple[str, str]:
+def _bucket_from_note_content(note) -> tuple[str, str]:
     """A note no face row cites, placed from what its own rows mapped to.
 
     The face citation is the stronger signal and is tried first: a note titled "Trade and other
     receivables" whose rows the mapper could not place would otherwise land in Others while the face
     line pointing at it sits in current assets.
     """
-    declared_by_key = declared_by_key or {}
     tally: dict[str, int] = {}
     for item in note.items:
-        section = section_by_key.get(item.canonical_key or "")
-        declared = declared_by_key.get(item.canonical_key or "")
-        if not section and not declared:
+        section = _section_of_row(getattr(item, "section_hint", None),
+                      getattr(item, "canonical_key", None))
+        if not section:
             continue
         # No statement is passed: a note is printed on a notes page, so there is none to read, and
         # ``bucket_of`` derives it from the section id itself. Deriving it here as well would be the
         # same quantity computed in two places.
-        bucket, reason = bucket_of(section, None, declared)
-        if reason in ("section", "statement", "declared"):
+        bucket, reason = bucket_of(section, None, None)
+        if reason in ("section", "statement"):
             tally[bucket] = tally.get(bucket, 0) + 1
     if not tally:
         return OTHERS, "unresolved"

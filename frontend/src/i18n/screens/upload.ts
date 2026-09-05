@@ -47,6 +47,8 @@ export const upload: Record<Locale, Record<string, string>> = {
     "u.noActiveDoc": "Upload a document to begin",
     "u.deleteDoc": "Delete document",
     "u.deleteConfirm": "Delete this document and its extraction? This cannot be undone.",
+    "u.pickForExtraction": "Use this document for extraction",
+    "u.activeDoc": "Active",
   },
   zh: {
     "u.title": "新建提取项目",
@@ -92,6 +94,8 @@ export const upload: Record<Locale, Record<string, string>> = {
     "u.noActiveDoc": "请先上传文档",
     "u.deleteDoc": "删除文档",
     "u.deleteConfirm": "删除此文档及其提取结果？此操作无法撤销。",
+    "u.pickForExtraction": "使用此文档进行提取",
+    "u.activeDoc": "当前",
   },
   ar: {
     "u.title": "مشروع استخراج جديد",
@@ -137,6 +141,8 @@ export const upload: Record<Locale, Record<string, string>> = {
     "u.noActiveDoc": "ارفع مستندًا للبدء",
     "u.deleteDoc": "حذف المستند",
     "u.deleteConfirm": "حذف هذا المستند ونتائج استخراجه؟ لا يمكن التراجع عن هذا الإجراء.",
+    "u.pickForExtraction": "استخدم هذا المستند للاستخراج",
+    "u.activeDoc": "نشط",
   },
   fr: {
     "u.title": "Nouveau projet d'extraction",
@@ -181,6 +187,6 @@ export const upload: Record<Locale, Record<string, string>> = {
     "u.extractBlocked": "Blocage d'intégrité — lancez le contrôle d'intégrité pour le résoudre avant d'extraire",
     "u.noActiveDoc": "Téléversez un document pour commencer",
     "u.deleteDoc": "Supprimer le document",
-    "u.deleteConfirm": "Supprimer ce document et son extraction ? Cette action est irréversible.",
-  },
+    "u.deleteConfirm": "Supprimer ce document et son extraction ? Cette action est irréversible.",    "u.pickForExtraction": "Utiliser ce document pour l'extraction",
+    "u.activeDoc": "Actif",  },
 };

@@ -91,7 +91,7 @@ def test_an_unmapped_face_line_is_routed_to_its_own_sections_residual_bucket():
 
     tpl_path = (Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
                 / "hkfrs_hk_china_template.json")
-    template = load_template(json.loads(tpl_path.read_text()))
+    template = load_template(json.loads(tpl_path.read_text(encoding="utf-8")))
 
     def li(ordinal: int, label: str, key: str | None, value: int,
            role: LineRole = LineRole.LINE) -> LineItem:
@@ -143,7 +143,7 @@ def test_narrative_printed_below_the_statement_is_not_routed_into_it():
 
     tpl_path = (Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
                 / "hkfrs_hk_china_template.json")
-    template = load_template(json.loads(tpl_path.read_text()))
+    template = load_template(json.loads(tpl_path.read_text(encoding="utf-8")))
 
     def li(ordinal: int, label: str, key: str | None, value: int,
            role: LineRole = LineRole.LINE) -> LineItem:

@@ -38,7 +38,7 @@ _SAMPLES = Path(__file__).resolve().parent.parent / "app" / "sample" / "template
 
 @pytest.fixture(scope="module")
 def raw_ontology() -> dict:
-    return json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text())
+    return json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8"))
 
 
 def _ontology(raw: dict):
@@ -141,7 +141,7 @@ def test_the_duplicate_paren_switch_is_gone_from_the_schema_and_the_rulebooks():
 
     d = Path(__file__).resolve().parents[1] / "app" / "sample" / "templates"
     for f in ("hkfrs_hk_china_ontology.json", "hkfrs_hk_china_ontology.json"):
-        raw = json.loads((d / f).read_text())
+        raw = json.loads((d / f).read_text(encoding="utf-8"))
         assert "paren_means_negative" not in (raw.get("global_rules") or {}), f
         assert unknown_keys(raw, load_ontology(raw)) == [], f
 
@@ -149,7 +149,7 @@ def test_the_duplicate_paren_switch_is_gone_from_the_schema_and_the_rulebooks():
     from app.services.numbers import parse_number
 
     fmt = load_ontology(
-        json.loads((d / "hkfrs_hk_china_ontology.json").read_text())).number_format("en")
+        json.loads((d / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8"))).number_format("en")
     assert any("paren" in str(m).lower() for m in fmt.negative)
     got = parse_number("(600)", fmt)
     assert got.ok and got.value == Decimal(-600) and got.is_negative_paren

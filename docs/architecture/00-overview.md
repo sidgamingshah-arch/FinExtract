@@ -13,10 +13,10 @@ and analysts correct output (with formulas) before exporting.
 ```
 Upload
   → Integrity report (gate: block corrupt/encrypted; warn on scans/rotation)
-  → Extraction run (the 14-stage pipeline, in a FastAPI background task)
+  → Extraction run (the 16-stage pipeline, in a FastAPI background task)
       ingest → integrity → language_detect → classify → extract → map_ontology
              → residual → normalize → link_notes → reconcile → prune_notes
-             → confidence → gap_closing → structural
+             → confidence → gap_closing → face_mapping_contract → structural → segment
   → Progress: the client POLLS GET /extractions/{run_id} once a second while the run is
     `running` — per-stage record + log tail. There is no WebSocket.
   → Extraction screen /extraction (stages while it runs; rows + click-to-source after)

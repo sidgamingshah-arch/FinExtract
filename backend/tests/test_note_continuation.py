@@ -112,6 +112,31 @@ def test_a_note_printed_once_is_unchanged():
     assert [r["label"] for r in index["7"]["rows"]] == ["Interest"]
 
 
+def test_a_split_note_heading_is_recovered_as_one_note():
+    """Some filings print the note number on one line and the title on the next.
+
+    That should still become one note table rather than disappearing entirely.
+    """
+    from app.services.notes_extract import extract_note_tables
+    from app.services.row_reconstruct import Word
+    from app.core.models.geometry import BBox
+
+    words = [
+        Word(text="15", bbox=BBox(x0=0.10, y0=0.10, x1=0.12, y1=0.11)),
+        Word(text="Trade", bbox=BBox(x0=0.10, y0=0.14, x1=0.14, y1=0.15)),
+        Word(text="receivables", bbox=BBox(x0=0.15, y0=0.14, x1=0.23, y1=0.15)),
+        Word(text="Cash", bbox=BBox(x0=0.10, y0=0.18, x1=0.13, y1=0.19)),
+        Word(text="1,234", bbox=BBox(x0=0.66, y0=0.18, x1=0.73, y1=0.19)),
+    ]
+
+    tables = extract_note_tables(words, page_index=3, document_id="d1", source_kind="native")
+    assert len(tables) == 1
+    note = tables[0]
+    assert note.note_number == "15"
+    assert note.title == "Trade receivables"
+    assert [it.raw_label for it in note.items] == ["Cash"]
+
+
 # --- the heading detector -------------------------------------------------------------------------
 #
 # The three refusals below are the three shapes a real filing actually produced. Each one had taken
@@ -168,8 +193,8 @@ def test_a_two_page_note_is_served_as_one_note_from_the_pipeline():
     from tests.fixtures.generate import make_hkex_tax_note_pdf
 
     ontology = load_ontology(
-        json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text()), resolve=True)
-    template = load_template(json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text()))
+        json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8")), resolve=True)
+    template = load_template(json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text(encoding="utf-8")))
     ctx = PipelineContext(raw_bytes=make_hkex_tax_note_pdf())
     ctx.ontology, ctx.template = ontology, template
     doc = default_pipeline().run(DocumentModel(filename="f.pdf", fmt=DocFormat.PDF), ctx)

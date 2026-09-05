@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 _DIR = Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
-ONTOLOGY = json.loads((_DIR / "hkfrs_hk_china_ontology.json").read_text())
+ONTOLOGY = json.loads((_DIR / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8"))
 
 
 class FakeLlm:
@@ -87,14 +87,14 @@ def test_usage_is_reported_for_the_audit_log():
     assert m.usage["model"] == "fake-model"
 
 
-def test_exact_alias_still_short_circuits_before_the_llm():
-    """An unambiguous alias hit must not spend a token."""
+def test_exact_alias_is_still_refined_by_the_llm():
+    """A deterministic exact hit is evidence, not a reason to bypass semantic refinement."""
     llm = FakeLlm("pl_income__other_income")
     m = _matcher(llm)
     res = m.match("REVENUE 收益", statement="profit_and_loss")
-    assert res.canonical_key == "pl_income__revenue_from_operations"
-    assert res.method.value == "exact"
-    assert not llm.calls
+    assert res.canonical_key == "pl_income__other_income"
+    assert res.method.value == "llm"
+    assert llm.calls
 
 
 def test_batch_mapping_uses_the_provider_and_respects_the_statement():

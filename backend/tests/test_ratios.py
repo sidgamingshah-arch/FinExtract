@@ -174,7 +174,7 @@ def _shipped_template():
     import json
     from pathlib import Path
     return json.loads((Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
-                       / "hkfrs_hk_china_template.json").read_text())
+                       / "hkfrs_hk_china_template.json").read_text(encoding="utf-8"))
 
 
 def test_a_kpi_reads_a_calculated_line_the_filing_never_printed():

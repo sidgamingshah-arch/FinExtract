@@ -31,6 +31,10 @@ def register_builtins() -> None:
 
     registry.register("llm", "anthropic", AnthropicLlmProvider)
 
+    from .bedrock_gateway_llm import BedrockGatewayLlmProvider
+
+    registry.register("llm", "bedrock_gateway", BedrockGatewayLlmProvider)
+
     # OpenAI-compatible adapter (OpenAI, TokenRouter, OpenRouter, vLLM, …) — selected
     # when llm.provider = "openai" / "openai_compatible". Uses httpx at call time; the
     # base_url + model come from config.toml [llm], the key from llm.api_key_env.

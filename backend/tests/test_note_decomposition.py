@@ -35,13 +35,13 @@ _AGGREGATE = "bs_current_assets__prepayments_other_receivables_and_other_assets"
 
 @pytest.fixture(scope="module")
 def rulebook():
-    return load_ontology(json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text()),
+    return load_ontology(json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8")),
                          resolve=True)
 
 
 @pytest.fixture(scope="module")
 def template():
-    return load_template(json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text()))
+    return load_template(json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text(encoding="utf-8")))
 
 
 def _run(data: bytes, rulebook, template):
@@ -62,6 +62,13 @@ def refused(rulebook, template):
     from tests.fixtures.generate import make_decomposed_note_pdf
 
     return _run(make_decomposed_note_pdf(cross_section=True), rulebook, template)
+
+
+@pytest.fixture(scope="module")
+def partial_split(rulebook, template):
+    from tests.fixtures.generate import make_decomposed_note_pdf
+
+    return _run(make_decomposed_note_pdf(unmapped_residual=True), rulebook, template)
 
 
 # --- the gate, on the shipped rulebook ----------------------------------------------------------
@@ -138,6 +145,53 @@ def test_nothing_is_counted_twice(split):
     total = sum(ev.value for li in doc.line_items if li.canonical_key in section
                 for ev in li.values.values() if ev.period_label == "current")
     assert total == Decimal("5000")          # the printed aggregate, exactly
+
+
+def test_mapped_note_items_take_priority_and_unmapped_note_values_keep_the_face_key(
+        partial_split):
+    doc, _ctx = partial_split
+    rows = [li for li in doc.line_items if li.canonical_key]
+
+    assert any(li.canonical_key == "bs_current_assets__trade_receivables" for li in rows)
+    assert any(li.canonical_key == "bs_current_assets__due_from_related_parties" for li in rows)
+    residual = next(li for li in rows if li.canonical_key == _AGGREGATE)
+    assert residual.source_label == "Unclassified note balance"
+    assert "note_residual_to_face_item" in residual.confidence.flags
+    assert {ev.period_label: ev.value for ev in residual.values.values()} == {
+        "current": Decimal("590"), "prior": Decimal("500")}
+
+    parent = next(li for li in doc.line_items
+                  if li.source_label.startswith("Prepayments, other receivables"))
+    assert parent.canonical_key is None
+    decomposition = {
+        "bs_current_assets__trade_receivables",
+        "bs_current_assets__due_from_related_parties",
+        _AGGREGATE,
+    }
+    current = sum(ev.value for li in rows if li.canonical_key in decomposition
+                  for ev in li.values.values()
+                  if ev.period_label == "current")
+    assert current == Decimal("5000")
+
+
+def test_note_rows_persist_the_template_or_face_key_they_support(partial_split):
+    doc, _ctx = partial_split
+    table = next(note for note in doc.notes if note.note_number == "18")
+    by_label = {item.raw_label: item.canonical_key for item in table.items
+                if item.role is LineRole.LINE}
+
+    assert by_label["Trade receivables"] == "bs_current_assets__trade_receivables"
+    assert by_label["Due from related parties"] == (
+        "bs_current_assets__due_from_related_parties")
+    assert by_label["Unclassified note balance"] == _AGGREGATE
+
+    from app.api.routes.extractions import _serialize_notes
+    serialized = [row for note in _serialize_notes(doc) if note["no"] == "18"
+                  for row in note["rows"] if row["role"] == "line"]
+    serialized_by_label = {row["label"]: row for row in serialized}
+    assert serialized_by_label["Trade receivables"]["canonical_key"] == (
+        "bs_current_assets__trade_receivables")
+    assert serialized_by_label["Unclassified note balance"]["supports_face_key"] == _AGGREGATE
 
 
 def test_each_component_points_at_the_row_it_was_read_from(split):
@@ -281,7 +335,7 @@ def test_the_refusal_is_logged_with_its_reason(refused):
     _doc, ctx = refused
     line = next(m for m in ctx.logs if "split_declined" in m)
     assert _AGGREGATE in line
-    assert "account for" in line or "itemises" in line
+    assert any(reason in line for reason in ("account for", "itemises", "outside"))
 
 
 # ================================================================================================
@@ -340,16 +394,14 @@ def test_the_face_total_is_replaced_by_the_components_the_note_prints(tax_split)
                                                    "prior": Decimal("-150")}
 
 
-def test_the_printed_tax_total_is_kept_but_no_longer_filed(tax_split):
-    """The money is counted once. The aggregate stays as an auditable subtotal — the filing printed
-    1,000 and a reader must be able to see it — but it is no longer a filed template line, so the
-    section does not carry both it and its components."""
+def test_the_printed_tax_total_is_kept_as_validation_evidence(tax_split):
+    """The calculated total is served from its components; the printed value remains for validation."""
     doc, _ctx = tax_split
     parent = next(li for li in doc.line_items
                   if (li.source_label or "").startswith("Income tax expense"))
 
-    assert parent.canonical_key is None, "the total is still filed, so its money is counted twice"
-    assert parent.role is LineRole.SUBTOTAL
+    assert parent.canonical_key == "pl_tax_expense__total_tax_expense"
+    assert "reported_validation_for_calculated" in parent.confidence.flags
     assert {ev.value for ev in parent.values.values()} == {Decimal("1000"), Decimal("900")}
     # THE ASSERTION THAT MATTERS: the components come to what the face printed, in both columns.
     for period, printed in (("current", Decimal("1000")), ("prior", Decimal("900"))):
@@ -665,8 +717,52 @@ def test_only_the_columns_the_aggregate_printed_are_published(rulebook, template
     assert added == 2, ctx.logs
     published = {li.canonical_key: {ev.period_label: ev.value for ev in li.values.values()}
                  for li in doc.line_items if (li.canonical_key or "").startswith("pl_tax_expense__")}
-    assert published == {"pl_tax_expense__current_tax": {"current": Decimal("-1600")},
-                         "pl_tax_expense__deferred_tax": {"current": Decimal("600")}}, published
+    assert published == {
+        "pl_tax_expense__total_tax_expense": {"current": Decimal("-1000")},
+        "pl_tax_expense__current_tax": {"current": Decimal("-1600")},
+        "pl_tax_expense__deferred_tax": {"current": Decimal("600")},
+    }, published
+
+
+def test_reconciled_note_matrix_closing_cells_promote_category_facts():
+    from app.config import get_settings
+    from app.core.models.document import DocumentModel, PageSource
+    from app.core.models.enums import Basis, PrintedIn
+    from app.core.models.line_item import ExtractedValue, LineItem, NoteItem, NoteRef, NotesTable
+    from app.core.stage import PipelineContext
+    from app.services.mapping import OntologyMatcher
+    from app.schemas.loader import load_ontology, load_template
+    from app.stages.map_ontology import MapOntologyStage
+
+    def fact(value, column):
+        return ExtractedValue(value=Decimal(str(value)), value_raw=Decimal(str(value)),
+                              basis=Basis.CONSOLIDATED, period_label=column)
+
+    doc = DocumentModel(filename="f.pdf")
+    doc.pages.append(PageSource(index=0, statement="balance_sheet"))
+    parent = LineItem(source_label="Property, plant and equipment",
+                      canonical_key="bs_nca__plant_and_equipment", printed_in=PrintedIn.FACE,
+                      note_number="14", note_refs=[NoteRef(raw="14", numbers=["14"])])
+    parent.set_value(fact(100, "current"))
+    doc.line_items.append(parent)
+    closing = NoteItem(raw_label="At 31 December 2025")
+    closing.set_value(fact(40, "Land"))
+    closing.set_value(fact(60, "Buildings"))
+    doc.notes.append(NotesTable(note_number="14", items=[closing]))
+    raw_ontology = json.loads((_SAMPLES / "output_csv_hk_ontology.json").read_text(encoding="utf-8"))
+    raw_template = json.loads((_SAMPLES / "output_csv_hk_v1_template.json").read_text(encoding="utf-8"))
+    ctx = PipelineContext(raw_bytes=b"", settings=get_settings())
+    ctx.ontology, ctx.template = load_ontology(raw_ontology, resolve=True), load_template(raw_template)
+    matcher = OntologyMatcher(ctx.ontology, settings=ctx.settings)
+
+    added = MapOntologyStage._promote_reconciled_matrix_closings(
+        doc, matcher, lambda _row: "balance_sheet", ctx)
+
+    assert added == 2
+    assert parent.canonical_key is None and parent.role is LineRole.SUBTOTAL
+    promoted = {row.canonical_key: next(iter(row.values.values())).value
+                for row in doc.line_items if row.canonical_key}
+    assert promoted == {"bs_nca__land": Decimal("40"), "bs_nca__buildings": Decimal("60")}
 
 
 # --- the orientation gate itself, at the unit -----------------------------------------------------

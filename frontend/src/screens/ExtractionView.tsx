@@ -20,7 +20,7 @@ import { useT } from "../i18n";
 import { refusalText } from "../lib/api";
 import {
   activeTemplate, ontologyInForce, useDocumentAnalysis, useDocumentRunStatus, useExtraction, useOntologies,
-  useReextract, useTemplates,
+  useReextract, useStopRun, useTemplates,
 } from "../lib/queries";
 import { useCan } from "../lib/rbac";
 import { useUI } from "../store";
@@ -54,10 +54,24 @@ function RowLine({ row, t, onPick, loc }: {
   row: ExtractionRow; t: (k: string) => string; onPick: (p: Picked) => void; loc: string;
 }) {
   const flagged = row.flags?.includes("low_mapping_confidence");
+  // The model's own stated justification for an LLM-decided row (see
+  // stages/map_ontology.py::_apply), carried as a row flag so it reaches here without a schema
+  // change. Shown as a small "why" marker rather than inline text — a rationale sentence would
+  // otherwise crowd out the figures on every LLM-mapped row.
+  const llmReason = row.flags?.find((f) => f.startsWith("llm_reason:"))?.slice("llm_reason:".length);
   return (
     <div style={{ display: "grid", gridTemplateColumns: GRID, gap: 10, padding: "9px 14px",
                   alignItems: "center", borderBottom: `1px solid ${color.hairline2}` }}>
-      <span style={{ fontSize: 12.5, color: color.ink }}>{row.source_label}</span>
+      <span style={{ fontSize: 12.5, color: color.ink, display: "flex", alignItems: "center", gap: 6 }}>
+        {row.source_label}
+        {llmReason && (
+          <span title={`Why this concept: ${llmReason}`}
+                style={{ fontSize: 10, fontFamily: font.mono, color: color.indigo, cursor: "help",
+                         border: `1px solid ${color.indigoBorder2}`, borderRadius: 3, padding: "0 4px" }}>
+            why?
+          </span>
+        )}
+      </span>
       <span style={{ fontSize: 11, fontFamily: font.mono, color: color.muted }}>{row.note ?? ""}</span>
       <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         {row.values.map((v, i) => {
@@ -430,12 +444,15 @@ function useLiveElapsed(elapsedMs: number | undefined, live: boolean): number | 
  *  recorded progress for says it is STARTING rather than printing a measured-looking 0%, a stage
  *  list the run has not reported is absent rather than assembled from a guess at the pipeline's
  *  shape, and the elapsed/percentage cards are simply not rendered when the run states neither. */
-function RunProgress({ progress, stages, logTail, live, t }: {
+function RunProgress({ progress, stages, logTail, live, canStop, stopping, onStop, t }: {
   progress: ExtractionProgress | undefined;
   stages: string[] | undefined;
   logTail: string | undefined;
   /** Whether the run is still going, which is what decides between a clock and a duration. */
   live: boolean;
+  canStop: boolean;
+  stopping: boolean;
+  onStop: () => void;
   t: (k: string) => string;
 }) {
   const finished = new Set(progress?.stages_done ?? []);
@@ -486,6 +503,14 @@ function RunProgress({ progress, stages, logTail, live, t }: {
           <p style={{ margin: 0, color: color.sec2, fontSize: 12.5, maxWidth: 620 }}>
             {t("ex.run.subhead")}
           </p>
+          {canStop && (
+            <Button variant="secondary" testid="ex-stop-run"
+                    disabled={stopping}
+                    onClick={onStop}
+                    style={{ fontSize: 12, padding: "7px 14px", marginTop: 12 }}>
+              {stopping ? t("ex.run.stopping") : t("ex.run.stop")}
+            </Button>
+          )}
         </div>
         {/* No card at all when the run has reported no percentage: an empty gauge, or one reading
             0%, is a measurement nobody took. The stage cards below still say what is happening. */}
@@ -730,6 +755,7 @@ export default function ExtractionView() {
   // happens to imply "in flight" today, and a timer that keeps running on a settled run is exactly
   // the bug that inference would hide the next time the condition changes.
   const runStatus = extr.status;
+  const stopped = runStatus === "canceled";
   // "none" is the read's own 200 answer — this document has never been extracted — and it is the
   // only thing to say to a reader who cannot start one. It is no longer inferred from a 404, which
   // was the same response the route gave for a run that was working.
@@ -754,10 +780,11 @@ export default function ExtractionView() {
   //
   // Both are exclusive of `data` and of each other: these are branches of "what is there to show",
   // and a panel saying the run is starting must not stack above the spread that arrived.
-  const awaitingRun = !data && !isError && !readFailed && (canRun || inFlight);
+  const awaitingRun = !data && !isError && !readFailed && !stopped && (canRun || inFlight);
   const awaitingRead = !canRun && !data && !isError && !readFailed && !inFlight && !noRun;
   const failedStage = currentStage(progress);
   const reextract = useReextract(id);
+  const stopRun = useStopRun(id);
 
   // No document is being worked, so there is no extraction to report on — the same greenfield
   // guidance the other pipeline screens show, rather than a blank page.
@@ -841,7 +868,27 @@ export default function ExtractionView() {
           true. */}
       {awaitingRun && (
         <RunProgress progress={progress} stages={stages} logTail={logTail} t={t}
-                     live={runStatus !== "succeeded" && runStatus !== "failed"} />
+                     live={runStatus !== "succeeded" && runStatus !== "failed" && runStatus !== "canceled"}
+                     canStop={canRun && !!extr.runId && runStatus === "running"}
+                     stopping={stopRun.isPending}
+                     onStop={() => { if (extr.runId) stopRun.mutate(extr.runId); }} />
+      )}
+      {stopped && (
+        <div data-testid="ex-stopped"
+             style={{ padding: "12px 14px", background: color.rowAltBg, color: color.sec2,
+                      border: `1px solid ${color.cardBorder}`, borderRadius: 9,
+                      fontSize: 12.5, lineHeight: 1.6 }}>
+          <b>{t("ex.run.stopped")}.</b>
+          {canRun && (
+            <div style={{ marginTop: 10 }}>
+              <Button variant="primary" testid="ex-rerun-stopped"
+                      disabled={reextract.isPending}
+                      onClick={() => reextract.mutate({ ontologyId: ont?.id, templateId: tpl?.id })}>
+                {reextract.isPending ? t("ex.run.retryPending") : t("ex.run.retry")}
+              </Button>
+            </div>
+          )}
+        </div>
       )}
       {/* A fetch, not a run. */}
       {awaitingRead && (

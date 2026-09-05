@@ -53,10 +53,13 @@ class PageSourceKind(str, Enum):
 
 
 class StatementType(str, Enum):
+    STATEMENT_SETUP = "statement_setup"
     BALANCE_SHEET = "balance_sheet"
     PROFIT_AND_LOSS = "profit_and_loss"
     CASH_FLOW = "cash_flow"
     EQUITY_CHANGES = "equity_changes"
+    COVENANTS_SUPPLEMENTAL = "covenants_supplemental"
+    NOTES = "notes"
 
 
 class Basis(str, Enum):

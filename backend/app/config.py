@@ -76,13 +76,15 @@ class LlmSettings(BaseModel):
     it is stored, so a credential cannot end up in the database or in a settings export.
     """
 
-    provider: str = "azure_openai"    # azure_openai | anthropic | openai | openai_compatible | stub
-    model: str = "gpt-5-mini"
+    provider: str = "openai_compatible"  # azure_openai | anthropic | bedrock_gateway | openai | openai_compatible | stub
+    model: str = "azure-openai/gpt5.4-mini"
     temperature: float = 0.0
-    max_tokens: int = 4096
-    timeout_seconds: int = 60
-    base_url: str = ""                # empty = provider default
+    max_tokens: int = 4096000
+    timeout_seconds: int = 600
+    base_url: str = "https://llmgateway.crisil.local/api/openai"
     api_key_env: str = "AZURE_OPENAI_API_KEY"  # env var the key is read from (not the key)
+    reasoning_effort: str = "low"      # low | medium | high (provider/gateway dependent)
+    disable_ssl_verify: bool = True
 
     # Azure OpenAI only. Azure does not address a model by name on a shared endpoint the way OpenAI
     # does — it addresses a DEPLOYMENT on your own resource, at
@@ -160,6 +162,18 @@ class ExtractionSettings(BaseModel):
     # candidates. Set false to force the deterministic ensemble even with an LLM present.
     llm_mapping: bool = True
     llm_candidate_cap: int = 40   # max candidate concepts shown to the LLM per line
+    # Restrict LLM disambiguation to these canonical_keys only; every other row is decided by the
+    # deterministic ensemble (rule/alias tiers), never sent to the model. Empty = no restriction
+    # (the default: LLM considered for any row the ensemble can't otherwise resolve).
+    llm_only_keys: list[str] = Field(default_factory=list)
+    # Publish only notes a face row cites (see stages/prune_notes.py). False publishes every
+    # extracted note table regardless of whether any face figure references it.
+    prune_unreferenced_notes: bool = True
+    # Concurrent LLM batch calls during map_ontology's per-statement pass (see stages/map_ontology
+    # + services.mapping._match_chunk). Each chunk is an independent provider call; running several
+    # in parallel is what turns a run's LLM time from "sum of every call" into "the slowest one",
+    # bounded so a large filing does not open dozens of connections to the gateway at once.
+    llm_max_concurrency: int = 6
     # Mapping granularity. "per_statement" (default, most accurate) batches lines into ONE LLM
     # call so cross-line judgements — parent/child containment, residualisation, "Others"
     # handling — have context. The batch is one SOURCE PAGE in practice, so a statement spanning
@@ -167,12 +181,22 @@ class ExtractionSettings(BaseModel):
     # services.mapping.match_batch). "per_line" maps each line independently (cheaper, less
     # context-aware).
     mapping_scope: Literal["per_statement", "per_line"] = "per_statement"
+    # Multi-column notes are structured by the configured LLM before they can enter ontology
+    # mapping. A failed or unavailable model call drops the unsupported matrix rather than
+    # publishing fragmented rows.
+    llm_note_structuring: bool = False
     # Gap closing. When a section subtotal computed from the template's lines differs from the
     # one the document printed, offer the model the extracted lines that reached no statement and
     # ask which belong in that section's "Others". Arithmetic bounds the choice — an option must
     # close the difference in BOTH periods — but the placement is the model's judgement. Off, or
     # with no provider configured, the difference stays a review item instead.
     llm_gap_routing: bool = True
+    # Contingent Liabilities' narrative. The deterministic pass in services.contingent_liabilities
+    # always classifies every item and computes every total from the filing's own figures — the
+    # model never sees a number it was not given and never changes one. Enabled, it only rewrites
+    # the summary paragraph and each unclassified item's short statement in clearer English; off,
+    # or with no provider configured, the deterministic prose is what is shown.
+    llm_contingent_liabilities: bool = True
 
 
 class Settings(BaseSettings):

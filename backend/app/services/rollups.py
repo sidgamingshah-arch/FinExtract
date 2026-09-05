@@ -193,7 +193,8 @@ def calculated_nodes(template_def: dict | None) -> dict[str, dict]:
                 key = node.get("canonical_key")
                 # `rollup` is PRESENT and null on every non-calculated node once the template has
                 # been through Pydantic, so `get("rollup", {})` hands back None, not the default.
-                if key and (node.get("rollup") or {}).get("children"):
+                rollup = node.get("rollup") or {}
+                if key and (rollup.get("children") or rollup.get("reported_total_key")):
                     out[key] = node
     return out
 
@@ -370,17 +371,30 @@ def evaluate(template_def: dict | None, reported, *, labels: dict[str, str] | No
         if calc.cycle:
             out[key] = calc
             continue
-        total: float | None = None
-        for i, child in enumerate(rollup.get("children") or []):
+        reported_total_key = rollup.get("reported_total_key")
+        reported_total = reported(reported_total_key) if reported_total_key else None
+        reported_total_op = str(rollup.get("reported_total_op") or SUM).lower()
+        total: float | None = reported_total
+        children = rollup.get("children") or []
+        if rollup.get("use_reported_total_components") and reported_total_key in nodes:
+            children = [child for child in (nodes[reported_total_key].get("rollup") or {})
+                        .get("children") or [] if child != key]
+        for i, child in enumerate(children):
             # In a `diff`, the first term is added and the rest subtracted.
-            sign = -1 if (op == DIFF and i > 0) else 1
+            sign = -1 if reported_total is not None and reported_total_op == DIFF \
+                else -1 if (op == DIFF and i > 0) else 1
             val = figure(child)
             calc.components.append(Component(canonical_key=child, label=names.get(child, child),
                                              value=val, sign=sign))
             if val is not None:
                 total = sign * val if total is None else total + sign * val
         calc.value = total
-        calc.computable = total is not None
+        # A parent-minus-components residual is not valid when one of its declared deductions is
+        # absent. Missing disclosure is not zero unless the source explicitly says so.
+        requires_complete = reported_total is not None or nodes[key].get("role") == "line"
+        complete = not requires_complete or all(component.value is not None
+                              for component in calc.components)
+        calc.computable = total is not None and complete
         out[key] = calc
     for key in cyclic:
         if key in out:

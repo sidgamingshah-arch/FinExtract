@@ -283,10 +283,11 @@ export function useExtraction(
 
   const run = poll.data;
   const succeeded = run?.status === "succeeded" && !!run?.result;
+  const stopped = run?.status === "canceled";
   const failed = start.isError || poll.isError || run?.status === "failed";
   return {
     data: succeeded ? run : undefined,
-    isPending: (start.isPending && enabled) || (!!runId && !succeeded && !failed),
+    isPending: (start.isPending && enabled) || (!!runId && !succeeded && !failed && !stopped),
     isError: failed,
     error: (start.error as Error) ?? (poll.error as Error) ?? undefined,
     // WHICH rulebook this run read the filing against, as the run itself recorded it. Returned
@@ -309,6 +310,17 @@ export function useExtraction(
     stages: run?.stages ?? undefined,
     logTail: run?.log_tail ?? undefined,
   };
+}
+
+export function useStopRun(documentId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (runId: string) => api.stopRun(runId),
+    onSuccess: (run) => {
+      qc.setQueryData(["extraction-run", run.run_id], run);
+      if (documentId) qc.invalidateQueries({ queryKey: ["document-run-status", documentId] });
+    },
+  });
 }
 
 /** Start a FRESH extraction for a document that already has one.
@@ -610,11 +622,21 @@ export function useDownloadOntologySkeleton() {
 export const useTemplateXlsxColumns = () =>
   useQuery({ queryKey: ["template-xlsx-columns"], queryFn: api.templateXlsxColumns });
 
-/** Latest extraction run for a document (Export preview/counts). */
-export const useDocumentRun = (documentId: string | undefined) =>
+/** Latest extraction run for a document (Export preview/counts) — or one NAMED historical run
+ *  when `runId` is given, so the Workspace can render a past spread instead of only the latest. */
+export const useDocumentRun = (documentId: string | undefined, runId?: string) =>
   useQuery({
-    queryKey: ["document-run", documentId],
-    queryFn: () => api.documentRun(documentId as string),
+    queryKey: ["document-run", documentId, runId],
+    queryFn: () => api.documentRun(documentId as string, runId),
+    enabled: !!documentId,
+    retry: false,
+  });
+
+/** Every extraction run against this document, newest first — the Workspace's run picker. */
+export const useDocumentRuns = (documentId: string | undefined) =>
+  useQuery({
+    queryKey: ["document-runs", documentId],
+    queryFn: () => api.documentRuns(documentId as string),
     enabled: !!documentId,
     retry: false,
   });
@@ -727,12 +749,14 @@ export const useDocumentCommentary = (documentId: string | undefined, locale: Lo
     retry: false,
   });
 
-/** One statement of a document's real extraction (Workspace grid), labels in `locale`. */
+/** One statement of a document's real extraction (Workspace grid), labels in `locale` — or the
+ *  same statement from one NAMED historical run when `runId` is given. */
 export const useDocumentStatement = (
-  documentId: string | undefined, statement: StatementKey, basis: Basis, locale: Locale = "en") =>
+  documentId: string | undefined, statement: StatementKey, basis: Basis, locale: Locale = "en",
+  runId?: string) =>
   useQuery({
-    queryKey: ["document-statement", documentId, statement, basis, locale],
-    queryFn: () => api.documentStatement(documentId as string, statement, basis, locale),
+    queryKey: ["document-statement", documentId, statement, basis, locale, runId],
+    queryFn: () => api.documentStatement(documentId as string, statement, basis, locale, runId),
     enabled: !!documentId,
     retry: false,
   });

@@ -227,9 +227,13 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     # classify — a scanned page has no text layer to match a title against, so it would
     # otherwise be dropped before ever reaching the OCR path. Fall back to all pages if
     # nothing was classified at all.
+    from app.services.statements import ACTIVE_STATEMENTS
+
     targets = [p for p in doc.pages
-               if p.kind in (PageKind.FACE, PageKind.NOTES)
-               or p.source_kind == PageSourceKind.SCANNED]
+               if p.kind is PageKind.NOTES
+               or (p.kind is PageKind.FACE and p.statement in ACTIVE_STATEMENTS)
+               or (p.source_kind == PageSourceKind.SCANNED
+                   and p.statement in ACTIVE_STATEMENTS)]
     if not targets:
         targets = list(doc.pages)
 
@@ -249,6 +253,10 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     ocr = None
     added = 0
     ordinal = len(doc.line_items)
+    # The (number, title) of the note still open at the end of the last NOTES page seen, so a
+    # footnote legend that opens its page with no heading of its own (see ``extract_note_tables``)
+    # still attaches to the note it explains. A non-NOTES page in between breaks the run.
+    notes_carry: tuple[str, str] | None = None
     for ps in targets:
         if ps.index >= pdf.page_count:
             continue
@@ -280,12 +288,15 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         # other page → face line items. Both keep page + bbox provenance.
         if ps.kind == PageKind.NOTES:
             from app.services.notes_extract import extract_note_tables
-
             tables = extract_note_tables(words, page_index=ps.index,
                                          document_id=doc.content_hash, source_kind=source_kind,
-                                         scope=scope, normalisation=normalisation)
+                                         scope=scope, normalisation=normalisation,
+                                         carry_note=notes_carry)
             doc.notes.extend(tables)
+            notes_carry = ((tables[-1].note_number, tables[-1].title) if tables
+                           else notes_carry)
             continue
+        notes_carry = None
         # ``ps.statement`` (from the classifier) is what tells the reconstructor that a page is a
         # component matrix rather than a two-column comparative; ``ctx.log`` records the cases
         # where a matrix page could not be attributed and was skipped.
@@ -294,17 +305,31 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         # computed and dropped here, so a Company-only statement of financial position — which an
         # HKEX filing prints on its own page past the notes, with no column header naming an entity
         # — was reconstructed as the Group's and added to it under the same canonical keys.
-        items, ordinal = build_line_items(
-            words, page_index=ps.index, document_id=doc.content_hash,
-            source_kind=source_kind, ordinal_start=ordinal, number_format=number_format,
-            statement=ps.statement, log=ctx.log, scope=scope, normalisation=normalisation,
-            page_scope=ps.scope,
-            # The title the classifier matched on this page, so the reader can tell it from a
-            # wrapped caption head: they have the same shape and sit in the same place.
-            page_title=str((ps.evidence or {}).get("matched_title") or "") or None,
-            # The captions this filing prints at the top of page after page — its own running
-            # header, whatever it happens to say. See ``_page_chrome``.
-            page_chrome=chrome)
+        evidence = ps.evidence or {}
+        split_y = evidence.get("matched_title_y")
+        prior_statement = evidence.get("statement_before_title")
+        prior_scope = evidence.get("scope_before_title")
+        batches = [(words, ps.statement, ps.scope, None)]
+        if (ps.kind == PageKind.FACE and prior_statement and isinstance(split_y, (int, float))
+                and 0.20 < split_y < 0.95):
+            before = [word for word in words if (word.bbox.y0 + word.bbox.y1) / 2 < split_y]
+            after = [word for word in words if word not in before]
+            if before and after:
+                batches = [(before, prior_statement, prior_scope, None),
+                           (after, ps.statement, ps.scope,
+                            str(evidence.get("matched_title") or "") or None)]
+                ctx.log(f"extract:page={ps.index}:split_statement_at={split_y:.3f}"
+                        f"({prior_statement}->{ps.statement})")
+
+        items = []
+        for batch_words, statement, page_scope, page_title in batches:
+            batch_items, ordinal = build_line_items(
+                batch_words, page_index=ps.index, document_id=doc.content_hash,
+                source_kind=source_kind, ordinal_start=ordinal, number_format=number_format,
+                statement=statement, log=ctx.log, scope=scope, normalisation=normalisation,
+                page_scope=page_scope, page_title=page_title,
+                page_chrome=chrome)
+            items.extend(batch_items)
         if ps.kind == PageKind.FACE:
             # Said HERE because here is where it is known: this branch reads the FACE of a
             # statement (the notes branch above returns note tables, not line items). Only a page

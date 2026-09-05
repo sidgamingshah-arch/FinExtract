@@ -28,7 +28,7 @@ _ONTOLOGIES = ("hkfrs_hk_china_ontology.json", "hkfrs_hk_china_ontology.json")
 
 @pytest.fixture(scope="module")
 def template():
-    return load_template(json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text()))
+    return load_template(json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text(encoding="utf-8")))
 
 
 @pytest.mark.parametrize("filename", _ONTOLOGIES)
@@ -46,7 +46,7 @@ def test_a_concept_is_scoped_to_one_section_by_every_field_that_names_one(filena
     ``inherits``. Sixteen residual tests failed with a section id in the message and none of them
     named the field that was wrong.
     """
-    raw = resolve_inherits(json.loads((_SAMPLES / filename).read_text()))
+    raw = resolve_inherits(json.loads((_SAMPLES / filename).read_text(encoding="utf-8")))
     disagreements = []
     for m in raw.get("mappings") or []:
         inherited = {s for s in (m.get("section_scope") or []) if s}
@@ -84,7 +84,7 @@ def test_no_two_identities_assert_the_same_arithmetic(template, filename):
     only declare as a blocking rollup gets an authored severity and note. Widening this to rollups
     would be asserting a design decision nobody made.
     """
-    raw = json.loads((_SAMPLES / filename).read_text())
+    raw = json.loads((_SAMPLES / filename).read_text(encoding="utf-8"))
     ont = load_ontology(raw, resolve=raw.get("schema_version") == 2)
     seen: dict[tuple, list[str]] = {}
     for rel in relations(template) + ontology_identities(template, ont):
@@ -109,7 +109,7 @@ def test_one_sweep_bucket_per_section(filename):
     survived would depend on position in the JSON file. Both new lines are ordinary concepts with
     their own captions instead.
     """
-    raw = json.loads((_SAMPLES / filename).read_text())
+    raw = json.loads((_SAMPLES / filename).read_text(encoding="utf-8"))
     per_section: dict[str, list[str]] = {}
     for m in raw.get("mappings") or []:
         policy = m.get("residual_policy")
@@ -142,7 +142,7 @@ def test_a_caption_printed_under_two_sections_of_one_statement_is_a_declared_fam
     ``structural_checks``). Not by ``residual_policy``, which only the v2 file states, and not by
     ``value_scope``, which the v1 file states on some of its residuals and not others.
     """
-    raw = json.loads((_SAMPLES / filename).read_text())
+    raw = json.loads((_SAMPLES / filename).read_text(encoding="utf-8"))
     familied = {k for _, members in CONCEPT_FAMILIES for k in members}
     by_suffix: dict[str, set[str]] = {}
     for m in raw.get("mappings") or []:

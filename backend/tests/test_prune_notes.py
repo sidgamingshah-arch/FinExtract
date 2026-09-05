@@ -51,7 +51,10 @@ def _note(number: str) -> NotesTable:
 
 
 def _run(doc: DocumentModel) -> PipelineContext:
+    # This suite specifically tests the pruning RULE, so it opts in regardless of the app
+    # default (`extraction.prune_unreferenced_notes`, off by default — see config.py).
     ctx = PipelineContext()
+    ctx.settings.extraction.prune_unreferenced_notes = True
     PruneNotesStage().run(doc, ctx)
     return ctx
 

@@ -241,7 +241,13 @@ export type FxRateResolution =
  *  is now a REVIEW finding carrying a re-map offer (`ReviewCheck.remap`), because a bucket the
  *  template does not declare is a figure nobody will ever reconcile — it looked extracted and was
  *  in fact unplaced. */
-export type StatementKey = "balance_sheet" | "profit_and_loss" | "cash_flow"
+export type StatementKey =
+  | "statement_setup"
+  | "balance_sheet"
+  | "profit_and_loss"
+  | "cash_flow"
+  | "covenants_supplemental"
+  | "notes"
   | "changes_in_equity" | "kpi";
 /** Views that exist only for a real extraction (there is no demo data behind them). */
 export const DERIVED_STATEMENTS: StatementKey[] = ["kpi"];
@@ -633,6 +639,16 @@ export interface ExtractionRunResponse {
   statements?: TemplateStatement[];
   result: ExtractionResult;
 }
+/** One entry in a document's run history (`GET /documents/{id}/runs`) — light enough for a
+ *  picker: no `result`, so listing every past run does not download each one's full spread. */
+export interface DocumentRunSummary {
+  run_id: string;
+  run_number: number;
+  status: string;
+  created_at: string;
+  rulebook?: RulebookRecord | null;
+}
+
 /** Whether a document has an extraction IN FLIGHT, and how far it has got.
  *
  *  `/documents/{id}/run` answers 404 until a run has a RESULT, so a screen loaded fresh mid-run
@@ -1135,6 +1151,10 @@ export interface NoteIndexItem {
 }
 export interface NoteDetailRow {
   label: string;
+  /** Template concept supplied by this note row, when note decomposition mapped it. */
+  canonical_key?: string | null;
+  /** Combined face concept whose cited note supplied this mapped or residual detail. */
+  supports_face_key?: string | null;
   v1: number;
   v2: number;
   /** The BUCKET this row's mapping confidence fell into — the badge's colour. */
@@ -1144,6 +1164,10 @@ export interface NoteDetailRow {
    *  'high' row read "96%" whatever its real score. Absent → the badge says "not scored". */
   conf_pct?: number | null;
   kind?: "sub" | "tot";
+}
+export interface NoteStructuredTable {
+  columns: string[];
+  rows: { label: string; section?: string | null; values: Record<string, string | null> }[];
 }
 export interface NoteDetail {
   /** As the filing prints it — see NoteIndexItem.no. */
@@ -1168,6 +1192,8 @@ export interface NoteDetail {
    *  filing's real periods, so a 2023/2022 filing had the two screens labelling one figure
    *  differently. Absent (or blank) on a run extracted before the endpoint served it. */
   periods?: string[];
+  /** The source table's full shape, used for AI-structured multi-column note schedules. */
+  table?: NoteStructuredTable;
 }
 export interface NotesResponse {
   notes: NoteIndexItem[];

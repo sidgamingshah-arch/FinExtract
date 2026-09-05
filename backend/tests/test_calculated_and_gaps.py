@@ -140,6 +140,40 @@ def test_a_diff_rollup_subtracts_every_term_after_the_first():
     assert evaluate(tpl, reported)["net"].value == 350.0
 
 
+def test_a_conditional_total_uses_reported_parent_less_its_breakdown():
+    tpl = {"statements": [{"type": "balance_sheet", "sections": [
+        {"canonical_key": "inventory", "node_id": "inventory", "label": "Inventory",
+         "role": "subtotal", "rollup": {
+             "op": "sum", "reported_total_key": "inventory", "reported_total_op": "diff",
+             "children": ["raw_materials", "work_in_progress", "finished_goods"]}},
+    ]}]}
+    reported = {"inventory": 100.0, "raw_materials": 25.0,
+                "work_in_progress": 20.0, "finished_goods": 15.0}.get
+
+    calculated = evaluate(tpl, reported)["inventory"]
+
+    assert calculated.value == 40.0
+    assert [component.sign for component in calculated.components] == [-1, -1, -1]
+
+
+def test_a_conditional_residual_reuses_its_total_components():
+    tpl = {"statements": [{"type": "cash_flow", "sections": [
+        {"canonical_key": "other_cash", "node_id": "other_cash", "label": "Other cash",
+         "role": "line", "rollup": {
+             "reported_total_key": "cash_total", "reported_total_op": "diff",
+             "use_reported_total_components": True}},
+        {"canonical_key": "cash_total", "node_id": "cash_total", "label": "Cash total",
+         "role": "total", "rollup": {"op": "sum",
+             "children": ["receipts", "payments", "other_cash"]}},
+    ]}]}
+    reported = {"cash_total": 100.0, "receipts": 125.0, "payments": -40.0}.get
+
+    calculated = evaluate(tpl, reported)["other_cash"]
+
+    assert calculated.value == 15.0
+    assert [component.canonical_key for component in calculated.components] == ["receipts", "payments"]
+
+
 def test_a_rollup_cycle_is_reported_rather_than_recursed_into():
     tpl = {"statements": [{"type": "balance_sheet", "sections": [
         {"canonical_key": "a", "node_id": "a", "label": "A", "role": "total",

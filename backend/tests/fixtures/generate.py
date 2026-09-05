@@ -759,7 +759,8 @@ def make_financial_highlights_pdf() -> bytes:
     return buf.getvalue()
 
 
-def make_decomposed_note_pdf(cross_section: bool = False) -> bytes:
+def make_decomposed_note_pdf(cross_section: bool = False,
+                             unmapped_residual: bool = False) -> bytes:
     """A combined caption on the FACE, itemised in the NOTE it cites.
 
     The shape the same-section split exists for. The balance sheet prints one line --
@@ -800,8 +801,9 @@ def make_decomposed_note_pdf(cross_section: bool = False) -> bytes:
     c.drawString(72, height - 100, "Note 18: Prepayments, other receivables and other assets")
     y = height - 124
     # 3,410 + 1,000 + 590 = 5,000 and 3,000 + 900 + 500 = 4,400 -- the aggregate, exactly.
-    third = ("Property, plant and equipment" if cross_section
-             else "Prepaid income tax")
+    third = ("Property, plant and equipment" if cross_section else
+             "Unclassified note balance" if unmapped_residual else
+             "Prepaid income tax")
     # ONE CONCEPT ITEMISED TWICE. A note routinely splits a single template concept across two
     # disclosed rows (here under a mainland and an overseas heading), so the components are summed
     # per concept rather than assumed one-to-one: 400 + 190 = 590 is what the aggregate needs.

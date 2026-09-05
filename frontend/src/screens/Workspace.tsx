@@ -17,7 +17,7 @@ import { color, confStyle, font, layout, radius, shadow, fmtIN, fmtPlain, parseA
 import { DERIVED_STATEMENTS } from "../types";
 import type { Basis, FxRateResolution, StatementColumn, StatementKey, StatementResponse, StatementRow, SupersededTemplate } from "../types";
 import { ApiError, refusalText } from "../lib/api";
-import { activeTemplate, ontologyInForce, useDocumentRun, useDocumentRunStatus, useDocumentStatement, useEditDocumentLineItem, useFxRateResolution, useOntologies, useReextract, useRevertDocumentLineItem, useStatement, useEditLineItem, useProjectLoaded, useTemplates } from "../lib/queries";
+import { activeTemplate, ontologyInForce, useDocumentRun, useDocumentRunStatus, useDocumentRuns, useDocumentStatement, useEditDocumentLineItem, useFxRateResolution, useOntologies, useReextract, useRevertDocumentLineItem, useStatement, useEditLineItem, useProjectLoaded, useTemplates } from "../lib/queries";
 import { useCan } from "../lib/rbac";
 import { useUI } from "../store";
 import { useT } from "../i18n";
@@ -1002,6 +1002,14 @@ export default function WorkspaceScreen() {
   const activeDocumentId = useUI((s) => s.activeDocumentId);
   const usingReal = !!activeDocumentId;
   const loaded = useProjectLoaded();
+  // Which past run this Workspace shows, or null for the latest. Reset the moment the active
+  // document changes — a run id belongs to the document it was launched against, and carrying one
+  // over onto a different document would either 404 or, worse, silently pick that document's run
+  // with the same id (run ids are per-document but the state does not know that on its own).
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  useEffect(() => { setSelectedRunId(null); }, [activeDocumentId]);
+  const runsQ = useDocumentRuns(activeDocumentId ?? undefined);
+  const runs = runsQ.data?.runs ?? [];
   // KPIs and the additional-items remainder are derived from a REAL extraction; there is no demo
   // data behind them, so the demo workspace falls back to the balance sheet rather than asking
   // for a view the demo endpoint cannot serve.
@@ -1012,7 +1020,7 @@ export default function WorkspaceScreen() {
   // "is not part of the reviewed set", which is a judgement the template is the right place to make.
   // Read off the RUN's template (`ExtractionRunResponse.statements`), so publishing a new template
   // cannot re-tab a spread that already exists.
-  const runQ = useDocumentRun(activeDocumentId ?? undefined);
+  const runQ = useDocumentRun(activeDocumentId ?? undefined, selectedRunId ?? undefined);
   const templateStatements = usingReal ? (runQ.data?.statements ?? []) : [];
   // THE BASES THIS FILING LABELLED. Opening on Consolidated whatever the document contains meant a
   // company-only filing showed its figures under a substitution notice explaining a mismatch the
@@ -1032,8 +1040,18 @@ export default function WorkspaceScreen() {
   const offeredStatements: StatementKey[] = (
     templateStatements.length > 0
       ? templateStatements.map((st) => st.key)
-      : (["balance_sheet", "profit_and_loss", "cash_flow"] as StatementKey[])
-  ).concat(usingReal ? DERIVED_STATEMENTS : []);
+      : ([
+          "statement_setup",
+          "balance_sheet",
+          "profit_and_loss",
+          "cash_flow",
+          "covenants_supplemental",
+          "notes",
+        ] as StatementKey[])
+  )
+    // Temporarily hidden from the front-end while these two statements are still settling.
+    .filter((key) => key !== "statement_setup" && key !== "covenants_supplemental")
+    .concat(usingReal ? DERIVED_STATEMENTS : []);
   // A stored or deep-linked statement the offered set does not contain would render an empty grid
   // with no way to tell that from a statement the filing omits, so fall back to the first offered.
   const inOffered = offeredStatements.includes(statement);
@@ -1043,7 +1061,7 @@ export default function WorkspaceScreen() {
     : (offeredStatements[0] ?? "balance_sheet");
   const realQ = useDocumentStatement(activeDocumentId ?? undefined, effectiveStatement,
                                      effectiveDataset,
-                                     locale);
+                                     locale, selectedRunId ?? undefined);
   const demoQ = useStatement(effectiveStatement, effectiveDataset, locale, !usingReal);
   const data = usingReal ? realQ.data : demoQ.data;
   const isPending = usingReal ? realQ.isPending : demoQ.isPending;
@@ -1276,6 +1294,23 @@ export default function WorkspaceScreen() {
           value={effectiveStatement}
           onChange={setStatement}
         />
+        {usingReal && runs.length > 1 && (
+        <ToolSelect<string>
+          label={t("ws.run")}
+          value={selectedRunId ?? ""}
+          options={[
+            { value: "", label: t("ws.run.latest") },
+            ...runs
+              .filter((r) => r.run_id !== runs[0]?.run_id)
+              .map((r) => ({
+                value: r.run_id,
+                label: `#${r.run_number} · ${new Date(r.created_at).toLocaleString()}`
+                       + (r.status !== "succeeded" ? ` (${r.status})` : ""),
+              })),
+          ]}
+          onChange={(v) => setSelectedRunId(v || null)}
+        />
+        )}
         {!rawView && (
         <ToolSelect<string>
           label={t("ws.currency")}
@@ -1927,7 +1962,7 @@ export default function WorkspaceScreen() {
                 {/* A combined figure matches no single line on the page, so every line that went
                     into it is listed with its own amount and its own page — click one to jump
                     the viewer straight to where it was printed. */}
-                {selRowObj?.contributions?.length ? (
+                {inspOrigin !== "reported_uncomputed" && selRowObj?.contributions?.length ? (
                   <div
                     style={{
                       marginTop: 9,

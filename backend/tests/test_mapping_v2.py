@@ -31,7 +31,7 @@ from app.services.mapping import (
 )
 
 TEMPLATES = Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
-V2 = json.loads((TEMPLATES / "hkfrs_hk_china_ontology.json").read_text())
+V2 = json.loads((TEMPLATES / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8"))
 
 
 @pytest.fixture(scope="module")
@@ -156,7 +156,7 @@ def test_the_sweep_still_reaches_a_bucket_the_matcher_cannot(v2):
     from app.schemas.loader import load_template
     from app.stages.residual import ResidualStage
 
-    template = load_template(json.loads((TEMPLATES / "hkfrs_hk_china_template.json").read_text()))
+    template = load_template(json.loads((TEMPLATES / "hkfrs_hk_china_template.json").read_text(encoding="utf-8")))
 
     def li(ordinal: int, label: str, key: str | None, value: int,
            role: LineRole = LineRole.LINE) -> LineItem:
@@ -526,6 +526,27 @@ def test_editing_extraction_mode_to_derive_takes_the_concept_out_of_matching():
     assert "pl_income__total_income" in m._extractable_keys()
 
 
+def test_an_exact_canonical_label_beats_a_higher_priority_borrowed_alias(v2):
+    owner = next(m for m in v2.mappings
+                 if m.statement.value == "profit_and_loss"
+                 and m.extraction_mode == "extract"
+                 and m.alias_matching == "enabled")
+    wrong = next(m for m in v2.mappings
+                 if m.statement == owner.statement
+                 and m.canonical_key != owner.canonical_key
+                 and m.extraction_mode == "extract"
+                 and m.alias_matching == "enabled")
+    edited = v2.model_copy(deep=True)
+    edited_owner = next(m for m in edited.mappings if m.canonical_key == owner.canonical_key)
+    edited_wrong = next(m for m in edited.mappings if m.canonical_key == wrong.canonical_key)
+    edited_wrong.aliases.append(edited_owner.label)
+    edited_wrong.match_priority = (edited_owner.match_priority or 0) + 100
+
+    result = _matcher(edited).match(edited_owner.label, statement="profit_and_loss")
+
+    assert result.canonical_key == edited_owner.canonical_key
+
+
 # --- 5. the per-concept rulebook prose the decider is given --------------------------------------
 
 def test_the_criteria_the_rulebook_wrote_for_the_decision_reach_the_decider(v2):
@@ -625,9 +646,10 @@ def _run_stage(doc, ontology):
 
 
 def test_a_gross_parent_is_not_filed_alongside_the_children_it_contains(v2):
-    """"If any component is printed, populate components and leave the aggregate null." Filing both
-    double-counts equity, and every check still passes: the statement stays internally consistent, it
-    is only wrong. The aggregate's row keeps its value, provenance and label and loses the KEY."""
+    """"If any component is printed, contain the parent and mark it as such.
+
+    The aggregate remains evidence-only so it cannot be counted alongside its child.
+    """
     rows = _run_stage(_equity_doc("Reserves", "Share premium"), v2)
 
     assert rows["Share premium"].canonical_key == "bs_equity__share_premium"
@@ -635,6 +657,7 @@ def test_a_gross_parent_is_not_filed_alongside_the_children_it_contains(v2):
     flags = rows["Reserves"].confidence.flags
     assert "alloc:parent_gross_evidence_only" in flags
     assert "contains_mapped_children:bs_equity__share_premium" in flags
+    assert "unfiled_aggregate:bs_equity__reserves" in flags
     # Marked a subtotal, which it is — and which is what keeps the residual sweep from adding it back
     # into the section under the name "Others", strictly worse than the double count.
     assert rows["Reserves"].role is LineRole.SUBTOTAL
@@ -665,6 +688,7 @@ def test_the_global_mutually_exclusive_group_is_read_on_its_own():
 
     rows = _run_stage(_equity_doc("Reserves", "Share premium"), ont)
     assert rows["Reserves"].canonical_key is None
+    assert "unfiled_aggregate:bs_equity__reserves" in rows["Reserves"].confidence.flags
 
 
 def test_the_concept_flags_are_read_on_their_own_too():
@@ -678,6 +702,7 @@ def test_the_concept_flags_are_read_on_their_own_too():
     assert rows["Reserves"].canonical_key is None
     assert "contains_mapped_children:bs_equity__share_premium" in (
         rows["Reserves"].confidence.flags)
+    assert "unfiled_aggregate:bs_equity__reserves" in rows["Reserves"].confidence.flags
 
 
 def test_a_rulebook_declaring_no_containment_leaves_both_rows_filed():

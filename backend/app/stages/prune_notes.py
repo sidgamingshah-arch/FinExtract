@@ -69,6 +69,9 @@ class PruneNotesStage:
     def run(self, doc: DocumentModel, ctx: PipelineContext) -> DocumentModel:
         if not doc.notes:
             return doc
+        if not ctx.settings.extraction.prune_unreferenced_notes:
+            ctx.log(f"prune_notes:disabled kept={len(doc.notes)}")
+            return doc
 
         # Prefer the authoritative face->note links built by the link stage: they are what
         # "linked to an item on the face" means, and they record the note table actually

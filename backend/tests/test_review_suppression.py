@@ -40,8 +40,8 @@ from decimal import Decimal
 from pathlib import Path
 
 _SAMPLES = Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
-TEMPLATE = json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text())
-ONTOLOGY = json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text())
+TEMPLATE = json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text(encoding="utf-8"))
+ONTOLOGY = json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8"))
 
 # The equity section as a filing could print it, with one thing wrong: total equity stands 2,500
 # above the components the template says it is made of in the CONSOLIDATED column, and 900 above them

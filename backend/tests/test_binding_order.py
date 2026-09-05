@@ -36,7 +36,7 @@ from app.services.mapping import (
 )
 
 TEMPLATES = Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
-V2_JSON = (TEMPLATES / "hkfrs_hk_china_ontology.json").read_text()
+V2_JSON = (TEMPLATES / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8")
 
 
 def _v2():
@@ -78,7 +78,11 @@ class Spy:
         if response_schema is LlmBatchDecision:
             self.batch_payloads.append(payload)
             self.batch_caps.append(max_tokens)
-            return LlmBatchDecision(mappings=list(self._items)), meta
+            mappings = list(self._items) or [
+                LlmBatchItem(item_id=item["item_id"], canonical_key="", confidence=0.0)
+                for item in payload["source_items"]
+            ]
+            return LlmBatchDecision(mappings=mappings), meta
         return LlmMappingDecision(canonical_key=self._single,
                                   confidence=self._confidence if self._single else 0.0), meta
 
@@ -383,7 +387,7 @@ def _doc(pages: list[tuple[int, str | None]], rows: list[tuple[int, str, list[tu
 CURRENT = [("consolidated", "current"), ("consolidated", "prior")]
 
 
-def test_a_statement_spanning_two_pages_is_decided_in_one_call(v2):
+def test_a_statement_spanning_two_pages_gets_section_and_statement_passes(v2):
     """The reason the unit changed. Grouped by page, a balance sheet printed across two pages was
     two calls, so a section cut in half by the page break had its subtotal in one call and the lines
     it is made of in the other — the cross-line judgement the batch exists for."""
@@ -401,8 +405,8 @@ def test_a_statement_spanning_two_pages_is_decided_in_one_call(v2):
     ctx.settings.llm.provider = "fake"
     MapOntologyStage().run(doc, ctx)
 
-    assert spy.batches == 1
-    assert {i["item_id"] for i in spy.payloads[0]["source_items"]} == {
+    assert spy.batches == 2
+    assert {i["item_id"] for i in spy.payloads[-1]["source_items"]} == {
         str(li.id) for li in doc.line_items}
 
 
@@ -464,8 +468,9 @@ def test_a_page_the_classifier_could_not_place_is_routed_per_line(v2):
     batched = {i["item_id"] for p in spy.batch_payloads for i in p["source_items"]}
     unplaced = next(li for li in doc.line_items if li.source_label == "Inventories")
     assert str(unplaced.id) not in batched
-    # …and it is still mapped, by the per-line path.
-    assert unplaced.canonical_key == "bs_current_assets__inventories"
+    # The per-line provider abstained, so its exact deterministic evidence is not accepted as an
+    # LLM-refined mapping.
+    assert unplaced.canonical_key is None
 
 
 # --- chunking and the response budget -----------------------------------------------------------
@@ -479,10 +484,10 @@ def test_a_large_statement_is_chunked_and_each_chunk_carries_its_own_budget(v2):
     items = [(str(uuid4()), f"Caption {i}") for i in range(170)]
     m.match_batch(items, statement="balance_sheet")
 
-    assert [len(p["source_items"]) for p in spy.batch_payloads] == [80, 80, 10]
-    assert spy.batch_caps == [m._batch_max_tokens(80), m._batch_max_tokens(80),
-                              m._batch_max_tokens(10)]
-    assert m.usage["batch_chunks"] == 3 and m.usage["batch_max_items"] == 80
+    assert [len(p["source_items"]) for p in spy.batch_payloads] == [25, 25, 25, 25, 25, 25, 20]
+    assert spy.batch_caps == [m._effective_batch_max_tokens(len(p["source_items"]))
+                              for p in spy.batch_payloads]
+    assert m.usage["batch_chunks"] == 7 and m.usage["batch_max_items"] == 25
     # Print order is preserved across the cut, so a chunk is a window on the statement and not a
     # random sample of it.
     seen = [i["item_id"] for p in spy.batch_payloads for i in p["source_items"]]
@@ -502,10 +507,19 @@ def test_the_response_budget_is_measured_from_the_response_envelope(v2):
 
     # ~3 characters per token for JSON of UUIDs and long snake_case identifiers.
     assert len(envelope) / 3 <= OntologyMatcher._batch_max_tokens(OntologyMatcher.BATCH_MAX_ITEMS)
-    assert OntologyMatcher._batch_max_tokens(80) > get_settings().llm.max_tokens
+    matcher = _matcher(v2, Spy(items=[]))
+    assert matcher._effective_batch_max_tokens(25) == 8192
+    assert matcher._effective_batch_max_tokens(15) == 8192
+    assert matcher._effective_batch_max_tokens(80) < get_settings().llm.max_tokens
     # And the per-item slope is what was measured, not a round number someone liked.
     assert (OntologyMatcher._batch_max_tokens(2)
             - OntologyMatcher._batch_max_tokens(1)) == 80
+
+
+def test_small_batch_budget_is_measured_from_the_response_not_the_global_cap(v2):
+    m = _matcher(v2, Spy(items=[]))
+    assert m._effective_batch_max_tokens(15) == 8192
+    assert m._effective_batch_max_tokens(15) < get_settings().llm.max_tokens
 
 
 # --- a computed concept is out of every tier, and its caption is refused not re-homed -----------

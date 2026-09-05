@@ -749,6 +749,18 @@ def _latest_run(session: Session, document_id: str):
     ).scalars().first()
 
 
+def _run_by_id(session: Session, document_id: str, run_id: str):
+    """One run, scoped to the document it was launched against — a run id from another document
+    (or a stale/deleted one) answers None rather than serving a spread under the wrong filing's
+    name, the same ownership rule ``authorized_document`` applies at the document level."""
+    from app.db.models import ExtractionRun
+
+    return session.execute(
+        select(ExtractionRun)
+        .where(ExtractionRun.document_id == document_id, ExtractionRun.id == run_id)
+    ).scalars().first()
+
+
 def _run_template_id(run) -> str | None:
     """Which template version a run was launched against — ONE spelling of the answer.
 
@@ -2370,6 +2382,8 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
         if (r.get("canonical_key") or "") in named or (r.get("source_label") or "") in named:
             indicted.add(i)
         key = r.get("canonical_key")
+        from app.stages.face_mapping_contract import is_unclassified_face_key
+        engine_unclassified = is_unclassified_face_key(key)
         conf = r.get("mapping_confidence")
         flags = r.get("flags") or []
         first = (r.get("values") or [{}])[0]
@@ -2380,7 +2394,7 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
         # stopped asking.
         weak = ("low_mapping_confidence" in flags
                 or (isinstance(conf, (int, float)) and conf < _low_conf_threshold()))
-        if key and weak:
+        if key and weak and not engine_unclassified:
             weak_mappings.add(i)
         # REACHES NO LINE IN THE OUTPUT — one category, two ways in. Either nothing claimed the
         # caption, or something claimed it for a concept THIS TEMPLATE DOES NOT DECLARE, and from the
@@ -2395,7 +2409,7 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
         off_template = bool(key and templated and key not in declared_keys
                             and i not in on_a_matrix)
 
-        if not key or off_template:
+        if not key or off_template or engine_unclassified:
             # A DEMOTED GROSS PARENT IS NOT A MAPPING FAILURE. It mapped — often exactly — and was
             # then un-filed on purpose, because its components are on the face too and filing both
             # would count the money twice (`map_ontology._enforce_containment`). Its money IS on the
@@ -2449,7 +2463,8 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
                     # between "nothing recognised this caption" and "the rulebook and the template
                     # disagree about this line" — different fixes, same category.
                     [L("Mapped to"),
-                     key if off_template else L("— (no confident match)"), True],
+                     key if off_template and not engine_unclassified
+                     else L("— (no confident match)"), True],
                     [L("Value"), str(val) if val is not None else "—", False],
                 ],
                 "fix": L(_UNMAPPED_FIX),
@@ -2470,7 +2485,7 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
                 # its geometry alone.
                 "subject": {"k": "unmapped", "label": judgement.norm(r.get("source_label")),
                             "anchor": _prov_anchor(first.get("provenance")),
-                            **({"key": key} if off_template else {})},
+                            **({"key": key} if off_template and not engine_unclassified else {})},
                 # The card prints str(val), so string equality invents no rounding the screen
                 # never applied.
                 "evidence": {"value": str(val) if val is not None else None},
@@ -2610,15 +2625,38 @@ def get_document_audit(document_id: str) -> dict:
     return audit_svc.served_trail(document_id)
 
 
+@router.get("/{document_id}/runs", dependencies=[Depends(authorized_document)])
+def list_document_runs(document_id: str, session: Session = Depends(db)) -> dict:
+    """Every extraction run against this document, newest first — light enough for a picker (no
+    ``result``), so switching between historical runs on the Workspace does not download each
+    one's full spread just to populate the list a reader chooses from.
+    """
+    from app.db.models import ExtractionRun
+
+    rows = session.execute(
+        select(ExtractionRun)
+        .where(ExtractionRun.document_id == document_id)
+        .order_by(ExtractionRun.created_at.desc())
+    ).scalars().all()
+    return {"runs": [{"run_id": r.id, "run_number": r.run_number, "status": r.status,
+                      "created_at": r.created_at.isoformat(),
+                      "rulebook": (r.options or {}).get("rulebook")}
+                     for r in rows]}
+
+
 @router.get("/{document_id}/run", dependencies=[Depends(authorized_document)])
-def get_document_run(document_id: str, session: Session = Depends(db)) -> dict:
+def get_document_run(document_id: str, run_id: str | None = Query(None),
+                     session: Session = Depends(db)) -> dict:
     """The latest extraction result for a document (drives the Export preview/counts for a
-    real run). 404 until the document has been extracted."""
+    real run), or one NAMED historical run when ``run_id`` is given. 404 until the document has
+    been extracted, and 404 (not a silent fall-back to latest) for a ``run_id`` that does not
+    belong to this document — the same "cannot say" the caller already handles for no run at all.
+    """
     from app.db.models import Document
 
     if session.get(Document, document_id) is None:
         raise HTTPException(status_code=404, detail="Document not found")
-    run = _latest_run(session, document_id)
+    run = _run_by_id(session, document_id, run_id) if run_id else _latest_run(session, document_id)
     if run is None or not run.result:
         raise HTTPException(status_code=404, detail="No extraction run yet for this document")
     # Which rulebook this run read the filing against, as the run recorded it (see
@@ -3140,6 +3178,12 @@ def remap_review_row(document_id: str, body: RemapBody, locale: str = Query("en"
                    "separately.")
 
     key = (body.canonical_key or "").strip()
+    target = matches[0]
+    prior = target.get("canonical_key") or ""
+    if prior == key:
+        raise HTTPException(status_code=409,
+                            detail=f"That row is already mapped to '{key}'." if key
+                                   else "That row is already unmapped.")
     template_def = _template_for_run(session, run)
     if key:
         allowed = {t["canonical_key"] for t in _remap_targets(template_def, locale)}
@@ -3149,12 +3193,6 @@ def remap_review_row(document_id: str, body: RemapBody, locale: str = Query("en"
                 detail=f"'{key}' is not a line this run's template offers as a re-map target. "
                        "Calculated subtotals and section headers are excluded.")
 
-    target = matches[0]
-    prior = target.get("canonical_key") or ""
-    if prior == key:
-        raise HTTPException(status_code=409,
-                            detail=f"That row is already mapped to '{key}'." if key
-                                   else "That row is already unmapped.")
     target["canonical_key"] = key or None
     target["mapping_method"] = "manual_remap" if key else "manual_unmap"
     target["mapping_confidence"] = 1.0 if key else None
@@ -4028,16 +4066,26 @@ def _period_labels_from(value_lists: Iterable[list[dict]], locale: str) -> list[
     for vals in value_lists:
         if not vals:
             continue
-        for period, disp in period_displays(vals).items():
-            found.setdefault(period, disp)
-        if positional is None and not period_displays(vals):
+        displays = period_displays(vals)
+        for period, disp in displays.items():
+            # If the same printed value appears in both slots (e.g. both columns read as
+            # "At 1 August 2023"), keep the slot identity rather than collapsing to a single
+            # shared label. The screen is then free to render Current/Prior instead of the
+            # duplicated period caption, which is the only honest label available.
+            if period in ("current", "prior"):
+                found.setdefault(period, disp)
+        if positional is None and not displays:
             # A row whose columns are unnamed (col0/col1) still tells us the header order.
             positional = [(v.get("period_display") or v.get("period_label")) for v in vals]
         if "current" in found and "prior" in found:
             break
     if found:
-        return [_disp_period(found.get("current"), 0, locale),
-                _disp_period(found.get("prior"), 1, locale)]
+        current_disp = found.get("current")
+        prior_disp = found.get("prior")
+        if current_disp == prior_disp and current_disp is not None:
+            return [_t("Current", locale), _t("Prior", locale)]
+        return [_disp_period(current_disp, 0, locale),
+                _disp_period(prior_disp, 1, locale)]
     if positional:
         return [_disp_period(positional[0] if positional else None, 0, locale),
                 _disp_period(positional[1] if len(positional) > 1 else None, 1, locale)]
@@ -4558,6 +4606,8 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
 
     calc_cur = _calculated(rows, template_def, basis, "current", locale, netted_cur)
     calc_prior = _calculated(rows, template_def, basis, "prior", locale, netted_prior)
+    from app.services.rollups import calculated_nodes
+    template_calc_nodes = calculated_nodes(template_def)
 
     # A template child's presentation kind (subtotal / total rows are styled differently in
     # the grid); anything else is a plain line item.
@@ -4618,7 +4668,9 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
         if source is not None:
             # Display only — see item_row. A rollup's rendering ("12,800 + 2,150 + 3,410") is not
             # an expression the server may evaluate on the next edit.
-            row["arithmetic"] = source.formula or row.get("arithmetic")
+            rollup = (template_calc_nodes.get(key) or {}).get("rollup") or {}
+            if not (row.get("kind") == "item" and rollup.get("reported_total_key")):
+                row["arithmetic"] = source.formula or row.get("arithmetic")
             # The components ARE the traceability: each with its own figure and the page it was
             # printed on, so a computed subtotal can be taken apart line by line.
             row["contributions"] = [{
@@ -4832,8 +4884,13 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
         # A mapped figure still never vanishes in silence: an off-template row is raised as an
         # `off_template` review finding carrying a re-map offer (see `_build_review`), which both
         # says the figure reaches no spread and offers the control that fixes it.
+        # A lone section that is the statement's only section groups nothing, so its header would
+        # just repeat the tab's own title (e.g. a "Notes" heading atop the Notes tab).
+        single_section = len((stmt or {}).get("sections") or []) == 1
         for kind, node in _template_skeleton(stmt):
             if kind == "section":
+                if single_section:
+                    continue
                 out.append({"id": f"sec_{node.get('node_id', '')}", "label": _loc(node, locale),
                             "kind": "section", "v1": None, "v2": None})
             else:
@@ -4930,16 +4987,18 @@ def get_document_statement(
     statement: str = Query("balance_sheet"),
     basis: str = Query("consolidated"),
     locale: str = Query("en"),
+    run_id: str | None = Query(None),
     session: Session = Depends(db),
 ) -> dict:
     """One statement of a document's real extraction, grouped for the Workspace grid,
-    with labels resolved in the output `locale`."""
+    with labels resolved in the output `locale`. Reads the latest run, or one NAMED historical
+    run when ``run_id`` is given — the same run a caller picked off ``list_document_runs``."""
     from app.db.models import Document
 
     doc = session.get(Document, document_id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Document not found")
-    run = _latest_run(session, document_id)
+    run = _run_by_id(session, document_id, run_id) if run_id else _latest_run(session, document_id)
     if run is None or not run.result:
         raise HTTPException(status_code=404, detail="No extraction run yet for this document")
     template_def = _template_for_run(session, run)
@@ -5173,6 +5232,36 @@ def _reconciliation_text(entries: list[dict], note_no: str) -> str | None:
     return " ".join(parts)
 
 
+def _note_table_rows(rows: list[dict], periods: list[str]) -> dict:
+    """Normalize extracted note rows into a table-like shape for the Notes screen."""
+    columns: list[str] = []
+
+    def _key(value: dict) -> str | None:
+        label = str(value.get("period_display") or value.get("period_label") or "").strip()
+        return label or None
+
+    for row in rows:
+        for value in row.get("values", []) or []:
+            key = _key(value)
+            if key and key not in columns:
+                columns.append(key)
+
+    if not columns:
+        columns = [str(period).strip() for period in periods if str(period).strip()]
+
+    table_rows: list[dict] = []
+    for row in rows:
+        values = {}
+        for value in row.get("values", []) or []:
+            key = _key(value)
+            if key is not None:
+                values[key] = value.get("value")
+        table_rows.append({"label": row.get("label", ""), "section": row.get("group_hint") or None,
+                   "values": {col: values.get(col) for col in columns}})
+
+    return {"columns": columns, "rows": table_rows}
+
+
 @router.get("/{document_id}/notes", dependencies=[Depends(authorized_document)])
 def get_document_notes(document_id: str, session: Session = Depends(db)) -> dict:
     """All-notes index for a real document. Prefers the EXTRACTED note detail tables (the
@@ -5232,6 +5321,8 @@ def get_document_note(document_id: str, note_no: str, locale: str = Query("en"),
             cur, prior = cur_v or {}, prior_v or {}
             detail_rows.append({
                 "label": row.get("label", ""),
+                "canonical_key": row.get("canonical_key"),
+                "supports_face_key": row.get("supports_face_key"),
                 "v1": _to_num(cur.get("value")) or 0,
                 "v2": _to_num(prior.get("value")) or 0,
                 # Role → emphasis (subtotal/total) and mapping confidence → a per-row badge,
@@ -5243,6 +5334,7 @@ def get_document_note(document_id: str, note_no: str, locale: str = Query("en"),
                 **(dict(zip(("conf", "conf_pct"), _conf_cat(row.get("confidence"))))
                    if isinstance(row.get("confidence"), (int, float)) else {}),
             })
+        periods = _period_labels_from((r.get("values") or [] for r in d.get("rows", [])), locale)
         return {
             "no": note_no, "title": d.get("title") or f"Note {note_no}", "page": d.get("page", 0),
             # EVERY page the note was printed on, not only the first. A note continued across pages
@@ -5258,8 +5350,8 @@ def get_document_note(document_id: str, note_no: str, locale: str = Query("en"),
             "rows": detail_rows,
             # Derived from exactly the value lists whose split_current_prior above produced v1/v2,
             # so a header cannot disagree with the column under it.
-            "periods": _period_labels_from((r.get("values") or [] for r in d.get("rows", [])),
-                                           locale),
+            "periods": periods,
+            "table": _note_table_rows(d.get("rows", []), periods),
             "reconciliation": _reconciliation_text(result.get("reconciliation", []), note_no),
         }
 

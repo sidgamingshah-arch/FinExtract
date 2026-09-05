@@ -127,6 +127,7 @@ import type {
   DemoUser,
   DocSearchResult,
   DocumentRunStatus,
+  DocumentRunSummary,
   ExportFmt,
   ExportOption,
   ExtractionRunResponse,
@@ -237,6 +238,8 @@ export const api = {
       }),
   /** Poll a background extraction run's status/result. */
   getRun: (runId: string) => req<ExtractionRunResponse>(`/extractions/${runId}`),
+  stopRun: (runId: string) =>
+    req<ExtractionRunResponse>(`/extractions/${runId}/cancel`, { method: "POST" }),
   /** Real per-document pre-flight integrity (drives the Integrity screen for an upload). */
   documentIntegrity: (documentId: string, locale: Locale = "en") =>
     req<IntegrityResponse>(`/documents/${documentId}/integrity?locale=${locale}`),
@@ -310,9 +313,14 @@ export const api = {
       `/documents/${documentId}/line-items/${encodeURIComponent(key)}`,
       { method: "DELETE" },
     ),
-  /** The latest extraction run for a document (drives the Export preview/counts). */
-  documentRun: (documentId: string) =>
-    req<ExtractionRunResponse>(`/documents/${documentId}/run`),
+  /** The latest extraction run for a document (drives the Export preview/counts) — or one
+   *  NAMED historical run when `runId` is given, the same run a caller picked off `documentRuns`. */
+  documentRun: (documentId: string, runId?: string) =>
+    req<ExtractionRunResponse>(
+      `/documents/${documentId}/run${runId ? `?run_id=${encodeURIComponent(runId)}` : ""}`),
+  /** Every extraction run against this document, newest first — the Workspace's run picker. */
+  documentRuns: (documentId: string) =>
+    req<{ runs: DocumentRunSummary[] }>(`/documents/${documentId}/runs`),
   /** Whether a document has an extraction IN FLIGHT, and how far it has got — the per-document
    *  question, asked with no run id.
    *
@@ -336,10 +344,13 @@ export const api = {
   /** Data-driven commentary computed from a document's real extraction (not the demo). */
   documentCommentary: (documentId: string, locale: Locale = "en") =>
     req<Commentary>(`/documents/${documentId}/commentary?locale=${locale}`),
-  /** One statement of a document's real extraction, grouped for the Workspace grid. */
-  documentStatement: (documentId: string, statement: StatementKey, basis: Basis, locale: Locale = "en") =>
+  /** One statement of a document's real extraction, grouped for the Workspace grid — or the same
+   *  statement from one NAMED historical run when `runId` is given. */
+  documentStatement: (documentId: string, statement: StatementKey, basis: Basis,
+                      locale: Locale = "en", runId?: string) =>
     req<StatementResponse>(
-      `/documents/${documentId}/statement?statement=${statement}&basis=${basis}&locale=${locale}`,
+      `/documents/${documentId}/statement?statement=${statement}&basis=${basis}&locale=${locale}`
+      + (runId ? `&run_id=${encodeURIComponent(runId)}` : ""),
     ),
   /** A window of spreadsheet cells around a value's origin — the Excel click-to-source
    * backdrop (mirrors fetchPageImage for PDFs). */

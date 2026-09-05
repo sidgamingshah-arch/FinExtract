@@ -58,6 +58,9 @@ export const extraction: Record<Locale, Record<string, string>> = {
     "ex.run.retry": "Run the extraction again",
     "ex.run.retryPending": "Starting…",
     "ex.run.retryFailed": "The new run could not be started.",
+    "ex.run.stop": "Stop run",
+    "ex.run.stopping": "Stopping…",
+    "ex.run.stopped": "Run stopped",
     // --- the Workspace, for a document with no spread to show yet ---
     "ex.pending.runningBody": "This document is being extracted right now. The spread appears here when the run finishes — the Extraction screen reports which stage it is on.",
     "ex.pending.failedBody": "The last run for this document did not finish, so there is nothing to show here. The Extraction screen says what failed and can run it again.",

@@ -186,14 +186,13 @@ def list_templates(session: Session = Depends(db)) -> list[dict]:
     ).scalars().all())
     # Highest version per key. Computed off the rows just read, so it cannot describe a different
     # set from the one being served.
-    latest: dict[str, int] = {}
-    for r in rows:
-        if r.version > latest.get(r.template_key, -1):
-            latest[r.template_key] = r.version
-    return [{"id": r.id, "template_key": r.template_key, "name": r.name,
-             "version": r.version, "is_published": r.is_published,
-             "is_latest": r.version == latest.get(r.template_key)} for r in rows]
-
+    latest = {
+        template_key: max(row.version for row in rows if row.template_key == template_key)
+        for template_key in {row.template_key for row in rows}
+    }
+    return [{"id": row.id, "template_key": row.template_key, "name": row.name,
+             "version": row.version, "is_published": row.is_published,
+             "is_latest": row.version == latest[row.template_key]} for row in rows]
 
 @router.get("/{template_id}")
 def get_template(template_id: str, session: Session = Depends(db)) -> dict:

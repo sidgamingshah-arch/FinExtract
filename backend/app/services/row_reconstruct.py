@@ -47,7 +47,14 @@ _NOTE_HDR = re.compile(r"^(notes?|附註|附注)$", re.IGNORECASE)
 # because a row can cite several ("14, 16(b)"). Deliberately NOT "anything numeric": a monetary
 # amount carries thousands separators, a decimal part or accounting parentheses, and reading one as
 # a note reference DELETES a reported figure — see :func:`_scan_row`.
-_NOTE_REF_TOKEN = re.compile(r"^\d{1,3}(?:\s*\([a-z]{1,3}\)|[a-z]{1,2})?[.,;]?$", re.IGNORECASE)
+# A note reference token is a bare 1-2 digit note number, optionally with a suffix like "(b)".
+# Three-digit bare numbers are far more likely to be real amounts on note detail rows, and the
+# broad 1-3 digit form was swallowing them before the row could reach the value parser.
+_NOTE_REF_TOKEN = re.compile(r"^\d{1,2}(?:\s*\([a-z]{1,3}\)|[a-z]{1,2})?[.,;]?$",
+                             re.IGNORECASE)
+_CHINESE_CHAPTER_NOTE_REF = re.compile(
+    r"^[一二三四五六七八九十]{1,3}\s*[、,，.]\s*(?P<no>\d{1,2})[.,;]?$"
+)
 
 # How close a word has to sit to the one before it to be the NEXT WORD OF THE SAME CAPTION rather
 # than the first word of a cell. A word space at statement type sizes is well under 0.01 of the page
@@ -63,7 +70,16 @@ _WORD_GAP = 0.02
 def _is_note_ref_token(t: str) -> bool:
     """Is this token shaped like a note reference (and therefore not an amount)?"""
     s = t.strip()
-    return bool(s) and bool(_NOTE_REF_TOKEN.match(s))
+    return bool(s) and bool(_NOTE_REF_TOKEN.match(s) or _CHINESE_CHAPTER_NOTE_REF.match(s))
+
+
+def _note_ref_value(t: str) -> str | None:
+    """Normalize a printed note-reference cell to the note's own subsection identifier."""
+    s = t.strip().strip(".,;")
+    if _NOTE_REF_TOKEN.match(s):
+        return s
+    match = _CHINESE_CHAPTER_NOTE_REF.match(s)
+    return match.group("no") if match is not None else None
 
 
 def _tight_after(prev: Word, w: Word) -> bool:
@@ -77,7 +93,7 @@ def _is_note_number(t: str) -> bool:
     A row often cites several notes ("14, 16(b)", "8, 13"), so the token carries the separator
     that followed it; it is still a note reference, not an amount.
     """
-    return re.fullmatch(r"\d{1,2}", t.strip().strip(".,;")) is not None
+    return _note_ref_value(t) is not None
 
 
 def _is_money_like(t: str, fmt=None) -> bool:
@@ -436,7 +452,7 @@ def _split_banner_prefix(label_words: list[Word], steps: tuple[tuple[str, object
     return (banner, caption) if caption else (None, label_words)
 
 
-def _scan_row(row: list[Word], fmt=None) -> tuple[list[Word], str | None, list[Word]]:
+def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True) -> tuple[list[Word], str | None, list[Word]]:
     """Split one visual row into (label words, note-ref, value words).
 
     A "Note"/"Notes" token printed in a cell of its own, plus the *single* following number, is a
@@ -463,10 +479,15 @@ def _scan_row(row: list[Word], fmt=None) -> tuple[list[Word], str | None, list[W
     i = 0
     while i < len(row):
         tok = row[i].text.strip()
-        if (_NOTE.match(tok) and i + 1 < len(row) and _is_note_ref_token(row[i + 1].text)
+        if (extract_note_refs and _NOTE.match(tok) and i + 1 < len(row) and _is_note_ref_token(row[i + 1].text)
                 and not (i and _tight_after(row[i - 1], row[i]))):
-            note_ref = row[i + 1].text.strip().strip(".")
+            note_ref = _note_ref_value(row[i + 1].text)
             i += 2
+            continue
+        if (extract_note_refs and note_ref is None and label_words and not value_words and _is_note_ref_token(tok)
+                and not _tight_after(row[i - 1], row[i])):
+            note_ref = _note_ref_value(tok)
+            i += 1
             continue
         if _num(tok, fmt) is not None:
             value_words.append(row[i])
@@ -1476,13 +1497,13 @@ def _resolve_note_column(note_ref: str | None, value_words: list[Word],
         for vw in value_words:
             xc = (vw.bbox.x0 + vw.bbox.x1) / 2
             if note_ref is None and abs(xc - note_x) <= 0.03 and _is_note_number(vw.text):
-                note_ref = vw.text.strip().strip(".")
+                note_ref = _note_ref_value(vw.text)
             else:
                 kept.append(vw)
         return note_ref, kept
     if (len(value_words) >= 2 and _is_note_number(value_words[0].text)
             and any(_is_money_like(w.text, fmt) for w in value_words[1:])):
-        return value_words[0].text.strip().strip("."), value_words[1:]
+        return _note_ref_value(value_words[0].text), value_words[1:]
     return note_ref, value_words
 
 
@@ -2399,8 +2420,9 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     # of two periods still files that figure under the period it is printed in.
     col_xs: list[list[tuple[float, str]]] = []
     for row in raw_rows:
-        _lw, _nr, _vw = _scan_row(row, number_format)
-        _nr, _vw = _resolve_note_column(_nr, _vw, note_x, number_format)
+        _lw, _nr, _vw = _scan_row(row, number_format, extract_note_refs=on_face)
+        if on_face:
+            _nr, _vw = _resolve_note_column(_nr, _vw, note_x, number_format)
         xs = [((w.bbox.x0 + w.bbox.x1) / 2, w.text) for w in _vw
               if _num(w.text, number_format) is not None]
         if xs:
@@ -2504,8 +2526,11 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     group_x0: float | None = None
     group_label_bbox: BBox | None = None
     for row in rows:
-        label_words, note_ref, value_words = _scan_row(row, number_format)
-        note_ref, value_words = _resolve_note_column(note_ref, value_words, note_x, number_format)
+        label_words, note_ref, value_words = _scan_row(
+            row, number_format, extract_note_refs=on_face)
+        if on_face:
+            note_ref, value_words = _resolve_note_column(
+                note_ref, value_words, note_x, number_format)
 
         if value_words:
             # Only for a VALUED row: a label-only row is already handled by the banner branch

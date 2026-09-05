@@ -1,0 +1,871 @@
+{
+  "legacy_rows": 465,
+  "matched_rows": 388,
+  "unmatched_rows": 77,
+  "method_counts_matched": {
+    "AUTO_CLASSIFY": 115,
+    "COMPUTE_RESIDUAL": 52,
+    "COMPUTE_TOTAL": 26,
+    "AUTO_EXTRACT": 195
+  },
+  "unmatched_sample": [
+    {
+      "field_id": "General_004",
+      "target_field": "Customer's Name",
+      "canonical_full_form": "Customer's Name",
+      "mapping_method": "AUTO_CLASSIFY"
+    },
+    {
+      "field_id": "General_005",
+      "target_field": "Customer Statement Type",
+      "canonical_full_form": "Customer Statement Type",
+      "mapping_method": "AUTO_CLASSIFY"
+    },
+    {
+      "field_id": "General_006",
+      "target_field": "Rounding",
+      "canonical_full_form": "Rounding",
+      "mapping_method": "AUTO_CLASSIFY"
+    },
+    {
+      "field_id": "General_007",
+      "target_field": "Source Currency",
+      "canonical_full_form": "Source Currency",
+      "mapping_method": "AUTO_CLASSIFY"
+    },
+    {
+      "field_id": "General_008",
+      "target_field": "Target Currency",
+      "canonical_full_form": "Target Currency",
+      "mapping_method": "AUTO_CLASSIFY"
+    },
+    {
+      "field_id": "General_009",
+      "target_field": "Statement Date",
+      "canonical_full_form": "Statement Date",
+      "mapping_method": "AUTO_CLASSIFY"
+    },
+    {
+      "field_id": "General_010",
+      "target_field": "Periods",
+      "canonical_full_form": "Periods",
+      "mapping_method": "AUTO_CLASSIFY"
+    },
+    {
+      "field_id": "General_011",
+      "target_field": "Audit Opinion(Stmt Source)",
+      "canonical_full_form": "Audit Opinion(Stmt Source)",
+      "mapping_method": "AUTO_CLASSIFY"
+    },
+    {
+      "field_id": "General_012",
+      "target_field": "Accounting Standard",
+      "canonical_full_form": "Accounting Standard",
+      "mapping_method": "AUTO_CLASSIFY"
+    },
+    {
+      "field_id": "General_013",
+      "target_field": "Accountant",
+      "canonical_full_form": "Accountant",
+      "mapping_method": "AUTO_CLASSIFY"
+    },
+    {
+      "field_id": "General_014",
+      "target_field": "Analyst",
+      "canonical_full_form": "Analyst",
+      "mapping_method": "AUTO_EXTRACT"
+    },
+    {
+      "field_id": "General_015",
+      "target_field": "Statement Type",
+      "canonical_full_form": "Statement Type",
+      "mapping_method": "AUTO_EXTRACT"
+    },
+    {
+      "field_id": "General_016",
+      "target_field": "Status",
+      "canonical_full_form": "Status",
+      "mapping_method": "AUTO_EXTRACT"
+    },
+    {
+      "field_id": "General_017",
+      "target_field": "Reconcile To",
+      "canonical_full_form": "Reconcile To",
+      "mapping_method": "AUTO_EXTRACT"
+    },
+    {
+      "field_id": "General_019",
+      "target_field": "13 logic fields",
+      "canonical_full_form": "13 logic fields",
+      "mapping_method": "AUTO_EXTRACT"
+    },
+    {
+      "field_id": "NCA_059",
+      "target_field": "49 logic fields, 4 real-time calculation fields",
+      "canonical_full_form": "49 logic fields, 4 real-time calculation fields",
+      "mapping_method": "AUTO_EXTRACT"
+    },
+    {
+      "field_id": "CA_051",
+      "target_field": "38 logic fields, 3 real time calculation fields",
+      "canonical_full_form": "38 logic fields, 3 real time calculation fields",
+      "mapping_method": "AUTO_EXTRACT"
+    },
+    {
+      "field_id": "Equity_022",
+      "target_field": "Equity & Reserves",
+      "canonical_full_form": "Equity & Reserves",
+      "mapping_method": "COMPUTE_TOTAL"
+    },
+    {
+      "field_id": "Equity_026",
+      "target_field": "15 logic fields, 3 real time calculation fields",
+      "canonical_full_form": "15 logic fields, 3 real time calculation fields",
+      "mapping_method": "AUTO_EXTRACT"
+    },
+    {
+      "field_id": "NCL_041",
+      "target_field": "35 logic fields, 1 real time calculation field",
+      "canonical_full_form": "35 logic fields, 1 real time calculation field",
+      "mapping_method": "AUTO_EXTRACT"
+    },
+    {
+      "field_id": "CL_056",
+      "target_field": "50 logic fields, 1 real time calculation field",
+      "canonical_full_form": "50 logic fields, 1 real time calculation field",
+      "mapping_method": "AUTO_EXTRACT"
+    },
+    {
+      "field_id": "P&L_091",
+      "target_field": "Profit(lLoss) Bef Extraord Items",
+      "canonical_full_form": "Profit(lLoss) Before Extraordinary Items",
+      "mapping_method": "COMPUTE_TOTAL"
+    },
+    {
+      "field_id": "P&L_094",
+      "target_field": "Minority Interests",
+      "canonical_full_form": "Minority Interests",
+      "mapping_method": "AUTO_CLASSIFY"
+    },
+    {
+      "field_id": "P&L_112",
+      "target_field": "88 logic fields, 11 real time calculation fields",
+      "canonical_full_form": "88 logic fields, 11 real time calculation fields",
+      "mapping_method": "AUTO_EXTRACT"
+    },
+    {
+      "field_id": "Cash Flow_006",
+      "target_field": "Minority Interests",
+      "canonical_full_form": "Minority Interests",
+      "mapping_method": "AUTO_EXTRACT"
+    },
+    {
+      "field_id": "Cash Flow_030",
+      "target_field": "Income Taxes Paid",
+      "canonical_full_form": "Incomeome Taxes Paid",
+      "mapping_method": "AUTO_EXTRACT"
+    },
+    {
+      "field_id": "Cash Flow_039",
+      "target_field": "Income Taxes Paid",
+      "canonical_full_form": "Incomeome Taxes Paid",
+      "mapping_method": "AUTO_EXTRACT"
+    },
+    {
+      "field_id": "Cash Flow_082",
+      "target_field": "72 logic fields, 5 real time calculation fields",
+      "canonical_full_form": "72 logic fields, 5 real time calculation fields",
+      "mapping_method": "AUTO_EXTRACT"
+    },
+    {
+      "field_id": "Others_004",
+      "target_field": "Exchange Rate(Period End)",
+      "canonical_full_form": "Exchange Rate(Period End)",
+      "mapping_method": "AUTO_EXTRACT"
+    },
+    {
+      "field_id": "Others_005",
+      "target_field": "Exchange Rate(Period Average)",
+      "canonical_full_form": "Exchange Rate(Period Average)",
+      "mapping_method": "AUTO_EXTRACT"
+    },
+    {
+      "field_id": "Others_006",
+      "target_field": "Num Outstanding Common Shares",
+      "canonical_full_form": "Num Outstanding Common Shares",
+      "mapping_method": "AUTO_EXTRACT"
+    },
+    {
+      "field_id": "Others_007",
+      "target_field": "Num Outstanding Preferred Shares",
+      "canonical_full_form": "Num Outstanding Preferenceerred Shares",
+      "mapping_method": "AUTO_EXTRACT"
+    },
+    {
+      "field_id": "Others_008",
+      "target_field": "Num Employees",
+      "canonical_full_form": "Num Employees",
+      "mapping_method": "AUTO_EXTRACT"
+    },
+    {
+      "field_id": "Others_009",
+      "target_field": "Gross Premium Written*Insur. Co. Only",
+      "canonical_full_form": "Gross Premium Written*Insur. Co. Only",
+      "mapping_method": "AUTO_EXTRACT"
+    },
+    {
+      "field_id": "Others_010",
+      "target_field": "Gross Premium Written - life*Insur. Co. Only",
+      "canonical_full_form": "Gross Premium Written - life*Insur. Co. Only",
+      "mapping_method": "AUTO_EXTRACT"
+    },
+    {
+      "field_id": "Others_011",
+      "target_field": "Gross Premium Written - Non-life*Insur. Co. Only",
+      "canonical_full_form": "Gross Premium Written - Non-life*Insur. Co. Only",
+      "mapping_method": "COMPUTE_RESIDUAL"
+    },
+    {
+      "field_id": "Others_012",
+      "target_field": "Net Premium Written*Insur. Co. Only",
+      "canonical_full_form": "Net Premium Written*Insur. Co. Only",
+      "mapping_method": "AUTO_EXTRACT"
+    },
+    {
+      "field_id": "Others_013",
+      "target_field": "Net Investment Income*Insur. Co. Only",
+      "canonical_full_form": "Net Investment Incomeome*Insur. Co. Only",
+      "mapping_method": "AUTO_EXTRACT"
+    },
+    {
+      "field_id": "Others_014",
+      "target_field": "Net Technical Reserve(Equity side)*Insur. Co. Only",
+      "canonical_full_form": "Net Technical Reserve(Equity side)*Insur. Co. Only",
+      "mapping_method": "COMPUTE_RESIDUAL"
+    },
+    {
+      "field_id": "Others_015",
+      "target_field": "Net Technical Reserve(Liab. side)*Insur. Co. Only",
+      "canonical_full_form": "Net Technical Reserve(Liabilities. side)*Insur. Co. Only",
+      "mapping_method": "AUTO_CLASSIFY"
+    }
+  ],
+  "unmatched_all": [
+    {
+      "field_id": "General_004",
+      "section": "Statement setup",
+      "target_field": "Customer's Name",
+      "canonical_full_form": "Customer's Name",
+      "mapping_method": "AUTO_CLASSIFY",
+      "row_no": 4
+    },
+    {
+      "field_id": "General_005",
+      "section": "Statement setup",
+      "target_field": "Customer Statement Type",
+      "canonical_full_form": "Customer Statement Type",
+      "mapping_method": "AUTO_CLASSIFY",
+      "row_no": 5
+    },
+    {
+      "field_id": "General_006",
+      "section": "Statement setup",
+      "target_field": "Rounding",
+      "canonical_full_form": "Rounding",
+      "mapping_method": "AUTO_CLASSIFY",
+      "row_no": 6
+    },
+    {
+      "field_id": "General_007",
+      "section": "Statement setup",
+      "target_field": "Source Currency",
+      "canonical_full_form": "Source Currency",
+      "mapping_method": "AUTO_CLASSIFY",
+      "row_no": 7
+    },
+    {
+      "field_id": "General_008",
+      "section": "Statement setup",
+      "target_field": "Target Currency",
+      "canonical_full_form": "Target Currency",
+      "mapping_method": "AUTO_CLASSIFY",
+      "row_no": 8
+    },
+    {
+      "field_id": "General_009",
+      "section": "Statement setup",
+      "target_field": "Statement Date",
+      "canonical_full_form": "Statement Date",
+      "mapping_method": "AUTO_CLASSIFY",
+      "row_no": 9
+    },
+    {
+      "field_id": "General_010",
+      "section": "Statement setup",
+      "target_field": "Periods",
+      "canonical_full_form": "Periods",
+      "mapping_method": "AUTO_CLASSIFY",
+      "row_no": 10
+    },
+    {
+      "field_id": "General_011",
+      "section": "Statement setup",
+      "target_field": "Audit Opinion(Stmt Source)",
+      "canonical_full_form": "Audit Opinion(Stmt Source)",
+      "mapping_method": "AUTO_CLASSIFY",
+      "row_no": 11
+    },
+    {
+      "field_id": "General_012",
+      "section": "Statement setup",
+      "target_field": "Accounting Standard",
+      "canonical_full_form": "Accounting Standard",
+      "mapping_method": "AUTO_CLASSIFY",
+      "row_no": 12
+    },
+    {
+      "field_id": "General_013",
+      "section": "Statement setup",
+      "target_field": "Accountant",
+      "canonical_full_form": "Accountant",
+      "mapping_method": "AUTO_CLASSIFY",
+      "row_no": 13
+    },
+    {
+      "field_id": "General_014",
+      "section": "Statement setup",
+      "target_field": "Analyst",
+      "canonical_full_form": "Analyst",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 14
+    },
+    {
+      "field_id": "General_015",
+      "section": "Statement setup",
+      "target_field": "Statement Type",
+      "canonical_full_form": "Statement Type",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 15
+    },
+    {
+      "field_id": "General_016",
+      "section": "Statement setup",
+      "target_field": "Status",
+      "canonical_full_form": "Status",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 16
+    },
+    {
+      "field_id": "General_017",
+      "section": "Statement setup",
+      "target_field": "Reconcile To",
+      "canonical_full_form": "Reconcile To",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 17
+    },
+    {
+      "field_id": "General_019",
+      "section": "Statement setup",
+      "target_field": "13 logic fields",
+      "canonical_full_form": "13 logic fields",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 18
+    },
+    {
+      "field_id": "NCA_059",
+      "section": "BS - Non-current assets",
+      "target_field": "49 logic fields, 4 real-time calculation fields",
+      "canonical_full_form": "49 logic fields, 4 real-time calculation fields",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 73
+    },
+    {
+      "field_id": "CA_051",
+      "section": "BS - Current assets",
+      "target_field": "38 logic fields, 3 real time calculation fields",
+      "canonical_full_form": "38 logic fields, 3 real time calculation fields",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 120
+    },
+    {
+      "field_id": "Equity_022",
+      "section": "BS - Equity",
+      "target_field": "Equity & Reserves",
+      "canonical_full_form": "Equity & Reserves",
+      "mapping_method": "COMPUTE_TOTAL",
+      "row_no": 139
+    },
+    {
+      "field_id": "Equity_026",
+      "section": "BS - Equity",
+      "target_field": "15 logic fields, 3 real time calculation fields",
+      "canonical_full_form": "15 logic fields, 3 real time calculation fields",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 142
+    },
+    {
+      "field_id": "NCL_041",
+      "section": "BS - Non-current liabilities",
+      "target_field": "35 logic fields, 1 real time calculation field",
+      "canonical_full_form": "35 logic fields, 1 real time calculation field",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 179
+    },
+    {
+      "field_id": "CL_056",
+      "section": "BS - Current liabilities",
+      "target_field": "50 logic fields, 1 real time calculation field",
+      "canonical_full_form": "50 logic fields, 1 real time calculation field",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 231
+    },
+    {
+      "field_id": "P&L_091",
+      "section": "Income statement / OCI / retained profits",
+      "target_field": "Profit(lLoss) Bef Extraord Items",
+      "canonical_full_form": "Profit(lLoss) Before Extraordinary Items",
+      "mapping_method": "COMPUTE_TOTAL",
+      "row_no": 319
+    },
+    {
+      "field_id": "P&L_094",
+      "section": "Income statement / OCI / retained profits",
+      "target_field": "Minority Interests",
+      "canonical_full_form": "Minority Interests",
+      "mapping_method": "AUTO_CLASSIFY",
+      "row_no": 322
+    },
+    {
+      "field_id": "P&L_112",
+      "section": "Income statement / OCI / retained profits",
+      "target_field": "88 logic fields, 11 real time calculation fields",
+      "canonical_full_form": "88 logic fields, 11 real time calculation fields",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 339
+    },
+    {
+      "field_id": "Cash Flow_006",
+      "section": "Cash flow",
+      "target_field": "Minority Interests",
+      "canonical_full_form": "Minority Interests",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 342
+    },
+    {
+      "field_id": "Cash Flow_030",
+      "section": "Cash flow",
+      "target_field": "Income Taxes Paid",
+      "canonical_full_form": "Incomeome Taxes Paid",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 366
+    },
+    {
+      "field_id": "Cash Flow_039",
+      "section": "Cash flow",
+      "target_field": "Income Taxes Paid",
+      "canonical_full_form": "Incomeome Taxes Paid",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 375
+    },
+    {
+      "field_id": "Cash Flow_082",
+      "section": "Cash flow",
+      "target_field": "72 logic fields, 5 real time calculation fields",
+      "canonical_full_form": "72 logic fields, 5 real time calculation fields",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 417
+    },
+    {
+      "field_id": "Others_004",
+      "section": "Supplemental / covenants",
+      "target_field": "Exchange Rate(Period End)",
+      "canonical_full_form": "Exchange Rate(Period End)",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 418
+    },
+    {
+      "field_id": "Others_005",
+      "section": "Supplemental / covenants",
+      "target_field": "Exchange Rate(Period Average)",
+      "canonical_full_form": "Exchange Rate(Period Average)",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 419
+    },
+    {
+      "field_id": "Others_006",
+      "section": "Supplemental / covenants",
+      "target_field": "Num Outstanding Common Shares",
+      "canonical_full_form": "Num Outstanding Common Shares",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 420
+    },
+    {
+      "field_id": "Others_007",
+      "section": "Supplemental / covenants",
+      "target_field": "Num Outstanding Preferred Shares",
+      "canonical_full_form": "Num Outstanding Preferenceerred Shares",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 421
+    },
+    {
+      "field_id": "Others_008",
+      "section": "Supplemental / covenants",
+      "target_field": "Num Employees",
+      "canonical_full_form": "Num Employees",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 422
+    },
+    {
+      "field_id": "Others_009",
+      "section": "Supplemental / covenants",
+      "target_field": "Gross Premium Written*Insur. Co. Only",
+      "canonical_full_form": "Gross Premium Written*Insur. Co. Only",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 423
+    },
+    {
+      "field_id": "Others_010",
+      "section": "Supplemental / covenants",
+      "target_field": "Gross Premium Written - life*Insur. Co. Only",
+      "canonical_full_form": "Gross Premium Written - life*Insur. Co. Only",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 424
+    },
+    {
+      "field_id": "Others_011",
+      "section": "Supplemental / covenants",
+      "target_field": "Gross Premium Written - Non-life*Insur. Co. Only",
+      "canonical_full_form": "Gross Premium Written - Non-life*Insur. Co. Only",
+      "mapping_method": "COMPUTE_RESIDUAL",
+      "row_no": 425
+    },
+    {
+      "field_id": "Others_012",
+      "section": "Supplemental / covenants",
+      "target_field": "Net Premium Written*Insur. Co. Only",
+      "canonical_full_form": "Net Premium Written*Insur. Co. Only",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 426
+    },
+    {
+      "field_id": "Others_013",
+      "section": "Supplemental / covenants",
+      "target_field": "Net Investment Income*Insur. Co. Only",
+      "canonical_full_form": "Net Investment Incomeome*Insur. Co. Only",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 427
+    },
+    {
+      "field_id": "Others_014",
+      "section": "Supplemental / covenants",
+      "target_field": "Net Technical Reserve(Equity side)*Insur. Co. Only",
+      "canonical_full_form": "Net Technical Reserve(Equity side)*Insur. Co. Only",
+      "mapping_method": "COMPUTE_RESIDUAL",
+      "row_no": 428
+    },
+    {
+      "field_id": "Others_015",
+      "section": "Supplemental / covenants",
+      "target_field": "Net Technical Reserve(Liab. side)*Insur. Co. Only",
+      "canonical_full_form": "Net Technical Reserve(Liabilities. side)*Insur. Co. Only",
+      "mapping_method": "AUTO_CLASSIFY",
+      "row_no": 429
+    },
+    {
+      "field_id": "Others_016",
+      "section": "Supplemental / covenants",
+      "target_field": "Off Balance Sheet Assets",
+      "canonical_full_form": "Off Balance Sheet Assets",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 430
+    },
+    {
+      "field_id": "Others_017",
+      "section": "Supplemental / covenants",
+      "target_field": "Operating Lease Commitments",
+      "canonical_full_form": "Operating Lease Commitments",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 431
+    },
+    {
+      "field_id": "Others_018",
+      "section": "Supplemental / covenants",
+      "target_field": "Off Balance Sheet Liabilities",
+      "canonical_full_form": "Off Balance Sheet Liabilitiesilities",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 432
+    },
+    {
+      "field_id": "Others_019",
+      "section": "Supplemental / covenants",
+      "target_field": "Min Working Capital",
+      "canonical_full_form": "Min Working Capital",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 433
+    },
+    {
+      "field_id": "Others_020",
+      "section": "Supplemental / covenants",
+      "target_field": "Min Current Ratio",
+      "canonical_full_form": "Min Current Ratio",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 434
+    },
+    {
+      "field_id": "Others_021",
+      "section": "Supplemental / covenants",
+      "target_field": "Min Quick Ratio",
+      "canonical_full_form": "Min Quick Ratio",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 435
+    },
+    {
+      "field_id": "Others_022",
+      "section": "Supplemental / covenants",
+      "target_field": "Max Debt to Tangible Worth",
+      "canonical_full_form": "Max Debt to Tangible Worth",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 436
+    },
+    {
+      "field_id": "Others_023",
+      "section": "Supplemental / covenants",
+      "target_field": "Min Interest Coverage",
+      "canonical_full_form": "Min Interest Coverage",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 437
+    },
+    {
+      "field_id": "Others_024",
+      "section": "Supplemental / covenants",
+      "target_field": "Min Earnings Coverage",
+      "canonical_full_form": "Min Earnings Coverage",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 438
+    },
+    {
+      "field_id": "Others_025",
+      "section": "Supplemental / covenants",
+      "target_field": "Min Cash Flow Coverage",
+      "canonical_full_form": "Min Cash Flow Coverage",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 439
+    },
+    {
+      "field_id": "Others_026",
+      "section": "Supplemental / covenants",
+      "target_field": "Max Capital Expenditures",
+      "canonical_full_form": "Max Capital Expenseenditures",
+      "mapping_method": "COMPUTE_RESIDUAL",
+      "row_no": 440
+    },
+    {
+      "field_id": "Others_027",
+      "section": "Supplemental / covenants",
+      "target_field": "Max Off Balance Sheet Leverage",
+      "canonical_full_form": "Max Off Balance Sheet Leverage",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 441
+    },
+    {
+      "field_id": "Others_028",
+      "section": "Supplemental / covenants",
+      "target_field": "Min Net Profit Margin",
+      "canonical_full_form": "Min Net Profit Margin",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 442
+    },
+    {
+      "field_id": "Others_029",
+      "section": "Supplemental / covenants",
+      "target_field": "Min Return on Assets",
+      "canonical_full_form": "Min Return on Assets",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 443
+    },
+    {
+      "field_id": "Others_030",
+      "section": "Supplemental / covenants",
+      "target_field": "Min Return on Equity",
+      "canonical_full_form": "Min Return on Equity",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 444
+    },
+    {
+      "field_id": "Others_031",
+      "section": "Supplemental / covenants",
+      "target_field": "Max Net Trade Receivable Days",
+      "canonical_full_form": "Max Net Trade Receivable Days",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 445
+    },
+    {
+      "field_id": "Others_032",
+      "section": "Supplemental / covenants",
+      "target_field": "Max Inventory Days",
+      "canonical_full_form": "Max Inventory Days",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 446
+    },
+    {
+      "field_id": "Others_033",
+      "section": "Supplemental / covenants",
+      "target_field": "Max Trade Payable Days",
+      "canonical_full_form": "Max Trade Payable Days",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 447
+    },
+    {
+      "field_id": "Others_034",
+      "section": "Supplemental / covenants",
+      "target_field": "Max Sales Growth",
+      "canonical_full_form": "Max Sales Growth",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 448
+    },
+    {
+      "field_id": "Others_035",
+      "section": "Supplemental / covenants",
+      "target_field": "Min Tangible Net Worth",
+      "canonical_full_form": "Min Tangible Net Worth",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 449
+    },
+    {
+      "field_id": "Others_036",
+      "section": "Supplemental / covenants",
+      "target_field": "Max Subordinated Debt",
+      "canonical_full_form": "Max Subordinated Debt",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 450
+    },
+    {
+      "field_id": "Others_037",
+      "section": "Supplemental / covenants",
+      "target_field": "Max Cash Dividends",
+      "canonical_full_form": "Max Cash Dividends",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 451
+    },
+    {
+      "field_id": "Others_038",
+      "section": "Supplemental / covenants",
+      "target_field": "Min Cash Balance",
+      "canonical_full_form": "Min Cash Balance",
+      "mapping_method": "COMPUTE_RESIDUAL",
+      "row_no": 452
+    },
+    {
+      "field_id": "Others_040",
+      "section": "Supplemental / covenants",
+      "target_field": "9 logic fields",
+      "canonical_full_form": "9 logic fields",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 453
+    },
+    {
+      "field_id": "Notes_005",
+      "section": "Notes and commitments",
+      "target_field": "Pledged Assets",
+      "canonical_full_form": "Pledged Assets",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 455
+    },
+    {
+      "field_id": "Notes_006",
+      "section": "Notes and commitments",
+      "target_field": "Secured Borrowings",
+      "canonical_full_form": "Securitiesed Borrowings",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 456
+    },
+    {
+      "field_id": "Notes_008",
+      "section": "Notes and commitments",
+      "target_field": "Contingent Liabilities",
+      "canonical_full_form": "Contingent Liabilitiesilities",
+      "mapping_method": "AUTO_CLASSIFY",
+      "row_no": 458
+    },
+    {
+      "field_id": "Notes_009",
+      "section": "Notes and commitments",
+      "target_field": "Capital commitments for fixed assets",
+      "canonical_full_form": "Capital commitments for fixed assets",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 459
+    },
+    {
+      "field_id": "Notes_010",
+      "section": "Notes and commitments",
+      "target_field": "Capital commitments for LT assets",
+      "canonical_full_form": "Capital commitments for LT assets",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 460
+    },
+    {
+      "field_id": "Notes_011",
+      "section": "Notes and commitments",
+      "target_field": "Capital commitments for intangible assets",
+      "canonical_full_form": "Capital commitments for intangible assets",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 461
+    },
+    {
+      "field_id": "Notes_012",
+      "section": "Notes and commitments",
+      "target_field": "Capital commitments for investment",
+      "canonical_full_form": "Capital commitments for investment",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 462
+    },
+    {
+      "field_id": "Notes_013",
+      "section": "Notes and commitments",
+      "target_field": "Capital Commitments",
+      "canonical_full_form": "Capital Commitments",
+      "mapping_method": "COMPUTE_RESIDUAL",
+      "row_no": 463
+    },
+    {
+      "field_id": "Notes_014",
+      "section": "Notes and commitments",
+      "target_field": "Operating Lease Commitments (Notes)",
+      "canonical_full_form": "Operating Lease Commitments (Notes)",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 464
+    },
+    {
+      "field_id": "Notes_015",
+      "section": "Notes and commitments",
+      "target_field": "Auditor's opinion",
+      "canonical_full_form": "Auditor's opinion",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 465
+    },
+    {
+      "field_id": "Notes_016",
+      "section": "Notes and commitments",
+      "target_field": "其他Notes",
+      "canonical_full_form": "其他Notes",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 466
+    },
+    {
+      "field_id": "Notes_017",
+      "section": "Notes and commitments",
+      "target_field": "Confirmed with RM",
+      "canonical_full_form": "Confirmed with RM",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 467
+    },
+    {
+      "field_id": "Notes_019",
+      "section": "Notes and commitments",
+      "target_field": "11 logic fields",
+      "canonical_full_form": "11 logic fields",
+      "mapping_method": "AUTO_EXTRACT",
+      "row_no": 468
+    }
+  ]
+}

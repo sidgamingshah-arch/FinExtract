@@ -76,6 +76,8 @@ const core: LocaleDicts = {
     "ws.basis.substituted":
       "This filing labelled only one basis. Showing its {served} figures - you asked for {asked}.",
     "ws.currency": "Currency",
+    "ws.run": "Run",
+    "ws.run.latest": "Latest",
     "ws.units": "Units",
     "ws.stmt.balance_sheet": "Balance sheet",
     "ws.stmt.profit_and_loss": "P&L",
@@ -179,6 +181,8 @@ const core: LocaleDicts = {
     "ws.basis.substituted":
       "本文件仅标明一种编制基础。现显示其{served}数据，您请求的是{asked}。",
     "ws.currency": "币种",
+    "ws.run": "运行",
+    "ws.run.latest": "最新",
     "ws.units": "单位",
     "ws.stmt.balance_sheet": "资产负债表",
     "ws.stmt.profit_and_loss": "利润表",
@@ -278,6 +282,8 @@ const core: LocaleDicts = {
     "ws.basis.substituted":
       "لم يحدد هذا الملف سوى أساس واحد. تُعرض أرقامه {served} - وقد طلبت {asked}.",
     "ws.currency": "العملة",
+    "ws.run": "التشغيل",
+    "ws.run.latest": "الأحدث",
     "ws.units": "الوحدات",
     "ws.stmt.balance_sheet": "الميزانية العمومية",
     "ws.stmt.profit_and_loss": "الأرباح والخسائر",
@@ -377,6 +383,8 @@ const core: LocaleDicts = {
     "ws.basis.substituted":
       "Ce document ne libelle qu'une seule base. Affichage des chiffres {served} - vous avez demandé {asked}.",
     "ws.currency": "Devise",
+    "ws.run": "Exécution",
+    "ws.run.latest": "Dernière",
     "ws.units": "Unités",
     "ws.stmt.balance_sheet": "Bilan",
     "ws.stmt.profit_and_loss": "Résultat",

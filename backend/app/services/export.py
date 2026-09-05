@@ -580,7 +580,11 @@ def build_statement_workbook(rows: list[dict], template_def: dict, *, locale: st
 
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
-    statements = [s for s in template_def.get("statements", []) if s.get("type")]
+    from app.services.mapping import normalize_statement
+    from app.services.statements import ACTIVE_STATEMENTS
+
+    statements = [s for s in template_def.get("statements", [])
+                  if normalize_statement(str(s.get("type") or "")) in ACTIVE_STATEMENTS]
 
     any_sheet = False
     for stmt in statements:
@@ -781,9 +785,13 @@ def _add_analysis_sheets(wb, rows: list[dict], disclosures: list[dict],
     _header(ws, ["Disclosure", "Present", "Page", "Where found"], [30, 10, 8, 70])
     for i, d in enumerate(disclosures, start=2):
         ws.cell(i, 1, d.get("label", ""))
-        ws.cell(i, 2, "Yes" if d.get("present") else "—")
+        ws.cell(i, 2, "Yes" if d.get("present") else "No")
         ws.cell(i, 3, d.get("page") or "")
         ws.cell(i, 4, d.get("snippet", "")).alignment = wrap
+    summary_row = len(disclosures) + 3
+    found = sum(bool(d.get("present")) for d in disclosures)
+    ws.cell(summary_row, 1, "Disclosure checks found")
+    ws.cell(summary_row, 2, f"{found} of {len(disclosures)}")
 
     # Credit Analysis — the deterministic credit view (stance + rating factors from the
     # extracted ratios + report signals), plus the LLM narrative if one was generated.

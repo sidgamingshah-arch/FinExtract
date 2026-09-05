@@ -46,12 +46,18 @@ def default_pipeline() -> Pipeline:
     from app.stages.map_ontology import MapOntologyStage
     from app.stages.normalize import NormalizeStage
     from app.stages.link_notes import LinkNotesStage
+    from app.stages.deprec_impairment import DeprecImpairmentStage
+    from app.stages.secur_fincl_assets import SecurFinclAssetsStage
+    from app.stages.related_party_receivables import RelatedPartyReceivablesStage
+    from app.stages.sales_revenues import SalesRevenuesStage
+    from app.stages.contingent_liabilities import ContingentLiabilitiesStage
     from app.stages.reconcile import ReconcileStage
     from app.stages.confidence import ConfidenceStage
     from app.stages.structural import StructuralStage
     from app.stages.prune_notes import PruneNotesStage
     from app.stages.residual import ResidualStage
     from app.stages.gap_closing import GapClosingStage
+    from app.stages.face_mapping_contract import FaceMappingContractStage
     from app.stages.segment import SegmentStage
 
     # Table reconstruction is performed inside the extract stage (native pages via the
@@ -69,6 +75,25 @@ def default_pipeline() -> Pipeline:
         ResidualStage(),
         NormalizeStage(),
         LinkNotesStage(),
+        # Deprec & Impairment (Oper Exp)/(COS) are assembled from note-level datasets, never a
+        # single printed caption — resolved here, after notes are linked and units normalized, so
+        # the reconcile/structural checks below see the computed figure rather than a blank cell.
+        DeprecImpairmentStage(),
+        # Same reasoning for Secur & Other Fincl Assets (CP)/(LTP): note totals less proven
+        # deductions, with the unabsorbed Level 3 fair-value amount carried from CP into LTP.
+        SecurFinclAssetsStage(),
+        # Due from Related Parties (LTP)/Other Receivables (CP): the highest of three independent
+        # related-party measurements, and a gross receivable pool less its own proven deduction.
+        RelatedPartyReceivablesStage(),
+        # Sales(Revenues): the face reading stands (ordinary alias mapping, above); this only fills
+        # a (basis, period) the face left with no value, from the 主营业务/主营业务收入 row of a
+        # 营业收入 note — never the note's own combined total.
+        SalesRevenuesStage(),
+        # Contingent Liabilities: a classified narrative + tables, not a single figure — see
+        # services.contingent_liabilities. The quantifiable total also lands on the ordinary
+        # notes__contingent_liabilities LineItem, for grid/export consistency with every other
+        # Notes-statement leaf.
+        ContingentLiabilitiesStage(),
         ReconcileStage(),
         # Only notes cited from the face of the statements are published — after reconcile,
         # which needs every extracted note to check the note->face ties.
@@ -78,6 +103,10 @@ def default_pipeline() -> Pipeline:
         # Asked BEFORE the structural checks, so a gap the model closes reports as tied rather
         # than as a defect the analyst has to chase down themselves.
         GapClosingStage(),
+        # A run cannot succeed by hiding an unresolved face value behind a borrowed concept.
+        # Verified non-additive aggregates are the only exception: their mapped components replace
+        # them and the aggregate remains as evidence for the arithmetic check.
+        FaceMappingContractStage(),
         StructuralStage(),
         # Last, and the position is the point: the eight analyst buckets are four balance-sheet
         # sections plus equity, all printed on one page, so only a row's RESOLVED section can

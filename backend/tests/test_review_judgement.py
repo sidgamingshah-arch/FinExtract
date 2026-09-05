@@ -700,12 +700,12 @@ def _real_structural_rows(figures: dict, identities: list[dict] | None = None) -
     from app.services.structural_checks import evaluate_structure
 
     samples = Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
-    raw = json.loads((samples / "hkfrs_hk_china_ontology.json").read_text())
+    raw = json.loads((samples / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8"))
     if identities is not None:
         raw = copy.deepcopy(raw)
         raw["validation"]["identities"] = list(identities)
     ont = load_ontology(raw, resolve=True)
-    template = load_template(json.loads((samples / "hkfrs_hk_china_template.json").read_text()))
+    template = load_template(json.loads((samples / "hkfrs_hk_china_template.json").read_text(encoding="utf-8")))
     items = []
     for key, num in figures.items():
         li = LineItem(source_label=key, canonical_key=key)
@@ -734,12 +734,12 @@ def _real_guard_rows(figures: dict, guards: list[str] | None = None) -> list[dic
     from app.services.structural_checks import evaluate_structure
 
     samples = Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
-    raw = json.loads((samples / "hkfrs_hk_china_ontology.json").read_text())
+    raw = json.loads((samples / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8"))
     if guards is not None:
         raw = copy.deepcopy(raw)
         raw["validation"]["cross_concept_guards"] = list(guards)
     ont = load_ontology(raw, resolve=True)
-    template = load_template(json.loads((samples / "hkfrs_hk_china_template.json").read_text()))
+    template = load_template(json.loads((samples / "hkfrs_hk_china_template.json").read_text(encoding="utf-8")))
 
     items = []
     for key, num in figures.items():
@@ -1456,7 +1456,7 @@ def _shipped_template() -> dict:
 
     samples = Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
     return load_template(
-        json.loads((samples / "hkfrs_hk_china_template.json").read_text())).model_dump(mode="json")
+        json.loads((samples / "hkfrs_hk_china_template.json").read_text(encoding="utf-8"))).model_dump(mode="json")
 
 
 def test_a_guards_figure_derived_target_suppresses_no_other_cards_finding_either():

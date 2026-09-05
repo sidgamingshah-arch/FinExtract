@@ -218,6 +218,19 @@ def _statement_shape(ontology) -> dict[str, tuple[str | None, frozenset[str]]]:
             for st in set(temporal) | set(units)}
 
 
+def _natural_negative_keys(template_def: dict | None) -> set[str]:
+    """The template lines whose arithmetic values are negative contra-assets."""
+    pending = [section for statement in (template_def or {}).get("statements", [])
+               for section in statement.get("sections", [])]
+    keys: set[str] = set()
+    while pending:
+        node = pending.pop()
+        if node.get("sign") == "natural_negative" and node.get("canonical_key"):
+            keys.add(node["canonical_key"])
+        pending.extend(node.get("children") or [])
+    return keys
+
+
 class NormalizeStage:
     name = "normalize"
 
@@ -235,6 +248,7 @@ class NormalizeStage:
         expected_sign: dict[str, str] = {}
         temporality: dict[str, str] = {}
         unit_of_account: dict[str, str] = {}
+        natural_negative = _natural_negative_keys(getattr(ctx, "template_def", None))
         if ontology is not None:
             for m in getattr(ontology, "mappings", []) or []:
                 pats = getattr(getattr(m, "sign_rule", None), "flip_if_label_matches", None) or []
@@ -254,7 +268,8 @@ class NormalizeStage:
             add = bool(_ADD.search(label))
             flips = sign_by_key.get(li.canonical_key or "", [])
             flip = any(rx.search(label) for rx in flips)
-            if not (less or add or flip):
+            contra = li.canonical_key in natural_negative
+            if not (less or add or flip or contra):
                 continue
             for ev in li.values.values():
                 raw = ev.value_raw
@@ -281,8 +296,12 @@ class NormalizeStage:
                     v = abs(raw)
                 if flip:
                     v = -v
+                if contra:
+                    v = -abs(raw)
                 if v != ev.value:
                     ev.value = v
+                    if contra:
+                        ev.sign_normalised = True
                     changed += 1
 
         ctx.log(f"normalize:sign_adjusted={changed}")

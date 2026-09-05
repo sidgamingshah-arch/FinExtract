@@ -65,6 +65,13 @@ def test_the_column_headers_are_read_from_the_period_each_value_names():
     assert _period_labels(rows, "consolidated", "en") == ["31 December 2023", "31 December 2022"]
 
 
+def test_duplicate_printed_headers_fall_back_to_current_and_prior():
+    rows = [{"source_label": "Other intangible assets", "canonical_key": "bs_note",
+             "values": [_v("current", 1, display="At 1 August 2023"),
+                        _v("prior", 2, display="At 1 August 2023")]}]
+    assert _period_labels(rows, "consolidated", "en") == ["Current", "Prior"]
+
+
 # --------------------------------------------------------------------------------------
 # 2. A typed value becomes the value on screen
 # --------------------------------------------------------------------------------------

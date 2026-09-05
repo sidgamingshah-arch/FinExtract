@@ -116,7 +116,7 @@ def test_the_signal_is_set_in_exactly_one_place():
     root = pathlib.Path(__file__).resolve().parent.parent / "app"
     writers = [(p.relative_to(root), i, lines)
                for p in root.rglob("*.py")
-               for lines in [p.read_text().splitlines()]
+               for lines in [p.read_text(encoding="utf-8").splitlines()]
                for i, line in enumerate(lines, 1)
                if re.search(r"column_index\s*=(?!=)", line) and "def " not in line]
 

@@ -21,6 +21,7 @@ that never moved.
 from __future__ import annotations
 
 import logging
+from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
@@ -129,7 +130,229 @@ _PROGRESS_FIELDS = frozenset(_progress_payload(
 # codebase does not have yet — is a run still going, which should get a clock. An allowlist would
 # silently freeze the clock on it instead. (It also had a dead member: "queued" is a progress PHASE,
 # never a run row's status; the row is created `running`, see `start_extraction`.)
-_SETTLED_STATUSES = frozenset({"succeeded", "failed"})
+_SETTLED_STATUSES = frozenset({"succeeded", "failed", "canceled"})
+
+
+_SUPPLEMENTAL_STATEMENTS = frozenset({"statement_setup", "covenants_supplemental", "notes"})
+
+
+def _safe_decimal(value) -> Decimal | None:
+    if value is None:
+        return None
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        return None
+
+
+def _pick_row_value(rows: list[dict], key: str, period: str = "current") -> str | None:
+    for row in rows:
+        if row.get("canonical_key") != key:
+            continue
+        for v in row.get("values", []) or []:
+            if (v.get("period_label") or "") == period and v.get("value") is not None:
+                return str(v.get("value"))
+    return None
+
+
+def _period_display(rows: list[dict], period: str) -> str | None:
+    for row in rows:
+        for v in row.get("values", []) or []:
+            if (v.get("period_label") or "") == period and v.get("period_display"):
+                return str(v.get("period_display"))
+    return None
+
+
+def _iter_leaf_nodes(node) -> list[dict]:
+    if not isinstance(node, dict):
+        return []
+    children: list[dict] = []
+    for field in ("line_items", "rows", "children", "items", "components"):
+        for child in node.get(field, []) or []:
+            if isinstance(child, dict):
+                children.append(child)
+    out: list[dict] = []
+    for child in children:
+        out.extend(_iter_leaf_nodes(child))
+    key = node.get("canonical_key")
+    if isinstance(key, str) and key and not children:
+        out.append(node)
+    return out
+
+
+def _supplemental_template_nodes(template_def: dict | None) -> list[dict]:
+    if not isinstance(template_def, dict):
+        return []
+    nodes: list[dict] = []
+    for stmt in template_def.get("statements", []) or []:
+        if not isinstance(stmt, dict) or (stmt.get("type") not in _SUPPLEMENTAL_STATEMENTS):
+            continue
+        for sec in stmt.get("sections", []) or []:
+            if isinstance(sec, dict):
+                nodes.extend(_iter_leaf_nodes(sec))
+    seen: set[str] = set()
+    deduped: list[dict] = []
+    for n in nodes:
+        key = str(n.get("canonical_key") or "").strip()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(n)
+    return deduped
+
+
+def _supp_row(key: str, label: str, *, value: str | None,
+              period: str = "current", period_display: str | None = None,
+              basis: str = "consolidated") -> dict:
+    values = []
+    if value is not None and str(value).strip() != "":
+        values.append({
+            "period_label": period,
+            "period_display": period_display,
+            "column_index": None,
+            "basis": basis,
+            "value": str(value),
+            "provenance": None,
+            "confidence": {
+                "mapping": 1.0,
+                "validation": 1.0,
+                "overall": 1.0,
+                "weakest": "mapping",
+                "flags": ["supplemental:derived"],
+            },
+        })
+    return {
+        "id": f"supp::{key}",
+        "source_label": label,
+        "canonical_key": key,
+        "note": None,
+        "printed_in": "other",
+        "bucket": None,
+        "bucket_label": None,
+        "section": None,
+        "notes": [],
+        "role": "line",
+        "mapping_method": "supplemental",
+        "mapping_confidence": 1.0,
+        "flags": ["supplemental:template_declared"],
+        "values": values,
+    }
+
+
+def _build_supplemental_rows(*, template_def: dict | None, base_rows: list[dict],
+                             disclosures: list[dict], entity_name: str | None,
+                             doc_model, ctx, options: dict | None) -> list[dict]:
+    nodes = _supplemental_template_nodes(template_def)
+    if not nodes:
+        return []
+    existing = {str(r.get("canonical_key") or "") for r in base_rows}
+    if not nodes:
+        return []
+
+    from app.services.derived import compute_ratios
+    from app.services.rollups import evaluate_rows
+
+    current_display = _period_display(base_rows, "current")
+    prior_display = _period_display(base_rows, "prior")
+    periods_text = " / ".join([x for x in [current_display, prior_display] if x]) or None
+
+    computed = evaluate_rows(template_def, base_rows, "consolidated", "current", "en") if template_def else {}
+    assets = (_safe_decimal(computed.get("bs_total_assets"))
+              or _safe_decimal(_pick_row_value(base_rows, "bs_total_assets", "current")))
+    erl = (_safe_decimal(computed.get("bs_total_equity_and_liabilities"))
+           or _safe_decimal(_pick_row_value(base_rows, "bs_total_equity_and_liabilities", "current")))
+    total_income = (_safe_decimal(computed.get("pl_profit_for_the_year"))
+                    or _safe_decimal(_pick_row_value(base_rows, "pl_profit_for_the_year", "current")))
+    diff = (assets - erl) if (assets is not None and erl is not None) else None
+
+    # Ratios keyed by their standard derived identifiers for covenant/supplemental fields.
+    ratio_map: dict[str, dict] = {}
+    for r in compute_ratios(base_rows, basis="consolidated", period="current", locale="en",
+                            template_def=template_def):
+        k = str(r.get("key") or "").strip()
+        if k:
+            ratio_map[k] = r
+
+    hit_disclosures = {str(d.get("key") or ""): d for d in disclosures if d.get("present")}
+    unit = getattr(doc_model, "unit_context", None)
+    target_currency = (options or {}).get("target_currency") or getattr(unit, "target_currency", None)
+    source_currency = getattr(unit, "source_currency", None)
+    rounding = (options or {}).get("target_units")
+    if rounding is None and unit is not None:
+        rounding = getattr(unit, "target_units", None)
+    statement_date = current_display
+
+    setup_values: dict[str, str | None] = {
+        "statement_setup_controls__customer_s_name": entity_name,
+        "statement_setup_controls__customer_statement_type": "Financial statements",
+        "statement_setup_controls__rounding": (str(rounding) if rounding is not None else None),
+        "statement_setup_controls__source_currency": (str(source_currency) if source_currency else None),
+        "statement_setup_controls__target_currency": (str(target_currency) if target_currency else None),
+        "statement_setup_controls__statement_date": statement_date,
+        "statement_setup_controls__periods": periods_text,
+        "statement_setup_controls__total_assets": (str(assets) if assets is not None else None),
+        "statement_setup_controls__total_equity_reserves_liab": (str(erl) if erl is not None else None),
+        "statement_setup_controls__total_income_expenses": (
+            str(total_income) if total_income is not None else None),
+        "statement_setup_controls__difference": (str(diff) if diff is not None else None),
+        "statement_setup_controls__unexplained_adj_to_ret_profits": ("0" if diff == 0 else None),
+        "statement_setup_controls__audit_opinion_stmt_source": (
+            "Qualified" if "auditor_qualification" in hit_disclosures else "No qualification detected"),
+        "statement_setup_controls__accounting_standard": None,
+        "statement_setup_controls__accountant": None,
+        "statement_setup_controls__analyst": None,
+        "statement_setup_controls__statement_type": (getattr(doc_model.fmt, "value", None) if hasattr(doc_model, "fmt") else None),
+        "statement_setup_controls__status": "extracted",
+        "statement_setup_controls__reconcile_to": None,
+    }
+
+    def _norm(s: str) -> str:
+        return "".join(ch for ch in s.lower() if ch.isalnum())
+
+    out: list[dict] = []
+    for node in nodes:
+        key = str(node.get("canonical_key") or "").strip()
+        if not key or key in existing:
+            continue
+        label = str((node.get("label_i18n") or {}).get("en") or node.get("label") or key)
+        value: str | None = None
+        period = "current"
+        period_display = current_display
+
+        if key in setup_values:
+            value = setup_values[key]
+        elif key.startswith("notes__"):
+            nkey = key.removeprefix("notes__")
+            if nkey == "related_party_transactions":
+                value = "Yes" if "related_party" in hit_disclosures else "No"
+            elif nkey == "contingent_liabilities":
+                value = "Yes" if "contingent_liabilities" in hit_disclosures else "No"
+            elif nkey == "auditor_s_opinion":
+                value = "Qualified" if "auditor_qualification" in hit_disclosures else "Unqualified/Not detected"
+            elif nkey == "notes":
+                value = f"{len(getattr(doc_model, 'notes', []) or [])} extracted note tables"
+            elif nkey == "confirmed_with_rm":
+                value = "No"
+            else:
+                value = "No" if hit_disclosures else None
+        else:
+            key_norm = _norm(key)
+            for rk, rv in ratio_map.items():
+                if _norm(rk) in key_norm:
+                    raw = rv.get("value")
+                    value = (str(raw) if raw is not None else None)
+                    if value is None and rv.get("current") is not None:
+                        value = str(rv.get("current"))
+                    break
+            if value is None:
+                for dkey in hit_disclosures:
+                    if _norm(dkey) in key_norm:
+                        value = "Yes"
+                        break
+
+        out.append(_supp_row(key, label, value=value, period=period,
+                             period_display=period_display, basis="consolidated"))
+    return out
 
 
 def _served_progress(record: dict | None, status: str = "") -> dict | None:
@@ -386,7 +609,6 @@ def _serialize_rows(doc_model, ontology=None) -> list[dict]:
     """
     seg_of, label_of = _bucket_index(doc_model)
     notes_of = _linked_notes(doc_model)
-    section_of = _section_index(ontology)
     folio_of = _folio_lookup(doc_model)
     rows = []
     for li in doc_model.line_items:
@@ -427,7 +649,7 @@ def _serialize_rows(doc_model, ontology=None) -> list[dict]:
             "printed_in": (li.printed_in.value if li.printed_in else None),
             "bucket": seg_of.get(str(li.id)),
             "bucket_label": label_of.get(seg_of.get(str(li.id)) or ""),
-            "section": section_of.get(li.canonical_key or ""),
+            "section": _section_of_row(li),
             "notes": notes_of.get(str(li.id), []),
             "role": li.role.value,
             "mapping_method": li.confidence.method,
@@ -478,16 +700,12 @@ def _linked_notes(doc_model) -> dict[str, list[str]]:
     return out
 
 
-def _section_index(ontology) -> dict[str, str]:
-    """canonical_key → the template section id its concept was scoped to, for the rows that mapped.
+def _section_of_row(li) -> str | None:
+    """Section token for one row, from printed section first and key namespace second."""
+    from app.services.mapping import section_of_banner, section_of_key
 
-    The bucket is what a reader wants; the section is what a reviewer needs when the bucket looks
-    wrong, because it names the rulebook decision the bucket was derived from. Taken from the
-    ontology the RUN was pinned to — the same object the segmentation read — so the two cannot
-    disagree about which section a concept is in.
-    """
-    return {m.canonical_key: m.section_scope[0]
-            for m in (getattr(ontology, "mappings", []) or []) if m.section_scope}
+    return (section_of_banner(getattr(li, "section_hint", None) or "")
+            or section_of_key(getattr(li, "canonical_key", None) or ""))
 
 
 def _prov_dict(p, folio_of=None):
@@ -551,7 +769,12 @@ def _serialize_notes(doc_model) -> list[dict]:
             } for ev in it.values.values()]
             # Carry the row's role (line/subtotal/total) and mapping confidence so the notes
             # detail renders subtotal/total emphasis and a per-row confidence badge.
+            supports_face_key = next((flag.split(":", 1)[1]
+                                      for flag in it.confidence.flags
+                                      if flag.startswith("supports_face_item:")), None)
             rows.append({"label": it.raw_label, "role": it.role.value,
+                         "canonical_key": it.canonical_key,
+                         "supports_face_key": supports_face_key,
                          "confidence": it.confidence.overall, "values": values,
                          # THE SUB-HEADING, AND WHETHER THIS ROW'S CAPTION IS ITS OWN.
                          #
@@ -857,6 +1080,8 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
         run = session.get(ExtractionRun, run_id)
         if run is None:
             return
+        if run.status == "canceled":
+            return
 
         # Presence scan for qualitative disclosures (auditor qualification, contingent
         # liabilities, guarantees, …) over the document text — stored on the run. The same
@@ -882,6 +1107,18 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
             # rulebook produced its figures, so the record is made here rather than left blank.
             rulebook = rulebook_record(session, oid)
         rulebook["applied"] = ontology is not None
+        base_rows = _serialize_rows(doc_model, ontology)
+        template_def = template.model_dump(mode="json") if template is not None else None
+        supplemental_rows = _build_supplemental_rows(
+            template_def=template_def,
+            base_rows=base_rows,
+            disclosures=disclosures,
+            entity_name=entity_name,
+            doc_model=doc_model,
+            ctx=ctx,
+            options=options,
+        )
+
         run.result = {
             "locale": doc_model.locale,
             # Which rulebook produced these figures — stated by the run, never re-derived by a
@@ -894,7 +1131,7 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
             "page_count": len(doc_model.pages),
             "line_item_count": len(doc_model.line_items),
             "notes": len(doc_model.notes),
-            "rows": _serialize_rows(doc_model, ontology),
+            "rows": [*base_rows, *supplemental_rows],
             "note_details": _serialize_notes(doc_model),
             "disclosures": disclosures,
             "reconciliation": ([e.model_dump(mode="json") for e in recon.entries] if recon else []),
@@ -952,7 +1189,7 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
         ))
     except Exception as exc:  # noqa: BLE001 — record failure on the run, don't crash the worker
         run = session.get(ExtractionRun, run_id)
-        if run is not None:
+        if run is not None and run.status != "canceled":
             run.status = "failed"
             # Carries the stage that was in flight, so a failure reports WHERE it happened rather
             # than only that it happened. Without a recorder the pipeline never got as far as being
@@ -1217,6 +1454,27 @@ def get_run(run_id: str, session: Session = Depends(db),
             "stages": (run.options or {}).get("stages") or pipeline_stage_names(),
             "log_tail": _log_tail((run.logs or "").splitlines()),
             "result": run.result}
+
+
+@router.post("/extractions/{run_id}/cancel",
+             dependencies=[Depends(require(Permission.PIPELINE_RUN))])
+def cancel_run(run_id: str, session: Session = Depends(db),
+               principal: Principal = Depends(current_principal)) -> dict:
+    from app.db.models import Document, ExtractionRun
+
+    run = session.get(ExtractionRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    doc = session.get(Document, run.document_id)
+    if doc is None or not _can_access(doc, principal):
+        raise HTTPException(status_code=404, detail="Run not found")
+    if run.status == "running":
+        run.status = "canceled"
+        run.progress = {**(run.progress or {}), "phase": "canceled"}
+        run.logs = _log_tail([*(run.logs or "").splitlines(), "run:canceled_by_user"])
+        session.commit()
+    return {"run_id": run.id, "status": run.status,
+            "progress": _served_progress(run.progress, run.status)}
 
 
 @router.get("/documents/{document_id}/run-status",

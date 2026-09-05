@@ -49,7 +49,7 @@ _LOCALES = ("en", "zh", "ar", "fr")
 
 
 def _shipped() -> dict:
-    return json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text())
+    return json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text(encoding="utf-8"))
 
 
 def _v(period, value, *, basis="consolidated", y=0.2):

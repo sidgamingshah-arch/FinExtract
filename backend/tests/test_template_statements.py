@@ -26,7 +26,7 @@ _SAMPLES = pathlib.Path(__file__).resolve().parent.parent / "app" / "sample" / "
 
 @pytest.fixture(scope="module")
 def shipped() -> dict:
-    return json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text())
+    return json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text(encoding="utf-8"))
 
 
 def _tpl(*statements: tuple[str, int]) -> dict:

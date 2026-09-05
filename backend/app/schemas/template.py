@@ -28,6 +28,9 @@ class Rollup(BaseModel):
     # that still refuses an op reaching evaluation from an older stored definition.
     op: Literal["sum", "diff"] = "sum"
     children: list[str] = Field(default_factory=list)  # node_ids
+    reported_total_key: str | None = None
+    reported_total_op: Literal["sum", "diff"] = "sum"
+    use_reported_total_components: bool = False
 
 
 class TemplateNode(BaseModel):

@@ -44,7 +44,7 @@ _SAMPLES = Path(__file__).resolve().parent.parent / "app" / "sample" / "template
 
 @pytest.fixture(scope="module")
 def raw_ontology() -> dict:
-    return json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text())
+    return json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8"))
 
 
 def _ontology(raw: dict):

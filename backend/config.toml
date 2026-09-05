@@ -68,6 +68,7 @@ supported_locales = ["en", "zh", "ar", "fr"]
 #                      authenticates with an api-key header, so it needs azure_endpoint below —
 #                      there is no shared default host the way there is for OpenAI.
 # anthropic          → Anthropic Messages API (SDK)
+# bedrock_gateway    → Internal Bedrock Anthropic invoke gateway; set base_url + deployment model
 # openai / openai_compatible → OpenAI Chat Completions wire format (OpenAI, TokenRouter,
 #                      OpenRouter, vLLM, …); set base_url + a vendor/model id below
 # local | stub       → offline / no-op
@@ -76,13 +77,15 @@ supported_locales = ["en", "zh", "ar", "fr"]
 # the starting point rather than the commitment: changing model, deployment, region or provider is
 # configuration. The KEY is the exception and is never stored — only the NAME of the env var it is
 # read from, so it cannot reach the database or a settings export.
-provider = "azure_openai"
-model = "gpt-5-mini"            # default model id for the selected provider
+provider = "openai_compatible"
+model = "azure-openai/gpt5.4-mini"  # gateway model id: "<vendor>/<deployment name>"
 temperature = 0.0               # deterministic output for structured extraction
-max_tokens = 4096
-timeout_seconds = 60
-base_url = ""                   # a gateway / private-link host in FRONT of the provider; empty = provider default
-api_key_env = "AZURE_OPENAI_API_KEY"   # env var the key is read from (the key itself is NOT stored here)
+max_tokens = 4096000
+timeout_seconds = 600
+base_url = "https://llmgateway.crisil.local/api/openai"
+api_key_env = "AZURE_OPENAI_API_KEY" # env var the key is read from (the key itself is NOT stored here)
+reasoning_effort = "low"
+disable_ssl_verify = true
 
 # Azure OpenAI address (used when provider = "azure_openai"). Azure selects a deployment on your
 # resource, not a model on a shared endpoint, so all three are part of the URL:
@@ -110,6 +113,7 @@ azure_api_key_env = "AZURE_DI_KEY"
 # Extraction / reconciliation tuning
 # ---------------------------------------------------------------------------
 [extraction]
+llm_note_structuring = true
 evidence_floor = 0.55           # how nearly a caption must BE an authored alias to count as one
 alias_coverage_floor = 0.45     # …and how much of that alias the caption must explain
 mapping_margin = 0.08           # winner must beat the runner-up by this margin, else review
@@ -117,3 +121,14 @@ auto_accept_confidence = 0.80   # combined confidence at/above which a line auto
 recon_corroboration_rel = 0.05  # how near a note total must be to the face figure to count as its breakdown
 recon_abs_tolerance = 1.0       # absolute tolerance (in base units) for reconciliation ties
 recon_rel_tolerance = 0.005     # relative tolerance (fraction of the face value)
+# Restrict LLM disambiguation to specific canonical_keys (everything else decided
+# deterministically). Left empty here (no restriction) — set per-run via the
+# FINEX_EXTRACTION__LLM_ONLY_KEYS env var instead, since a checked-in restriction here would
+# also apply to every test and script that reads settings.
+llm_only_keys = []
+llm_max_concurrency = 6          # concurrent LLM batch calls during map_ontology
+# Publish every extracted note regardless of face citation — set per-run via the
+# FINEX_EXTRACTION__PRUNE_UNREFERENCED_NOTES env var instead of here, since a checked-in
+# change here affects every test and script that reads settings.
+prune_unreferenced_notes = true
+

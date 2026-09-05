@@ -161,6 +161,76 @@ def test_a_figure_with_no_block_open_is_still_dropped():
     assert len(items) == 2, _labels(items)
 
 
+def test_a_three_column_note_matrix_is_not_flattened_into_detail_rows():
+    """The Notes screen supports one label plus two comparative values, not an asset matrix."""
+    class MatrixProvider:
+        def complete_structured(self, **kwargs):
+            return kwargs["response_schema"].model_validate({
+                "columns": ["Opening", "Movement", "Closing"],
+                "rows": [{"label": "Opening", "cells": [
+                    {"column": "Opening", "value_text": "1"},
+                    {"column": "Movement", "value_text": "127,999"},
+                    {"column": "Closing", "value_text": "232,961"},
+                ]}],
+            }), {}
+
+    matrix_header = [W("Opening", 0.60, 0.14, 0.05), W("Movement", 0.70, 0.14, 0.06),
+                     W("Closing", 0.80, 0.14, 0.05)]
+    matrix_row = [W("Opening", 0.12, 0.17, 0.05), W("1", 0.60, 0.17, 0.02),
+                  W("127,999", 0.70, 0.17, 0.06), W("232,961", 0.80, 0.17, 0.06)]
+    tables = extract_note_tables(_rows_to_words([_HEAD, matrix_header, matrix_row]), page_index=3,
+                                 document_id="d", source_kind="pdf_native",
+                                 llm_provider=MatrixProvider())
+
+    assert [str(v.value) for v in tables[0].items[0].values.values()] == ["1", "127999", "232961"]
+
+
+def test_a_comparative_note_keeps_deterministic_period_labels():
+    class ComparativeProvider:
+        def complete_structured(self, **kwargs):
+            assert '"comparative_columns": ["Current year", "Prior year"]' in kwargs["messages"][0]["content"]
+            assert "Return every schedule and movement row" in kwargs["messages"][0]["content"]
+            return kwargs["response_schema"].model_validate({
+                "columns": ["Current year", "Prior year"],
+                "rows": [{"section": "Opening", "label": "Opening", "cells": [
+                    {"column": "Current year", "value_text": "127,999"},
+                    {"column": "Prior year", "value_text": "232,961"},
+                ]}],
+            }), {}
+
+    row = [W("Opening", 0.12, 0.17, 0.05), W("127,999", 0.70, 0.17, 0.06),
+           W("232,961", 0.80, 0.17, 0.06)]
+    tables = extract_note_tables(_rows_to_words([_HEAD, row]), page_index=3,
+                                 document_id="d", source_kind="pdf_native",
+                                 llm_provider=ComparativeProvider())
+
+    assert [value.period_label for value in tables[0].items[0].values.values()] == [
+        "current", "prior"]
+
+
+def test_repeated_comparative_movement_rows_are_merged():
+    class ComparativeProvider:
+        def complete_structured(self, **kwargs):
+            return kwargs["response_schema"].model_validate({
+                "columns": ["Current year", "Prior year"],
+                "rows": [
+                    {"section": "Opening", "label": "Movement", "cells": [
+                        {"column": "Current year", "value_text": "127,999"}]},
+                    {"section": "Opening", "label": "Movement", "cells": [
+                        {"column": "Prior year", "value_text": "232,961"}]},
+                ],
+            }), {}
+
+    row = [W("Opening", 0.12, 0.14, 0.05), W("Movement", 0.12, 0.17, 0.06),
+           W("127,999", 0.70, 0.17, 0.06), W("232,961", 0.80, 0.17, 0.06)]
+    tables = extract_note_tables(_rows_to_words([_HEAD, row]), page_index=3,
+                                 document_id="d", source_kind="pdf_native",
+                                 llm_provider=ComparativeProvider())
+
+    assert len(tables[0].items) == 1
+    assert [str(value.value) for value in tables[0].items[0].values.values()] == ["127999", "232961"]
+
+
 def test_a_figure_outside_the_pages_value_columns_is_not_promoted():
     """A note reference printed in its own narrow column to the left is not a total. The page's
     value band is around x=0.70; this figure sits at 0.40 while the block's rows are in the band, so
@@ -314,9 +384,9 @@ def test_a_second_bare_figure_does_not_promote_against_a_closed_block():
 
 def _run(pdf_bytes: bytes) -> tuple:
     ontology = load_ontology(
-        json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text()), resolve=True)
+        json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8")), resolve=True)
     template = load_template(
-        json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text()))
+        json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text(encoding="utf-8")))
     ctx = PipelineContext(raw_bytes=pdf_bytes)
     ctx.ontology, ctx.template = ontology, template
     doc = default_pipeline().run(DocumentModel(filename="tax.pdf", fmt=DocFormat.PDF), ctx)

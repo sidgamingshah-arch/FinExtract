@@ -95,6 +95,12 @@ from app.services.rollups import reconcile_section, section_members
 # How a residual assignment is recorded on the line, so the review queue and the statement
 # inspector can both say the figure was combined rather than identified.
 FALLBACK_ALLOC = "fallback_combined"
+_ATTRIBUTION_LINE = re.compile(
+    r"\b(non[-\s]?controlling|minorit(?:y|ies)|owners?\s+of\s+the\s+"
+    r"(?:parent|company)|profit\s+attributable|loss\s+attributable|"
+    r"minority\s+share(?:\s+of\s+results)?)\b",
+    re.IGNORECASE,
+)
 
 
 def _sections_from_template(template_def: dict) -> dict[str, list[tuple[str, str, str]]]:
@@ -275,6 +281,7 @@ _PROHIBITIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
 _MATCHED_METHODS = frozenset({"exact", "rule", "fuzzy", "embedding"})
 
 
+
 def _read_prohibitions(lines) -> frozenset[str]:
     """The prohibitions the block states, as the ids of the guards they switch on."""
     out: set[str] = set()
@@ -404,6 +411,7 @@ class _Residual:
     # prose entries kept as text (see `_vetoed_by_never_sweep`).
     never_keys: dict[str, str] = field(default_factory=dict)   # normalised caption -> key
     never_prose: tuple[str, ...] = ()
+    exclude_patterns: tuple[str, ...] = ()
     conflicts: list[str] = field(default_factory=list)
     rows: list[LineItem] = field(default_factory=list)
     components: list[dict] = field(default_factory=list)
@@ -455,6 +463,7 @@ def _residuals(ontology, terms: _Terms) -> list[_Residual]:
             itemise=(bool(policy.itemise) if _declared(policy, "itemise")
                      else terms.itemise_required),
             section_sign=section_sign.get(section),
+            exclude_patterns=tuple(m.exclude_hints or []),
         )
         # Prohibition 5, "never spans sections", and the clause ``candidate_set`` states as "the
         # residual's SINGLE section_scope value": a concept whose policy points at one section while
@@ -540,6 +549,9 @@ def _vetoed_by_never_sweep(res: _Residual, label: str) -> str | None:
     norm = normalize_label(label)
     if not norm:
         return None
+    for pattern in res.exclude_patterns:
+        if re.search(pattern, label, re.IGNORECASE):
+            return f"exclude_hints:{pattern}"
     if norm in res.never_keys:
         return res.never_keys[norm]
     # Two tokens minimum, so a one-word caption cannot collide with any sentence containing it.
@@ -817,6 +829,7 @@ class ResidualStage:
             res = by_section.get(section)
             placeable[section] = ((res.token if res else section_token_of_scope(section)),
                                   (res.statement if res else mem.statement))
+        placeable_all = dict(placeable)
         # …and with eligibility 4 deleted from the list, the signals walk PAST a section that has no
         # bucket to the nearest one that has — which is what this stage did before it read entry 4.
         if not terms.inside_section_only:
@@ -888,6 +901,12 @@ class ResidualStage:
                 li.confidence.flags.append(f"residual_ineligible:{reason}")
                 continue
 
+            attribution_section = None
+            if _ATTRIBUTION_LINE.search(li.source_label or ""):
+                attribution_section = self._section_of_row(
+                    idx, ordered, li, placeable_all, section_by_key,
+                    subtotal_of, stmt, statement_of, closed_at)
+
             section = self._section_of_row(idx, ordered, li, placeable, section_by_key,
                                            subtotal_of, stmt, statement_of, closed_at)
             target = by_section.get(section or "")
@@ -902,6 +921,20 @@ class ResidualStage:
                 ineligible += 1
                 li.confidence.flags.append(
                     f"residual_ineligible:printed in another section({section})")
+                continue
+            if (target is None and section and section not in by_section
+                    and _ATTRIBUTION_LINE.search(li.source_label or "")):
+                # Attribution lines are statement-tail decompositions, not operating buckets.
+                # If their own section has no residual bucket, they stay unresolved for review.
+                ineligible += 1
+                li.confidence.flags.append(
+                    f"residual_ineligible:attribution section({section})")
+                continue
+            if (target is None and attribution_section
+                    and attribution_section not in by_section):
+                ineligible += 1
+                li.confidence.flags.append(
+                    f"residual_ineligible:attribution section({attribution_section})")
                 continue
             if target is None:
                 # ``cross_section: false`` — no rescue, however similar the wording. A residual

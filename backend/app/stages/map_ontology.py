@@ -27,14 +27,27 @@ split -> ``sole_component_of``.
 from __future__ import annotations
 
 import re
+from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 
+import app.adapters  # noqa: F401 - registers configured LLM adapters
 from app.core.models import DocumentModel
 from app.core.models.enums import AllocationStatus, LineRole, MappingMethod, PrintedIn
 from app.core.models.line_item import LineItem
 from app.core.stage import PipelineContext
-from app.services.mapping import OntologyMatcher, normalize_label
+from app.services.mapping import (
+    OntologyMatcher,
+    normalize_label,
+    normalize_statement,
+    section_of_banner,
+)
+from app.ports.registry import registry
 from app.services.rollups import section_members
+
+
+_MATRIX_COLUMN = re.compile(r"^(?:current|prior|col\d+)$", re.IGNORECASE)
+_CLOSING_BALANCE = re.compile(r"^(?:at\b|closing\s+(?:balance|net)|net\s+(?:book|carrying))",
+                              re.IGNORECASE)
 
 
 def _columns_of(li) -> set[tuple[str, str]]:
@@ -367,26 +380,93 @@ def _sibling_evidence(doc: DocumentModel, ontology, parents: list,
 class MapOntologyStage:
     name = "map_ontology"
 
+    @staticmethod
+    def _promote_reconciled_matrix_closings(doc: DocumentModel, matcher: OntologyMatcher,
+                                            statement_of, ctx: PipelineContext) -> int:
+        """Promote mapped category columns only when their closing row ties to its face parent."""
+        parents_by_note: dict[str, list] = {}
+        for parent in doc.line_items:
+            for note_number in _cited_notes([parent]):
+                parents_by_note.setdefault(note_number, []).append(parent)
+
+        promoted = 0
+        tolerance = Decimal(str(ctx.settings.extraction.recon_abs_tolerance))
+        for table in doc.notes:
+            parents = parents_by_note.get(str(table.note_number), [])
+            if len(parents) != 1:
+                continue
+            parent = parents[0]
+            statement = statement_of(parent)
+            headers = {ev.period_label for item in table.items for ev in item.values.values()
+                       if ev.period_label and not _MATRIX_COLUMN.match(ev.period_label)}
+            mapped_headers = {
+                header: matcher.match(header, statement=statement, section=parent.section_hint)
+                for header in headers
+            }
+            mapped_headers = {header: result for header, result in mapped_headers.items()
+                              if result and result.canonical_key}
+            if len(mapped_headers) < 2:
+                continue
+            parent_values = [(key, value) for key, value in parent.values.items()
+                             if value.value is not None]
+            used_parent_columns: set[str] = set()
+            for item in table.items:
+                if item.role is not LineRole.LINE or not _CLOSING_BALANCE.match(item.raw_label or ""):
+                    continue
+                cells = [(ev.period_label, mapped_headers[ev.period_label].canonical_key, ev)
+                         for ev in item.values.values() if ev.period_label in mapped_headers
+                         and ev.value is not None]
+                total = sum((ev.value for _header, _key, ev in cells), Decimal(0))
+                matches = [(key, value) for key, value in parent_values
+                           if key not in used_parent_columns and abs(value.value - total) <= tolerance]
+                if len(matches) != 1:
+                    continue
+                parent_column, parent_value = matches[0]
+                grouped: dict[str, list] = {}
+                for header, key, ev in cells:
+                    grouped.setdefault(key, []).append((header, ev))
+                for key, values in grouped.items():
+                    row = LineItem(source_label=values[0][0], canonical_key=key, ordinal=parent.ordinal,
+                                   role=LineRole.LINE, printed_in=PrintedIn.FACE,
+                                   note_number=str(table.note_number), section_hint=parent.section_hint)
+                    value = sum((ev.value for _header, ev in values), Decimal(0))
+                    source = values[0][1].model_copy(deep=True)
+                    source.value_raw = value
+                    source.value = value
+                    source.period_label = parent_value.period_label
+                    source.period_end = parent_value.period_end
+                    source.period_display = parent_value.period_display
+                    row.set_value(source)
+                    row.confidence.mapping = min(parent.confidence.mapping or 0.75, 0.75)
+                    row.confidence.method = MappingMethod.RULE.value
+                    row.confidence.flags.extend((f"matrix_category:{item.raw_label}",
+                                                 f"matrix_column:{key}",
+                                                 f"split_from:{parent.canonical_key}"))
+                    doc.line_items.append(row)
+                    promoted += 1
+                used_parent_columns.add(parent_column)
+            if used_parent_columns:
+                parent.role = LineRole.SUBTOTAL
+                parent.confidence.flags.append("note_matrix_decomposed")
+                parent.canonical_key = None
+        return promoted
+
     def run(self, doc: DocumentModel, ctx: PipelineContext) -> DocumentModel:
         ontology = getattr(ctx, "ontology", None)
         if ontology is None or not doc.line_items:
             ctx.log("map_ontology:skipped(no ontology or no line items)")
             return doc
 
-        # Pull the configured LLM provider so mapping is description-based (see
-        # services.mapping). Falls back to the deterministic ensemble if unavailable.
         llm_provider = None
         unavailable_reason = ""
-        if ctx.settings.llm.provider == "stub":
-            unavailable_reason = "llm provider is 'stub'"
-        elif not ctx.settings.extraction.llm_mapping:
-            unavailable_reason = "extraction.llm_mapping is disabled"
-        else:
+        provider_id = getattr(ctx.settings.llm, "provider", "stub")
+        if provider_id != "stub":
             try:
-                llm_provider = ctx.registry.get("llm", ctx.settings.llm.provider)
-            except Exception as exc:  # unknown/misconfigured provider (e.g. no API key)
-                unavailable_reason = f"{ctx.settings.llm.provider} unavailable: {exc}"
-                ctx.log(f"map_ontology:llm_unavailable({exc})")
+                llm_provider = registry.get("llm", provider_id)
+            except Exception as exc:  # noqa: BLE001
+                unavailable_reason = f"llm provider unavailable: {type(exc).__name__}: {exc}"
+        else:
+            unavailable_reason = "stub llm provider configured"
 
         matcher = OntologyMatcher(ontology, locale=doc.locale, settings=ctx.settings,
                                   llm_provider=llm_provider)
@@ -404,12 +484,22 @@ class MapOntologyStage:
                 + (f" reason={ctx.mapping_strategy_reason}" if ctx.mapping_strategy_reason else ""))
 
         def _apply(li, result) -> bool:
+            # Secur & Other Fincl Assets(CP)/(LTP) used to bind directly here on a bare "Financial
+            # assets at fair value through profit or loss" face caption, at whatever figure was
+            # printed. Both are now extraction_mode "derive" (services.secur_fincl_assets computes
+            # them from note totals less proven deductions), so a face row with that caption is
+            # left unmatched here — same rule "derive" already gives every other computed concept.
             if result and result.canonical_key:
                 li.canonical_key = result.canonical_key
                 li.confidence.mapping = result.confidence
                 li.confidence.method = result.method.value
                 if result.allocation_status:
                     li.confidence.flags.append(f"alloc:{result.allocation_status}")
+                if result.method is MappingMethod.LLM and result.reason:
+                    # The model's own stated justification, surfaced (not just logged) so a reviewer
+                    # asking why a caption was mapped — or merged with others under one concept —
+                    # sees the reasoning behind the decision, not only its score.
+                    li.confidence.flags.append(f"llm_reason:{result.reason}")
                 if result.rerouted_from:
                     # The concept whose caption matched is not the one the row was filed under: the
                     # section banner named a different variant of the same fact. Recorded per row,
@@ -450,6 +540,13 @@ class MapOntologyStage:
             groups = batch_groups(doc, stmt_by_page)
             by_id = {str(li.id): li for li in doc.line_items}
             batched = unstated = 0
+            # Each (statement, section) subgroup is an independent `match_batch` call — candidates
+            # are scoped to its own statement and section banner, so nothing about one subgroup's
+            # decision depends on another's. Collected here rather than called inline so every
+            # subgroup across the WHOLE document can be dispatched to a bounded thread pool at
+            # once: the run's LLM wall-clock time becomes roughly the slowest subgroup instead of
+            # the sum of every one of them.
+            tasks: list[tuple[str, list]] = []
             for statement, group in groups:
                 if statement is None:
                     # No statement means no statement-scoped candidate list and no coherent
@@ -462,23 +559,46 @@ class MapOntologyStage:
                             mapped += 1
                     continue
                 batched += len(group)
-                results = matcher.match_batch(
-                    [(str(li.id), li.source_label) for li in group],
+                cited_note_text: dict[str, list[dict[str, str]]] | None = None
+                if statement in {"balance_sheet", "profit_and_loss"}:
+                    by_note: dict[str, list[dict[str, str]]] = {}
+                    for table in doc.notes:
+                        if table.source_text:
+                            by_note.setdefault(str(table.note_number), []).append(
+                                {"note_number": str(table.note_number), "title": table.title,
+                                 "text": table.source_text})
+                    cited_note_text = {
+                        str(line.id): [text for number in _cited_notes([line])
+                                       for text in by_note.get(number, [])]
+                        for line in group
+                    }
+                # Subsection-by-subsection: each statement batch is split by printed section banner.
+                # Rows whose banner is unresolved are mapped together in an unconstrained subgroup.
+                by_section: dict[str | None, list] = {}
+                for li in group:
+                    by_section.setdefault(section_of_banner(li.section_hint), []).append(li)
+                for _section, subgroup in by_section.items():
+                    tasks.append((statement, subgroup, cited_note_text))
+
+            def _run_task(task: tuple) -> tuple[list, dict]:
+                statement, subgroup, cited_note_text = task
+                return subgroup, matcher.match_batch(
+                    [(str(li.id), li.source_label) for li in subgroup],
                     statement=statement,
                     # A statement spans several section banners, so the banner is per row.
-                    sections={str(li.id): li.section_hint for li in group})
-                # Only ids from THIS group are applied. `by_id` spans the whole document, so an
-                # id echoed from another group would otherwise apply this statement's decision to
-                # a row in a different one — and an id belonging to no row at all crashed the run
-                # outright. The matcher now filters these too; this is the belt to that braces,
-                # because the cost of getting it wrong is a wrong figure on the face.
-                in_group = {str(li.id) for li in group}
-                for iid, res in results.items():
-                    if iid not in in_group:
-                        ctx.log(f"map_ontology:foreign_item_id_ignored({iid})")
-                        continue
-                    if _apply(by_id[iid], res):
-                        mapped += 1
+                    sections={str(li.id): li.section_hint for li in subgroup},
+                    cited_note_text=cited_note_text)
+
+            max_workers = max(1, ctx.settings.extraction.llm_max_concurrency)
+            with ThreadPoolExecutor(max_workers=max_workers) as pool:
+                for subgroup, results in pool.map(_run_task, tasks):
+                    in_group = {str(li.id) for li in subgroup}
+                    for iid, res in results.items():
+                        if iid not in in_group:
+                            ctx.log(f"map_ontology:foreign_item_id_ignored({iid})")
+                            continue
+                        if _apply(by_id[iid], res):
+                            mapped += 1
             # How the document was actually cut up, so "one statement, two pages, one call" is
             # verifiable from the run record instead of asserted in a docstring.
             ctx.log(f"map_ontology:groups={len(groups)} batched_rows={batched}"
@@ -489,6 +609,39 @@ class MapOntologyStage:
                 if _apply(li, matcher.match(li.source_label, statement=_statement_of(li),
                                             section=li.section_hint)):
                     mapped += 1
+
+        # A note's pages do not carry a statement title, but its cited face row does. Map each
+        # extracted detail row in that context so a disclosure can contribute a dedicated concept
+        # without changing the source-faithful table structure.
+        parents_by_note: dict[str, list] = {}
+        for parent in doc.line_items:
+            for note_number in _cited_notes([parent]):
+                parents_by_note.setdefault(note_number, []).append(parent)
+        mapped_notes = 0
+        for table in doc.notes:
+            parents = parents_by_note.get(str(table.note_number), [])
+            statements = {_statement_of(parent) for parent in parents}
+            sections = {parent.section_hint for parent in parents if parent.section_hint}
+            statement = next(iter(statements)) if len(statements) == 1 else None
+            section = next(iter(sections)) if len(sections) == 1 else None
+            for item in table.items:
+                if item.role is not LineRole.LINE or item.canonical_key:
+                    continue
+                item_statement, item_section = statement, section
+                if normalize_label(item.raw_label) in {
+                    "depreciation of property plant and equipment",
+                    "depreciation of investment property",
+                }:
+                    item_statement, item_section = "profit_and_loss", "income_and_expenses"
+                if _apply(item, matcher.match(item.raw_label, statement=item_statement,
+                                              section=item_section)):
+                    mapped_notes += 1
+        if mapped_notes:
+            ctx.log(f"map_ontology:note_items_mapped={mapped_notes}")
+
+        matrix_facts = self._promote_reconciled_matrix_closings(doc, matcher, _statement_of, ctx)
+        if matrix_facts:
+            ctx.log(f"map_ontology:note_matrix_facts={matrix_facts}")
 
         # Whole-document rules, which need every row to have a concept first.
         mapped -= self._enforce_containment(doc, ontology, ctx)
@@ -589,6 +742,15 @@ class MapOntologyStage:
         pairs = _pairs_to_keep_apart(ontology)
         if not pairs:
             return 0
+        template = getattr(ctx, "template_def", None) or getattr(ctx, "template", None)
+        if hasattr(template, "model_dump"):
+            template = template.model_dump(mode="json")
+        from app.services.rollups import calculated_nodes
+        calculated = set(calculated_nodes(template or {}))
+        extraction_mode = {m.canonical_key: m.extraction_mode for m in ontology.mappings}
+        validation_totals = {
+            key for key in calculated if extraction_mode.get(key) == "extract_or_derive"
+        }
         tol = Decimal(str(ctx.settings.extraction.recon_abs_tolerance))
         unfiled = 0
         # Every pair is judged against the keys as MAPPED, snapshotted before this pass unfiles
@@ -603,6 +765,11 @@ class MapOntologyStage:
         as_mapped = {id(li): li.canonical_key for li in doc.line_items}
         printed = {k for k in as_mapped.values() if k}
         for aggregate, components, why in pairs:
+            # A template-calculated line is not an additive parent. Its printed amount remains
+            # attached to the same key as validation evidence, while the statement/export serves
+            # the independently calculated value from its components.
+            if aggregate in validation_totals:
+                continue
             filed = [li for li in doc.line_items if as_mapped.get(id(li)) == aggregate]
             if not filed:
                 continue
@@ -623,6 +790,7 @@ class MapOntologyStage:
                 li.confidence.flags.append(
                     f"alloc:{AllocationStatus.PARENT_GROSS_EVIDENCE_ONLY.value}")
                 li.confidence.flags.append(f"contains_mapped_children:{','.join(present)}")
+                li.confidence.flags.append(f"unfiled_aggregate:{aggregate}")
                 # ``parent_child_allocation``: "If containment is uncertain, retain the parent as
                 # evidence and route to review." Unfiling above is done on the strength of the
                 # DECLARATION alone; the arithmetic is the support the same block asks for, and where
@@ -671,13 +839,12 @@ class MapOntologyStage:
         The section test and the section-scoped match are two expressions of one rule, and the
         second is the one that holds if the first is ever edited wrongly.
 
-        WHAT IT REFUSES, each because publishing would be worse than leaving the aggregate:
-        * fewer than two components — a single child is ``sole_component_of``'s question, and this
-          pass must not answer it with a note row instead of that declaration's own evidence rules;
-        * components that do not ACCOUNT FOR the aggregate, per (basis, period) column, within
-          ``recon_abs_tolerance`` — the arithmetic is the only support this stage can test for
-          ``global_rules.parent_child_allocation``, and a split that does not tie is a fabricated
-          decomposition however plausible the captions;
+                WHAT IT REFUSES, each because publishing would be worse than leaving the aggregate:
+                * no dedicated component — there is then no template detail for the note to take priority
+                    over, so the face row remains the complete fact;
+                * the note's mapped and residual detail together do not ACCOUNT FOR the aggregate, per
+                    (basis, period) column, within ``recon_abs_tolerance`` — the arithmetic is the only
+                    support this stage can test for ``global_rules.parent_child_allocation``;
         * a disclosure that itemises nothing this section claims, or none at all.
 
         A DISCLOSURE'S OWN TOTAL ROW is excluded BY ROLE, which is now the one answer to that
@@ -699,11 +866,9 @@ class MapOntologyStage:
         pass treats a parent whose children were printed on the face, so the printed combined figure
         stays auditable and the section does not count the money twice.
 
-        NOTE ITEMS ARE NOT MUTATED. ``NoteItem.canonical_key`` is a field nothing in the codebase
-        writes, and two live readers consume it — reconcile's ``maps_to_distinct_template_line`` and
-        ``buckets._bucket_from_note_content`` — so both are inert today. Writing it here would wake
-        both inside a change about something else; the mapping is kept local to this pass and those
-        two are left for their own change.
+        NOTE ITEMS KEEP THE SAME MAPPING. ``NoteItem.canonical_key`` is persisted for the Notes view,
+        reconciliation and note storage. A mapped note line carries its dedicated template key; an
+        unmatched line in a reconciled partial split carries the original non-calculated face key.
         """
         # TWO SOURCES OF CANDIDATES, ONE PASS. The declared containment pairs
         # (``is_gross_parent``/``mutually_exclusive_groups``) say "these two concepts may never both
@@ -717,10 +882,45 @@ class MapOntologyStage:
         template = getattr(ctx, "template", None)
         template_def = (template.model_dump(mode="json")
                         if template is not None and hasattr(template, "model_dump") else template)
+        from app.services.rollups import calculated_nodes
+        calculated_nodes_by_key = calculated_nodes(template_def or {})
+        calculated = set(calculated_nodes_by_key)
+        calculated_residuals = {
+            key for key, node in calculated_nodes_by_key.items()
+            if (node.get("rollup") or {}).get("reported_total_key")
+        }
         decls = _same_section_decompositions(ontology)
         seen = {a for a, _c, _s in decls}
         decls = decls + [d for d in _note_permitted_decompositions(ontology, template_def)
                          if d[0] not in seen]
+        seen = {a for a, _c, _s in decls}
+        # Ordinary face lines may also be itemised by their cited notes. Opt-in is still explicit
+        # (`note_use: decomposition_allowed`), and the arithmetic/cross-section/duplicate gates
+        # below are identical to the declared aggregate path. Candidate children are every
+        # dedicated leaf in the same subsection; only captions the note actually prints are used.
+        dynamic: set[str] = set()
+        by_key = {m.canonical_key: m for m in ontology.mappings}
+        for parent in doc.line_items:
+            key = parent.canonical_key or ""
+            mapping = by_key.get(key)
+            if (not mapping or key in seen or key in calculated
+                    or mapping.note_use != "decomposition_allowed"
+                    or len(mapping.section_scope or []) != 1
+                    or not _cited_notes([parent])):
+                continue
+            section = mapping.section_scope[0]
+            children = [
+                candidate.canonical_key for candidate in ontology.mappings
+                if candidate.canonical_key != key
+                and candidate.section_scope == [section]
+                and candidate.canonical_key not in calculated
+                and candidate.value_scope != "exclusive_residual"
+                and candidate.extraction_mode != "do_not_extract"
+            ]
+            if children:
+                decls.append((key, children, section))
+                seen.add(key)
+                dynamic.add(key)
         if not decls:
             return 0
         tol = Decimal(str(ctx.settings.extraction.recon_abs_tolerance))
@@ -737,7 +937,10 @@ class MapOntologyStage:
                             f" {len(parents)} rows carry it")
                 continue
             parent = parents[0]
-            if any(li.canonical_key in children for li in doc.line_items):
+            if aggregate not in dynamic and any(
+                    li.canonical_key in children for li in doc.line_items):
+                if aggregate in calculated_residuals:
+                    ctx.log(f"map_ontology:split_declined({aggregate}): component already filed")
                 continue                  # a component is already filed; containment owns this case
             cited = _cited_notes([parent])
             tables = [t for t in doc.notes if str(t.note_number) in cited]
@@ -745,8 +948,10 @@ class MapOntologyStage:
                 continue
             statement = stmt_by_page.get(_page_of(parent) or -1)
 
-            def concepts_in(group: list) -> dict[str, list]:
+            def concepts_in(group: list) -> tuple[dict[str, list], list, list]:
                 found: dict[str, list] = {}
+                residual: list = []
+                foreign: list = []
                 for table in group:
                     for it in table.items:
                         if not it.values or it.role is not LineRole.LINE:
@@ -775,8 +980,25 @@ class MapOntologyStage:
                             res = matcher.match(it.group_hint, statement=statement,
                                                 section=section)
                         if res and res.canonical_key in children:
-                            found.setdefault(res.canonical_key, []).append(it)
-                return found
+                            already_on_face = any(
+                                li is not parent and li.canonical_key == res.canonical_key
+                                for li in doc.line_items)
+                            if aggregate in dynamic and already_on_face:
+                                foreign.append((it, res.canonical_key))
+                            else:
+                                found.setdefault(res.canonical_key, []).append(it)
+                        else:
+                            # Distinguish a genuinely unmatched detail from a known concept in a
+                            # different subsection. The former may retain the face key; treating
+                            # the latter as residual would cross the printed section boundary.
+                            outside = matcher.match(it.raw_label or "", statement=statement)
+                            if outside and outside.canonical_key == aggregate:
+                                residual.append(it)
+                            elif outside and outside.canonical_key:
+                                foreign.append((it, outside.canonical_key))
+                            else:
+                                residual.append(it)
+                return found, residual, foreign
 
             # ONE TABLE AT A TIME, and the union of them only if no single table will do.
             #
@@ -803,31 +1025,62 @@ class MapOntologyStage:
             # heading, not the printed table. Two printed tables under ONE heading on ONE page are
             # one ``NotesTable``, and this pass cannot tell them apart — the arithmetic gate is
             # again the only thing between a restated component and a published figure there.
-            candidates = [([t], concepts_in([t])) for t in tables]
-            if len(tables) > 1:
-                candidates.append((tables, concepts_in(tables)))
+            def raw_accounts(group: list) -> bool:
+                detail = [item for table in group for item in table.items
+                          if item.values and item.role is LineRole.LINE]
+                if not detail:
+                    return False
+                _orientation, unaccounted = _orientation_accounting_for(
+                    parent, {"note_detail": detail}, tol)
+                return not unaccounted
 
-            def accounting_for(pool: list) -> list[tuple[list, dict, int]]:
-                out: list[tuple[list, dict, int]] = []
-                for group, found in pool:
-                    if len(found) < 2:
+            # Arithmetic before semantics. A note number can contain many tables, and matching
+            # every row in every table against a large ontology made one filing spend minutes in
+            # this pass. Only a table whose raw line detail already accounts for the cited face
+            # amount can qualify; all other tables are rejected without ontology calls.
+            groups = [[table] for table in tables if raw_accounts([table])]
+            if len(tables) > 1 and raw_accounts(tables):
+                groups.append(tables)
+            candidates = [(group, *concepts_in(group)) for group in groups]
+
+            def accounting_for(pool: list) -> list[tuple[list, dict, list, int]]:
+                out: list[tuple[list, dict, list, int]] = []
+                for group, found, residual, foreign in pool:
+                    if not found or foreign:
                         continue
-                    orient, unaccounted = _orientation_accounting_for(parent, found, tol)
+                    # A calculated parent can only be validated from its declared children. An
+                    # unmatched amount cannot be made a formula component by assigning it to the
+                    # calculated total itself, so partial splits remain available only to leaves.
+                    if aggregate in calculated and aggregate not in calculated_residuals and residual:
+                        continue
+                    accounted = {**found, **({aggregate: residual} if residual else {})}
+                    orient, unaccounted = _orientation_accounting_for(parent, accounted, tol)
                     if not unaccounted:
-                        out.append((group, found, orient))
+                        out.append((group, found, residual, orient))
                 return out
 
             singles = [c for c in candidates if len(c[0]) == 1]
             qualified = accounting_for(singles) or accounting_for(
                 [c for c in candidates if len(c[0]) > 1])
             if not qualified:
-                itemised = max((len(found) for _g, found in candidates), default=0)
-                if itemised < 2:
+                if not candidates:
+                    ctx.log(f"map_ontology:split_declined({aggregate}):"
+                            " cited note detail does not account for the face amount")
+                    continue
+                foreign = [entry for _g, _found, _residual, entries in candidates
+                           for entry in entries]
+                itemised = max((len(found) for _g, found, _r, _f in candidates), default=0)
+                if foreign:
+                    named = ",".join(sorted({key for _item, key in foreign}))
+                    ctx.log(f"map_ontology:split_declined({aggregate}):"
+                            f" note contains concepts outside {section}: {named}")
+                elif itemised < 1:
                     ctx.log(f"map_ontology:split_declined({aggregate}):"
                             f" the disclosure itemises {itemised} of this section's concepts")
                 else:
                     best = max(candidates, key=lambda c: len(c[1]))
-                    _o, short = _orientation_accounting_for(parent, best[1], tol)
+                    accounted = {**best[1], **({aggregate: best[2]} if best[2] else {})}
+                    _o, short = _orientation_accounting_for(parent, accounted, tol)
                     ctx.log(f"map_ontology:split_declined({aggregate}):"
                             f" components do not account for it in {','.join(short)}")
                 continue
@@ -837,9 +1090,15 @@ class MapOntologyStage:
                 ctx.log(f"map_ontology:split_declined({aggregate}):"
                         f" {len(qualified)} tables in the cited note each account for it")
                 continue
-            tables, hits, orientation = qualified[0]
-            for key, sources in hits.items():
-                row = LineItem(source_label=sources[0].raw_label or key, canonical_key=key,
+            tables, hits, residual_items, orientation = qualified[0]
+            assignments = {**hits, **({aggregate: residual_items} if residual_items else {})}
+            for key, sources in assignments.items():
+                src = sources[0].raw_label or key
+                if key == aggregate and aggregate.startswith("is_pl__interest_"):
+                    # Preserve the parent caption for the adjusted aggregate, so the output shows
+                    # that the overall interest line was modified by note decomposition.
+                    src = parent.source_label or src
+                row = LineItem(source_label=src, canonical_key=key,
                                ordinal=parent.ordinal, role=LineRole.LINE,
                                printed_in=PrintedIn.FACE, note_number=parent.note_number,
                                section_hint=parent.section_hint)
@@ -867,6 +1126,8 @@ class MapOntologyStage:
                 row.confidence.mapping = min(parent.confidence.mapping or 0.75, 0.75)
                 row.confidence.method = MappingMethod.RULE.value
                 row.confidence.flags.append(f"split_from:{aggregate}")
+                if key == aggregate:
+                    row.confidence.flags.append("note_residual_to_face_item")
                 if orientation < 0:
                     # Visible on the row, because an analyst comparing it to the note will see the
                     # opposite sign there and the row has to say why.
@@ -877,14 +1138,27 @@ class MapOntologyStage:
                     # can only point at one of them.
                     row.confidence.flags.append(f"split_summed_rows:{len(sources)}")
                 doc.line_items.append(row)
+                for source in sources:
+                    source.canonical_key = key
+                    source.confidence.mapping = row.confidence.mapping
+                    source.confidence.method = MappingMethod.RULE.value
+                    source.confidence.flags.append(f"supports_face_item:{aggregate}")
                 added += 1
-            parent.canonical_key = None
-            if parent.role is LineRole.LINE:
-                parent.role = LineRole.SUBTOTAL
-            parent.confidence.flags.append(
-                f"alloc:{AllocationStatus.PARENT_GROSS_EVIDENCE_ONLY.value}")
-            parent.confidence.flags.append(f"decomposed_into:{','.join(sorted(hits))}")
+            if aggregate in calculated and aggregate not in calculated_residuals:
+                parent.confidence.flags.append("reported_validation_for_calculated")
+                parent.confidence.flags.append(
+                    f"note_components:{','.join(sorted(assignments))}")
+            else:
+                parent.canonical_key = None
+                if parent.role is LineRole.LINE:
+                    parent.role = LineRole.SUBTOTAL
+                parent.confidence.flags.append(
+                    f"alloc:{AllocationStatus.PARENT_GROSS_EVIDENCE_ONLY.value}")
+                parent.confidence.flags.append(f"note_decomposed_from:{aggregate}")
+                parent.confidence.flags.append(
+                    f"decomposed_into:{','.join(sorted(assignments))}")
             ctx.log(f"map_ontology:split({aggregate}) into {len(hits)} concepts"
+                    f" plus {len(residual_items)} residual note rows"
                     f" from note {','.join(sorted({str(t.note_number) for t in tables}))}"
                     f"{' (signs flipped to the face convention)' if orientation < 0 else ''}")
         return added

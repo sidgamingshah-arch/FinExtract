@@ -140,6 +140,11 @@ def main() -> int:
                 print("Gateway rejected response_format; retrying without JSON mode …", file=sys.stderr)
                 body = build_body(model, full_system, user_msg, args.max_tokens, json_mode=False)
                 resp = client.post(_endpoint(base_url), headers=headers, json=body)
+            # GPT-5-family models rename the output cap; retry once with the new key.
+            if resp.status_code == 400 and "max_completion_tokens" in resp.text.lower():
+                print("Gateway wants max_completion_tokens; retrying with the renamed key …", file=sys.stderr)
+                body["max_completion_tokens"] = body.pop("max_tokens")
+                resp = client.post(_endpoint(base_url), headers=headers, json=body)
             resp.raise_for_status()
     except httpx.HTTPStatusError as exc:
         print(f"ERROR: gateway returned {exc.response.status_code}: "

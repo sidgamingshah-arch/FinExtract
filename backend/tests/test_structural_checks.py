@@ -246,7 +246,7 @@ def test_shipped_template_relations_hold_on_a_consistent_spread():
 
     path = (Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
             / "hkfrs_hk_china_template.json")
-    tpl = load_template(json.loads(path.read_text()))
+    tpl = load_template(json.loads(path.read_text(encoding="utf-8")))
     report = evaluate_structure(tpl, _items(**{
         "cf_cash_flow_from_operating_activities__net_cash_from_operating_activities": 5_094_092,
         "cf_cash_flow_from_investing_activities__net_cash_used_in_investing_activities": 4_044_304,
@@ -279,7 +279,7 @@ def test_a_statement_the_filing_does_not_contain_is_marked_apart_from_a_thin_one
 
     path = (Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
             / "hkfrs_hk_china_template.json")
-    tpl = load_template(json.loads(path.read_text()))
+    tpl = load_template(json.loads(path.read_text(encoding="utf-8")))
     report = evaluate_structure(tpl, _items(**{
         "cf_opening_cash_and_cash_equivalents": 8_156_453,
         "cf_closing_cash_and_cash_equivalents": 3_932_025,
@@ -422,7 +422,7 @@ def _shipped_template():
     from pathlib import Path
     path = (Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
             / "hkfrs_hk_china_template.json")
-    return load_template(json.loads(path.read_text()))
+    return load_template(json.loads(path.read_text(encoding="utf-8")))
 
 
 def test_a_leaf_the_filing_does_not_print_is_nil_where_the_section_sweeps_it():

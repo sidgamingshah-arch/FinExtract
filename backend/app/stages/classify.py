@@ -217,6 +217,7 @@ class PageFeat:
     oci_combined: bool = False
     title_ambig: bool = False
     matched_title: str | None = None
+    matched_title_y: float | None = None
     unmapped: list[str] = field(default_factory=list)
     strong_title: bool = False
     narrative: bool = False
@@ -293,6 +294,14 @@ def _title_candidates(lines: list[dict]) -> list[dict]:
             run = []
     joined(run)
     return cands
+
+
+def _mid_page_statement(lines: list[dict], title_zone: list[dict]) -> tuple[str | None, bool, str | None, bool]:
+    """Find an exact statement title that starts below a completed table on the same page."""
+    zone_ids = {id(line) for line in title_zone}
+    candidates = [dict(line) for line in lines if id(line) not in zone_ids
+                  and _looks_like_heading(line["text"])]
+    return _resolve_statement(candidates)
 
 
 def _anchored(t: str) -> bool:
@@ -585,12 +594,18 @@ def _features(index: int, lines: list[dict], page_h: float, text: str) -> PageFe
     cands = _title_candidates(zone)
 
     f.statement, f.oci_combined, title, f.title_ambig = _resolve_statement(cands)
+    if f.statement is None:
+        f.statement, f.oci_combined, title, f.title_ambig = _mid_page_statement(lines, zone)
     joined = " ".join(f.title_lines)
     f.narrative = bool(_NARRATIVE.search(joined) or _NARRATIVE.search(text[:1500]))
     if f.narrative:
         # The auditor's report names every statement it audited, in bold, in the top band.
         f.statement, title = None, None
     f.matched_title = title
+    if title is not None and page_h:
+        hit = next((line for line in lines if line["text"].strip() == title), None)
+        if hit is not None:
+            f.matched_title_y = float(hit["y"]) / page_h
     f.strong_title = f.statement is not None
 
     f.notes_banner = any(re.search(p, joined, re.I) for p in _NOTES_BANNER)
@@ -964,6 +979,8 @@ class ClassifyStage:
             # Every page, not just the faces: the viewer names any page the reader scrolls to.
             page_src.printed_page = _printed_folio(lines, height)
             if state == _FACE:
+                preceding_statement = current
+                preceding_scope = run_scope
                 named = _STATEMENT_ALIAS.get(f.statement or "", f.statement)
                 if named:
                     current = named
@@ -1013,6 +1030,13 @@ class ClassifyStage:
             if state == _NOTES:
                 seen_notes = True
             page_src.evidence = {"state": state, "matched_title": f.matched_title,
+                                 "matched_title_y": f.matched_title_y,
+                                 "statement_before_title": (
+                                     preceding_statement if state == _FACE and f.matched_title_y
+                                     and f.matched_title_y > 0.20 else None),
+                                 "scope_before_title": (
+                                     preceding_scope if state == _FACE and f.matched_title_y
+                                     and f.matched_title_y > 0.20 else None),
                                  "title_ambig": f.title_ambig, "margin": round(margin, 2),
                                  "oci_combined": f.oci_combined}
             if f.unmapped:

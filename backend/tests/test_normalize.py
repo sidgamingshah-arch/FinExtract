@@ -33,3 +33,20 @@ def test_add_cue_makes_value_positive():
     NormalizeStage().run(doc, PipelineContext(raw_bytes=b""))
     ev = next(iter(doc.line_items[0].values.values()))
     assert ev.value == 200
+
+
+def test_template_natural_negative_makes_a_contra_asset_negative():
+    doc = DocumentModel(filename="x.pdf")
+    item = _li("Accumulated depreciation", 500)
+    item.canonical_key = "bs_nca__accum_deprec_and_impairment"
+    doc.line_items = [item]
+    ctx = PipelineContext(raw_bytes=b"")
+    ctx.template_def = {"statements": [{"sections": [{"children": [{
+        "canonical_key": "bs_nca__accum_deprec_and_impairment",
+        "sign": "natural_negative",
+    }]}]}]}
+
+    NormalizeStage().run(doc, ctx)
+
+    ev = next(iter(item.values.values()))
+    assert ev.value == -500 and ev.value_raw == 500

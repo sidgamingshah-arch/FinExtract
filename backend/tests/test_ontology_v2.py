@@ -29,7 +29,7 @@ V1 = SAMPLES / "hkfrs_hk_china_ontology.json"
 
 
 def _v2() -> dict:
-    return json.loads(V2.read_text())
+    return json.loads(V2.read_text(encoding="utf-8"))
 
 
 def _by_key(ont) -> dict:
@@ -355,7 +355,7 @@ def test_upload_refuses_an_inherits_naming_a_section_that_does_not_exist(client)
     from pathlib import Path
 
     d = Path(__file__).resolve().parents[1] / "app" / "sample" / "templates"
-    bad = copy.deepcopy(json.loads((d / "hkfrs_hk_china_ontology.json").read_text()))
+    bad = copy.deepcopy(json.loads((d / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8")))
     bad["ontology_key"] = "inherits_probe"
     bad["mappings"][0]["inherits"] = "bs_s1_non_current_assetz"      # one transposed letter
 
@@ -378,7 +378,7 @@ def test_the_shipped_v2_rulebook_still_uploads(client):
     from pathlib import Path
 
     d = Path(__file__).resolve().parents[1] / "app" / "sample" / "templates"
-    v2 = json.loads((d / "hkfrs_hk_china_ontology.json").read_text())
+    v2 = json.loads((d / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8"))
     v2 = {**v2, "ontology_key": "v2_upload_probe"}
     r = client.post("/api/v1/ontologies", json={"definition": v2})
     assert r.status_code == 201, r.text
@@ -527,7 +527,7 @@ def test_the_adopted_unbound_row_policy_is_stated_in_the_rulebook():
     from pathlib import Path
 
     d = Path(__file__).resolve().parents[1] / "app" / "sample" / "templates"
-    v2 = json.loads((d / "hkfrs_hk_china_ontology.json").read_text())
+    v2 = json.loads((d / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8"))
     policy = v2["binding"]["unbound_row_policy"]
 
     assert "swept into that section's residual" in policy

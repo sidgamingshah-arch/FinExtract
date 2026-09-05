@@ -147,8 +147,8 @@ def test_the_folio_reaches_every_provenance_the_api_serves():
     from tests.fixtures.generate import make_hk_income_statement_pdf
 
     ontology = load_ontology(
-        json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text()), resolve=True)
-    template = load_template(json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text()))
+        json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8")), resolve=True)
+    template = load_template(json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text(encoding="utf-8")))
     ctx = PipelineContext(raw_bytes=make_hk_income_statement_pdf())
     ctx.ontology, ctx.template = ontology, template
     doc = default_pipeline().run(DocumentModel(filename="is.pdf", fmt=DocFormat.PDF), ctx)

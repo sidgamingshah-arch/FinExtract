@@ -34,13 +34,13 @@ _SAMPLES = Path(__file__).resolve().parent.parent / "app" / "sample" / "template
 
 @pytest.fixture(scope="module")
 def rulebook():
-    return load_ontology(json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text()),
+    return load_ontology(json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8")),
                          resolve=True)
 
 
 @pytest.fixture(scope="module")
 def template():
-    return load_template(json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text()))
+    return load_template(json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text(encoding="utf-8")))
 
 
 def _run(data: bytes, rulebook, template) -> DocumentModel:
@@ -127,7 +127,7 @@ def test_each_served_row_carries_its_analyst_section_and_the_rule_behind_it(rule
     assert cash["bucket_label"] == "Current assets"
     # …and the rulebook decision the tag was derived from, which is what a reviewer needs when the
     # tag looks wrong.
-    assert cash["section"] == "bs_s2_current_assets"
+    assert cash["section"] == "current_assets"
 
     assert rows["Property, plant and equipment"]["bucket"] == "non_current_assets"
     # The balance sheet's own total spans the sections, so no section tag can hold it.

@@ -60,6 +60,32 @@ function DetailRow({ row }: { row: NoteDetailRow }) {
   );
 }
 
+function StructuredTable({ table }: { table: NonNullable<NoteDetail["table"]> }) {
+  const columns = `minmax(190px, 2fr) repeat(${table.columns.length}, minmax(94px, 1fr))`;
+  return (
+    <>
+      <div style={{ display: "grid", gridTemplateColumns: columns, padding: "10px 18px",
+                    background: color.rowAltBg, borderBottom: `1px solid ${color.hairline}`,
+                    fontSize: 10.5, fontWeight: 600, color: color.muted }}>
+        <span>PARTICULARS</span>
+        {table.columns.map((column) => <span key={column} style={{ textAlign: "right" }}>{column}</span>)}
+      </div>
+      {table.rows.map((row, index) => (
+        <div key={`${row.section ?? ""}-${row.label}-${index}`} style={{ display: "grid", gridTemplateColumns: columns,
+          alignItems: "center", padding: "10px 18px", borderBottom: `1px solid ${color.hairline}` }}>
+          <span style={{ fontSize: 12.5, color: color.ink }}>
+            {row.section ? `${row.section}: ${row.label}` : row.label}
+          </span>
+          {table.columns.map((column) => (
+            <span key={column} style={{ textAlign: "right", fontFamily: font.mono, fontSize: 12,
+              color: color.sec2 }}>{row.values[column] ?? "-"}</span>
+          ))}
+        </div>
+      ))}
+    </>
+  );
+}
+
 /** How the note's location reads: "276" for a note on one page, "276-277" when it runs on. A note
  *  continued across pages is ONE note, and printing only its first page made the pane disagree with
  *  what the viewer beside it was showing. First and last only — a run of pages is contiguous, and
@@ -94,6 +120,7 @@ function Detail({ detail }: { detail: NoteDetail }) {
   // columns, because an empty header cell says less than "Current" does.
   const per = (i: number) =>
     detail.periods?.[i]?.trim() || t(i === 0 ? "n.periodCurrent" : "n.periodPrior");
+  const structuredTable = detail.table && detail.table.columns.length > 2 ? detail.table : null;
   return (
     <div style={{ maxWidth: 760 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
@@ -117,7 +144,7 @@ function Detail({ detail }: { detail: NoteDetail }) {
         {t("n.onFace")}
       </div>
       <Card pad={0} style={{ overflow: "hidden" }}>
-        <div
+        {structuredTable ? <StructuredTable table={structuredTable} /> : <><div
           style={{
             display: "grid",
             gridTemplateColumns: GRID,
@@ -137,6 +164,7 @@ function Detail({ detail }: { detail: NoteDetail }) {
         {detail.rows.map((r, i) => (
           <DetailRow key={i} row={r} />
         ))}
+        </>}
       </Card>
       {detail.reconciliation && (
         <div

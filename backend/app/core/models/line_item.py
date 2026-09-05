@@ -277,6 +277,7 @@ class NotesTable(BaseModel):
     title: str = ""
     basis: Basis | None = None
     source_pages: list[int] = Field(default_factory=list)
+    source_text: str = ""
     items: list[NoteItem] = Field(default_factory=list)
 
 

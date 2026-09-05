@@ -25,6 +25,8 @@ TITLES: dict[str, str] = {
     "changes_in_equity": "Changes in equity",
 }
 ORDER: tuple[str, ...] = tuple(TITLES)
+# All statements a template may declare are in scope, in the same order as ``ORDER``.
+ACTIVE_STATEMENTS: frozenset[str] = frozenset(ORDER)
 
 
 def declared_statements(definition: dict | None) -> list[dict]:
@@ -48,7 +50,7 @@ def declared_statements(definition: dict | None) -> list[dict]:
         # workbook column and the client all say ``changes_in_equity``. One statement, one key
         # leaving this function; see ``mapping.normalize_statement``, which owns the fold.
         key = normalize_statement(str(st.get("type") or "").strip())
-        if not key or key not in TITLES:
+        if not key or key not in ACTIVE_STATEMENTS:
             continue
         sections = [s for s in (st.get("sections") or []) if isinstance(s, dict)]
         if not sections:

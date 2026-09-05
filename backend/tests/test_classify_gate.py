@@ -83,6 +83,23 @@ def test_chinese_hk_prc_titles_and_note_patterns():
     assert _NUMBERED_HEADING.search("14. 現金及現金等價物")
 
 
+def test_a_chinese_statement_title_below_a_completed_table_is_recognised():
+    from app.stages.classify import _features
+
+    lines = [
+        {"text": "某公司2024年年度报告", "y": 0.0, "size": 10.0, "bold": False},
+        {"text": "负债合计", "y": 20.0, "size": 10.0, "bold": False},
+        {"text": "2,867,784,856.15", "y": 30.0, "size": 10.0, "bold": False},
+        {"text": "合并利润表", "y": 400.0, "size": 14.0, "bold": True},
+    ]
+
+    feature = _features(74, lines, 800.0, "\n".join(line["text"] for line in lines))
+
+    assert feature.statement == "profit_and_loss"
+    assert feature.matched_title == "合并利润表"
+    assert feature.matched_title_y == 0.5
+
+
 def test_running_header_report_regions(client):
     """A report with a bilingual running header on every page (as real HK/PRC filings have):
     the Financial Highlights page that quotes 'Summary of Statement of Profit or Loss' and the

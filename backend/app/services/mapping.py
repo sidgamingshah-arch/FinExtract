@@ -50,6 +50,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 import unicodedata
 from dataclasses import dataclass, field
 
@@ -80,6 +81,7 @@ class LlmBatchItem(BaseModel):
     canonical_key: str = Field(description="chosen key, or \"\" if none fits")
     confidence: float = Field(ge=0, le=1)
     allocation_status: str = ""
+    reason: str = Field(default="", description="brief justification grounded in meaning/criteria")
 
 
 class LlmBatchDecision(BaseModel):
@@ -216,6 +218,12 @@ _NOTE_CITATION = re.compile(
 # letters that DO distinguish captions ("Pledged deposits (note (b))") and are left alone.
 _BRACKETED_NUMBER = re.compile(r"[(（]\s*\d{1,4}\s*[)）]")
 
+# A TRAILING NUMERIC NOTE MARKER with no "note" word, common in HKEX captions:
+# "Right-of-use assets 16(a)", "Lease liabilities 22(b)". It is a pointer to a
+# note table, not part of the concept name.
+_TRAILING_NUMERIC_NOTE = re.compile(r"\b\d{1,3}\s*[(（][a-z0-9]{1,3}[)）]\s*$",
+                                    re.IGNORECASE)
+
 
 def normalize_label(text: str) -> str:
     """Lowercase, strip accents/punctuation, collapse whitespace (locale-agnostic).
@@ -227,7 +235,10 @@ def normalize_label(text: str) -> str:
     A quoted abbreviation gloss is dropped first — see ``_ABBREV_GLOSS`` for why the punctuation
     stripping below does not already do it.
     """
-    text = _BRACKETED_NUMBER.sub(" ", _NOTE_CITATION.sub(" ", _ABBREV_GLOSS.sub(" ", text)))
+    text = _ABBREV_GLOSS.sub(" ", text)
+    text = _NOTE_CITATION.sub(" ", text)
+    text = _TRAILING_NUMERIC_NOTE.sub(" ", text)
+    text = _BRACKETED_NUMBER.sub(" ", text)
     text = to_simplified(text)
     text = unicodedata.normalize("NFKD", text)
     text = "".join(c for c in text if not unicodedata.combining(c))
@@ -268,6 +279,9 @@ class Candidate:
     # matched one leaf of a collision family and the banner named another. Carried so the decision
     # stays auditable instead of looking like an ordinary hit on the concept it was corrected to.
     rerouted_from: str | None = None
+    # The LLM's own brief justification, when the method is LLM. Carried so a reviewer asking why a
+    # caption was mapped (or merged with others) has the model's stated reasoning, not just a score.
+    reason: str | None = None
 
 
 @dataclass
@@ -281,6 +295,8 @@ class MappingResult:
     allocation_status: str | None = None                    # how the value was derived
     agreement: list[str] = field(default_factory=list)      # methods that corroborated the pick
     rerouted_from: str | None = None                        # see Candidate.rerouted_from
+    # See Candidate.reason. Set only when the winning method is LLM.
+    reason: str | None = None
     # Set when the row was left unmapped because its caption names a concept the framework COMPUTES
     # (`OntologyMatcher._computed_claim`). Carried, not merely counted, because the caller has to act
     # on it: such a row is a subtotal, and an unclaimed face row with a value is otherwise swept into
@@ -332,6 +348,9 @@ SECTION_WORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
     # it is not for: "Total comprehensive income attributable to" does not contain "other".
     ("other_comprehensive_income", ("other comprehensive income", "其他综合收益", "其他綜合收益",
                                     "其他全面收益", "其他全面收入")),
+    ("income_and_expenses", ("income_and_expenses", "income and expenses", "income expenses")),
+    ("adjustments_to_retained_profits", ("adjustments to retained profits",
+                                         "adjustments to retained earnings")),
     # "comprehensive" is the whole distinction, and it has to be matched on its own: a filing
     # reporting a loss prints "Total comprehensive LOSS attributable to", and a filing covering
     # both prints "income/(loss)". Requiring the word "income" missed every one of those, which
@@ -409,6 +428,32 @@ HEADING_ROW_SECTIONS: frozenset[str] = frozenset({
     "cash_flow_from_financing_activities",
 })
 
+# The uploaded output template uses compact section ids rather than the descriptive ids used by
+# the HKFRS template. Both name the same printed subsections and must resolve through one vocabulary.
+_COMPACT_SECTION_TOKENS: dict[str, str] = {
+    "bs_nca": "non_current_assets",
+    "bs_ca": "current_assets",
+    "bs_ncl": "non_current_liabilities",
+    "bs_cl": "current_liabilities",
+    "bs_equity": "equity",
+    "is_pl": "income_and_expenses",
+    "is_oci": "other_comprehensive_income",
+    "is_retained": "adjustments_to_retained_profits",
+    "cf_oper_indirect": "cash_flow_from_operating_activities",
+    "cf_oper_direct": "cash_flow_from_operating_activities",
+    "cf_investing": "cash_flow_from_investing_activities",
+    "cf_financing": "cash_flow_from_financing_activities",
+}
+
+_COMPACT_KEY_SECTION_TOKENS: dict[str, str] = dict(_COMPACT_SECTION_TOKENS)
+
+# Compact output templates can carry statement-tail sections inside keys that still
+# use the broad `is_pl__` namespace. These overrides keep section gating aligned
+# with the intended subsection rather than the namespace prefix.
+_KEY_SECTION_OVERRIDES: dict[str, str] = {
+    "is_pl__minority_interests_pl": "profit_attributable_to",
+}
+
 
 def section_of_banner_only(text: str | None) -> str | None:
     """The section a label names when the label is NOTHING BUT that banner, else None.
@@ -463,7 +508,14 @@ def section_of_key(canonical_key: str) -> str | None:
     :meth:`OntologyMatcher._sections_of`). A key name is a naming convention an editor can break
     without meaning to; ``section_scope`` is a statement of intent.
     """
-    return next((tok for tok, _ in SECTION_WORDS if f"_{tok}__" in canonical_key), None)
+    if canonical_key in _KEY_SECTION_OVERRIDES:
+        return _KEY_SECTION_OVERRIDES[canonical_key]
+    descriptive = next((tok for tok, _ in SECTION_WORDS
+                        if f"_{tok}__" in canonical_key), None)
+    if descriptive:
+        return descriptive
+    return next((token for prefix, token in _COMPACT_KEY_SECTION_TOKENS.items()
+                 if canonical_key.startswith(f"{prefix}__")), None)
 
 
 def sections_of_key(canonical_key: str) -> frozenset[str]:
@@ -521,6 +573,9 @@ def section_token_of_scope(scope_id: str) -> str | None:
     ``section_hint`` is the nearest PRECEDING banner, so a statement total routinely carries the
     banner of the last section printed above it.
     """
+    compact = _COMPACT_SECTION_TOKENS.get(scope_id)
+    if compact:
+        return compact
     return next((tok for tok, _ in SECTION_WORDS if scope_id.endswith(tok)), None)
 
 
@@ -754,6 +809,12 @@ class OntologyMatcher:
         # Description-based LLM mapping is the primary strategy when a provider is present
         # and not disabled in config.
         self.llm_enabled = bool(llm_provider) and self.settings.extraction.llm_mapping
+        # When set, only these canonical_keys may be offered to the LLM; every other row is
+        # decided by the deterministic ensemble alone (see `_llm`/`_match_chunk`).
+        self._llm_only_keys = set(self.settings.extraction.llm_only_keys)
+        # Guards `self.usage` mutations, which happen from worker threads when map_ontology runs
+        # batch chunks concurrently (see stages/map_ontology.py).
+        self._usage_lock = threading.Lock()
         # Token/usage accounting for the audit log (read by the mapping stage).
         # `failures`/`last_error` exist so a run whose LLM calls all failed can report itself
         # as deterministic (what it actually was) instead of as LLM-mapped.
@@ -798,6 +859,7 @@ class OntologyMatcher:
         # ended up unmapped even though its concept existed.
         self._alias_index: dict[str, list[str]] = {}
         self._alias_by_key: dict[str, list[str]] = {}
+        self._label_index: dict[str, list[str]] = {}
         # The aliases of the COMPUTED concepts, indexed apart from the matchable ones and never
         # reachable through any tier. They are kept because a caption that names one is evidence
         # about the row — see `_computed_claim` for what is done with it.
@@ -856,6 +918,9 @@ class OntologyMatcher:
                 self._computed_alias_by_key[m.canonical_key] = [
                     normalize_label(a) for a in aliases]
                 continue
+            label_keys = self._label_index.setdefault(normalize_label(m.label), [])
+            if m.canonical_key not in label_keys:
+                label_keys.append(m.canonical_key)
             self._alias_by_key[m.canonical_key] = [normalize_label(a) for a in aliases]
             for a in aliases:
                 keys = self._alias_index.setdefault(normalize_label(a), [])
@@ -890,6 +955,17 @@ class OntologyMatcher:
         """Highest ``match_priority`` first, ties left in the order given (the sort is stable)."""
         return sorted(keys, key=self._priority_of, reverse=True)
 
+    def _prefer_label_owners(self, norm: str, keys: list[str]) -> list[str]:
+        """Prefer concepts whose canonical label is the exact caption being matched.
+
+        A concept may carry another concept's full label as an over-broad alias. Priority is useful
+        for aliases of differing specificity, but it must never let that borrowed alias beat the
+        concept actually named by the filing.
+        """
+        owners = set(self._label_index.get(norm) or [])
+        exact = [key for key in keys if key in owners]
+        return exact or keys
+
     def _exact(self, norm: str, allowed=None, reroute=None) -> Candidate | None:
         """An exact alias hit, preferring one the caller's scoping allows.
 
@@ -908,10 +984,12 @@ class OntologyMatcher:
         if not keys:
             return None
         if allowed is None:
-            return Candidate(max(keys, key=self._priority_of), MappingMethod.EXACT, 1.0)
+            choices = self._prefer_label_owners(norm, keys)
+            return Candidate(max(choices, key=self._priority_of), MappingMethod.EXACT, 1.0)
         ok = [k for k in keys if allowed(k)]
         if ok:
-            return Candidate(max(ok, key=self._priority_of), MappingMethod.EXACT, 1.0)
+            choices = self._prefer_label_owners(norm, ok)
+            return Candidate(max(choices, key=self._priority_of), MappingMethod.EXACT, 1.0)
         for k in keys:
             target = reroute(k) if reroute is not None else None
             if target:
@@ -953,6 +1031,9 @@ class OntologyMatcher:
         does not, the honest answer is both, for review.
         """
         keys = [k for k in (self._alias_index.get(norm) or []) if allowed(k)]
+        if len(keys) < 2:
+            return []
+        keys = self._prefer_label_owners(norm, keys)
         if len(keys) < 2:
             return []
         top = max(self._priority_of(k) for k in keys)
@@ -1154,7 +1235,8 @@ class OntologyMatcher:
         claim = self._computed_claim(norm_segments)
         if claim is None or claim[1] < rival:
             return None
-        self.usage["computed_refused"] += 1
+        with self._usage_lock:
+            self.usage["computed_refused"] += 1
         return claim[0]
 
     def _build_system(self) -> str:
@@ -1292,6 +1374,8 @@ class OntologyMatcher:
         """Description/criteria-based decision — the key driver in the ensemble."""
         if self.llm_provider is None:
             return None
+        if self._llm_only_keys:
+            keys = [k for k in keys if k in self._llm_only_keys]
         candidates = self._concept_payload(keys)
         if not candidates:
             return None
@@ -1308,14 +1392,22 @@ class OntologyMatcher:
             # Provider unreachable/misconfigured (commonly a missing API key) → the
             # deterministic ensemble decides. Record WHY: a run that silently degrades and
             # still reports itself as LLM-mapped overstates the quality of its own output.
-            self.usage["failures"] += 1
-            if not self.usage["last_error"]:
-                self.usage["last_error"] = f"{type(exc).__name__}: {exc}"[:200]
+            with self._usage_lock:
+                self.usage["failures"] += 1
+                if not self.usage["last_error"]:
+                    self.usage["last_error"] = f"{type(exc).__name__}: {exc}"[:200]
+            print(f"[mapping] llm call FAILED: {type(exc).__name__}: {exc}", flush=True)
             return None
-        self.usage["calls"] += 1
-        self.usage["input_tokens"] += int(meta.get("input_tokens") or 0)
-        self.usage["output_tokens"] += int(meta.get("output_tokens") or 0)
-        self.usage["model"] = meta.get("model", self.usage["model"])
+        with self._usage_lock:
+            self.usage["calls"] += 1
+            self.usage["input_tokens"] += int(meta.get("input_tokens") or 0)
+            self.usage["output_tokens"] += int(meta.get("output_tokens") or 0)
+            self.usage["model"] = meta.get("model", self.usage["model"])
+            call_no = self.usage["calls"]
+        # Printed live (not just recorded) so a run in progress is visible in the server console
+        # without waiting for the audit log entry the run writes only at the end.
+        print(f"[mapping] llm call #{call_no} ok caption={raw[:60]!r} "
+              f"in={meta.get('input_tokens')} out={meta.get('output_tokens')}", flush=True)
         key = (decision.canonical_key or "").strip()
         # `_unmatchable` as well as unknown: a concept was kept out of the payload precisely because
         # no printed caption may be bound to it, and a model naming one anyway is not a licence to
@@ -1324,7 +1416,8 @@ class OntologyMatcher:
         if not key or key not in self._by_key or key in self._unmatchable:
             return None
         return Candidate(key, MappingMethod.LLM, max(0.0, min(1.0, decision.confidence)),
-                         allocation_status=(decision.allocation_status or "").strip() or None)
+                         allocation_status=(decision.allocation_status or "").strip() or None,
+                         reason=(decision.reason or "").strip() or None)
 
     # -- orchestration ----------------------------------------------------
 
@@ -1377,6 +1470,9 @@ class OntologyMatcher:
         a section its key name does not match, and then the gate quietly obeys the key while the
         rulebook — the only place a reviewer can look up what the pipeline does — says otherwise.
         """
+        override = _KEY_SECTION_OVERRIDES.get(canonical_key)
+        if override:
+            return frozenset({override})
         declared = self._section_scope.get(canonical_key)
         if declared is not None:
             return declared
@@ -1429,11 +1525,12 @@ class OntologyMatcher:
         Distinct routes only, and capped: what an auditor needs is which concepts were corrected,
         not one entry per row of a three-hundred-row filing.
         """
-        self.usage["family_resolved"] += 1
-        routes = self.usage["family_routes"]
-        route = f"{from_key}->{to_key}"
-        if route not in routes and len(routes) < 20:
-            routes.append(route)
+        with self._usage_lock:
+            self.usage["family_resolved"] += 1
+            routes = self.usage["family_routes"]
+            route = f"{from_key}->{to_key}"
+            if route not in routes and len(routes) < 20:
+                routes.append(route)
 
     def _allowed(self, canonical_key: str, statement: str | None,
                  section: str | None, caption: str = "") -> bool:
@@ -1472,7 +1569,8 @@ class OntologyMatcher:
                 scores={"exact": 1.0, "llm": llm.score}, allocation_status=alloc,
                 agreement=["llm", "exact"],
             )
-        self.usage["confusable_ties"] += 1
+        with self._usage_lock:
+            self.usage["confusable_ties"] += 1
         return MappingResult(None, MappingMethod.UNMATCHED, 0.0,
                              [Candidate(k, MappingMethod.EXACT, 1.0) for k in tied],
                              True, {"exact": 1.0}, allocation_status="unmapped_review")
@@ -1491,10 +1589,11 @@ class OntologyMatcher:
               statement: str | None = None, section: str | None = None) -> MappingResult:
         """A COMBINATION of methods — no single one is authoritative:
 
-        exact identity short-circuits (free); otherwise the rule tier and the model each
-        contribute candidate evidence, the LLM makes the semantic, criteria-based call
-        (the key driver), and cross-method agreement adjusts confidence and review routing.
-        Falls back to the deterministic margin policy when no LLM is configured/abstains.
+        exact identity is deterministic evidence; when an LLM is configured it still refines
+        that evidence and may confirm or replace it. The rule tier and the model each contribute
+        candidate evidence, the LLM makes the semantic, criteria-based call (the key driver), and
+        cross-method agreement adjusts confidence and review routing. Falls back to the
+        deterministic margin policy only when no LLM is configured.
 
         ``statement`` is the statement the caption was printed on (``balance_sheet``,
         ``profit_and_loss``, ``cash_flow``, ``changes_in_equity``) when the page classifier
@@ -1514,6 +1613,7 @@ class OntologyMatcher:
         norm_segments = [n for n in (normalize_label(seg) for seg in segments) if n]
         s = self.settings
         scores: dict[str, float] = {}
+        exact_candidate: Candidate | None = None
 
         def _ok(k: str) -> bool:
             return self._allowed(k, statement, section, raw_label)
@@ -1544,9 +1644,13 @@ class OntologyMatcher:
             if exact:
                 if exact.rerouted_from:
                     self._record_route(exact.rerouted_from, exact.canonical_key)
-                return MappingResult(exact.canonical_key, exact.method, 1.0, [exact], False,
-                                     {"exact": 1.0}, allocation_status="direct_exclusive",
-                                     rerouted_from=exact.rerouted_from)
+                if not self.llm_enabled:
+                    return MappingResult(exact.canonical_key, exact.method, 1.0, [exact], False,
+                                         {"exact": 1.0}, allocation_status="direct_exclusive",
+                                         rerouted_from=exact.rerouted_from)
+                exact_candidate = exact
+                scores["exact"] = 1.0
+                break
 
         # 2. `binding.order` step 3 — RESTRICT the candidate set to the concepts the rulebook lets a
         #    row printed here be bound to, BEFORE any matching runs. It used to be a filter applied
@@ -1562,6 +1666,9 @@ class OntologyMatcher:
         rule = next((r for r in (self._rule(seg, allowed_keys) for seg in segments) if r), None)
         by_method: dict[str, set[str]] = {}
         pool: list[Candidate] = []
+        if exact_candidate:
+            by_method["exact"] = {exact_candidate.canonical_key}
+            pool.append(exact_candidate)
         if rule:
             scores["rule"] = rule.score
             by_method["rule"] = {rule.canonical_key}
@@ -1596,27 +1703,38 @@ class OntologyMatcher:
         #    concept's criteria. Never the full ontology: the restriction is step 3's, applied above.
         if self.llm_enabled:
             all_keys = [k for k in self._mappable_keys() if k in allowed_keys]
-            if len(all_keys) <= s.extraction.llm_candidate_cap:
-                shortlist = all_keys
+            # Policy restriction (`extraction.llm_only_keys`): a row none of whose candidates are on
+            # the allow-list is never OFFERED to the model at all — which must fall through to the
+            # deterministic tiers below exactly as an unconfigured LLM would, not be reported as the
+            # model having seen the row and abstained (the abstention branch just below).
+            restricted_out = bool(self._llm_only_keys) and not any(
+                k in self._llm_only_keys for k in all_keys)
+            if restricted_out:
+                llm = None
             else:
-                # Deterministic evidence first, then the rest of the RESTRICTED set to fill the cap.
-                # The fill is not padding: with the fuzzy tier gone the evidence here is a rule hit
-                # or nothing at all, and a section whose concepts merely have no hints authored on
-                # them would otherwise reach the model as a shortlist of one — or of none, which
-                # would leave the model to answer about a set it was never shown. The restriction to
-                # the section (step 3) is what keeps the fill honest; ``_by_priority`` below decides
-                # the reading order within it.
-                shortlist = list(dict.fromkeys(
-                    ([rule.canonical_key] if rule else [])
-                    + self._by_priority(all_keys)))[: s.extraction.llm_candidate_cap]
-            # Offered in descending match_priority, so the long specific concept is read before the
-            # short generic one it collides with on token overlap ("Total assets less current
-            # liabilities", 86, ahead of "Total current liabilities", 82 — the pair the rulebook's
-            # own note on match_priority calls out). Applied AFTER the cap on purpose: priority
-            # decides what the model reads first, never which concepts it is allowed to see, so a
-            # high-priority concept with no evidence behind it cannot evict an evidenced one.
-            shortlist = self._by_priority(shortlist)
-            llm = self._llm(raw_label, context, shortlist)
+                if len(all_keys) <= s.extraction.llm_candidate_cap:
+                    shortlist = all_keys
+                else:
+                    # Deterministic evidence first, then the rest of the RESTRICTED set to fill the
+                    # cap. The fill is not padding: with the fuzzy tier gone the evidence here is a
+                    # rule hit or nothing at all, and a section whose concepts merely have no hints
+                    # authored on them would otherwise reach the model as a shortlist of one — or of
+                    # none, which would leave the model to answer about a set it was never shown. The
+                    # restriction to the section (step 3) is what keeps the fill honest;
+                    # ``_by_priority`` below decides the reading order within it.
+                    shortlist = list(dict.fromkeys(
+                        ([exact_candidate.canonical_key] if exact_candidate else [])
+                        + ([rule.canonical_key] if rule else [])
+                        + self._by_priority(all_keys)))[: s.extraction.llm_candidate_cap]
+                # Offered in descending match_priority, so the long specific concept is read before
+                # the short generic one it collides with on token overlap ("Total assets less
+                # current liabilities", 86, ahead of "Total current liabilities", 82 — the pair the
+                # rulebook's own note on match_priority calls out). Applied AFTER the cap on
+                # purpose: priority decides what the model reads first, never which concepts it is
+                # allowed to see, so a high-priority concept with no evidence behind it cannot evict
+                # an evidenced one.
+                shortlist = self._by_priority(shortlist)
+                llm = self._llm(raw_label, context, shortlist)
             if llm is not None:
                 scores["llm"] = llm.score
                 # Corroboration across methods — agreement raises confidence, a strong
@@ -1639,14 +1757,23 @@ class OntologyMatcher:
                 return MappingResult(
                     canonical_key=llm.canonical_key, method=MappingMethod.LLM, confidence=conf,
                     candidates=[llm] + ranked[:4], needs_review=needs_review, scores=scores,
-                    allocation_status=alloc, agreement=["llm", *agreement],
+                    allocation_status=alloc, agreement=["llm", *agreement], reason=llm.reason,
                 )
+            # A real provider failure or request error should not wipe out deterministic evidence.
+            # Only a deliberate abstention (empty canonical_key) is a review-worthy no-answer — and
+            # only when the row was actually offered to the model. Restricted out by policy, it was
+            # never asked, and falls through to the deterministic tiers below like an unconfigured
+            # LLM would.
+            if restricted_out or self.usage["failures"] > 0:
+                # Continue into the deterministic fallback below.
+                pass
+            else:
+                return MappingResult(None, MappingMethod.UNMATCHED, 0.0, ranked[:5], True, scores,
+                                     allocation_status="unmapped_review")
 
-        # 5. Deterministic decision (no LLM configured, or the LLM abstained). Exact already
-        #    returned above, so the rule tier is all that is left — and if it does not claim the
-        #    row, the row is left UNMAPPED for a human. There is deliberately no last-resort match
-        #    on resemblance: a caption nothing can place is a visible gap, where a plausible wrong
-        #    answer is a figure on the wrong line of a statement that still ties.
+        # 5. Deterministic decision when no LLM is configured, or when the configured LLM failed.
+        #    If a configured LLM abstained, the row is left UNMAPPED for a human rather than
+        #    presenting unrefined deterministic evidence as a completed semantic decision.
         #
         #    First, though, step 6: when the top-scoring concepts are rated IDENTICALLY and name each
         #    other as confusable, no deterministic method can separate them and the tie-break below
@@ -1657,7 +1784,8 @@ class OntologyMatcher:
             tie = self._confusable_tie([c.canonical_key for c in ranked
                                         if c.score == det_top.score])
             if tie:
-                self.usage["confusable_ties"] += 1
+                with self._usage_lock:
+                    self.usage["confusable_ties"] += 1
                 return MappingResult(None, MappingMethod.UNMATCHED, 0.0,
                                      [c for c in ranked if c.canonical_key in tie], True, scores,
                                      allocation_status="unmapped_review")
@@ -1696,10 +1824,9 @@ class OntologyMatcher:
     # characters per token, so one decision costs about 80 response tokens.
     _BATCH_RESPONSE_TOKENS_PER_ITEM = 80
     _BATCH_RESPONSE_RESERVE = 256          # the envelope itself, plus a margin against truncation
-    # The largest chunk whose worst-case response still fits a conventional 8k completion budget with
-    # headroom — and comfortably more than one HKEX statement page (40-60 rows), so the two-page
-    # statement this batching exists to keep whole is still decided in ONE call.
-    BATCH_MAX_ITEMS = 80
+    # A transport chunk, not a semantic boundary: section results are carried into the second-level
+    # statement pass as preliminary mappings. This only bounds one structured response's size.
+    BATCH_MAX_ITEMS = 25
 
     @classmethod
     def _batch_max_tokens(cls, n_items: int) -> int:
@@ -1714,9 +1841,23 @@ class OntologyMatcher:
         """
         return cls._BATCH_RESPONSE_RESERVE + n_items * cls._BATCH_RESPONSE_TOKENS_PER_ITEM
 
+    def _effective_batch_max_tokens(self, n_items: int) -> int:
+        """Visible JSON budget for this mapping response.
+
+        ``llm.max_tokens`` is the global ceiling for free-form calls. Sending that ceiling as the
+        requested completion allocation for a small structured mapping response makes compatible
+        gateways reserve millions of tokens and time out before they answer. The batch envelope
+        itself determines the only budget this call needs.
+        """
+        return max(8192, self._batch_max_tokens(n_items))
+
     def match_batch(self, items: list[tuple[str, str]],
                     statement: str | None = None,
-                    sections: dict[str, str | None] | None = None) -> dict[str, MappingResult]:
+                    sections: dict[str, str | None] | None = None,
+                    preliminary: dict[str, MappingResult] | None = None,
+                    require_complete: bool = False,
+                    chunk_size: int | None = None,
+                    cited_note_text: dict[str, list[dict[str, str]]] | None = None) -> dict[str, MappingResult]:
         """Batch mapping: decide many captions in one grounded LLM call so cross-line judgements
         (containment, residual, 'Others') have context. The model references the provided item_ids
         and candidate keys — it never invents a value; values/provenance stay on the deterministic
@@ -1753,13 +1894,20 @@ class OntologyMatcher:
             return {iid: self.match(label, statement=statement, section=sec.get(iid))
                     for iid, label in items}
         out: dict[str, MappingResult] = {}
-        for start in range(0, len(items), self.BATCH_MAX_ITEMS):
-            chunk = items[start:start + self.BATCH_MAX_ITEMS]
-            out.update(self._match_chunk(chunk, statement, sec))
+        size = chunk_size or self.BATCH_MAX_ITEMS
+        for start in range(0, len(items), size):
+            chunk = items[start:start + size]
+            out.update(self._match_chunk(
+                chunk, statement, sec, preliminary or {}, require_complete=require_complete,
+                cited_note_text=cited_note_text))
         return out
 
     def _match_chunk(self, items: list[tuple[str, str]], statement: str | None,
-                     sec: dict[str, str | None]) -> dict[str, MappingResult]:
+                     sec: dict[str, str | None],
+                     preliminary: dict[str, MappingResult],
+                     require_complete: bool = False,
+                     retry_depth: int = 0,
+                     cited_note_text: dict[str, list[dict[str, str]]] | None = None) -> dict[str, MappingResult]:
         """One provider call over at most ``BATCH_MAX_ITEMS`` captions. See :meth:`match_batch`."""
         # `binding.order` step 3, on the batch path: RESTRICT the offered concepts before the call.
         # Only concepts from THIS statement, and only from the sections this chunk was actually
@@ -1777,6 +1925,8 @@ class OntologyMatcher:
             # concept the gate would have allowed — a worse error than offering too much.
             keys = [k for k in keys
                     if not self._sections_of(k) or (self._sections_of(k) & tokens)]
+        if self._llm_only_keys:
+            keys = [k for k in keys if k in self._llm_only_keys]
         # Descending match_priority, for the reason the per-line shortlist is ordered that way: one
         # batch offers a whole statement, so the order the model reads the list in is the only
         # ranking it gets.
@@ -1798,15 +1948,29 @@ class OntologyMatcher:
         def _sec_token(iid: str) -> str | None:
             return section_of_banner(sec.get(iid))
 
+        fallback = OntologyMatcher(self.ontology, locale=self.locale, settings=self.settings)
+        deterministic = {
+            iid: preliminary.get(iid) or fallback.match(
+                label, statement=statement, section=sec.get(iid))
+            for iid, label in items
+        }
+
         payload: dict = {
-            "instruction": "Map each source_item to exactly one candidate canonical_key by "
-                           "meaning, applying the policies. Reference item_id and canonical_key; "
+            "instruction": "Confirm or correct the deterministic evidence for every source_item, "
+                           "then map it to exactly one candidate canonical_key by meaning and the "
+                           "policies. Reference item_id and canonical_key; "
                            "do not output values. source_items are in the order they are printed "
                            "in the document. When an item carries a `section`, the concept you "
                            "choose must belong to that section.",
             "source_items": [
                 {"item_id": iid, "caption": label,
-                 **({"section": tok} if (tok := _sec_token(iid)) else {})}
+                 **({"section": tok} if (tok := _sec_token(iid)) else {}),
+                 **({"cited_note_text": cited_note_text[iid]}
+                    if cited_note_text and cited_note_text.get(iid) else {}),
+                 **({"deterministic_suggestion": deterministic[iid].canonical_key}
+                    if deterministic[iid].canonical_key else {}),
+                 "deterministic_candidates": [candidate.canonical_key
+                                              for candidate in deterministic[iid].candidates[:3]]}
                 for iid, label in items
             ],
             "candidates": candidates,
@@ -1817,31 +1981,44 @@ class OntologyMatcher:
         if expectations:
             payload["residual_expectations"] = expectations
         user = json.dumps(payload, ensure_ascii=False, indent=2)
-        self.usage["batch_chunks"] += 1
-        self.usage["batch_max_items"] = max(self.usage["batch_max_items"], len(items))
+        with self._usage_lock:
+            self.usage["batch_chunks"] += 1
+            self.usage["batch_max_items"] = max(self.usage["batch_max_items"], len(items))
         try:
             decision, meta = self.llm_provider.complete_structured(
                 system=self._batch_system,
                 messages=[{"role": "user", "content": user}],
                 response_schema=LlmBatchDecision,
-                max_tokens=self._batch_max_tokens(len(items)),
+                max_tokens=self._effective_batch_max_tokens(len(items)),
             )
         except Exception as exc:  # noqa: BLE001
             # Record WHY, as `_llm` does. A truncated or refused batch used to fall back per line
             # in complete silence, so a run whose every batch failed still reported itself as
             # LLM-mapped with no error to point at.
-            self.usage["failures"] += 1
-            if not self.usage["last_error"]:
-                self.usage["last_error"] = f"{type(exc).__name__}: {exc}"[:200]
-            return {iid: self.match(label, statement=statement, section=sec.get(iid))
-                    for iid, label in items}
-        self.usage["calls"] += 1
-        self.usage["input_tokens"] += int(meta.get("input_tokens") or 0)
-        self.usage["output_tokens"] += int(meta.get("output_tokens") or 0)
-        self.usage["model"] = meta.get("model", self.usage["model"])
+            with self._usage_lock:
+                self.usage["failures"] += 1
+                if not self.usage["last_error"]:
+                    self.usage["last_error"] = f"{type(exc).__name__}: {exc}"[:200]
+                last_error = self.usage["last_error"]
+            print(f"[mapping] batch llm call FAILED ({len(items)} items): "
+                  f"{type(exc).__name__}: {exc}", flush=True)
+            raise RuntimeError(
+                f"LLM refinement failed for {len(items)} mapping rows: "
+                f"{last_error}"
+            ) from exc
+        with self._usage_lock:
+            self.usage["calls"] += 1
+            self.usage["input_tokens"] += int(meta.get("input_tokens") or 0)
+            self.usage["output_tokens"] += int(meta.get("output_tokens") or 0)
+            self.usage["model"] = meta.get("model", self.usage["model"])
+            call_no = self.usage["calls"]
+        # Printed live so a batch run's progress is visible in the server console as it happens.
+        print(f"[mapping] batch llm call #{call_no} ok items={len(items)} "
+              f"in={meta.get('input_tokens')} out={meta.get('output_tokens')}", flush=True)
 
         acc = self.settings.extraction.auto_accept_confidence
         out: dict[str, MappingResult] = {}
+        answered_ids: set[str] = set()
         for d in decision.mappings:
             # An item_id we did not ask about is not a decision about anything. Unchecked, it
             # reached the caller and crashed the stage (`by_id[iid]` → KeyError, killing the whole
@@ -1850,8 +2027,10 @@ class OntologyMatcher:
             # returned "" for an unknown id, and both caption-dependent arms of `_allowed` are
             # skipped when the caption is empty.
             if d.item_id not in caption_by_id:
-                self.usage["batch_unknown_ids"] += 1
+                with self._usage_lock:
+                    self.usage["batch_unknown_ids"] += 1
                 continue
+            answered_ids.add(d.item_id)
             key = (d.canonical_key or "").strip()
             # Unknown, or a concept the payload deliberately withheld — a locked residual or a
             # computed one. See `_llm` for why naming it is not a licence to file the row there;
@@ -1888,21 +2067,38 @@ class OntologyMatcher:
                 # is nothing left for that path to work from.
                 target = self._family_route(key, statement, banner, caption)
                 if target is None:
-                    self.usage["batch_refused"] += 1
+                    with self._usage_lock:
+                        self.usage["batch_refused"] += 1
                     continue
                 self._record_route(key, target)
                 rerouted_from, key = key, target
             conf = max(0.0, min(1.0, d.confidence))
             alloc = (d.allocation_status or "").strip() or (
                 "direct_exclusive" if self._by_key[key].value_scope == "exclusive_leaf" else None)
+            reason = (d.reason or "").strip() or None
             out[d.item_id] = MappingResult(
                 canonical_key=key, method=MappingMethod.LLM, confidence=conf,
-                candidates=[Candidate(key, MappingMethod.LLM, conf, rerouted_from=rerouted_from)],
+                candidates=[Candidate(key, MappingMethod.LLM, conf, rerouted_from=rerouted_from,
+                                      reason=reason)],
                 needs_review=conf < acc, scores={"llm": conf},
                 allocation_status=alloc, agreement=["llm"], rerouted_from=rerouted_from,
+                reason=reason,
             )
-        # Per-line fallback for any items the batch omitted.
+        missing = [(iid, label) for iid, label in items if iid not in answered_ids]
+        if missing and require_complete:
+            if retry_depth:
+                raise RuntimeError(
+                    f"LLM omitted {len(missing)} required mapping rows after batch retry")
+            out.update(self._match_chunk(
+                missing, statement, sec, preliminary,
+                require_complete=True, retry_depth=retry_depth + 1,
+                cited_note_text=cited_note_text))
+
+        # Section-level proposals may be incomplete; the required statement pass above corrects
+        # them. No deterministic result is substituted for an omitted LLM decision.
         for iid, label in items:
             if iid not in out:
-                out[iid] = self.match(label, statement=statement, section=sec.get(iid))
+                out[iid] = MappingResult(
+                    None, MappingMethod.UNMATCHED, 0.0, [], True, {"llm": 0.0},
+                    allocation_status="unmapped_review")
         return out

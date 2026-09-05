@@ -41,13 +41,13 @@ def session(tmp_path):
 def _shipped_template() -> dict:
     from app.sample import reference
 
-    return json.loads(reference._TEMPLATE.read_text())
+    return json.loads(reference._TEMPLATE.read_text(encoding="utf-8"))
 
 
 def _shipped_ontology() -> dict:
     from app.sample import reference
 
-    return json.loads(reference._ONTOLOGY.read_text())
+    return json.loads(reference._ONTOLOGY.read_text(encoding="utf-8"))
 
 
 def _pl_order(definition: dict) -> list[str]:

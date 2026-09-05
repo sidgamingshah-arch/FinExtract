@@ -99,7 +99,10 @@ class AzureOpenAiLlmProvider(OpenAiLlmProvider):
 
         json_mode, renamed_cap, drop_temperature = True, False, False
         try:
-            with httpx.Client(timeout=cfg.timeout_seconds) as client:
+            with httpx.Client(
+                timeout=cfg.timeout_seconds,
+                verify=not cfg.disable_ssl_verify,
+            ) as client:
                 for _ in range(4):                       # one attempt per adaptation, then give up
                     resp = client.post(
                         self._endpoint(), headers=headers,

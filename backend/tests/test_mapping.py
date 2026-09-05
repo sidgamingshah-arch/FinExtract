@@ -50,6 +50,7 @@ def test_normalize_label():
     # A PRINTED NOTE CITATION: a pointer to where the detail lives, never part of the name.
     ("Trade receivables (note 15)", "trade receivables"),
     ("Depreciation of right-of-use assets (note 16(b))", "depreciation of right of use assets"),
+    ("Right-of-use assets 16(a)", "right of use assets"),
     ("受限制現金（附註12）", "受限制现金"),
     ("Note 15: Trade receivables", "trade receivables"),
     # A citation truncated mid-word by row reconstruction is still a citation.

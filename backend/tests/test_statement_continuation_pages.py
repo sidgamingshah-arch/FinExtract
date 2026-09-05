@@ -198,8 +198,8 @@ def test_a_three_page_statement_is_one_statement_end_to_end():
     from tests.fixtures.generate import make_statement_spanning_three_pages_pdf
 
     ontology = load_ontology(
-        json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text()), resolve=True)
-    template = load_template(json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text()))
+        json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8")), resolve=True)
+    template = load_template(json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text(encoding="utf-8")))
     ctx = PipelineContext(raw_bytes=make_statement_spanning_three_pages_pdf())
     ctx.ontology, ctx.template = ontology, template
     doc = default_pipeline().run(DocumentModel(filename="f.pdf", fmt=DocFormat.PDF), ctx)

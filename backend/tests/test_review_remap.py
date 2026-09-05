@@ -36,7 +36,7 @@ _SAMPLES = Path(__file__).resolve().parent.parent / "app" / "sample" / "template
 @pytest.fixture(scope="module")
 def template() -> dict:
     """The shipped template as the review builder receives it — a plain dict, not the model."""
-    return json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text())
+    return json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text(encoding="utf-8"))
 
 
 def _unmapped(label, value, y=0.2):

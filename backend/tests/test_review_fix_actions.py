@@ -33,7 +33,7 @@ _OTHER = "bs_current_assets__trade_receivables"
 
 @pytest.fixture(scope="module")
 def template_def() -> dict:
-    return json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text())
+    return json.loads((_SAMPLES / "hkfrs_hk_china_template.json").read_text(encoding="utf-8"))
 
 
 def _row(key, cur, label=None, **extra):

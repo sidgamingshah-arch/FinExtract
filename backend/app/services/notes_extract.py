@@ -13,7 +13,7 @@ import re
 from app.core.models.enums import LineRole
 from app.core.models.line_item import NoteItem, NotesTable
 from app.services.row_reconstruct import (
-    Word, _group_rows, _scan_row, build_line_items, row_tolerance)
+    Word, _group_rows, _num, _scan_row, build_line_items, row_tolerance)
 
 # "Note 15: Trade receivables", "Note 15 Trade receivables", "15. Trade receivables"
 _HEADING = re.compile(r"^(?:note[s]?\.?\s+)?(?P<no>\d{1,3})\s*[:.\)\-]?\s*(?P<title>.*)$",
@@ -86,6 +86,34 @@ def note_row_role(caption: str | None) -> LineRole:
     return LineRole.SUBTOTAL if _NOTE_SUBTOTAL.match(text) else LineRole.TOTAL
 
 
+def _bare_note_number(row: list[Word]) -> str | None:
+    """A note number printed on its own, with no title yet.
+
+    Some filings split the heading across two lines: the first line carries only the note number
+    and the next line carries the title. That shape is safe to recover here because it appears at
+    the top of the note block, where a naked note number is not a detail row.
+    """
+    tokens = [w.text.strip() for w in row if w.text.strip()]
+    if len(tokens) != 1:
+        return None
+    text = tokens[0]
+    m = re.fullmatch(r"(?:note[s]?\.?\s*)?(?P<no>\d{1,3})\s*[:.\)\-]?", text, re.IGNORECASE)
+    return m.group("no") if m is not None else None
+
+
+def _title_only_row(row: list[Word]) -> str | None:
+    """A title line with no numbers and no value column."""
+    label_words, _, values = _scan_row(row)
+    if values or not label_words:
+        return None
+    text = " ".join(w.text for w in label_words).strip()
+    if not text:
+        return None
+    if text[0].islower() and text[0].isascii():
+        return None
+    return text
+
+
 # CJK SENTENCE punctuation. A note's title is a name and carries none of it; the enumeration comma
 # 、 is a different mark and DOES appear in real titles ("收益、其他收入及收益", "現金及現金等價物、
 # 受限制現金"), so it is deliberately absent from this class.
@@ -144,14 +172,47 @@ def _is_heading(row: list[Word]) -> tuple[str, str] | None:
     return no, title
 
 
+def _has_at_most_two_value_columns(words: list[Word], source_kind: str) -> bool:
+    """Whether a note fits the label-plus-two-period detail-table contract."""
+    # Count before `_scan_row` applies its face-statement note-reference heuristic. In a
+    # roll-forward caption such as "At 1 August 2023", that heuristic can mistake the day
+    # number for a note reference and conceal the third matrix column.
+    by_baseline: dict[int, list[float]] = {}
+    for word in words:
+        if _num(word.text) is not None:
+            by_baseline.setdefault(round(word.bbox.y0 / 0.01), []).append(
+                (word.bbox.x0 + word.bbox.x1) / 2)
+    for centres in by_baseline.values():
+        bands: list[float] = []
+        for centre in sorted(centres):
+            if not bands or centre - bands[-1] > 0.04:
+                bands.append(centre)
+        if len(bands) > 2:
+            return False
+    return True
+
+
 def extract_note_tables(words: list[Word], *, page_index: int, document_id: str | None,
                         source_kind: str, scope=None,
-                        normalisation=None) -> list[NotesTable]:
+                        normalisation=None, llm_provider=None,
+                        ai_required: bool = False,
+                        carry_note: tuple[str, str] | None = None) -> list[NotesTable]:
     """Split a notes page into note sections and reconstruct each note's detail rows.
 
     ``scope``/``normalisation`` are the run's own rulebook blocks; a note's columns are read by
     the same rules as the face it supports, or the note→face tie compares figures taken from
     different columns.
+
+    ``llm_provider`` and ``ai_required`` remain accepted only for caller compatibility. Note
+    tables are reconstructed exclusively from positioned source tokens.
+
+    ``carry_note`` is the (number, title) of the note still open when the PREVIOUS page ended,
+    for the caller to pass through page by page. Some filings print a note's own footnote legend
+    (the explanations behind its "*"/"^"/"#" markers) a page or more after its table, with no
+    heading of its own — prose that opens the page with no note number to claim it. Without a
+    carry, that prose has nowhere to attach and is silently dropped from every page it opens
+    before the next real heading. Seeding ``current`` with the carried note lets it attach
+    instead, exactly as it would if the page break were not there.
     """
     # The same page-derived tolerance the face uses: a note's detail lines are set as tightly as a
     # statement's, and two of them merged into one row interleave their captions (row_reconstruct.
@@ -159,14 +220,36 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
     rows = _group_rows(words, row_tolerance(words, source_kind))
     sections: list[dict] = []
     current: dict | None = None
-    for row in rows:
+    # Not appended to ``sections`` until it actually claims a row — a page that opens straight
+    # onto a real heading must not leave a spurious empty table behind under the OLD note number.
+    carried: dict | None = None
+    if carry_note is not None:
+        carried = {"no": carry_note[0], "title": carry_note[1], "words": []}
+        current = carried
+    i = 0
+    while i < len(rows):
+        row = rows[i]
         head = _is_heading(row)
         if head is not None:
             no, title = head
             current = {"no": no, "title": title, "words": []}
             sections.append(current)
+        elif current is None:
+            no = _bare_note_number(row)
+            if no is not None:
+                title = ""
+                if i + 1 < len(rows):
+                    next_title = _title_only_row(rows[i + 1])
+                    if next_title is not None:
+                        title = next_title
+                        i += 1
+                current = {"no": no, "title": title, "words": []}
+                sections.append(current)
         elif current is not None:
+            if current is carried and carried not in sections:
+                sections.append(carried)
             current["words"].extend(row)
+        i += 1
 
     tables: list[NotesTable] = []
     for sec in sections:
@@ -180,7 +263,8 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                                     on_face=False, scope=scope, normalisation=normalisation)
         if not items and not sec["title"]:
             continue
-        table = NotesTable(note_number=sec["no"], title=sec["title"], source_pages=[page_index])
+        table = NotesTable(note_number=sec["no"], title=sec["title"], source_pages=[page_index],
+                   source_text=" ".join(word.text for word in sec["words"]).strip())
         for li in items:
             # THE CAPTION DECIDES THE ROLE, EXCEPT WHERE THE BUILDER ALREADY KNEW. Almost every
             # row reaches here as ``LINE`` — the promotion that classifies a face row runs in

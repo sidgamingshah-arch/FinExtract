@@ -90,6 +90,11 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "one, offer the model the extracted lines that reached no statement and ask which "
          "belong in that section's Others. Only groups that close the difference in BOTH "
          "periods are offered. Off, the difference stays a review item."),
+    Knob("llm_contingent_liabilities", "bool", "Contingent liabilities narrative (LLM)",
+         "Classification and every total are always deterministic, computed only from the "
+         "filing's own figures. Enabled, the model rewrites the summary paragraph and each "
+         "unclassified item's short statement in clearer English, grounded only in the supplied "
+         "facts. Off, or with no provider configured, the deterministic prose is shown."),
     Knob("mapping_scope", "choice", "Mapping granularity",
          "per_statement decides all of a statement's captions in one call, so cross-line "
          "judgements (parent/child containment, residuals, 'Others') have full context. "

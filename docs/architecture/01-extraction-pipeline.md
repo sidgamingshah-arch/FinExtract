@@ -7,21 +7,39 @@ results are available (`app/core/pipeline.py::Pipeline.run`).
 
 ## Stages
 
-**Fifteen stages, assembled by `app/core/pipeline.py::default_pipeline()`.** That
+**Sixteen stages, assembled by `app/core/pipeline.py::default_pipeline()`.** That
 function is the only place the order is stated; `api/routes/extractions.py::pipeline_stage_names`
 reads the list off it rather than keeping a copy, and the run row records the list it was
 queued with. Do not add a third copy — the list below names each stage and its file, and
 its order is `default_pipeline()`'s:
 
 `ingest · integrity · language_detect · classify · extract · map_ontology · residual ·
-normalize · link_notes · reconcile · prune_notes · confidence · gap_closing · structural ·
-segment`
+normalize · link_notes · reconcile · prune_notes · confidence · gap_closing ·
+face_mapping_contract · structural · segment`
 
 **Two passes over the first four.** `services/documents.py::analyze_document` runs
 `ingest · integrity · language_detect · classify` alone at upload, synchronously, so the
 integrity gate and the page scope exist before an extraction is started. The run then goes
 through `default_pipeline()` from the beginning, re-reading the stored bytes — so a run
 depends on nothing computed at upload and is reproducible from the file alone.
+
+### Functional ordering
+
+The face and its cited notes are processed in this order:
+
+1. Reconstruction identifies the printed statement subsection and stores face rows in that
+   subsection.
+2. Cited notes stay linked to their face row and subsection.
+3. Dedicated ontology concepts are matched inside that subsection, ordered by `match_priority`.
+4. A reconciled cited note may populate dedicated template concepts first. Unmatched detail from
+   the same reconciled note retains the original face concept; a concept already present on the
+   face is never loaded again from the note.
+5. Only after dedicated face/note mapping does the subsection residual claim remaining face rows.
+   If no legitimate subsection residual exists, a unique `engine_unclassified_face` storage key
+   keeps the row visible and remappable without entering a real concept's arithmetic.
+6. Template rollups are evaluated after their components. A printed subtotal maps to the same
+   `extract_or_derive` concept but remains the reported validation value; the frontend and export
+   show the computed amount and raise a calculated-mismatch finding when the two differ.
 
 1. **Ingest & route** (`stages/ingest.py`) — MIME/magic detection (not extension).
    Excel → openpyxl (one "page" per sheet); PDF → **per-page** native-vs-scanned detection
@@ -138,7 +156,15 @@ depends on nothing computed at upload and is reproducible from the file alone.
     and on a non-`stub` provider; with neither, the gap stays a review item, which is the
     honest outcome. Confirmed routings are kept on `DocumentModel.gap_routings` so the
     decision is inspectable rather than an unexplained change of mapping.
-14. **Structural** (`stages/structural.py` + `services/structural_checks.py`) — runs the
+14. **Face mapping contract** (`stages/face_mapping_contract.py`) — the final mapping
+   invariant for a run carrying an ontology. Every face row with a value must either have a
+   canonical concept or be a verified non-additive aggregate replaced by mapped components.
+   Anything else receives a unique `engine_unclassified_face` key outside every ontology and
+   template namespace, so it remains stored and appears in the remapping queue without entering
+   any calculation. It is never assigned a neighbouring real concept merely to make the unmapped
+   count zero. Extraction-only runs that carry no ontology skip this gate because they are not
+   mapping runs.
+15. **Structural** (`stages/structural.py` + `services/structural_checks.py`) — runs the
     arithmetic the template and the rulebook *declare*: template `rollup`s and statement
     `identities`, the rulebook's `validation.identities`, its
     `validation.cross_concept_guards` and its `validation.section_reconciliation`. Every
@@ -146,7 +172,7 @@ depends on nothing computed at upload and is reproducible from the file alone.
     carrying a classifiable `reason` (`services/coverage.py`), so partial coverage is
     visible rather than implied. A failure flags the participating line items and values.
 
-15. **Segment** (`stages/segment.py` + `services/buckets.py`) — files every face row and
+16. **Segment** (`stages/segment.py` + `services/buckets.py`) — files every face row and
     every note into the **thirteen face sections** an analyst reads a filing in, plus Others:
     the balance sheet's five (current / non-current assets, current / non-current
     liabilities, equity & reserves), the income statement's four (income, expenses,

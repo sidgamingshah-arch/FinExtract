@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 _DIR = Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
-ONTOLOGY = json.loads((_DIR / "hkfrs_hk_china_ontology.json").read_text())
+ONTOLOGY = json.loads((_DIR / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8"))
 
 
 @pytest.fixture(scope="module")

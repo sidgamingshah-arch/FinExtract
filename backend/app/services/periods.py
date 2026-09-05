@@ -188,7 +188,10 @@ def caption_key(row: dict) -> str:
     """
     from app.services.mapping import normalize_label
 
-    full = normalize_label(str(row.get("source_label") or ""))
+    raw = str(row.get("source_label") or "")
+    full = normalize_label(raw)
+    if not full:
+        full = re.sub(r"\s+", " ", re.sub(r"[^\w]+", " ", raw).strip().casefold()).strip()
     trimmed = _NOTE_REF_TAIL.sub("", full).strip()
     # Only a caption that still NAMES something after the trim has had references stripped. "16(b)"
     # trims to "16", which is not a concept — and two such captions would then compare equal on a
