@@ -132,3 +132,49 @@ def test_a_note_with_only_subtotals_still_reports_them():
     )
     result = compute(doc)[("consolidated", "current")]["cp"]
     assert result.value == Decimal("120")
+
+
+def test_a_bilingual_filing_does_not_count_one_note_total_twice():
+    # §3.1: "Do not add English and Traditional Chinese versions of the same disclosure." Both
+    # printings match the in-scope headings and are cited from Current assets.
+    doc = _doc(
+        [_note("9", "Financial assets at fair value through profit or loss",
+               [_item("Total", "800", role=LineRole.TOTAL)]),
+         _note("9A", "按公平值計入損益的金融資產",
+               [_item("總額", "800", role=LineRole.TOTAL)]),
+         _note("30", "Fair value hierarchy", [_item("Level 3", "0")])],
+        [_face("9", "Current assets"), _face("9A", "Current assets")],
+    )
+    result = compute(doc)[("consolidated", "current")]["cp"]
+    assert result.value == Decimal("800")
+    assert any(f.startswith("POSSIBLE_DUPLICATE:") for f in result.flags)
+
+
+def test_two_notes_reporting_genuinely_different_totals_are_both_counted():
+    doc = _doc(
+        [_note("9", "Financial assets at fair value through profit or loss",
+               [_item("Total", "800", role=LineRole.TOTAL)]),
+         _note("10", "Other financial assets",
+               [_item("Total", "150", role=LineRole.TOTAL)]),
+         _note("30", "Fair value hierarchy", [_item("Level 3", "0")])],
+        [_face("9", "Current assets"), _face("10", "Current assets")],
+    )
+    result = compute(doc)[("consolidated", "current")]["cp"]
+    assert result.value == Decimal("950")
+    assert not any(f.startswith("POSSIBLE_DUPLICATE:") for f in result.flags)
+
+
+def test_a_current_and_a_non_current_note_may_report_the_same_amount():
+    # Not a restatement: the two classifications are separate pools, so an equal total in each
+    # is a coincidence of magnitude rather than one disclosure printed twice.
+    doc = _doc(
+        [_note("9", "Financial assets at fair value through profit or loss",
+               [_item("Total", "400", role=LineRole.TOTAL)]),
+         _note("12", "Investment securities",
+               [_item("Total", "400", role=LineRole.TOTAL)]),
+         _note("30", "Fair value hierarchy", [_item("Level 3", "0")])],
+        [_face("9", "Current assets"), _face("12", "Non-current assets")],
+    )
+    results = compute(doc)[("consolidated", "current")]
+    assert results["cp"].value == Decimal("400")
+    assert results["ltp"].value == Decimal("400")

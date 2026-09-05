@@ -18,6 +18,7 @@ from app.core.models.document import DocumentModel
 from app.core.models.enums import LineRole, PrintedIn
 from app.core.models.line_item import NotesTable
 from app.services.mapping import normalize_label
+from app.services.restatement import RestatementLedger
 
 PeriodKey = tuple[str, str]                 # (basis, period_label)
 
@@ -96,9 +97,19 @@ class _Signal:
     currency: str | None = None
     scale: Decimal | None = None
     mixed_units: bool = False
+    duplicated: bool = False
     evidence: list[dict] = field(default_factory=list)
+    _ledger: RestatementLedger = field(default_factory=RestatementLedger)
 
     def add(self, amount: Decimal, currency: str, scale: Decimal, meta: dict) -> None:
+        # §3.1/§8: one figure printed in both scripts, or restated under a second heading, is
+        # not two figures — see services.restatement.
+        note = meta.get("note_number")
+        if self._ledger.is_restatement(amount, currency, scale, note):
+            self.duplicated = True
+            self.evidence.append(
+                {**meta, "duplicate_of_note": self._ledger.source_of(amount, currency, scale)})
+            return
         if self.currency is not None and (currency != self.currency or scale != self.scale):
             self.mixed_units = True
         else:
@@ -224,6 +235,10 @@ def compute(doc: DocumentModel) -> dict[PeriodKey, dict[str, SecurResult]]:
         cp_deduct: list[Decimal] = []
         ltp_totals: list[Decimal] = []
         ltp_deduct: list[Decimal] = []
+        # §3.1: the same note total arriving from a second note — the other script's printing of
+        # one disclosure — must not join the sum. One ledger per classification, since a current
+        # and a non-current note may legitimately report the same amount.
+        total_ledgers = {"current": RestatementLedger(), "non_current": RestatementLedger()}
         for table in qualifying:
             kind = classification[table.note_number]
             total, currency, scale, total_evidence = _note_total(table, pk)
@@ -232,6 +247,10 @@ def compute(doc: DocumentModel) -> dict[PeriodKey, dict[str, SecurResult]]:
             if not table.items:
                 (cp_flags if kind == "current" else ltp_flags).append(
                     f"DEDUCTION_NOT_PROVEN_INCLUDED:{table.note_number}")
+                continue
+            if total_ledgers[kind].is_restatement(total, currency, scale, table.note_number):
+                (cp_flags if kind == "current" else ltp_flags).append(
+                    f"POSSIBLE_DUPLICATE:{table.note_number}")
                 continue
             ded = _deductions(table, pk, ltp=(kind == "non_current"))
             # The inclusion test completed for this note (its lines were searchable), so an
@@ -246,6 +265,8 @@ def compute(doc: DocumentModel) -> dict[PeriodKey, dict[str, SecurResult]]:
                     cp_evidence.extend(s.evidence)
                 if mixed:
                     cp_flags.append(f"UNIT_MISMATCH:{table.note_number}")
+                if any(sig.duplicated for sig in ded.values()):
+                    cp_flags.append(f"POSSIBLE_DUPLICATE:deductions:{table.note_number}")
             else:
                 ltp_totals.append(total)
                 ltp_deduct.append(ded_total)
@@ -254,6 +275,8 @@ def compute(doc: DocumentModel) -> dict[PeriodKey, dict[str, SecurResult]]:
                     ltp_evidence.extend(s.evidence)
                 if mixed:
                     ltp_flags.append(f"UNIT_MISMATCH:{table.note_number}")
+                if any(sig.duplicated for sig in ded.values()):
+                    ltp_flags.append(f"POSSIBLE_DUPLICATE:deductions:{table.note_number}")
 
         find_1_cp = _sum_or_none(cp_totals)
         find_2_cp = _sum_or_none(cp_deduct) if cp_totals else None

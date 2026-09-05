@@ -1,11 +1,17 @@
 """Sales (Revenues) — PRC filings' 主营业务/主营业务收入, note-fallback only.
 
 Implements docs/PRC_Sales_Revenues_Extraction_Logic_Simplified.md. Priority 1 — a face caption
-naming 主营业务/主营业务收入 (or this concept's other aliases: Revenue, Turnover, 营业收入, …) — is
-already what the ordinary alias-matching mapper does, so extraction_mode stays "extract" and this
-module supplies only Priority 2: the fallback the mapper cannot do on its own, which is to open a
+naming 主营业务/主营业务收入, or the English HKEX equivalents Turnover/Revenue/Sales — is already
+what the ordinary alias-matching mapper does, so extraction_mode stays "extract" and this module
+supplies only Priority 2: the fallback the mapper cannot do on its own, which is to open a
 营业收入 note and read the specific 主营业务/主营业务收入 row's revenue figure, never the note's own
 combined total row read generically and never a cost column.
+
+Total 营业收入 is deliberately NOT among the concept's Chinese aliases, because §4 forbids it as a
+fallback when 主营业务收入 is not separately disclosed — the mapper would otherwise bind total
+revenue here as its Priority 1 answer, which is a wrong figure rather than a missing one. The
+English captions stay: §4's prohibition is about the Chinese pair, and on an English filing
+Turnover IS the revenue line. See app/services/spec_alias_curation.
 """
 from __future__ import annotations
 

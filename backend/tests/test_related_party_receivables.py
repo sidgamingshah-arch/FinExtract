@@ -192,3 +192,27 @@ def test_the_selected_candidate_carries_its_evidence():
     result = compute(doc)[("consolidated", "current")]["ltp"]
     assert result.evidence
     assert any(e.get("line_item") == "应收关联方款项" for e in result.evidence)
+
+
+def test_a_balance_restated_in_a_second_note_is_not_added_twice_within_one_candidate():
+    # §3.5: "If the same related-party balance appears under two source notes but represents the
+    # same underlying receivable, retain one value within that candidate." Both note headings are
+    # Simplified because §3.1 scopes this rule to Simplified-Chinese PRC filings — the English /
+    # Traditional pairing that §3.1 of the HKEX specs warns about does not arise here.
+    doc = _doc(notes=[
+        _note("8", "其他应收款", [_item("应收关联方款项", "900")]),
+        _note("9", "长期应收款", [_item("应收关联方款项", "900")]),
+    ])
+    result = compute(doc)[("consolidated", "current")]["ltp"]
+    assert result.value == Decimal("900")
+    assert "POSSIBLE_DUPLICATE:Find_2" in result.flags
+
+
+def test_two_different_related_party_balances_in_two_notes_are_both_counted():
+    doc = _doc(notes=[
+        _note("8", "其他应收款", [_item("应收关联方款项", "900")]),
+        _note("9", "长期应收款", [_item("关联方往来款", "300")]),
+    ])
+    result = compute(doc)[("consolidated", "current")]["ltp"]
+    assert result.value == Decimal("1200")
+    assert "POSSIBLE_DUPLICATE:Find_2" not in result.flags

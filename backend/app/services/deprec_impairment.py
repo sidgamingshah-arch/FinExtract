@@ -29,6 +29,7 @@ from decimal import Decimal
 from app.core.models.document import DocumentModel
 from app.core.models.enums import LineRole
 from app.core.models.line_item import NotesTable
+from app.services.restatement import RestatementLedger
 
 PeriodKey = tuple[str, str]                 # (basis, period_label)
 
@@ -129,24 +130,17 @@ class _Signal:
     evidence: list[dict] = field(default_factory=list)
 
     duplicated: bool = False
-    _first_source: dict = field(default_factory=dict)   # fingerprint -> note that supplied it
+    _ledger: RestatementLedger = field(default_factory=RestatementLedger)
 
     def add(self, amount: Decimal, currency: str, scale: Decimal, meta: dict) -> None:
-        # §3.1 forbids adding the English and Traditional Chinese printings of one disclosure,
-        # and §3.4 forbids adding a value restated in a second note. Both arrive here as an
-        # identical amount from a DIFFERENT note within the same dataset: keep the first as the
-        # source, keep the second only as corroborating evidence.
-        # Keyed on the NOTE, not the line: two different lines of one note may legitimately
-        # charge the same amount, while one amount arriving from a second note within the same
-        # dataset is the restatement §3.4 describes.
-        fingerprint = (amount, currency, scale)
+        # §3.1/§3.4: one figure restated in a second note is an alternative source, not an
+        # addend — see services.restatement for what makes two figures one.
         note = meta.get("note_number")
-        earlier = self._first_source.get(fingerprint)
-        if earlier is not None and earlier != note:
+        if self._ledger.is_restatement(amount, currency, scale, note):
             self.duplicated = True
-            self.evidence.append({**meta, "duplicate_of_note": earlier})
+            self.evidence.append(
+                {**meta, "duplicate_of_note": self._ledger.source_of(amount, currency, scale)})
             return
-        self._first_source.setdefault(fingerprint, note)
         if self.currency is not None and (currency != self.currency or scale != self.scale):
             self.mixed_units = True
         else:

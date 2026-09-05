@@ -23,6 +23,7 @@ from decimal import Decimal
 from app.core.models.document import DocumentModel
 from app.core.models.enums import LineRole, PrintedIn
 from app.core.models.line_item import NotesTable
+from app.services.restatement import RestatementLedger
 
 PeriodKey = tuple[str, str]                 # (basis, period_label)
 
@@ -67,10 +68,21 @@ class _Signal:
     scale: Decimal | None = None
     mixed_currency: bool = False
     mixed_scale: bool = False
+    duplicated: bool = False
     evidence: list[dict] = field(default_factory=list)
+    _ledger: RestatementLedger = field(default_factory=RestatementLedger)
 
     def add(self, amount: Decimal, currency: str | None, scale: Decimal | None,
             meta: dict) -> None:
+        # §3.5: "Treat the same balance repeated in the balance sheet, a detailed note, and the
+        # related-party note as separate candidate evidence, not additive evidence." Within one
+        # candidate that is a restatement — see services.restatement.
+        note = meta.get("note_number")
+        if self._ledger.is_restatement(amount, currency, scale, note):
+            self.duplicated = True
+            self.evidence.append(
+                {**meta, "duplicate_of_note": self._ledger.source_of(amount, currency, scale)})
+            return
         if self.currency is not None and currency != self.currency:
             self.mixed_currency = True
         if self.scale is not None and scale != self.scale:
@@ -97,6 +109,8 @@ class _Signal:
             out.append(f"CURRENCY_MISMATCH:{name}")
         if self.mixed_scale:
             out.append(f"UNIT_MISMATCH:{name}")
+        if self.duplicated:
+            out.append(f"POSSIBLE_DUPLICATE:{name}")
         return out
 
 
