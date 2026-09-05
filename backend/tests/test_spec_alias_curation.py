@@ -12,8 +12,8 @@ from pathlib import Path
 import pytest
 
 from app.services.spec_alias_curation import (
-    ALIAS_DENIALS, CONTINGENT, COS, DUE_FROM_RP, OPER_EXP, OTHER_RECV_CP, SALES, SECUR_CP,
-    SECUR_LTP, curate_aliases, denied_aliases,
+    ALIAS_DENIALS, CONTINGENT, COS, DUE_FROM_RP, OPER_EXP, OTHER_RECV_CP, OTHER_RECV_LTP, SALES,
+    SECUR_CP, SECUR_LTP, curate_aliases, denied_aliases,
 )
 
 ONTOLOGY = Path(__file__).resolve().parents[1] / "app/sample/templates/output_csv_hk_ontology.json"
@@ -39,6 +39,17 @@ ONTOLOGY = Path(__file__).resolve().parents[1] / "app/sample/templates/output_cs
     (DUE_FROM_RP, "委托贷款"),
     (DUE_FROM_RP, "Find 2: Sum of due from related parties included in Note"),
     (OTHER_RECV_CP, "合同资产"),
+    # "Other receivables" is the receivables that are NOT trade receivables, so a trade-receivable
+    # caption cannot belong to either twin. The non-current one claimed "Trade receivables" at
+    # match_priority 81 — above the genuine current trade concepts at 80 — and a plain
+    # "Trade receivables" line was filed as a NON-CURRENT other receivable at confidence 1.0,
+    # taking the figure out of current assets and breaking the printed total.
+    (OTHER_RECV_LTP, "Trade receivables"),
+    (OTHER_RECV_LTP, "应收账款"),
+    (OTHER_RECV_LTP, "贸易及其他应收款"),
+    (OTHER_RECV_LTP, "贸易应收款项及票据"),
+    (OTHER_RECV_CP, "Trade receivables"),
+    (OTHER_RECV_CP, "贸易及其他应收款"),
     (SALES, "营业收入"),
     (SALES, "营业总收入"),
     (SALES, "销售收入"),
@@ -63,6 +74,11 @@ def test_a_forbidden_alias_is_denied(key, alias):
     (DUE_FROM_RP, "Due from related parties"),
     (DUE_FROM_RP, "应收关联方款项"),
     (OTHER_RECV_CP, "其他应收款项"),
+    (OTHER_RECV_LTP, "Other Receivables(LTP)"),
+    (OTHER_RECV_LTP, "其他应收款项"),
+    # Its own vocabulary survives: a NON-trade receivable is exactly what this concept is for.
+    (OTHER_RECV_LTP, "Non-trade receivables"),
+    (OTHER_RECV_LTP, "Rental deposits"),
     (SALES, "主营业务收入"),
     (SALES, "主营业务"),
     (SALES, "Turnover"),                 # §4's ban is on the Chinese pair, not English captions

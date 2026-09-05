@@ -24,6 +24,7 @@ SECUR_LTP = "bs_nca__secur_and_other_fincl_assets_ltp"
 CONTINGENT = "notes__contingent_liabilities"
 DUE_FROM_RP = "bs_nca__due_from_related_parties_ltp"
 OTHER_RECV_CP = "bs_ca__other_receivables_cp"
+OTHER_RECV_LTP = "bs_nca__other_receivables_ltp"
 SALES = "is_pl__sales_revenues"
 
 # Depreciation, opening note: "this rule includes only the depreciation and specified
@@ -52,6 +53,29 @@ _SECURITIES_DENIALS = (
     r"^按金", r"^贸易", r"^预付款项", r"^合同资产$", r"^以摊余成本计量的金融资产$",
 )
 
+# "Other receivables" is, by definition, the receivables that are NOT trade receivables — so a
+# caption naming a trade receivable cannot belong to it. This is an accounting contradiction
+# rather than a preference, and it was doing measurable damage: bs_nca__other_receivables_ltp
+# claimed "Trade receivables" as an exact alias at match_priority 81, outranking the genuine
+# current trade-receivable concepts at 80. A filing printing plain "Trade receivables" was
+# therefore filed as a NON-CURRENT other receivable at confidence 1.0, which also broke the
+# balance sheet: the figure left the current subtotal, and the printed total stopped agreeing
+# with its components.
+#
+# Section disambiguation is what normally separates the current and non-current claimants of one
+# caption — the same instrument legitimately appears in both — but it can only decide when the
+# filing prints the section headers, and priority breaks the tie when it cannot. The fix is
+# therefore to stop the contradiction being claimable at all, not to re-rank the priorities.
+#
+# §5.1 of the PRC receivables logic says the same thing for the CP twin, whose gross pool is
+# 其他应收款项 / 其他应收款 / 一年内到期的长期应收款 / 一年内到期的贷款及垫款 / 拆出资金 / 往来款 —
+# trade receivables are not among them.
+_TRADE_RECEIVABLE_DENIALS = (
+    r"^Trade receivables$", r"^Trade and other receivables",
+    r"^Accounts and other receivables$",
+    r"^应收账款", r"^贸易", r"^应收客户合同工程款$", r"^未开票应收款$",
+)
+
 ALIAS_DENIALS: dict[str, tuple[str, ...]] = {
     OPER_EXP: _DEPRECIATION_DENIALS,
     COS: _DEPRECIATION_DENIALS,
@@ -64,8 +88,9 @@ ALIAS_DENIALS: dict[str, tuple[str, ...]] = {
     # §3.4: entrusted loans are excluded from every related-party calculation. "Find n: ..." is
     # the specification's own formula-summary prose.
     DUE_FROM_RP: (r"[Ee]ntrust", r"委托", r"^Find \d", r"^Related Party Transactions$"),
-    # §5.1's pool does not include contract assets.
-    OTHER_RECV_CP: (r"^合同资产$", r"^合約資產$"),
+    # §5.1's pool includes neither contract assets nor trade receivables.
+    OTHER_RECV_CP: (r"^合同资产$", r"^合約資產$", *_TRADE_RECEIVABLE_DENIALS),
+    OTHER_RECV_LTP: (r"^合同资产$", r"^合約資產$", *_TRADE_RECEIVABLE_DENIALS),
     # §4: "Do not use total 营业收入 as a fallback when 主营业务 or 主营业务收入 is not separately
     # disclosed." The prohibition is on the Chinese pair — on an English HKEX filing "Turnover"
     # IS the revenue line, so the English captions stay.
