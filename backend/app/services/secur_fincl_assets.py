@@ -122,10 +122,26 @@ class _Signal:
         return None if self.mixed_units else self.value
 
 
-def _note_total(table: NotesTable, pk: PeriodKey) -> tuple[Decimal | None, str, Decimal, list[dict]]:
-    """This note's own reported total for one (basis, period): its TOTAL row if it printed one,
-    else the sum of its LINE rows (which then also carries any deduction sub-line, exactly as
-    printed — the deductions are subtracted back out separately, never assumed absent)."""
+def _note_total(table: NotesTable, pk: PeriodKey
+               ) -> tuple[Decimal | None, str, Decimal, list[dict], Decimal]:
+    """This note's own reported total for one (basis, period), and whether its LINE rows compose it.
+
+    The total is its TOTAL row if it printed one, else the sum of its LINE rows (which then also
+    carries any deduction sub-line, exactly as printed — the deductions are subtracted back out
+    separately, never assumed absent).
+
+    The trailing value is the summed magnitude of the LINE rows, for §3.3's requirement that "a
+    deduction must be demonstrably included in the extracted note total". Captured lines that
+    already EXCEED the printed total cannot all be inside it, so a deduction drawn from them is
+    not provably part of what is being reduced.
+
+    Two weaker tests were tried and rejected. Requiring sum(lines) == total as proof of inclusion
+    refuses the deduction on most real notes, because a parsed note routinely captures fewer
+    components than its total spans — an abbreviated breakdown, a continuation page, a line the
+    parser missed — and refusing to deduct overstates the field, the opposite of the error being
+    fixed. Treating a line printed after the TOTAL row as a memo beside it fails too: notes print
+    their total at the top as readily as the bottom, so position separates nothing.
+    """
     totals, lines = [], []
     currency, scale = "", Decimal(1)
     for item in table.items:
@@ -145,10 +161,13 @@ def _note_total(table: NotesTable, pk: PeriodKey) -> tuple[Decimal | None, str, 
         # contents twice. The TOTAL row is the note's own answer; SUBTOTAL rows are its parts.
         grand = [(v, m) for (v, m), role in totals if role == LineRole.TOTAL]
         chosen = grand or [(v, m) for (v, m), _ in totals]
-        return sum(v for v, _ in chosen), currency, scale, [m for _, m in chosen]
+        total = sum(v for v, _ in chosen)
+        return total, currency, scale, [m for _, m in chosen], sum(v for v, _ in lines)
     if lines:
-        return sum(v for v, _ in lines), currency, scale, [m for _, m in lines]
-    return None, currency, scale, []
+        # Summed FROM the lines, so every line is inside the total by construction.
+        total = sum(v for v, _ in lines)
+        return total, currency, scale, [m for _, m in lines], total
+    return None, currency, scale, [], Decimal(0)
 
 
 def _deductions(table: NotesTable, pk: PeriodKey, *, ltp: bool) -> dict[str, _Signal]:
@@ -241,7 +260,7 @@ def compute(doc: DocumentModel) -> dict[PeriodKey, dict[str, SecurResult]]:
         total_ledgers = {"current": RestatementLedger(), "non_current": RestatementLedger()}
         for table in qualifying:
             kind = classification[table.note_number]
-            total, currency, scale, total_evidence = _note_total(table, pk)
+            total, currency, scale, total_evidence, lines_sum = _note_total(table, pk)
             if total is None:
                 continue
             if not table.items:
@@ -257,6 +276,13 @@ def compute(doc: DocumentModel) -> dict[PeriodKey, dict[str, SecurResult]]:
             # absent component is a proven zero rather than an unknown.
             ded_total = _sum_or_none([s.usable for s in ded.values()]) or Decimal(0)
             mixed = any(s.mixed_units for s in ded.values())
+            if ded_total and lines_sum > total:
+                # §3.3: the captured lines already exceed the total, so they cannot all sit inside
+                # it and a deduction drawn from them is not demonstrably part of what is being
+                # reduced. Subtracting anyway would remove an amount the total never carried.
+                (cp_flags if kind == "current" else ltp_flags).append(
+                    f"DEDUCTION_NOT_PROVEN_INCLUDED:{table.note_number}")
+                ded_total = Decimal(0)
             if kind == "current":
                 cp_totals.append(total)
                 cp_deduct.append(ded_total)

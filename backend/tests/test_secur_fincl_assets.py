@@ -178,3 +178,34 @@ def test_a_current_and_a_non_current_note_may_report_the_same_amount():
     results = compute(doc)[("consolidated", "current")]
     assert results["cp"].value == Decimal("400")
     assert results["ltp"].value == Decimal("400")
+
+
+def test_a_deduction_larger_than_the_total_it_would_reduce_is_not_subtracted():
+    # §3.3: "a deduction must be demonstrably included in the extracted note total". Captured
+    # lines exceeding the printed total cannot all sit inside it, so subtracting one would
+    # remove an amount the total never carried — understating the field.
+    doc = _doc(
+        [_note("9", "Other financial assets", [
+             _item("Total", "500", role=LineRole.TOTAL),
+             _item("Derivative financial instruments", "600"),
+         ]),
+         _note("30", "Fair value hierarchy", [_item("Level 3", "0")])],
+        [_face("9", "Current assets")],
+    )
+    result = compute(doc)[("consolidated", "current")]["cp"]
+    assert result.value == Decimal("500")
+    assert any(f.startswith("DEDUCTION_NOT_PROVEN_INCLUDED:") for f in result.flags)
+
+
+def test_a_deduction_that_fits_inside_the_total_is_still_subtracted():
+    doc = _doc(
+        [_note("9", "Other financial assets", [
+             _item("Total", "500", role=LineRole.TOTAL),
+             _item("Derivative financial instruments", "120"),
+         ]),
+         _note("30", "Fair value hierarchy", [_item("Level 3", "0")])],
+        [_face("9", "Current assets")],
+    )
+    result = compute(doc)[("consolidated", "current")]["cp"]
+    assert result.value == Decimal("380")
+    assert not any(f.startswith("DEDUCTION_NOT_PROVEN_INCLUDED:") for f in result.flags)

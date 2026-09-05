@@ -36,6 +36,21 @@ _RELATED_PARTY_RE = re.compile(
     r"|其他关联方|应收关联方款项|关联方应收款项|关联方资金往来|关联方往来款")
 _ENTRUSTED_LOAN_RE = re.compile(r"委托贷款|委托借款|委托银行贷款")
 
+# ── section 3.2: the net amount rule ──────────────────────────────────────────────────────────
+# An amount is on a net basis when it says so — an explicit net carrying amount, or a closing
+# balance already stated as less its allowance.
+_EXPLICITLY_NET_RE = re.compile(
+    r"净额|淨額|账面价值|帳面價值|期末账面价值|减坏账准备|減壞賬準備|减信用损失准备|减损失准备"
+    r"|账面余额减")
+# A pooled allowance disclosed as its own line: the note carries gross debtor balances and one
+# combined provision, so no related-party share of it can be read off without allocating.
+_POOLED_ALLOWANCE_RE = re.compile(r"^(?!.*减).*?(坏账准备|壞賬準備|信用损失准备|损失准备|减值准备)")
+
+
+def _has_pooled_allowance(table: NotesTable) -> bool:
+    return any(_POOLED_ALLOWANCE_RE.search(item.raw_label or "")
+               for item in table.items if item.role == LineRole.LINE)
+
 # ── section 4.1/4.2/4.3: LTP's target receivable classes and search locations ──────────────────
 _LTP_CLASS_RE = re.compile(r"其他应收款项|其他应收款|一年内到期的长期应收款|长期应收款|发放贷款及垫款|贷款及垫款")
 _RECEIVABLE_NOTE_HEADING_RE = re.compile(
@@ -69,6 +84,7 @@ class _Signal:
     mixed_currency: bool = False
     mixed_scale: bool = False
     duplicated: bool = False
+    net_not_derivable: bool = False
     evidence: list[dict] = field(default_factory=list)
     _ledger: RestatementLedger = field(default_factory=RestatementLedger)
 
@@ -111,6 +127,8 @@ class _Signal:
             out.append(f"UNIT_MISMATCH:{name}")
         if self.duplicated:
             out.append(f"POSSIBLE_DUPLICATE:{name}")
+        if self.net_not_derivable:
+            out.append(f"NET_AMOUNT_NOT_DERIVABLE:{name}")
         return out
 
 
@@ -156,6 +174,7 @@ def _find_2(doc: DocumentModel, pk: PeriodKey, flags: list[str]) -> _Signal:
         if not _note_matches(table, _RECEIVABLE_NOTE_HEADING_RE):
             continue
         found_note = True
+        pooled = _has_pooled_allowance(table)
         for item in table.items:
             if item.role != LineRole.LINE:
                 continue
@@ -165,6 +184,12 @@ def _find_2(doc: DocumentModel, pk: PeriodKey, flags: list[str]) -> _Signal:
             if _ENTRUSTED_LOAN_RE.search(text):
                 flags.append("ENTRUSTED_LOAN_NOT_SEPARABLE")
                 continue
+            # §4.3: with only gross debtor balances and one pooled allowance, the related-party
+            # share of that allowance cannot be read off, and the specification forbids
+            # allocating it arbitrarily. The gross figure is still reported — a reviewer needs a
+            # number to check — carrying NET_AMOUNT_NOT_DERIVABLE to say it is not yet net.
+            if pooled and not _EXPLICITLY_NET_RE.search(text):
+                sig.net_not_derivable = True
             for ev in item.values.values():
                 _add_item(sig, table.note_number, table.title, item.raw_label, ev, pk)
     if not found_note:
@@ -181,12 +206,15 @@ def _find_3(doc: DocumentModel, pk: PeriodKey, flags: list[str]) -> _Signal:
         if not _note_matches(table, _RELATED_PARTY_NOTE_HEADING_RE):
             continue
         found_note = True
+        pooled = _has_pooled_allowance(table)
         for item in table.items:
             if item.role != LineRole.LINE:
                 continue
             label = item.raw_label or ""
             if not _RELATED_PARTY_NOTE_ITEM_RE.search(label):
                 continue
+            if pooled and not _EXPLICITLY_NET_RE.search(f"{label} {item.group_hint}"):
+                sig.net_not_derivable = True
             if _RELATED_PARTY_NOTE_EXCLUDE_RE.search(label):
                 continue
             if _ENTRUSTED_LOAN_RE.search(label):

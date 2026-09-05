@@ -216,3 +216,51 @@ def test_two_different_related_party_balances_in_two_notes_are_both_counted():
     result = compute(doc)[("consolidated", "current")]["ltp"]
     assert result.value == Decimal("1200")
     assert "POSSIBLE_DUPLICATE:Find_2" not in result.flags
+
+
+# ── §4.3: a pooled allowance makes the net related-party amount underivable ───────────────────
+def test_a_pooled_allowance_flags_the_candidate_but_still_reports_a_figure():
+    # Gross debtor balances plus ONE combined provision: the related-party share of that
+    # provision cannot be read off, and §4.3 forbids allocating it. The gross figure is still
+    # reported so a reviewer has a number to check.
+    doc = _doc(notes=[
+        _note("8", "其他应收款", [
+            _item("应收关联方款项", "1000"),
+            _item("坏账准备", "-60"),
+        ]),
+    ])
+    result = compute(doc)[("consolidated", "current")]["ltp"]
+    assert result.value == Decimal("1000")
+    assert "NET_AMOUNT_NOT_DERIVABLE:Find_2" in result.flags
+
+
+def test_an_explicitly_net_amount_is_not_flagged_even_beside_a_pooled_allowance():
+    # §3.2's first preference: the line says it is already a net carrying amount.
+    doc = _doc(notes=[
+        _note("8", "其他应收款", [
+            _item("应收关联方款项账面价值", "940"),
+            _item("坏账准备", "-60"),
+        ]),
+    ])
+    result = compute(doc)[("consolidated", "current")]["ltp"]
+    assert result.value == Decimal("940")
+    assert not any(f.startswith("NET_AMOUNT_NOT_DERIVABLE") for f in result.flags)
+
+
+def test_a_note_with_no_pooled_allowance_is_not_flagged():
+    doc = _doc(notes=[_note("8", "其他应收款", [_item("应收关联方款项", "1000")])])
+    result = compute(doc)[("consolidated", "current")]["ltp"]
+    assert result.value == Decimal("1000")
+    assert not any(f.startswith("NET_AMOUNT_NOT_DERIVABLE") for f in result.flags)
+
+
+def test_a_line_stating_it_is_net_of_the_allowance_is_not_flagged():
+    # §3.2's second preference: a closing balance already less its provision.
+    doc = _doc(notes=[
+        _note("8", "其他应收款", [
+            _item("应收关联方款项期末余额减坏账准备", "940"),
+            _item("坏账准备", "-60"),
+        ]),
+    ])
+    result = compute(doc)[("consolidated", "current")]["ltp"]
+    assert not any(f.startswith("NET_AMOUNT_NOT_DERIVABLE") for f in result.flags)

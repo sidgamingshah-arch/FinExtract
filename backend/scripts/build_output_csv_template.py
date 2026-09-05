@@ -3,9 +3,9 @@
 Build output_csv_hk_v1 template + enriched ontology JSON.
 
 Reads:
-  Output_CSV_Ontology_Revised_Extraction_Focused_v2.zip  (xlsx inside) — NOT in the repository;
-      a hand-maintained export. Point at it with $OUTPUT_CSV_ONTOLOGY_ZIP, or drop it in
-      backend/_exports/, docs/, or the repository root and it will be found.
+  Output_CSV_Ontology_Revised_Extraction_Focused_v2.xlsx (or the same name .zip, with the xlsx
+      inside) — committed at backend/_exports/. Override with $OUTPUT_CSV_ONTOLOGY_ZIP, or drop
+      it in backend/_exports/, docs/, or the repository root and it will be found.
   Extraction Logic_Eng_v2.1.xlsx
   hkfrs_hk_china_ontology.json  (borrows normalisation/binding/global_rules)
 
@@ -32,16 +32,17 @@ from app.services.spec_alias_curation import curate_aliases, denied_aliases  # n
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _BACKEND = Path(__file__).resolve().parents[1]
-ONTOLOGY_ZIP_NAME = "Output_CSV_Ontology_Revised_Extraction_Focused_v2.zip"
+ONTOLOGY_STEM = "Output_CSV_Ontology_Revised_Extraction_Focused_v2"
+ONTOLOGY_SUFFIXES = (".xlsx", ".zip")
 
 
-def _locate_ontology_zip() -> Path:
+def _locate_ontology_workbook() -> Path:
     """Where the source ontology export is, and a usable error when it is nowhere.
 
-    The workbook is hand-maintained and deliberately not committed, so this script cannot be
-    run from a clean checkout. It used to name one contributor's Downloads folder by absolute
-    Windows path, which meant a failure on every other machine reported only a path nobody else
-    could have — including CI, where it looked like a broken script rather than a missing input.
+    Accepts the workbook either as a bare .xlsx or wrapped in a .zip, because it is passed around
+    both ways. This used to name one contributor's Downloads folder by absolute Windows path, so
+    a failure on any other machine — CI included — reported a path nobody else could have and
+    read as a broken script rather than a missing input.
     """
     override = os.environ.get("OUTPUT_CSV_ONTOLOGY_ZIP")
     searched: list[Path] = []
@@ -52,23 +53,40 @@ def _locate_ontology_zip() -> Path:
         searched.append(candidate)
     for directory in (_BACKEND / "_exports", _REPO_ROOT / "docs", _REPO_ROOT,
                       Path.home() / "Downloads"):
-        candidate = directory / ONTOLOGY_ZIP_NAME
-        searched.append(candidate)
-        if candidate.is_file():
-            return candidate
+        for suffix in ONTOLOGY_SUFFIXES:
+            candidate = directory / f"{ONTOLOGY_STEM}{suffix}"
+            searched.append(candidate)
+            if candidate.is_file():
+                return candidate
     where = "\n  ".join(str(path) for path in searched)
     raise SystemExit(
-        f"Cannot find {ONTOLOGY_ZIP_NAME}.\n\n"
-        "It is a hand-maintained ontology export and is not committed, so this script cannot "
-        "run from a clean checkout.\n"
-        "Set OUTPUT_CSV_ONTOLOGY_ZIP=/path/to/the.zip, or place the file in one of:\n"
+        f"Cannot find {ONTOLOGY_STEM}{ONTOLOGY_SUFFIXES[0]} (or .zip).\n\n"
+        "Set OUTPUT_CSV_ONTOLOGY_ZIP=/path/to/the/workbook, or place the file in one of:\n"
         f"  {where}\n\n"
+        "It must carry the sheets: Sections, Concepts, Formula Dependencies, Template Field "
+        "Audit.\n"
         "Note that the committed ontology is already curated "
         "(app/services/spec_alias_curation); rebuilding is only needed when the source "
         "workbook itself changes.")
 
 
-ONTOLOGY_ZIP = _locate_ontology_zip()
+def _load_ontology_workbook(path: Path):
+    """The source workbook, whether it arrived as an .xlsx or zipped alongside other files.
+
+    An .xlsx is itself a zip, so opening one with ZipFile succeeds and then hands back
+    `[Content_Types].xml` as if it were the workbook — hence the suffix check rather than trying
+    ZipFile first and hoping.
+    """
+    if path.suffix.lower() == ".xlsx":
+        return openpyxl.load_workbook(path, data_only=True)
+    with zipfile.ZipFile(path) as archive:
+        inner = next((n for n in archive.namelist() if n.lower().endswith(".xlsx")), None)
+        if inner is None:
+            raise SystemExit(f"{path} contains no .xlsx: {archive.namelist()}")
+        return openpyxl.load_workbook(io.BytesIO(archive.read(inner)), data_only=True)
+
+
+ONTOLOGY_ZIP = _locate_ontology_workbook()
 EXTRACT_XLSX = Path(__file__).resolve().parents[2] / "docs" / "Extraction Logic_Eng_v2.1.xlsx"
 COMPUTED_XLSX = Path(__file__).resolve().parent.parent / "_exports" / "China_HongKong_Financial_Extraction_Ontology_v1.6.xlsx"
 OUT_DIR      = Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
@@ -106,8 +124,7 @@ def _split_comma(val) -> list[str]:
 
 # ── 1. Read ontology xlsx ─────────────────────────────────────────────────────
 
-with zipfile.ZipFile(ONTOLOGY_ZIP) as z:
-    ont_wb = openpyxl.load_workbook(io.BytesIO(z.read(z.namelist()[0])), data_only=True)
+ont_wb = _load_ontology_workbook(ONTOLOGY_ZIP)
 
 # sections: key → {label, template_sheet}
 SECTIONS: dict[str, dict] = {}
