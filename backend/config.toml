@@ -85,6 +85,12 @@ timeout_seconds = 600
 base_url = "https://llmgateway.crisil.local/api/openai"
 api_key_env = "AZURE_OPENAI_API_KEY" # env var the key is read from (the key itself is NOT stored here)
 reasoning_effort = "low"
+# Hard ceiling on hidden reasoning tokens; 0 = do not send a cap. Distinct from
+# `reasoning_effort` above, which ASKS for reasoning where this BOUNDS it. Required by some
+# models rather than optional: one whose reasoning cannot be disabled will otherwise spend
+# the whole completion budget thinking and return empty content with finish_reason=length,
+# losing the extraction. See backend/.env.example for the value the recorded runs used.
+reasoning_max_tokens = 0
 disable_ssl_verify = true
 
 # Azure OpenAI address (used when provider = "azure_openai"). Azure selects a deployment on your
