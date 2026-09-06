@@ -31,6 +31,38 @@ _ROW_RE = re.compile(r"主营业务收入|主营业务")
 _COST_RE = re.compile(r"成本")
 
 
+# THE ONLY CAPTIONS §2 ADMITS AS PRIORITY 1. The spec names the target twice and both times it is
+# the 主营业务 pair; §4 then forbids total 营业收入 outright, "when 主营业务 or 主营业务收入 is not
+# separately disclosed". So a face reading under any other Chinese caption is not a weaker P1 — it
+# is the figure §4 refuses, and the note's 主营业务 row is the answer that displaces it.
+#
+# The English captions are admitted because on an HKEX filing Turnover IS the revenue line, and a
+# bilingual filing can pair an English face caption with a Chinese 营业收入 note. Everything below
+# is also unanchored: a real caption carries numbering, punctuation and a bilingual tail
+# ("一、营业总收入", "Revenue from contracts with customers 客戶合約收益").
+_P1_CAPTION_RE = re.compile(
+    r"主营业务|主營業務|turnover|revenue|sales|income from operations", re.IGNORECASE)
+
+
+def is_priority_one_caption(caption: str | None) -> bool:
+    """Whether a FACE caption is one the spec accepts as Priority 1 for this concept.
+
+    Asked of a reading that already occupies the concept, not of a candidate: the mapper binds
+    the face before this module runs, and the question here is whether what it bound is the
+    thing §2 asked for or the total §4 refuses.
+    """
+    return bool(caption and _P1_CAPTION_RE.search(caption))
+
+
+def has_revenue_note(doc: DocumentModel) -> bool:
+    """Whether the filing carries a 营业收入 note at all — the precondition for P2.
+
+    Gates the displacement: on a filing with no such note there is nothing to displace a face
+    reading WITH, and this spec has no jurisdiction over how that filing captions its revenue.
+    """
+    return any(_NOTE_HEADING_RE.search(table.title or "") for table in doc.notes)
+
+
 def _is_primary_measure(period_label: str | None) -> bool:
     """Whether this value is the PERIOD'S OWN AMOUNT rather than a second measure of it.
 

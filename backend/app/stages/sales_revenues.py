@@ -1,10 +1,32 @@
 """Sales (Revenues) — writes services.sales_revenues's Priority 2 (note) fallback onto the is_pl
-LineItem, but only for a (basis, period) the ordinary mapper left with no value at all.
+LineItem for a (basis, period) that carries no Priority 1 reading of its own.
 
 Runs alongside the other computed-field stages: after notes are linked and units normalized,
 before reconcile. Unlike DeprecImpairmentStage/SecurFinclAssetsStage/RelatedPartyReceivablesStage,
 this concept is genuinely printed on the face most of the time — Priority 1 is already satisfied by
-the alias-matching mapper before this stage runs, so this stage must never overwrite that reading.
+the alias-matching mapper before this stage runs, and a genuine P1 reading is never overwritten.
+
+A READING IS NOT PRIORITY 1 JUST BECAUSE SOMETHING BOUND IT. §2 names the P1 caption — the
+主营业务 pair, or the English Turnover/Revenue/Sales — and §4 forbids total 营业收入 outright, so a
+face reading under a caption like 一、营业总收入 or 其中：营业收入 is the figure the spec refuses
+rather than a weaker answer to defer to. This stage used to skip any (basis, period) that already
+held a value, whoever put it there, so a single such binding discarded the correct figure this
+module had already computed: 1,603,146,551.95 published against a correct 1,589,859,743.31 on Sun
+Create Electronics. Worse, TWO face captions carry that total on one filing — 一、营业总收入 and
+其中：营业收入, the total and its own "of which" restatement — so when both were bound the concept
+published the same figure twice.
+
+The rulebook's ``exclude_hints`` refuse those captions at every mapping tier, and that is where
+the prohibition belongs. It is not where the prohibition can be RELIED on: the rulebook in force
+is a database row, and a run against a stored rulebook older than the shipped file binds them
+again with nothing to say so. This stage therefore reads the spec itself, and holds whatever the
+mapper managed to bind to it — the concept's figure does not depend on which rulebook version a
+machine happens to have seeded.
+
+A refused reading is UNBOUND rather than merely overwritten: it is a real printed line (total
+operating revenue is a genuine figure, just not this concept's), so it goes to
+``face_mapping_contract`` for its own engine key and lands in the review queue as a caption
+nothing could place — which is what an unbound face row does everywhere else.
 """
 from __future__ import annotations
 
@@ -13,7 +35,12 @@ from app.core.models.enums import Basis
 from app.core.models.line_item import ExtractedValue, LineItem
 from app.core.stage import PipelineContext
 from app.services.derivation import build, input_from_evidence, record
-from app.services.sales_revenues import SALES_REVENUES_KEY, compute_note_fallback
+from app.services.sales_revenues import (
+    SALES_REVENUES_KEY,
+    compute_note_fallback,
+    has_revenue_note,
+    is_priority_one_caption,
+)
 
 
 class SalesRevenuesStage:
@@ -32,10 +59,32 @@ class SalesRevenuesStage:
             ctx.log("sales_revenues:skipped(no notes extracted)")
             return doc
 
-        row = next((li for li in doc.line_items if li.canonical_key == SALES_REVENUES_KEY), None)
-        covered = {(ev.basis.value, ev.period_label or "") for ev in (row.values.values() if row else [])}
-
         results = compute_note_fallback(doc)
+
+        # WHAT THE MAPPER BOUND, split by whether the spec accepts the caption as Priority 1.
+        # Only on a filing that carries a 营业收入 note: with no note there is nothing to displace
+        # a face reading with, and this spec has no jurisdiction over that filing's captions.
+        bound = [li for li in doc.line_items if li.canonical_key == SALES_REVENUES_KEY]
+        refused = ([li for li in bound if not is_priority_one_caption(li.source_label)]
+                   if has_revenue_note(doc) else [])
+        for li in refused:
+            bound.remove(li)
+            li.canonical_key = None
+            li.confidence.mapping = 0.0
+            for flag in ("spec_refused_caption", "requires_concept_review"):
+                if flag not in li.confidence.flags:
+                    li.confidence.flags.append(flag)
+        if refused:
+            ctx.log("sales_revenues:unbound "
+                    f"{[(li.source_label or '').strip() for li in refused]} — §4 refuses a face "
+                    "caption that is not 主营业务/主营业务收入 or the English equivalent")
+
+        row = next(iter(bound), None)
+        # Every slot a SURVIVING reading covers, across all of them: a filing may print the P1
+        # caption twice (a consolidated face and a standalone one), and reading the slots off
+        # only the first row would overwrite the second with the note figure.
+        covered = {(ev.basis.value, ev.period_label or "")
+                   for li in bound for ev in li.values.values()}
         applied = 0
         for (basis, period_label), result in results.items():
             if (basis, period_label) in covered or result.value is None:

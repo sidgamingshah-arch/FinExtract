@@ -170,6 +170,26 @@ def test_sales_revenues_keeps_the_english_hkex_captions(mappings):
     assert {"turnover", "revenue"} <= _normalized(mappings[SALES])
 
 
+def test_the_rulebook_refuses_the_face_total_captions_at_every_tier(mappings):
+    """Absent from the aliases is not enough: the model can name a concept nothing aliased.
+
+    The captions the filing actually prints are 一、营业总收入 and 其中：营业收入 — the total and
+    its own "of which" restatement, both carrying the same figure. `exclude_hints` is the only
+    field that binds every tier including the LLM's answer (`OntologyMatcher._allowed`), so the
+    prohibition is pinned on the mechanism that enforces it rather than on the alias list.
+    """
+    from app.schemas.loader import load_ontology
+    from app.services.mapping import OntologyMatcher
+
+    matcher = OntologyMatcher(load_ontology(json.loads(ONTOLOGY.read_text(encoding="utf-8"))))
+
+    for caption in ("一、营业总收入", "其中：营业收入", "营业收入", "营业总收入"):
+        assert matcher._vetoed(SALES, caption), caption
+    # And the concept's own vocabulary survives its own exclusions — see the loader guard.
+    for caption in ("主营业务", "主营业务收入", "TURNOVER", "Revenue"):
+        assert not matcher._vetoed(SALES, caption), caption
+
+
 # ── contingent liabilities: the note vocabulary of §2, and no longer a stub ───────────────────
 def test_contingent_liabilities_carries_the_specified_note_headings(mappings):
     required = ["或有负债", "或有事项", "关联方担保", "未决诉讼", "未决仲裁", "对外担保",
