@@ -380,6 +380,17 @@ def _level_3(doc: DocumentModel, pk: PeriodKey) -> tuple[Decimal | None, list[di
     return sig.usable, sig.evidence
 
 
+def _as_deduction(evidence: dict, why: str) -> dict:
+    """One evidence row restated as the NEGATIVE contribution it actually is."""
+    raw = evidence.get("value")
+    try:
+        signed = str(-Decimal(str(raw)))
+    except Exception:                       # noqa: BLE001 — a non-numeric note stays as printed
+        signed = raw
+    return {**evidence, "value": signed,
+            "line_item": f"less: {evidence.get('line_item') or why}"}
+
+
 def _sum_or_none(values: list[Decimal | None]) -> Decimal | None:
     present = [v for v in values if v is not None]
     return sum(present) if present else None
@@ -435,14 +446,24 @@ def compute(doc: DocumentModel) -> dict[PeriodKey, dict[str, SecurResult]]:
                 # would not be.
                 cur_part, non_cur_part = _portion_split(table, pk)
                 if cur_part is not None or non_cur_part is not None:
+                    # EACH SIDE CITES ITS OWN ROW, not the whole note. Handing both sides the
+                    # note's full evidence put "Non-current portion 788,507" into CP's breakdown,
+                    # so a reader checking CP's arithmetic saw a figure belonging to the other
+                    # field and no way to reach the published one.
+                    def _portion_ev(amount: Decimal, which: str) -> dict:
+                        return {"note_number": table.note_number, "note_heading": table.title,
+                                "line_item": f"{which} (as the note states it)",
+                                "value": str(amount),
+                                "provenance": next((e.get("provenance") for e in total_evidence
+                                                    if e.get("provenance")), None)}
                     if cur_part is not None:
                         cp_totals.append(cur_part)
                         cp_deduct.append(Decimal(0))
-                        cp_evidence.extend(total_evidence)
+                        cp_evidence.append(_portion_ev(cur_part, "Portion classified as current"))
                     if non_cur_part is not None:
                         ltp_totals.append(non_cur_part)
                         ltp_deduct.append(Decimal(0))
-                        ltp_evidence.extend(total_evidence)
+                        ltp_evidence.append(_portion_ev(non_cur_part, "Non-current portion"))
                     continue
             if not table.items:
                 (cp_flags if kind == "current" else ltp_flags).append(
@@ -500,8 +521,14 @@ def compute(doc: DocumentModel) -> dict[PeriodKey, dict[str, SecurResult]]:
         elif cp_status == "NEGATIVE_CP_CARRIED_TO_LTP":
             cp_flags.append("NEGATIVE_CP_CARRIED_TO_LTP")
         cp_formula = ("Find_1_CP - Find_2_CP - Find_3_CP" if cp_status != "NOT_COMPUTABLE" else None)
+        # LEVEL 3 IS SUBTRACTED, SO IT IS SHOWN SUBTRACTED. Its evidence carries the figures as
+        # printed — positive — and appending them unchanged made CP's breakdown read as a SUM of
+        # its own deductions: five positive rows against a published 0. A contributions list a
+        # reader cannot add up to the answer is worse than none, because it invites them to trust
+        # the wrong total.
         out.setdefault(pk, {})["cp"] = SecurResult(
-            cp_value, cp_formula, cp_status, cp_flags, cp_evidence + level_3_evidence)
+            cp_value, cp_formula, cp_status, cp_flags,
+            cp_evidence + [_as_deduction(e, "Level 3 fair-value assets") for e in level_3_evidence])
 
         ltp_value, ltp_status = _compute_ltp(find_1_ltp, find_2_ltp, carryforward)
         if ltp_status == "MISSING_CP_CARRYFORWARD_TO_LTP":
@@ -512,6 +539,18 @@ def compute(doc: DocumentModel) -> dict[PeriodKey, dict[str, SecurResult]]:
             ltp_flags.append("NEGATIVE_LTP_ADJUSTMENT_REVERSED")
         ltp_formula = ("LTP_base + CP_negative_carryforward_to_LTP"
                        if ltp_status != "NOT_COMPUTABLE" else None)
+        # …and the residual LTP absorbs from CP, likewise. Without it LTP's breakdown summed to
+        # its Find_1 (916,919) beside a published 628,486 — the exact discrepancy a reviewer
+        # reported, and the reason this list has to carry every term of the formula.
+        if carryforward:
+            ltp_evidence = ltp_evidence + [{
+                "note_number": "", "note_heading": "",
+                "line_item": "less: Level 3 residual carried from Secur & Other Fincl Assets (CP)",
+                # ALREADY NEGATIVE. `_compute_ltp` does `ltp_base + carryforward`, so the value it
+                # is handed is the signed adjustment (-288,433). Negating it here printed +288,433
+                # against a published 628,486 — a breakdown that still would not add up, which is
+                # the whole defect being fixed.
+                "value": str(carryforward), "provenance": None}]
         out[pk]["ltp"] = SecurResult(ltp_value, ltp_formula, ltp_status, ltp_flags, ltp_evidence)
     return out
 
