@@ -10575,6 +10575,11 @@
     },
     {
       "canonical_key": "is_pl__sales_revenues",
+      "exclude_hints": [
+        "营业收入",
+        "营业总收入",
+        "^(?:[一二三四五六七八九十]+、|其中：)?\\s*(?:收益|营业额|销售收入|客户合约收益)$"
+      ],
       "label": "Sales(Revenues)",
       "definition": "Extract the reported value for 'Sales(Revenues)' from the face of the income statement (English: Revenue/Turnover/Sales; PRC: 主营业务/主营业务收入). When the face carries no value, services.sales_revenues falls back to the 主营业务/主营业务收入 row of a 营业收入 note, never the note's own combined total. See docs/PRC_Sales_Revenues_Extraction_Logic_Simplified.md.",
       "aliases": [

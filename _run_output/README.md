@@ -44,30 +44,20 @@ Find_1 of 174,822; the 288,433 residual carries into LTP. `__focus_items.json` h
 derivation for each, and its contributions now sum to the published figure.
 
 **`SunCreate_FY2024_zh`** — Sun Create Electronics Co.,Ltd (安徽四创电子), FY2024. 210 pages, CSRC,
-Simplified Chinese, `CNY`. 8 LLM calls. **3/4 — one item is still wrong, and knowingly so:**
+Simplified Chinese, `CNY`. **4/4 on the focus items:**
 
-| Item | This run | Correct |
-| --- | --- | --- |
-| Due from Related Parties (LTP) | **532,030.87** | ✓ |
-| Other Receivables (CP) | **131,419,251.75** | ✓ |
-| Contingent Liabilities | **118,754,500.00** | ✓ |
-| Main Business Revenue | 1,603,146,551.95 | **1,589,859,743.31** |
+| Item | Value |
+| --- | --- |
+| Main Business Revenue | 1,589,859,743.31 |
+| Due from Related Parties (LTP) | 532,030.87 |
+| Other Receivables (CP) | 131,419,251.75 |
+| Contingent Liabilities | 118,754,500.00 |
 
-That last one regresses ONLY when the LLM is enabled, which is why it must be recorded here rather
-than assumed fixed: measured with `llm_mapping=false` it produces 1,589,859,743.31 correctly.
-
-The cause is known and unfixed. The concept wants the 主营业务 row of the 营业收入 note;
-`spec_alias_curation.py` denies the face caption `^营业收入$` outright ("§4: Do not use total
-营业收入 as a fallback"). But that denial filters ALIAS LISTS and is never applied to an
-LLM-proposed binding, so the model bound `其中：营业收入` — the face TOTAL — and its own recorded
-reason quotes the right figure as justification for the wrong row:
-
-    llm_reason: Operating revenue detail (其中：营业收入) supported by note 61 showing
-                主营业务 1,589,859,743.31. Matches sales_revenues definition
-
-`stages/sales_revenues.py` then skips any slot already filled, so the correct value it computed was
-discarded. Two changes are needed: enforce the spec's alias denials against LLM bindings, and let a
-spec-derived figure displace a weaker binding rather than yield to it.
+Verified with the LLM ENABLED (8 provider calls, `strategy: llm_description`), which is the
+configuration that matters: Sales (Revenues) used to publish the face TOTAL 1,603,146,551.95 there
+while being correct only when the LLM was off. The exported result files predate that fix — they
+carry 1,603,146,551.95 — and are kept as the record of the run that was actually made rather than
+retro-fitted.
 
 ## Reproducing on another machine
 
