@@ -199,12 +199,23 @@ class ExtractionSettings(BaseModel):
     # which balance-sheet concept a sentence fragment is, and two such calls failed on truncated
     # JSON because the reply could not fit.
     #
-    # DEFAULT OFF, and it must stay that way until it has been reviewed against more than two
-    # filings. Suppression removes answers, and on the English filing measured it would remove
-    # rows that map TODAY — note 39's withholding-tax paragraphs, at 399 and 227 characters, which
-    # currently bind to a concept. Those bindings look wrong, but "the mapper now answers fewer
-    # rows" is a product rule and not a bug fix, so it ships inert and is enabled deliberately.
-    skip_prose_captions: bool = False
+    # ON BY DEFAULT, at the user's instruction, having been shown what it costs. Measured across
+    # the two reference filings:
+    #
+    #   Chinese 210pp — 15 of 869 note rows skipped (2%), NO mapped row lost; all 15 are prose.
+    #   English 367pp — 57 of 627 skipped (9%), 54 of them rows that reached no concept anyway,
+    #                   and THREE that map today and no longer will.
+    #
+    # Two of those three are wrong today and worth losing: bs_nca__land bound to "Pursuant to the
+    # PRC Corporate Income Tax Law, a 10% withholding tax is levied…" and to "withholding tax rate
+    # may be applied if there is a tax treaty…", i.e. withholding-tax paragraphs mapped to LAND.
+    #
+    # THE THIRD IS THE PRICE, and it is recorded here so it is not rediscovered as a mystery:
+    # bs_nca__goodwill bound to "Goodwill of HK$229,119,000 (2024: HK$215,950,000) arising from the
+    # acquisition…" is plausibly CORRECT, and with this on, that row reaches no concept. It is
+    # reported in the run log (map_ontology:prose_captions_skipped names the rows and the reason),
+    # so the loss is visible rather than silent. Set to false to restore it.
+    skip_prose_captions: bool = True
     # Publish only notes a face row cites (see stages/prune_notes.py). False publishes every
     # extracted note table regardless of whether any face figure references it.
     prune_unreferenced_notes: bool = True
