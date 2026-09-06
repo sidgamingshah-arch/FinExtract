@@ -601,32 +601,55 @@ def compute_ratios(rows: list[dict], *, basis: str = "consolidated", period: str
 
 
 # --- 2. Disclosures --------------------------------------------------------
+# Every pattern list carries the CHINESE wording alongside the English, because this catalogue is
+# scanned against the document text and an English-only pattern set answers "not present" to every
+# question about a PRC filing. Measured on a 210-page CSRC filing (Sun Create Electronics): all
+# EIGHT entries returned present=False, including contingent_liabilities and guarantees on a filing
+# that discloses ¥117,523,500 of 保函 and ¥1,231,000 of 国内信用证 in prose. Nothing was broken —
+# the scan simply had no way to see the filing's own words, and eight confident negatives are worse
+# than eight blanks because they read as evidence.
+#
+# The words were already here, in `label_i18n`: 或有负债, 担保, 持续经营, 诉讼, 关联方交易,
+# 期后事项, 承诺事项. They were used to LABEL the answer and never to FIND it.
+#
+# Both scripts are listed where they differ, because this rulebook covers Simplified (PRC) and
+# Traditional (HK/TW) filings and 或有负债/或有負債 are the same disclosure. Patterns are matched
+# against text.lower(), which leaves CJK unchanged.
 _DISCLOSURES = [
     {"key": "auditor_qualification", "label": "Auditor qualification / opinion",
      "label_i18n": {"zh": "审计意见/保留意见", "ar": "تحفّظ المدقق", "fr": "Réserve de l'auditeur"},
      "patterns": [r"qualified opinion", r"adverse opinion", r"disclaimer of opinion",
-                  r"emphasis of matter", r"basis for qualified"]},
+                  r"emphasis of matter", r"basis for qualified",
+                  r"保留意见", r"保留意見", r"否定意见", r"否定意見",
+                  r"无法表示意见", r"無法表示意見", r"强调事项段", r"強調事項段"]},
     {"key": "going_concern", "label": "Going concern",
      "label_i18n": {"zh": "持续经营", "ar": "الاستمرارية", "fr": "Continuité d'exploitation"},
-     "patterns": [r"going concern"]},
+     "patterns": [r"going concern", r"持续经营", r"持續經營"]},
     {"key": "contingent_liabilities", "label": "Contingent liabilities",
      "label_i18n": {"zh": "或有负债", "ar": "الالتزامات المحتملة", "fr": "Passifs éventuels"},
-     "patterns": [r"contingent liabilit", r"contingenc(y|ies)"]},
+     "patterns": [r"contingent liabilit", r"contingenc(y|ies)",
+                  r"或有负债", r"或有負債", r"或有事项", r"或有事項"]},
     {"key": "guarantees", "label": "Guarantees",
      "label_i18n": {"zh": "担保", "ar": "الضمانات", "fr": "Garanties"},
-     "patterns": [r"\bguarantee", r"financial guarantee"]},
+     # 保函 (a bank guarantee letter) and 国内信用证 (a domestic letter of credit) are the
+     # instruments a PRC filing actually names; 担保 alone would have missed both on page 197.
+     "patterns": [r"\bguarantee", r"financial guarantee",
+                  r"担保", r"擔保", r"保函", r"信用证", r"信用證"]},
     {"key": "commitments", "label": "Commitments",
      "label_i18n": {"zh": "承诺事项", "ar": "الالتزامات", "fr": "Engagements"},
-     "patterns": [r"capital commitment", r"\bcommitments?\b"]},
+     "patterns": [r"capital commitment", r"\bcommitments?\b",
+                  r"承诺事项", r"承諾事項", r"资本承诺", r"資本承諾", r"重大承诺", r"重大承諾"]},
     {"key": "related_party", "label": "Related-party transactions",
      "label_i18n": {"zh": "关联方交易", "ar": "معاملات الأطراف ذات العلاقة", "fr": "Parties liées"},
-     "patterns": [r"related part(y|ies)"]},
+     "patterns": [r"related part(y|ies)", r"关联方", r"關聯方", r"关联交易", r"關聯交易"]},
     {"key": "subsequent_events", "label": "Subsequent events",
      "label_i18n": {"zh": "期后事项", "ar": "الأحداث اللاحقة", "fr": "Événements postérieurs"},
-     "patterns": [r"subsequent event", r"events after the reporting"]},
+     "patterns": [r"subsequent event", r"events after the reporting",
+                  r"期后事项", r"期後事項", r"资产负债表日后事项", r"資產負債表日後事項"]},
     {"key": "litigation", "label": "Litigation / legal proceedings",
      "label_i18n": {"zh": "诉讼", "ar": "التقاضي", "fr": "Litiges"},
-     "patterns": [r"litigation", r"legal proceeding", r"lawsuit"]},
+     "patterns": [r"litigation", r"legal proceeding", r"lawsuit",
+                  r"诉讼", r"訴訟", r"仲裁", r"未决诉讼", r"未決訴訟"]},
 ]
 
 

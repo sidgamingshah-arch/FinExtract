@@ -29,6 +29,14 @@ PeriodKey = tuple[str, str]                 # (basis, period_label)
 _NOTE_HEADING_RE = re.compile(
     r"或有负债|或有事项|关联方担保|关联担保|未决诉讼|未决仲裁|诉讼及仲裁事项|重大诉讼、?仲裁事项"
     r"|对外担保|担保事项|承诺及或有事项|承诺事项及或有事项"
+    # 保函 is a BANK GUARANTEE LETTER and 信用证 a LETTER OF CREDIT — neither is spelled 担保, so
+    # a PRC filing heading them "开出保函、信用证" matched none of the alternatives above and the
+    # whole note went unread. On one CSRC filing that lost ¥117,523,500 of guarantees and
+    # ¥1,231,000 of domestic letters of credit, disclosed in prose on the page the note heads.
+    # 信用证 is qualified with 开出/开具/国内 because the bare term also appears in receivables and
+    # settlement notes, where it describes how a trade balance is settled rather than an exposure;
+    # 保函 needs no qualifier, as the word only ever names the instrument.
+    r"|开出保函|开具保函|保函|(?:开出|开具|国内)信用证"
     # \b on the bare English alternative: unbounded, "guarantee" also matched a DEBT-INSTRUMENT
     # note titled "GUARANTEED NOTES", pulling its rows in as contingent exposures (which is what
     # raised POSSIBLE_DUPLICATE / AMOUNT_NOT_DISCLOSED on real filings). "GUARANTEES",
@@ -68,6 +76,13 @@ _BOND_EXPOSURE_RE = re.compile(
     r"保函|担保|或有|guarantee|bond|contingen", re.IGNORECASE)
 _BANK_GUARANTEE_RE = re.compile(
     r"银行保函|银行保证|银行出具的保函|融资性保函|非融资性保函|付款保函|预付款保函|投标保函"
+    # …and the BARE term, last in the alternation. Every form above is QUALIFIED, so a filing
+    # disclosing "公司各类尚未到期的保函总额" — deliberately unqualified, because it is the total
+    # across all types — matched none of them and its ¥117,523,500 was published as
+    # "Unclassified contingent liability". Safe to add here because _CLASSIFY_ORDER tries
+    # Performance bonds BEFORE Bank guarantees, so 履约保函 keeps its more specific classification
+    # rather than being swallowed by this.
+    r"|开出保函|开具保函|保函"
     r"|bank\s+guarantees?|banker'?s?\s+guarantees?|bid\s+bonds?",
     re.IGNORECASE)
 _CORPORATE_GUARANTEE_RE = re.compile(
@@ -168,6 +183,76 @@ def _prose_divisor(text: str) -> Decimal | None:
     return None
 
 
+# ── the same disclosure, stated the way a PRC filing states it ────────────────────────────────
+# "截至2024 年12 月31 日止，公司各类尚未到期的保函总额为11,752.35 万元" — one instrument, one
+# period, an explicit date, and the amount COMPRESSED by its own unit suffix.
+#
+# THE SCALE RUNS THE OPPOSITE WAY FROM THE ENGLISH PATH, which is the whole reason this cannot
+# reuse `_prose_divisor`. English prose spells an amount out in full and is DIVIDED down to the
+# note's presentation scale ("HK$375,901,000" against a table in thousands). 万元 is a MULTIPLIER
+# carried by the text itself: 11,752.35 万元 IS ¥117,523,500, and reading it as units understates
+# the exposure ten-thousand-fold. Getting this backwards is not a rounding error, it is a figure
+# wrong by four orders of magnitude in the direction that hides risk.
+_ZH_SCALE = {"亿元": Decimal(100_000_000), "亿": Decimal(100_000_000),
+             "万元": Decimal(10_000), "万": Decimal(10_000),
+             "千元": Decimal(1_000), "元": Decimal(1)}
+# Whitespace is permitted everywhere because the PDF text layer breaks these sentences mid-number
+# and mid-date ("11,752.35 万元", "2024 年12 月31 日").
+_ZH_EXPOSURE_RE = re.compile(
+    r"(保函|信用证|担保|或有负债|未决诉讼|仲裁)"
+    r"[^。；\n]{0,40}?"
+    r"(?:总额|金额|余额|合计)?\s*为?\s*"
+    r"([\d,]+(?:\.\d+)?)\s*"
+    r"(亿元|亿|万元|万|千元|元)")
+# The sentence dates itself ("截至2024 年12 月31 日止"), and that date is what decides which period
+# the exposure belongs to — there is no bracketed comparative to lean on the way the English form
+# has. Captured so a prior-year sentence on the same page is not attributed to the current period.
+_ZH_ASOF_RE = re.compile(r"截至\s*(20\d{2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日")
+
+
+def _zh_prose_items(table, pk: PeriodKey, unit, row_amounts: set) -> list["ContingentItem"]:
+    """Exposures a PRC note states in prose, for THIS period.
+
+    Attributed to the CURRENT period only, deliberately. Each sentence carries its own 截至 date,
+    but this service is handed a (basis, period) key rather than the period's end date, so there is
+    nothing here to compare that date against. Claiming a dated sentence for whichever period is
+    being asked would put a 2024 exposure on the 2023 column half the time. Current-only understates
+    a filing that discloses only prior-year exposures; that is the failure worth having, and the
+    sentence's own date is kept in the description so a reviewer can see what it was.
+    """
+    period = (pk[1] or "").lower()
+    if not period.startswith("current"):
+        return []
+    currency, scale, page = unit
+    out: list[ContingentItem] = []
+    seen: set[Decimal] = set()
+    for sentence in re.split(r"[。；\n]", table.source_text or ""):
+        m = _ZH_EXPOSURE_RE.search(sentence)
+        if not m:
+            continue
+        instrument, digits, suffix = m.group(1), m.group(2), m.group(3)
+        factor = _ZH_SCALE.get(suffix)
+        if factor is None:
+            continue
+        amount = Decimal(digits.replace(",", "")) * factor
+        # The note's own presentation scale still applies: a table printed in thousands wants the
+        # absolute figure divided down to it, exactly as the English path does.
+        table_divisor = _prose_divisor(table.source_text or "")
+        if table_divisor is not None:
+            amount = amount / table_divisor
+        if amount in row_amounts or amount in seen:
+            continue                          # §6.4: already tabulated, or the same sentence twice
+        seen.add(amount)
+        text = re.sub(r"\s+", " ", sentence).strip()
+        classification, basis_terms = _classify(f"{instrument} {text}")
+        out.append(ContingentItem(
+            description=text[:300], classification=classification,
+            classification_basis=basis_terms, amount=amount, currency=currency, scale=scale,
+            note_number=table.note_number, note_heading=table.title, page=page,
+            counterparty=None))
+    return out
+
+
 def _prose_items(table, pk: PeriodKey, unit, row_amounts: set) -> list[ContingentItem]:
     """Exposures stated in the note's prose for THIS period, excluding any already tabulated."""
     period = (pk[1] or "").lower()
@@ -234,10 +319,20 @@ def _extract_items(doc: DocumentModel, pk: PeriodKey) -> tuple[list[ContingentIt
                 counterparty=note_item.group_hint or None))
         # …then the exposures this note states only in prose, skipping any amount already read
         # from one of its rows so a figure printed both ways is not counted twice.
-        items.extend(_prose_items(
-            table, pk, note_units.get(table.note_number, (None, None, None)),
-            {it.amount for it in items
-             if it.note_number == table.note_number and it.amount is not None}))
+        tabulated = {it.amount for it in items
+                     if it.note_number == table.note_number and it.amount is not None}
+        unit = note_units.get(table.note_number, (None, None, None))
+        items.extend(_prose_items(table, pk, unit, tabulated))
+        # Both readers run against every note: which one fires is decided by the WORDING, not by
+        # the document locale. A filing carries both scripts — an HK annual report prints a
+        # Traditional Chinese section, and a PRC filing's audit report is quoted in English — and
+        # gating on doc.locale would silence whichever reader the enclosing document was not
+        # classified as. The Chinese reader is given the amounts the English one just found, so a
+        # figure both patterns can see is not counted twice.
+        items.extend(_zh_prose_items(
+            table, pk, unit,
+            tabulated | {it.amount for it in items
+                         if it.note_number == table.note_number and it.amount is not None}))
     return items, found_note
 
 

@@ -326,7 +326,20 @@ def _build_supplemental_rows(*, template_def: dict | None, base_rows: list[dict]
             if nkey == "related_party_transactions":
                 value = "Yes" if "related_party" in hit_disclosures else "No"
             elif nkey == "contingent_liabilities":
-                value = "Yes" if "contingent_liabilities" in hit_disclosures else "No"
+                # LEFT EMPTY DELIBERATELY, never "No". This concept is NUMERIC — services
+                # .contingent_liabilities computes a total from the filing's own figures, and on an
+                # English filing it does (HK$1,310,743k). Reaching this branch means the service
+                # produced nothing, and the rulebook is explicit about what may not be said then:
+                # exclude[2] "Do not infer a numeric zero from silence", and
+                # docs/PRC_Contingent_Liabilities_Extraction_Logic_Revised.md §8.1 "Do not state
+                # that no contingent liabilities exist merely because no amount was disclosed."
+                #
+                # A "No" here is not a cautious answer, it is a fabricated negative — and it was
+                # published at confidence {mapping 1.0, validation 1.0} on a PRC filing that
+                # discloses HK-equivalent ¥118,754,500 of 保函 and 国内信用证 in plain prose on
+                # page 197. A reader cannot distinguish that from a genuine nil. An empty cell can
+                # be chased; a confident "No" closes the question.
+                value = None
             elif nkey == "auditor_s_opinion":
                 value = "Qualified" if "auditor_qualification" in hit_disclosures else "Unqualified/Not detected"
             elif nkey == "notes":
