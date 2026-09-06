@@ -108,6 +108,12 @@ def _is_money_like(t: str, fmt=None) -> bool:
 _RUNNING_HDR = re.compile(r"annual report|interim report|年報|年度報告|中期報告", re.IGNORECASE)
 _HDR_LABEL = re.compile(
     r"statement of|year ended|for the (year|period)|as at\b|as of\b|period ended|"
+    # The notes pages' own running header. It belongs in THIS list rather than with the structural
+    # page-chrome test, because `page_chrome` is never handed to services.notes_extract — so for a
+    # row that leaked out of a NOTE page the chrome set is empty and only this label test can see
+    # it. Still gated (below) on every extracted value being a date fragment, which is exactly the
+    # shape of the leak: the label keeps the words and "31"/"2025" go to the value columns.
+    r"notes to (the )?financial statements|財務報表附註|财务报表附注|"
     r"截至|止年度|財務狀況|现金流量|現金流量|權益變動|权益变动|全面收益|損益及其他|损益及其他|"
     r"綜合.{0,8}表|综合.{0,8}表",
     re.IGNORECASE)
@@ -202,6 +208,17 @@ def _is_noise_row(label: str, vals: list,
     # is exactly what made it publishable as a line item.
     if page_chrome and _chrome_key(label) in page_chrome:
         return True
+    # …AND THE SAME HEADER WITH ITS DATE SPLIT OFF. The chrome set is keyed on the whole
+    # top-of-page text line ("Notes to Financial Statements 31 July 2025"), but when that header
+    # lands on a figure's baseline the row keeps only the words in its LABEL and sends "31" and
+    # "2025" to its value columns — so the label's key is a strict PREFIX of the chrome key and the
+    # equality test above misses it. Gated on every value being a date fragment, the same
+    # condition the rules below already apply, so a genuine caption that merely opens like the
+    # header keeps its figures.
+    if page_chrome and vals and all(_is_date_ish(v) for v in vals):
+        key = _chrome_key(label)
+        if key and any(c.startswith(key) for c in page_chrome):
+            return True
     norm = apply_pipeline(label, steps)
     if _is_period_only_label(norm or label):
         return True

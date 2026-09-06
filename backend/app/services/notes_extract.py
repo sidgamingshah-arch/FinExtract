@@ -320,4 +320,30 @@ def without_empty_duplicates(tables: list[NotesTable]) -> list[NotesTable]:
     """
     with_items = {t.note_number for t in tables if t.items}
     return [t for t in tables
-            if t.items or t.note_number not in with_items]
+            if t.items or t.note_number not in with_items or _carries_prose(t)]
+
+
+# A FOOTNOTE LEGEND HAS NO ROWS AND IS NOT FURNITURE. The "*"/"^"/"#" explanations behind a note's
+# markers, and its "(a)"/"(i)" narrative paragraphs, are routinely printed a page after the table
+# they belong to — which is why the section builder above deliberately keeps a titled but
+# item-less section. Figures are STATED in that prose and nowhere else: the depreciation charged
+# to "other operating expenses" (services.deprec_impairment reads it for its highest-priority
+# candidate) and a guarantee's amount (services.contingent_liabilities likewise). Dropping such a
+# fragment does not merely inflate or deflate a note count, it deletes a reported number, so
+# emptiness of ROWS alone cannot be the test.
+#
+# Furniture is what the test above was reaching for: a carried section left holding the running
+# header, whose text is nothing beyond the note's own title. That is what this predicate separates
+# — presence of legend/narrative structure, or simply more prose than the heading accounts for.
+_LEGEND_MARKER = re.compile(r"(?m)^\s*(?:[*^#@†‡]{1,2}|\((?:[a-z]|[ivx]{1,4})\))\s+\S")
+
+
+def _carries_prose(table: NotesTable) -> bool:
+    """Whether a row-less fragment holds content, rather than page furniture."""
+    text = (table.source_text or "").strip()
+    if not text:
+        return False
+    if _LEGEND_MARKER.search(text):
+        return True
+    body = text.replace(table.title or "", "").strip()
+    return len(body) >= 200

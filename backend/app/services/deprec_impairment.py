@@ -224,6 +224,20 @@ def _collect(doc: DocumentModel) -> tuple[dict[str, dict[PeriodKey, _Signal]], d
                 # figure this note reports anywhere as evidence of what unit it is in.
                 any_ev = next((ev for it in table.items for ev in it.values.values()
                               if ev.value is not None), None)
+                if any_ev is None and table.note_number is not None:
+                    # …and when THIS fragment holds no figure at all, borrow from a sibling
+                    # fragment of the same note. A long note is extracted as one NotesTable per
+                    # heading occurrence per page (services.notes_extract.extract_note_tables),
+                    # and the fragment carrying the footnote legend — the "*"/"^"/"#" explanations
+                    # this callout lives in — routinely has no rows: notes_extract keeps a titled
+                    # but item-less section deliberately so that prose is not dropped. The unit is
+                    # a property of the NOTE, not of the fragment, so requiring the donor to sit in
+                    # the same fragment discarded a callout that had already been read correctly.
+                    # A currency is required of the donor, which skips page-header artefact rows.
+                    any_ev = next((ev for t in doc.notes
+                                   if t is not table and t.note_number == table.note_number
+                                   for it in t.items for ev in it.values.values()
+                                   if ev.value is not None and ev.unit_ctx.currency), None)
                 if any_ev is not None:
                     current, prior = explicit_opex_dep
                     for period_label, amount in (("current", current), ("prior", prior)):

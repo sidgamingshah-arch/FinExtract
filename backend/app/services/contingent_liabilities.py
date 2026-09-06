@@ -29,7 +29,11 @@ PeriodKey = tuple[str, str]                 # (basis, period_label)
 _NOTE_HEADING_RE = re.compile(
     r"或有负债|或有事项|关联方担保|关联担保|未决诉讼|未决仲裁|诉讼及仲裁事项|重大诉讼、?仲裁事项"
     r"|对外担保|担保事项|承诺及或有事项|承诺事项及或有事项"
-    r"|contingent\s+liabilit(?:y|ies)|contingencies|guarantees?(?:\s+given|\s+issued)?"
+    # \b on the bare English alternative: unbounded, "guarantee" also matched a DEBT-INSTRUMENT
+    # note titled "GUARANTEED NOTES", pulling its rows in as contingent exposures (which is what
+    # raised POSSIBLE_DUPLICATE / AMOUNT_NOT_DISCLOSED on real filings). "GUARANTEES",
+    # "GUARANTEES GIVEN" and "CONTINGENT LIABILITIES AND GUARANTEES" still match.
+    r"|contingent\s+liabilit(?:y|ies)|contingencies|\bguarantees?\b(?:\s+given|\s+issued)?"
     r"|pending\s+litigation|pending\s+arbitration|litigation\s+and\s+arbitration",
     re.IGNORECASE)
 
@@ -70,6 +74,10 @@ _CORPORATE_GUARANTEE_RE = re.compile(
     r"公司担保|企业担保|对外担保|关联方担保|为子公司提供担保|为关联方提供担保|债务担保|借款担保"
     r"|融资担保|连带责任保证|保证责任"
     r"|corporate\s+guarantees?|guarantees?\s+(?:given|issued|provided)\s+(?:to|for|on\s+behalf\s+of)"
+    # …and the active-voice ordering an HKEX filing actually prints ("given guarantees to banks
+    # for facilities utilised by joint ventures"). Added after the passive form so the priority
+    # order in _CLASSIFY_ORDER is untouched — an LC / performance bond / bank guarantee still wins.
+    r"|(?:given|issued|provided)\s+guarantees?\s+(?:to|for|on\s+behalf\s+of)"
     r"|guarantees?\s+in\s+respect\s+of\s+(?:banking\s+facilities|borrowings|loans)",
     re.IGNORECASE)
 _CLASSIFY_ORDER = (
@@ -136,10 +144,76 @@ def _amount_of(item, pk: PeriodKey) -> tuple[Decimal | None, str | None, Decimal
     return None, None, None, None
 
 
+# ── section 3: an exposure the note states only in PROSE, with no row of its own ───────────────
+# A guarantee is routinely disclosed as a sentence rather than a table line ("guarantees given to
+# banks for mortgage loans of end-buyers amounted to approximately HK$375,901,000 (2024: …)"), and
+# reading only rows loses it — which understates the concept by whatever the sentence carried.
+_PARA_SPLIT_RE = re.compile(r"(?=\((?:[a-z]|[ivx]{1,4})\)\s)")
+_PROSE_EXPOSURE_RE = re.compile(
+    r"(?:contingent\s+liabilit(?:y|ies)|guarantees?|amount\s+(?:claimed|in\s+dispute))"
+    r"[^.]{0,240}?amounted\s+to\s+(?:approximately\s+)?(?:HK\$|RMB|US\$)?\s*([\d,]+)"
+    r"\s*\(\s*20\d{2}\s*:\s*(?:HK\$|RMB|US\$)?\s*([\d,]+)\s*\)", re.IGNORECASE)
+# Prose spells the amount out in full while the note's table is printed in thousands, so the prose
+# figure is divided by the scale THE NOTE ITSELF declares — never by a hardcoded 1,000, which is a
+# 1000x error on a millions presentation. A note declaring no scale is left to the narrative
+# instead of being guessed onto one.
+_NOTE_SCALE_TOKENS = ((re.compile(r"['’]000['’,]?000"), Decimal(1_000_000)),
+                      (re.compile(r"['’]000"), Decimal(1000)))
+
+
+def _prose_divisor(text: str) -> Decimal | None:
+    for rx, factor in _NOTE_SCALE_TOKENS:
+        if rx.search(text or ""):
+            return factor
+    return None
+
+
+def _prose_items(table, pk: PeriodKey, unit, row_amounts: set) -> list[ContingentItem]:
+    """Exposures stated in the note's prose for THIS period, excluding any already tabulated."""
+    period = (pk[1] or "").lower()
+    # The bracketed comparative is what identifies the two periods, so only a genuine
+    # current/prior key is served; junk column keys ("col7", "Total") are skipped rather than
+    # having a prose amount attributed to them.
+    group = 1 if period.startswith("current") else \
+        2 if period.startswith(("prior", "comparative")) else 0
+    divisor = _prose_divisor(table.source_text or "")
+    if not group or divisor is None:
+        return []
+    currency, scale, page = unit
+    out: list[ContingentItem] = []
+    for para in _PARA_SPLIT_RE.split(table.source_text or ""):
+        m = _PROSE_EXPOSURE_RE.search(para)
+        if not m:
+            continue
+        amount = Decimal(m.group(group).replace(",", "")) / divisor
+        if amount in row_amounts:
+            continue                          # §6.4: this exposure is already tabulated
+        text = re.sub(r"\s+", " ", para).strip()
+        classification, basis_terms = _classify(text)
+        out.append(ContingentItem(
+            description=text[:300], classification=classification,
+            classification_basis=basis_terms, amount=amount, currency=currency, scale=scale,
+            note_number=table.note_number, note_heading=table.title, page=page,
+            counterparty=None))
+    return out
+
+
 def _extract_items(doc: DocumentModel, pk: PeriodKey) -> tuple[list[ContingentItem], bool]:
     """Section 2/3: every qualifying item from every identified note, for one (basis, period)."""
     items: list[ContingentItem] = []
     found_note = False
+    # Unit per NOTE, resolved in one pass before the tables are walked: a note is extracted as
+    # several fragments and the one carrying the prose often carries no figure, so a per-fragment
+    # lookup would leave the prose amount with no currency/scale depending on fragment order.
+    note_units: dict[str, tuple] = {}
+    for table in doc.notes:
+        if not _NOTE_HEADING_RE.search(table.title or "") or table.note_number in note_units:
+            continue
+        for note_item in table.items:
+            amount, currency, scale, page = _amount_of(note_item, pk)
+            if amount is not None:
+                note_units[table.note_number] = (currency, scale, page)
+                break
     for table in doc.notes:
         if not _NOTE_HEADING_RE.search(table.title or ""):
             continue
@@ -158,6 +232,12 @@ def _extract_items(doc: DocumentModel, pk: PeriodKey) -> tuple[list[ContingentIt
                 classification_basis=basis_terms, amount=amount, currency=currency, scale=scale,
                 note_number=table.note_number, note_heading=table.title, page=page,
                 counterparty=note_item.group_hint or None))
+        # …then the exposures this note states only in prose, skipping any amount already read
+        # from one of its rows so a figure printed both ways is not counted twice.
+        items.extend(_prose_items(
+            table, pk, note_units.get(table.note_number, (None, None, None)),
+            {it.amount for it in items
+             if it.note_number == table.note_number and it.amount is not None}))
     return items, found_note
 
 

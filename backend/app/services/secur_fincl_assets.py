@@ -164,6 +164,25 @@ def _note_total(table: NotesTable, pk: PeriodKey
         total = sum(v for v, _ in chosen)
         return total, currency, scale, [m for _, m in chosen], sum(v for v, _ in lines)
     if lines:
+        # §3.3 "Do not add a note total to its underlying line items". A note that prints its own
+        # net figure as an UNTAGGED detail row — "Non-current portion", sitting beneath its
+        # components and a "Less: Portion classified as current" reclassification — otherwise joins
+        # the sum beside the very rows that compose it, and the note is counted twice.
+        # ``notes_extract.note_row_role`` tags TOTAL only when a caption OPENS with a total word,
+        # so such a row arrives as a LINE and the role branch above cannot see it. That
+        # under-tagging is the safe direction for RECONCILIATION (a miss only degrades a tie to
+        # "unconfirmed"), but here a miss is PUBLISHED as this field's value, so this concept
+        # cannot rely on the tagging alone.
+        #
+        # Decided from the note's own ARITHMETIC rather than its wording: a LAST row equal to the
+        # sum of the rows above it IS their total. At least three rows are required, so a two-row
+        # note of equal components (60 and 60) cannot halve itself.
+        values = [v for v, _ in lines]
+        if len(values) >= 3 and values[-1] != 0 and sum(values[:-1]) == values[-1]:
+            # The trailing element stays the COMPONENTS' sum, never every row's: it is §3.3's
+            # inclusion test, and counting the total row into it would make every deduction in
+            # such a note look un-provable and be silently dropped.
+            return values[-1], currency, scale, [lines[-1][1]], sum(values[:-1])
         # Summed FROM the lines, so every line is inside the total by construction.
         total = sum(v for v, _ in lines)
         return total, currency, scale, [m for _, m in lines], total
