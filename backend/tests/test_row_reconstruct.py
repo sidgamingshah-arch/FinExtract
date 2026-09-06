@@ -424,3 +424,79 @@ def test_the_same_numbering_inside_a_note_means_nothing_about_totals():
     from app.core.models.enums import LineRole
 
     assert _cas_face("三、营业利润", on_face=False).role is LineRole.LINE
+
+
+# ── a column needs a figure in it ──────────────────────────────────────────────────────────────
+#
+# 688008's consolidated balance sheet prints its title and its column header with a period —
+# "合并资产负债表 2024 年12 月31 日" and "项目 附注 2024 年12 月31 日 2023 年12 月31 日" — and
+# "2024", "12" and "31" all read as numbers, so both rows contributed x-centres of their own,
+# left of the real value columns. Together with the page's FOLIO ("150 / 256", whose 150 and 256
+# are neither years nor days of the month) they clustered into a THIRD band: the real
+# current-year column became column 1 and every figure in it was labelled `current_col1`, a slot
+# no screen and no export reads. 21 of 23 rows on the page lost their current-year figure, and
+# Other Receivables (CP) published 2,484,202,211.08 against a printed 4,143,856.36.
+
+
+def _cn_balance_sheet(*, folio: bool = True) -> list[Word]:
+    """The page as 688008 prints it: title, header band, three rows, and the folio."""
+    words = [
+        _w("合并资产负债表", 0.463, 0.119, 0.560, 0.128),
+        _w("2024", 0.449, 0.140, 0.480, 0.148),
+        _w("年12", 0.489, 0.140, 0.520, 0.148),
+        _w("月31", 0.533, 0.140, 0.564, 0.148),
+        _w("项目", 0.248, 0.192, 0.272, 0.200),
+        _w("附注", 0.419, 0.192, 0.443, 0.200),
+        _w("2024", 0.519, 0.189, 0.550, 0.197),
+        _w("年12", 0.558, 0.189, 0.589, 0.197),
+        _w("2023", 0.727, 0.189, 0.758, 0.197),
+        _w("年12", 0.767, 0.189, 0.798, 0.197),
+    ]
+    for i, (label, note, cur, pri) in enumerate((
+            ("货币资金", "七、1", "6,843,296,852.61", "5,743,574,648.73"),
+            ("应收账款", "七、5", "387,791,885.96", "294,253,723.40"),
+            ("其他应收款", "七、9", "4,143,856.36", "3,887,733.35"),
+    )):
+        y = 0.224 + i * 0.018
+        words += [
+            _w(note, 0.398, y, 0.430, y + 0.008),
+            _w(cur, 0.566, y, 0.680, y + 0.008),
+            _w(pri, 0.768, y, 0.882, y + 0.008),
+            _w(label, 0.169, y + 0.002, 0.239, y + 0.010),
+        ]
+    if folio:
+        words += [_w("150", 0.490, 0.916, 0.512, 0.924),
+                  _w("/", 0.520, 0.916, 0.526, 0.924),
+                  _w("256", 0.528, 0.916, 0.550, 0.924)]
+    return words
+
+
+def _bs_row(words, label):
+    items, _ = build_line_items(words, page_index=149, document_id="d1", source_kind="native",
+                                statement="balance_sheet", on_face=True,
+                                page_scope="consolidated")
+    return next(li for li in items if (li.source_label or "").endswith(label))
+
+
+def test_a_title_and_a_header_date_do_not_create_a_value_column():
+    row = _bs_row(_cn_balance_sheet(), "其他应收款")
+
+    assert _slots(row) == {("consolidated", "current"): "4143856.36",
+                           ("consolidated", "prior"): "3887733.35"}
+
+
+def test_the_page_folio_is_not_a_figure():
+    """"150 / 256" is neither a year nor a day of the month, so a date-fragment test cannot see
+    it — and those two numbers were the only non-date support the phantom column had."""
+    with_folio = _slots(_bs_row(_cn_balance_sheet(folio=True), "其他应收款"))
+    without = _slots(_bs_row(_cn_balance_sheet(folio=False), "其他应收款"))
+
+    assert with_folio == without
+    assert ("consolidated", "current") in with_folio
+
+
+def test_every_row_on_the_page_keeps_its_current_year_figure():
+    words = _cn_balance_sheet()
+    for label, cur in (("货币资金", "6843296852.61"), ("应收账款", "387791885.96"),
+                       ("其他应收款", "4143856.36")):
+        assert _slots(_bs_row(words, label))[("consolidated", "current")] == cur, label

@@ -1345,6 +1345,58 @@ def _header_region(rows: list[list[Word]], fmt=None) -> list[list[Word]]:
     return [r for r in rows if _row_box(r).y0 <= _HDR_PAGE_FRACTION]
 
 
+def _bands_with_a_figure(value_bands: list[float], col_xs: list[list[tuple[float, str]]],
+                         fmt=None) -> list[float]:
+    """``value_bands`` less any band whose members are all date fragments.
+
+    Membership by nearest band, the same assignment `_nearest_col` makes when a value is placed,
+    so a band is judged on exactly the tokens that will be filed under it.
+    """
+    if len(value_bands) < 2:
+        return value_bands
+    has_figure = [False] * len(value_bands)
+    for row in col_xs:
+        for xc, text in row:
+            col = _nearest_col(xc, value_bands)
+            value = _num(text, fmt)
+            if col is not None and value is not None and not _is_date_ish(value):
+                has_figure[col] = True
+    kept = [x for x, ok in zip(value_bands, has_figure) if ok]
+    # No band qualifies on a filing that prints its figures ungrouped, and dropping every column
+    # would lose the page. Today's answer is better than none.
+    return kept or value_bands
+
+
+# The page's own folio, printed as "150 / 256". A row of it is not a statement row and its two
+# numbers are not figures — and they are neither years nor days of the month, so a date-fragment
+# test cannot see them. On 688008's balance sheet the folio's 150 and 256 were the only
+# non-date numbers supporting the phantom column the title's and the header's date fragments had
+# created, so without this the column survived and every current-year figure on the page was
+# filed under a slot nothing reads.
+_FOLIO_SEP = re.compile(r"^[/／]$")
+
+
+def _is_folio_row(row: list[Word], fmt=None) -> bool:
+    """Whether this row is the page's folio and nothing else.
+
+    Three conditions together, because each alone is a real statement row somewhere: the row
+    carries a bare separator, every other token on it is a number, and none of those numbers is
+    grouped or fractional. "Total assets 12,218,911,386.38" fails the first, a two-column
+    comparative fails the first, and "6 / 12" as a ratio row — were a filing to print one — has
+    no caption either and is the case this deliberately also refuses.
+    """
+    if not any(_FOLIO_SEP.match(w.text.strip()) for w in row):
+        return False
+    for w in row:
+        text = w.text.strip()
+        if _FOLIO_SEP.match(text):
+            continue
+        value = _num(text, fmt)
+        if value is None or value != int(value) or any(m in text for m in (",", ".")):
+            return False
+    return True
+
+
 def _value_area(value_bands: list[float],
                 col_xs: list[list[tuple[float, str]]]) -> tuple[float, float] | None:
     """The horizontal extent of the page's figures, from the detected columns when there are any
@@ -2798,9 +2850,24 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             _nr, _vw = _resolve_note_column(_nr, _vw, note_x, number_format)
         xs = [((w.bbox.x0 + w.bbox.x1) / 2, w.text) for w in _vw
               if _num(w.text, number_format) is not None]
-        if xs:
+        if xs and not _is_folio_row(row, number_format):
             col_xs.append(xs)
     value_bands = _value_column_bands(col_xs)
+    # A COLUMN NEEDS A FIGURE IN IT. The statement's title and its own column-header row print a
+    # period — "合并资产负债表 2024 年12 月31 日", "项目 附注 2024 年12 月31 日 2023 年12 月31 日" —
+    # and "2024", "12" and "31" all read as numbers, so those two rows contribute x-centres of
+    # their own. On 688008's consolidated balance sheet they clustered into a THIRD band left of
+    # the real ones: the current-year column became column 1 and every figure in it was labelled
+    # `current_col1`, a slot no screen and no export reads, while the two title fragments held
+    # `current`. 21 of 23 rows lost their current-year figure, and Other Receivables (CP)
+    # published 2,484,202,211.08 against a printed 4,143,856.36.
+    #
+    # The date fragments are NOT dropped from the bands they land in — the header row's dates sit
+    # over the real value columns and are how `_column_periods` tells which column is which year,
+    # so removing them reverses the periods on a filing that prints the comparative first. What is
+    # refused is a whole band with no GROUPED figure behind it: a column of nothing but years,
+    # day-of-month numbers and the page's own folio is a caption, not a column.
+    value_bands = _bands_with_a_figure(value_bands, col_xs, number_format)
     bands = _basis_bands(raw_rows, value_bands, _value_area(value_bands, col_xs),
                          signals=entity_signals, fmt=number_format,
                          log=log, page_index=page_index)
