@@ -2002,10 +2002,32 @@ class OntologyMatcher:
                 last_error = self.usage["last_error"]
             print(f"[mapping] batch llm call FAILED ({len(items)} items): "
                   f"{type(exc).__name__}: {exc}", flush=True)
-            raise RuntimeError(
-                f"LLM refinement failed for {len(items)} mapping rows: "
-                f"{last_error}"
-            ) from exc
+            # DEGRADE LOUDLY, DO NOT DISCARD THE RUN.
+            #
+            # This used to raise, and the raise propagated out of Pipeline.run and failed the whole
+            # extraction at stage 6 of 21. That was a deliberate choice, and the comment above says
+            # what it was guarding: a batch that fell back "in complete silence", leaving a run
+            # reporting itself as LLM-mapped with no error to point at. The concern was SILENCE,
+            # not continuation — and silence is now impossible, because usage["failures"] and
+            # usage["last_error"] are recorded here and map_ontology reports both onto the run's
+            # mapping strategy and reason.
+            #
+            # What made the trade untenable: a real 210-page run died having completed twenty
+            # stages, because one 18-row batch came back cut at column 5000. On a rate-limited free
+            # tier a 429 does the same. Discarding a whole filing's work to avoid overstating the
+            # confidence of a few rows is the wrong way round — the rows can be marked, the work
+            # cannot be recovered.
+            #
+            # Returning {} hands these item_ids back UNANSWERED, which is a path match_batch
+            # already has and already handles: its caller falls back to the deterministic tiers for
+            # anything the batch did not resolve. Those rows get the lexical answer rather than a
+            # judged one, every one of them carries LLM_BATCH_FAILED, and the run says so.
+            return {iid: MappingResult(
+                canonical_key=None, method="llm_batch_failed", confidence=0.0,
+                candidates=[], needs_review=True,
+                reason=f"batch of {len(items)} rows was not answered ({last_error}); "
+                       f"this row fell back to the deterministic tiers",
+            ) for iid, _ in items}
         with self._usage_lock:
             self.usage["calls"] += 1
             self.usage["input_tokens"] += int(meta.get("input_tokens") or 0)

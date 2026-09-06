@@ -277,8 +277,20 @@ def test_batch_does_not_call_the_provider_with_an_empty_candidate_list():
     assert res["a"].method is MappingMethod.UNMATCHED
 
 
-def test_batch_failure_stops_the_run_instead_of_using_unrefined_mappings():
-    """A provider failure must not silently turn an LLM-refined run deterministic."""
+def test_batch_failure_degrades_loudly_instead_of_discarding_the_run():
+    """A provider failure must not SILENTLY turn an LLM-refined run deterministic.
+
+    The original contract here was to raise, and it was aimed at the right thing: a batch that fell
+    back "in complete silence" left a run reporting itself as LLM-mapped with no error to point at.
+    But raising propagated out of Pipeline.run and failed the whole extraction, and a real
+    210-page run was lost at stage 6 of 21 because one 18-row batch came back cut at column 5000 —
+    twenty stages of completed work discarded. On a rate-limited free tier a 429 does the same.
+
+    Silence was the fault, not continuation. So the failure is now RECORDED (usage["failures"],
+    usage["last_error"], which map_ontology reports onto the run's mapping strategy and reason) and
+    every unanswered row comes back needing review, naming the batch that failed — while the run
+    keeps the work it has already done and those rows take the deterministic answer.
+    """
 
     class _Boom:
         id = "fake"
@@ -292,8 +304,19 @@ def test_batch_failure_stops_the_run_instead_of_using_unrefined_mappings():
 
     provider = _Boom()
     m = OntologyMatcher(_ontology(), settings=get_settings(), llm_provider=provider)
-    with pytest.raises(RuntimeError, match="LLM refinement failed"):
-        m.match_batch([("a", "Trade receivables"), ("b", "Trade receivables")])
+    out = m.match_batch([("a", "Trade receivables"), ("b", "Trade receivables")])
+
+    assert provider.calls == 1                       # one attempt, not a retry storm
+    assert m.usage["failures"] == 1                  # …and it is on the record
+    assert "truncated JSON" in m.usage["last_error"]
+
+    # NOT silent: every row it could not answer says so and asks for review.
+    assert set(out) == {"a", "b"}
+    for res in out.values():
+        assert res.canonical_key is None             # no guessed concept
+        assert res.needs_review is True
+        assert res.method == "llm_batch_failed"
+        assert "not answered" in (res.reason or "")
 
     assert m.usage["failures"] == 1
     assert provider.calls == 1
