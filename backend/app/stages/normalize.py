@@ -92,12 +92,18 @@ _SCALE_PATTERNS = [
     # declared 100-million-fold too large. A units declaration writes the 元: 单位：万元,
     # 人民币亿元. The explicit 单位/金额单位 prefix is honoured without it, because that phrasing
     # IS the declaration and leaves no room for doubt.
-    # `(?<![\d.])` is the same guard the '000 patterns above already use, and it is what separates a
-    # DECLARATION from a MEASUREMENT. "营业收入10.5亿元" is a sentence about one figure; "单位：亿元"
-    # and "人民币亿元" declare the whole statement's scale. Requiring 元 was not enough on its own —
-    # narrative prose writes 元 as readily as a column head does — but a preceding digit settles it.
-    (re.compile(r"(?<![\d.])(?:億|亿)元|(?:金额|金額)?单位\s*[:：]\s*(?:億|亿)"), "hundred million"),
-    (re.compile(r"(?<![\d.])(?:萬|万)元|(?:金额|金額)?单位\s*[:：]\s*(?:萬|万)"), "ten thousand"),
+    # What separates a DECLARATION from a MEASUREMENT is a figure in front of the unit: "单位：亿元"
+    # and "人民币亿元" declare the whole statement's scale, while "营业收入10.5亿元" is a sentence
+    # about one number. Requiring 元 was not enough on its own — narrative prose writes 元 as
+    # readily as a column head does.
+    #
+    # A single-character lookbehind is not enough either, and that is what a PDF text layer
+    # punishes: it breaks these strings apart, so the same sentence arrives as "营业收入 10.5 亿元"
+    # and the character before 亿 is a SPACE. `_NO_FIGURE_BEFORE` therefore looks back past
+    # whitespace for a digit, and is applied to these two entries only — see `_scan_scale`. The
+    # '000 patterns above keep their own inline guard, since "'000" cannot be spaced apart.
+    (re.compile(r"(?:億|亿)元|(?:金额|金額)?单位\s*[:：]\s*(?:億|亿)"), "hundred million"),
+    (re.compile(r"(?:萬|万)元|(?:金额|金額)?单位\s*[:：]\s*(?:萬|万)"), "ten thousand"),
     (re.compile(r"\b(thousands?|lakhs?|lacs?|millions?|mn|crores?|cr|billions?|bn)\b",
                 re.IGNORECASE), None),                              # label taken from the match
 ]
@@ -125,16 +131,32 @@ _CCY = [("₹", "INR"), ("rs.", "INR"), ("inr", "INR"),
 _MAX_FACE_SCAN = 12
 
 
+# A figure standing in front of the unit, across any amount of whitespace the text layer inserted.
+# "10.5 亿元" is a measurement; "单位： 亿元" is a declaration.
+_NO_FIGURE_BEFORE = re.compile(r"[\d.]\s*$")
+# The CJK amount-unit entries, by label — the only ones the guard applies to.
+_FIGURE_SENSITIVE = {"hundred million", "ten thousand"}
+
+
 def _scan_scale(text: str) -> str | None:
-    """The scale label declared in `text`, preferring the earliest declaration in reading order."""
+    """The scale label declared in `text`, preferring the earliest declaration in reading order.
+
+    A CJK unit is accepted only where no figure precedes it. Without that, one sentence of a
+    business review ("营业收入 10.5 亿元") declared an entire filing to be presented in
+    hundred-millions — measured on a CSRC filing whose statements are in plain 元, which came out
+    carrying scale_factor 100,000,000.
+    """
     best: tuple[int, str] | None = None
     for rx, label in _SCALE_PATTERNS:
-        m = rx.search(text)
-        if m is None:
-            continue
-        word = (label or m.group(1).rstrip("s")).lower()
-        if best is None or m.start() < best[0]:
-            best = (m.start(), word)
+        for m in rx.finditer(text):
+            word = (label or m.group(1).rstrip("s")).lower()
+            # `finditer`, not `search`, because the FIRST occurrence may be a measurement while a
+            # real declaration follows it — taking only the first would hide the true one.
+            if word in _FIGURE_SENSITIVE and _NO_FIGURE_BEFORE.search(text[:m.start()]):
+                continue
+            if best is None or m.start() < best[0]:
+                best = (m.start(), word)
+            break
     return best[1] if best else None
 
 
