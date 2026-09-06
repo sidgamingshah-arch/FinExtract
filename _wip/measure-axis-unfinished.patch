@@ -1,0 +1,1026 @@
+diff --git a/backend/app/services/notes_extract.py b/backend/app/services/notes_extract.py
+index 7c4c713..fafa8e1 100644
+--- a/backend/app/services/notes_extract.py
++++ b/backend/app/services/notes_extract.py
+@@ -9,11 +9,12 @@ whatever rows the note contains — keeping page + bbox provenance. The result p
+ from __future__ import annotations
+ 
+ import re
++import statistics
+ 
+ from app.core.models.enums import LineRole
+ from app.core.models.line_item import NoteItem, NotesTable
+ from app.services.row_reconstruct import (
+-    Word, _group_rows, _num, _scan_row, build_line_items, row_tolerance)
++    GRID_FLAG, ColumnGrid, Word, _group_rows, _num, _scan_row, build_line_items, row_tolerance)
+ 
+ # "Note 15: Trade receivables", "Note 15 Trade receivables", "15. Trade receivables"
+ _HEADING = re.compile(r"^(?:note[s]?\.?\s+)?(?P<no>\d{1,3})\s*[:.\)\-]?\s*(?P<title>.*)$",
+@@ -192,11 +193,118 @@ def _has_at_most_two_value_columns(words: list[Word], source_kind: str) -> bool:
+     return True
+ 
+ 
++# ── A NOTE'S FIRST COLUMN CAN BE A MERGED CATEGORY CELL ──────────────────────────────────────
++#
++# The CSRC related-party note is captioned in TWO label columns, not one:
++#
++#     项目名称  |          关联方              |  期末余额 …
++#     其他应收款 | 中国电子科技集团公司第三十八研究所 |  88,998.71 …
++#               | 中国电子科技集团公司第四十八研究所 | 200,000.00 …
++#               | 安徽中电光达通信技术有限公司        |  15,753.60 …
++#
++# 项目名称 is printed ONCE per block and the eight rows it governs carry nothing but a related
++# party's NAME. Read row by row, eight of the nine rows of the 其他应收款 block name no receivable
++# class at all, so a service asking "is this row an 其他应收款?" saw one row of nine — and the one
++# it saw was 88,998.71 of a 757,464.77 period-end balance.
++#
++# The cell is also printed VERTICALLY MERGED: on the measured filing (Sun Create Electronics
++# 11077098, page index 191) "其他应收款" is drawn as "其他应收" / "款" on two lines that straddle
++# the block's first data row, so neither fragment is on any row's own baseline. That is why the
++# cells are assembled from the section's geometry here rather than left to the row reader, which
++# folds a caption into the row BELOW it and had nowhere to put a caption that spans several.
++#
++# The carry is written onto ``group_hint`` — "the sub-heading printed above this row WITHIN its
++# section", which is exactly what a merged 项目名称 cell is — and only where the row reader left
++# it empty, so a colon sub-heading it did read always wins.
++_OUTER_COLUMN_GAP = 0.05        # clear air between the category column and the caption column
++_MAX_CATEGORY_CHARS = 24        # a category is a caption; a sentence in the margin is not
++_CJK_SENTENCE_MARK = re.compile(r"[，。；]")
++
++
++def _category_cells(rows: list[list[Word]], fmt=None) -> list[tuple[float, str]]:
++    """``(top y, caption)`` for each category cell printed in a note's OUTER label column.
++
++    Empty unless the section really has two label columns: the captions have to split into a
++    dominant column and a column at least ``_OUTER_COLUMN_GAP`` to its left, and there have to be
++    at least two categories and three rows under them. Every one of those is a veto — a note with
++    one label column must come out of here unchanged, because ``group_hint`` is read as a row's
++    meaning by the mapper and by four services.
++    """
++    scanned = [(row, _scan_row(row, fmt, extract_note_refs=False)) for row in rows]
++    valued = [(row, lw) for row, (lw, _nr, vw) in scanned if lw and vw]
++    edges = [round(min(w.bbox.x0 for w in lw), 2) for _row, lw in valued]
++    if len(edges) < 3:
++        return []
++    main = statistics.mode(edges)
++    limit = main - _OUTER_COLUMN_GAP
++    frags: list[tuple[float, float, str]] = []
++    for row, (lw, _nr, _vw) in scanned:
++        # Measured on the word's LEFT edge and bounded by the caption column's: a category cell
++        # STARTS a clear gap to the left of the captions and ENDS before them. Testing the right
++        # edge instead found nothing — "其他应收" is four characters wide and runs to within 0.02
++        # of the caption column, which is the cell being wide, not the cell being absent.
++        outer = [w for w in lw if w.bbox.x0 <= limit and w.bbox.x1 < main]
++        if not outer:
++            continue
++        text = "".join(w.text for w in sorted(outer, key=lambda w: w.bbox.x0)).strip()
++        if text:
++            frags.append((min(w.bbox.y0 for w in outer), max(w.bbox.y1 for w in outer), text))
++    if not frags:
++        return []
++    # A merged cell drawn on several lines is ONE category: join fragments that are printed
++    # directly below one another, ignoring the data rows interleaved between them.
++    frags.sort()
++    cells: list[tuple[float, float, str]] = [frags[0]]
++    for y0, y1, text in frags[1:]:
++        py0, py1, ptext = cells[-1]
++        line_h = max(py1 - py0, 1e-4)
++        if -0.5 * line_h <= y0 - py1 <= 0.6 * line_h:
++            cells[-1] = (py0, y1, ptext + text)
++        else:
++            cells.append((y0, y1, text))
++    out = [(y0, text) for y0, _y1, text in cells
++           if len(text) <= _MAX_CATEGORY_CHARS and not _CJK_SENTENCE_MARK.search(text)]
++    return out if len(out) >= 2 else []
++
++
++def _row_top(li) -> float | None:
++    """Where a reconstructed row was printed, in page-normalised y.
++
++    Its LABEL's top edge when there is one, and its first figure's otherwise: a row whose caption
++    wrapped over the line above its figures is anchored by the caption it is captioned with.
++    """
++    for ev in li.values.values():
++        prov = ev.provenance
++        if prov is None:
++            continue
++        box = prov.label_bbox or prov.bbox
++        if box is not None:
++            return box.y0
++    return None
++
++
++def _category_for(cells: list[tuple[float, str]], y: float | None) -> str:
++    """The category cell governing the row printed at ``y`` — the last one that opens at or
++    above it. A row above the first cell belongs to no category, not to the first one."""
++    if not cells or y is None:
++        return ""
++    found = ""
++    for top, text in cells:
++        if top <= y + 0.004:            # within a line of the cell's own top edge
++            found = text
++        else:
++            break
++    return found
++
++
+ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str | None,
+                         source_kind: str, scope=None,
+                         normalisation=None, llm_provider=None,
+                         ai_required: bool = False,
+-                        carry_note: tuple[str, str] | None = None) -> list[NotesTable]:
++                        carry_note: tuple[str, str] | None = None,
++                        log=None,
++                        carry_grid: ColumnGrid | None = None,
++                        grid_out: list[ColumnGrid | None] | None = None) -> list[NotesTable]:
+     """Split a notes page into note sections and reconstruct each note's detail rows.
+ 
+     ``scope``/``normalisation`` are the run's own rulebook blocks; a note's columns are read by
+@@ -213,6 +321,18 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str
+     carry, that prose has nowhere to attach and is silently dropped from every page it opens
+     before the next real heading. Seeding ``current`` with the carried note lets it attach
+     instead, exactly as it would if the page break were not there.
++
++    ``log`` is the run log. It was NOT passed through before, and that silence was a real gap: the
++    reconstructor logs every scope decision it takes — which column it read as the current period,
++    the unit it resolved, and now the two-level column grid — and on a filing whose figures are
++    almost all in its notes (a PRC annual report), none of those decisions appeared in the run
++    record at all.
++
++    ``carry_grid`` is the two-level column grid read from an earlier page of the note still open,
++    and ``grid_out`` collects the grid each section was read with so the caller can carry it to
++    the next page. A PRC related-party note prints its 期末余额{账面余额|坏账准备} header once and
++    then runs for eight pages; without the carry every page after the first reads four columns
++    positionally, which is the mis-load the grid exists to prevent.
+     """
+     # The same page-derived tolerance the face uses: a note's detail lines are set as tightly as a
+     # statement's, and two of them merged into one row interleave their captions (row_reconstruct.
+@@ -258,13 +378,29 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str
+         # column is company-only"). A note IS where that caption is normally printed, and reading
+         # it here would relabel the note of a consolidated statement as the Company's — breaking
+         # the note→face tie, which matches on (basis, period).
++        seen: list[ColumnGrid | None] = []
++        # ONLY THE CARRIED SECTION INHERITS A GRID. A section that starts on its own heading is a
++        # different table, and letting it borrow the previous note's header would hand a four-column
++        # grid to whatever four columns the next note happens to print — the same wrong-column
++        # failure this closes, in the opposite direction.
+         items, _ = build_line_items(sec["words"], page_index=page_index,
+                                     document_id=document_id, source_kind=source_kind,
+-                                    on_face=False, scope=scope, normalisation=normalisation)
++                                    on_face=False, scope=scope, normalisation=normalisation,
++                                    log=log,
++                                    column_grid=(carry_grid if sec is carried else None),
++                                    grid_out=seen)
++        # What the NEXT page inherits is the grid of the note still open when this page ended, so
++        # the carry is whatever the last section was read with — None included.
++        carry_grid = seen[0] if seen else None
++        if grid_out is not None:
++            grid_out.append(carry_grid)
+         if not items and not sec["title"]:
+             continue
+         table = NotesTable(note_number=sec["no"], title=sec["title"], source_pages=[page_index],
+                    source_text=" ".join(word.text for word in sec["words"]).strip())
++        # The note's own 项目名称 column, if it has one — see `_category_cells` for the nine-row
++        # block whose eight continuation rows named no receivable class at all without it.
++        cells = _category_cells(_group_rows(sec["words"], row_tolerance(sec["words"], source_kind)))
+         for li in items:
+             # THE CAPTION DECIDES THE ROLE, EXCEPT WHERE THE BUILDER ALREADY KNEW. Almost every
+             # row reaches here as ``LINE`` — the promotion that classifies a face row runs in
+@@ -283,10 +419,17 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str
+                           # The rows the builder counted, so the arithmetic check does not have to
+                           # guess them from a caption that is not an identity.
+                           component_ordinals=list(li.component_ordinals),
+-                          section_hint=li.section_hint, group_hint=li.group_hint,
++                          section_hint=li.section_hint,
++                          group_hint=(li.group_hint
++                                      or _category_for(cells, _row_top(li))),
+                           provenance=li.values and next(iter(li.values.values())).provenance or None)
+             for ev in li.values.values():
+                 ni.set_value(ev)
++                # The two-level-header call-out travels on the ROW as well as the value, because
++                # the notes payload serves the row's flags and the note pane reads them; a value
++                # flag alone would be raised where nothing on this screen looks for it.
++                if GRID_FLAG in ev.confidence.flags and GRID_FLAG not in ni.confidence.flags:
++                    ni.confidence.flags.append(GRID_FLAG)
+             table.items.append(ni)
+         tables.append(table)
+     return without_empty_duplicates(tables)
+diff --git a/backend/app/services/pdf_extract.py b/backend/app/services/pdf_extract.py
+index fa776eb..94be817 100644
+--- a/backend/app/services/pdf_extract.py
++++ b/backend/app/services/pdf_extract.py
+@@ -258,6 +258,11 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
+     # footnote legend that opens its page with no heading of its own (see ``extract_note_tables``)
+     # still attaches to the note it explains. A non-NOTES page in between breaks the run.
+     notes_carry: tuple[str, str] | None = None
++    # The two-level column grid (period band over measure band) the last NOTES page was read with.
++    # A PRC related-party note prints that header once and runs for eight pages; without the carry
++    # every page after the first reads its four columns positionally again — a 坏账准备 provision
++    # back in the "prior" slot three rows later. Reset with `notes_carry`, on the same break.
++    notes_grid = None
+     for ps in targets:
+         if ps.index >= pdf.page_count:
+             continue
+@@ -289,15 +294,21 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
+         # other page → face line items. Both keep page + bbox provenance.
+         if ps.kind == PageKind.NOTES:
+             from app.services.notes_extract import extract_note_tables
++            grids: list = []
+             tables = extract_note_tables(words, page_index=ps.index,
+                                          document_id=doc.content_hash, source_kind=source_kind,
+                                          scope=scope, normalisation=normalisation,
+-                                         carry_note=notes_carry)
++                                         carry_note=notes_carry, log=ctx.log,
++                                         carry_grid=notes_grid, grid_out=grids)
+             doc.notes.extend(tables)
+             notes_carry = ((tables[-1].note_number, tables[-1].title) if tables
+                            else notes_carry)
++            # The note still open when this page ended is the LAST section, so its grid — None
++            # included — is what the next page's continuation inherits.
++            notes_grid = grids[-1] if grids else None
+             continue
+         notes_carry = None
++        notes_grid = None
+         # ``ps.statement`` (from the classifier) is what tells the reconstructor that a page is a
+         # component matrix rather than a two-column comparative; ``ctx.log`` records the cases
+         # where a matrix page could not be attributed and was skipped.
+diff --git a/backend/app/services/related_party_receivables.py b/backend/app/services/related_party_receivables.py
+index c91bb40..894e4ff 100644
+--- a/backend/app/services/related_party_receivables.py
++++ b/backend/app/services/related_party_receivables.py
+@@ -46,6 +46,38 @@ _EXPLICITLY_NET_RE = re.compile(
+ # combined provision, so no related-party share of it can be read off without allocating.
+ _POOLED_ALLOWANCE_RE = re.compile(r"^(?!.*减).*?(坏账准备|壞賬準備|信用损失准备|损失准备|减值准备)")
+ 
++# THE ALLOWANCE PRINTED AS A COLUMN, NOT A LINE — §3.2's second preference, made computable.
++#
++# The CSRC-standard related-party note prints its allowance beside every balance rather than
++# beneath the block:
++#
++#     项目名称 | 关联方 |     期末余额     |     期初余额
++#                       | 账面余额 | 坏账准备 | 账面余额 | 坏账准备
++#
++# Every row therefore carries its OWN provision, which is the case §4.3's "cannot be read off
++# without allocating" was never about: nothing has to be allocated, the filing already split it.
++# `row_reconstruct` labels that second column "<period>:allowance" (see `ColumnGrid`), so the net
++# is the row's own subtraction. Before the grid existed, the provision landed in the "prior" slot
++# of a two-axis reading and no service could compute gross-minus-provision for one period at all —
++# measured on Sun Create Electronics 11077098, note 6(1), where 坏账准备 held the "prior" label.
++_ALLOWANCE_MEASURE = "allowance"
++
++
++def _is_primary_measure(period_label: str | None) -> bool:
++    """Whether a value is the PERIOD'S OWN AMOUNT rather than a second measure of it.
++
++    "current" / "prior" are amounts; "current:allowance" is a measure OF that amount and must
++    never be summed as though it were a receivable of its own.
++    """
++    return ":" not in (period_label or "")
++
++
++def _allowance_beside(values, ev):
++    """The 坏账准备 figure printed in the same row, for the same period — or None."""
++    want = f"{ev.period_label}:{_ALLOWANCE_MEASURE}"
++    return next((o for o in values
++                 if o.basis == ev.basis and o.period_label == want and o.value is not None), None)
++
+ 
+ def _has_pooled_allowance(table: NotesTable) -> bool:
+     return any(_POOLED_ALLOWANCE_RE.search(item.raw_label or "")
+@@ -94,14 +126,24 @@ class _Signal:
+     mixed_scale: bool = False
+     duplicated: bool = False
+     net_not_derivable: bool = False
++    # §3.2 applied: at least one contribution was reduced by the 坏账准备 printed beside it, so
++    # the total is a NET related-party amount and not a gross one. Reported, because "1,000" and
++    # "1,000 net of a 300 provision" are different assertions about the same row.
++    net_of_allowance: bool = False
++    gross: Decimal | None = None
++    allowance: Decimal | None = None
+     evidence: list[dict] = field(default_factory=list)
+     _ledger: RestatementLedger = field(default_factory=RestatementLedger)
+ 
+     def add(self, amount: Decimal, currency: str | None, scale: Decimal | None,
+-            meta: dict) -> None:
++            meta: dict, *, allowance: Decimal | None = None) -> None:
+         # §3.5: "Treat the same balance repeated in the balance sheet, a detailed note, and the
+         # related-party note as separate candidate evidence, not additive evidence." Within one
+         # candidate that is a restatement — see services.restatement.
++        #
++        # THE RESTATEMENT LEDGER IS FED THE GROSS, not the net: what identifies the same balance
++        # printed twice is the balance, and one note stating it beside its provision does not make
++        # it a different receivable from the same figure printed alone.
+         note = meta.get("note_number")
+         if self._ledger.is_restatement(amount, currency, scale, note):
+             self.duplicated = True
+@@ -116,7 +158,16 @@ class _Signal:
+             self.currency = currency
+         if self.scale is None:
+             self.scale = scale
+-        self.value = amount if self.value is None else self.value + amount
++        self.gross = amount if self.gross is None else self.gross + amount
++        net = amount
++        if allowance is not None:
++            # §3.2: "a closing balance already stated as less its allowance". Here the filing
++            # states both halves, so the subtraction is the filing's own arithmetic, not an
++            # allocation — which is what §4.3 forbids and this is not.
++            self.allowance = allowance if self.allowance is None else self.allowance + allowance
++            self.net_of_allowance = True
++            net = amount - allowance
++        self.value = net if self.value is None else self.value + net
+         self.evidence.append(meta)
+ 
+     @property
+@@ -138,6 +189,8 @@ class _Signal:
+             out.append(f"POSSIBLE_DUPLICATE:{name}")
+         if self.net_not_derivable:
+             out.append(f"NET_AMOUNT_NOT_DERIVABLE:{name}")
++        if self.net_of_allowance:
++            out.append(f"NET_OF_ALLOWANCE:{name}")
+         return out
+ 
+ 
+@@ -145,13 +198,26 @@ def _note_matches(table: NotesTable, pattern: re.Pattern) -> bool:
+     return bool(pattern.search(table.title or ""))
+ 
+ 
+-def _add_item(sig: _Signal, table_number: str, table_title: str, label: str, ev, pk: PeriodKey) -> bool:
++def _add_item(sig: _Signal, table_number: str, table_title: str, label: str, ev, pk: PeriodKey,
++              siblings=()) -> bool:
++    """Contribute one figure to a candidate, net of the allowance printed beside it (§3.2).
++
++    ``siblings`` are the other values of the SAME printed row, which is where the row's own
++    坏账准备 column lives once ``row_reconstruct`` has read the two-level header. Passing the row
++    rather than the single value is what makes the net computable per period — see
++    :data:`_ALLOWANCE_MEASURE`.
++    """
+     if ev.value is None or (ev.basis.value, ev.period_label or "") != pk:
+         return False
+     unit = getattr(ev, "unit_ctx", None)
++    prov = _allowance_beside(siblings, ev)
++    meta = {"note_number": table_number, "note_heading": table_title,
++            "line_item": label, "value": str(ev.value), "provenance": ev.provenance}
++    if prov is not None:
++        meta = {**meta, "gross": str(ev.value), "allowance": str(prov.value),
++                "net": str(ev.value - prov.value), "net_rule": "§3.2 账面余额 - 坏账准备"}
+     sig.add(ev.value, getattr(unit, "currency", None), getattr(unit, "scale_factor", None),
+-            {"note_number": table_number, "note_heading": table_title,
+-             "line_item": label, "value": str(ev.value), "provenance": ev.provenance})
++            meta, allowance=(prov.value if prov is not None else None))
+     return True
+ 
+ 
+@@ -168,8 +234,10 @@ def _find_1(doc: DocumentModel, pk: PeriodKey, flags: list[str]) -> _Signal:
+         if _ENTRUSTED_LOAN_RE.search(text):
+             flags.append("ENTRUSTED_LOAN_NOT_SEPARABLE")
+             continue
+-        for ev in li.values.values():
+-            _add_item(sig, li.note_number or "", li.section_hint or "", li.source_label, ev, pk)
++        row = list(li.values.values())
++        for ev in row:
++            _add_item(sig, li.note_number or "", li.section_hint or "", li.source_label, ev, pk,
++                      row)
+     return sig
+ 
+ 
+@@ -197,10 +265,14 @@ def _find_2(doc: DocumentModel, pk: PeriodKey, flags: list[str]) -> _Signal:
+             # share of that allowance cannot be read off, and the specification forbids
+             # allocating it arbitrarily. The gross figure is still reported — a reviewer needs a
+             # number to check — carrying NET_AMOUNT_NOT_DERIVABLE to say it is not yet net.
+-            if pooled and not _EXPLICITLY_NET_RE.search(text):
++            row = list(item.values.values())
++            # …unless the row carries its OWN 坏账准备 column. Then nothing is pooled about it and
++            # nothing is allocated: `_add_item` subtracts the filing's own two halves (§3.2).
++            if (pooled and not _EXPLICITLY_NET_RE.search(text)
++                    and not any(not _is_primary_measure(e.period_label) for e in row)):
+                 sig.net_not_derivable = True
+-            for ev in item.values.values():
+-                _add_item(sig, table.note_number, table.title, item.raw_label, ev, pk)
++            for ev in row:
++                _add_item(sig, table.note_number, table.title, item.raw_label, ev, pk, row)
+     if not found_note:
+         flags.append("MISSING_NOTE:receivable_notes")
+     return sig
+@@ -220,17 +292,24 @@ def _find_3(doc: DocumentModel, pk: PeriodKey, flags: list[str]) -> _Signal:
+             if item.role != LineRole.LINE:
+                 continue
+             label = item.raw_label or ""
+-            if not _RELATED_PARTY_NOTE_ITEM_RE.search(label):
++            # THE SUB-HEADING COUNTS TOO, exactly as it does in `_find_2` above. This note prints
++            # its 项目名称 column once per block and leaves the rows it governs captioned with
++            # nothing but a related party's name, so the class a row belongs to reaches here on
++            # `group_hint` — testing the label alone saw one row of a nine-row block.
++            text = f"{label} {item.group_hint}"
++            if not _RELATED_PARTY_NOTE_ITEM_RE.search(text):
+                 continue
+-            if pooled and not _EXPLICITLY_NET_RE.search(f"{label} {item.group_hint}"):
++            row = list(item.values.values())
++            if (pooled and not _EXPLICITLY_NET_RE.search(text)
++                    and not any(not _is_primary_measure(e.period_label) for e in row)):
+                 sig.net_not_derivable = True
+-            if _RELATED_PARTY_NOTE_EXCLUDE_RE.search(label):
++            if _RELATED_PARTY_NOTE_EXCLUDE_RE.search(text):
+                 continue
+-            if _ENTRUSTED_LOAN_RE.search(label):
++            if _ENTRUSTED_LOAN_RE.search(text):
+                 flags.append("ENTRUSTED_LOAN_NOT_SEPARABLE")
+                 continue
+-            for ev in item.values.values():
+-                _add_item(sig, table.note_number, table.title, label, ev, pk)
++            for ev in row:
++                _add_item(sig, table.note_number, table.title, label, ev, pk, row)
+     if not found_note:
+         flags.append("MISSING_NOTE:related_party_note")
+     return sig
+@@ -251,24 +330,27 @@ def _cp_pool(doc: DocumentModel, pk: PeriodKey, flags: list[str]
+     deduction = _Signal()
+     inspected = False
+ 
+-    def _scan(label: str, group_hint: str, note_number: str, note_title: str, ev) -> None:
++    def _scan(label: str, group_hint: str, note_number: str, note_title: str, ev,
++              row=()) -> None:
+         nonlocal inspected
+         text = f"{label} {group_hint}"
+         if not _CP_CLASS_RE.search(text):
+             return
+-        if not _add_item(gross, note_number, note_title, label, ev, pk):
++        if not _add_item(gross, note_number, note_title, label, ev, pk, row):
+             return
+         # This line belongs to the gross pool and has now been tested for a related-party
+         # marker, which is what makes a nil deduction a finding rather than a gap.
+         inspected = True
+         if _RELATED_PARTY_RE.search(text):
+-            _add_item(deduction, note_number, note_title, label, ev, pk)
++            _add_item(deduction, note_number, note_title, label, ev, pk, row)
+ 
+     for li in doc.line_items:
+         if li.printed_in not in (None, PrintedIn.FACE):
+             continue
+-        for ev in li.values.values():
+-            _scan(li.source_label, li.group_hint, li.note_number or "", li.section_hint or "", ev)
++        row = list(li.values.values())
++        for ev in row:
++            _scan(li.source_label, li.group_hint, li.note_number or "", li.section_hint or "", ev,
++                  row)
+ 
+     found_note = False
+     for table in doc.notes:
+@@ -278,8 +360,10 @@ def _cp_pool(doc: DocumentModel, pk: PeriodKey, flags: list[str]
+         for item in table.items:
+             if item.role != LineRole.LINE:
+                 continue
+-            for ev in item.values.values():
+-                _scan(item.raw_label or "", item.group_hint, table.note_number, table.title, ev)
++            row = list(item.values.values())
++            for ev in row:
++                _scan(item.raw_label or "", item.group_hint, table.note_number, table.title, ev,
++                      row)
+     if not found_note and gross.value is None:
+         flags.append("MISSING_NOTE:cp_gross_notes")
+     flags.extend(gross.unit_flags("CP_Gross"))
+@@ -298,14 +382,20 @@ class ReceivablesResult:
+ 
+ 
+ def compute(doc: DocumentModel) -> dict[PeriodKey, dict[str, ReceivablesResult]]:
++    # ONLY PRIMARY MEASURES ARE PERIODS. Once a two-level header is read, a row also carries
++    # "current:allowance" — a measure OF the current period, not a period of its own. Left in this
++    # set it became a (basis, period) the whole computation was run for, and the answer published
++    # under it would be a sum of bad-debt provisions presented as related-party receivables.
+     keys: set[PeriodKey] = set()
+     for li in doc.line_items:
+         for ev in li.values.values():
+-            keys.add((ev.basis.value, ev.period_label or ""))
++            if _is_primary_measure(ev.period_label):
++                keys.add((ev.basis.value, ev.period_label or ""))
+     for table in doc.notes:
+         for item in table.items:
+             for ev in item.values.values():
+-                keys.add((ev.basis.value, ev.period_label or ""))
++                if _is_primary_measure(ev.period_label):
++                    keys.add((ev.basis.value, ev.period_label or ""))
+ 
+     out: dict[PeriodKey, dict[str, ReceivablesResult]] = {}
+     for pk in keys:
+diff --git a/backend/app/services/row_reconstruct.py b/backend/app/services/row_reconstruct.py
+index 0ce7254..e6c0fae 100644
+--- a/backend/app/services/row_reconstruct.py
++++ b/backend/app/services/row_reconstruct.py
+@@ -26,6 +26,7 @@ from decimal import Decimal, InvalidOperation
+ from functools import lru_cache
+ from pathlib import Path
+ 
++from app.core.models.confidence import ConfidenceVector
+ from app.core.models.enums import Basis, LineRole, ValueSource
+ from app.core.models.geometry import BBox, Provenance
+ from app.core.models.line_item import ExtractedValue, LineItem, NoteRef, UnitContext
+@@ -837,10 +838,29 @@ def _tight_below(cur: BBox, nxt: BBox) -> bool:
+ 
+ 
+ def _wrap_adjacent(cur: BBox, nxt: BBox, nxt_label: list[Word]) -> bool:
+-    """True when `cur` sits directly above `nxt`'s label with paragraph-tight spacing."""
++    """True when `cur` sits directly above `nxt`'s label with paragraph-tight spacing.
++
++    A NEXT ROW WITH NO LABEL AT ALL HAS NOTHING TO ALIGN TO, and comparing the caption's left edge
++    against the row's own box then compares it against the first FIGURE — half a page to the right,
++    so the test could only fail. That is a real printed shape, not an edge case: a table cell whose
++    caption wraps over two lines has its figures set on the line BETWEEN them, which is how
++
++        中电科技（合肥）博微信息发展有限责任公
++                    95,239.27   28,571.78   68,604.36   20,581.31
++        司
++
++    is drawn. The caption row and the bare-figure row were emitted separately, the figure row had
++    no caption, and reconstruction dropped it — measured on Sun Create Electronics 11077098, note
++    6(1), where it lost exactly one party of a nine-party block and with it 95,239.27 of a
++    757,464.77 period-end balance. The vertical tightness `_tight_below` already required IS the
++    whole test here, and the caller's other vetoes (a banner is not a continuation, the caption has
++    to reach a figure) are unchanged.
++    """
+     if not _tight_below(cur, nxt):                       # tight spacing (same text block)
+         return False
+-    label_x0 = min((w.bbox.x0 for w in nxt_label), default=nxt.x0)
++    if not nxt_label:
++        return True
++    label_x0 = min(w.bbox.x0 for w in nxt_label)
+     return abs(cur.x0 - label_x0) <= 0.06                # left-aligned in the label column
+ 
+ 
+@@ -1604,6 +1624,272 @@ def _period_for(x: float, bands: list[tuple[str, float]]) -> str | None:
+     return min(bands, key=lambda b: abs(b[1] - x))[0]
+ 
+ 
++# ── THE TWO-LEVEL COLUMN GRID: a period band over a measure band ─────────────────────────────
++#
++# A PRC note's column header is TWO printed rows, not one, and both of them name something:
++#
++#     项目    |      本期发生额      |      上期发生额          ← the PERIOD band
++#             |   收入   |   成本   |   收入   |   成本        ← the MEASURE band
++#
++# Everything above this point models exactly two axes — basis x period — and labels a period by
++# POSITION unless every column carries a parseable DATE (`_DATE_PHRASE`, `_period_date`). Neither
++# half of that header carries a date, so on the filing this was measured against (Sun Create
++# Electronics, 11077098, 210pp, locale=zh) note 61 came out as four positional columns:
++#
++#     current = 1,589,859,743.31   ← 本期 收入, correct by luck
++#     prior   = 1,389,417,976.40   ← 本期 成本. A COST PUBLISHED AS A REVENUE.
++#     col2    = 1,920,773,532.54   ← 上期 收入, unreachable by anything reading "prior"
++#     col3    = 1,590,200,224.12   ← 上期 成本
++#
++# `is_pl__sales_revenues` therefore served this year's COST as last year's revenue, and the same
++# shape in the related-party note 6(1) (期末余额{账面余额|坏账准备} / 期初余额{...}) put a bad-debt
++# PROVISION in the "prior" slot, so no service could compute gross-minus-provision for one period.
++#
++# THE MEASURE IS EXPRESSED AS A SUFFIX ON THE PERIOD LABEL, the way this file already spells a
++# variant of a period ("current_restated", f"{base}_col{c}" below). `ValueKey` gains no dimension:
++#
++#   * the PRIMARY measure of a period keeps the BARE label — "current" / "prior". Primary is the
++#     amount itself (收入, 账面余额, 金额, 期末余额), so `periods.split_current_prior` and every
++#     consumer that reads "current"/"prior" receives the RIGHT column with no edit at all;
++#   * every OTHER measure is addressable as "<period>:<slug>" — "current:cost",
++#     "current:allowance", "current:ratio" — so a service that needs the second measure can now
++#     ask for it by name.
++#
++# A cost can never again occupy a revenue slot: the two now have different keys.
++
++# The standard DATELESS PRC period captions, and which slot each one is: 0 is the period being
++# reported, 1 is the comparative. Slot comes from the CAPTION'S OWN SEMANTICS and never from
++# x-position, for the same reason `_column_periods` prefers the heading date over position — a
++# filing may print the comparative on the left, and then position files every figure a year out.
++#
++# Longest first, because the test is containment: 本期发生额 has to be decided before 本期, and
++# 上年同期数 before 上年. Both scripts are listed rather than folded through `to_simplified`,
++# which is a no-op when the opencc converter is not installed.
++_PRC_PERIOD_CAPTIONS: tuple[tuple[str, int], ...] = (
++    ("上年同期数", 1), ("上期发生额", 1), ("上期發生額", 1),
++    ("本期发生额", 0), ("本期發生額", 0),
++    ("期末余额", 0), ("期末餘額", 0), ("期初余额", 1), ("期初餘額", 1),
++    ("上年同期", 1), ("本期数", 0), ("本年数", 0),
++    ("本期", 0), ("上期", 1), ("本年", 0), ("上年", 1),
++    ("期末", 0), ("期初", 1), ("年末", 0), ("年初", 1),
++)
++
++# The measure captions printed in the band UNDER a period caption, and the slug each one takes.
++# An empty slug means PRIMARY — the amount itself, which keeps the bare period label.
++_MEASURE_CAPTIONS: tuple[tuple[str, str], ...] = (
++    ("账面余额", ""), ("賬面餘額", ""), ("帳面餘額", ""),
++    ("坏账准备", "allowance"), ("壞賬準備", "allowance"), ("壞帳準備", "allowance"),
++    ("期末余额", ""), ("期末餘額", ""),
++    ("收入", ""), ("收益", ""), ("金额", ""), ("金額", ""),
++    ("成本", "cost"),
++    ("比例", "ratio"), ("占比", "ratio"), ("佔比", "ratio"),
++    ("数量", "quantity"), ("數量", "quantity"),
++)
++
++
++def _caption_text(run: list[Word]) -> str:
++    """One header phrase, folded for matching against the caption tables above."""
++    return unicodedata.normalize("NFKC", "".join(w.text for w in run)).strip(" ,.:;（）()")
++
++
++def _prc_period_slot(text: str) -> int | None:
++    """Which period a dateless PRC caption names — 0 reported, 1 comparative — or None."""
++    for caption, slot in _PRC_PERIOD_CAPTIONS:
++        if caption in text:
++            return slot
++    return None
++
++
++def _measure_slug(text: str) -> str | None:
++    """The measure a caption names: "" for the primary amount, a slug otherwise, None for a
++    caption that names no measure this reader knows."""
++    for caption, slug in _MEASURE_CAPTIONS:
++        if caption in text:
++            return slug
++    return None
++
++
++@dataclass
++class ColumnGrid:
++    """A page's value columns read as PERIOD x MEASURE rather than period alone.
++
++    ``slot_of`` is the period slot (0 reported, 1 comparative) and ``measure_of`` the measure slug
++    ("" = primary) per value column; ``captions`` carries what was actually printed over each
++    column, for the log line and for ``period_display``. ``columns`` is the column count the grid
++    was read against, so a continuation page whose figures cluster into a different number of
++    columns cannot inherit it (see ``build_line_items(column_grid=…)``).
++    """
++    columns: int
++    slot_of: dict[int, int]
++    measure_of: dict[int, str]
++    captions: dict[int, tuple[str, str]]
++
++    @property
++    def two_level(self) -> bool:
++        """Whether a MEASURE band was actually read. False for the plain dateless comparative
++        (`本期发生额 | 上期发生额` over two columns), which gains a period ORDER from its captions
++        and nothing else — there is no interpretation for a reviewer to be told about."""
++        return any(self.measure_of.values())
++
++    def describe(self) -> str:
++        return ",".join(f"{self.captions[c][0]}/{self.captions[c][1] or 'primary'}"
++                        for c in sorted(self.captions))
++
++
++def _runs_of_columns(value_bands: list[float], centres: list[float]) -> dict[int, int]:
++    """Which caption each value column belongs to, by the same rules as :func:`_basis_of_columns`.
++
++    A band caption governs a CONTIGUOUS run of columns and may be anchored anywhere over it, so
++    nearest-caption assignment breaks on the middle columns of a four-column page — which is
++    exactly the shape a two-level PRC header has. Equal runs when the columns divide evenly by the
++    number of captions (a period x measure grid prints the same measures under each period), and
++    otherwise the nearest caption made monotonic so the runs stay contiguous.
++    """
++    n, k = len(value_bands), len(centres)
++    if not n or not k:
++        return {}
++    if k == 1:
++        return {i: 0 for i in range(n)}
++    ordered = sorted(range(k), key=lambda j: centres[j])
++    if n % k == 0:
++        width = n // k
++        return {i: ordered[min(i // width, k - 1)] for i in range(n)}
++    out: dict[int, int] = {}
++    seen = 0
++    for i, x in enumerate(value_bands):
++        j = min(range(k), key=lambda t: abs(centres[t] - x))
++        seen = max(seen, min(ordered.index(j), k - 1))
++        out[i] = ordered[seen]
++    return out
++
++
++def _prc_period_row(rows: list[list[Word]], value_bands: list[float],
++                    area: tuple[float, float] | None, fmt=None
++                    ) -> tuple[int, list[tuple[str, int, float]]] | None:
++    """The header row that captions the value columns with dateless PRC period captions, as
++    ``(index within the header region, [(caption, slot, x-centre), …])``.
++
++    ACCEPTED ONLY AS A CLEAN TWO-SLOT PARTITION: exactly the reported period and its comparative,
++    one caption each. A movement schedule captions its columns 期初余额 | 本期增加 | 本期减少 |
++    期末余额 on ONE row — three of those contain 本期/期末 and would land in slot 0 together —
++    and there the printed order is the only thing that means anything, so it keeps the positional
++    reading it has today rather than being forced into two periods it does not have.
++    """
++    region = _header_region(rows, fmt)
++    for idx, row in enumerate(region):
++        if _carries_amounts(row, fmt):
++            continue
++        hits: list[tuple[str, int, float]] = []
++        for run in _x_runs(row, _CAPTION_GAP):
++            xc = sum(_xc(w) for w in run) / len(run)
++            if not _over_value_columns(xc, area):
++                continue
++            text = _caption_text(run)
++            slot = _prc_period_slot(text)
++            if slot is not None:
++                hits.append((text, slot, xc))
++        if len(hits) != 2 or {s for _, s, _ in hits} != {0, 1}:
++            continue
++        return idx, hits
++    return None
++
++
++def _measure_band(region: list[list[Word]], after: int, value_bands: list[float],
++                  area: tuple[float, float] | None, fmt=None) -> dict[int, tuple[str, str]] | None:
++    """The measure caption per value column, read from the header row(s) BELOW the period band.
++
++    Only the next two printed rows are considered: the measure band is the second line of one
++    printed header block, and looking further down reaches the note's own first data row.
++    """
++    for row in region[after + 1:after + 3]:
++        if _carries_amounts(row, fmt):
++            continue
++        found: dict[int, tuple[str, str]] = {}
++        for run in _x_runs(row, _CAPTION_GAP):
++            xc = sum(_xc(w) for w in run) / len(run)
++            if not _over_value_columns(xc, area):
++                continue
++            text = _caption_text(run)
++            slug = _measure_slug(text)
++            if slug is None:
++                continue
++            col = _nearest_col(xc, value_bands)
++            # Within a column's own width: a measure caption is printed over the figures it
++            # names, and a caption that lands between two columns names neither.
++            if col is not None and abs(value_bands[col] - xc) <= 0.06 and col not in found:
++                found[col] = (text, slug)
++        if found:
++            return found
++    return None
++
++
++def _period_measure_grid(rows: list[list[Word]], value_bands: list[float],
++                         area: tuple[float, float] | None, fmt=None) -> ColumnGrid | None:
++    """Read the page's value columns as PERIOD x MEASURE, or None to keep today's behaviour.
++
++    Every condition below is a veto, because the failure direction matters: a missed grid leaves
++    the positional reading that is already there, while a false grid would relabel a column that
++    is genuinely a period as a measure of another one — and then two periods' figures share a key.
++
++    A PERIOD SPAN WITH ONE COLUMN KEEPS TODAY'S BEHAVIOUR EXACTLY, save for one thing it can only
++    gain: `项目 | 本期发生额 | 上期发生额` over two columns is an ordinary comparative, and the
++    grid then carries the period ORDER its captions state and no measure at all. That is the half
++    of `period_selection` a dateless filing had no way to express — a note printing the
++    comparative first read every figure a year out, and nothing downstream could see it.
++    """
++    if not value_bands:
++        return None
++    found = _prc_period_row(rows, value_bands, area, fmt)
++    if found is None:
++        return None
++    idx, hits = found
++    region = _header_region(rows, fmt)
++    slot_by_caption = _runs_of_columns(value_bands, [x for _, _, x in hits])
++    if not slot_by_caption:
++        return None
++    spans: dict[int, list[int]] = {}
++    for col, which in slot_by_caption.items():
++        spans.setdefault(which, []).append(col)
++    if not any(len(cols) > 1 for cols in spans.values()):
++        # One column per period caption: a plain comparative. Order from the captions, no measures.
++        return ColumnGrid(
++            columns=len(value_bands),
++            slot_of={c: hits[which][1] for c, which in slot_by_caption.items()},
++            measure_of={c: "" for c in slot_by_caption},
++            captions={c: (hits[which][0], "") for c, which in slot_by_caption.items()},
++        )
++    measures = _measure_band(region, idx, value_bands, area, fmt)
++    if measures is None:
++        return None
++    for which, cols in spans.items():
++        if len(cols) == 1:
++            continue
++        # EVERY column of a multi-column span must be captioned, and exactly one of them must be
++        # the primary amount. A span with two primaries has nothing to give the bare period label
++        # to, and a span with an unread column would silently keep a positional label beside two
++        # suffixed ones — a worse mixture than the positional reading it replaced.
++        if any(c not in measures for c in cols):
++            return None
++        if sum(1 for c in cols if measures[c][1] == "") != 1:
++            return None
++    return ColumnGrid(
++        columns=len(value_bands),
++        slot_of={c: hits[which][1] for c, which in slot_by_caption.items()},
++        measure_of={c: (measures[c][1] if c in measures else "")
++                    for c in slot_by_caption},
++        captions={c: (hits[which][0], measures[c][0] if c in measures else "")
++                  for c, which in slot_by_caption.items()},
++    )
++
++
++# The flag a value carries when its column was read from a two-level header. Raised on
++# ``ExtractedValue.confidence.flags`` — the mechanism `stages/confidence.py` already uses for
++# ``balance_mismatch`` / ``note_untied`` and that ``_serialize_rows`` already serves per value —
++# so a reviewer is told the column was INTERPRETED from a period band over a measure band rather
++# than read straight off one caption.
++GRID_FLAG = "column_grid:period_x_measure"
++
++
+ # ── scope_selection.period_selection ─────────────────────────────────────────────────────────
+ #
+ # "Identify the current period from the column heading date, not from column position; HKEX
+@@ -1732,12 +2018,19 @@ def _restated_columns(rows: list[list[Word]], value_bands: list[float],
+ def _column_periods(basis_cols: dict[Basis, list[int]], value_bands: list[float],
+                     period_bands: list[tuple[str, float]], *,
+                     restated: tuple[str, ...] = (), restated_cols: set[int] | None = None,
++                    grid: ColumnGrid | None = None,
+                     log=None, page_index: int | None = None) -> dict[tuple[Basis, int], str]:
+     """The period label for every (basis, value column).
+ 
+-    Ordering is by the column HEADING DATE when every column of a basis carries one, and by
+-    printed position otherwise — a page whose header cannot be read offers nothing better, and
+-    guessing would be the mistake this exists to prevent.
++    Ordering is by the column HEADING DATE when every column of a basis carries one, then by the
++    dateless PRC period caption when the header states one (``grid``), and by printed position
++    otherwise — a page whose header cannot be read offers nothing better, and guessing would be
++    the mistake this exists to prevent.
++
++    ``grid`` also carries the MEASURE band, and a non-primary measure becomes a SUFFIX on the
++    period label: "current:cost", "current:allowance". See :class:`ColumnGrid` for why the suffix
++    rather than a new dimension on ``ValueKey``, and for the cost figure that was published as a
++    revenue until it existed.
+ 
+     ``restatement_rule``: a comparative headed "(restated)" loads as the comparative. When the
+     original is printed BESIDE it the two share a slot, and the restated column takes a
+@@ -1752,12 +2045,23 @@ def _column_periods(basis_cols: dict[Basis, list[int]], value_bands: list[float]
+                  for c in cols}
+         groups = sorted({d for d in dates.values() if d}, reverse=True)
+         by_date = len(groups) > 1 and all(dates[c] for c in cols)
++        # The measure suffix per column; empty for every column that is a primary amount, and for
++        # every page with no grid at all.
++        suffix = {c: "" for c in cols}
+         if by_date:
+             slot_of = {c: groups.index(dates[c]) for c in cols}
+             order = sorted(cols, key=lambda c: (slot_of[c], flags[c]))
+             if order != sorted(cols) and log:
+                 log(f"extract:page={page_index}:period_selection=by_heading_date"
+                     f"({'|'.join(heads[c] for c in order)})")
++        elif grid is not None and all(c in grid.slot_of for c in cols):
++            # The caption's own semantics, not the column's x-position: a filing may print the
++            # comparative on the left, and 本期/上期 says which is which where no date does.
++            slot_of = {c: grid.slot_of[c] for c in cols}
++            suffix = {c: grid.measure_of.get(c, "") for c in cols}
++            # Sorted so the PRIMARY measure of a slot is labelled first and therefore keeps the
++            # bare "current"/"prior" that every existing consumer reads.
++            order = sorted(cols, key=lambda c: (slot_of[c], suffix[c] != "", flags[c], c))
+         else:
+             slot_of = {c: i for i, c in enumerate(sorted(cols))}
+             order = sorted(cols, key=lambda c: (slot_of[c], flags[c]))
+@@ -1765,8 +2069,8 @@ def _column_periods(basis_cols: dict[Basis, list[int]], value_bands: list[float]
+         for c in order:
+             i = slot_of[c]
+             base = "current" if i == 0 else "prior" if i == 1 else f"col{i}"
+-            label = base
+-            if base in used:
++            label = f"{base}:{suffix[c]}" if suffix[c] else base
++            if label in used:
+                 label = f"{base}_restated" if flags[c] else f"{base}_col{c}"
+                 if log:
+                     log(f"extract:page={page_index}:period_selection=kept_both"
+@@ -2369,7 +2673,9 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
+                      on_face: bool = True,
+                      page_scope: str | None = None,
+                      page_title: str | None = None,
+-                     page_chrome: frozenset[str] = frozenset()
++                     page_chrome: frozenset[str] = frozenset(),
++                     column_grid: ColumnGrid | None = None,
++                     grid_out: list[ColumnGrid | None] | None = None
+                      ) -> tuple[list[LineItem], int]:
+     """Reconstruct line items from positioned words. Returns (items, next_ordinal).
+ 
+@@ -2398,7 +2704,14 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
+     evidence about the whole page; ``company_only_markers`` is last, because it infers the entity
+     from one line item being present. See :data:`_PAGE_SCOPE_BASIS`. On a MATRIX page the same
+     verdict is instead the first thing consulted, because a matrix has no basis band to outrank it
+-    and its own words name no entity — see :func:`_matrix_basis`."""
++    and its own words name no entity — see :func:`_matrix_basis`.
++
++    ``column_grid`` is a :class:`ColumnGrid` read from an EARLIER page of the same note, used only
++    when these rows carry no header of their own and cluster into the same number of columns. A
++    PRC related-party note runs over eight pages and prints its two-level header once, on the
++    first: without the carry, page two onward reads four columns positionally again — which is the
++    defect the grid exists to close, reappearing three rows later. ``grid_out``, when given, is
++    appended the grid these rows were actually read with, so the caller can carry it forward."""
+     if scope is None or normalisation is None:
+         in_force_scope, in_force_norm = in_force_rules()
+         scope = scope if scope is not None else in_force_scope
+@@ -2515,10 +2828,26 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
+     for i in range(len(value_bands)):
+         basis_cols.setdefault(col_basis[i], []).append(i)
+     restated = _restated_markers(scope)
++    # THE TWO-LEVEL COLUMN GRID (see :class:`ColumnGrid`). Read from the UNMERGED rows for the same
++    # reason the basis bands are: after `_merge_wrapped_labels` a caption row no longer sits where
++    # it was printed. A page with no such header keeps the grid its note's first page established,
++    # provided its figures cluster into the same number of columns.
++    grid = _period_measure_grid(raw_rows, value_bands,
++                                _value_area(value_bands, col_xs), number_format)
++    if grid is None and column_grid is not None and column_grid.columns == len(value_bands):
++        grid = column_grid
++        if log and grid.two_level:
++            log(f"extract:page={page_index}:column_grid=carried({grid.describe()})")
++    elif grid is not None and grid.two_level and log:
++        # ONCE PER PAGE, naming every (period/measure) pair that was read. The reviewer's second
++        # signal is per value — see `GRID_FLAG` where the facts are stored below.
++        log(f"extract:page={page_index}:column_grid=period_x_measure({grid.describe()})")
++    if grid_out is not None:
++        grid_out.append(grid)
+     col_periods = _column_periods(
+         basis_cols, value_bands, period_bands, restated=restated,
+         restated_cols=_restated_columns(raw_rows, value_bands, restated, number_format),
+-        log=log, page_index=page_index)
++        grid=grid, log=log, page_index=page_index)
+     section: str | None = None
+     # THE SUB-HEADING WITHIN THE SECTION, kept separately from it and for a different job.
+     #
+@@ -2782,11 +3111,23 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
+                 value_bbox=vw.source_bbox, label_bbox=label_bbox, text_snippet=label,
+                 source_kind=source_kind, producer=f"extract:{source_kind}@0.1.0",
+             )
++            display = _period_for(xc, period_bands)      # display-only date, if detected
++            conf = ConfidenceVector()
++            if grid is not None and grid.two_level and col is not None and col in grid.captions:
++                # THE REVIEW CALL-OUT, on the existing per-value signal: this figure's column was
++                # INTERPRETED from a period band over a measure band, not read off one caption.
++                # `stages/confidence.py` raises `balance_mismatch`/`note_untied` the same way and
++                # `_serialize_rows` already serves `values[].confidence.flags` to every screen.
++                conf.flags.append(GRID_FLAG)
++                period_cap, measure_cap = grid.captions[col]
++                # The printed header, both levels of it, so the reviewer reads "本期发生额 成本"
++                # rather than an internal token whose suffix they would have to decode.
++                display = display or " ".join(t for t in (period_cap, measure_cap) if t) or None
+             store_fact(li, ExtractedValue(
+                 value_raw=dec, value=dec, basis=basis,
+                 period_label=period_label,
+-                period_display=_period_for(xc, period_bands),  # display-only date, if detected
+-                unit_ctx=unit_ctx, provenance=prov,
++                period_display=display,
++                unit_ctx=unit_ctx, provenance=prov, confidence=conf,
+             ), dims, log=log, where=f"page={page_index}:")
+         if note_ref:
+             li.note_refs.append(NoteRef(raw=note_ref, numbers=[note_ref]))
+diff --git a/backend/app/services/sales_revenues.py b/backend/app/services/sales_revenues.py
+index 1d51c55..362baf4 100644
+--- a/backend/app/services/sales_revenues.py
++++ b/backend/app/services/sales_revenues.py
+@@ -31,6 +31,28 @@ _ROW_RE = re.compile(r"主营业务收入|主营业务")
+ _COST_RE = re.compile(r"成本")
+ 
+ 
++def _is_primary_measure(period_label: str | None) -> bool:
++    """Whether this value is the PERIOD'S OWN AMOUNT rather than a second measure of it.
++
++    THE ROW TEST ABOVE CANNOT SEE A COST COLUMN. `_COST_RE` tests the row's CAPTION, and the note
++    this module exists for does not caption its cost rows — it captions its cost COLUMNS:
++
++        项目    |      本期发生额      |      上期发生额
++                |   收入   |   成本   |   收入   |   成本
++        主营业务 | 1,589,859,743.31 | 1,389,417,976.40 | 1,920,773,532.54 | 1,590,200,224.12
++
++    One row, four figures, two of them costs. Harvesting `item.values.values()` wholesale took all
++    four: on the measured filing (Sun Create Electronics, 11077098) that published this year's
++    COST, 1,389,417,976.40, as `is_pl__sales_revenues` for the prior period — a cost figure under
++    a revenue concept, and internally consistent enough that nothing downstream could see it.
++
++    `row_reconstruct` now labels a non-primary measure "<period>:<slug>" ("current:cost"), so the
++    bare label IS the amount and a suffixed one never is. §4's prohibition on reading a cost as
++    revenue is therefore enforced on the column as well as on the caption.
++    """
++    return ":" not in (period_label or "")
++
++
+ @dataclass
+ class SalesRevenuesResult:
+     value: Decimal | None
+@@ -59,6 +81,8 @@ def compute_note_fallback(doc: DocumentModel) -> dict[PeriodKey, SalesRevenuesRe
+             for ev in item.values.values():
+                 if ev.value is None:
+                     continue
++                if not _is_primary_measure(ev.period_label):
++                    continue           # a 成本 column of this same row — see `_is_primary_measure`
+                 pk = (ev.basis.value, ev.period_label or "")
+                 meta = {"note_number": table.note_number, "note_heading": table.title,
+                         "line_item": label, "value": str(ev.value), "provenance": ev.provenance}
+diff --git a/backend/app/api/routes/extractions.py b/backend/app/api/routes/extractions.py
+index ba09f54..305037c 100644
+--- a/backend/app/api/routes/extractions.py
++++ b/backend/app/api/routes/extractions.py
+@@ -786,6 +786,12 @@ def _serialize_notes(doc_model) -> list[dict]:
+                 "period_display": ev.period_display,
+                 "basis": ev.basis.value,
+                 "value": (str(ev.value) if ev.value is not None else None),
++                # THE PER-VALUE FLAGS, which the face serializer has always carried and this one
++                # dropped. A note's column can now be read from a TWO-LEVEL header (a period band
++                # over a measure band — `row_reconstruct.GRID_FLAG`), and that is an
++                # interpretation a reviewer has to be told about on the figure it produced. Without
++                # this the call-out was raised on the value and served to nobody.
++                "flags": list(ev.confidence.flags),
+                 "provenance": _prov_dict(ev.provenance, folio_of),
+             } for ev in it.values.values()]
+             # Carry the row's role (line/subtotal/total) and mapping confidence so the notes
+@@ -796,6 +802,7 @@ def _serialize_notes(doc_model) -> list[dict]:
+             rows.append({"label": it.raw_label, "role": it.role.value,
+                          "canonical_key": it.canonical_key,
+                          "supports_face_key": supports_face_key,
++                         "flags": list(it.confidence.flags),
+                          "confidence": it.confidence.overall, "values": values,
+                          # THE SUB-HEADING, AND WHETHER THIS ROW'S CAPTION IS ITS OWN.
+                          #

@@ -1,0 +1,58 @@
+[
+ {
+  "name": "LaiSun_FY2025_en",
+  "run_id": "direct-e252987847ee",
+  "status": "succeeded",
+  "created_at": "2026-09-06 06:07:48.823732",
+  "entity": "LAI SUN GARMENT (INTERNATIONAL) LIMITED",
+  "locale": "en",
+  "units": {
+   "currency": "HKD",
+   "scale_factor": "1000",
+   "units_label": "thousand",
+   "source_bbox_page": 185
+  },
+  "mapping": {
+   "strategy": "llm_description",
+   "reason": "",
+   "llm_calls": 7,
+   "model": "minimax/minimax-m2.7:free"
+  },
+  "pages": 367,
+  "rows": 359,
+  "notes": 108,
+  "files": [
+   "LaiSun_FY2025_en__result.json",
+   "LaiSun_FY2025_en__focus_items.json",
+   "LaiSun_FY2025_en__run.log"
+  ]
+ },
+ {
+  "name": "SunCreate_FY2024_zh",
+  "run_id": "11077098-20260906-064553",
+  "status": "succeeded",
+  "created_at": "2026-09-06 06:45:53.013142",
+  "entity": "Sun Create Electronics Co.,Ltd",
+  "locale": "zh",
+  "units": {
+   "currency": "",
+   "scale_factor": "100000000",
+   "units_label": "hundred million",
+   "source_bbox_page": 66
+  },
+  "mapping": {
+   "strategy": "llm_description",
+   "reason": "",
+   "llm_calls": 9,
+   "model": "minimax/minimax-m2.7:free"
+  },
+  "pages": 210,
+  "rows": 310,
+  "notes": 189,
+  "files": [
+   "SunCreate_FY2024_zh__result.json",
+   "SunCreate_FY2024_zh__focus_items.json",
+   "SunCreate_FY2024_zh__run.log"
+  ]
+ }
+]

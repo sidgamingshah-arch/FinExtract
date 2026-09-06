@@ -1,0 +1,761 @@
+{
+ "is_pl__deprec_and_impairment_oper_exp": [
+  {
+   "source_label": "is_pl__deprec_and_impairment_oper_exp",
+   "section": "income_and_expenses",
+   "values": [
+    {
+     "basis": "consolidated",
+     "period": "current",
+     "value": "529841",
+     "flags": []
+    },
+    {
+     "basis": "consolidated",
+     "period": "prior",
+     "value": "665553",
+     "flags": []
+    }
+   ],
+   "derivation": {
+    "consolidated:current": {
+     "method": "deprec_impairment",
+     "formula": "P2 · the profit-before-tax note's operating-expense depreciation callout",
+     "result": "529841",
+     "inputs": [
+      {
+       "dataset": "pbt_oper_exp_depreciation",
+       "note": "7",
+       "note_heading": "LOSS FROM OPERATING ACTIVITIES (CONTINUED)",
+       "label": "explicit opex-inclusion callout",
+       "value": "529841",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 246,
+        "bbox": {
+         "x0": 0.6995584026333636,
+         "y0": 0.23939501781779193,
+         "x1": 0.7618823927237993,
+         "y1": 0.2547315666239153
+        },
+        "label_bbox": {
+         "x0": 0.17618770097658137,
+         "y0": 0.2398530039721346,
+         "x1": 0.4247951041125594,
+         "y1": 0.2547315666239153
+        },
+        "value_bbox": {
+         "x0": 0.6995584026333636,
+         "y0": 0.23939501781779193,
+         "x1": 0.7618823927237993,
+         "y1": 0.2547315666239153
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Cost of completed properties sold",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      }
+     ],
+     "flags": [
+      "MISSING_NOTE:rd_depreciation",
+      "MISSING_NOTE:selling_marketing_depreciation",
+      "MISSING_NOTE:ga_depreciation",
+      "MISSING_NOTE:operating_expense_depreciation",
+      "MISSING_NOTE:cos_depreciation",
+      "MISSING_NOTE:prepaid_lease_depreciation",
+      "MISSING_NOTE:fixed_asset_depreciation",
+      "MISSING_NOTE:cip_depreciation",
+      "MISSING_NOTE:cfo_depreciation",
+      "ASSUMED_ZERO_COS_DEPRECIATION"
+     ]
+    },
+    "consolidated:prior": {
+     "method": "deprec_impairment",
+     "formula": "P2 · the profit-before-tax note's operating-expense depreciation callout",
+     "result": "665553",
+     "inputs": [
+      {
+       "dataset": "pbt_oper_exp_depreciation",
+       "note": "7",
+       "note_heading": "LOSS FROM OPERATING ACTIVITIES (CONTINUED)",
+       "label": "explicit opex-inclusion callout",
+       "value": "665553",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 246,
+        "bbox": {
+         "x0": 0.6995584026333636,
+         "y0": 0.23939501781779193,
+         "x1": 0.7618823927237993,
+         "y1": 0.2547315666239153
+        },
+        "label_bbox": {
+         "x0": 0.17618770097658137,
+         "y0": 0.2398530039721346,
+         "x1": 0.4247951041125594,
+         "y1": 0.2547315666239153
+        },
+        "value_bbox": {
+         "x0": 0.6995584026333636,
+         "y0": 0.23939501781779193,
+         "x1": 0.7618823927237993,
+         "y1": 0.2547315666239153
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Cost of completed properties sold",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      }
+     ],
+     "flags": [
+      "MISSING_NOTE:rd_depreciation",
+      "MISSING_NOTE:selling_marketing_depreciation",
+      "MISSING_NOTE:ga_depreciation",
+      "MISSING_NOTE:operating_expense_depreciation",
+      "MISSING_NOTE:cos_depreciation",
+      "MISSING_NOTE:prepaid_lease_depreciation",
+      "MISSING_NOTE:fixed_asset_depreciation",
+      "MISSING_NOTE:cip_depreciation",
+      "MISSING_NOTE:cfo_depreciation",
+      "ASSUMED_ZERO_COS_DEPRECIATION"
+     ]
+    }
+   }
+  }
+ ],
+ "is_pl__deprec_and_impairment_cos": [
+  {
+   "source_label": "is_pl__deprec_and_impairment_cos",
+   "section": "income_and_expenses",
+   "values": [
+    {
+     "basis": "consolidated",
+     "period": "current",
+     "value": "57576",
+     "flags": []
+    },
+    {
+     "basis": "consolidated",
+     "period": "prior",
+     "value": "70282",
+     "flags": []
+    }
+   ],
+   "derivation": {
+    "consolidated:current": {
+     "method": "deprec_impairment",
+     "formula": "COS_P2 · profit-before-tax depreciation − Deprec & Impairment (Oper Exp)",
+     "result": "57576",
+     "inputs": [
+      {
+       "dataset": "pbt_depreciation",
+       "note": "7",
+       "note_heading": "LOSS FROM OPERATING ACTIVITIES",
+       "label": "Depreciation of property, plant and equipment^",
+       "value": "306456",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 246,
+        "bbox": {
+         "x0": 0.6995669128336075,
+         "y0": 0.3477039647609043,
+         "x1": 0.7618909029240433,
+         "y1": 0.3630405324546124
+        },
+        "label_bbox": {
+         "x0": 0.17618764971031484,
+         "y0": 0.3481619886904165,
+         "x1": 0.5266675839910624,
+         "y1": 0.3630405324546124
+        },
+        "value_bbox": {
+         "x0": 0.6995669128336075,
+         "y0": 0.3477039647609043,
+         "x1": 0.7618909029240433,
+         "y1": 0.3630405324546124
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Depreciation of property, plant and equipment^",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": "pbt_depreciation",
+       "note": "7",
+       "note_heading": "LOSS FROM OPERATING ACTIVITIES",
+       "label": "Depreciation of right-of-use assets^ 16(a), (c)",
+       "value": "280961",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 246,
+        "bbox": {
+         "x0": 0.6995623501358864,
+         "y0": 0.36317667416528965,
+         "x1": 0.7618863402263221,
+         "y1": 0.3785132418589977
+        },
+        "label_bbox": {
+         "x0": 0.17619621117682535,
+         "y0": 0.36363469809480176,
+         "x1": 0.6524916635923995,
+         "y1": 0.3785132418589977
+        },
+        "value_bbox": {
+         "x0": 0.6995623501358864,
+         "y0": 0.36317667416528965,
+         "x1": 0.7618863402263221,
+         "y1": 0.3785132418589977
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Depreciation of right-of-use assets^ 16(a), (c)",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": "pbt_oper_exp_depreciation",
+       "note": "7",
+       "note_heading": "LOSS FROM OPERATING ACTIVITIES (CONTINUED)",
+       "label": "explicit opex-inclusion callout",
+       "value": "529841",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 246,
+        "bbox": {
+         "x0": 0.6995584026333636,
+         "y0": 0.23939501781779193,
+         "x1": 0.7618823927237993,
+         "y1": 0.2547315666239153
+        },
+        "label_bbox": {
+         "x0": 0.17618770097658137,
+         "y0": 0.2398530039721346,
+         "x1": 0.4247951041125594,
+         "y1": 0.2547315666239153
+        },
+        "value_bbox": {
+         "x0": 0.6995584026333636,
+         "y0": 0.23939501781779193,
+         "x1": 0.7618823927237993,
+         "y1": 0.2547315666239153
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Cost of completed properties sold",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      }
+     ],
+     "flags": [
+      "MISSING_NOTE:rd_depreciation",
+      "MISSING_NOTE:selling_marketing_depreciation",
+      "MISSING_NOTE:ga_depreciation",
+      "MISSING_NOTE:operating_expense_depreciation",
+      "MISSING_NOTE:cos_depreciation",
+      "MISSING_NOTE:prepaid_lease_depreciation",
+      "MISSING_NOTE:fixed_asset_depreciation",
+      "MISSING_NOTE:cip_depreciation",
+      "MISSING_NOTE:cfo_depreciation",
+      "ASSUMED_ZERO_COS_DEPRECIATION"
+     ]
+    },
+    "consolidated:prior": {
+     "method": "deprec_impairment",
+     "formula": "COS_P2 · profit-before-tax depreciation − Deprec & Impairment (Oper Exp)",
+     "result": "70282",
+     "inputs": [
+      {
+       "dataset": "pbt_depreciation",
+       "note": "7",
+       "note_heading": "LOSS FROM OPERATING ACTIVITIES",
+       "label": "Depreciation of property, plant and equipment^",
+       "value": "364968",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 246,
+        "bbox": {
+         "x0": 0.828397912765731,
+         "y0": 0.3481619886904165,
+         "x1": 0.8856990903928862,
+         "y1": 0.3630405324546124
+        },
+        "label_bbox": {
+         "x0": 0.17618764971031484,
+         "y0": 0.3481619886904165,
+         "x1": 0.5266675839910624,
+         "y1": 0.3630405324546124
+        },
+        "value_bbox": {
+         "x0": 0.828397912765731,
+         "y0": 0.3481619886904165,
+         "x1": 0.8856990903928862,
+         "y1": 0.3630405324546124
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Depreciation of property, plant and equipment^",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": "pbt_depreciation",
+       "note": "7",
+       "note_heading": "LOSS FROM OPERATING ACTIVITIES",
+       "label": "Depreciation of right-of-use assets^ 16(a), (c)",
+       "value": "370867",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 246,
+        "bbox": {
+         "x0": 0.8283933500680098,
+         "y0": 0.36363469809480176,
+         "x1": 0.8856945789614316,
+         "y1": 0.3785132418589977
+        },
+        "label_bbox": {
+         "x0": 0.17619621117682535,
+         "y0": 0.36363469809480176,
+         "x1": 0.6524916635923995,
+         "y1": 0.3785132418589977
+        },
+        "value_bbox": {
+         "x0": 0.8283933500680098,
+         "y0": 0.36363469809480176,
+         "x1": 0.8856945789614316,
+         "y1": 0.3785132418589977
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Depreciation of right-of-use assets^ 16(a), (c)",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": "pbt_oper_exp_depreciation",
+       "note": "7",
+       "note_heading": "LOSS FROM OPERATING ACTIVITIES (CONTINUED)",
+       "label": "explicit opex-inclusion callout",
+       "value": "665553",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 246,
+        "bbox": {
+         "x0": 0.6995584026333636,
+         "y0": 0.23939501781779193,
+         "x1": 0.7618823927237993,
+         "y1": 0.2547315666239153
+        },
+        "label_bbox": {
+         "x0": 0.17618770097658137,
+         "y0": 0.2398530039721346,
+         "x1": 0.4247951041125594,
+         "y1": 0.2547315666239153
+        },
+        "value_bbox": {
+         "x0": 0.6995584026333636,
+         "y0": 0.23939501781779193,
+         "x1": 0.7618823927237993,
+         "y1": 0.2547315666239153
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Cost of completed properties sold",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      }
+     ],
+     "flags": [
+      "MISSING_NOTE:rd_depreciation",
+      "MISSING_NOTE:selling_marketing_depreciation",
+      "MISSING_NOTE:ga_depreciation",
+      "MISSING_NOTE:operating_expense_depreciation",
+      "MISSING_NOTE:cos_depreciation",
+      "MISSING_NOTE:prepaid_lease_depreciation",
+      "MISSING_NOTE:fixed_asset_depreciation",
+      "MISSING_NOTE:cip_depreciation",
+      "MISSING_NOTE:cfo_depreciation",
+      "ASSUMED_ZERO_COS_DEPRECIATION"
+     ]
+    }
+   }
+  }
+ ],
+ "bs_ca__secur_and_other_fincl_assets_cp": [
+  {
+   "source_label": "Financial assets at fair value through profit or loss",
+   "section": "current_assets",
+   "values": [
+    {
+     "basis": "consolidated",
+     "period": "current",
+     "value": "174822",
+     "flags": []
+    },
+    {
+     "basis": "consolidated",
+     "period": "prior",
+     "value": "70948",
+     "flags": []
+    }
+   ],
+   "derivation": null
+  }
+ ],
+ "bs_nca__secur_and_other_fincl_assets_ltp": [
+  {
+   "source_label": "bs_nca__secur_and_other_fincl_assets_ltp",
+   "section": "non_current_assets",
+   "values": [
+    {
+     "basis": "consolidated",
+     "period": "current",
+     "value": "916919",
+     "flags": []
+    },
+    {
+     "basis": "consolidated",
+     "period": "prior",
+     "value": "1060638",
+     "flags": []
+    }
+   ],
+   "derivation": {
+    "consolidated:current": {
+     "method": "secur_fincl_assets",
+     "formula": "LTP_base + CP_negative_carryforward_to_LTP",
+     "result": "916919",
+     "inputs": [
+      {
+       "dataset": null,
+       "note": "25",
+       "note_heading": "FINANCIAL ASSETS AT FAIR VALUE THROUGH OTHER COMPREHENSIVE INCOME",
+       "label": "Financial assets at fair value through other comprehensive income Listed investment, at fair value (i)",
+       "value": "7620",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 284,
+        "bbox": {
+         "x0": 0.7284178245836512,
+         "y0": 0.6438269933503614,
+         "x1": 0.7714230449250394,
+         "y1": 0.6591635610440694
+        },
+        "label_bbox": {
+         "x0": 0.17618662438498423,
+         "y0": 0.6091681242845383,
+         "x1": 0.6285145332688336,
+         "y1": 0.6591635610440694
+        },
+        "value_bbox": {
+         "x0": 0.7284178245836512,
+         "y0": 0.6438269933503614,
+         "x1": 0.7714230449250394,
+         "y1": 0.6591635610440694
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Financial assets at fair value through other comprehensive income Listed investment, at fair value (i)",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "25",
+       "note_heading": "FINANCIAL ASSETS AT FAIR VALUE THROUGH OTHER COMPREHENSIVE INCOME",
+       "label": "Unlisted investments, at fair value (ii)",
+       "value": "120792",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 284,
+        "bbox": {
+         "x0": 0.7090990548346038,
+         "y0": 0.6611564278832729,
+         "x1": 0.7714230449250394,
+         "y1": 0.676492995576981
+        },
+        "label_bbox": {
+         "x0": 0.1928679497861274,
+         "y0": 0.6616144140376156,
+         "x1": 0.6306647942859029,
+         "y1": 0.676492995576981
+        },
+        "value_bbox": {
+         "x0": 0.7090990548346038,
+         "y0": 0.6611564278832729,
+         "x1": 0.7714230449250394,
+         "y1": 0.676492995576981
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Unlisted investments, at fair value (ii)",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "26",
+       "note_heading": "FINANCIAL ASSETS AT FAIR VALUE THROUGH PROFIT OR LOSS",
+       "label": "Non-current portion",
+       "value": "788507",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 285,
+        "bbox": {
+         "x0": 0.6852765948371589,
+         "y0": 0.3601042685337069,
+         "x1": 0.7476005849275946,
+         "y1": 0.375440836227415
+        },
+        "label_bbox": {
+         "x0": 0.15238092845669465,
+         "y0": 0.3605622924632191,
+         "x1": 0.3004299086578676,
+         "y1": 0.375440836227415
+        },
+        "value_bbox": {
+         "x0": 0.6852765948371589,
+         "y0": 0.3601042685337069,
+         "x1": 0.7476005849275946,
+         "y1": 0.375440836227415
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Non-current portion",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      }
+     ],
+     "flags": [
+      "MISSING_CP_CARRYFORWARD_TO_LTP"
+     ]
+    },
+    "consolidated:prior": {
+     "method": "secur_fincl_assets",
+     "formula": "LTP_base + CP_negative_carryforward_to_LTP",
+     "result": "1060638",
+     "inputs": [
+      {
+       "dataset": null,
+       "note": "25",
+       "note_heading": "FINANCIAL ASSETS AT FAIR VALUE THROUGH OTHER COMPREHENSIVE INCOME",
+       "label": "Financial assets at fair value through other comprehensive income Listed investment, at fair value (i)",
+       "value": "13860",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 284,
+        "bbox": {
+         "x0": 0.8469006773504199,
+         "y0": 0.6442849795047041,
+         "x1": 0.8952313349264155,
+         "y1": 0.6591635610440694
+        },
+        "label_bbox": {
+         "x0": 0.17618662438498423,
+         "y0": 0.6091681242845383,
+         "x1": 0.6285145332688336,
+         "y1": 0.6591635610440694
+        },
+        "value_bbox": {
+         "x0": 0.8469006773504199,
+         "y0": 0.6442849795047041,
+         "x1": 0.8952313349264155,
+         "y1": 0.6591635610440694
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Financial assets at fair value through other comprehensive income Listed investment, at fair value (i)",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "25",
+       "note_heading": "FINANCIAL ASSETS AT FAIR VALUE THROUGH OTHER COMPREHENSIVE INCOME",
+       "label": "Unlisted investments, at fair value (ii)",
+       "value": "105504",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 284,
+        "bbox": {
+         "x0": 0.8379300547667272,
+         "y0": 0.6616144140376156,
+         "x1": 0.8952313349264155,
+         "y1": 0.676492995576981
+        },
+        "label_bbox": {
+         "x0": 0.1928679497861274,
+         "y0": 0.6616144140376156,
+         "x1": 0.6306647942859029,
+         "y1": 0.676492995576981
+        },
+        "value_bbox": {
+         "x0": 0.8379300547667272,
+         "y0": 0.6616144140376156,
+         "x1": 0.8952313349264155,
+         "y1": 0.676492995576981
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Unlisted investments, at fair value (ii)",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "26",
+       "note_heading": "FINANCIAL ASSETS AT FAIR VALUE THROUGH PROFIT OR LOSS",
+       "label": "Non-current portion",
+       "value": "941274",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 285,
+        "bbox": {
+         "x0": 0.8141075947692823,
+         "y0": 0.3605622924632191,
+         "x1": 0.871408721130171,
+         "y1": 0.375440836227415
+        },
+        "label_bbox": {
+         "x0": 0.15238092845669465,
+         "y0": 0.3605622924632191,
+         "x1": 0.3004299086578676,
+         "y1": 0.375440836227415
+        },
+        "value_bbox": {
+         "x0": 0.8141075947692823,
+         "y0": 0.3605622924632191,
+         "x1": 0.871408721130171,
+         "y1": 0.375440836227415
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Non-current portion",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      }
+     ],
+     "flags": [
+      "MISSING_CP_CARRYFORWARD_TO_LTP"
+     ]
+    }
+   }
+  }
+ ],
+ "notes__contingent_liabilities": [
+  {
+   "source_label": "notes__contingent_liabilities",
+   "section": null,
+   "values": [
+    {
+     "basis": "consolidated",
+     "period": "current",
+     "value": "1310743",
+     "flags": []
+    },
+    {
+     "basis": "consolidated",
+     "period": "prior",
+     "value": "1475717",
+     "flags": []
+    }
+   ],
+   "derivation": null
+  }
+ ],
+ "bs_nca__due_from_related_parties_ltp": [],
+ "bs_ca__other_receivables_cp": [],
+ "is_pl__sales_revenues": [
+  {
+   "source_label": "TURNOVER",
+   "section": "income_and_expenses",
+   "values": [
+    {
+     "basis": "consolidated",
+     "period": "current",
+     "value": "4995768",
+     "flags": []
+    },
+    {
+     "basis": "consolidated",
+     "period": "prior",
+     "value": "6096141",
+     "flags": []
+    }
+   ],
+   "derivation": null
+  }
+ ]
+}

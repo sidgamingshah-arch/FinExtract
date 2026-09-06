@@ -1,0 +1,191 @@
+stage:ingest:start
+ingest:format=pdf
+ingest:pages=210
+stage:ingest:done
+stage:integrity:start
+integrity:findings=1 blockers=False
+stage:integrity:done
+stage:language_detect:start
+language:locale=zh
+stage:language_detect:done
+stage:classify:start
+classify:notes_before_face=[18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64]->other(first_face=65)
+classify:page=70:entity_scope=carried(consolidated)
+classify:page=72:entity_scope=carried(company)
+classify:page=74:entity_scope=carried(consolidated)
+classify:page=77:entity_scope=carried(consolidated)
+classify:page=79:entity_scope=carried(company)
+classify:page=81:entity_scope=carried(consolidated)
+classify:page=82:entity_scope=carried(consolidated)
+classify:page=83:entity_scope=carried(consolidated)
+classify:page=85:entity_scope=carried(company)
+classify:page=86:entity_scope=carried(company)
+classify:page=164:entity_scope=carried(company)
+classify:page=166:entity_scope=carried(company)
+classify:face=28 notes=117 statements=['balance_sheet', 'cash_flow', 'changes_in_equity', 'profit_and_loss']
+classify:unmapped_titles=15 title_ambig=0
+stage:classify:done
+stage:extract:start
+extract:reading_rules=run_rulebook
+extract:page_chrome=[',,.', ',.', '□适用 √不适用', '上期发生额', '其他说明：', '单位：元 币种：人民币']
+extract:page=69:entity_scope=page_scope(consolidated)
+extract:page=70:entity_scope=page_scope(consolidated)
+extract:page=71:split_statement_at=0.450(balance_sheet->balance_sheet)
+extract:page=71:entity_scope=page_scope(consolidated)
+extract:page=71:entity_scope=page_scope(company)
+extract:page=72:entity_scope=page_scope(company)
+extract:page=73:split_statement_at=0.450(balance_sheet->profit_and_loss)
+extract:page=73:entity_scope=page_scope(company)
+extract:page=73:entity_scope=page_scope(consolidated)
+extract:page=74:entity_scope=page_scope(consolidated)
+extract:page=75:split_statement_at=0.444(profit_and_loss->profit_and_loss)
+extract:page=75:entity_scope=page_scope(consolidated)
+extract:page=75:entity_scope=page_scope(company)
+extract:page=76:split_statement_at=0.821(profit_and_loss->cash_flow)
+extract:page=76:entity_scope=page_scope(company)
+extract:page=76:entity_scope=page_scope(consolidated)
+extract:page=77:entity_scope=page_scope(consolidated)
+extract:page=78:split_statement_at=0.737(cash_flow->cash_flow)
+extract:page=78:entity_scope=page_scope(consolidated)
+extract:page=78:entity_scope=page_scope(company)
+extract:page=79:entity_scope=page_scope(company)
+extract:page=80:equity_matrix_columns=8
+extract:page=81:equity_no_matrix_layout(two_column_path)
+extract:page=81:entity_scope=page_scope(consolidated)
+extract:page=82:equity_matrix_unnamed_columns=8(skipped)
+extract:page=83:equity_matrix_unnamed_columns=6(skipped)
+extract:page=84:equity_matrix_columns=6
+extract:page=85:equity_matrix_unnamed_columns=6(skipped)
+extract:page=86:equity_no_matrix_layout(two_column_path)
+extract:page=86:entity_scope=page_scope(company)
+extract:page=163:entity_scope=page_scope(company)
+extract:page=164:entity_scope=page_scope(company)
+extract:page=165:split_statement_at=0.390(cash_flow->cash_flow)
+extract:page=165:entity_scope=page_scope(company)
+extract:page=165:entity_scope=page_scope(company)
+extract:page=166:entity_scope=page_scope(company)
+extract:page=166:duplicate_fact_dropped(standalone/current)
+extract:page=167:split_statement_at=0.216(cash_flow->changes_in_equity)
+extract:page=167:entity_scope=page_scope(company)
+extract:page=167:equity_no_matrix_layout(two_column_path)
+extract:page=167:entity_scope=page_scope(company)
+extract:page=196:entity_scope=page_scope(company)
+extract:pdf_line_items=241 note_tables=249
+stage:extract:done
+stage:map_ontology:start
+map_ontology:strategy=llm_description(intended) scope=per_statement
+map_ontology:groups=14 batched_rows=241 per_line_rows=0 chunks=9 max_chunk=18
+map_ontology:focus_routing keys=8 rows_to_llm=54 rows_deterministic=187 sections_skipped=29
+map_ontology:note_items_mapped=10
+map_ontology:split_declined(bs_nca__total_non_current_assets): 2 rows carry it
+map_ontology:split_declined(bs_ca__inventories): 2 rows carry it
+map_ontology:split_declined(bs_ca__trade_and_other_receivables): 4 rows carry it
+map_ontology:split_declined(bs_ca__cash_in_hand_and_at_banks): 2 rows carry it
+map_ontology:split_declined(bs_ca__total_current_assets): 2 rows carry it
+map_ontology:split_declined(is_pl__cost_of_sales): 2 rows carry it
+map_ontology:split_declined(is_pl__selling_and_marketing_expenses): 2 rows carry it
+map_ontology:split_declined(is_pl__research_and_development): 2 rows carry it
+map_ontology:split_declined(cf_oper_indirect__cash_flows_oper_activ_indirect): 3 rows carry it
+map_ontology:split_declined(bs_ca__prepayments_cp): 2 rows carry it
+map_ontology:split_declined(bs_ca__secur_and_other_fincl_assets_cp): 2 rows carry it
+map_ontology:split_declined(bs_ca__segregated_account_ca): the disclosure itemises 0 of this section's concepts
+map_ontology:split_declined(bs_nca__land_use_rights): 2 rows carry it
+map_ontology:split_declined(bs_nca__deferred_tax_assets): 2 rows carry it
+map_ontology:split_declined(bs_nca__other_receivables_ltp): cited note detail does not account for the face amount
+map_ontology:split_declined(bs_cl__st_bank_loans_payable): 2 rows carry it
+map_ontology:split_declined(bs_cl__trade_payables_related_parties): 2 rows carry it
+map_ontology:split_declined(bs_ncl__deferred_tax_liability): cited note detail does not account for the face amount
+map_ontology:split_declined(bs_equity__common_share_capital): cited note detail does not account for the face amount
+map_ontology:split_declined(bs_nca__investment_in_subsidiaries): cited note detail does not account for the face amount
+map_ontology:split_declined(is_pl__net_claims_and_benefits): the disclosure itemises 0 of this section's concepts
+map_ontology:split_declined(is_pl__general_and_admin_expenses): 2 rows carry it
+map_ontology:split_declined(is_pl__interest_income): 4 rows carry it
+map_ontology:split_declined(is_pl__grants_and_subsidies): 2 rows carry it
+map_ontology:template_roles_adopted=12
+map_ontology:mapped=62/241 llm_calls=9
+stage:map_ontology:done
+stage:residual:start
+residual:not_absorbed(bs_ca__other_current_assets):'其他应收款' is bs_ca__other_receivables_cp's own caption
+residual:not_absorbed(cf_oper_indirect__other_non_cash_adjs_oper):'所得税费用' is cf_oper_indirect__income_tax_expense's own caption
+residual:unallocated_gap:bs_ca:consolidated|current=3224477836 reported=6064730296.96 dedicated=2745069219.4700003 residual=95183241.15 tolerance=9.0
+residual:unallocated_gap:bs_ca:consolidated|prior=3412550466 reported=6582758200.0 dedicated=3071223141.0199995 residual=98984592.64 tolerance=9.0
+residual:unallocated_gap:bs_ca:standalone|current=2862276189 reported=4694570905.94 dedicated=1554614674.25 residual=277680042.42 tolerance=10.0
+residual:unallocated_gap:bs_ca:standalone|prior=3048366166 reported=5114297589.24 dedicated=1489023234.01 residual=576908189.46 tolerance=10.0
+residual:unallocated_gap:is_pl:consolidated|current=-2696516989 reported=1774845093.6 dedicated=3491099042.6400003 residual=980263040.45 tolerance=21.0
+residual:unallocated_gap:is_pl:consolidated|prior=-2511644468 reported=2001097545.17 dedicated=4080508599.109999 residual=432233413.76 tolerance=20.0
+residual:unallocated_gap:cf_oper_indirect:consolidated|current=-3927455053 reported=244695836.4 dedicated=None residual=4172150889.15 tolerance=7.0
+residual:unallocated_gap:cf_oper_indirect:consolidated|prior=-4665559785 reported=108234967.17 dedicated=None residual=4773794752.04 tolerance=7.0
+residual:unallocated_gap:cf_oper_indirect:standalone|current=-4040902945 reported=421915382.86 dedicated=53631887.53 residual=4409186440.0 tolerance=35.0
+residual:unallocated_gap:cf_oper_indirect:standalone|prior=-5607259812 reported=270492050.48 dedicated=53700787.9 residual=5824051074.39 tolerance=33.0
+residual:itemised(bs_nca__other_non_current_assets) components=9 consolidated|current:tied consolidated|prior:tied standalone|current:tied standalone|prior:tied triggers=residual_review:residual_share_of_subtotal>5%,residual_review:component_share_of_subtotal>2%,residual_review:component_count>6
+residual:itemised(bs_ca__other_current_assets) components=7 consolidated|current:unallocated_gap consolidated|prior:unallocated_gap standalone|current:unallocated_gap standalone|prior:unallocated_gap triggers=residual_review:component_count>6,residual_review:unallocated_gap,residual_review:residual_share_of_subtotal>5%,residual_review:component_share_of_subtotal>2%
+residual:itemised(bs_equity__other_reserves) components=5 consolidated|current:no_reported_subtotal consolidated|prior:no_reported_subtotal
+residual:itemised(bs_ncl__other_non_current_liabilities) components=8 consolidated|current:no_reported_subtotal consolidated|prior:no_reported_subtotal standalone|current:no_reported_subtotal standalone|prior:no_reported_subtotal triggers=residual_review:component_count>6
+residual:itemised(bs_cl__other_current_liabilities) components=16 consolidated|current:no_reported_subtotal consolidated|prior:no_reported_subtotal standalone|current:no_reported_subtotal standalone|prior:no_reported_subtotal triggers=residual_review:component_count>6
+residual:itemised(is_pl__other_operating_expenses) components=19 consolidated|current:unallocated_gap consolidated|prior:unallocated_gap standalone|current:no_reported_subtotal standalone|prior:no_reported_subtotal triggers=residual_review:residual_share_of_subtotal>5%,residual_review:component_share_of_subtotal>2%,residual_review:component_count>6,residual_review:unallocated_gap
+residual:itemised(cf_oper_indirect__other_non_cash_adjs_oper) components=48 consolidated|current:unallocated_gap consolidated|prior:unallocated_gap standalone|col2:no_reported_subtotal standalone|col3:no_reported_subtotal standalone|current:unallocated_gap standalone|prior:unallocated_gap triggers=residual_review:residual_share_of_subtotal>5%,residual_review:component_share_of_subtotal>2%,residual_review:component_count>6,residual_review:unallocated_gap
+residual:itemised(cf_investing__other_invest_cash_flows) components=4 standalone|current:no_reported_subtotal standalone|prior:no_reported_subtotal
+residual:itemised(cf_financing__other_financing_cash_flows) components=27 consolidated|current:no_reported_subtotal consolidated|prior:no_reported_subtotal standalone|current:no_reported_subtotal standalone|prior:no_reported_subtotal triggers=residual_review:component_count>6
+residual:swept=143 ineligible=14 section_unresolved=22 unmapped_remaining=36
+stage:residual:done
+stage:normalize:start
+normalize:units=hundred million/unknown_ccy
+normalize:sign_adjusted=0
+stage:normalize:done
+stage:link_notes:start
+link_notes:links=255
+stage:link_notes:done
+stage:deprec_impairment:start
+deprec_impairment:0 value(s) computed
+stage:deprec_impairment:done
+stage:secur_fincl_assets:start
+secur_fincl_assets:0 value(s) computed
+stage:secur_fincl_assets:done
+stage:related_party_receivables:start
+related_party_receivables:bs_nca__due_from_related_parties_ltp:not_computed(status=NOT_COMPUTABLE flags=MISSING_NOTE:related_party_note|NOT_COMPUTABLE)
+related_party_receivables:bs_ca__other_receivables_cp:not_computed(status=NOT_COMPUTABLE flags=NOT_COMPUTABLE)
+related_party_receivables:6 value(s) computed
+stage:related_party_receivables:done
+stage:sales_revenues:start
+sales_revenues:2 value(s) filled from the note fallback
+stage:sales_revenues:done
+stage:contingent_liabilities:start
+contingent_liabilities:no contingent-liability notes found
+stage:contingent_liabilities:done
+stage:reconcile:start
+reconcile:entries=79 tied=36 untied=3 unconfirmed=40
+stage:reconcile:done
+stage:prune_notes:start
+prune_notes:kept=189 dropped=60 dropped_notes=['11', '11', '14', '14', '14', '14', '15', '15', '15', '17', '17', '17', '17', '18', '18', '18', '19', '19', '20', '20', '22', '22', '22', '23', '23', '24', '24', '27', '27', '27', '27', '31', '31', '33', '33', '33', '33', '34', '34', '41', '41', '42', '46', '46', '46', '49', '50', '54', '54', '57', '58', '68', '69', '70', '71', '72', '73', '83', '84', '84']
+stage:prune_notes:done
+stage:confidence:start
+confidence:line_items=242 validation_failures=3
+stage:confidence:done
+stage:gap_closing:start
+gap_closing:no gaps
+stage:gap_closing:done
+stage:face_mapping_contract:start
+face_mapping_contract:stored_unclassified=36 labels=['应付手续费及佣金应付分保账款持有待售负债一年内到期的非流动负债', '其他应收款', '（7）其他（二）归属于少数股东的其他综合收益的税后净额七、综合收益总额', '（一）基本每股收益(元/股)', '（二）稀释每股收益(元/股)', '本期发生同一控制下企业合并的，被合并方在合并前实现的净利润为：0 元, 上期被合并方实现的净利润为：', '收到的现金净额收到其他与投资活动有关的现金投资活动现金流入小计', '支付的现金净额支付其他与投资活动有关的现金投资活动现金流出小计', '长期资产收回的现金净额处置子公司及其他营业单位收到的现金净额收到其他与投资活动有关的现金', '投资支付的现金取得子公司及其他营业单位支付的现金净额支付其他与投资活动有关的现金']
+stage:face_mapping_contract:done
+stage:structural:start
+structural:evaluated=4 failed=0 not_evaluable=61 flagged_values=0
+coverage:PARTIAL pass=4 fail=0 skip=61 validation_rate=100%(4/4) coverage_rate=6%(4/65) unvalidated=cash_flow,profit_and_loss unenforceable_blocking=0 alarms=2
+structural:alarm code=UNVALIDATED statement=cash_flow skipped=8
+structural:alarm code=UNVALIDATED statement=profit_and_loss skipped=22
+stage:structural:done
+stage:segment:start
+segment:placed(242 face rows, 47 notes)
+segment:current_assets(27 rows, 11 notes)
+segment:non_current_assets(22 rows, 8 notes)
+segment:current_liabilities(21 rows, 7 notes)
+segment:non_current_liabilities(10 rows, 6 notes)
+segment:equity(33 rows, 5 notes)
+segment:income(16 rows, 2 notes)
+segment:expenses(12 rows, 0 notes)
+segment:non_operating(3 rows, 0 notes)
+segment:cash_flow_operating(35 rows, 0 notes)
+segment:cash_flow_investing(5 rows, 0 notes)
+segment:cash_flow_financing(29 rows, 0 notes)
+segment:others(29 rows, 8 notes)
+segment:unresolved(36 face rows reached Others because nothing could place them)
+stage:segment:done
