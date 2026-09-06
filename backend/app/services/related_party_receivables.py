@@ -339,6 +339,10 @@ def _cp_pool(doc: DocumentModel, pk: PeriodKey, flags: list[str]
     gross = _Signal()
     deduction = _Signal()
     inspected = False
+    # Which receivable CLASSES actually contributed to the gross pool — the evidence §5.3's
+    # "proven to be included in CP_Gross" asks for. Recorded as the pool is built rather than
+    # re-derived afterwards, because only the scan knows which matches survived its guards.
+    counted_classes: set[str] = set()
     # THE 附注 COLUMN, WHICH ALREADY DISAGREED WITH THE CAPTION AND WAS NEVER CONSULTED.
     #
     # A CAS balance sheet prints every template line whether or not the filer uses it, so a page
@@ -366,13 +370,15 @@ def _cp_pool(doc: DocumentModel, pk: PeriodKey, flags: list[str]
               row=(), source_kind: str = "note") -> None:
         nonlocal inspected
         text = f"{label} {group_hint}"
-        if not _CP_CLASS_RE.search(text):
+        klass = _CP_CLASS_RE.search(text)
+        if not klass:
             return
         if _cited_note_contradicts(note_number, source_kind):
             return
         if not _add_item(gross, note_number, note_title, label, ev, pk, row,
                          source_kind=source_kind):
             return
+        counted_classes.add(klass.group(0))
         # This line belongs to the gross pool and has now been tested for a related-party
         # marker, which is what makes a nil deduction a finding rather than a gap.
         inspected = True
@@ -400,6 +406,39 @@ def _cp_pool(doc: DocumentModel, pk: PeriodKey, flags: list[str]
             for ev in row:
                 _scan(item.raw_label or "", item.group_hint, table.note_number, table.title, ev,
                       row)
+    # §5.3: "Deduct only related-party amounts proven to be included in CP_Gross."
+    #
+    # THE PROOF IS THE CLASS, and until now nothing supplied it, so the deduction was always zero.
+    # The related-party note is titled 应收、应付关联方等未结算项目情况, which matches no
+    # `_CP_NOTE_HEADING_RE` alternative — correctly, it is not a receivable-class note — so its rows
+    # never entered the scan above, and the scan is the only thing that can mark a row
+    # related-party. CP_Gross therefore carried its 其他应收款 pool GROSS of related parties while
+    # the LTP row reported the very same related-party money, putting it in two places at once,
+    # which is exactly what §2 forbids.
+    #
+    # What links them is the receivable CLASS. CP_Gross counted 其他应收款; the related-party note
+    # discloses the 其他应收款 owed by related parties for the same period; those balances are
+    # necessarily part of that pool. Gated on the class having actually been COUNTED into gross —
+    # a related-party balance in a class this pool never included is not "proven to be included",
+    # and deducting it would understate the row.
+    for table in doc.notes:
+        if not _note_matches(table, _RELATED_PARTY_NOTE_HEADING_RE):
+            continue
+        for item in table.items:
+            if item.role != LineRole.LINE:
+                continue
+            label = item.raw_label or ""
+            text = f"{label} {item.group_hint}"
+            if _RELATED_PARTY_NOTE_EXCLUDE_RE.search(text):
+                continue                        # a payable, a deposit, an investment — not this
+            klass = _CP_CLASS_RE.search(text)
+            if not klass or klass.group(0) not in counted_classes:
+                continue
+            row = list(item.values.values())
+            for ev in row:
+                _add_item(deduction, table.note_number, table.title, label, ev, pk, row,
+                          source_kind="related_party_note")
+
     if not found_note and gross.value is None:
         flags.append("MISSING_NOTE:cp_gross_notes")
     flags.extend(gross.unit_flags("CP_Gross"))
