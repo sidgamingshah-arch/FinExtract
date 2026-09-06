@@ -129,6 +129,21 @@ _TITLE_NEGATIVE = re.compile(
     r"|\bpro\s+forma\b|[備备]考"
     r"|\bunaudited\s+supplementary\b"
     r"|[載载][於于]|[見见]\s*[附第]|[第]\s*\d+\s*[頁页]"
+    # A statement NAME inside a longer note heading is not that statement. 资产负债表日后事项
+    # is "events AFTER the balance sheet date" — the standard CAS subsequent-events note —
+    # and it contains 资产负债表 verbatim, so it resolved as a balance-sheet FACE title. On the
+    # measured filing that made PDF page 196 (printed 197) a face page: 39 lines of pure
+    # litigation prose plus the guarantee and letter-of-credit totals, no table. Face pages
+    # never become notes, so 0 of 190 notes and 0 of 284 line items carried that disclosure
+    # and ¥118,754,500 of contingent liabilities was reachable only by sweeping the raw text.
+    #
+    # Disqualified lexically rather than by counting figures on the page: a numeric-density
+    # test cannot tell this page from a legitimate one whose statement title sits low under a
+    # finished table (合并利润表 beneath the balance sheet's closing 负债合计, which is the
+    # standard PRC layout and is pinned by
+    # test_a_chinese_statement_title_below_a_completed_table_is_recognised). The words differ;
+    # the shapes do not.
+    r"|[資资][產产][負负][債债][表报][日]?[後后][事][項项]|[日][後后][事][項项]"
     r"|^\s*(?:contents|index|目[錄录])\s*$", re.I)
 
 # Statement-ish but unresolved. Logged onto the document so lexicon coverage is measurable instead of
