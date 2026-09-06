@@ -508,6 +508,21 @@ for concept in CONCEPTS:
             expanded.append(child)
     FORMULA_DEPS[key] = list(dict.fromkeys(expanded))
 
+# MEMBERS WHOSE FIGURE IS A MAGNITUDE, not a signed amount, per rollup that sums them.
+#
+# The depreciation and impairment charges are the only two: every other member of these formulas
+# is read straight off the face already signed, but these two are ASSEMBLED — the operating share
+# comes out of the PBT note and the cost-of-sales share out of the segment or PPE note, and a
+# service writes them after `normalize`, carrying the magnitude it summed. In a flat sum of
+# negative cost lines a positive charge adds where its siblings subtract, so the subtotal moves by
+# twice the figure. Declared per rollup rather than on the concept because the same concept is a
+# magnitude only where the formula spends it: the residual rollups that subtract it from a
+# reported parent must leave it alone.
+COST_MAGNITUDE_CHILDREN: dict[str, list[str]] = {
+    "is_pl__total_cost_of_sales": ["is_pl__deprec_and_impairment_cos"],
+    "is_pl__net_operating_profit": ["is_pl__deprec_and_impairment_oper_exp"],
+}
+
 _TOTAL_LABELS = frozenset({
     "total assets", "total equity and liabilities", "total liabilities",
     "total equity & reserves", "profit for the year",
@@ -538,6 +553,15 @@ def _node(c: dict) -> dict:
         node["sign"] = "natural_negative"
     if role in ("subtotal", "total") and ckey in FORMULA_DEPS:
         node["rollup"] = {"op": "sum", "children": FORMULA_DEPS[ckey]}
+        magnitudes = COST_MAGNITUDE_CHILDREN.get(ckey)
+        if magnitudes:
+            stray = [child for child in magnitudes if child not in FORMULA_DEPS[ckey]]
+            if stray:
+                # The formula moved and the declaration did not. Silently dropping it would ship
+                # a template that reads as sign-adjusted and is not.
+                raise RuntimeError(
+                    f"COST_MAGNITUDE_CHILDREN for {ckey} names non-members: {sorted(stray)}")
+            node["rollup"]["cost_magnitude_children"] = list(magnitudes)
     return node
 
 def _section_node(sec_key: str) -> dict:

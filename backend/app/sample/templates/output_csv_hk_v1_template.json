@@ -2963,6 +2963,9 @@
                   "is_pl__material_expenses",
                   "is_pl__amort_and_impairment_intgbl_cos",
                   "is_pl__deprec_and_impairment_cos"
+                ],
+                "cost_magnitude_children": [
+                  "is_pl__deprec_and_impairment_cos"
                 ]
               }
             },
@@ -3368,6 +3371,9 @@
                   "is_pl__amort_and_impairment_intgbl",
                   "is_pl__goodwill_amortization",
                   "is_pl__capitalized_costs"
+                ],
+                "cost_magnitude_children": [
+                  "is_pl__deprec_and_impairment_oper_exp"
                 ]
               }
             },

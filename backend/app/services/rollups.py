@@ -41,6 +41,24 @@ class Component:
     label: str
     value: float | None
     sign: int = 1
+    # Whether the figure was read as a MAGNITUDE rather than a signed amount — see
+    # ``cost_magnitude_children`` on the rollup. Carried rather than folded into ``value``
+    # because the two answer different questions: ``value`` is what the source said, and
+    # ``contribution`` is what the arithmetic did with it.
+    as_magnitude: bool = False
+
+    @property
+    def contribution(self) -> float | None:
+        """The figure as it ENTERED the total, before the formula's own sign is applied.
+
+        For a magnitude member the amount is taken absolute and spent as a cost, so the total
+        moves DOWN by it wherever it sits — in a flat sum of negative cost lines and in a
+        residual that subtracts it from a reported parent alike. Pre-multiplying by ``sign``
+        is what makes those two agree: the caller applies ``sign`` either way.
+        """
+        if self.value is None:
+            return None
+        return -abs(self.value) * self.sign if self.as_magnitude else self.value
 
 
 @dataclass
@@ -61,10 +79,11 @@ class Calculated:
         joiner = " − " if self.op == DIFF else " + "
         parts = []
         for i, c in enumerate(self.components):
-            if c.value is None:
+            figure = c.contribution
+            if figure is None:
                 parts.append("—")
             else:
-                parts.append(f"{abs(c.value):,.0f}" if i or c.value >= 0 else f"({abs(c.value):,.0f})")
+                parts.append(f"{abs(figure):,.0f}" if i or figure >= 0 else f"({abs(figure):,.0f})")
         return joiner.join(parts)
 
 
@@ -379,15 +398,28 @@ def evaluate(template_def: dict | None, reported, *, labels: dict[str, str] | No
         if rollup.get("use_reported_total_components") and reported_total_key in nodes:
             children = [child for child in (nodes[reported_total_key].get("rollup") or {})
                         .get("children") or [] if child != key]
+        # MEMBERS WHOSE FIGURE IS A MAGNITUDE, not a signed amount. Every cost line in this
+        # statement arrives negative because that is how the filing prints it and how `normalize`
+        # reads it — but a line a SERVICE computes is written after `normalize` and carries the
+        # magnitude it was assembled from. In a flat `sum` those two conventions cannot both be
+        # right: a positive cost adds where its siblings subtract, so the total moves by twice
+        # the figure. Declared per rollup, so the same concept can be a magnitude in a `sum` of
+        # costs and stay untouched in the residual rollups that subtract it from a reported total.
+        magnitude = set(rollup.get("cost_magnitude_children") or [])
         for i, child in enumerate(children):
             # In a `diff`, the first term is added and the rest subtracted.
             sign = -1 if reported_total is not None and reported_total_op == DIFF \
                 else -1 if (op == DIFF and i > 0) else 1
             val = figure(child)
-            calc.components.append(Component(canonical_key=child, label=names.get(child, child),
-                                             value=val, sign=sign))
-            if val is not None:
-                total = sign * val if total is None else total + sign * val
+            component = Component(canonical_key=child, label=names.get(child, child),
+                                  value=val, sign=sign, as_magnitude=child in magnitude)
+            calc.components.append(component)
+            # The absolute amount FIRST, then the sign the formula gives it, so a charge that
+            # arrives as a magnitude is spent rather than credited back.
+            contribution = component.contribution
+            if contribution is not None:
+                total = (sign * contribution if total is None
+                         else total + sign * contribution)
         calc.value = total
         # A parent-minus-components residual is not valid when one of its declared deductions is
         # absent. Missing disclosure is not zero unless the source explicitly says so.

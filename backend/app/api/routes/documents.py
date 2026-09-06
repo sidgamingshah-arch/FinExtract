@@ -1978,7 +1978,8 @@ def _calculated_checks(rows: list[dict], template_def: dict | None, locale: str,
             reported = _concept_value(groups.get(key, []), basis, period)
             label = names.get(key, key)
             where = f"{label} · {basis}/{period}"
-            parts = [[comp.label, "—" if comp.value is None else f"{comp.value:,.0f}", False]
+            parts = [[comp.label,
+                      "—" if comp.contribution is None else f"{comp.contribution:,.0f}", False]
                      for comp in c.components]
             if not c.computable:
                 # NO CARD. A subtotal whose components were never extracted is a COVERAGE
@@ -2015,7 +2016,7 @@ def _calculated_checks(rows: list[dict], template_def: dict | None, locale: str,
                 "evidence": {"reported": judgement.q(reported),
                              "computed": judgement.q(c.value),
                              "diff": judgement.q(c.value - reported),
-                             "components": {comp.canonical_key: judgement.q(comp.value)
+                             "components": {comp.canonical_key: judgement.q(comp.contribution)
                                             for comp in c.components}},
             }
             # Built first and then tested, so what is compared is WHAT THIS CARD SAYS, read by the
@@ -4375,7 +4376,10 @@ def _component_value(calc: dict, owner_key: str, index: int):
     """
     own = calc.get(owner_key)
     if own is not None and index < len(own.components):
-        return own.components[index].value
+        # The figure AS IT ENTERED the total, not as the source printed it: for a magnitude
+        # member those differ in sign, and a component list that does not add up to the
+        # subtotal beside it is worse than no component list at all.
+        return own.components[index].contribution
     return None
 
 

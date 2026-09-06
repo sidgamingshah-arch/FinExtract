@@ -116,6 +116,11 @@ class Relation:
     tol_rel: Decimal = TOLERANCE_REL
     severity: str = "blocking"
     signs: tuple[int, ...] = ()
+    # Components whose figure is a MAGNITUDE rather than a signed amount, declared by the
+    # template's ``cost_magnitude_children``. Carried here so this engine and the calculated-line
+    # engine spend such a component the same way: two readings of one relation is a spread whose
+    # face and whose review queue contradict each other on the same subtotal.
+    magnitudes: frozenset[str] = frozenset()
     note: str = ""
     # ``residual_framework.reconciliation.tolerance`` is authored as "one rounding unit per
     # contributing row", which is a per-relation quantity rather than a constant.
@@ -254,9 +259,11 @@ def relations(template: TemplateDefinition) -> list[Relation]:
             children = [resolve(c) for c in node.rollup.children]
             if node.canonical_key is None or any(c is None for c in children):
                 continue               # a dangling reference; the loader reports it on upload
+            magnitudes = {resolve(c) for c in node.rollup.cost_magnitude_children}
             out.append(Relation(
                 id=f"rollup:{node.canonical_key}", kind="rollup", statement=stype,
                 target=node.canonical_key, components=tuple(children), op=node.rollup.op,
+                magnitudes=frozenset(m for m in magnitudes if m is not None),
             ))
         for ident in st.identities:
             lhs, rhs = resolve(ident.lhs), [resolve(c) for c in ident.rhs.children]
@@ -535,14 +542,19 @@ def _contributions(rel: Relation, parts: dict[str, Decimal]) -> dict[str, Decima
     """
     keys = list(parts)
     if rel.signs:
-        return {k: Decimal(s) * parts[k] for k, s in zip(keys, rel.signs)}
-    if rel.op == "diff":
-        return {k: (parts[k] if i == 0 else -parts[k]) for i, k in enumerate(keys)}
-    return dict(parts)
+        out = {k: Decimal(s) * parts[k] for k, s in zip(keys, rel.signs)}
+    elif rel.op == "diff":
+        out = {k: (parts[k] if i == 0 else -parts[k]) for i, k in enumerate(keys)}
+    else:
+        out = dict(parts)
+    # A magnitude component is spent, whatever sign it arrived with and wherever the expression
+    # puts it: the absolute amount first, then the deduction. See ``Relation.magnitudes``.
+    return {k: (-abs(v) if k in rel.magnitudes else v) for k, v in out.items()}
 
 
 def _sign_suspect(target: str, actual: Decimal, expected: Decimal,
-                  contributions: dict[str, Decimal], tol: Decimal) -> str | None:
+                  contributions: dict[str, Decimal], tol: Decimal,
+                  magnitudes: frozenset[str] = frozenset()) -> str | None:
     """The one participant whose sign, flipped, would satisfy the relation — or None.
 
     Only an unambiguous single candidate is named: with two equal-magnitude candidates the
@@ -552,6 +564,11 @@ def _sign_suspect(target: str, actual: Decimal, expected: Decimal,
     if abs(-actual - expected) <= tol:
         candidates.append(target)
     for key, contribution in contributions.items():
+        # A magnitude component cannot BE the sign suspect: its sign was taken out of the
+        # arithmetic, so flipping it on the page moves the total not at all. Naming it would
+        # send the analyst to the one line whose sign the relation does not depend on.
+        if key in magnitudes:
+            continue
         if contribution and abs(actual - (expected - 2 * contribution)) <= tol:
             candidates.append(key)
     return candidates[0] if len(candidates) == 1 else None
@@ -772,7 +789,7 @@ def _check(rel: Relation, slot: Slot, vals: MappedValues,
             "component_values": {k: str(v) for k, v in parts.items()},
             "assumed_zero": sorted(zeroed),
             "sign_suspect": (None if ok else _sign_suspect(rel.target, actual, expected,
-                                                           contributions, tol)),
+                                                           contributions, tol, rel.magnitudes)),
             **({"note": rel.note} if rel.note and rel.kind != "section_reconciliation" else {}),
             **rel.extra,
             # The rulebook names the fact a break emits; it is attached only where there is a

@@ -474,3 +474,33 @@ def test_each_mapping_has_unique_normalized_aliases():
             duplicates.append(mapping.canonical_key)
 
     assert duplicates == []
+
+def test_the_two_assembled_depreciation_charges_are_declared_magnitudes():
+    """The shipped template says which members arrive as magnitudes, and only those two do.
+
+    Both charges are ASSEMBLED rather than read off the face — the operating share out of the
+    PBT note, the cost-of-sales share out of the segment or PPE note — so they are written after
+    `normalize` carrying the magnitude they were summed from, while every cost line beside them
+    in these two formulas arrives negative. Left undeclared, each subtotal moves by TWICE the
+    charge, which on the sample filing is over a billion HKD on operating profit alone.
+
+    Pinned on the shipped definition rather than the generator because the template is what the
+    run reads: a declaration lost in a regeneration is a silent one-billion error.
+    """
+    nodes = calculated_nodes(TEMPLATE_DEF)
+
+    declared = {key: node["rollup"]["cost_magnitude_children"]
+                for key, node in nodes.items()
+                if node["rollup"].get("cost_magnitude_children")}
+    assert declared == {
+        "is_pl__total_cost_of_sales": ["is_pl__deprec_and_impairment_cos"],
+        "is_pl__net_operating_profit": ["is_pl__deprec_and_impairment_oper_exp"],
+    }
+    # A name that is not a member of its own rollup adjusts nothing while reading as if it did.
+    for key, magnitudes in declared.items():
+        assert set(magnitudes) <= set(nodes[key]["rollup"]["children"]), key
+    # And the residual rollups these two concepts also feed must NOT be adjusted: those subtract
+    # the charge from a reported parent, where its arrival sign is the parent's own.
+    for key, node in nodes.items():
+        if node["rollup"].get("reported_total_key"):
+            assert not node["rollup"].get("cost_magnitude_children"), key

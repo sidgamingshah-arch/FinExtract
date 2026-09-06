@@ -756,3 +756,172 @@ def test_the_stage_leaves_the_document_alone_when_the_model_declines(monkeypatch
     assert all(li.canonical_key != "bs_ca__others" for li in doc.line_items)
     assert doc.gap_routings == []
     assert any("none confirmed" in m for m in ctx.logs), ctx.logs
+
+
+# --- Magnitude members ------------------------------------------------------------------------
+# A depreciation charge assembled by a service is written AFTER `normalize` and carries the
+# magnitude it was summed from, while every cost line beside it in the same rollup was read off
+# the face already negative. Left alone, the positive charge ADDS where its siblings subtract and
+# the subtotal moves by twice the figure — which is what these tests pin.
+
+
+def _cos(*, magnitude: bool):
+    rollup = {"op": "sum", "children": ["cost_of_sales", "deprec_cos"]}
+    if magnitude:
+        rollup["cost_magnitude_children"] = ["deprec_cos"]
+    return {"statements": [{"type": "income_statement", "sections": [
+        {"canonical_key": "total_cos", "node_id": "total_cos", "label": "Total cost of sales",
+         "role": "subtotal", "rollup": rollup}]}]}
+
+
+def test_a_magnitude_member_is_spent_rather_than_credited_back():
+    reported = {"cost_of_sales": -3_929_910.0, "deprec_cos": 57_576.0}.get
+
+    assert evaluate(_cos(magnitude=False), reported)["total_cos"].value == -3_872_334.0
+    assert evaluate(_cos(magnitude=True), reported)["total_cos"].value == -3_987_486.0
+
+
+def test_a_magnitude_member_already_signed_as_a_cost_is_not_flipped():
+    """The declaration says the sign cannot be trusted, NOT that it is always wrong.
+
+    The same concept is negative on a filing that prints the charge inside the cost line and
+    positive on one that discloses it in the PBT note, and one template serves both.
+    """
+    reported = {"cost_of_sales": -3_929_910.0, "deprec_cos": -57_576.0}.get
+
+    assert evaluate(_cos(magnitude=True), reported)["total_cos"].value == -3_987_486.0
+
+
+def test_a_magnitude_member_reports_the_figure_it_contributed():
+    reported = {"cost_of_sales": -3_929_910.0, "deprec_cos": 57_576.0}.get
+
+    components = evaluate(_cos(magnitude=True), reported)["total_cos"].components
+
+    charge = components[-1]
+    assert charge.value == 57_576.0            # what the source said
+    assert charge.contribution == -57_576.0    # what the arithmetic did with it
+    assert charge.as_magnitude is True
+    assert components[0].as_magnitude is False
+    assert components[0].contribution == components[0].value
+
+
+def test_a_member_not_declared_a_magnitude_keeps_its_reported_sign():
+    reported = {"cost_of_sales": -3_929_910.0, "deprec_cos": 57_576.0}.get
+
+    components = evaluate(_cos(magnitude=False), reported)["total_cos"].components
+
+    assert components[-1].contribution == 57_576.0
+    assert all(c.as_magnitude is False for c in components)
+
+
+def test_a_magnitude_member_lowers_a_residual_total_too():
+    """Whichever way the formula spends it, the total moves DOWN by the magnitude.
+
+    A residual subtracts its members from a reported parent, so a member the evaluation had to
+    take absolute must come off that parent — the same direction it moves a flat sum of costs,
+    and the reason the absolute amount is taken before the formula's own sign rather than after.
+    """
+    tpl = {"statements": [{"type": "income_statement", "sections": [
+        {"canonical_key": "other_opex", "node_id": "other_opex", "label": "Other opex",
+         "role": "line", "rollup": {
+             "reported_total_key": "total_opex", "reported_total_op": "diff",
+             "children": ["staff_costs", "deprec_oper"],
+             "cost_magnitude_children": ["deprec_oper"]}}]}]}
+    reported = {"total_opex": -1_000.0, "staff_costs": -600.0, "deprec_oper": 250.0}.get
+
+    calculated = evaluate(tpl, reported)["other_opex"]
+
+    # −1,000 − (−600) − 250 = −650, not −1,000 − (−600) − (−250) = −150.
+    assert calculated.value == -650.0
+    assert calculated.components[-1].sign == -1
+    assert calculated.components[-1].contribution == 250.0
+
+
+def test_a_magnitude_member_with_no_figure_stays_absent():
+    reported = {"cost_of_sales": -3_929_910.0}.get
+
+    calculated = evaluate(_cos(magnitude=True), reported)["total_cos"]
+
+    assert calculated.value == -3_929_910.0
+    assert calculated.components[-1].value is None
+    assert calculated.components[-1].contribution is None
+
+
+def test_the_rendered_formula_shows_what_entered_the_total():
+    reported = {"cost_of_sales": -3_929_910.0, "deprec_cos": 57_576.0}.get
+
+    # Every term after the first renders as a magnitude in this notation, so the charge reads
+    # the same either way — what must not happen is the leading term flipping its brackets.
+    assert evaluate(_cos(magnitude=True), reported)["total_cos"].formula \
+        == "(3,929,910) + 57,576"
+
+
+def test_a_leading_magnitude_member_renders_as_the_deduction_it_became():
+    """The first term is the only one this notation signs, so it is where the figure shows.
+
+    A charge that entered the total as a deduction must not print as a positive opening term:
+    the string is what the inspector puts beside the subtotal, and it would then read as an
+    addition producing a smaller number.
+    """
+    tpl = {"statements": [{"type": "income_statement", "sections": [
+        {"canonical_key": "total_cos", "node_id": "total_cos", "label": "Total cost of sales",
+         "role": "subtotal", "rollup": {
+             "op": "sum", "children": ["deprec_cos", "cost_of_sales"],
+             "cost_magnitude_children": ["deprec_cos"]}}]}]}
+    reported = {"deprec_cos": 57_576.0, "cost_of_sales": -3_929_910.0}.get
+
+    assert evaluate(tpl, reported)["total_cos"].formula == "(57,576) + 3,929,910"
+
+
+# The same section, with the depreciation charge declared a magnitude member. Separate from
+# TEMPLATE so the sign convention under test cannot leak into the tests that share that one.
+MAGNITUDE_TEMPLATE = {
+    "schema_version": 1, "template_key": "m", "name": "M",
+    "statements": [{"type": "income_statement", "sections": [
+        {"node_id": "sec", "canonical_key": "is_pl", "label": "Cost of sales", "role": "header",
+         "children": [
+             {"node_id": "n1", "canonical_key": "is_pl__cost_of_sales", "label": "Cost of sales",
+              "role": "line", "rollup": None},
+             {"node_id": "n2", "canonical_key": "is_pl__deprec_cos", "label": "Depreciation",
+              "role": "line", "rollup": None},
+             {"node_id": "n3", "canonical_key": "is_pl__total_cos", "label": "Total cost of sales",
+              "role": "subtotal", "rollup": {
+                  "op": "sum",
+                  "children": ["is_pl__cost_of_sales", "is_pl__deprec_cos"],
+                  "cost_magnitude_children": ["is_pl__deprec_cos"]}},
+         ]},
+    ]}],
+}
+
+
+def test_the_inspector_lists_the_figure_a_magnitude_member_contributed():
+    """What the analyst is shown has to ADD UP to the subtotal printed beside it.
+
+    A component list that shows +57,576 under a total the charge pushed DOWN by that amount is
+    an explanation the analyst has to disbelieve, and it is the one place where the derivation
+    is supposed to be checkable line by line against the page.
+    """
+    rows = [_row("is_pl__cost_of_sales", "Cost of sales", -3_929_910, -3_500_000),
+            _row("is_pl__deprec_cos", "Depreciation", 57_576, 40_000)]
+
+    d = _build_statement(rows, MAGNITUDE_TEMPLATE, "income_statement", "f.pdf")
+    row = _row_of(d, "is_pl__total_cos")
+
+    assert row["v1"] == -3_987_486
+    contribs = {c["label"]: c for c in row["contributions"]}
+    assert contribs["Depreciation"]["v1"] == -57_576
+    assert contribs["Depreciation"]["v2"] == -40_000        # and in the prior column too
+    assert sum(c["v1"] for c in row["contributions"]) == row["v1"]
+
+
+def test_a_mismatch_card_lists_the_figures_that_made_its_computed_total():
+    rows = [_row("is_pl__cost_of_sales", "Cost of sales", -3_929_910),
+            _row("is_pl__deprec_cos", "Depreciation", 57_576),
+            _row("is_pl__total_cos", "Total cost of sales", -3_872_334)]   # printed, unadjusted
+
+    card = next(c for c in _accounting_checks(rows, [], "en", [], MAGNITUDE_TEMPLATE)
+                if c["type"] == "calculated_mismatch")
+
+    assert card["calc"][1] == ["Computed from components", "-3,987,486", True]
+    assert ["Depreciation", "-57,576", False] in card["calc"]
+    assert card["evidence"]["components"]["is_pl__deprec_cos"] == -57576

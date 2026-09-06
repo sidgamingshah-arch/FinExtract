@@ -31,6 +31,22 @@ class Rollup(BaseModel):
     reported_total_key: str | None = None
     reported_total_op: Literal["sum", "diff"] = "sum"
     use_reported_total_components: bool = False
+    # Members whose figure is a MAGNITUDE rather than a signed amount, so the evaluation takes
+    # the absolute amount first and spends it as a cost. Declared per rollup because the same
+    # concept can need it in a flat sum of negative cost lines and NOT need it in a residual
+    # that already subtracts it from a reported parent. A name here that is not a member of
+    # ``children`` is an authoring mistake, not a no-op: it would read as a handled sign
+    # convention while changing nothing, so the upload gate refuses it.
+    cost_magnitude_children: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _magnitude_members_are_children(self) -> "Rollup":
+        declared = set(self.children)
+        stray = [child for child in self.cost_magnitude_children if child not in declared]
+        if stray and not self.use_reported_total_components:
+            raise ValueError("cost_magnitude_children not among children: "
+                             + ", ".join(sorted(stray)))
+        return self
 
 
 class TemplateNode(BaseModel):

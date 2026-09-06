@@ -494,3 +494,83 @@ def test_the_cash_flow_starting_line_the_filing_did_not_choose_is_nil():
     res = _one(report, f"rollup:{op}__operating_profit_before_working_capital_changes")
     assert res.status == "pass", res.details
     assert f"{op}__profit_for_the_year" in res.details["assumed_zero"]
+
+
+# --- Magnitude components ----------------------------------------------------------------------
+# A charge a service assembles is written after `normalize` and carries the magnitude it was
+# summed from, while the cost lines beside it were read off the face already negative. The
+# template declares which members that applies to; this engine has to spend them the same way
+# the calculated-line engine does, or the same subtotal passes on the face and fails in the queue.
+
+
+def _magnitude_template(*, declared: bool) -> dict:
+    tpl = _pl_template()
+    total = next(n for n in tpl["statements"][0]["sections"][0]["children"]
+                 if n["node_id"] == "gross_profit")
+    total["rollup"]["children"] = ["cost_of_sales", "other_income"]
+    if declared:
+        total["rollup"]["cost_magnitude_children"] = ["other_income"]
+    return tpl
+
+
+def test_a_magnitude_component_is_deducted_whatever_sign_it_arrived_with():
+    items = _items(cost_of_sales=-600, other_income=100, gross_profit=-700)
+
+    declared = _one(evaluate_structure(load_template(_magnitude_template(declared=True)), items),
+                    "rollup:gross_profit")
+    assert declared.status == "pass" and declared.expected == -700
+
+    # Undeclared, the same figures make the same subtotal fail: +100 where −100 was spent.
+    plain = _one(evaluate_structure(load_template(_magnitude_template(declared=False)), items),
+                 "rollup:gross_profit")
+    assert plain.status == "fail" and plain.expected == -500
+
+
+def test_a_magnitude_component_already_negative_is_not_deducted_twice():
+    items = _items(cost_of_sales=-600, other_income=-100, gross_profit=-700)
+
+    res = _one(evaluate_structure(load_template(_magnitude_template(declared=True)), items),
+               "rollup:gross_profit")
+
+    assert res.status == "pass" and res.expected == -700
+
+
+def test_a_magnitude_component_is_never_named_the_sign_suspect():
+    """Its sign is out of the arithmetic, so flipping it on the page moves the total not at all.
+
+    Without this the diagnosis pointed at the one line the relation does not depend on — and it
+    pointed there most readily, because a magnitude component is exactly the kind of line whose
+    printed sign looks wrong.
+    """
+    items = _items(cost_of_sales=-600, other_income=350, gross_profit=-250)
+
+    declared = _one(evaluate_structure(load_template(_magnitude_template(declared=True)), items),
+                    "rollup:gross_profit")
+
+    # −600 − 350 = −950 against a printed −250: the gap is exactly twice the 350, which is the
+    # shape that names a sign suspect — and the 350 is spent as −350 whichever way it is
+    # printed, so flipping it would close nothing.
+    assert declared.status == "fail" and declared.expected == -950
+    assert declared.details["sign_suspect"] is None
+
+    # The same gap on an undeclared member DOES name it: there the sign is load-bearing.
+    plain = _one(evaluate_structure(
+        load_template(_magnitude_template(declared=False)),
+        _items(cost_of_sales=-600, other_income=-350, gross_profit=-250)), "rollup:gross_profit")
+    assert plain.details["sign_suspect"] == "other_income"
+
+
+def test_a_magnitude_declaration_naming_a_non_member_is_refused_at_the_upload_gate():
+    """A name that is not a member would read as a handled sign convention and change nothing.
+
+    Silently ignoring it is the worst of the three outcomes: the author believes the subtotal is
+    adjusted, and the only evidence otherwise is the figure itself.
+    """
+    tpl = _magnitude_template(declared=True)
+    total = next(n for n in tpl["statements"][0]["sections"][0]["children"]
+                 if n["node_id"] == "gross_profit")
+    total["rollup"]["cost_magnitude_children"] = ["revenue"]     # not among its children
+
+    with pytest.raises(ValidationError) as raised:
+        load_template(tpl)
+    assert "cost_magnitude_children" in str(raised.value)
