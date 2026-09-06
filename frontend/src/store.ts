@@ -12,8 +12,8 @@
 import { create } from "zustand";
 
 import {
-  getStoredActiveDoc, getStoredNavCollapsed, getToken, setStoredActiveDoc, setStoredNavCollapsed,
-  setStoredToken,
+  getStoredActiveDoc, getStoredNavCollapsed, getStoredPinnedRun, getToken, setStoredActiveDoc,
+  setStoredNavCollapsed, setStoredPinnedRun, setStoredToken,
 } from "./lib/api";
 import type { Basis, ExportFmt, ExtractMode, Locale, StatementKey } from "./types";
 
@@ -69,7 +69,7 @@ interface UIState {
   setNavCollapsed: (v: boolean) => void;
 }
 
-export const useUI = create<UIState>((set) => ({
+export const useUI = create<UIState>((set, get) => ({
   locale: "en",
   uiLocalization: false,
   token: getToken(),
@@ -83,7 +83,8 @@ export const useUI = create<UIState>((set) => ({
   openCheck: "bs",
   tplSel: "trade_recv",
   selectedTemplateId: null,
-  pinnedRunId: null,
+  // Restored only for the document that is actually active — see `getStoredPinnedRun`.
+  pinnedRunId: getStoredPinnedRun(getStoredActiveDoc()),
   exportFmt: "excel",
   navCollapsed: getStoredNavCollapsed(),
 
@@ -98,7 +99,9 @@ export const useUI = create<UIState>((set) => ({
     setStoredActiveDoc(activeDocumentId);
     // A pinned run belongs to the document it was launched against, so it cannot survive a
     // change of document: every reader would ask for a run this document never had and get a
-    // 404 where a spread should be.
+    // 404 where a spread should be. Cleared in storage as well as in memory, or a refresh would
+    // restore a pin this call just decided was invalid.
+    setStoredPinnedRun(null, null);
     set({ activeDocumentId, pinnedRunId: null });
   },
   setDataset: (dataset) => set({ dataset }),
@@ -112,7 +115,10 @@ export const useUI = create<UIState>((set) => ({
   toggleCheck: (id) => set((s) => ({ openCheck: s.openCheck === id ? "" : id })),
   setTpl: (tplSel) => set({ tplSel }),
   setSelectedTemplateId: (selectedTemplateId) => set({ selectedTemplateId }),
-  setPinnedRunId: (pinnedRunId) => set({ pinnedRunId }),
+  setPinnedRunId: (pinnedRunId) => {
+    setStoredPinnedRun(get().activeDocumentId, pinnedRunId);
+    set({ pinnedRunId });
+  },
   setFmt: (exportFmt) => set({ exportFmt }),
   setNavCollapsed: (navCollapsed) => {
     setStoredNavCollapsed(navCollapsed);

@@ -27,6 +27,29 @@ export function setStoredActiveDoc(id: string | null): void {
   else localStorage.removeItem(ACTIVE_DOC_KEY);
 }
 
+// The HISTORICAL run being read, stored WITH the document it belongs to. Persisted for the same
+// reason the active document is: the pin is a session-wide mode that changes what every screen
+// means, and a refresh that silently returned the reader to the latest run is the mode change
+// nobody asked for — an export downloaded after it would be a different extraction from the one
+// on screen a moment earlier.
+//
+// STORED AS `doc|run`, and read back only when the document still matches. A run id belongs to one
+// filing, so a pin restored onto a different document would name a run that document never had —
+// which is the same rule `setActiveDocumentId` enforces in memory, applied to what outlives it.
+const PINNED_RUN_KEY = "finex-pinned-run";
+export function getStoredPinnedRun(documentId: string | null): string | null {
+  if (typeof localStorage === "undefined" || !documentId) return null;
+  const raw = localStorage.getItem(PINNED_RUN_KEY) ?? "";
+  const cut = raw.indexOf("|");
+  if (cut < 1) return null;
+  return raw.slice(0, cut) === documentId ? raw.slice(cut + 1) || null : null;
+}
+export function setStoredPinnedRun(documentId: string | null, runId: string | null): void {
+  if (typeof localStorage === "undefined") return;
+  if (documentId && runId) localStorage.setItem(PINNED_RUN_KEY, `${documentId}|${runId}`);
+  else localStorage.removeItem(PINNED_RUN_KEY);
+}
+
 const NAV_KEY = "finex.nav.collapsed";
 /** Whether the navigation rail is collapsed. Collapsed is the DEFAULT — the screens that matter
  *  here put a statement grid beside a page of the source document, and 214px of permanent menu is

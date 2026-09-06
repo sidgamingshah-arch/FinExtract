@@ -28,20 +28,29 @@ function PinnedRunChip() {
   if (!pinnedRunId) return null;
   const runNumber = runsQ.data?.runs?.find((r) => r.run_id === pinnedRunId)?.run_number;
   return (
+    // `flex: 0 0 auto` and not just `whiteSpace: nowrap`. This bar is one fixed-height flex row
+    // whose stepper is pushed right by `marginLeft: auto`; a chip that could be shrunk was
+    // instead shrinking everything ELSE, because a flex item with no basis of its own competes
+    // with its siblings for the overflow. With a run pinned, the stepper's labels wrapped inside
+    // a 52px row and the whole bar looked broken. Non-shrinking here, non-shrinking on the
+    // stepper, and the title block is the one thing that gives way — it already ellipsises.
     <div
       data-testid="topbar-pinned-run"
       data-run-id={pinnedRunId}
-      style={{ display: "flex", alignItems: "center", gap: 7, padding: "3px 8px",
+      style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 7,
+               padding: "3px 8px", maxWidth: 260,
                borderRadius: radius.control, background: color.amberBg, color: color.amberFg,
                fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}
     >
-      <span>{t("ws.run.historical").replace("{n}", String(runNumber ?? "?"))}</span>
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+        {t("ws.run.historical").replace("{n}", String(runNumber ?? "?"))}
+      </span>
       <button
         type="button"
         onClick={() => setPinnedRunId(null)}
         title={t("ws.run.clearPin")}
-        style={{ border: "none", background: "transparent", color: "inherit", cursor: "pointer",
-                 font: "inherit", textDecoration: "underline", padding: 0 }}
+        style={{ flex: "0 0 auto", border: "none", background: "transparent", color: "inherit",
+                 cursor: "pointer", font: "inherit", textDecoration: "underline", padding: 0 }}
       >
         {t("ws.run.clearPin")}
       </button>
@@ -103,7 +112,7 @@ export function TopBar() {
         borderBottom: `1px solid ${color.topbarBorder}`,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+      <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 9 }}>
         <div
           style={{
             width: 26,
@@ -123,11 +132,13 @@ export function TopBar() {
         <span style={{ fontWeight: 600, letterSpacing: ".2px" }}>FinExtract</span>
       </div>
 
-      <div style={{ width: 1, height: 22, background: color.divider }} />
+      <div style={{ flex: "0 0 auto", width: 1, height: 22, background: color.divider }} />
 
-      <PinnedRunChip />
-
-      <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.25, minWidth: 0, overflow: "hidden" }}>
+      {/* AFTER the filing it qualifies, not between the brand and the filing: the chip says
+          "you are reading run 3 OF THIS DOCUMENT", and reading it before the document is named
+          puts the qualifier ahead of the thing qualified. */}
+      <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.25,
+                    flex: "1 1 auto", minWidth: 0, overflow: "hidden" }}>
         <span style={{ fontWeight: 600, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {title}
         </span>
@@ -136,7 +147,10 @@ export function TopBar() {
         </span>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 2, marginLeft: "auto" }}>
+      <PinnedRunChip />
+
+      <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 2,
+                    marginLeft: "auto" }}>
         {steps.map((s, i) => {
           const active = i === curIdx;
           const done = curIdx !== -1 && i < curIdx;
@@ -145,17 +159,20 @@ export function TopBar() {
               key={s.id}
               onClick={() => nav(s.path)}
               style={{
+                flex: "0 0 auto",
                 display: "flex",
                 alignItems: "center",
                 gap: 7,
                 padding: "5px 10px",
                 borderRadius: 7,
                 cursor: "pointer",
+                whiteSpace: "nowrap",
                 background: active ? color.stepperActive : "transparent",
               }}
             >
               <span
                 style={{
+                  flex: "0 0 auto",
                   width: 18,
                   height: 18,
                   borderRadius: "50%",
@@ -184,9 +201,9 @@ export function TopBar() {
         })}
       </div>
 
-      <div style={{ width: 1, height: 22, background: color.divider }} />
+      <div style={{ flex: "0 0 auto", width: 1, height: 22, background: color.divider }} />
       <LanguageSwitcher />
-      <div style={{ width: 1, height: 22, background: color.divider }} />
+      <div style={{ flex: "0 0 auto", width: 1, height: 22, background: color.divider }} />
       <UserMenu />
     </div>
   );

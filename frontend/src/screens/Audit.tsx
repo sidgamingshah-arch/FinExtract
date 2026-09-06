@@ -9,14 +9,31 @@
  *
  *  The totals are of the ENTRIES SHOWN. The table is append-only and the read is capped, so when
  *  the cap is reached the header says the figures describe a window — a lifetime-spend figure
- *  printed over the newest 500 of more rows is the kind of number this codebase keeps deleting. */
+ *  printed over the newest 500 of more rows is the kind of number this codebase keeps deleting.
+ *
+ *  A ROW IS ALSO THE WAY IN. This screen was read-only text: an administrator could see that a
+ *  filing had been extracted four times and had no way to look at any of them — the run picker
+ *  lives on the analysis screen, which only offers the runs of the document already open, and
+ *  getting to an older run of some other filing meant knowing which filing it was and opening it
+ *  first. An extraction row now pins its run app-wide and opens the analysis screen on it, which
+ *  is the same pin the analyst's picker sets, so every screen answers for the run that was
+ *  clicked. Only for a row that HAS a spread to show: an `analysis` entry is a narrative call,
+ *  not an extraction, and a row whose document was deleted has nothing left to open. */
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { Card, ScreenHeader } from "../components/ui";
 import { useT } from "../i18n";
 import { useAdminAudit } from "../lib/queries";
+import { SCREENS } from "./config";
+import { useUI } from "../store";
 import { color, fmtDuration, fmtTokens, font, radius } from "../theme";
 import type { AdminAuditEntry, AuditTotals } from "../types";
+
+/** Whether this row has a spread behind it that the analysis screen could open. */
+function openable(e: AdminAuditEntry): boolean {
+  return e.action === "extraction" && e.scope_kind === "document" && !!e.scope_key;
+}
 
 const GRID = "1.5fr 1fr 1.15fr 0.75fr 1.1fr 0.6fr 0.8fr 0.8fr 0.8fr";
 /** Page sizes an admin can ask for. The cap is the SERVER's, and it is stated rather than assumed:
@@ -68,8 +85,25 @@ function Totals({ totals, truncated, t }: {
 
 export default function AuditScreen() {
   const t = useT();
+  const nav = useNavigate();
+  const setActiveDocumentId = useUI((s) => s.setActiveDocumentId);
+  const setPinnedRunId = useUI((s) => s.setPinnedRunId);
   const [limit, setLimit] = useState(LIMITS[1]);
   const { data, isPending, isError } = useAdminAudit(limit);
+
+  /** Open one run: make its filing the active document, pin the run, go to the analysis screen.
+   *
+   * The document is set FIRST and the pin second, because the analysis screen clears the pin
+   * whenever the active document changes — a run id belongs to one filing, and carrying one onto
+   * another would open the wrong spread. Setting them in this order means that reset has already
+   * happened by the time the pin lands.
+   */
+  const open = (e: AdminAuditEntry) => {
+    if (!openable(e)) return;
+    setActiveDocumentId(e.scope_key);
+    setPinnedRunId(e.run_id);
+    nav(SCREENS.workspace.path);
+  };
 
   if (isPending) {
     return <div style={{ padding: 40, textAlign: "center", color: color.muted }}>Loading…</div>;
@@ -143,15 +177,37 @@ export default function AuditScreen() {
               <div
                 key={e.run_id}
                 data-testid="ad-row"
+                data-run-id={e.run_id}
+                onClick={() => open(e)}
+                title={openable(e) ? t("ad.open") : t("ad.open.unavailable")}
                 style={{
                   display: "grid", gridTemplateColumns: GRID, gap: 10, padding: "11px 14px",
                   alignItems: "center", borderBottom: `1px solid ${color.hairline2}`,
                   opacity: e.status === "failed" ? 0.62 : 1,
+                  cursor: openable(e) ? "pointer" : "default",
                 }}
               >
-                <span style={{ fontFamily: font.mono, fontSize: 10.5, color: color.ink2,
-                               wordBreak: "break-all" }}>
-                  {e.run_id}
+                <span style={{ display: "flex", alignItems: "baseline", gap: 6, minWidth: 0 }}>
+                  <span style={{ fontFamily: font.mono, fontSize: 10.5, color: color.ink2,
+                                 wordBreak: "break-all",
+                                 textDecoration: openable(e) ? "underline dotted" : "none" }}>
+                    {e.run_id}
+                  </span>
+                  {/* Said in words as well as by the cursor: a whole-row click target with no
+                      visible affordance is one an admin has no reason to try. */}
+                  {openable(e) && (
+                    <button
+                      type="button"
+                      data-testid="ad-open"
+                      onClick={(ev) => { ev.stopPropagation(); open(e); }}
+                      style={{ flex: "0 0 auto", fontSize: 9.5, fontWeight: 600,
+                               padding: "1px 6px", borderRadius: radius.pill, cursor: "pointer",
+                               border: `1px solid ${color.cardBorder}`, background: color.indigoTint2,
+                               color: color.indigo, font: "inherit", lineHeight: 1.6 }}
+                    >
+                      {t("ad.open.short")}
+                    </button>
+                  )}
                 </span>
                 <span style={{ fontSize: 11, color: color.sec2 }}>
                   {new Date(e.created_at).toLocaleString()}

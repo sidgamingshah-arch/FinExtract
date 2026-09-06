@@ -38,6 +38,9 @@ export const audit: Record<Locale, Record<string, string>> = {
     "ad.col.inTok": "IN",
     "ad.col.outTok": "OUT",
     "ad.col.totTok": "TOTAL",
+    "ad.open": "Open this run",
+    "ad.open.short": "open",
+    "ad.open.unavailable": "This run cannot be opened — it was not an extraction, or its document has been deleted.",
   },
   zh: {
     "ad.title": "运行记录",
@@ -64,6 +67,9 @@ export const audit: Record<Locale, Record<string, string>> = {
     "ad.col.inTok": "输入",
     "ad.col.outTok": "输出",
     "ad.col.totTok": "合计",
+    "ad.open": "打开此次运行",
+    "ad.open.short": "打开",
+    "ad.open.unavailable": "无法打开此次运行——它不是一次提取，或其文档已被删除。",
   },
   ar: {
     "ad.title": "سجل التشغيل",
@@ -91,6 +97,9 @@ export const audit: Record<Locale, Record<string, string>> = {
     "ad.col.inTok": "إدخال",
     "ad.col.outTok": "إخراج",
     "ad.col.totTok": "الإجمالي",
+    "ad.open": "افتح هذا التشغيل",
+    "ad.open.short": "افتح",
+    "ad.open.unavailable": "لا يمكن فتح هذا التشغيل — فهو ليس عملية استخراج، أو أن مستنده قد حُذف.",
   },
   fr: {
     "ad.title": "Journal des exécutions",
@@ -119,5 +128,8 @@ export const audit: Record<Locale, Record<string, string>> = {
     "ad.col.inTok": "ENTRÉE",
     "ad.col.outTok": "SORTIE",
     "ad.col.totTok": "TOTAL",
+    "ad.open": "Ouvrir cette exécution",
+    "ad.open.short": "ouvrir",
+    "ad.open.unavailable": "Cette exécution ne peut pas être ouverte — ce n’était pas une extraction, ou son document a été supprimé.",
   },
 };

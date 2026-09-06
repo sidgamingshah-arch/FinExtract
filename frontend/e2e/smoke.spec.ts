@@ -3957,3 +3957,93 @@ test("a confidence badge prints the measured percentage, and a row nothing score
     }
   }
 });
+
+/* ── the run trail is the admin's way INTO a run ────────────────────────────────────────────────
+ *
+ * The Run Trail was read-only text: an admin could see that a filing had been extracted and had
+ * no way to open any of it. The picker lives on the analysis screen and only offers the runs of
+ * the document already open, so reaching an older run of another filing meant knowing which
+ * filing it was and opening that first. */
+
+test("admin opens a run from the trail and every screen answers for it", async ({ page }) => {
+  await loginAs(page, "admin");
+  const doc = await extractFixture(page, "sample.pdf");
+
+  await page.goto("/audit", DCL);
+  // THIS test's own filing. The trail crosses documents, so the newest openable row belongs to
+  // whichever run the deployment made last — which in a full-suite run is somebody else's.
+  const row = page.getByTestId("ad-row")
+    .filter({ has: page.getByTestId("ad-open") })
+    .filter({ hasText: "sample.pdf" })
+    .first();
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  const runId = await row.getAttribute("data-run-id");
+  expect(runId, "an extraction row must name the run it can open").toBeTruthy();
+
+  await row.getByTestId("ad-open").click();
+
+  // The analysis screen, on that filing, with that run pinned — and the pin is app-level, so the
+  // top bar says so from wherever the reader goes next.
+  await expect(page).toHaveURL(/\/workspace/, { timeout: 20_000 });
+  const chip = page.getByTestId("topbar-pinned-run");
+  await expect(chip).toBeVisible({ timeout: 20_000 });
+  await expect(chip).toHaveAttribute("data-run-id", runId!);
+  expect(await page.evaluate(() => localStorage.getItem("finex-active-doc"))).toBe(doc);
+});
+
+test("a pinned run survives leaving the analysis screen and coming back", async ({ page }) => {
+  /* `useEffect` with a dependency list fires on MOUNT as well as on change, so clearing the pin
+   * unconditionally cleared one the screen had just been opened with — and cleared an analyst's
+   * own pin the moment they visited All Notes and returned. */
+  await loginAs(page, "admin");
+  await extractFixture(page, "sample.pdf");
+
+  await page.goto("/audit", DCL);
+  const row = page.getByTestId("ad-row").filter({ has: page.getByTestId("ad-open") }).first();
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  const runId = await row.getAttribute("data-run-id");
+  await row.getByTestId("ad-open").click();
+  await expect(page.getByTestId("topbar-pinned-run")).toBeVisible({ timeout: 20_000 });
+
+  await page.goto("/notes", DCL);
+  await expect(page.getByTestId("topbar-pinned-run")).toHaveAttribute("data-run-id", runId!);
+  await page.goto("/workspace", DCL);
+  await expect(page.getByTestId("topbar-pinned-run"))
+    .toHaveAttribute("data-run-id", runId!, { timeout: 20_000 });
+});
+
+test("the top bar keeps its shape with a run pinned", async ({ page }) => {
+  /* One fixed 52px flex row: the chip used to compete with its siblings for the overflow rather
+   * than hold its own width, so the stepper's labels wrapped inside the row and the bar looked
+   * broken. What is asserted is the consequence — the bar is still one row tall, the stepper is
+   * still intact, and the page does not scroll sideways. */
+  await loginAs(page, "admin");
+  await extractFixture(page, "sample.pdf");
+  await page.goto("/audit", DCL);
+  const row = page.getByTestId("ad-row").filter({ has: page.getByTestId("ad-open") }).first();
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  await row.getByTestId("ad-open").click();
+
+  const chip = page.getByTestId("topbar-pinned-run");
+  await expect(chip).toBeVisible({ timeout: 20_000 });
+
+  // The bar is the chip's parent, and it is still ONE 52px row.
+  const bar = chip.locator("xpath=..");
+  const box = await bar.boundingBox();
+  expect(box, "the top bar must have a box").toBeTruthy();
+  expect(box!.height, "the top bar must still be one row tall").toBeLessThanOrEqual(53);
+
+  // No stepper label wrapped: each step is a single line inside that row. Measured rather than
+  // eyeballed — a wrapped label is exactly what made the bar look broken.
+  const stepHeights = await page.evaluate(() =>
+    Array.from(document.querySelectorAll("span"))
+      .filter((el) => /^(Upload|Integrity|Page Scope|Extract|Review|Export)$/.test(
+        (el.textContent ?? "").trim()))
+      .map((el) => el.getBoundingClientRect().height));
+  expect(stepHeights.length, "the stepper must still be on screen").toBeGreaterThan(2);
+  for (const h of stepHeights) expect(h).toBeLessThan(24);
+
+  const scrolls = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(scrolls, "the page must not scroll sideways with a run pinned").toBeFalsy();
+});

@@ -6,7 +6,7 @@
  * editor for both periods, with the comment recording why. Everything the inspector says — the
  * origin, the arithmetic, each contribution's page, the comment — is resolved for the period on
  * show, not for the row, because last year's figure is its own number with its own provenance. */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -1010,7 +1010,21 @@ export default function WorkspaceScreen() {
   // same run as this grid, and they are rendered by other screens.
   const selectedRunId = useUI((st) => st.pinnedRunId);
   const setSelectedRunId = useUI((st) => st.setPinnedRunId);
-  useEffect(() => { setSelectedRunId(null); }, [activeDocumentId]);
+  // ON A CHANGE OF DOCUMENT, NOT ON MOUNT. `useEffect` with a dependency list also fires the
+  // first time, so clearing unconditionally cleared a pin this screen had just been opened WITH
+  // — leaving Notes, Export and the top bar answering for a run the grid had silently dropped.
+  // Two ways in were affected: the Run Trail's "open this run", which pins and navigates here,
+  // and an analyst simply leaving the screen and coming back, which remounts it. The store
+  // already clears the pin inside `setActiveDocumentId` for the case this guards (a run id
+  // belongs to one filing), so what is left here is the case where the id changed while both
+  // screens were mounted.
+  const lastDocRef = useRef(activeDocumentId);
+  useEffect(() => {
+    if (lastDocRef.current !== activeDocumentId) {
+      lastDocRef.current = activeDocumentId;
+      setSelectedRunId(null);
+    }
+  }, [activeDocumentId]);
   const runsQ = useDocumentRuns(activeDocumentId ?? undefined);
   const runs = runsQ.data?.runs ?? [];
   // KPIs and the additional-items remainder are derived from a REAL extraction; there is no demo
