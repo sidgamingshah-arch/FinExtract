@@ -1,13 +1,13 @@
 {
  "is_pl__sales_revenues": [
   {
-   "source_label": "一、营业总收入",
+   "source_label": "is_pl__sales_revenues",
    "section": "income_and_expenses",
    "values": [
     {
      "basis": "consolidated",
      "period": "current",
-     "value": "1603146551.95",
+     "value": "1589859743.31",
      "currency": null,
      "scale": "1",
      "flags": []
@@ -15,59 +15,110 @@
     {
      "basis": "consolidated",
      "period": "prior",
-     "value": "1926601476.83",
+     "value": "1920773532.54",
      "currency": null,
      "scale": "1",
      "flags": []
     }
    ],
-   "derivation": null
-  },
-  {
-   "source_label": "其中：营业收入",
-   "section": "income_and_expenses",
-   "values": [
-    {
-     "basis": "consolidated",
-     "period": "current",
-     "value": "1603146551.95",
-     "currency": null,
-     "scale": "1",
-     "flags": []
+   "derivation": {
+    "consolidated:current": {
+     "method": "sales_revenues",
+     "formula": "P2 · the 主营业务/主营业务收入 row of the 营业收入 note",
+     "result": "1589859743.31",
+     "inputs": [
+      {
+       "dataset": null,
+       "note": "61",
+       "note_heading": "、 营业收入和营业成本",
+       "label": "主营业务",
+       "value": "1589859743.31",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 158,
+        "bbox": {
+         "x0": 0.2576429533625263,
+         "y0": 0.42988152037220195,
+         "x1": 0.37049650169478876,
+         "y1": 0.44425550584720896
+        },
+        "label_bbox": {
+         "x0": 0.1072364432022521,
+         "y0": 0.43098982696628546,
+         "x1": 0.1779947513375149,
+         "y1": 0.44353258372814824
+        },
+        "value_bbox": {
+         "x0": 0.2576429533625263,
+         "y0": 0.42988152037220195,
+         "x1": 0.37049650169478876,
+         "y1": 0.44425550584720896
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "主营业务",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      }
+     ],
+     "flags": [
+      "POSSIBLE_DUPLICATE"
+     ]
     },
-    {
-     "basis": "consolidated",
-     "period": "prior",
-     "value": "1926601476.83",
-     "currency": null,
-     "scale": "1",
-     "flags": []
+    "consolidated:prior": {
+     "method": "sales_revenues",
+     "formula": "P2 · the 主营业务/主营业务收入 row of the 营业收入 note",
+     "result": "1920773532.54",
+     "inputs": [
+      {
+       "dataset": null,
+       "note": "61",
+       "note_heading": "、 营业收入和营业成本",
+       "label": "主营业务",
+       "value": "1920773532.54",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 158,
+        "bbox": {
+         "x0": 0.5772189757695599,
+         "y0": 0.42988152037220195,
+         "x1": 0.6900725497330609,
+         "y1": 0.44425550584720896
+        },
+        "label_bbox": {
+         "x0": 0.1072364432022521,
+         "y0": 0.43098982696628546,
+         "x1": 0.1779947513375149,
+         "y1": 0.44353258372814824
+        },
+        "value_bbox": {
+         "x0": 0.5772189757695599,
+         "y0": 0.42988152037220195,
+         "x1": 0.6900725497330609,
+         "y1": 0.44425550584720896
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "主营业务",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      }
+     ],
+     "flags": [
+      "POSSIBLE_DUPLICATE"
+     ]
     }
-   ],
-   "derivation": null
-  },
-  {
-   "source_label": "一、营业收入",
-   "section": "income_and_expenses",
-   "values": [
-    {
-     "basis": "standalone",
-     "period": "current",
-     "value": "958118458.99",
-     "currency": null,
-     "scale": "1",
-     "flags": []
-    },
-    {
-     "basis": "standalone",
-     "period": "prior",
-     "value": "1410139147.55",
-     "currency": null,
-     "scale": "1",
-     "flags": []
-    }
-   ],
-   "derivation": null
+   }
   }
  ],
  "bs_nca__due_from_related_parties_ltp": [
@@ -625,16 +676,16 @@
     },
     {
      "basis": "consolidated",
-     "period": "col2",
-     "value": "6333847.20",
+     "period": "current",
+     "value": "131419251.75",
      "currency": null,
      "scale": "1",
      "flags": []
     },
     {
      "basis": "consolidated",
-     "period": "current",
-     "value": "131419251.75",
+     "period": "col2",
+     "value": "6333847.20",
      "currency": null,
      "scale": "1",
      "flags": []
@@ -1033,92 +1084,6 @@
      "flags": [
       "POSSIBLE_DUPLICATE:CP_Gross",
       "NET_OF_ALLOWANCE:CP_Related_Party_Deduction"
-     ]
-    },
-    "consolidated:col2": {
-     "method": "related_party_receivables",
-     "formula": "CP_Gross - CP_Related_Party_Deduction",
-     "result": "6333847.20",
-     "inputs": [
-      {
-       "dataset": null,
-       "note": "9",
-       "note_heading": "、 其他应收款",
-       "label": "单位及个人往来款",
-       "value": "5047352.17",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 131,
-        "bbox": {
-         "x0": 0.7646811889162733,
-         "y0": 0.2633692563957258,
-         "x1": 0.8493278412766079,
-         "y1": 0.2777432599945324
-        },
-        "label_bbox": {
-         "x0": 0.1072364432022521,
-         "y0": 0.2654752419110401,
-         "x1": 0.2485579352622583,
-         "y1": 0.2780179986729029
-        },
-        "value_bbox": {
-         "x0": 0.7646811889162733,
-         "y0": 0.2633692563957258,
-         "x1": 0.8493278412766079,
-         "y1": 0.2777432599945324
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位及个人往来款",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "2",
-       "note_heading": "、 其他应收款",
-       "label": "单位及个人往来款",
-       "value": "1286495.03",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 204,
-        "bbox": {
-         "x0": 0.8084727236974025,
-         "y0": 0.23486298443738324,
-         "x1": 0.8931194785826909,
-         "y1": 0.2492369880361899
-        },
-        "label_bbox": {
-         "x0": 0.15101793694571805,
-         "y0": 0.23696896995269762,
-         "x1": 0.2923393969666762,
-         "y1": 0.24951172671456037
-        },
-        "value_bbox": {
-         "x0": 0.8084727236974025,
-         "y0": 0.23486298443738324,
-         "x1": 0.8931194785826909,
-         "y1": 0.2492369880361899
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位及个人往来款",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      }
-     ],
-     "flags": [
-      "RELATED_PARTY_DEDUCTION_PROVEN_NIL"
      ]
     },
     "consolidated:current": {
@@ -1551,6 +1516,92 @@
      "flags": [
       "POSSIBLE_DUPLICATE:CP_Gross",
       "NET_OF_ALLOWANCE:CP_Related_Party_Deduction"
+     ]
+    },
+    "consolidated:col2": {
+     "method": "related_party_receivables",
+     "formula": "CP_Gross - CP_Related_Party_Deduction",
+     "result": "6333847.20",
+     "inputs": [
+      {
+       "dataset": null,
+       "note": "9",
+       "note_heading": "、 其他应收款",
+       "label": "单位及个人往来款",
+       "value": "5047352.17",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 131,
+        "bbox": {
+         "x0": 0.7646811889162733,
+         "y0": 0.2633692563957258,
+         "x1": 0.8493278412766079,
+         "y1": 0.2777432599945324
+        },
+        "label_bbox": {
+         "x0": 0.1072364432022521,
+         "y0": 0.2654752419110401,
+         "x1": 0.2485579352622583,
+         "y1": 0.2780179986729029
+        },
+        "value_bbox": {
+         "x0": 0.7646811889162733,
+         "y0": 0.2633692563957258,
+         "x1": 0.8493278412766079,
+         "y1": 0.2777432599945324
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "单位及个人往来款",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "2",
+       "note_heading": "、 其他应收款",
+       "label": "单位及个人往来款",
+       "value": "1286495.03",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 204,
+        "bbox": {
+         "x0": 0.8084727236974025,
+         "y0": 0.23486298443738324,
+         "x1": 0.8931194785826909,
+         "y1": 0.2492369880361899
+        },
+        "label_bbox": {
+         "x0": 0.15101793694571805,
+         "y0": 0.23696896995269762,
+         "x1": 0.2923393969666762,
+         "y1": 0.24951172671456037
+        },
+        "value_bbox": {
+         "x0": 0.8084727236974025,
+         "y0": 0.23486298443738324,
+         "x1": 0.8931194785826909,
+         "y1": 0.2492369880361899
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "单位及个人往来款",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      }
+     ],
+     "flags": [
+      "RELATED_PARTY_DEDUCTION_PROVEN_NIL"
      ]
     }
    }

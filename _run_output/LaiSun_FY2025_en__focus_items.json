@@ -6,79 +6,22 @@
    "values": [
     {
      "basis": "consolidated",
-     "period": "current",
-     "value": "529841",
+     "period": "prior",
+     "value": "665553",
      "currency": null,
      "scale": "1",
      "flags": []
     },
     {
      "basis": "consolidated",
-     "period": "prior",
-     "value": "665553",
+     "period": "current",
+     "value": "529841",
      "currency": null,
      "scale": "1",
      "flags": []
     }
    ],
    "derivation": {
-    "consolidated:current": {
-     "method": "deprec_impairment",
-     "formula": "P2 · the profit-before-tax note's operating-expense depreciation callout",
-     "result": "529841",
-     "inputs": [
-      {
-       "dataset": "pbt_oper_exp_depreciation",
-       "note": "7",
-       "note_heading": "LOSS FROM OPERATING ACTIVITIES (CONTINUED)",
-       "label": "explicit opex-inclusion callout",
-       "value": "529841",
-       "provenance": {
-        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
-        "page_index": 246,
-        "bbox": {
-         "x0": 0.6995584026333636,
-         "y0": 0.23939501781779193,
-         "x1": 0.7618823927237993,
-         "y1": 0.2547315666239153
-        },
-        "label_bbox": {
-         "x0": 0.17618770097658137,
-         "y0": 0.2398530039721346,
-         "x1": 0.4247951041125594,
-         "y1": 0.2547315666239153
-        },
-        "value_bbox": {
-         "x0": 0.6995584026333636,
-         "y0": 0.23939501781779193,
-         "x1": 0.7618823927237993,
-         "y1": 0.2547315666239153
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "Cost of completed properties sold",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      }
-     ],
-     "flags": [
-      "MISSING_NOTE:rd_depreciation",
-      "MISSING_NOTE:selling_marketing_depreciation",
-      "MISSING_NOTE:ga_depreciation",
-      "MISSING_NOTE:operating_expense_depreciation",
-      "MISSING_NOTE:cos_depreciation",
-      "MISSING_NOTE:prepaid_lease_depreciation",
-      "MISSING_NOTE:fixed_asset_depreciation",
-      "MISSING_NOTE:cip_depreciation",
-      "MISSING_NOTE:cfo_depreciation",
-      "ASSUMED_ZERO_COS_DEPRECIATION"
-     ]
-    },
     "consolidated:prior": {
      "method": "deprec_impairment",
      "formula": "P2 · the profit-before-tax note's operating-expense depreciation callout",
@@ -135,114 +78,12 @@
       "MISSING_NOTE:cfo_depreciation",
       "ASSUMED_ZERO_COS_DEPRECIATION"
      ]
-    }
-   }
-  }
- ],
- "is_pl__deprec_and_impairment_cos": [
-  {
-   "source_label": "is_pl__deprec_and_impairment_cos",
-   "section": "income_and_expenses",
-   "values": [
-    {
-     "basis": "consolidated",
-     "period": "current",
-     "value": "57576",
-     "currency": null,
-     "scale": "1",
-     "flags": []
     },
-    {
-     "basis": "consolidated",
-     "period": "prior",
-     "value": "70282",
-     "currency": null,
-     "scale": "1",
-     "flags": []
-    }
-   ],
-   "derivation": {
     "consolidated:current": {
      "method": "deprec_impairment",
-     "formula": "COS_P2 · profit-before-tax depreciation − Deprec & Impairment (Oper Exp)",
-     "result": "57576",
+     "formula": "P2 · the profit-before-tax note's operating-expense depreciation callout",
+     "result": "529841",
      "inputs": [
-      {
-       "dataset": "pbt_depreciation",
-       "note": "7",
-       "note_heading": "LOSS FROM OPERATING ACTIVITIES",
-       "label": "Depreciation of property, plant and equipment^",
-       "value": "306456",
-       "provenance": {
-        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
-        "page_index": 246,
-        "bbox": {
-         "x0": 0.6995669128336075,
-         "y0": 0.3477039647609043,
-         "x1": 0.7618909029240433,
-         "y1": 0.3630405324546124
-        },
-        "label_bbox": {
-         "x0": 0.17618764971031484,
-         "y0": 0.3481619886904165,
-         "x1": 0.5266675839910624,
-         "y1": 0.3630405324546124
-        },
-        "value_bbox": {
-         "x0": 0.6995669128336075,
-         "y0": 0.3477039647609043,
-         "x1": 0.7618909029240433,
-         "y1": 0.3630405324546124
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "Depreciation of property, plant and equipment^",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": "pbt_depreciation",
-       "note": "7",
-       "note_heading": "LOSS FROM OPERATING ACTIVITIES",
-       "label": "Depreciation of right-of-use assets^ 16(a), (c)",
-       "value": "280961",
-       "provenance": {
-        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
-        "page_index": 246,
-        "bbox": {
-         "x0": 0.6995623501358864,
-         "y0": 0.36317667416528965,
-         "x1": 0.7618863402263221,
-         "y1": 0.3785132418589977
-        },
-        "label_bbox": {
-         "x0": 0.17619621117682535,
-         "y0": 0.36363469809480176,
-         "x1": 0.6524916635923995,
-         "y1": 0.3785132418589977
-        },
-        "value_bbox": {
-         "x0": 0.6995623501358864,
-         "y0": 0.36317667416528965,
-         "x1": 0.7618863402263221,
-         "y1": 0.3785132418589977
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "Depreciation of right-of-use assets^ 16(a), (c)",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
       {
        "dataset": "pbt_oper_exp_depreciation",
        "note": "7",
@@ -294,7 +135,33 @@
       "MISSING_NOTE:cfo_depreciation",
       "ASSUMED_ZERO_COS_DEPRECIATION"
      ]
+    }
+   }
+  }
+ ],
+ "is_pl__deprec_and_impairment_cos": [
+  {
+   "source_label": "is_pl__deprec_and_impairment_cos",
+   "section": "income_and_expenses",
+   "values": [
+    {
+     "basis": "consolidated",
+     "period": "prior",
+     "value": "70282",
+     "currency": null,
+     "scale": "1",
+     "flags": []
     },
+    {
+     "basis": "consolidated",
+     "period": "current",
+     "value": "57576",
+     "currency": null,
+     "scale": "1",
+     "flags": []
+    }
+   ],
+   "derivation": {
     "consolidated:prior": {
      "method": "deprec_impairment",
      "formula": "COS_P2 · profit-before-tax depreciation − Deprec & Impairment (Oper Exp)",
@@ -382,6 +249,139 @@
        "note_heading": "LOSS FROM OPERATING ACTIVITIES (CONTINUED)",
        "label": "explicit opex-inclusion callout",
        "value": "665553",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 246,
+        "bbox": {
+         "x0": 0.6995584026333636,
+         "y0": 0.23939501781779193,
+         "x1": 0.7618823927237993,
+         "y1": 0.2547315666239153
+        },
+        "label_bbox": {
+         "x0": 0.17618770097658137,
+         "y0": 0.2398530039721346,
+         "x1": 0.4247951041125594,
+         "y1": 0.2547315666239153
+        },
+        "value_bbox": {
+         "x0": 0.6995584026333636,
+         "y0": 0.23939501781779193,
+         "x1": 0.7618823927237993,
+         "y1": 0.2547315666239153
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Cost of completed properties sold",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      }
+     ],
+     "flags": [
+      "MISSING_NOTE:rd_depreciation",
+      "MISSING_NOTE:selling_marketing_depreciation",
+      "MISSING_NOTE:ga_depreciation",
+      "MISSING_NOTE:operating_expense_depreciation",
+      "MISSING_NOTE:cos_depreciation",
+      "MISSING_NOTE:prepaid_lease_depreciation",
+      "MISSING_NOTE:fixed_asset_depreciation",
+      "MISSING_NOTE:cip_depreciation",
+      "MISSING_NOTE:cfo_depreciation",
+      "ASSUMED_ZERO_COS_DEPRECIATION"
+     ]
+    },
+    "consolidated:current": {
+     "method": "deprec_impairment",
+     "formula": "COS_P2 · profit-before-tax depreciation − Deprec & Impairment (Oper Exp)",
+     "result": "57576",
+     "inputs": [
+      {
+       "dataset": "pbt_depreciation",
+       "note": "7",
+       "note_heading": "LOSS FROM OPERATING ACTIVITIES",
+       "label": "Depreciation of property, plant and equipment^",
+       "value": "306456",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 246,
+        "bbox": {
+         "x0": 0.6995669128336075,
+         "y0": 0.3477039647609043,
+         "x1": 0.7618909029240433,
+         "y1": 0.3630405324546124
+        },
+        "label_bbox": {
+         "x0": 0.17618764971031484,
+         "y0": 0.3481619886904165,
+         "x1": 0.5266675839910624,
+         "y1": 0.3630405324546124
+        },
+        "value_bbox": {
+         "x0": 0.6995669128336075,
+         "y0": 0.3477039647609043,
+         "x1": 0.7618909029240433,
+         "y1": 0.3630405324546124
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Depreciation of property, plant and equipment^",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": "pbt_depreciation",
+       "note": "7",
+       "note_heading": "LOSS FROM OPERATING ACTIVITIES",
+       "label": "Depreciation of right-of-use assets^ 16(a), (c)",
+       "value": "280961",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 246,
+        "bbox": {
+         "x0": 0.6995623501358864,
+         "y0": 0.36317667416528965,
+         "x1": 0.7618863402263221,
+         "y1": 0.3785132418589977
+        },
+        "label_bbox": {
+         "x0": 0.17619621117682535,
+         "y0": 0.36363469809480176,
+         "x1": 0.6524916635923995,
+         "y1": 0.3785132418589977
+        },
+        "value_bbox": {
+         "x0": 0.6995623501358864,
+         "y0": 0.36317667416528965,
+         "x1": 0.7618863402263221,
+         "y1": 0.3785132418589977
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Depreciation of right-of-use assets^ 16(a), (c)",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": "pbt_oper_exp_depreciation",
+       "note": "7",
+       "note_heading": "LOSS FROM OPERATING ACTIVITIES (CONTINUED)",
+       "label": "explicit opex-inclusion callout",
+       "value": "529841",
        "provenance": {
         "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
         "page_index": 246,
@@ -1154,16 +1154,16 @@
    "values": [
     {
      "basis": "consolidated",
-     "period": "current",
-     "value": "1310743",
+     "period": "prior",
+     "value": "1475717",
      "currency": null,
      "scale": "1",
      "flags": []
     },
     {
      "basis": "consolidated",
-     "period": "prior",
-     "value": "1475717",
+     "period": "current",
+     "value": "1310743",
      "currency": null,
      "scale": "1",
      "flags": []

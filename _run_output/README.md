@@ -53,11 +53,15 @@ Simplified Chinese, `CNY`. **4/4 on the focus items:**
 | Other Receivables (CP) | 131,419,251.75 |
 | Contingent Liabilities | 118,754,500.00 |
 
-Verified with the LLM ENABLED (8 provider calls, `strategy: llm_description`), which is the
-configuration that matters: Sales (Revenues) used to publish the face TOTAL 1,603,146,551.95 there
-while being correct only when the LLM was off. The exported result files predate that fix — they
-carry 1,603,146,551.95 — and are kept as the record of the run that was actually made rather than
-retro-fitted.
+Both runs exported here were made AFTER every fix in this branch and with the LLM enabled — 8
+provider calls here, 7 on Lai Sun, `strategy: llm_description` on both. That matters for Sales
+(Revenues) in particular: it used to publish the face TOTAL 1,603,146,551.95 whenever the LLM was
+on, and was correct only when the LLM was off, so a figure verified offline proved nothing about a
+real run. The rulebook now refuses total 营业收入 for that concept on every tier, the model
+included.
+
+Both filings were re-run sequentially rather than together, so neither was competing with the other
+for a rate-limited free-tier quota while it mapped.
 
 ## Reproducing on another machine
 

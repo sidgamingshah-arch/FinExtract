@@ -214,8 +214,9 @@ map_ontology:split_declined(bs_nca__other_intangible_assets): 2 rows carry it
 map_ontology:split_declined(bs_nca__goodwill): cited note detail does not account for the face amount
 map_ontology:split_declined(bs_nca__investments_in_associates): 2 rows carry it
 map_ontology:split_declined(bs_nca__invest_in_jvs_and_partnerships): the disclosure itemises 0 of this section's concepts
+map_ontology:split_declined(bs_nca__swaps_nca): cited note detail does not account for the face amount
+map_ontology:split_declined(bs_nca__other_receivables_ltp): 3 rows carry it
 map_ontology:split_declined(bs_nca__deferred_tax_assets): cited note detail does not account for the face amount
-map_ontology:split_declined(bs_nca__pledged_deposits_ltp): 2 rows carry it
 map_ontology:split_declined(bs_ca__wip): cited note detail does not account for the face amount
 map_ontology:split_declined(bs_ca__finished_goods): cited note detail does not account for the face amount
 map_ontology:split_declined(bs_ca__secur_and_other_fincl_assets_cp): cited note detail does not account for the face amount
@@ -231,15 +232,13 @@ map_ontology:split_declined(cf_oper_indirect__depreciation): 2 rows carry it
 map_ontology:split_declined(cf_oper_indirect__amortization_and_asset_impairment): cited note detail does not account for the face amount
 map_ontology:split_declined(cf_investing__sale_assoc_and_affiliates): 4 rows carry it
 map_ontology:template_roles_adopted=18
-map_ontology:mapped=117/288 llm_calls=7
+map_ontology:mapped=121/288 llm_calls=7
 stage:map_ontology:done
 stage:residual:start
 residual:not_absorbed(bs_nca__other_non_current_assets):'Financial assets at fair value through other comprehensive income' is bs_nca__secur_and_other_fincl_assets_ltp's own caption
 residual:not_absorbed(bs_nca__other_non_current_assets):'Financial assets at fair value through profit or loss' is bs_nca__secur_and_other_fincl_assets_ltp's own caption
 residual:not_absorbed(bs_nca__other_non_current_assets):'Financial assets at fair value through other comprehensive income' is bs_nca__secur_and_other_fincl_assets_ltp's own caption
 residual:not_absorbed(bs_nca__other_non_current_assets):'Financial assets at fair value through profit or loss' is bs_nca__secur_and_other_fincl_assets_ltp's own caption
-residual:unallocated_gap:bs_nca:consolidated|current=916919 reported=53035061.0 dedicated=51449685.0 residual=668457.0 tolerance=13.0
-residual:unallocated_gap:bs_nca:consolidated|prior=1060638 reported=55400066.0 dedicated=53626255.0 residual=713173.0 tolerance=14.0
 residual:unallocated_gap:bs_nca:standalone|prior=65340 reported=7598873.0 dedicated=7533329.0 residual=204.0 tolerance=8.0
 residual:unallocated_gap:bs_ca:consolidated|current=40904 reported=13991585.0 dedicated=13606657.0 residual=344024.0 tolerance=10.0
 residual:unallocated_gap:bs_ca:consolidated|prior=47131 reported=14941501.0 dedicated=14616902.0 residual=277468.0 tolerance=11.0
@@ -247,25 +246,25 @@ residual:unallocated_gap:bs_ncl:consolidated|current=5420025 reported=16510189.0
 residual:unallocated_gap:bs_ncl:consolidated|prior=-8352720 reported=29614005.0 dedicated=5512341.0 residual=32454384.0 tolerance=9.0
 residual:unallocated_gap:bs_ncl:standalone|current=949564 reported=5949.0 dedicated=2387.0 residual=-946002.0 tolerance=4.0
 residual:unallocated_gap:bs_ncl:standalone|prior=-23017 reported=975877.0 dedicated=469531.0 residual=529363.0 tolerance=7.0
-residual:unallocated_gap:is_pl:consolidated|current=6153891 reported=-3237857.0 dedicated=-6155912.0 residual=-3235836.0 tolerance=15.0
-residual:unallocated_gap:is_pl:consolidated|prior=8255553 reported=-4255979.0 dedicated=-8257578.0 residual=-4253954.0 tolerance=15.0
+residual:unallocated_gap:is_pl:consolidated|current=6153891 reported=-3237857.0 dedicated=-5128953.0 residual=-4262795.0 tolerance=16.0
+residual:unallocated_gap:is_pl:consolidated|prior=8255553 reported=-4255979.0 dedicated=-6551538.0 residual=-5959994.0 tolerance=16.0
 residual:unallocated_gap:cf_oper_indirect:consolidated|current=150569 reported=292696.0 dedicated=-1845879.0 residual=1988006.0 tolerance=57.0
 residual:unallocated_gap:cf_oper_indirect:consolidated|prior=270794 reported=-758358.0 dedicated=-2582199.0 residual=1553047.0 tolerance=53.0
 residual:unallocated_gap:cf_investing:consolidated|current=25364 reported=286808.0 dedicated=403417.0 residual=-141973.0 tolerance=16.0
 residual:unallocated_gap:cf_investing:consolidated|prior=1367166 reported=896450.0 dedicated=-330911.0 residual=-139805.0 tolerance=15.0
 residual:unallocated_gap:cf_financing:consolidated|current=-2841539 reported=-394472.0 dedicated=2667485.0 residual=-220418.0 tolerance=9.0
 residual:unallocated_gap:cf_financing:consolidated|prior=-3681616 reported=-992576.0 dedicated=2928411.0 residual=-239371.0 tolerance=10.0
-residual:itemised(bs_nca__other_non_current_assets) components=4 consolidated|current:unallocated_gap consolidated|prior:unallocated_gap standalone|prior:unallocated_gap triggers=residual_review:unallocated_gap
+residual:itemised(bs_nca__other_non_current_assets) components=1 standalone|prior:unallocated_gap triggers=residual_review:unallocated_gap
 residual:itemised(bs_ca__other_current_assets) components=2 consolidated|current:unallocated_gap consolidated|prior:unallocated_gap standalone|current:tied standalone|prior:tied triggers=residual_review:component_share_of_subtotal>2%,residual_review:vetoed_dedicated_match,residual_review:unallocated_gap,residual_review:residual_share_of_subtotal>5%
 residual:itemised(bs_equity__other_reserves) components=11 consolidated|current:no_reported_subtotal consolidated|prior:no_reported_subtotal standalone|Capital reduction reserve:no_reported_subtotal standalone|Fair value reserve-financial assets:no_reported_subtotal standalone|Retained profits:no_reported_subtotal standalone|Revaluation reserve-property, plant and equipment:no_reported_subtotal standalone|Share option reserve:no_reported_subtotal standalone|Total:no_reported_subtotal standalone|current:no_reported_subtotal standalone|prior:no_reported_subtotal triggers=residual_review:component_count>6
 residual:itemised(bs_ncl__other_non_current_liabilities) components=9 consolidated|current:unallocated_gap consolidated|prior:unallocated_gap standalone|current:unallocated_gap standalone|prior:unallocated_gap triggers=residual_review:residual_share_of_subtotal>5%,residual_review:component_share_of_subtotal>2%,residual_review:component_count>6,residual_review:unallocated_gap,residual_review:sign_opposite_to_section:positive_expected
 residual:itemised(bs_cl__other_current_liabilities) components=9 consolidated|current:tied consolidated|prior:tied standalone|current:tied standalone|prior:tied triggers=residual_review:residual_share_of_subtotal>5%,residual_review:component_share_of_subtotal>2%,residual_review:component_count>6
-residual:itemised(is_pl__other_operating_expenses) components=4 consolidated|col2:no_reported_subtotal consolidated|col3:no_reported_subtotal consolidated|current:unallocated_gap consolidated|prior:unallocated_gap triggers=residual_review:residual_share_of_subtotal>5%,residual_review:component_share_of_subtotal>2%,residual_review:unallocated_gap
+residual:itemised(is_pl__other_operating_expenses) components=5 consolidated|col2:no_reported_subtotal consolidated|col3:no_reported_subtotal consolidated|current:unallocated_gap consolidated|prior:unallocated_gap triggers=residual_review:residual_share_of_subtotal>5%,residual_review:component_share_of_subtotal>2%,residual_review:unallocated_gap
 residual:itemised(is_oci__other_equity_and_reserves_adj) components=8 consolidated|current:no_reported_subtotal consolidated|prior:no_reported_subtotal triggers=residual_review:component_count>6
 residual:itemised(cf_oper_indirect__other_non_cash_adjs_oper) components=53 consolidated|current:unallocated_gap consolidated|prior:unallocated_gap triggers=residual_review:residual_share_of_subtotal>5%,residual_review:component_share_of_subtotal>2%,residual_review:component_count>6,residual_review:unallocated_gap
 residual:itemised(cf_investing__other_invest_cash_flows) components=7 consolidated|current:unallocated_gap consolidated|prior:unallocated_gap triggers=residual_review:residual_share_of_subtotal>5%,residual_review:component_share_of_subtotal>2%,residual_review:component_count>6,residual_review:unallocated_gap
 residual:itemised(cf_financing__other_financing_cash_flows) components=4 consolidated|current:unallocated_gap consolidated|prior:unallocated_gap triggers=residual_review:residual_share_of_subtotal>5%,residual_review:component_share_of_subtotal>2%,residual_review:unallocated_gap
-residual:swept=111 ineligible=29 section_unresolved=32 unmapped_remaining=61
+residual:swept=109 ineligible=27 section_unresolved=32 unmapped_remaining=59
 stage:residual:done
 stage:normalize:start
 normalize:units=thousand/HKD
@@ -308,11 +307,11 @@ stage:gap_closing:start
 gap_closing:no gaps
 stage:gap_closing:done
 stage:face_mapping_contract:start
-face_mapping_contract:stored_unclassified=60 labels=['Owners of the Company', 'Owners of the Company', 'Financial assets at fair value through other comprehensive income', 'Financial assets at fair value through profit or loss', 'TOTAL ASSETS LESS CURRENT LIABILITIES', 'Equity attributable to owners of the Company Share capital', 'At 1 August 2023', 'Loss for the year', 'Exchange realignments', 'Share of other comprehensive expense of associates']
+face_mapping_contract:stored_unclassified=58 labels=['Owners of the Company', 'Owners of the Company', 'Financial assets at fair value through other comprehensive income', 'Financial assets at fair value through profit or loss', 'TOTAL ASSETS LESS CURRENT LIABILITIES', 'Equity attributable to owners of the Company Share capital', 'At 1 August 2023', 'Loss for the year', 'Exchange realignments', 'Share of other comprehensive expense of associates']
 stage:face_mapping_contract:done
 stage:structural:start
-structural:evaluated=6 failed=4 not_evaluable=60 flagged_values=8
-coverage:FAILED pass=2 fail=4 skip=60 validation_rate=33%(2/6) coverage_rate=9%(6/66) unvalidated=profit_and_loss unenforceable_blocking=0 alarms=1
+structural:evaluated=4 failed=2 not_evaluable=61 flagged_values=4
+coverage:FAILED pass=2 fail=2 skip=61 validation_rate=50%(2/4) coverage_rate=6%(4/65) unvalidated=profit_and_loss unenforceable_blocking=0 alarms=1
 structural:alarm code=UNVALIDATED statement=profit_and_loss skipped=22
 stage:structural:done
 stage:segment:start
@@ -326,5 +325,5 @@ segment:cash_flow_operating(69 rows, 10 notes)
 segment:cash_flow_investing(28 rows, 1 notes)
 segment:cash_flow_financing(14 rows, 1 notes)
 segment:others(50 rows, 8 notes)
-segment:unresolved(60 face rows reached Others because nothing could place them)
+segment:unresolved(58 face rows reached Others because nothing could place them)
 stage:segment:done

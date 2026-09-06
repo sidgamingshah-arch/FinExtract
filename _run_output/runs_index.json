@@ -1,9 +1,9 @@
 [
  {
   "name": "LaiSun_FY2025_en",
-  "run_id": "2025111900987-1-20260906-110205",
+  "run_id": "2025111900987-1-20260906-114752",
   "status": "succeeded",
-  "created_at": "2026-09-06 11:02:05.565042",
+  "created_at": "2026-09-06 11:47:52.960894",
   "entity": "LAI SUN GARMENT (INTERNATIONAL) LIMITED",
   "locale": "en",
   "units": {
@@ -29,9 +29,9 @@
  },
  {
   "name": "SunCreate_FY2024_zh",
-  "run_id": "11077098-20260906-110735",
+  "run_id": "11077098-20260906-114616",
   "status": "succeeded",
-  "created_at": "2026-09-06 11:07:35.469675",
+  "created_at": "2026-09-06 11:46:16.777062",
   "entity": "Sun Create Electronics Co.,Ltd",
   "locale": "zh",
   "units": {
@@ -47,8 +47,8 @@
    "model": "minimax/minimax-m2.7:free"
   },
   "pages": 210,
-  "rows": 353,
-  "focus_agreement": "3/4",
+  "rows": 354,
+  "focus_agreement": "4/4",
   "files": [
    "SunCreate_FY2024_zh__result.json",
    "SunCreate_FY2024_zh__focus_items.json",
