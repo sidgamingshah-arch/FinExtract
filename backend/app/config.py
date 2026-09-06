@@ -84,6 +84,10 @@ class LlmSettings(BaseModel):
     base_url: str = "https://llmgateway.crisil.local/api/openai"
     api_key_env: str = "AZURE_OPENAI_API_KEY"  # env var the key is read from (not the key)
     reasoning_effort: str = "low"      # low | medium | high (provider/gateway dependent)
+    # >0 sends OpenRouter's `reasoning.max_tokens` to CAP reasoning. Needed for free models where
+    # reasoning is mandatory (cannot be disabled) and would otherwise spend the whole completion
+    # budget thinking, leaving no JSON (finish_reason=length, empty content). 0 = don't send it.
+    reasoning_max_tokens: int = 0
     disable_ssl_verify: bool = True
 
     # Azure OpenAI only. Azure does not address a model by name on a shared endpoint the way OpenAI
@@ -166,6 +170,17 @@ class ExtractionSettings(BaseModel):
     # deterministic ensemble (rule/alias tiers), never sent to the model. Empty = no restriction
     # (the default: LLM considered for any row the ensemble can't otherwise resolve).
     llm_only_keys: list[str] = Field(default_factory=list)
+    # TEMPORARY (focus-run routing) — remove with the block it drives in stages/map_ontology.py.
+    #
+    # Restrict the LLM to the ROWS that could be one of these concepts, instead of restricting the
+    # CANDIDATE LIST the way ``llm_only_keys`` does. That distinction is the whole point:
+    # ``llm_only_keys`` leaves every other row in the request with a candidate list that cannot
+    # contain its answer (so the model force-fits it onto one of the listed keys) and drops the
+    # deterministic exact/alias answer those rows would otherwise have had. This instead decides
+    # each row deterministically FIRST and only forwards the ones that are plausibly in focus —
+    # with their candidate list untouched, so a forwarded row is still judged against the full
+    # statement/section scope. Empty (the default) = no routing, i.e. today's behaviour exactly.
+    llm_focus_keys: list[str] = Field(default_factory=list)
     # Publish only notes a face row cites (see stages/prune_notes.py). False publishes every
     # extracted note table regardless of whether any face figure references it.
     prune_unreferenced_notes: bool = True

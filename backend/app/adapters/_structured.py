@@ -32,3 +32,28 @@ def strip_fences(text: str) -> str:
         if t.rstrip().endswith("```"):
             t = t.rstrip()[:-3]
     return t.strip()
+
+
+def extract_json(text: str) -> str:
+    """Return a clean JSON string from possibly-chatty model output.
+
+    Strict parsing first (the well-behaved case); on failure, isolate the first balanced
+    JSON object/array embedded in surrounding prose — some free/reasoning models prepend
+    their thinking or append a note despite the schema instruction to emit JSON only. Uses
+    ``raw_decode`` so trailing text after the object is ignored. Falls back to the fenced
+    text unchanged when nothing parses, so the caller still surfaces the original error.
+    """
+    t = strip_fences(text)
+    try:
+        json.loads(t)
+        return t
+    except Exception:  # noqa: BLE001 — chatty output; fall through to isolation
+        pass
+    start = next((i for i, ch in enumerate(t) if ch in "{["), None)
+    if start is None:
+        return t
+    try:
+        obj, _ = json.JSONDecoder().raw_decode(t[start:])
+        return json.dumps(obj)
+    except Exception:  # noqa: BLE001
+        return t

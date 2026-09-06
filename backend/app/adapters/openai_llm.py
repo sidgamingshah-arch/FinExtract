@@ -22,7 +22,7 @@ from typing import Sequence
 import httpx
 from pydantic import BaseModel
 
-from app.adapters._structured import LlmConfigError, schema_instruction, strip_fences
+from app.adapters._structured import LlmConfigError, extract_json, schema_instruction
 from app.config import Settings, get_settings
 from app.ports.llm import LlmMessage, LlmMeta
 
@@ -83,11 +83,24 @@ class OpenAiLlmProvider:
             "max_tokens": max_tokens,
         }
         effort = (self._settings.llm.reasoning_effort or "").strip()
+        cap = int(getattr(self._settings.llm, "reasoning_max_tokens", 0) or 0)
         # Mapping needs a compact, deterministic JSON decision. On reasoning models, reasoning
         # tokens share this response's completion budget; requesting them can exhaust a small
-        # mapping batch before it emits any JSON at all.
+        # mapping batch before it emits any JSON at all (finish_reason=length, empty content).
+        # Two provider-dependent knobs express opposite intents: OpenRouter's
+        # `reasoning.max_tokens` BOUNDS reasoning, while `reasoning_effort` ASKS for it.
         is_mapping_response = response_schema.__module__ == "app.services.mapping"
-        if effort and not is_mapping_response:
+        if cap > 0:
+            # A CAP is not a request: it BOUNDS reasoning the model would do anyway, which is what
+            # keeps a mandatory-reasoning model from spending the mapping budget on hidden tokens.
+            # So it is sent for mapping too — it serves the same invariant `reasoning_effort` is
+            # withheld for, rather than defeating it.
+            body["reasoning"] = {"max_tokens": cap}
+        elif effort and not is_mapping_response:
+            # …whereas ASKING for reasoning effort on a mapping batch is withheld deliberately:
+            # "a mapping batch must reserve its small completion budget for JSON, not hidden
+            # reasoning" (pinned by tests/test_llm_audit.py::
+            # test_mapping_json_does_not_request_reasoning_tokens).
             body["reasoning_effort"] = effort
         if json_mode:
             body["response_format"] = {"type": "json_object"}
@@ -180,7 +193,7 @@ class OpenAiLlmProvider:
                 f"reasoning_tokens={completion.get('reasoning_tokens', 0)}). "
                 "Increase llm.max_tokens or lower reasoning_effort."
             )
-        parsed = response_schema.model_validate_json(strip_fences(content))
+        parsed = response_schema.model_validate_json(extract_json(content))
 
         usage = payload.get("usage", {}) or {}
         meta: LlmMeta = {

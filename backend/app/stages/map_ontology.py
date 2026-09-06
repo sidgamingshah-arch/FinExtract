@@ -471,6 +471,24 @@ class MapOntologyStage:
         matcher = OntologyMatcher(ontology, locale=doc.locale, settings=ctx.settings,
                                   llm_provider=llm_provider)
         scope = ctx.settings.extraction.mapping_scope
+        # TEMPORARY (focus-run routing) — see settings.extraction.llm_focus_keys, and remove both
+        # together. When set, only rows that could be one of those concepts are forwarded to the
+        # model; every other row keeps its DETERMINISTIC answer (the exact/alias tiers), which is
+        # precisely what `llm_only_keys` destroys. `det_matcher` is provider-less — the same
+        # construction `_match_chunk` already makes internally for its deterministic evidence.
+        focus_keys = set(ctx.settings.extraction.llm_focus_keys or ())
+        det_matcher = (OntologyMatcher(ontology, locale=doc.locale, settings=ctx.settings)
+                       if focus_keys else None)
+        focus_det = focus_llm = focus_sections_skipped = 0
+        # …and the PER-LINE call sites. `match()` consults the provider even when an exact alias
+        # already hit (the exact tier only short-circuits when the matcher has no provider), and
+        # the note-item loop below runs over every LINE row of every extracted note — on a real
+        # filing that is hundreds of single-row provider calls, which would dwarf the batch path
+        # this routing exists to shrink. Under focus routing they use the provider-less matcher:
+        # the focus concepts are reached either through the batch path above or through their own
+        # deterministic note-sourced services, and `notes__contingent_liabilities` is aliased
+        # exactly ("Contingent liabilities" resolves deterministically at 1.0).
+        line_matcher = det_matcher or matcher
         # Record the strategy for the run record: mapping by MEANING (LLM) and mapping by
         # string/rule evidence are very different quality levels, and the difference has to be
         # visible to whoever reads the output.
@@ -554,8 +572,8 @@ class MapOntologyStage:
                     # batch as if they were a statement.
                     unstated += len(group)
                     for li in group:
-                        if _apply(li, matcher.match(li.source_label,
-                                                    section=li.section_hint)):
+                        if _apply(li, line_matcher.match(li.source_label,
+                                                         section=li.section_hint)):
                             mapped += 1
                     continue
                 batched += len(group)
@@ -578,7 +596,51 @@ class MapOntologyStage:
                 for li in group:
                     by_section.setdefault(section_of_banner(li.section_hint), []).append(li)
                 for _section, subgroup in by_section.items():
-                    tasks.append((statement, subgroup, cited_note_text))
+                    if not focus_keys:
+                        tasks.append((statement, subgroup, cited_note_text))
+                        continue
+                    # TEMPORARY (focus-run routing). Two gates, cheapest first.
+                    #
+                    # (1) SECTION GATE: if no focus concept can claim a row in this
+                    # (statement, section) at all, the subgroup cannot contain a focus item, so it
+                    # is decided deterministically and costs no provider call. The scope test is
+                    # the same one `_match_chunk` applies to its candidate list — statement, then
+                    # the declared `section_scope` — so a subgroup is never skipped on a stricter
+                    # rule than the mapper itself would use. An unresolved banner (`_section is
+                    # None`) is treated as unconstrained, exactly as `_match_chunk` treats it.
+                    in_scope = [k for k in focus_keys
+                                if matcher._in_statement(k, statement)
+                                and (_section is None
+                                     or not matcher._sections_of(k)
+                                     or _section in matcher._sections_of(k))]
+                    if not in_scope:
+                        for li in subgroup:
+                            if _apply(li, det_matcher.match(
+                                    li.source_label, statement=statement,
+                                    section=li.section_hint)):
+                                mapped += 1
+                            focus_det += 1
+                        focus_sections_skipped += 1
+                        continue
+                    # (2) ROW GATE: decide every row deterministically first. A row the
+                    # deterministic tiers place on a NON-focus concept is already answered — keep
+                    # that answer and spend nothing on it. A row that resolves to a focus concept
+                    # (confirm/correct it) or resolves to NOTHING (the case that matters: a focus
+                    # caption the rulebook has no alias for, e.g. Sales(Revenues), which would
+                    # otherwise be lost) is forwarded to the model.
+                    llm_rows = []
+                    for li in subgroup:
+                        res = det_matcher.match(li.source_label, statement=statement,
+                                                section=li.section_hint)
+                        if res and res.canonical_key and res.canonical_key not in focus_keys:
+                            if _apply(li, res):
+                                mapped += 1
+                            focus_det += 1
+                        else:
+                            llm_rows.append(li)
+                    if llm_rows:
+                        tasks.append((statement, llm_rows, cited_note_text))
+                        focus_llm += len(llm_rows)
 
             def _run_task(task: tuple) -> tuple[list, dict]:
                 statement, subgroup, cited_note_text = task
@@ -604,6 +666,12 @@ class MapOntologyStage:
             ctx.log(f"map_ontology:groups={len(groups)} batched_rows={batched}"
                     f" per_line_rows={unstated} chunks={matcher.usage['batch_chunks']}"
                     f" max_chunk={matcher.usage['batch_max_items']}")
+            if focus_keys:
+                # TEMPORARY (focus-run routing). Reported rather than silent: a run that decided
+                # most of its rows deterministically must not read as a full LLM mapping.
+                ctx.log(f"map_ontology:focus_routing keys={len(focus_keys)}"
+                        f" rows_to_llm={focus_llm} rows_deterministic={focus_det}"
+                        f" sections_skipped={focus_sections_skipped}")
         else:
             for li in doc.line_items:
                 if _apply(li, matcher.match(li.source_label, statement=_statement_of(li),
@@ -633,13 +701,13 @@ class MapOntologyStage:
                     "depreciation of investment property",
                 }:
                     item_statement, item_section = "profit_and_loss", "income_and_expenses"
-                if _apply(item, matcher.match(item.raw_label, statement=item_statement,
-                                              section=item_section)):
+                if _apply(item, line_matcher.match(item.raw_label, statement=item_statement,
+                                                   section=item_section)):
                     mapped_notes += 1
         if mapped_notes:
             ctx.log(f"map_ontology:note_items_mapped={mapped_notes}")
 
-        matrix_facts = self._promote_reconciled_matrix_closings(doc, matcher, _statement_of, ctx)
+        matrix_facts = self._promote_reconciled_matrix_closings(doc, line_matcher, _statement_of, ctx)
         if matrix_facts:
             ctx.log(f"map_ontology:note_matrix_facts={matrix_facts}")
 
@@ -651,7 +719,7 @@ class MapOntologyStage:
         # handles a subtotal with one declared child and nothing evidencing a split. Order matters —
         # a parent this pass decomposes has children filed by the time the last one looks, which is
         # exactly the condition that makes it decline.
-        mapped += self._split_from_disclosure(doc, ontology, matcher, ctx)
+        mapped += self._split_from_disclosure(doc, ontology, line_matcher, ctx)
         mapped += self._infer_sole_components(doc, ontology, ctx)
         self._adopt_template_roles(doc, ctx)
 
