@@ -84,17 +84,42 @@ _SCALE_PATTERNS = [
     (re.compile(r"(?<![\d.])['’`]0{3}"), "thousand"),               # RMB'000, HK$’000, ₹'000
     (re.compile(r"百萬|百万"), "million"),
     (re.compile(r"千元"), "thousand"),        # 人民幣千元 — bare 千 is too weak to trust
-    (re.compile(r"億|亿"), "hundred million"),
-    (re.compile(r"萬|万"), "ten thousand"),
+    # …and a bare 亿/万 is weaker still, so the same caution has to apply to them. These used to
+    # match ANYWHERE in the scanned text, and Chinese narrative prose is full of them — a business
+    # review reading "营业收入10.5亿元" is not a units declaration. Measured on a 210-page CSRC
+    # filing whose statements are presented in plain 元: detection returned scale_factor
+    # 100,000,000 ("hundred million") from the front matter, i.e. every figure in the document
+    # declared 100-million-fold too large. A units declaration writes the 元: 单位：万元,
+    # 人民币亿元. The explicit 单位/金额单位 prefix is honoured without it, because that phrasing
+    # IS the declaration and leaves no room for doubt.
+    # `(?<![\d.])` is the same guard the '000 patterns above already use, and it is what separates a
+    # DECLARATION from a MEASUREMENT. "营业收入10.5亿元" is a sentence about one figure; "单位：亿元"
+    # and "人民币亿元" declare the whole statement's scale. Requiring 元 was not enough on its own —
+    # narrative prose writes 元 as readily as a column head does — but a preceding digit settles it.
+    (re.compile(r"(?<![\d.])(?:億|亿)元|(?:金额|金額)?单位\s*[:：]\s*(?:億|亿)"), "hundred million"),
+    (re.compile(r"(?<![\d.])(?:萬|万)元|(?:金额|金額)?单位\s*[:：]\s*(?:萬|万)"), "ten thousand"),
     (re.compile(r"\b(thousands?|lakhs?|lacs?|millions?|mn|crores?|cr|billions?|bn)\b",
                 re.IGNORECASE), None),                              # label taken from the match
 ]
+# MATCHED IN LIST ORDER (see the `next(...)` below), not by position in the text — so every
+# COMPOUND currency name has to precede the bare 元 at the end. 港元, 日元, 美元 and 新台币 all
+# contain 元, and a PRC filing that declares only "单位：元" has nothing else to go on.
+#
+# That bare 元 is why this list needed touching: a CSRC filing states its unit as 元 or 人民币元,
+# and with no entry for it detection returned currency "" — the front end then had no currency to
+# show at all, so a ¥254,937,045 balance rendered as a bare number on screen. HKD came through on
+# an HKEX filing because "HK$" is unmissable; RMB did not, because the character it hangs on was
+# absent from this table.
 _CCY = [("₹", "INR"), ("rs.", "INR"), ("inr", "INR"),
         ("hk$", "HKD"), ("hkd", "HKD"), ("港幣", "HKD"), ("港币", "HKD"), ("港元", "HKD"),
         ("rmb", "CNY"), ("cny", "CNY"), ("人民幣", "CNY"), ("人民币", "CNY"),
-        ("us$", "USD"), ("usd", "USD"),
+        ("us$", "USD"), ("usd", "USD"), ("美元", "USD"),
         ("新台幣", "TWD"), ("新台币", "TWD"), ("日圓", "JPY"), ("日元", "JPY"),
-        ("$", "USD"), ("€", "EUR"), ("eur", "EUR"), ("£", "GBP"), ("gbp", "GBP")]
+        ("歐元", "EUR"), ("欧元", "EUR"),
+        ("$", "USD"), ("€", "EUR"), ("eur", "EUR"), ("£", "GBP"), ("gbp", "GBP"),
+        # LAST, and only after every compound above has had its chance: on a Chinese filing a
+        # lone 元 or ¥ means renminbi.
+        ("¥", "CNY"), ("元", "CNY")]
 # A statement-face count high enough to cover every face of a group annual report, but bounded
 # so a mis-classified 270-page document can't turn detection into a full-text scan.
 _MAX_FACE_SCAN = 12
