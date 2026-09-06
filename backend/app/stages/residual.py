@@ -497,7 +497,7 @@ def _residuals(ontology, terms: _Terms) -> list[_Residual]:
                 res.never_prose = res.never_prose + (normalize_label(entry),)
                 continue
             res.never_keys[normalize_label(target.label or entry)] = entry
-            for alias in target.aliases_for(None):
+            for alias in _every_caption(target):
                 res.never_keys[normalize_label(alias)] = entry
         out.append(res)
     return out
@@ -534,6 +534,23 @@ def _sign_contradicts_section(res: _Residual, row) -> str | None:
     if want == "negative_expected" and all(f > 0 for f in figures):
         return f"{res.section} expects negative"
     return None
+
+
+def _every_caption(concept) -> list[str]:
+    """Every caption this concept is known by, in EVERY locale.
+
+    ``OntologyMapping.aliases_for(None)`` returns ``aliases + aliases_i18n["en"]`` and nothing
+    else. That is correct for MATCHING — the document's locale decides which wording may claim a
+    row — and wrong for a VETO index: a row printed 其他应收款 names its dedicated concept exactly
+    as surely as one printed "Other receivables", and a guard that cannot see the caption cannot
+    protect the row. Prohibition 4 and ``never_sweep`` are both vetoes, so both take the union of
+    every locale rather than the English anchor alone; the alternative was that a Simplified-Chinese
+    filing — the filings this rulebook is written for — had no protection at all.
+    """
+    out = list(concept.aliases or [])
+    for captions in (getattr(concept, "aliases_i18n", None) or {}).values():
+        out.extend(captions or [])
+    return list(dict.fromkeys(c for c in out if c))
 
 
 def _vetoed_by_never_sweep(res: _Residual, label: str) -> str | None:
@@ -583,7 +600,7 @@ def _dedicated_captions(ontology, members: dict) -> _Captions:
             if concept is None:
                 continue
             entry = (key, tuple(concept.exclude_hints or []))
-            for caption in [concept.label or "", *concept.aliases_for(None)]:
+            for caption in [concept.label or "", *_every_caption(concept)]:
                 norm = normalize_label(caption)
                 if norm:
                     idx.setdefault(norm, entry)

@@ -60,9 +60,23 @@ class RelatedPartyReceivablesStage:
         results = compute(doc)
         next_ordinal = [max((li.ordinal for li in doc.line_items), default=0) + 1]
         applied = 0
+        seen: set[tuple[str, str, str]] = set()
         for (basis, period_label), fields in results.items():
             for canonical_key, result in ((LTP_KEY, fields["ltp"]), (CP_KEY, fields["cp"])):
                 if result.value is None:
+                    # A blank cell is often the CORRECT answer here (the filing discloses no
+                    # related-party amount inside any admissible receivable class), but silence
+                    # cannot distinguish "searched and genuinely absent" from "never searched" —
+                    # so the service's own status and flags are reported rather than dropped. The
+                    # value is deliberately still not written: this is the diagnosis, not a figure.
+                    # De-duplicated because compute() runs once per (basis, period) key and a real
+                    # filing yields dozens of them, which would otherwise flood the run log.
+                    key = (canonical_key, result.status, "|".join(result.flags))
+                    if key not in seen:
+                        seen.add(key)
+                        ctx.log(f"related_party_receivables:{canonical_key}"
+                                f":not_computed(status={result.status}"
+                                f" flags={'|'.join(result.flags) or 'none'})")
                     continue
                 _apply(doc, canonical_key, basis, period_label, result, next_ordinal)
                 applied += 1

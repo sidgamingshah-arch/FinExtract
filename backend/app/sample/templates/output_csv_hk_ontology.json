@@ -1916,7 +1916,9 @@
       "exclude_hints": [
         "委托贷款",
         "委托借款",
-        "委托银行贷款"
+        "委托银行贷款",
+        "\\bdebtors?\\b",
+        "trade\\s+receivable"
       ]
     },
     {
@@ -5132,7 +5134,7 @@
       "value_scope": "exclusive_leaf",
       "extraction_mode": "extract_or_derive",
       "match_priority": 81,
-      "alias_matching": "enabled",
+      "alias_matching": "disabled",
       "inherits": "bs_ca",
       "face_only": false,
       "never_sweep": [
@@ -5176,7 +5178,11 @@
           "拆出资金",
           "往来款"
         ]
-      }
+      },
+      "exclude_hints": [
+        "(?:deposits?|prepayments?|prepaid)[\\s\\S]{0,80}other\\s+receivable",
+        "other\\s+receivable[\\s\\S]{0,80}(?:deposits?|prepayments?|prepaid|other\\s+assets)"
+      ]
     },
     {
       "canonical_key": "bs_ca__wealth_management_products_cp_from_cash_equ",
