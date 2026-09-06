@@ -1,5 +1,36 @@
 # Scripts
 
+## `run_filing.py` — one filing through the real pipeline, headless
+
+Triage a new filing with no browser and no dev server. Drives the API in process
+(`POST /documents` → `POST /documents/{id}/extractions` → poll `run-status` → read `/run` and
+`/extractions/{run_id}`), so it is the same code path an upload takes rather than a second
+spelling of it. Its own scratch database and object store, so a triage run never touches
+`backend/finex.db` and never inherits the rulebook versions a previous run left in force.
+
+```bash
+cd backend
+python scripts/run_filing.py /path/to/filing.pdf --no-llm --out _scratch/run
+```
+
+`--no-llm` is the deterministic route: the stub provider, no network call, and the run reports
+`strategy: deterministic` so a degraded run can never be mistaken for a full-capability one. It is
+the same switch `tests/conftest.py` uses, and it is NOT the same as turning the LLM tiers off —
+measured, that is worse, because a dozen behaviours exist to consult that path.
+
+Four files land in `--out`:
+
+| File | What it is |
+| --- | --- |
+| `<stem>__result.json` | the complete result the API would serve — every row, value, provenance, note |
+| `<stem>__run.log` | that run's stage-by-stage log, written even when the run FAILED |
+| `<stem>__summary.json` | what mapped and what did not, plus the rulebook the run **recorded** beside the one this script asked for |
+| `<stem>__unmapped.csv` | every face caption that reached no concept, with its printed page |
+
+`__unmapped.csv` is the triage artefact. A deterministic run's characteristic failure is not a
+wrong number but a caption nothing claimed, and `rulebook_recorded` differing from
+`rulebook_requested` explains a wrong figure on its own.
+
 ## `live_analysis.py` — real Claude extraction + analysis for one entity
 
 Feeds an entity's line items to Claude through the project's real `AnthropicLlmProvider`
