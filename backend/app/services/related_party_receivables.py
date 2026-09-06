@@ -339,12 +339,36 @@ def _cp_pool(doc: DocumentModel, pk: PeriodKey, flags: list[str]
     gross = _Signal()
     deduction = _Signal()
     inspected = False
+    # THE 附注 COLUMN, WHICH ALREADY DISAGREED WITH THE CAPTION AND WAS NEVER CONSULTED.
+    #
+    # A CAS balance sheet prints every template line whether or not the filer uses it, so a page
+    # reads "拆出资金 / 交易性金融资产 / 衍生金融资产 / 应收票据 七、4 / 76,012,834.11" with the
+    # first three carrying NO amount at all. Row reconstruction fuses those four captions into one
+    # label, and `_CP_CLASS_RE` then matched 拆出资金 — a class in the pool — while the figure it
+    # admitted belongs to 应收票据, bills receivable, which is not in the pool at all. That single
+    # mis-attribution put 76,012,834.11 into CP_Gross.
+    #
+    # The filing itself settles it: the row cites note 4, and note 4 is 应收票据. When a FACE row's
+    # cited note is a note whose own heading is not an in-scope class, the caption that matched is
+    # not the caption that owns the amount, and the match is refused. Only face rows are tested —
+    # a note row's note_number is the note it is IN, not one it points at.
+    note_titles = {t.note_number: (t.title or "") for t in doc.notes if t.note_number}
+
+    def _cited_note_contradicts(note_number: str, source_kind: str) -> bool:
+        if source_kind != "face" or not note_number:
+            return False
+        title = note_titles.get(note_number)
+        if not title:
+            return False                      # nothing cited, or the note was never extracted
+        return not _CP_NOTE_HEADING_RE.search(title)
 
     def _scan(label: str, group_hint: str, note_number: str, note_title: str, ev,
               row=(), source_kind: str = "note") -> None:
         nonlocal inspected
         text = f"{label} {group_hint}"
         if not _CP_CLASS_RE.search(text):
+            return
+        if _cited_note_contradicts(note_number, source_kind):
             return
         if not _add_item(gross, note_number, note_title, label, ev, pk, row,
                          source_kind=source_kind):

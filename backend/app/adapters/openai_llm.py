@@ -96,6 +96,16 @@ class OpenAiLlmProvider:
             # So it is sent for mapping too — it serves the same invariant `reasoning_effort` is
             # withheld for, rather than defeating it.
             body["reasoning"] = {"max_tokens": cap}
+            # …AND THE CAP IS ADDED ON TOP OF THE CALLER'S BUDGET, because `max_tokens` is the
+            # TOTAL completion allocation and reasoning is spent from it. Sending both unchanged
+            # silently reduced every visible answer by `cap`: an 18-row mapping batch asked for
+            # 8192 and could only emit 8192 - 3000 = 5192 tokens of JSON, and a real run died at
+            # stage 6 of 21 with
+            #     Invalid JSON: expected `,` or `}` at line 1 column 5000
+            # — a whole 210-page extraction lost because the response was cut mid-object. The
+            # caller sized its budget for the JSON it asked for and has no idea a reasoning cap is
+            # being attached here, so this is the only place that can reconcile the two.
+            body["max_tokens"] = max_tokens + cap
         elif effort and not is_mapping_response:
             # …whereas ASKING for reasoning effort on a mapping batch is withheld deliberately:
             # "a mapping batch must reserve its small completion budget for JSON, not hidden
