@@ -987,6 +987,37 @@ export default function ExtractionView() {
               {u?.currency && <>{"  ·  "}<b>{u.currency}</b></>}
               {u?.units_label && <>{"  ·  "}{t("ex.inUnits")} {u.units_label}</>}
             </p>
+            {/* RE-EXTRACT A RUN THAT SUCCEEDED, which until now there was no way to do.
+                `useReextract` existed and already sent `force: true`, but it was rendered ONLY
+                inside the failure branch — so a document whose run had SUCCEEDED offered no
+                control at all, and POSTing an extraction is idempotent per (document, template,
+                rulebook): the request came back `adopted: true` carrying the very run the reader
+                was trying to replace. The only way past it was to upload the file again under a
+                new document id.
+                It belongs here rather than beside the retry button because the two mean different
+                things — that one is "this run failed, try again", this one is "this run is fine
+                and I want a newer one, on today's code or today's rulebook". */}
+            {canRun && (
+              <div style={{ marginTop: 10 }}>
+                <Button
+                  testid="ex-reextract"
+                  variant="ghost"
+                  disabled={reextract.isPending}
+                  onClick={() => reextract.mutate({ ontologyId: ont?.id, templateId: tpl?.id })}
+                  style={{ fontSize: 12, padding: "6px 12px" }}
+                >
+                  {reextract.isPending ? t("ex.run.retryPending") : t("ex.run.reextract")}
+                </Button>
+                {reextract.isError && (
+                  <div data-testid="ex-reextract-error" style={{ marginTop: 6, fontSize: 11.5 }}>
+                    {t("ex.run.retryFailed")}{" "}
+                    <span style={{ fontFamily: font.mono, fontSize: 11 }}>
+                      {(reextract.error as Error)?.message}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* How mapping ran. A deterministic-only run (no LLM configured) is materially
