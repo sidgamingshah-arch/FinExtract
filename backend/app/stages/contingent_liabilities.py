@@ -51,7 +51,19 @@ class ContingentLiabilitiesStage:
             ctx.log("contingent_liabilities:skipped(no notes extracted)")
             return doc
 
-        results = compute(doc)
+        # The document's own page text, for the case where the disclosure's PAGE never became a
+        # note. A pure-prose page carrying the guarantee totals was classified `face/balance_sheet`
+        # on the measured filing, and a note-only search cannot reach a page that is not a note.
+        # Guarded and best-effort: this stage must not fail a run because the text layer would not
+        # re-read, and `compute` treats an empty list exactly as it treated no argument at all.
+        page_texts: list[tuple[int, str]] = []
+        try:
+            from app.services.derived import document_text
+            page_texts = document_text(ctx.raw_bytes or b"", doc.fmt.value)
+        except Exception as exc:  # noqa: BLE001
+            ctx.log(f"contingent_liabilities:page_text_unavailable({type(exc).__name__})")
+
+        results = compute(doc, page_texts=page_texts)
         if not results:
             ctx.log("contingent_liabilities:no contingent-liability notes found")
             return doc

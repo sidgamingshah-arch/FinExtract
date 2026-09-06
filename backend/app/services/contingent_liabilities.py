@@ -283,6 +283,61 @@ def _prose_items(table, pk: PeriodKey, unit, row_amounts: set) -> list[Contingen
     return out
 
 
+# A disclosure whose PAGE never became a note. Measured: the CSRC filing states its guarantee and
+# letter-of-credit totals in prose on page 197, and that page — 39 lines of litigation narrative
+# with no table on it — was classified `face/balance_sheet`. Face pages do not become notes, so the
+# note-driven search above cannot reach it, and the prose produced no line items either. The
+# disclosure existed only in the document's text, and we published nothing.
+#
+# STRICTER THAN THE NOTE READER, DELIBERATELY, because a page is far weaker evidence than a note
+# heading: the total word (总额/合计/余额) is REQUIRED here where the note reader treats it as
+# optional. That single requirement is what separates a disclosed exposure from a litigation claim,
+# and the very same page proves the point — it also reads "要求…支付合同款及逾期利息、履约保证金及
+# 逾期利息共计992.77 万元", which is money this company is SUING FOR, not an exposure it carries.
+_ZH_SWEEP_RE = re.compile(
+    r"(保函|信用证|担保)"
+    r"[^。；\n]{0,40}?"
+    r"(?:总额|余额|合计)\s*为?\s*"
+    r"([\d,]+(?:\.\d+)?)\s*"
+    r"(亿元|亿|万元|万|千元|元)")
+
+
+def _zh_document_sweep(page_texts: list[tuple[int, str]], pk: PeriodKey
+                       ) -> list[ContingentItem]:
+    """Exposures stated in the document's prose, for pages that never became notes.
+
+    Only ever called when the note search found NO contingency note at all — so it cannot
+    double-count against a note that was read, and it cannot quietly widen the pool on a filing
+    whose notes were found correctly.
+    """
+    if not (pk[1] or "").lower().startswith("current"):
+        return []
+    out: list[ContingentItem] = []
+    seen: set[Decimal] = set()
+    for page_index, text in page_texts or []:
+        for sentence in re.split(r"[。；\n]", text or ""):
+            m = _ZH_SWEEP_RE.search(sentence)
+            if not m:
+                continue
+            factor = _ZH_SCALE.get(m.group(3))
+            if factor is None:
+                continue
+            amount = Decimal(m.group(2).replace(",", "")) * factor
+            if amount in seen:
+                continue
+            seen.add(amount)
+            clean = re.sub(r"\s+", " ", sentence).strip()
+            classification, basis_terms = _classify(f"{m.group(1)} {clean}")
+            out.append(ContingentItem(
+                description=clean[:300], classification=classification,
+                classification_basis=basis_terms, amount=amount,
+                # The page states an absolute figure in its own suffix (万元), so there is no note
+                # presentation scale to divide by — and no note to take a currency from either.
+                currency="", scale=None,
+                note_number="", note_heading="", page=page_index + 1, counterparty=None))
+    return out
+
+
 def _extract_items(doc: DocumentModel, pk: PeriodKey) -> tuple[list[ContingentItem], bool]:
     """Section 2/3: every qualifying item from every identified note, for one (basis, period)."""
     items: list[ContingentItem] = []
@@ -444,10 +499,51 @@ class ContingentLiabilitiesResult:
     flags: list[str] = field(default_factory=list)
 
 
-def compute(doc: DocumentModel) -> dict[PeriodKey, ContingentLiabilitiesResult]:
+def _result_from(items: list[ContingentItem], extra_flags: list[str]
+                 ) -> ContingentLiabilitiesResult:
+    """One period's result from its items — the assembly shared by the note path and the sweep."""
+    flags = list(extra_flags)
+    if any(it.duplicate_of for it in items):
+        flags.append("POSSIBLE_DUPLICATE")
+    if any(it.amount is None for it in items):
+        flags.append("AMOUNT_NOT_DISCLOSED")
+    classified = _classified_summary(items)
+    unclassified = [it for it in items if it.classification == UNCLASSIFIED]
+    total, total_flags = _quantifiable_total(classified)
+    flags.extend(total_flags)
+    return ContingentLiabilitiesResult(
+        _summary_paragraph(classified, unclassified), classified,
+        [{"short_statement": _unclassified_statement(it), "amount": it.amount,
+          "currency": it.currency, "source_note": it.note_number, "page": it.page}
+         for it in unclassified],
+        total, "COMPUTED", flags)
+
+
+def compute(doc: DocumentModel,
+            page_texts: list[tuple[int, str]] | None = None
+            ) -> dict[PeriodKey, ContingentLiabilitiesResult]:
     matching_notes = [t for t in doc.notes if _NOTE_HEADING_RE.search(t.title or "")]
     if not matching_notes:
-        return {}
+        # Before giving up, look in the document's own prose. On the measured CSRC filing the
+        # guarantee and letter-of-credit totals are disclosed on a page the classifier called
+        # `face/balance_sheet` — so no note carried them, no line item carried them, and the answer
+        # was neither a figure nor a flag but silence.
+        #
+        # An empty dict is STILL what "nothing found" returns, and deliberately so: that is this
+        # function's contract with its caller, which logs "no contingent-liability notes found" on
+        # it, and tests/test_contingent_liabilities.py pins it by name
+        # (test_no_matching_notes_reports_not_found_rather_than_none_exist). Returning a
+        # NO_NOTES_FOUND RESULT here instead — which would finally make the unreachable branch
+        # below fire — broke both of those tests, and turning "not found" into a published row is a
+        # contract change, not a bug fix. Only a sweep that actually finds an exposure returns one.
+        swept = _zh_document_sweep(page_texts or [], ("consolidated", "current"))
+        if not swept:
+            return {}
+        # Flagged for review on the face of it: read from loose page prose rather than from an
+        # identified note, which is a weaker provenance and has to say so.
+        return {("consolidated", "current"): _result_from(
+            _dedupe(swept), ["DISCLOSURE_READ_FROM_PAGE_PROSE",
+                             "MISSING_CONTINGENT_LIABILITY_NOTES"])}
     keys: set[PeriodKey] = set()
     for table in matching_notes:
         for item in table.items:
