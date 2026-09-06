@@ -218,13 +218,95 @@ def _deductions(table: NotesTable, pk: PeriodKey, *, ltp: bool) -> dict[str, _Si
     return out
 
 
+# LEVEL 1 / 2 / 3 ARE COLUMNS, NOT ROWS. That is the whole difficulty, and it is why the
+# row-label search below it always returned nothing on a real filing.
+#
+# A fair-value hierarchy table prints one column per level and one row per instrument:
+#
+#     Financial instruments measured at fair value
+#                                                 Level 1   Level 2   Level 3     Total
+#     Financial assets at FVTOCI                    7,620         —   120,792   128,412
+#     Financial assets at FVTPL                    36,071   773,664   153,594   963,329
+#     Financial assets in deposits, prepayments…        —         —    14,654    14,654
+#     Film investments                                  —         —   174,215   174,215
+#     Financial liabilities …                                      ← the assets stop here
+#
+# `_LEVEL_3_RE` matches a row CAPTION beginning "Level 3", so on this filing it matched 0 rows of
+# 190 notes and _level_3 returned None. With Find_3 missing, `_compute_cp` had nothing to deduct:
+# CP published its gross 174,822 instead of 0, and the 288,433 residual that should have carried
+# into LTP never existed, so LTP published 916,919 instead of 628,486. Two wrong figures from one
+# unread column.
+#
+# WHICH COLUMN IS LEVEL 3 IS READ FROM THE TABLE ITSELF. The header row survives extraction as a
+# row captioned "Level" whose own values are literally 1, 2 and 3, so the slot holding 3 names the
+# Level 3 column. That beats guessing a position: the levels are printed in different orders and a
+# table may omit a level entirely (the FVTOCI row above has no Level 2).
+_LEVEL_HEADER_RE = re.compile(r"^\s*level\s*$|^\s*[第]?\s*(?:級別|级别|層級|层级)\s*$", re.IGNORECASE)
+# Everything from this caption on is a LIABILITY, and Find_3 is about financial ASSETS.
+_LIABILITIES_START_RE = re.compile(r"financial\s+liabilit(?:y|ies)|金融[負负][債债]", re.IGNORECASE)
+# The table's own Total ROW, which would double the column it totals.
+_TOTAL_LABEL_RE = re.compile(r"^\s*totals?\s*$|^\s*[合總总][計计]\s*$", re.IGNORECASE)
+
+
+def _level_3_slot(table: NotesTable) -> str | None:
+    """The value-slot holding the Level 3 column, read off the table's own header row."""
+    for item in table.items:
+        if not _LEVEL_HEADER_RE.search(item.raw_label or ""):
+            continue
+        for ev in item.values.values():
+            if ev.value is not None and Decimal(str(ev.value)) == 3:
+                return ev.period_label or ""
+    return None
+
+
 def _level_3(doc: DocumentModel, pk: PeriodKey) -> tuple[Decimal | None, list[dict]]:
     sig = _Signal()
+    # ONE HIERARCHY TABLE PER NOTE, not one per fragment.
+    #
+    # A long note is extracted as one fragment per heading-occurrence per page, and a hierarchy
+    # note prints the CURRENT year's table and then the comparative's under
+    # "…measured at fair value (continued)". Both fragments carry the same note number and the same
+    # Level 1/2/3 columns, so summing every fragment adds the two years together: measured, 878,527
+    # against the 463,255 the current-year table states. The levels are a snapshot at one date, and
+    # two dates do not add.
+    #
+    # The first fragment that yields a Level 3 column is the current year's, because the
+    # comparative is always printed after it. A table genuinely continued across a page break
+    # WITHIN one year would lose its later rows to this, which is the lesser error: understating
+    # the deduction overstates CP, and CP is floored at zero, whereas double-counting the levels
+    # silently suppresses both fields.
+    seen_notes: set[str] = set()
     for table in doc.notes:
         if not _note_matches(table, _FV_HIERARCHY_RE):
             continue
+        if table.note_number in seen_notes:
+            continue
+        slot = _level_3_slot(table)
+        if slot is not None:
+            seen_notes.add(table.note_number)
         for item in table.items:
             label = item.raw_label or ""
+            if _LIABILITIES_START_RE.search(label):
+                break                      # §Find_3 is the ASSETS side of the hierarchy table
+            if slot is not None:
+                # THE COLUMN FORM. The row is any asset row; the figure is its Level 3 cell. The
+                # `pk` period is NOT applied here, because on this table the value slots are the
+                # LEVELS rather than periods — a hierarchy table states one period, and demanding
+                # `pk` would discard every cell it has.
+                if (_LEVEL_HEADER_RE.search(label) or _TOTAL_LABEL_RE.search(label)
+                        or item.role in (LineRole.TOTAL, LineRole.SUBTOTAL,
+                                         LineRole.HEADER, LineRole.SPACER)):
+                    continue               # the header itself, and the table's own total row
+                ev = next((e for e in item.values.values()
+                           if (e.period_label or "") == slot and e.value is not None), None)
+                if ev is None:
+                    continue
+                sig.add(ev.value, ev.unit_ctx.currency, ev.unit_ctx.scale_factor,
+                        {"note_number": table.note_number, "note_heading": table.title,
+                         "line_item": label, "value": str(ev.value),
+                         "level_3_column": slot, "provenance": ev.provenance})
+                continue
+            # THE ROW FORM, kept for a filing that prints the levels down the page instead.
             if _LEVEL_1_2_RE.search(label) or not _LEVEL_3_RE.search(label):
                 continue
             for ev in item.values.values():
