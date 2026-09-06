@@ -1347,3 +1347,82 @@ def make_note_with_bare_block_subtotal_pdf() -> bytes:
     printed on the face as (1,000); prior 700 + 500 = 1,200, deferred (300), total 900.
     """
     return make_hkex_tax_note_pdf(bare_block_subtotal=True, with_rate_reconciliation=False)
+
+
+def make_statement_tail_then_title_pdf() -> bytes:
+    """A mainland-format pair where the SECOND page carries the tail of one statement, the
+    signature block, and then the next statement's own title — 澜起科技 688008 pages 153-154.
+
+    The tail is one row: the balance sheet's grand total, whose caption wraps into 股东权益）总计
+    — a caption that scopes as an EQUITY banner. The title beneath it sits at y≈0.18, ABOVE the
+    fixed page fraction the classifier used to require before it would record a prior statement,
+    so the page was read as one batch and the equity banner scoped every income-statement row
+    under it. The section gate then refused every P&L concept printed there.
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+
+    pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    width, height = A4
+
+    def _chrome(y):
+        c.setFont("STSong-Light", 8)
+        c.drawString(72, y, "澜起科技股份有限公司")
+        c.drawString(72, y - 11, "2024 年年度报告")
+
+    # Page 1 — the consolidated balance sheet, titled, running past the page.
+    _chrome(height - 40)
+    c.setFont("STSong-Light", 13)
+    c.drawString(72, height - 80, "合并资产负债表")
+    c.setFont("STSong-Light", 9)
+    c.drawString(72, height - 100, "2024 年12 月31 日")
+    c.drawRightString(400, height - 120, "2024 年12 月31 日")
+    c.drawRightString(500, height - 120, "2023 年12 月31 日")
+    for i, (label, cur, pri) in enumerate((
+            ("货币资金", "2,318,116,318.71", "2,262,092,163.86"),
+            ("应收账款", "254,238,281.09", "245,166,742.54"),
+            ("存货", "1,281,208,700.63", "1,140,213,478.02"),
+    )):
+        y = height - 145 - i * 18
+        c.drawString(72, y, label)
+        c.drawRightString(400, y, cur)
+        c.drawRightString(500, y, pri)
+    c.showPage()
+
+    # Page 2 — the balance sheet's last row and signatures, then the income statement's title.
+    _chrome(height - 40)
+    # THE GEOMETRY IS THE POINT, measured off the filing. The caption wraps over two lines and
+    # the figures are set on the line BETWEEN them, which is how a vertically-centred cell prints.
+    # The wrap merge therefore attaches the first label line to the value row, and the SECOND
+    # label line — 股东权益）总计 — is left as a label-only row printed after a valued one, which
+    # is precisely the shape a section banner has. Put both label lines together and there is no
+    # banner and nothing to leak.
+    c.setFont("STSong-Light", 9)
+    c.drawString(72, height - 74, "负债和所有者权益（或")
+    c.drawRightString(400, height - 87, "7,388,035,311.08")
+    c.drawRightString(500, height - 87, "7,300,184,629.09")
+    c.drawString(72, height - 100, "股东权益）总计")
+    c.drawString(72, height - 120, "公司负责人：杨崇和")
+    # y ≈ 0.18 of the page: below the chrome and the tail, above the old 0.20 cut-off.
+    c.setFont("STSong-Light", 13)
+    c.drawString(72, height - 150, "合并利润表")
+    c.setFont("STSong-Light", 9)
+    c.drawString(72, height - 170, "2024 年1—12 月")
+    c.drawRightString(400, height - 190, "2024 年度")
+    c.drawRightString(500, height - 190, "2023 年度")
+    for i, (label, cur, pri) in enumerate((
+            ("销售费用", "96,006,550.08", "89,960,686.45"),
+            ("管理费用", "196,262,500.24", "173,132,541.22"),
+            ("研发费用", "763,469,994.44", "681,812,435.36"),
+    )):
+        y = height - 215 - i * 18
+        c.drawString(72, y, label)
+        c.drawRightString(400, y, cur)
+        c.drawRightString(500, y, pri)
+    c.showPage()
+    c.save()
+    return buf.getvalue()

@@ -334,8 +334,14 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         # statement that ENDED above the title, whose own heading is on an earlier page.
         batches = [(words, ps.statement, ps.scope,
                     str(evidence.get("matched_title") or "") or None)]
+        # NO LOWER BOUND ON THE TITLE'S POSITION. The classifier is the authority on whether a
+        # statement is still running above the title — it records `statement_before_title` only
+        # when an AMOUNT is printed above it — so a second fraction here could only overrule that
+        # verdict, and did: a title at y=0.178 with a grand total and three signature lines above
+        # it was refused a split, and the two statements were read as one batch. `before and
+        # after` below is the real bound: a split that leaves nothing on one side is not a split.
         if (ps.kind == PageKind.FACE and prior_statement and isinstance(split_y, (int, float))
-                and 0.20 < split_y < 0.95):
+                and 0.0 < split_y < 0.95):
             before = [word for word in words if (word.bbox.y0 + word.bbox.y1) / 2 < split_y]
             after = [word for word in words if word not in before]
             if before and after:

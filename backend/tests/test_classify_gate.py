@@ -180,3 +180,122 @@ def test_a_filing_already_in_order_is_untouched_and_silent():
     path = [_PRE, _FACE, _FACE, _NOTES]
     assert _notes_follow_the_face(list(path), log=logs.append) == path
     assert logs == []
+
+
+# ── a statement still running above a mid-page title ──────────────────────────────────────────
+#
+# `statement_before_title` is what tells `pdf_extract` to read the two halves of such a page as
+# the statements they belong to. The test used to be "the title sits below y=0.20", which measures
+# the wrong thing: a mainland filing puts the title just above that line. 688008 page 154 prints
+# the company balance sheet's grand total and three signature lines, then 合并利润表 at y=0.178,
+# so no prior statement was recorded, the page was read as ONE batch, and the balance sheet's
+# closing row 股东权益）总计 — which scopes as an EQUITY banner — then scoped every
+# income-statement row beneath it. The section gate refused every P&L concept on the page, and
+# what the spread published for 销售费用 / 管理费用 / 研发费用 was the PARENT COMPANY's figures
+# off the next page, because those rows carried no leaked banner.
+
+
+def _cas_page(title_y: float, *, chrome_only: bool = False) -> tuple[list[dict], str]:
+    """688008 page 154: the tail of one statement, then the next statement's title."""
+    lines = [
+        {"text": "澜起科技股份有限公司", "y": 20.0, "size": 9.0, "bold": False},
+        {"text": "2024 年年度报告", "y": 32.0, "size": 9.0, "bold": False},
+        {"text": "154 / 256", "y": 44.0, "size": 9.0, "bold": False},
+    ]
+    if not chrome_only:
+        lines += [
+            {"text": "负债和所有者权益（或", "y": 60.0, "size": 10.0, "bold": False},
+            {"text": "股东权益）总计", "y": 72.0, "size": 10.0, "bold": False},
+            {"text": "7,388,035,311.08", "y": 72.0, "size": 10.0, "bold": False},
+            {"text": "公司负责人：杨崇和", "y": 90.0, "size": 10.0, "bold": False},
+        ]
+    lines.append({"text": "合并利润表", "y": title_y, "size": 14.0, "bold": True})
+    lines.append({"text": "一、营业总收入", "y": title_y + 30.0, "size": 10.0, "bold": False})
+    lines.append({"text": "3,638,911,068.29", "y": title_y + 30.0, "size": 10.0, "bold": False})
+    return lines, "\n".join(line["text"] for line in lines)
+
+
+def test_an_amount_above_a_mid_page_title_says_a_statement_is_still_running():
+    from app.stages.classify import _features
+
+    lines, text = _cas_page(title_y=142.4)          # y=0.178 of an 800pt page
+    feature = _features(153, lines, 800.0, text)
+
+    assert feature.matched_title == "合并利润表"
+    assert feature.matched_title_y < 0.20           # the position the old test refused
+    assert feature.amounts_above_title is True
+
+
+def test_page_chrome_above_a_title_is_not_a_statement_still_running():
+    """The running header, the report year and the folio are printed above every title.
+
+    None of them belongs to a statement, so a page whose title has only chrome above it has
+    nothing to split off — and splitting it would hand the previous statement a batch of three
+    header lines.
+    """
+    from app.stages.classify import _features
+
+    lines, text = _cas_page(title_y=142.4, chrome_only=True)
+    feature = _features(153, lines, 800.0, text)
+
+    assert feature.matched_title == "合并利润表"
+    assert feature.amounts_above_title is False
+
+
+def test_the_answer_does_not_depend_on_how_far_down_the_page_the_title_sits():
+    from app.stages.classify import _features
+
+    high, high_text = _cas_page(title_y=142.4)      # y=0.178
+    low, low_text = _cas_page(title_y=400.0)        # y=0.500
+
+    assert _features(153, high, 800.0, high_text).amounts_above_title is True
+    assert _features(153, low, 800.0, low_text).amounts_above_title is True
+
+
+def test_a_folio_is_not_an_amount():
+    """"154 / 256" and "2024 年年度报告" carry digits and no statement carries them.
+
+    Tested directly because it is the whole difference between this and "a line with a number
+    in it": every page has chrome, so a looser test would report every titled page as carrying a
+    statement above its title.
+    """
+    from app.stages.classify import _AMOUNT_LINE
+
+    assert _AMOUNT_LINE.search("7,388,035,311.08")
+    assert _AMOUNT_LINE.search("1,204")
+    assert _AMOUNT_LINE.search("96,006,550.08")
+    assert not _AMOUNT_LINE.search("154 / 256")
+    assert not _AMOUNT_LINE.search("2024 年年度报告")
+    assert not _AMOUNT_LINE.search("2024 年1—12 月")
+    assert not _AMOUNT_LINE.search("合并利润表")
+
+
+def test_a_statement_tail_above_a_title_does_not_scope_the_statement_below_it():
+    """End to end: the page is read as the TWO statements it carries, not as one.
+
+    What the leak cost is stated as the section, because that is what the mapper's section gate
+    reads: the balance sheet's closing caption 股东权益）总计 scopes as EQUITY, and every
+    income-statement row printed beneath it inherited that hint. `_in_section` then refused every
+    `is_pl__*` concept — whose section_scope is income_and_expenses — so the consolidated income
+    statement reached no concept at all and the spread published the parent company's figures
+    from the following page instead.
+    """
+    from app.core.models import PageKind
+    from app.services.documents import run_extraction
+    from app.services.mapping import section_of_banner
+    from tests.fixtures.generate import make_statement_tail_then_title_pdf
+
+    doc, _ = run_extraction(make_statement_tail_then_title_pdf(), filename="cas.pdf")
+
+    page = next(p for p in doc.pages if p.index == 1)
+    assert page.kind == PageKind.FACE and page.statement == "profit_and_loss"
+    assert (page.evidence or {}).get("matched_title") == "合并利润表"
+    # The title sits above the fixed fraction the old test required, and a statement IS running
+    # above it — the balance sheet's grand total is printed there.
+    assert (page.evidence or {}).get("matched_title_y") < 0.20
+    assert (page.evidence or {}).get("statement_before_title") == "balance_sheet"
+
+    for label in ("销售费用", "管理费用", "研发费用"):
+        row = next(li for li in doc.line_items if (li.source_label or "").strip() == label)
+        assert section_of_banner(row.section_hint or "") != "equity", \
+            f"{label} inherited the balance sheet's equity banner"

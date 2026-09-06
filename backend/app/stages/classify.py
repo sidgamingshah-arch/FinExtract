@@ -208,6 +208,13 @@ _NUMBERED_HEADING = re.compile(r"(?m)^\s*(?:note\s*)?\d{1,2}[.)、]?\s+[A-Za-z�
 # A page's repeating running header, skipped so a title is read from the page's own heading.
 _RUNNING_HEADER = re.compile(r"annual report|interim report|年報|年度報告|中期報告", re.I)
 _NUM_TOKEN = re.compile(r"\(?-?[\d,]+\.?\d*\)?")
+# A line carrying a printed AMOUNT — a figure with thousands separators, or one set to two
+# decimals. Deliberately not "a line containing a number": every page prints its own folio
+# ("154 / 256"), its report year and its period captions, and none of those is a statement line.
+# What this decides is whether a statement is still running ABOVE a title printed part-way down a
+# page, which is a question about content and not about how far down the title sits — see
+# ``PageFeat.amounts_above_title``.
+_AMOUNT_LINE = re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d{2}(?!\d)")
 # A split title runs to two or three short lines; beyond that a "run" of heading-shaped lines is
 # the title plus the top of the table.
 _JOIN_MAX_LINES = 3
@@ -233,6 +240,10 @@ class PageFeat:
     title_ambig: bool = False
     matched_title: str | None = None
     matched_title_y: float | None = None
+    # Whether a statement is still RUNNING above this page's title: an amount is printed above it.
+    # The evidence that a page carries the tail of one statement and the head of the next, which
+    # is what lets `pdf_extract` read the two halves as the statements they belong to.
+    amounts_above_title: bool = False
     unmapped: list[str] = field(default_factory=list)
     strong_title: bool = False
     narrative: bool = False
@@ -621,6 +632,13 @@ def _features(index: int, lines: list[dict], page_h: float, text: str) -> PageFe
         hit = next((line for line in lines if line["text"].strip() == title), None)
         if hit is not None:
             f.matched_title_y = float(hit["y"]) / page_h
+            # Anything with an AMOUNT above the title belongs to the statement that was running
+            # before it. Page chrome is excluded by `_AMOUNT_LINE` itself rather than by a second
+            # running-header test: the folio, the report year and the period caption all carry
+            # digits and none of them carries a figure.
+            f.amounts_above_title = any(
+                line["y"] < hit["y"] and _AMOUNT_LINE.search(line["text"])
+                for line in lines)
     f.strong_title = f.statement is not None
 
     f.notes_banner = any(re.search(p, joined, re.I) for p in _NOTES_BANNER)
@@ -1046,12 +1064,26 @@ class ClassifyStage:
                 seen_notes = True
             page_src.evidence = {"state": state, "matched_title": f.matched_title,
                                  "matched_title_y": f.matched_title_y,
+                                 # WHETHER A STATEMENT IS STILL RUNNING ABOVE THE TITLE, decided
+                                 # by what is printed above it rather than by how far down the page
+                                 # it sits. The test used to be `matched_title_y > 0.20`, and a
+                                 # mainland filing puts the title just above that line: 688008
+                                 # page 154 prints the company balance sheet's grand total and the
+                                 # signatures, then 合并利润表 at y=0.178. No prior statement was
+                                 # recorded, `pdf_extract` did not split the page, and the whole
+                                 # consolidated income statement was read as one batch with the
+                                 # balance sheet's closing row — whose caption 股东权益）总计
+                                 # scopes as an EQUITY banner and then scoped every income-statement
+                                 # row beneath it, so the section gate refused every P&L concept on
+                                 # the page. What the spread published for 销售费用 / 管理费用 /
+                                 # 研发费用 was the PARENT COMPANY's figures off the next page,
+                                 # because those rows carried no leaked banner.
                                  "statement_before_title": (
-                                     preceding_statement if state == _FACE and f.matched_title_y
-                                     and f.matched_title_y > 0.20 else None),
+                                     preceding_statement if state == _FACE
+                                     and f.amounts_above_title else None),
                                  "scope_before_title": (
-                                     preceding_scope if state == _FACE and f.matched_title_y
-                                     and f.matched_title_y > 0.20 else None),
+                                     preceding_scope if state == _FACE
+                                     and f.amounts_above_title else None),
                                  "title_ambig": f.title_ambig, "margin": round(margin, 2),
                                  "oci_combined": f.oci_combined}
             if f.unmapped:
