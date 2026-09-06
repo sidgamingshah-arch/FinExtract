@@ -208,7 +208,12 @@ def _summarise(result: dict, rows: list[dict], tpl: dict, ont: dict | None,
         "rulebook_recorded": recorded_rulebook,
         "mapping": result.get("mapping"),
         "rows": len(rows),
-        "notes": len(result.get("notes") or []),
+        # `notes` is a COUNT in the served result and `note_details` the tables themselves.
+        # Both are read defensively: this script summarises whatever the endpoint serves, and a
+        # triage tool that dies on the shape of a field is a triage tool that ran for ten minutes
+        # and told you nothing.
+        "notes": _count(result.get("notes")),
+        "note_details": _count(result.get("note_details")),
         "mapped": sum(1 for r in rows
                       if r.get("canonical_key")
                       and not is_unclassified_face_key(r.get("canonical_key"))),
@@ -216,12 +221,34 @@ def _summarise(result: dict, rows: list[dict], tpl: dict, ont: dict | None,
         "no_canonical_key": len(unmapped),
         "by_mapping_method": dict(sorted(by_method.items(), key=lambda kv: -kv[1])),
         "units": result.get("units"),
-        "reconciliation_entries": len(result.get("reconciliation") or []),
-        "structural": {
-            k: v for k, v in (result.get("structural") or {}).items()
-            if k in ("passed", "failed", "skipped", "errors", "failed_assertions")
-        } if isinstance(result.get("structural"), dict) else None,
+        "reconciliation_entries": _count(result.get("reconciliation")),
+        "structural": _structural(result.get("structural")),
     }
+
+
+def _count(value) -> int:
+    """How many of a field the result reports, whatever shape it arrived in."""
+    if isinstance(value, int):
+        return value
+    return len(value or [])
+
+
+def _structural(structural) -> dict | None:
+    """The structural report's own tally, from either shape the endpoint serves.
+
+    A dict carries the counts; a LIST is the per-relation results, and the tally is then this
+    script's to compute — by `status`, which is the field every result carries.
+    """
+    if isinstance(structural, dict):
+        return {k: v for k, v in structural.items()
+                if k in ("passed", "failed", "skipped", "errors", "failed_assertions")}
+    if isinstance(structural, list):
+        out: dict[str, int] = {}
+        for res in structural:
+            key = str((res or {}).get("status") or "—")
+            out[key] = out.get(key, 0) + 1
+        return dict(sorted(out.items(), key=lambda kv: -kv[1]))
+    return None
 
 
 def _write_unmapped(path: Path, rows: list[dict]) -> None:
@@ -258,7 +285,7 @@ def _report(summary: dict) -> list[str]:
         f"rows     {summary['rows']}  ({summary['mapped']} mapped, "
         f"{summary['engine_unclassified_face']} unclassified face, "
         f"{summary['no_canonical_key']} with no key)",
-        f"notes    {summary['notes']}",
+        f"notes    {summary['notes']}  ({summary['note_details']} extracted tables)",
         f"mapping  {summary.get('mapping')}",
     ]
     top = list(summary["by_mapping_method"].items())[:8]

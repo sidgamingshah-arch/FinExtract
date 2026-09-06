@@ -268,3 +268,90 @@ def test_an_inline_note_keyword_in_a_cell_of_its_own_still_reads_as_one():
     assert items[0].source_label == "Cash and bank"
     assert items[0].note_number == "14"
     assert sorted(str(v.value) for v in items[0].values.values()) == ["1000", "900"]
+
+
+# ── the column header of a table that does not start at the top of the page ────────────────────
+#
+# A mainland annual report prints several notes to a page. 688008 (澜起科技) page 219 carries
+# notes 59, 60 and 61, so note 61's own header band sits at y=0.68/0.70 — and every caption over
+# its columns was thrown away by a page-fraction cut-off that was meant to be the FALLBACK bound
+# for a page carrying no figure at all, not a second bound applied on top of "above this table's
+# first figure". What was lost is the two-level grid the note prints:
+#
+#     项目 |     本期发生额     |     上期发生额
+#          |  收入   |  成本   |  收入   |  成本
+#     主营业务 | 3,628,769,555.93 | 1,516,811,244.12 | 2,278,141,066.50 | 933,947,676.30
+#
+# With the header invisible the four columns fell back to positional labels, so the CURRENT
+# period's COST was published as the PRIOR period's revenue: Sales (Revenues) read
+# 1,516,811,244.12 for 2023 against a printed 2,278,141,066.50.
+
+
+def _revenue_cost_table(top: float) -> list[Word]:
+    """Note 61's table as the filing prints it, with its header band starting at ``top``."""
+    words = [
+        _w("项目", 0.10, top, 0.14, top + 0.008),
+        _w("本期发生额", 0.34, top - 0.008, 0.44, top),
+        _w("上期发生额", 0.64, top - 0.008, 0.74, top),
+        _w("收入", 0.30, top + 0.016, 0.34, top + 0.024),
+        _w("成本", 0.47, top + 0.016, 0.51, top + 0.024),
+        _w("收入", 0.60, top + 0.016, 0.64, top + 0.024),
+        _w("成本", 0.77, top + 0.016, 0.81, top + 0.024),
+    ]
+    # All three printed rows, because the value COLUMNS are clustered from the figures: one row
+    # establishes no bands, and a fixture that omitted the rest would be testing that rather than
+    # the header band this exists for.
+    for i, (label, cur, cur_cost, prior, prior_cost) in enumerate((
+        ("主营业务", "3,628,769,555.93", "1,516,811,244.12",
+                     "2,278,141,066.50", "933,947,676.30"),
+        ("其他业务", "10,141,512.36", "6,803,694.42", "7,597,431.73", "5,268,587.65"),
+        ("合计", "3,638,911,068.29", "1,523,614,938.54",
+                 "2,285,738,498.23", "939,216,263.95"),
+    )):
+        y = top + 0.033 + i * 0.017
+        words += [
+            _w(label, 0.10, y, 0.18, y + 0.008),
+            _w(cur, 0.26, y, 0.38, y + 0.008),
+            _w(cur_cost, 0.43, y, 0.55, y + 0.008),
+            _w(prior, 0.56, y, 0.68, y + 0.008),
+            _w(prior_cost, 0.74, y, 0.84, y + 0.008),
+        ]
+    return words
+
+
+def _main_business(words: list[Word]):
+    items, _ = build_line_items(words, page_index=218, document_id="d1", source_kind="native")
+    return next(li for li in items if li.source_label == "主营业务")
+
+
+def test_a_two_level_header_below_mid_page_is_still_read():
+    li = _main_business(_revenue_cost_table(top=0.684))
+
+    assert _slots(li) == {
+        ("consolidated", "current"): "3628769555.93",
+        ("consolidated", "current:cost"): "1516811244.12",
+        ("consolidated", "prior"): "2278141066.50",
+        ("consolidated", "prior:cost"): "933947676.30",
+    }
+
+
+def test_the_same_table_at_the_top_of_a_page_reads_identically():
+    """The bound is "above this table's first figure", so WHERE on the page changes nothing."""
+    low = _slots(_main_business(_revenue_cost_table(top=0.684)))
+    high = _slots(_main_business(_revenue_cost_table(top=0.120)))
+
+    assert low == high
+
+
+def test_the_current_period_cost_is_never_published_as_the_prior_revenue():
+    """The consequence, stated as the figure a reader would have taken.
+
+    Named separately from the slot assertion above because this is the defect: each column was
+    internally consistent, so nothing downstream could see that the 2023 revenue column held
+    2024's cost of sales.
+    """
+    li = _main_business(_revenue_cost_table(top=0.684))
+
+    prior = li.get_value(Basis.CONSOLIDATED, period_label="prior")
+    assert prior is not None and str(prior.value) == "2278141066.50"
+    assert str(prior.value) != "1516811244.12"

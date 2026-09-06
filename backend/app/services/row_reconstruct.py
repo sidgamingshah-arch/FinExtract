@@ -1311,10 +1311,22 @@ def _header_region(rows: list[list[Word]], fmt=None) -> list[list[Word]]:
     sometimes set on it). The page fraction is the fallback bound for a page that reports no figure
     at all, where "above the figures" says nothing. Widening the region cannot loosen detection:
     every guard in :func:`_basis_bands` is geometric and each one is a veto.
+
+    THE PAGE FRACTION IS THE FALLBACK, NOT A SECOND BOUND, and applying it as both discarded real
+    headers. A mainland annual report prints several notes to a page — 688008's page 219 carries
+    notes 59, 60 and 61 — and note 61's own header band sits at y=0.68/0.70, so every caption over
+    its columns was thrown away by a 0.5 cut-off while "above this table's first figure" had
+    already bounded the band correctly. What was lost is the two-level grid: the note prints
+    本期发生额 | 上期发生额 over 收入 | 成本 | 收入 | 成本, and with the header invisible the four
+    columns fell back to positional labels — so the CURRENT period's cost was published as the
+    PRIOR period's revenue. Sales (Revenues) read 1,516,811,244.12 for 2023 against a printed
+    2,278,141,066.50, and the figure it took is this year's cost of sales.
     """
     first = next((i for i, r in enumerate(rows) if _carries_amounts(r, fmt)), None)
-    upto = rows if first is None else rows[:first + 1]
-    return [r for r in upto if _row_box(r).y0 <= _HDR_PAGE_FRACTION]
+    if first is not None:
+        return rows[:first + 1]
+    # No figure anywhere, so "above the figures" says nothing and the page fraction is all there is.
+    return [r for r in rows if _row_box(r).y0 <= _HDR_PAGE_FRACTION]
 
 
 def _value_area(value_bands: list[float],
