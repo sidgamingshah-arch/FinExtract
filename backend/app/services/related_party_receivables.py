@@ -144,7 +144,10 @@ class _Signal:
         # THE RESTATEMENT LEDGER IS FED THE GROSS, not the net: what identifies the same balance
         # printed twice is the balance, and one note stating it beside its provision does not make
         # it a different receivable from the same figure printed alone.
-        note = meta.get("note_number")
+        # The identity is (WHERE it was printed, WHICH note), not the note number alone. A face
+        # line's note_number is the note it CITES, so keying on the number by itself made a face
+        # row and the note it points at look like one source and let the same balance in twice.
+        note = (meta.get("source_kind") or "note", meta.get("note_number"))
         if self._ledger.is_restatement(amount, currency, scale, note):
             self.duplicated = True
             self.evidence.append(
@@ -199,19 +202,26 @@ def _note_matches(table: NotesTable, pattern: re.Pattern) -> bool:
 
 
 def _add_item(sig: _Signal, table_number: str, table_title: str, label: str, ev, pk: PeriodKey,
-              siblings=()) -> bool:
+              siblings=(), source_kind: str = "note") -> bool:
     """Contribute one figure to a candidate, net of the allowance printed beside it (§3.2).
 
     ``siblings`` are the other values of the SAME printed row, which is where the row's own
     坏账准备 column lives once ``row_reconstruct`` has read the two-level header. Passing the row
     rather than the single value is what makes the net computable per period — see
     :data:`_ALLOWANCE_MEASURE`.
+
+    ``source_kind`` is "face" for a statement line and "note" for a note row, and it is part of the
+    restatement identity rather than decoration. A face line cites the note that breaks it down —
+    its ``note_number`` IS that cross-reference (七、9) — so a face row and its own note table both
+    presented as note "9", the ledger's ``earlier != note`` test read them as the same source, and
+    其他应收款 36,770,065.47 was counted TWICE into one gross pool. The face and the note it points
+    at are two printings of one balance, which is precisely what the ledger exists to collapse.
     """
     if ev.value is None or (ev.basis.value, ev.period_label or "") != pk:
         return False
     unit = getattr(ev, "unit_ctx", None)
     prov = _allowance_beside(siblings, ev)
-    meta = {"note_number": table_number, "note_heading": table_title,
+    meta = {"note_number": table_number, "note_heading": table_title, "source_kind": source_kind,
             "line_item": label, "value": str(ev.value), "provenance": ev.provenance}
     if prov is not None:
         meta = {**meta, "gross": str(ev.value), "allowance": str(prov.value),
@@ -237,7 +247,7 @@ def _find_1(doc: DocumentModel, pk: PeriodKey, flags: list[str]) -> _Signal:
         row = list(li.values.values())
         for ev in row:
             _add_item(sig, li.note_number or "", li.section_hint or "", li.source_label, ev, pk,
-                      row)
+                      row, source_kind="face")
     return sig
 
 
@@ -331,18 +341,20 @@ def _cp_pool(doc: DocumentModel, pk: PeriodKey, flags: list[str]
     inspected = False
 
     def _scan(label: str, group_hint: str, note_number: str, note_title: str, ev,
-              row=()) -> None:
+              row=(), source_kind: str = "note") -> None:
         nonlocal inspected
         text = f"{label} {group_hint}"
         if not _CP_CLASS_RE.search(text):
             return
-        if not _add_item(gross, note_number, note_title, label, ev, pk, row):
+        if not _add_item(gross, note_number, note_title, label, ev, pk, row,
+                         source_kind=source_kind):
             return
         # This line belongs to the gross pool and has now been tested for a related-party
         # marker, which is what makes a nil deduction a finding rather than a gap.
         inspected = True
         if _RELATED_PARTY_RE.search(text):
-            _add_item(deduction, note_number, note_title, label, ev, pk, row)
+            _add_item(deduction, note_number, note_title, label, ev, pk, row,
+                      source_kind=source_kind)
 
     for li in doc.line_items:
         if li.printed_in not in (None, PrintedIn.FACE):
@@ -350,7 +362,7 @@ def _cp_pool(doc: DocumentModel, pk: PeriodKey, flags: list[str]
         row = list(li.values.values())
         for ev in row:
             _scan(li.source_label, li.group_hint, li.note_number or "", li.section_hint or "", ev,
-                  row)
+                  row, source_kind="face")
 
     found_note = False
     for table in doc.notes:
