@@ -21,6 +21,10 @@ finex.db
 node_modules/
 dist/
 .vite/
+# The frontend is a pnpm workspace and pnpm-lock.yaml is the lockfile of record. An npm lockfile
+# appears when someone falls back to `npm install` (pnpm 9 rejects this workspace file), and
+# committing it alongside pnpm's would give the project two disagreeing sources of truth.
+package-lock.json
 
 # Playwright e2e artifacts
 test-results/
@@ -36,6 +40,10 @@ playwright-report/
 .DS_Store
 .idea/
 .vscode/
+# Lock files written next to a workbook while LibreOffice/Excel has it open. They are hidden, so
+# they are easy to stage by accident from a `git add` of a directory.
+.~lock.*#
+~$*.xls*
 
 # Claude Code local state + agent worktrees (never tracked)
 # `.claude/*` and not `.claude/`, because git does not descend into an excluded DIRECTORY and a

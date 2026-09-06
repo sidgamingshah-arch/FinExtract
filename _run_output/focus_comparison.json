@@ -1,0 +1,90 @@
+{
+  "is_pl__deprec_and_impairment_oper_exp": {
+    "ours": "529841",
+    "reference": "529841",
+    "match": true,
+    "method": "computed:deprec_impairment:P2",
+    "flags": [
+      "MISSING_NOTE:rd_depreciation",
+      "MISSING_NOTE:selling_marketing_depreciation",
+      "MISSING_NOTE:ga_depreciation",
+      "MISSING_NOTE:operating_expense_depreciation",
+      "MISSING_NOTE:cos_depreciation",
+      "MISSING_NOTE:prepaid_lease_depreciation",
+      "MISSING_NOTE:fixed_asset_depreciation",
+      "MISSING_NOTE:cip_depreciation",
+      "MISSING_NOTE:cfo_depreciation",
+      "ASSUMED_ZERO_COS_DEPRECIATION"
+    ]
+  },
+  "is_pl__deprec_and_impairment_cos": {
+    "ours": "57576",
+    "reference": "57576",
+    "match": true,
+    "method": "computed:deprec_impairment:COS_P2",
+    "flags": [
+      "MISSING_NOTE:rd_depreciation",
+      "MISSING_NOTE:selling_marketing_depreciation",
+      "MISSING_NOTE:ga_depreciation",
+      "MISSING_NOTE:operating_expense_depreciation",
+      "MISSING_NOTE:cos_depreciation",
+      "MISSING_NOTE:prepaid_lease_depreciation",
+      "MISSING_NOTE:fixed_asset_depreciation",
+      "MISSING_NOTE:cip_depreciation",
+      "MISSING_NOTE:cfo_depreciation",
+      "ASSUMED_ZERO_COS_DEPRECIATION"
+    ]
+  },
+  "bs_ca__secur_and_other_fincl_assets_cp": {
+    "ours": "174822",
+    "reference": "174822",
+    "match": true,
+    "method": "llm",
+    "flags": [
+      "alloc:direct_exclusive",
+      "llm_reason:Deterministic suggestion matches. Note 26 explicitly identifies these as 'Financial assets at fair value through profit or loss' with listed and unlisted investments totaling HK$963,329,000 (current portion HK$174,822,000). The caption and note confirm this maps to bs_ca__secur_and_other_fincl_assets_cp."
+    ]
+  },
+  "bs_nca__secur_and_other_fincl_assets_ltp": {
+    "ours": "916919",
+    "reference": "916919",
+    "match": true,
+    "method": "computed:secur_fincl_assets:LTP_base + CP_negative_carryforward_to_LTP",
+    "flags": [
+      "MISSING_CP_CARRYFORWARD_TO_LTP"
+    ]
+  },
+  "notes__contingent_liabilities": {
+    "ours": "1310743",
+    "reference": "1310743",
+    "match": true,
+    "method": "computed:contingent_liabilities",
+    "flags": [
+      "LLM_NARRATIVE"
+    ]
+  },
+  "bs_nca__due_from_related_parties_ltp": {
+    "ours": null,
+    "reference": null,
+    "match": true,
+    "method": null,
+    "flags": []
+  },
+  "bs_ca__other_receivables_cp": {
+    "ours": null,
+    "reference": null,
+    "match": true,
+    "method": null,
+    "flags": []
+  },
+  "is_pl__sales_revenues": {
+    "ours": "4995768",
+    "reference": "4995768",
+    "match": true,
+    "method": "llm",
+    "flags": [
+      "alloc:direct_exclusive",
+      "llm_reason:TURNOVER is the principal revenue line on the income statement face. Note 6 (TURNOVER AND OTHER REVENUE AND GAINS) breaks down the components and confirms Total turnover of 4,995,768 (2025) and 6,096,141 (2024). This is the gross sales-revenue figure, matching is_pl__sales_revenues definition (Revenue/Turnover/Sales). Deterministic suggestion is correct."
+    ]
+  }
+}
