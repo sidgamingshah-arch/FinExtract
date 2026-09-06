@@ -158,9 +158,11 @@ def main() -> int:
 
         (args.out / f"{stem}__result.json").write_text(
             json.dumps(result, indent=1, ensure_ascii=False), encoding="utf-8")
-        logs = detail.get("logs") or detail.get("log") or ""
-        if isinstance(logs, list):
-            logs = "\n".join(str(x) for x in logs)
+        # THE WHOLE LOG, read from the run row rather than from the endpoint. `/extractions/{id}`
+        # serves `log_tail` — the last N lines, which is right for a progress screen and wrong for
+        # triage: the stage that explains a dropped figure is usually near the START of a
+        # 200-page run. This script owns the database, so it reads the column.
+        logs = _run_log(run_id) or detail.get("log_tail") or ""
         (args.out / f"{stem}__run.log").write_text(
             f"# run {run_id}  status {status}\n{logs}\n", encoding="utf-8")
         if not result:
@@ -224,6 +226,18 @@ def _summarise(result: dict, rows: list[dict], tpl: dict, ont: dict | None,
         "reconciliation_entries": _count(result.get("reconciliation")),
         "structural": _structural(result.get("structural")),
     }
+
+
+def _run_log(run_id: str) -> str:
+    """The run's complete log, straight off the row."""
+    if not run_id:
+        return ""
+    from app.db.base import SessionLocal
+    from app.db.models import ExtractionRun
+
+    with SessionLocal() as session:
+        run = session.get(ExtractionRun, run_id)
+        return (run.logs or "") if run is not None else ""
 
 
 def _count(value) -> int:
