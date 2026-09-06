@@ -56,7 +56,16 @@ _LTP_CLASS_RE = re.compile(r"其他应收款项|其他应收款|一年内到期�
 _RECEIVABLE_NOTE_HEADING_RE = re.compile(
     r"其他应收款项|其他应收款|一年内到期的非流动资产|一年内到期的长期应收款|长期应收款|发放贷款及垫款|贷款及垫款")
 _RELATED_PARTY_NOTE_HEADING_RE = re.compile(
-    r"关联方及关联交易|关联方关系及其交易|关联方交易|关联方往来|关联方应收应付款项|关联方余额|应收关联方款项")
+    r"关联方及关联交易|关联方关系及其交易|关联方交易|关联方往来|关联方应收应付款项|关联方余额|应收关联方款项"
+    # Every alternative above needs 关联方 sitting next to a specific token. The CSRC-standard
+    # caption is 应收、应付关联方等未结算项目情况 — which splits 应收…关联方 with 、应付 and so
+    # matched none of them. The consequence was not a missing figure but a LIE: _find_3 logged
+    # MISSING_NOTE:related_party_note for a note that had been extracted as seven fragments across
+    # pages 189-195, 38 rows on one page. A false "we looked and it is not there" is worse than a
+    # crash, because it is indistinguishable in the output from a filing that genuinely discloses
+    # nothing. This note covers receivables AND payables together, which is why the caption reads
+    # 应收、应付 — direction is decided per ROW by _RELATED_PARTY_NOTE_EXCLUDE_RE, not by heading.
+    r"|应收、?应付关联方|关联方等未结算项目|未结算项目情况")
 _RELATED_PARTY_NOTE_ITEM_RE = re.compile(
     r"其他应收款项|其他应收款|一年内到期的长期应收款|长期应收款|发放贷款及垫款|贷款及垫款"
     r"|其他应收关联方款项|应收关联方款项")
