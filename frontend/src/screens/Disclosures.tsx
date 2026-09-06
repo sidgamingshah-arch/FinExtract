@@ -74,8 +74,11 @@ export default function DisclosuresScreen() {
           </div>
           {q.data.disclosures.map((d) => (
             <div key={d.key} data-testid={`disc-row-${d.key}`}
+                 /* Top-aligned, not centred: the evidence cell now carries the WHOLE disclosure
+                    passage, so a row can be many lines tall and a centred label would float away
+                    from the text it names. */
                  style={{ display: "grid", gridTemplateColumns: "1.5fr 80px 1.2fr 3fr",
-                          gap: 12, alignItems: "center", padding: "8px 0",
+                          gap: 12, alignItems: "start", padding: "8px 0",
                           borderBottom: `1px solid ${color.hairline2}` }}>
               <span style={{ fontSize: 12.5, color: color.ink }}>{d.label}</span>
               <span style={{ fontSize: 10.5, fontWeight: 700,
@@ -93,7 +96,7 @@ export default function DisclosuresScreen() {
                       undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                   : ""}
               </span>
-              <span style={{ fontSize: 11.5, color: color.muted,
+              <span style={{ fontSize: 11.5, color: color.muted, lineHeight: 1.5,
                              fontStyle: d.snippet ? "italic" : "normal" }}>
                 {d.snippet || t("ex.notFound")}
               </span>

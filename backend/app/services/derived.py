@@ -653,9 +653,33 @@ _DISCLOSURES = [
 ]
 
 
-def _snippet(text: str, match: re.Match, width: int = 90) -> str:
-    start = max(0, match.start() - width // 2)
-    end = min(len(text), match.end() + width // 2)
+# What separates one disclosure passage from the next on a page of running text: a blank line, or
+# the numbered/lettered heading a filing starts each note with ("34. GUARANTEES", "(b) Litigation").
+# A single newline is NOT a boundary — a note wraps over a dozen of them.
+_PASSAGE_BREAK = re.compile(r"\n\s*\n|\n(?=\s*(?:\d+\.\d+|\d{1,2}[.)]|\([a-z0-9]{1,3}\))\s)")
+
+
+def _snippet(text: str, match: re.Match) -> str:
+    """The WHOLE passage the match sits in, whitespace-normalized. Never a fixed-width window.
+
+    This used to return 45 characters either side of the match, which put a sentence fragment
+    clipped mid-word at both ends in front of the analyst — and the same fragment into the
+    credit-narrative model's prompt, where a contingency stated in the half it cut off simply
+    was not there. The disclosure catalog only claims presence, so the passage is the whole of
+    what the finding rests on: it is either read in full or it is not evidence.
+
+    Bounded by the passage, not by a character count: the note the filing prints, from the break
+    above the match to the break below it. A page with no such break yields the page, which is
+    the correct answer for a filing that runs its disclosures together.
+    """
+    start = 0
+    end = len(text)
+    for break_ in _PASSAGE_BREAK.finditer(text):
+        if break_.end() <= match.start():
+            start = break_.end()
+        elif break_.start() >= match.end():
+            end = break_.start()
+            break
     return re.sub(r"\s+", " ", text[start:end]).strip()
 
 

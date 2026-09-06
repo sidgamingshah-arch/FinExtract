@@ -372,3 +372,55 @@ def test_a_disclosure_scan_with_no_folio_map_keeps_the_sheet_position():
     hits = [d for d in scan_disclosures(pages) if d.get("present")]
     assert hits
     assert all(d["page"] == 186 for d in hits), hits
+
+
+def test_a_disclosure_carries_its_whole_passage_not_a_clipped_window():
+    """The evidence is read in full or it is not evidence.
+
+    The snippet used to be 45 characters either side of the keyword, which put a fragment
+    clipped mid-word in the Commentary screen's evidence column — and the same fragment into the
+    credit-narrative model's prompt, so a guarantee capped at HK$120 million was described
+    without its cap. Nothing about the passage's length is a reason to cut it.
+    """
+    from app.services.derived import scan_disclosures
+
+    passage = ("34. GUARANTEES\n"
+               "At the end of the reporting period the Group had issued a financial guarantee in "
+               "respect of banking facilities granted to an associate, capped at HK$120,000,000 "
+               "and expiring in March 2027. The directors do not consider it probable that a "
+               "claim will be made against the Group.")
+    pages = [(10, f"Some earlier note about inventories.\n\n{passage}\n\n35. COMMITMENTS\n"
+                  "Capital commitments contracted for but not provided.")]
+
+    hit = next(d for d in scan_disclosures(pages) if d["key"] == "guarantees")
+
+    assert "capped at HK$120,000,000" in hit["snippet"]
+    assert hit["snippet"].startswith("34. GUARANTEES")
+    assert hit["snippet"].endswith("claim will be made against the Group.")
+    # Bounded by the passage, so the neighbouring notes do not bleed in.
+    assert "inventories" not in hit["snippet"]
+    assert "COMMITMENTS" not in hit["snippet"]
+
+
+def test_a_disclosure_passage_that_wraps_over_line_breaks_is_not_cut_at_one():
+    """A note wraps over a dozen newlines; only a blank line or the next heading ends it."""
+    from app.services.derived import scan_disclosures
+
+    pages = [(10, "Litigation\nA writ was filed against the Company on 3 May 2025 claiming\n"
+                  "damages of RMB4,500,000. The Company has lodged a defence.")]
+
+    hit = next(d for d in scan_disclosures(pages) if d["key"] == "litigation")
+
+    assert hit["snippet"].endswith("lodged a defence.")
+    assert "RMB4,500,000" in hit["snippet"]
+
+
+def test_a_page_that_runs_its_disclosures_together_yields_the_page():
+    from app.services.derived import scan_disclosures
+
+    text = ("The Group is subject to litigation in the ordinary course of business. "
+            "No provision has been recognised because an outflow is not probable.")
+
+    hit = next(d for d in scan_disclosures([(10, text)]) if d["key"] == "litigation")
+
+    assert hit["snippet"] == text
