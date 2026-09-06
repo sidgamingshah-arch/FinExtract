@@ -299,3 +299,121 @@ def test_a_fixed_assets_note_stands_alone_when_no_component_note_is_disclosed():
     result = compute(doc)[("consolidated", "current")]["oper_exp"]
     assert result.value == Decimal("500")
     assert "TOTAL_COMPONENT_OVERLAP:fixed_asset_depreciation" not in result.flags
+
+
+# --- the trace back to the source --------------------------------------------------------------
+# A figure assembled from note datasets is only as good as what it can be checked against. These
+# pin the two things the inspector needs from the evidence trail and used not to get: the filing's
+# own words for an input read out of PROSE, and which input the winning priority SUBTRACTED.
+
+
+def _inputs(result):
+    from app.services.derivation import input_from_evidence
+
+    return [input_from_evidence(e) for e in result.evidence]
+
+
+CALLOUT = ("Depreciation charges of approximately HK$529,841,000 (2024: HK$665,553,000) are "
+           "included in “other operating expenses” on the face of the consolidated "
+           "income statement.")
+
+
+def _callout_doc():
+    return _doc(_note("7", "LOSS FROM OPERATING ACTIVITIES", [
+        _item2("Depreciation of property, plant and equipment", "306456", "364968"),
+        _item2("Depreciation of right-of-use assets", "280961", "370867"),
+    ], source_text=CALLOUT))
+
+
+def test_a_callout_read_out_of_prose_carries_the_sentence_it_was_read_from():
+    """The one input with no printed row to point at.
+
+    Every other input is a table row the derivation locates by note, caption and page. This one
+    was recorded under the internal name of the rule that found it — "explicit opex-inclusion
+    callout" — which gave the reviewer a page number and nothing on the page to check.
+    """
+    oper = compute(_callout_doc())[("consolidated", "current")]["oper_exp"]
+
+    callout = next(i for i in _inputs(oper) if i["value"] == "529841")
+    assert callout["label"] == "Depreciation stated as included in operating expenses"
+    assert "HK$529,841,000" in callout["excerpt"]
+    assert "included in" in callout["excerpt"]
+    assert callout["excerpt"].startswith("Depreciation charges of approximately")
+
+
+def test_a_table_row_input_carries_no_excerpt():
+    """The caption IS the trace for a printed row; a sentence would be noise beside it."""
+    doc = _doc(
+        _note("6", "Profit before taxation is arrived at after charging",
+              [_item("Depreciation of property, plant and equipment", "500")]),
+        _note("7", "Cost of sales",
+              [_item("Depreciation of property, plant and equipment", "300")]),
+    )
+
+    oper = compute(doc)[("consolidated", "current")]["oper_exp"]
+
+    assert all(i["excerpt"] is None for i in _inputs(oper))
+
+
+def test_the_cost_of_sales_share_a_priority_subtracts_is_marked_deducted():
+    """P3 is "profit-before-tax depreciation − cost-of-sales depreciation"."""
+    doc = _doc(
+        _note("6", "Profit before taxation is arrived at after charging",
+              [_item("Depreciation of property, plant and equipment", "500")]),
+        _note("7", "Cost of sales",
+              [_item("Depreciation of property, plant and equipment", "300")]),
+    )
+
+    oper = compute(doc)[("consolidated", "current")]["oper_exp"]
+    assert oper.priority_used == "P3" and oper.value == Decimal("200")
+
+    by_value = {i["value"]: i for i in _inputs(oper)}
+    assert by_value["500"]["deducted"] is False
+    assert by_value["300"]["deducted"] is True
+
+
+def test_nothing_is_marked_deducted_when_the_priority_subtracts_nothing():
+    """P2 is a single callout, and an assumed-zero deduction has no evidence to mark."""
+    oper = compute(_callout_doc())[("consolidated", "current")]["oper_exp"]
+
+    assert oper.priority_used == "P2"
+    assert all(i["deducted"] is False for i in _inputs(oper))
+
+
+def test_cos_p2_reverses_the_role_of_every_operating_expense_input():
+    """COS_P2 is `pbt depreciation − Deprec & Impairment (Oper Exp)`.
+
+    So what Oper Exp added, COS subtracts. Without this the inspector listed three positive
+    figures — 306,456 + 280,961 + 529,841 — under a total of 57,576.
+    """
+    cos = compute(_callout_doc())[("consolidated", "current")]["cos"]
+    assert cos.priority_used == "COS_P2" and cos.value == Decimal("57576")
+
+    by_value = {i["value"]: i for i in _inputs(cos)}
+    assert by_value["306456"]["deducted"] is False
+    assert by_value["280961"]["deducted"] is False
+    assert by_value["529841"]["deducted"] is True
+
+
+def test_the_inputs_the_inspector_lists_add_up_to_the_figure_above_them():
+    """The whole point of the trail: a reviewer can add the column and get the row.
+
+    Read through `merge_for_basis`, which is what the statement inspector calls, so what is
+    checked is the arithmetic the analyst actually sees.
+    """
+    from app.services.derivation import build, input_from_evidence, merge_for_basis
+
+    doc = _callout_doc()
+    both = compute(doc)
+    store = {}
+    for period in ("current", "prior"):
+        result = both[("consolidated", period)]["cos"]
+        store[f"consolidated:{period}"] = build(
+            method="deprec_impairment", formula=result.priority_used,
+            inputs=[input_from_evidence(e) for e in result.evidence], result=result.value)
+
+    _, contributions = merge_for_basis(store, "consolidated")
+
+    assert sum(c["v1"] for c in contributions) == 57576
+    assert sum(c["v2"] for c in contributions) == float(
+        both[("consolidated", "prior")]["cos"].value)

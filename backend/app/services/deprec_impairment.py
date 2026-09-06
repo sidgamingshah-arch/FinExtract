@@ -167,13 +167,22 @@ def _note_matches(table: NotesTable, pattern: re.Pattern) -> bool:
     return bool(pattern.search(table.title or ""))
 
 
-def _explicit_opex_depreciation(table: NotesTable) -> tuple[Decimal, Decimal] | None:
-    """The (current, prior) figures named in an explicit "included in operating expenses" callout,
-    when the note states them as amounts rather than only the fact of the split."""
+def _explicit_opex_depreciation(table: NotesTable) -> tuple[Decimal, Decimal, str] | None:
+    """The (current, prior, sentence) of an explicit "included in operating expenses" callout,
+    when the note states them as amounts rather than only the fact of the split.
+
+    THE SENTENCE COMES BACK WITH THE FIGURES because it is the only trace this input has. Every
+    other input to the cascade is a printed table row, which the derivation points at by note,
+    caption and page — this one is PROSE, and the run recorded it under the internal name of the
+    rule that found it, "explicit opex-inclusion callout". An analyst reading that in the
+    inspector had a page number and nothing on the page to check it against. The filing's own
+    words are what make the figure traceable, so they travel with it.
+    """
     m = _EXPLICIT_OPEX_DEP_RE.search(table.source_text or "")
     if not m:
         return None
-    return Decimal(m.group(1).replace(",", "")), Decimal(m.group(2).replace(",", ""))
+    return (Decimal(m.group(1).replace(",", "")), Decimal(m.group(2).replace(",", "")),
+            re.sub(r"\s+", " ", m.group(0)).strip())
 
 
 def _collect(doc: DocumentModel) -> tuple[dict[str, dict[PeriodKey, _Signal]], dict[str, bool]]:
@@ -239,7 +248,7 @@ def _collect(doc: DocumentModel) -> tuple[dict[str, dict[PeriodKey, _Signal]], d
                                    for it in t.items for ev in it.values.values()
                                    if ev.value is not None and ev.unit_ctx.currency), None)
                 if any_ev is not None:
-                    current, prior = explicit_opex_dep
+                    current, prior, sentence = explicit_opex_dep
                     for period_label, amount in (("current", current), ("prior", prior)):
                         opex_sig = datasets["pbt_oper_exp_depreciation"].setdefault(
                             (any_ev.basis.value, period_label), _Signal())
@@ -247,7 +256,9 @@ def _collect(doc: DocumentModel) -> tuple[dict[str, dict[PeriodKey, _Signal]], d
                                     {"dataset_key": "pbt_oper_exp_depreciation",
                                      "note_number": table.note_number,
                                      "note_heading": table.title,
-                                     "line_item": "explicit opex-inclusion callout",
+                                     "line_item": "Depreciation stated as included in "
+                                                  "operating expenses",
+                                     "excerpt": sentence,
                                      "value": str(amount), "provenance": any_ev.provenance})
                     note_found["pbt_oper_exp_depreciation"] = True
     return datasets, note_found
@@ -403,11 +414,23 @@ def compute(doc: DocumentModel) -> dict[PeriodKey, dict[str, DeprecResult]]:
             "P4": (*asset_keys, "cos_depreciation"),
             "P5": ("cfo_depreciation", "cos_depreciation"),
         }
+        # WHICH INPUT THE WINNING PRIORITY SUBTRACTED. P3/P4/P5 are "the wider disclosure LESS
+        # the cost-of-sales share", so cos_depreciation's evidence enters the figure negated.
+        # Marked per record rather than left to the reader: the inspector lists these inputs
+        # beneath the figure they produced, and three positive numbers under a total that
+        # subtracted one of them is an explanation the analyst has to disbelieve.
+        #
+        # Unconditional for those three priorities, because `_subtract_if_comparable` returns None
+        # when the units are not comparable — the candidate is then skipped rather than won with,
+        # so a P3/P4/P5 that WON with a cos figure present is one that subtracted it. With no cos
+        # figure at all there is no cos evidence to mark (ASSUMED_ZERO_COS_DEPRECIATION).
+        deducted = {"cos_depreciation"} if oper_label in ("P3", "P4", "P5") else set()
         oper_evidence: list[dict] = []
         for name in _EVIDENCE_SOURCES.get(oper_label or "", ()):
             source = sig(name)
             if source is not None:
-                oper_evidence.extend(source.evidence)
+                oper_evidence.extend([{**e, "deducted": True} for e in source.evidence]
+                                     if name in deducted else list(source.evidence))
 
         oper_status = ("EXTRACTED_AND_COMPUTED" if oper_val is not None
                        else "NOT_FOUND_OR_NOT_COMPUTABLE")
@@ -435,7 +458,11 @@ def compute(doc: DocumentModel) -> dict[PeriodKey, dict[str, DeprecResult]]:
             s = sig("pbt_depreciation")
             if s is not None:
                 cos_evidence.extend(s.evidence)
-            cos_evidence.extend(oper_evidence)
+            # COS_P2 is `pbt depreciation − Oper Exp`, so every input that MADE Oper Exp enters
+            # this figure with its role reversed: what Oper Exp added, COS subtracts. Flipped
+            # rather than set, so an Oper Exp that itself subtracted something (P3/P4/P5) has that
+            # deduction added back here, which is what the arithmetic does.
+            cos_evidence.extend({**e, "deducted": not e.get("deducted")} for e in oper_evidence)
 
         cos_status = ("DIRECTLY_EXTRACTED" if cos_label == "COS_P1"
                       else "EXTRACTED_AND_COMPUTED" if cos_val is not None

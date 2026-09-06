@@ -300,6 +300,14 @@ export interface RowContribution {
    *  not two amounts to sum. Per period, because the figure is. */
   counted?: boolean;
   counted2?: boolean;
+  /** Whether the rule SUBTRACTED this input. A cascade priority spelled "the wider disclosure
+   *  less the cost-of-sales share" consumes one of its inputs negatively, so the row renders with
+   *  a "−" and its own magnitude — the column has to add up to the figure above it as read. */
+  deducted?: boolean;
+  /** The filing's own words, for an input read out of PROSE rather than off a table row. A
+   *  printed row is traceable by its caption; a figure stated in a sentence is traceable only by
+   *  the sentence. Absent for every table-row input. */
+  excerpt?: string | null;
 }
 
 export interface StatementRow {

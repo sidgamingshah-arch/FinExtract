@@ -2030,11 +2030,22 @@ export default function WorkspaceScreen() {
                         >
                           <span style={{ fontFamily: font.mono, fontSize: 10.5, color: color.muted,
                                          minWidth: 14 }}>
-                            {!counted ? "=" : i === 0 ? "" : "+"}
+                            {!counted ? "=" : c.deducted ? "−" : i === 0 ? "" : "+"}
                           </span>
-                          <span style={{ fontSize: 11.5, color: color.ink, flex: 1,
-                                         textDecoration: jump ? "underline dotted" : "none" }}>
-                            {c.label}
+                          <span style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ fontSize: 11.5, color: color.ink, display: "block",
+                                           textDecoration: jump ? "underline dotted" : "none" }}>
+                              {c.label}
+                            </span>
+                            {/* An input read out of PROSE has no printed row to point at, so the
+                                filing's own sentence is the trace — shown here rather than left to
+                                a page number the reader cannot check anything against. */}
+                            {c.excerpt ? (
+                              <span style={{ fontSize: 10.5, color: color.muted, fontStyle: "italic",
+                                             display: "block", marginTop: 2, lineHeight: 1.45 }}>
+                                “{c.excerpt}”
+                              </span>
+                            ) : null}
                           </span>
                           {!counted ? (
                             <span style={{ fontSize: 9.5, fontWeight: 600, padding: "1px 6px",
@@ -2056,7 +2067,9 @@ export default function WorkspaceScreen() {
                           <span style={{ fontFamily: font.mono, fontSize: 11.5, fontWeight: 600,
                                          color: counted ? color.ink : color.muted, minWidth: 92,
                                          textAlign: "right" }}>
-                            {v == null ? "—" : present(v)}
+                            {/* A deducted input carries the "−" in its operator column, so the
+                                amount shows its magnitude: "− 529,841" rather than "+ -529,841". */}
+                            {v == null ? "—" : present(c.deducted ? Math.abs(v) : v)}
                           </span>
                         </div>
                       );

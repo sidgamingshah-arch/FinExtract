@@ -4398,6 +4398,11 @@ _CALC_NOTES = {
                            "was nothing to compute from and the document's printed figure is "
                            "shown unverified. Nothing disagrees with it — there was nothing to "
                            "disagree — so it raises no review item; check it against the page.",
+    # Reached only when the derivation left no inputs to list; with inputs, `item_row`'s own
+    # "Assembled from N note lines by the <rule> rule" note stands and this one is not built.
+    "derived": "Assembled by an extraction rule from note lines rather than read off one caption. "
+               "The template's own components for this line were not extracted, so the rollup "
+               "could not check the figure — check it against the note it came from.",
 }
 
 
@@ -4722,6 +4727,16 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
                 return reported, "manual"
             if calc is not None and calc.computable:
                 return calc.value, "calculated"
+            # NOT "printed, not computable" when a service ASSEMBLED this figure. Both sentences
+            # are about the template's rollup having nothing to compute from, and only one of them
+            # is true of the line: Deprec & Impairment (COS) is the PBT note's total depreciation
+            # less the operating-expense callout, three note lines the run recorded with their
+            # pages — while the rollup names two template siblings the filing never printed. The
+            # front end hides a row's contributions when the origin is `reported_uncomputed` (a
+            # line with no components extracted has none to show), so calling a derived figure
+            # that deleted the only trace back to the source it had.
+            if any((x.get("derivation") or {}).get(f"{basis}:{period}") for x in group):
+                return reported, "derived"
             return reported, "reported_uncomputed"
 
         row["v1"], o1 = resolve("current", c1, row["reported1"])
@@ -4733,14 +4748,28 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
         # say about the line, then that anything on it was computed.
         row["origin"] = ("manual" if "manual" in (o1, o2)
                          else "calculated" if "calculated" in (o1, o2)
+                         else "derived" if "derived" in (o1, o2)
                          else "reported_uncomputed")
         if row.get("status") == "missing" and (row["v1"] is not None or row["v2"] is not None):
             # The document not printing this line is no longer a gap: the template says what it
             # is made of, and the components were there.
             row["status"] = None
 
+        # A FIGURE A SERVICE DERIVED KEEPS ITS OWN EXPLANATION. The template's rollup is the
+        # arithmetic CHECK on such a line, not the account of where the number came from — and
+        # for Deprec & Impairment (COS) the two are not even the same claim: the figure is the
+        # PBT note's total depreciation less the operating-expense callout (three note lines,
+        # each with its page), while the rollup names two template siblings that were never
+        # extracted. Overwriting left the row explained by a rollup that says "none of the
+        # components were extracted, nothing to compute from" — the analyst was shown a dead end
+        # in place of the three lines the figure was actually assembled from.
+        #
+        # Only where the rollup did NOT produce this period's figure. When it did, the rollup IS
+        # the arithmetic and the derivation would be describing a number the row no longer shows.
+        # The CURRENT column decides, as every other display choice in this function does.
+        derived = row["origin1"] == "derived" and bool(row.get("contributions"))
         source = c1 if (c1 and c1.components) else c2
-        if source is not None:
+        if source is not None and not derived:
             # Display only — see item_row. A rollup's rendering ("12,800 + 2,150 + 3,410") is not
             # an expression the server may evaluate on the next edit.
             rollup = (template_calc_nodes.get(key) or {}).get("rollup") or {}
@@ -4764,15 +4793,17 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
         if row.get("origin1") == "calculated" and row["v1"] is not None \
                 and row["reported1"] is not None:
             diff = row["v1"] - row["reported1"]
-        row["inspector"] = {
-            "tag": {"calculated": _t("calculated", locale),
-                    "manual": _t("manual override", locale),
-                    "reported_uncomputed": _t("printed, not computable", locale)}[row["origin"]],
-            "src": "", "formula": row.get("arithmetic") or row.get("formula") or "",
-            "result": "" if row["v1"] is None else f"{row['v1']:,.0f}",
-            "note": _calculated_note(row["origin"], diff, len(source.components) if source else 0,
-                                    locale),
-        }
+        if not derived:
+            row["inspector"] = {
+                "tag": {"calculated": _t("calculated", locale),
+                        "manual": _t("manual override", locale),
+                        "derived": _t("computed", locale),
+                        "reported_uncomputed": _t("printed, not computable", locale)}[row["origin"]],
+                "src": "", "formula": row.get("arithmetic") or row.get("formula") or "",
+                "result": "" if row["v1"] is None else f"{row['v1']:,.0f}",
+                "note": _calculated_note(row["origin"], diff,
+                                         len(source.components) if source else 0, locale),
+            }
         if diff is not None and abs(diff) > _CALC_TOLERANCE:
             # A divergence is the finding; the review queue carries it with the arithmetic.
             row["status"] = "recon"

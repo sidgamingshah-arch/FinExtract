@@ -64,6 +64,15 @@ def input_from_evidence(evidence: dict) -> dict:
         "note_heading": evidence.get("note_heading"),
         "label": evidence.get("line_item"),
         "value": evidence.get("value"),
+        # THE FILING'S OWN WORDS, for an input that is prose rather than a table row. A printed
+        # row is traceable by note, caption and page; a figure stated in a sentence is traceable
+        # only by the sentence, so the service that read it hands it over. Absent for every
+        # table-row input, where the caption already is the trace.
+        "excerpt": evidence.get("excerpt"),
+        # Whether the rule SUBTRACTED this input. A cascade priority spelled "the wider
+        # disclosure less the cost-of-sales share" consumes one of its inputs negatively, and a
+        # contributions list that shows it positive does not add up to the figure above it.
+        "deducted": bool(evidence.get("deducted")),
         "provenance": _json_safe_provenance(evidence.get("provenance")),
         # An evidence record the restatement control kept as corroboration rather than as an
         # addend — see services.restatement. Shown, but never presented as part of the sum.
@@ -131,6 +140,20 @@ def _to_num(text: Any) -> float | None:
         return None
 
 
+def _signed(item: dict | None) -> float | None:
+    """The input's figure AS IT ENTERED the result: negated when the rule subtracted it.
+
+    The services record magnitudes — a deduction is disclosed as a positive amount and read as
+    one — so the sign is the rule's, not the page's. Applied here rather than left to the
+    renderer because the contributions list is the one place the figure is checked against the
+    total printed above it, and every consumer of that list has to see the same arithmetic.
+    """
+    value = _to_num((item or {}).get("value"))
+    if value is None:
+        return None
+    return -abs(value) if (item or {}).get("deducted") else value
+
+
 def _contribution(current: dict | None, prior: dict | None) -> dict:
     """One input as the inspector's contribution row, carrying both periods' figures.
 
@@ -142,8 +165,11 @@ def _contribution(current: dict | None, prior: dict | None) -> dict:
     return {
         "label": _label(ref),
         "canonical_key": None,          # an input is a note line, not a mapped concept
-        "v1": _to_num((current or {}).get("value")),
-        "v2": _to_num((prior or {}).get("value")),
+        "v1": _signed(current),
+        "v2": _signed(prior),
+        # Shown beneath the label when the input was read out of prose — see `input_from_evidence`.
+        "excerpt": ref.get("excerpt") or None,
+        "deducted": bool(ref.get("deducted")),
         "method": ref.get("dataset"),
         "residual": False,
         "src": _src_label(current),
