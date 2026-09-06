@@ -95,12 +95,12 @@ SCREENS_BY_ROLE: dict[Role, list[str]] = {
     # spent. Admin only, and the only screen that crosses document ownership, which is why it is
     # gated on AUDIT_VIEW rather than on COMMENTARY_VIEW like the per-document trail beside it.
     Role.ADMIN: ["upload", "integrity", "scope", "extraction", "workspace", "notes", "review",
-                 "commentary", "template", "settings", "audit", "export"],
+                 "commentary", "disclosures", "template", "settings", "audit", "export"],
     # A reviewer sees the extraction screen to READ a run — its stages, its log, its rows — and
     # cannot start one: PIPELINE_RUN is the analyst's and the admin's. Granting the screen without
     # the permission is deliberate, not an oversight; the screen's own re-extract control is gated on
     # the permission, so a reviewer is never shown a button that would 403.
-    Role.REVIEWER: ["integrity", "extraction", "workspace", "notes", "review", "commentary",
+    Role.REVIEWER: ["integrity", "extraction", "workspace", "notes", "review", "commentary", "disclosures",
                     "export"],
     # Analysts run the operational pipeline; configuration surfaces (Template & Ontology
     # authoring, Settings) are admin-only. Analysts still pick a template on the Upload
@@ -109,7 +109,7 @@ SCREENS_BY_ROLE: dict[Role, list[str]] = {
     # works an extraction gets it, and no new Permission is needed: all three already hold
     # EXTRACTION_VIEW, and starting a run is separately gated on PIPELINE_RUN at the endpoint.
     Role.ANALYST: ["upload", "integrity", "scope", "extraction", "workspace", "notes", "review",
-                   "commentary", "export"],
+                   "commentary", "disclosures", "export"],
 }
 
 

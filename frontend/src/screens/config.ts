@@ -22,6 +22,10 @@ export const SCREENS: Record<string, ScreenDef> = {
   notes: { id: "notes", path: "/notes", label: "All Notes", icon: "☰" },
   review: { id: "review", path: "/review", label: "Review Queue", icon: "✓", step: 5 },
   commentary: { id: "commentary", path: "/commentary", label: "Analysis", icon: "✦" },
+  // The qualitative scan and the figures computed for it. Its own destination because it used to
+  // live only as a card at the BOTTOM of Extraction, below the rows grid and the source panel —
+  // a long scroll past what most readers came for, and not where its name says it is.
+  disclosures: { id: "disclosures", path: "/disclosures", label: "Disclosures", icon: "❑" },
   template: { id: "template", path: "/template", label: "Template & Ontology", icon: "◆" },
   settings: { id: "settings", path: "/settings", label: "Settings", icon: "⚙" },
   // The deployment-wide run trail. Not a pipeline step and not per-document: it is admin oversight,
@@ -50,7 +54,7 @@ export const NAV_GROUPS: { group: string; items: string[] }[] = [
   { group: "PRE-FLIGHT", items: ["integrity", "scope"] },
   { group: "EXTRACT", items: ["extraction", "workspace", "notes"] },
   { group: "QUALITY", items: ["review"] },
-  { group: "ANALYSIS", items: ["commentary"] },
+  { group: "ANALYSIS", items: ["commentary", "disclosures"] },
   { group: "CONFIGURE", items: ["template", "settings", "audit"] },
   { group: "DELIVER", items: ["export"] },
 ];
@@ -74,6 +78,7 @@ const STEP_FOR_SCREEN: Record<string, string> = {
   workspace: "extraction",
   notes: "extraction",
   commentary: "review",
+  disclosures: "review",
 };
 
 /** The stepper id for a pathname — the screen's own step, or the step it sits at. */

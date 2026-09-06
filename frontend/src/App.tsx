@@ -10,6 +10,7 @@ import { SCREENS } from "./screens/config";
 import { useAppLocale, useUI } from "./store";
 import { color } from "./theme";
 import CommentaryScreen from "./screens/Commentary";
+import DisclosuresScreen from "./screens/Disclosures";
 import ExportScreen from "./screens/Export";
 import ExtractionView from "./screens/ExtractionView";
 import IntegrityScreen from "./screens/Integrity";
@@ -86,6 +87,7 @@ function Shell() {
             <Route path="/notes" element={<RequireScreen screen="notes"><NotesScreen /></RequireScreen>} />
             <Route path="/review" element={<RequireScreen screen="review"><ReviewScreen /></RequireScreen>} />
             <Route path="/commentary" element={<RequireScreen screen="commentary"><CommentaryScreen /></RequireScreen>} />
+            <Route path="/disclosures" element={<RequireScreen screen="disclosures"><DisclosuresScreen /></RequireScreen>} />
             <Route path="/template" element={<RequireScreen screen="template"><TemplateScreen /></RequireScreen>} />
             <Route path="/settings" element={<RequireScreen screen="settings"><SettingsScreen /></RequireScreen>} />
             {/* Gated by the SCREEN list the server serves per role, the same as every other route
