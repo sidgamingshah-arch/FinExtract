@@ -1,65 +1,615 @@
 {
- "is_pl__deprec_and_impairment_oper_exp": [],
- "is_pl__deprec_and_impairment_cos": [],
- "bs_ca__secur_and_other_fincl_assets_cp": [
+ "is_pl__sales_revenues": [
   {
-   "source_label": "其中：数据资源合同资产",
-   "section": "current_assets",
+   "source_label": "一、营业总收入",
+   "section": "income_and_expenses",
    "values": [
     {
      "basis": "consolidated",
      "period": "current",
-     "value": "155409307.94",
+     "value": "1603146551.95",
+     "currency": null,
+     "scale": "1",
      "flags": []
     },
     {
      "basis": "consolidated",
      "period": "prior",
-     "value": "271915815.08",
+     "value": "1926601476.83",
+     "currency": null,
+     "scale": "1",
      "flags": []
     }
    ],
    "derivation": null
   },
   {
-   "source_label": "交易性金融资产衍生金融资产应收票据",
-   "section": "current_assets",
+   "source_label": "其中：营业收入",
+   "section": "income_and_expenses",
+   "values": [
+    {
+     "basis": "consolidated",
+     "period": "current",
+     "value": "1603146551.95",
+     "currency": null,
+     "scale": "1",
+     "flags": []
+    },
+    {
+     "basis": "consolidated",
+     "period": "prior",
+     "value": "1926601476.83",
+     "currency": null,
+     "scale": "1",
+     "flags": []
+    }
+   ],
+   "derivation": null
+  },
+  {
+   "source_label": "一、营业收入",
+   "section": "income_and_expenses",
    "values": [
     {
      "basis": "standalone",
      "period": "current",
-     "value": "31646304.27",
+     "value": "958118458.99",
+     "currency": null,
+     "scale": "1",
      "flags": []
     },
     {
      "basis": "standalone",
      "period": "prior",
-     "value": "90626378.51",
+     "value": "1410139147.55",
+     "currency": null,
+     "scale": "1",
      "flags": []
     }
    ],
    "derivation": null
   }
  ],
- "bs_nca__secur_and_other_fincl_assets_ltp": [],
- "notes__contingent_liabilities": [
+ "bs_nca__due_from_related_parties_ltp": [
   {
-   "source_label": "Contingent liabilities",
-   "section": null,
+   "source_label": "bs_nca__due_from_related_parties_ltp",
+   "section": "non_current_assets",
    "values": [
     {
      "basis": "consolidated",
+     "period": "prior",
+     "value": "435802.42",
+     "currency": null,
+     "scale": "1",
+     "flags": []
+    },
+    {
+     "basis": "consolidated",
      "period": "current",
-     "value": "No",
-     "flags": [
-      "supplemental:derived"
-     ]
+     "value": "532030.87",
+     "currency": null,
+     "scale": "1",
+     "flags": []
     }
    ],
-   "derivation": null
+   "derivation": {
+    "consolidated:prior": {
+     "method": "related_party_receivables",
+     "formula": "MAX_VALID(Find_3)",
+     "result": "435802.42",
+     "inputs": [
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "中国电子科技集团公司第三十八研究所",
+       "value": "88998.71",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.7632701892395345,
+         "y0": 0.4347275706561765,
+         "x1": 0.8277727386762983,
+         "y1": 0.4491015561311835
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.43583587725026,
+         "x1": 0.4358845847888032,
+         "y1": 0.4483786340121228
+        },
+        "value_bbox": {
+         "x0": 0.7632701892395345,
+         "y0": 0.4347275706561765,
+         "x1": 0.8277727386762983,
+         "y1": 0.4491015561311835
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "中国电子科技集团公司第三十八研究所",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "中国电子科技集团公司第四十八研究所",
+       "value": "200000.00",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.7552072680349852,
+         "y0": 0.45952803305955037,
+         "x1": 0.8277726361513444,
+         "y1": 0.47390201853455743
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.4606363396536339,
+         "x1": 0.4358845847888032,
+         "y1": 0.47317909641549666
+        },
+        "value_bbox": {
+         "x0": 0.7552072680349852,
+         "y0": 0.45952803305955037,
+         "x1": 0.8277726361513444,
+         "y1": 0.47390201853455743
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "中国电子科技集团公司第四十八研究所",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "安徽中电光达通信技术有限公司",
+       "value": "15753.60",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.7632701892395345,
+         "y0": 0.47637048004218063,
+         "x1": 0.8277727386762983,
+         "y1": 0.49074446551718764
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.47747878663626414,
+         "x1": 0.383059781377839,
+         "y1": 0.49002154339812687
+        },
+        "value_bbox": {
+         "x0": 0.7632701892395345,
+         "y0": 0.47637048004218063,
+         "x1": 0.8277727386762983,
+         "y1": 0.49074446551718764
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "安徽中电光达通信技术有限公司",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "中国电子科技集团公司第二十研究所",
+       "value": "146708.24",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.7552072680349852,
+         "y0": 0.49304665928713876,
+         "x1": 0.8277726361513444,
+         "y1": 0.5074206447621458
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.4942974914413981,
+         "x1": 0.4183413605245915,
+         "y1": 0.5068402482032609
+        },
+        "value_bbox": {
+         "x0": 0.7552072680349852,
+         "y0": 0.49304665928713876,
+         "x1": 0.8277726361513444,
+         "y1": 0.5074206447621458
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "中国电子科技集团公司第二十研究所",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "中电科技（合肥）博微信息发展有限责任公",
+       "value": "68604.36",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.7632701892395345,
+         "y0": 0.5179896472506885,
+         "x1": 0.8277727386762983,
+         "y1": 0.5323636327256955
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.5109736706863562,
+         "x1": 0.46513515915922565,
+         "y1": 0.523516427448219
+        },
+        "value_bbox": {
+         "x0": 0.7632701892395345,
+         "y0": 0.5179896472506885,
+         "x1": 0.8277727386762983,
+         "y1": 0.5323636327256955
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "中电科技（合肥）博微信息发展有限责任公",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      }
+     ],
+     "flags": [
+      "NET_OF_ALLOWANCE:Find_3"
+     ]
+    },
+    "consolidated:current": {
+     "method": "related_party_receivables",
+     "formula": "MAX_VALID(Find_3)",
+     "result": "532030.87",
+     "inputs": [
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "中国电子科技集团公司第三十八研究所",
+       "value": "88998.71",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.522559283260351,
+         "y0": 0.4347275706561765,
+         "x1": 0.5870618326971148,
+         "y1": 0.4491015561311835
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.43583587725026,
+         "x1": 0.4358845847888032,
+         "y1": 0.4483786340121228
+        },
+        "value_bbox": {
+         "x0": 0.522559283260351,
+         "y0": 0.4347275706561765,
+         "x1": 0.5870618326971148,
+         "y1": 0.4491015561311835
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "中国电子科技集团公司第三十八研究所",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "中国电子科技集团公司第四十八研究所",
+       "value": "200000.00",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.5144964133182786,
+         "y0": 0.45952803305955037,
+         "x1": 0.5870617814346378,
+         "y1": 0.47390201853455743
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.4606363396536339,
+         "x1": 0.4358845847888032,
+         "y1": 0.47317909641549666
+        },
+        "value_bbox": {
+         "x0": 0.5144964133182786,
+         "y0": 0.45952803305955037,
+         "x1": 0.5870617814346378,
+         "y1": 0.47390201853455743
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "中国电子科技集团公司第四十八研究所",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "安徽中电光达通信技术有限公司",
+       "value": "15753.60",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.522559283260351,
+         "y0": 0.47637048004218063,
+         "x1": 0.5870618326971148,
+         "y1": 0.49074446551718764
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.47747878663626414,
+         "x1": 0.383059781377839,
+         "y1": 0.49002154339812687
+        },
+        "value_bbox": {
+         "x0": 0.522559283260351,
+         "y0": 0.47637048004218063,
+         "x1": 0.5870618326971148,
+         "y1": 0.49074446551718764
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "安徽中电光达通信技术有限公司",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "中电科技（合肥）博微信息发展有限责任公",
+       "value": "95239.27",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.522559283260351,
+         "y0": 0.5179896472506885,
+         "x1": 0.5870618326971148,
+         "y1": 0.5323636327256955
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.5109736706863562,
+         "x1": 0.46513515915922565,
+         "y1": 0.523516427448219
+        },
+        "value_bbox": {
+         "x0": 0.522559283260351,
+         "y0": 0.5179896472506885,
+         "x1": 0.5870618326971148,
+         "y1": 0.5323636327256955
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "中电科技（合肥）博微信息发展有限责任公",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "司北京国信安信息科技有限公司",
+       "value": "500.00",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.5427165093780087,
+         "y0": 0.5427901096540624,
+         "x1": 0.5870749558912017,
+         "y1": 0.5571640951290694
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.5272222370031877,
+         "x1": 0.36532142649529825,
+         "y1": 0.5564411730100086
+        },
+        "value_bbox": {
+         "x0": 0.5427165093780087,
+         "y0": 0.5427901096540624,
+         "x1": 0.5870749558912017,
+         "y1": 0.5571640951290694
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "司北京国信安信息科技有限公司",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "中电科投资开发有限公司",
+       "value": "259023.19",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.5144964133182786,
+         "y0": 0.559608778211597,
+         "x1": 0.5870617814346378,
+         "y1": 0.5739827636866042
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.5607171210532799,
+         "x1": 0.3300398473485458,
+         "y1": 0.5732598778151426
+        },
+        "value_bbox": {
+         "x0": 0.5144964133182786,
+         "y0": 0.559608778211597,
+         "x1": 0.5870617814346378,
+         "y1": 0.5739827636866042
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "中电科投资开发有限公司",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "成都卫士通信息安全技术有限公司",
+       "value": "57950.00",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.522559283260351,
+         "y0": 0.5762849574565553,
+         "x1": 0.5870618326971148,
+         "y1": 0.5906589429315623
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.5775358258584138,
+         "x1": 0.40060300564205076,
+         "y1": 0.5900785826202766
+        },
+        "value_bbox": {
+         "x0": 0.522559283260351,
+         "y0": 0.5762849574565553,
+         "x1": 0.5870618326971148,
+         "y1": 0.5906589429315623
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "成都卫士通信息安全技术有限公司",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "中国电子科技集团公司电子科学研究院",
+       "value": "40000.00",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.522559283260351,
+         "y0": 0.5931036622616892,
+         "x1": 0.5870618326971148,
+         "y1": 0.6074776477366963
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.5942119688557728,
+         "x1": 0.4358845847888032,
+         "y1": 0.6067547256176355
+        },
+        "value_bbox": {
+         "x0": 0.522559283260351,
+         "y0": 0.5931036622616892,
+         "x1": 0.5870618326971148,
+         "y1": 0.6074776477366963
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "中国电子科技集团公司电子科学研究院",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      }
+     ],
+     "flags": [
+      "NET_OF_ALLOWANCE:Find_3"
+     ]
+    }
+   }
   }
  ],
- "bs_nca__due_from_related_parties_ltp": [],
  "bs_ca__other_receivables_cp": [
   {
    "source_label": "bs_ca__other_receivables_cp",
@@ -67,1352 +617,35 @@
    "values": [
     {
      "basis": "consolidated",
-     "period": "col3",
-     "value": "4524827.41",
-     "flags": []
-    },
-    {
-     "basis": "consolidated",
-     "period": "current",
-     "value": "254937045.24",
-     "flags": []
-    },
-    {
-     "basis": "standalone",
-     "period": "current",
-     "value": "19486466.27",
+     "period": "prior",
+     "value": "190462413.57",
+     "currency": null,
+     "scale": "1",
      "flags": []
     },
     {
      "basis": "consolidated",
      "period": "col2",
-     "value": "9358687.15",
-     "flags": []
-    },
-    {
-     "basis": "standalone",
-     "period": "prior",
-     "value": "59808526.01",
+     "value": "6333847.20",
+     "currency": null,
+     "scale": "1",
      "flags": []
     },
     {
      "basis": "consolidated",
-     "period": "prior",
-     "value": "416575650.09",
+     "period": "current",
+     "value": "131419251.75",
+     "currency": null,
+     "scale": "1",
      "flags": []
     }
    ],
    "derivation": {
-    "consolidated:col3": {
-     "method": "related_party_receivables",
-     "formula": "CP_Gross - CP_Related_Party_Deduction",
-     "result": "4524827.41",
-     "inputs": [
-      {
-       "dataset": null,
-       "note": "9",
-       "note_heading": "、 其他应收款",
-       "label": "单位一",
-       "value": "1027215.01",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 132,
-        "bbox": {
-         "x0": 0.7646811889162733,
-         "y0": 0.6880651952219574,
-         "x1": 0.8493278412766079,
-         "y1": 0.7024391806969645
-        },
-        "label_bbox": {
-         "x0": 0.1072364432022521,
-         "y0": 0.6893160273762168,
-         "x1": 0.16045151425768397,
-         "y1": 0.7018587841380796
-        },
-        "value_bbox": {
-         "x0": 0.7646811889162733,
-         "y0": 0.6880651952219574,
-         "x1": 0.8493278412766079,
-         "y1": 0.7024391806969645
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位一",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "9",
-       "note_heading": "、 其他应收款",
-       "label": "单位二",
-       "value": "231750.00",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 132,
-        "bbox": {
-         "x0": 0.7767754938293818,
-         "y0": 0.7048838637794922,
-         "x1": 0.8493408619457411,
-         "y1": 0.7192578492544992
-        },
-        "label_bbox": {
-         "x0": 0.1072364432022521,
-         "y0": 0.7059921703735758,
-         "x1": 0.16045151425768397,
-         "y1": 0.7185349271354385
-        },
-        "value_bbox": {
-         "x0": 0.7767754938293818,
-         "y0": 0.7048838637794922,
-         "x1": 0.8493408619457411,
-         "y1": 0.7192578492544992
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位二",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "9",
-       "note_heading": "、 其他应收款",
-       "label": "单位三",
-       "value": "1500000.00",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 132,
-        "bbox": {
-         "x0": 0.7646811889162733,
-         "y0": 0.7215600792720496,
-         "x1": 0.8493278412766079,
-         "y1": 0.7359340647470567
-        },
-        "label_bbox": {
-         "x0": 0.1072364432022521,
-         "y0": 0.7228109114263089,
-         "x1": 0.16045151425768397,
-         "y1": 0.7353536681881717
-        },
-        "value_bbox": {
-         "x0": 0.7646811889162733,
-         "y0": 0.7215600792720496,
-         "x1": 0.8493278412766079,
-         "y1": 0.7359340647470567
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位三",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "9",
-       "note_heading": "、 其他应收款",
-       "label": "单位四",
-       "value": "298862.40",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 132,
-        "bbox": {
-         "x0": 0.7767754938293818,
-         "y0": 0.7383787478295843,
-         "x1": 0.8493408619457411,
-         "y1": 0.7527527333045914
-        },
-        "label_bbox": {
-         "x0": 0.1072364432022521,
-         "y0": 0.7396295799838437,
-         "x1": 0.16045151425768397,
-         "y1": 0.7521723367457065
-        },
-        "value_bbox": {
-         "x0": 0.7767754938293818,
-         "y0": 0.7383787478295843,
-         "x1": 0.8493408619457411,
-         "y1": 0.7527527333045914
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位四",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "9",
-       "note_heading": "、 其他应收款",
-       "label": "单位五",
-       "value": "1467000.00",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 132,
-        "bbox": {
-         "x0": 0.7646811889162733,
-         "y0": 0.7551974163871191,
-         "x1": 0.8493278412766079,
-         "y1": 0.7695714018621261
-        },
-        "label_bbox": {
-         "x0": 0.1072364432022521,
-         "y0": 0.7563057229812027,
-         "x1": 0.16045151425768397,
-         "y1": 0.7688484797430655
-        },
-        "value_bbox": {
-         "x0": 0.7646811889162733,
-         "y0": 0.7551974163871191,
-         "x1": 0.8493278412766079,
-         "y1": 0.7695714018621261
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位五",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      }
-     ],
-     "flags": [
-      "RELATED_PARTY_DEDUCTION_PROVEN_NIL"
-     ]
-    },
-    "consolidated:current": {
-     "method": "related_party_receivables",
-     "formula": "CP_Gross - CP_Related_Party_Deduction",
-     "result": "254937045.24",
-     "inputs": [
-      {
-       "dataset": null,
-       "note": "4",
-       "note_heading": "流动资产：",
-       "label": "拆出资金交易性金融资产衍生金融资产应收票据",
-       "value": "76012834.11",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 69,
-        "bbox": {
-         "x0": 0.5971746378280376,
-         "y0": 0.31129539712760973,
-         "x1": 0.6898841088679677,
-         "y1": 0.3256693826026168
-        },
-        "label_bbox": {
-         "x0": 0.1687495764437846,
-         "y0": 0.2620545559716216,
-         "x1": 0.29252781220053103,
-         "y1": 0.32594421189998535
-        },
-        "value_bbox": {
-         "x0": 0.5971746378280376,
-         "y0": 0.31129539712760973,
-         "x1": 0.6898841088679677,
-         "y1": 0.3256693826026168
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "拆出资金交易性金融资产衍生金融资产应收票据",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "9",
-       "note_heading": "流动资产：",
-       "label": "应收保费应收分保账款应收分保合同准备金其他应收款",
-       "value": "36770065.47",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 69,
-        "bbox": {
-         "x0": 0.5971746378280376,
-         "y0": 0.4315918633419112,
-         "x1": 0.6898841088679677,
-         "y1": 0.44596584881691825
-        },
-        "label_bbox": {
-         "x0": 0.1687495764437846,
-         "y0": 0.3816739532798894,
-         "x1": 0.3278093913472835,
-         "y1": 0.44538548850563253
-        },
-        "value_bbox": {
-         "x0": 0.5971746378280376,
-         "y0": 0.4315918633419112,
-         "x1": 0.6898841088679677,
-         "y1": 0.44596584881691825
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "应收保费应收分保账款应收分保合同准备金其他应收款",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "9",
-       "note_heading": "、 其他应收款",
-       "label": "应收利息应收股利其他应收款",
-       "value": "36770065.47",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 128,
-        "bbox": {
-         "x0": 0.5104649783472424,
-         "y0": 0.4886281856836917,
-         "x1": 0.6031744493871725,
-         "y1": 0.5030021711586987
-        },
-        "label_bbox": {
-         "x0": 0.1072364432022521,
-         "y0": 0.4562178660501868,
-         "x1": 0.19573310622005566,
-         "y1": 0.5022792490396379
-        },
-        "value_bbox": {
-         "x0": 0.5104649783472424,
-         "y0": 0.4886281856836917,
-         "x1": 0.6031744493871725,
-         "y1": 0.5030021711586987
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "应收利息应收股利其他应收款",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "9",
-       "note_heading": "、 其他应收款",
-       "label": "单位一",
-       "value": "3424050.04",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 132,
-        "bbox": {
-         "x0": 0.26469797737745887,
-         "y0": 0.6880651952219574,
-         "x1": 0.349344604106555,
-         "y1": 0.7024391806969645
-        },
-        "label_bbox": {
-         "x0": 0.1072364432022521,
-         "y0": 0.6893160273762168,
-         "x1": 0.16045151425768397,
-         "y1": 0.7018587841380796
-        },
-        "value_bbox": {
-         "x0": 0.26469797737745887,
-         "y0": 0.6880651952219574,
-         "x1": 0.349344604106555,
-         "y1": 0.7024391806969645
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位一",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "9",
-       "note_heading": "、 其他应收款",
-       "label": "单位二",
-       "value": "2317500.00",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 132,
-        "bbox": {
-         "x0": 0.26469797737745887,
-         "y0": 0.7048838637794922,
-         "x1": 0.349344604106555,
-         "y1": 0.7192578492544992
-        },
-        "label_bbox": {
-         "x0": 0.1072364432022521,
-         "y0": 0.7059921703735758,
-         "x1": 0.16045151425768397,
-         "y1": 0.7185349271354385
-        },
-        "value_bbox": {
-         "x0": 0.26469797737745887,
-         "y0": 0.7048838637794922,
-         "x1": 0.349344604106555,
-         "y1": 0.7192578492544992
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位二",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "9",
-       "note_heading": "、 其他应收款",
-       "label": "单位三",
-       "value": "1500000.00",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 132,
-        "bbox": {
-         "x0": 0.26469797737745887,
-         "y0": 0.7215600792720496,
-         "x1": 0.349344604106555,
-         "y1": 0.7359340647470567
-        },
-        "label_bbox": {
-         "x0": 0.1072364432022521,
-         "y0": 0.7228109114263089,
-         "x1": 0.16045151425768397,
-         "y1": 0.7353536681881717
-        },
-        "value_bbox": {
-         "x0": 0.26469797737745887,
-         "y0": 0.7215600792720496,
-         "x1": 0.349344604106555,
-         "y1": 0.7359340647470567
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位三",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "9",
-       "note_heading": "、 其他应收款",
-       "label": "单位四",
-       "value": "1494312.00",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 132,
-        "bbox": {
-         "x0": 0.26469797737745887,
-         "y0": 0.7383787478295843,
-         "x1": 0.349344604106555,
-         "y1": 0.7527527333045914
-        },
-        "label_bbox": {
-         "x0": 0.1072364432022521,
-         "y0": 0.7396295799838437,
-         "x1": 0.16045151425768397,
-         "y1": 0.7521723367457065
-        },
-        "value_bbox": {
-         "x0": 0.26469797737745887,
-         "y0": 0.7383787478295843,
-         "x1": 0.349344604106555,
-         "y1": 0.7527527333045914
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位四",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "9",
-       "note_heading": "、 其他应收款",
-       "label": "单位五",
-       "value": "1467000.00",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 132,
-        "bbox": {
-         "x0": 0.26469797737745887,
-         "y0": 0.7551974163871191,
-         "x1": 0.349344604106555,
-         "y1": 0.7695714018621261
-        },
-        "label_bbox": {
-         "x0": 0.1072364432022521,
-         "y0": 0.7563057229812027,
-         "x1": 0.16045151425768397,
-         "y1": 0.7688484797430655
-        },
-        "value_bbox": {
-         "x0": 0.26469797737745887,
-         "y0": 0.7551974163871191,
-         "x1": 0.349344604106555,
-         "y1": 0.7695714018621261
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位五",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "12",
-       "note_heading": "、 一年内到期的非流动资产",
-       "label": "一年内到期的长期应收款",
-       "value": "95181217.15",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 134,
-        "bbox": {
-         "x0": 0.5159074129950174,
-         "y0": 0.406221298697834,
-         "x1": 0.6086168840349475,
-         "y1": 0.42059528417284103
-        },
-        "label_bbox": {
-         "x0": 0.1072364432022521,
-         "y0": 0.4083273204607476,
-         "x1": 0.30157786929155156,
-         "y1": 0.42087007722261033
-        },
-        "value_bbox": {
-         "x0": 0.5159074129950174,
-         "y0": 0.406221298697834,
-         "x1": 0.6086168840349475,
-         "y1": 0.42059528417284103
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "一年内到期的长期应收款",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "2",
-       "note_heading": "、 其他应收款",
-       "label": "单位一",
-       "value": "3424050.04",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 205,
-        "bbox": {
-         "x0": 0.24937849373003518,
-         "y0": 0.7426547321204549,
-         "x1": 0.33402512045913135,
-         "y1": 0.7570287175954619
-        },
-        "label_bbox": {
-         "x0": 0.1524289494380761,
-         "y0": 0.7437630387145383,
-         "x1": 0.20564401408569835,
-         "y1": 0.7563057954764011
-        },
-        "value_bbox": {
-         "x0": 0.24937849373003518,
-         "y0": 0.7426547321204549,
-         "x1": 0.33402512045913135,
-         "y1": 0.7570287175954619
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位一",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": false,
-       "duplicate_of_note": "9"
-      },
-      {
-       "dataset": null,
-       "note": "2",
-       "note_heading": "、 其他应收款",
-       "label": "单位二",
-       "value": "2317500.00",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 205,
-        "bbox": {
-         "x0": 0.24937849373003518,
-         "y0": 0.7593308751178137,
-         "x1": 0.33402512045913135,
-         "y1": 0.7737048605928207
-        },
-        "label_bbox": {
-         "x0": 0.15101793694571805,
-         "y0": 0.7605817072720731,
-         "x1": 0.20423300159334032,
-         "y1": 0.7731244640339359
-        },
-        "value_bbox": {
-         "x0": 0.24937849373003518,
-         "y0": 0.7593308751178137,
-         "x1": 0.33402512045913135,
-         "y1": 0.7737048605928207
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位二",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": false,
-       "duplicate_of_note": "9"
-      },
-      {
-       "dataset": null,
-       "note": "2",
-       "note_heading": "、 其他应收款",
-       "label": "单位三",
-       "value": "1494312.00",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 205,
-        "bbox": {
-         "x0": 0.24937849373003518,
-         "y0": 0.7761495436753485,
-         "x1": 0.33402512045913135,
-         "y1": 0.7905235291503555
-        },
-        "label_bbox": {
-         "x0": 0.15101793694571805,
-         "y0": 0.7774003758296079,
-         "x1": 0.20423300159334032,
-         "y1": 0.7899431325914706
-        },
-        "value_bbox": {
-         "x0": 0.24937849373003518,
-         "y0": 0.7761495436753485,
-         "x1": 0.33402512045913135,
-         "y1": 0.7905235291503555
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位三",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": false,
-       "duplicate_of_note": "9"
-      },
-      {
-       "dataset": null,
-       "note": "2",
-       "note_heading": "、 其他应收款",
-       "label": "单位四",
-       "value": "1467000.00",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 205,
-        "bbox": {
-         "x0": 0.24937849373003518,
-         "y0": 0.7929682847280818,
-         "x1": 0.33402512045913135,
-         "y1": 0.8073422702030888
-        },
-        "label_bbox": {
-         "x0": 0.15101793694571805,
-         "y0": 0.7940765913221652,
-         "x1": 0.20423300159334032,
-         "y1": 0.806619348084028
-        },
-        "value_bbox": {
-         "x0": 0.24937849373003518,
-         "y0": 0.7929682847280818,
-         "x1": 0.33402512045913135,
-         "y1": 0.8073422702030888
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位四",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": false,
-       "duplicate_of_note": "9"
-      },
-      {
-       "dataset": null,
-       "note": "2",
-       "note_heading": "、 其他应收款",
-       "label": "单位五",
-       "value": "1",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 205,
-        "bbox": {
-         "x0": 0.5929415875353442,
-         "y0": 0.8099294788457924,
-         "x1": 0.6010302937657754,
-         "y1": 0.8243034643207994
-        },
-        "label_bbox": {
-         "x0": 0.15101793694571805,
-         "y0": 0.8108952598797,
-         "x1": 0.20423300159334032,
-         "y1": 0.8234380166415628
-        },
-        "value_bbox": {
-         "x0": 0.5929415875353442,
-         "y0": 0.8099294788457924,
-         "x1": 0.6010302937657754,
-         "y1": 0.8243034643207994
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位五",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      }
-     ],
-     "flags": [
-      "POSSIBLE_DUPLICATE:CP_Gross",
-      "RELATED_PARTY_DEDUCTION_PROVEN_NIL"
-     ]
-    },
-    "standalone:current": {
-     "method": "related_party_receivables",
-     "formula": "CP_Gross - CP_Related_Party_Deduction",
-     "result": "19486466.27",
-     "inputs": [
-      {
-       "dataset": null,
-       "note": "2",
-       "note_heading": "流动资产：",
-       "label": "其他应收款",
-       "value": "19486466.27",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 71,
-        "bbox": {
-         "x0": 0.5971746378280376,
-         "y0": 0.6750948617795672,
-         "x1": 0.6898841088679677,
-         "y1": 0.6894688472545742
-        },
-        "label_bbox": {
-         "x0": 0.1687495764437846,
-         "y0": 0.6772008472948815,
-         "x1": 0.25724623305377853,
-         "y1": 0.6897436040567443
-        },
-        "value_bbox": {
-         "x0": 0.5971746378280376,
-         "y0": 0.6750948617795672,
-         "x1": 0.6898841088679677,
-         "y1": 0.6894688472545742
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "其他应收款",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      }
-     ],
-     "flags": [
-      "RELATED_PARTY_DEDUCTION_PROVEN_NIL"
-     ]
-    },
-    "consolidated:col2": {
-     "method": "related_party_receivables",
-     "formula": "CP_Gross - CP_Related_Party_Deduction",
-     "result": "9358687.15",
-     "inputs": [
-      {
-       "dataset": null,
-       "note": "9",
-       "note_heading": "、 其他应收款",
-       "label": "单位及个人往来款",
-       "value": "5047352.17",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 131,
-        "bbox": {
-         "x0": 0.7646811889162733,
-         "y0": 0.2633692563957258,
-         "x1": 0.8493278412766079,
-         "y1": 0.2777432599945324
-        },
-        "label_bbox": {
-         "x0": 0.1072364432022521,
-         "y0": 0.2654752419110401,
-         "x1": 0.2485579352622583,
-         "y1": 0.2780179986729029
-        },
-        "value_bbox": {
-         "x0": 0.7646811889162733,
-         "y0": 0.2633692563957258,
-         "x1": 0.8493278412766079,
-         "y1": 0.2777432599945324
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位及个人往来款",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "9",
-       "note_heading": "、 其他应收款",
-       "label": "单位一",
-       "value": "4.21",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 132,
-        "bbox": {
-         "x0": 0.47035209017110696,
-         "y0": 0.6880651952219574,
-         "x1": 0.49858489932510897,
-         "y1": 0.7024391806969645
-        },
-        "label_bbox": {
-         "x0": 0.1072364432022521,
-         "y0": 0.6893160273762168,
-         "x1": 0.16045151425768397,
-         "y1": 0.7018587841380796
-        },
-        "value_bbox": {
-         "x0": 0.47035209017110696,
-         "y0": 0.6880651952219574,
-         "x1": 0.49858489932510897,
-         "y1": 0.7024391806969645
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位一",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "9",
-       "note_heading": "、 其他应收款",
-       "label": "单位二",
-       "value": "2.85",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 132,
-        "bbox": {
-         "x0": 0.47035209017110696,
-         "y0": 0.7048838637794922,
-         "x1": 0.49858489932510897,
-         "y1": 0.7192578492544992
-        },
-        "label_bbox": {
-         "x0": 0.1072364432022521,
-         "y0": 0.7059921703735758,
-         "x1": 0.16045151425768397,
-         "y1": 0.7185349271354385
-        },
-        "value_bbox": {
-         "x0": 0.47035209017110696,
-         "y0": 0.7048838637794922,
-         "x1": 0.49858489932510897,
-         "y1": 0.7192578492544992
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位二",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "9",
-       "note_heading": "、 其他应收款",
-       "label": "单位三",
-       "value": "1.84",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 132,
-        "bbox": {
-         "x0": 0.47035209017110696,
-         "y0": 0.7215600792720496,
-         "x1": 0.49858489932510897,
-         "y1": 0.7359340647470567
-        },
-        "label_bbox": {
-         "x0": 0.1072364432022521,
-         "y0": 0.7228109114263089,
-         "x1": 0.16045151425768397,
-         "y1": 0.7353536681881717
-        },
-        "value_bbox": {
-         "x0": 0.47035209017110696,
-         "y0": 0.7215600792720496,
-         "x1": 0.49858489932510897,
-         "y1": 0.7359340647470567
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位三",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "9",
-       "note_heading": "、 其他应收款",
-       "label": "单位四",
-       "value": "1.84",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 132,
-        "bbox": {
-         "x0": 0.47035209017110696,
-         "y0": 0.7383787478295843,
-         "x1": 0.49858489932510897,
-         "y1": 0.7527527333045914
-        },
-        "label_bbox": {
-         "x0": 0.1072364432022521,
-         "y0": 0.7396295799838437,
-         "x1": 0.16045151425768397,
-         "y1": 0.7521723367457065
-        },
-        "value_bbox": {
-         "x0": 0.47035209017110696,
-         "y0": 0.7383787478295843,
-         "x1": 0.49858489932510897,
-         "y1": 0.7527527333045914
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位四",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "9",
-       "note_heading": "、 其他应收款",
-       "label": "单位五",
-       "value": "1.80",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 132,
-        "bbox": {
-         "x0": 0.47035209017110696,
-         "y0": 0.7551974163871191,
-         "x1": 0.49858489932510897,
-         "y1": 0.7695714018621261
-        },
-        "label_bbox": {
-         "x0": 0.1072364432022521,
-         "y0": 0.7563057229812027,
-         "x1": 0.16045151425768397,
-         "y1": 0.7688484797430655
-        },
-        "value_bbox": {
-         "x0": 0.47035209017110696,
-         "y0": 0.7551974163871191,
-         "x1": 0.49858489932510897,
-         "y1": 0.7695714018621261
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位五",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "2",
-       "note_heading": "、 其他应收款",
-       "label": "单位及个人往来款",
-       "value": "1286495.03",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 204,
-        "bbox": {
-         "x0": 0.8084727236974025,
-         "y0": 0.23486298443738324,
-         "x1": 0.8931194785826909,
-         "y1": 0.2492369880361899
-        },
-        "label_bbox": {
-         "x0": 0.15101793694571805,
-         "y0": 0.23696896995269762,
-         "x1": 0.2923393969666762,
-         "y1": 0.24951172671456037
-        },
-        "value_bbox": {
-         "x0": 0.8084727236974025,
-         "y0": 0.23486298443738324,
-         "x1": 0.8931194785826909,
-         "y1": 0.2492369880361899
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位及个人往来款",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "2",
-       "note_heading": "、 其他应收款",
-       "label": "单位一",
-       "value": "1027215.01",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 205,
-        "bbox": {
-         "x0": 0.8084727236974025,
-         "y0": 0.7426547321204549,
-         "x1": 0.8931194785826909,
-         "y1": 0.7570287175954619
-        },
-        "label_bbox": {
-         "x0": 0.1524289494380761,
-         "y0": 0.7437630387145383,
-         "x1": 0.20564401408569835,
-         "y1": 0.7563057954764011
-        },
-        "value_bbox": {
-         "x0": 0.8084727236974025,
-         "y0": 0.7426547321204549,
-         "x1": 0.8931194785826909,
-         "y1": 0.7570287175954619
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位一",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "2",
-       "note_heading": "、 其他应收款",
-       "label": "单位二",
-       "value": "231750.00",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 205,
-        "bbox": {
-         "x0": 0.8205670798729879,
-         "y0": 0.7593308751178137,
-         "x1": 0.893132601776778,
-         "y1": 0.7737048605928207
-        },
-        "label_bbox": {
-         "x0": 0.15101793694571805,
-         "y0": 0.7605817072720731,
-         "x1": 0.20423300159334032,
-         "y1": 0.7731244640339359
-        },
-        "value_bbox": {
-         "x0": 0.8205670798729879,
-         "y0": 0.7593308751178137,
-         "x1": 0.893132601776778,
-         "y1": 0.7737048605928207
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位二",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "2",
-       "note_heading": "、 其他应收款",
-       "label": "单位三",
-       "value": "298862.40",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 205,
-        "bbox": {
-         "x0": 0.8205670798729879,
-         "y0": 0.7761495436753485,
-         "x1": 0.893132601776778,
-         "y1": 0.7905235291503555
-        },
-        "label_bbox": {
-         "x0": 0.15101793694571805,
-         "y0": 0.7774003758296079,
-         "x1": 0.20423300159334032,
-         "y1": 0.7899431325914706
-        },
-        "value_bbox": {
-         "x0": 0.8205670798729879,
-         "y0": 0.7761495436753485,
-         "x1": 0.893132601776778,
-         "y1": 0.7905235291503555
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位三",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "2",
-       "note_heading": "、 其他应收款",
-       "label": "单位四",
-       "value": "1467000.00",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 205,
-        "bbox": {
-         "x0": 0.8084727236974025,
-         "y0": 0.7929682847280818,
-         "x1": 0.8931194785826909,
-         "y1": 0.8073422702030888
-        },
-        "label_bbox": {
-         "x0": 0.15101793694571805,
-         "y0": 0.7940765913221652,
-         "x1": 0.20423300159334032,
-         "y1": 0.806619348084028
-        },
-        "value_bbox": {
-         "x0": 0.8084727236974025,
-         "y0": 0.7929682847280818,
-         "x1": 0.8931194785826909,
-         "y1": 0.8073422702030888
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位四",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      }
-     ],
-     "flags": [
-      "RELATED_PARTY_DEDUCTION_PROVEN_NIL"
-     ]
-    },
-    "standalone:prior": {
-     "method": "related_party_receivables",
-     "formula": "CP_Gross - CP_Related_Party_Deduction",
-     "result": "59808526.01",
-     "inputs": [
-      {
-       "dataset": null,
-       "note": "2",
-       "note_heading": "流动资产：",
-       "label": "其他应收款",
-       "value": "59808526.01",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 71,
-        "bbox": {
-         "x0": 0.7994019821969519,
-         "y0": 0.6750948617795672,
-         "x1": 0.8921115557618358,
-         "y1": 0.6894688472545742
-        },
-        "label_bbox": {
-         "x0": 0.1687495764437846,
-         "y0": 0.6772008472948815,
-         "x1": 0.25724623305377853,
-         "y1": 0.6897436040567443
-        },
-        "value_bbox": {
-         "x0": 0.7994019821969519,
-         "y0": 0.6750948617795672,
-         "x1": 0.8921115557618358,
-         "y1": 0.6894688472545742
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "其他应收款",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      }
-     ],
-     "flags": [
-      "RELATED_PARTY_DEDUCTION_PROVEN_NIL"
-     ]
-    },
     "consolidated:prior": {
      "method": "related_party_receivables",
      "formula": "CP_Gross - CP_Related_Party_Deduction",
-     "result": "416575650.09",
+     "result": "190462413.57",
      "inputs": [
-      {
-       "dataset": null,
-       "note": "4",
-       "note_heading": "流动资产：",
-       "label": "拆出资金交易性金融资产衍生金融资产应收票据",
-       "value": "140681839.76",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 69,
-        "bbox": {
-         "x0": 0.7913391122548795,
-         "y0": 0.31129539712760973,
-         "x1": 0.8921115557618358,
-         "y1": 0.3256693826026168
-        },
-        "label_bbox": {
-         "x0": 0.1687495764437846,
-         "y0": 0.2620545559716216,
-         "x1": 0.29252781220053103,
-         "y1": 0.32594421189998535
-        },
-        "value_bbox": {
-         "x0": 0.7913391122548795,
-         "y0": 0.31129539712760973,
-         "x1": 0.8921115557618358,
-         "y1": 0.3256693826026168
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "拆出资金交易性金融资产衍生金融资产应收票据",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
       {
        "dataset": null,
        "note": "9",
@@ -1486,8 +719,11 @@
         "producer": "extract:native@0.1.0",
         "transforms": []
        },
-       "counted": true,
-       "duplicate_of_note": null
+       "counted": false,
+       "duplicate_of_note": [
+        "face",
+        "9"
+       ]
       },
       {
        "dataset": null,
@@ -1605,35 +841,236 @@
       },
       {
        "dataset": null,
-       "note": "2",
-       "note_heading": "、 其他应收款",
-       "label": "单位一",
-       "value": "5.82",
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "中国电子科技集团公司第三十八研究所",
+       "value": "88998.71",
        "provenance": {
         "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 205,
+        "page_index": 191,
         "bbox": {
-         "x0": 0.4338675088476472,
-         "y0": 0.7426547321204549,
-         "x1": 0.4621003180016492,
-         "y1": 0.7570287175954619
+         "x0": 0.7632701892395345,
+         "y0": 0.4347275706561765,
+         "x1": 0.8277727386762983,
+         "y1": 0.4491015561311835
         },
         "label_bbox": {
-         "x0": 0.1524289494380761,
-         "y0": 0.7437630387145383,
-         "x1": 0.20564401408569835,
-         "y1": 0.7563057954764011
+         "x0": 0.13569844048267518,
+         "y0": 0.43583587725026,
+         "x1": 0.4358845847888032,
+         "y1": 0.4483786340121228
         },
         "value_bbox": {
-         "x0": 0.4338675088476472,
-         "y0": 0.7426547321204549,
-         "x1": 0.4621003180016492,
-         "y1": 0.7570287175954619
+         "x0": 0.7632701892395345,
+         "y0": 0.4347275706561765,
+         "x1": 0.8277727386762983,
+         "y1": 0.4491015561311835
         },
         "sheet": null,
         "cell": null,
         "label_cell": null,
-        "text_snippet": "单位一",
+        "text_snippet": "中国电子科技集团公司第三十八研究所",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "中国电子科技集团公司第四十八研究所",
+       "value": "200000.00",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.7552072680349852,
+         "y0": 0.45952803305955037,
+         "x1": 0.8277726361513444,
+         "y1": 0.47390201853455743
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.4606363396536339,
+         "x1": 0.4358845847888032,
+         "y1": 0.47317909641549666
+        },
+        "value_bbox": {
+         "x0": 0.7552072680349852,
+         "y0": 0.45952803305955037,
+         "x1": 0.8277726361513444,
+         "y1": 0.47390201853455743
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "中国电子科技集团公司第四十八研究所",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "安徽中电光达通信技术有限公司",
+       "value": "15753.60",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.7632701892395345,
+         "y0": 0.47637048004218063,
+         "x1": 0.8277727386762983,
+         "y1": 0.49074446551718764
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.47747878663626414,
+         "x1": 0.383059781377839,
+         "y1": 0.49002154339812687
+        },
+        "value_bbox": {
+         "x0": 0.7632701892395345,
+         "y0": 0.47637048004218063,
+         "x1": 0.8277727386762983,
+         "y1": 0.49074446551718764
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "安徽中电光达通信技术有限公司",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "中国电子科技集团公司第二十研究所",
+       "value": "146708.24",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.7552072680349852,
+         "y0": 0.49304665928713876,
+         "x1": 0.8277726361513444,
+         "y1": 0.5074206447621458
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.4942974914413981,
+         "x1": 0.4183413605245915,
+         "y1": 0.5068402482032609
+        },
+        "value_bbox": {
+         "x0": 0.7552072680349852,
+         "y0": 0.49304665928713876,
+         "x1": 0.8277726361513444,
+         "y1": 0.5074206447621458
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "中国电子科技集团公司第二十研究所",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "中电科技（合肥）博微信息发展有限责任公",
+       "value": "68604.36",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.7632701892395345,
+         "y0": 0.5179896472506885,
+         "x1": 0.8277727386762983,
+         "y1": 0.5323636327256955
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.5109736706863562,
+         "x1": 0.46513515915922565,
+         "y1": 0.523516427448219
+        },
+        "value_bbox": {
+         "x0": 0.7632701892395345,
+         "y0": 0.5179896472506885,
+         "x1": 0.8277727386762983,
+         "y1": 0.5323636327256955
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "中电科技（合肥）博微信息发展有限责任公",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      }
+     ],
+     "flags": [
+      "POSSIBLE_DUPLICATE:CP_Gross",
+      "NET_OF_ALLOWANCE:CP_Related_Party_Deduction"
+     ]
+    },
+    "consolidated:col2": {
+     "method": "related_party_receivables",
+     "formula": "CP_Gross - CP_Related_Party_Deduction",
+     "result": "6333847.20",
+     "inputs": [
+      {
+       "dataset": null,
+       "note": "9",
+       "note_heading": "、 其他应收款",
+       "label": "单位及个人往来款",
+       "value": "5047352.17",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 131,
+        "bbox": {
+         "x0": 0.7646811889162733,
+         "y0": 0.2633692563957258,
+         "x1": 0.8493278412766079,
+         "y1": 0.2777432599945324
+        },
+        "label_bbox": {
+         "x0": 0.1072364432022521,
+         "y0": 0.2654752419110401,
+         "x1": 0.2485579352622583,
+         "y1": 0.2780179986729029
+        },
+        "value_bbox": {
+         "x0": 0.7646811889162733,
+         "y0": 0.2633692563957258,
+         "x1": 0.8493278412766079,
+         "y1": 0.2777432599945324
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "单位及个人往来款",
         "source_kind": "native",
         "producer": "extract:native@0.1.0",
         "transforms": []
@@ -1645,109 +1082,33 @@
        "dataset": null,
        "note": "2",
        "note_heading": "、 其他应收款",
-       "label": "单位二",
-       "value": "3.94",
+       "label": "单位及个人往来款",
+       "value": "1286495.03",
        "provenance": {
         "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 205,
+        "page_index": 204,
         "bbox": {
-         "x0": 0.4338675088476472,
-         "y0": 0.7593308751178137,
-         "x1": 0.4621003180016492,
-         "y1": 0.7737048605928207
+         "x0": 0.8084727236974025,
+         "y0": 0.23486298443738324,
+         "x1": 0.8931194785826909,
+         "y1": 0.2492369880361899
         },
         "label_bbox": {
          "x0": 0.15101793694571805,
-         "y0": 0.7605817072720731,
-         "x1": 0.20423300159334032,
-         "y1": 0.7731244640339359
+         "y0": 0.23696896995269762,
+         "x1": 0.2923393969666762,
+         "y1": 0.24951172671456037
         },
         "value_bbox": {
-         "x0": 0.4338675088476472,
-         "y0": 0.7593308751178137,
-         "x1": 0.4621003180016492,
-         "y1": 0.7737048605928207
+         "x0": 0.8084727236974025,
+         "y0": 0.23486298443738324,
+         "x1": 0.8931194785826909,
+         "y1": 0.2492369880361899
         },
         "sheet": null,
         "cell": null,
         "label_cell": null,
-        "text_snippet": "单位二",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "2",
-       "note_heading": "、 其他应收款",
-       "label": "单位三",
-       "value": "2.54",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 205,
-        "bbox": {
-         "x0": 0.4338675088476472,
-         "y0": 0.7761495436753485,
-         "x1": 0.4621003180016492,
-         "y1": 0.7905235291503555
-        },
-        "label_bbox": {
-         "x0": 0.15101793694571805,
-         "y0": 0.7774003758296079,
-         "x1": 0.20423300159334032,
-         "y1": 0.7899431325914706
-        },
-        "value_bbox": {
-         "x0": 0.4338675088476472,
-         "y0": 0.7761495436753485,
-         "x1": 0.4621003180016492,
-         "y1": 0.7905235291503555
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位三",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "2",
-       "note_heading": "、 其他应收款",
-       "label": "单位四",
-       "value": "2.49",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 205,
-        "bbox": {
-         "x0": 0.4338675088476472,
-         "y0": 0.7929682847280818,
-         "x1": 0.4621003180016492,
-         "y1": 0.8073422702030888
-        },
-        "label_bbox": {
-         "x0": 0.15101793694571805,
-         "y0": 0.7940765913221652,
-         "x1": 0.20423300159334032,
-         "y1": 0.806619348084028
-        },
-        "value_bbox": {
-         "x0": 0.4338675088476472,
-         "y0": 0.7929682847280818,
-         "x1": 0.4621003180016492,
-         "y1": 0.8073422702030888
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "单位四",
+        "text_snippet": "单位及个人往来款",
         "source_kind": "native",
         "producer": "extract:native@0.1.0",
         "transforms": []
@@ -1759,153 +1120,453 @@
      "flags": [
       "RELATED_PARTY_DEDUCTION_PROVEN_NIL"
      ]
+    },
+    "consolidated:current": {
+     "method": "related_party_receivables",
+     "formula": "CP_Gross - CP_Related_Party_Deduction",
+     "result": "131419251.75",
+     "inputs": [
+      {
+       "dataset": null,
+       "note": "9",
+       "note_heading": "流动资产：",
+       "label": "应收保费应收分保账款应收分保合同准备金其他应收款",
+       "value": "36770065.47",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 69,
+        "bbox": {
+         "x0": 0.5971746378280376,
+         "y0": 0.4315918633419112,
+         "x1": 0.6898841088679677,
+         "y1": 0.44596584881691825
+        },
+        "label_bbox": {
+         "x0": 0.1687495764437846,
+         "y0": 0.3816739532798894,
+         "x1": 0.3278093913472835,
+         "y1": 0.44538548850563253
+        },
+        "value_bbox": {
+         "x0": 0.5971746378280376,
+         "y0": 0.4315918633419112,
+         "x1": 0.6898841088679677,
+         "y1": 0.44596584881691825
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "应收保费应收分保账款应收分保合同准备金其他应收款",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "9",
+       "note_heading": "、 其他应收款",
+       "label": "应收利息应收股利其他应收款",
+       "value": "36770065.47",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 128,
+        "bbox": {
+         "x0": 0.5104649783472424,
+         "y0": 0.4886281856836917,
+         "x1": 0.6031744493871725,
+         "y1": 0.5030021711586987
+        },
+        "label_bbox": {
+         "x0": 0.1072364432022521,
+         "y0": 0.4562178660501868,
+         "x1": 0.19573310622005566,
+         "y1": 0.5022792490396379
+        },
+        "value_bbox": {
+         "x0": 0.5104649783472424,
+         "y0": 0.4886281856836917,
+         "x1": 0.6031744493871725,
+         "y1": 0.5030021711586987
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "应收利息应收股利其他应收款",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": false,
+       "duplicate_of_note": [
+        "face",
+        "9"
+       ]
+      },
+      {
+       "dataset": null,
+       "note": "12",
+       "note_heading": "、 一年内到期的非流动资产",
+       "label": "一年内到期的长期应收款",
+       "value": "95181217.15",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 134,
+        "bbox": {
+         "x0": 0.5159074129950174,
+         "y0": 0.406221298697834,
+         "x1": 0.6086168840349475,
+         "y1": 0.42059528417284103
+        },
+        "label_bbox": {
+         "x0": 0.1072364432022521,
+         "y0": 0.4083273204607476,
+         "x1": 0.30157786929155156,
+         "y1": 0.42087007722261033
+        },
+        "value_bbox": {
+         "x0": 0.5159074129950174,
+         "y0": 0.406221298697834,
+         "x1": 0.6086168840349475,
+         "y1": 0.42059528417284103
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "一年内到期的长期应收款",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "中国电子科技集团公司第三十八研究所",
+       "value": "88998.71",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.522559283260351,
+         "y0": 0.4347275706561765,
+         "x1": 0.5870618326971148,
+         "y1": 0.4491015561311835
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.43583587725026,
+         "x1": 0.4358845847888032,
+         "y1": 0.4483786340121228
+        },
+        "value_bbox": {
+         "x0": 0.522559283260351,
+         "y0": 0.4347275706561765,
+         "x1": 0.5870618326971148,
+         "y1": 0.4491015561311835
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "中国电子科技集团公司第三十八研究所",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "中国电子科技集团公司第四十八研究所",
+       "value": "200000.00",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.5144964133182786,
+         "y0": 0.45952803305955037,
+         "x1": 0.5870617814346378,
+         "y1": 0.47390201853455743
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.4606363396536339,
+         "x1": 0.4358845847888032,
+         "y1": 0.47317909641549666
+        },
+        "value_bbox": {
+         "x0": 0.5144964133182786,
+         "y0": 0.45952803305955037,
+         "x1": 0.5870617814346378,
+         "y1": 0.47390201853455743
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "中国电子科技集团公司第四十八研究所",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "安徽中电光达通信技术有限公司",
+       "value": "15753.60",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.522559283260351,
+         "y0": 0.47637048004218063,
+         "x1": 0.5870618326971148,
+         "y1": 0.49074446551718764
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.47747878663626414,
+         "x1": 0.383059781377839,
+         "y1": 0.49002154339812687
+        },
+        "value_bbox": {
+         "x0": 0.522559283260351,
+         "y0": 0.47637048004218063,
+         "x1": 0.5870618326971148,
+         "y1": 0.49074446551718764
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "安徽中电光达通信技术有限公司",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "中电科技（合肥）博微信息发展有限责任公",
+       "value": "95239.27",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.522559283260351,
+         "y0": 0.5179896472506885,
+         "x1": 0.5870618326971148,
+         "y1": 0.5323636327256955
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.5109736706863562,
+         "x1": 0.46513515915922565,
+         "y1": 0.523516427448219
+        },
+        "value_bbox": {
+         "x0": 0.522559283260351,
+         "y0": 0.5179896472506885,
+         "x1": 0.5870618326971148,
+         "y1": 0.5323636327256955
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "中电科技（合肥）博微信息发展有限责任公",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "司北京国信安信息科技有限公司",
+       "value": "500.00",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.5427165093780087,
+         "y0": 0.5427901096540624,
+         "x1": 0.5870749558912017,
+         "y1": 0.5571640951290694
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.5272222370031877,
+         "x1": 0.36532142649529825,
+         "y1": 0.5564411730100086
+        },
+        "value_bbox": {
+         "x0": 0.5427165093780087,
+         "y0": 0.5427901096540624,
+         "x1": 0.5870749558912017,
+         "y1": 0.5571640951290694
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "司北京国信安信息科技有限公司",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "中电科投资开发有限公司",
+       "value": "259023.19",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.5144964133182786,
+         "y0": 0.559608778211597,
+         "x1": 0.5870617814346378,
+         "y1": 0.5739827636866042
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.5607171210532799,
+         "x1": 0.3300398473485458,
+         "y1": 0.5732598778151426
+        },
+        "value_bbox": {
+         "x0": 0.5144964133182786,
+         "y0": 0.559608778211597,
+         "x1": 0.5870617814346378,
+         "y1": 0.5739827636866042
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "中电科投资开发有限公司",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "成都卫士通信息安全技术有限公司",
+       "value": "57950.00",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.522559283260351,
+         "y0": 0.5762849574565553,
+         "x1": 0.5870618326971148,
+         "y1": 0.5906589429315623
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.5775358258584138,
+         "x1": 0.40060300564205076,
+         "y1": 0.5900785826202766
+        },
+        "value_bbox": {
+         "x0": 0.522559283260351,
+         "y0": 0.5762849574565553,
+         "x1": 0.5870618326971148,
+         "y1": 0.5906589429315623
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "成都卫士通信息安全技术有限公司",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "6",
+       "note_heading": "、 应收、应付关联方等未结算项目情况",
+       "label": "中国电子科技集团公司电子科学研究院",
+       "value": "40000.00",
+       "provenance": {
+        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
+        "page_index": 191,
+        "bbox": {
+         "x0": 0.522559283260351,
+         "y0": 0.5931036622616892,
+         "x1": 0.5870618326971148,
+         "y1": 0.6074776477366963
+        },
+        "label_bbox": {
+         "x0": 0.13569844048267518,
+         "y0": 0.5942119688557728,
+         "x1": 0.4358845847888032,
+         "y1": 0.6067547256176355
+        },
+        "value_bbox": {
+         "x0": 0.522559283260351,
+         "y0": 0.5931036622616892,
+         "x1": 0.5870618326971148,
+         "y1": 0.6074776477366963
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "中国电子科技集团公司电子科学研究院",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      }
+     ],
+     "flags": [
+      "POSSIBLE_DUPLICATE:CP_Gross",
+      "NET_OF_ALLOWANCE:CP_Related_Party_Deduction"
+     ]
     }
    }
   }
  ],
- "is_pl__sales_revenues": [
+ "notes__contingent_liabilities": [
   {
-   "source_label": "其中：营业收入",
-   "section": "income_and_expenses",
+   "source_label": "notes__contingent_liabilities",
+   "section": null,
    "values": [
     {
      "basis": "consolidated",
      "period": "current",
-     "value": "1603146551.95",
-     "flags": []
-    },
-    {
-     "basis": "consolidated",
-     "period": "prior",
-     "value": "1926601476.83",
-     "flags": []
-    },
-    {
-     "basis": "consolidated",
-     "period": "col2",
-     "value": "1920773532.54",
-     "flags": []
-    },
-    {
-     "basis": "consolidated",
-     "period": "col3",
-     "value": "1590200224.12",
-     "flags": []
-    }
-   ],
-   "derivation": {
-    "consolidated:col2": {
-     "method": "sales_revenues",
-     "formula": "P2 · the 主营业务/主营业务收入 row of the 营业收入 note",
-     "result": "1920773532.54",
-     "inputs": [
-      {
-       "dataset": null,
-       "note": "61",
-       "note_heading": "、 营业收入和营业成本",
-       "label": "主营业务",
-       "value": "1920773532.54",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 158,
-        "bbox": {
-         "x0": 0.5772189757695599,
-         "y0": 0.42988152037220195,
-         "x1": 0.6900725497330609,
-         "y1": 0.44425550584720896
-        },
-        "label_bbox": {
-         "x0": 0.1072364432022521,
-         "y0": 0.43098982696628546,
-         "x1": 0.1779947513375149,
-         "y1": 0.44353258372814824
-        },
-        "value_bbox": {
-         "x0": 0.5772189757695599,
-         "y0": 0.42988152037220195,
-         "x1": 0.6900725497330609,
-         "y1": 0.44425550584720896
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "主营业务",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      }
-     ],
-     "flags": [
-      "POSSIBLE_DUPLICATE"
-     ]
-    },
-    "consolidated:col3": {
-     "method": "sales_revenues",
-     "formula": "P2 · the 主营业务/主营业务收入 row of the 营业收入 note",
-     "result": "1590200224.12",
-     "inputs": [
-      {
-       "dataset": null,
-       "note": "61",
-       "note_heading": "、 营业收入和营业成本",
-       "label": "主营业务",
-       "value": "1590200224.12",
-       "provenance": {
-        "document_id": "01b72ae2093bb4041eac12d39b585179fec651a803a027755c157535f0cf9e13",
-        "page_index": 158,
-        "bbox": {
-         "x0": 0.7364610415940662,
-         "y0": 0.42988152037220195,
-         "x1": 0.849314615557567,
-         "y1": 0.44425550584720896
-        },
-        "label_bbox": {
-         "x0": 0.1072364432022521,
-         "y0": 0.43098982696628546,
-         "x1": 0.1779947513375149,
-         "y1": 0.44353258372814824
-        },
-        "value_bbox": {
-         "x0": 0.7364610415940662,
-         "y0": 0.42988152037220195,
-         "x1": 0.849314615557567,
-         "y1": 0.44425550584720896
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "主营业务",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      }
-     ],
-     "flags": [
-      "POSSIBLE_DUPLICATE"
-     ]
-    }
-   }
-  },
-  {
-   "source_label": "一、营业收入",
-   "section": "income_and_expenses",
-   "values": [
-    {
-     "basis": "standalone",
-     "period": "current",
-     "value": "958118458.99",
-     "flags": []
-    },
-    {
-     "basis": "standalone",
-     "period": "prior",
-     "value": "1410139147.55",
+     "value": "118754500.00",
+     "currency": null,
+     "scale": "1",
      "flags": []
     }
    ],

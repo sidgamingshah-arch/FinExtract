@@ -39,19 +39,153 @@ extract:page=192:units=HKD/thousand
 extract:page=193:entity_scope=page_scope(consolidated)
 extract:page=193:units=HKD/thousand
 extract:page=233:text_rotation=90
+extract:page=233:units=HKD/thousand
 extract:page=234:text_rotation=90
+extract:page=234:units=HKD/thousand
 extract:page=235:text_rotation=90
+extract:page=235:units=HKD/thousand
 extract:page=236:text_rotation=90
+extract:page=236:units=HKD/thousand
 extract:page=237:text_rotation=90
+extract:page=237:units=HKD/thousand
+extract:page=238:units=HKD/thousand
+extract:page=239:units=HKD/thousand
+extract:page=240:equity_matrix_columns=10
+extract:page=241:equity_matrix_columns=10
+extract:page=242:equity_matrix_columns=10
+extract:page=243:equity_matrix_columns=10
+extract:page=244:units=HKD/thousand
+extract:page=245:units=HKD/thousand
+extract:page=246:units=HKD/thousand
+extract:page=247:units=HKD/thousand
+extract:page=248:units=HKD/thousand
+extract:page=249:units=HKD/thousand
+extract:page=250:units=HKD/thousand
+extract:page=251:units=HKD/thousand
+extract:page=253:units=HKD/thousand
+extract:page=254:units=HKD/thousand
+extract:page=255:units=HKD/thousand
 extract:page=256:text_rotation=90
+extract:page=256:equity_matrix_columns=10
 extract:page=257:text_rotation=90
+extract:page=257:units=HKD/thousand
+extract:page=257:duplicate_fact_dropped(consolidated/current)
+extract:page=257:duplicate_fact_dropped(consolidated/prior)
+extract:page=257:duplicate_fact_dropped(consolidated/current)
+extract:page=257:duplicate_fact_dropped(consolidated/current)
+extract:page=257:duplicate_fact_dropped(consolidated/current)
+extract:page=257:duplicate_fact_dropped(consolidated/prior)
+extract:page=257:duplicate_fact_dropped(consolidated/current)
+extract:page=257:duplicate_fact_dropped(consolidated/current)
+extract:page=257:duplicate_fact_dropped(consolidated/current)
+extract:page=259:units=HKD/thousand
+extract:page=265:equity_matrix_columns=5
+extract:page=267:units=HKD/thousand
+extract:page=267:period_selection=kept_both(consolidated/current_col1)
+extract:page=268:units=HKD/thousand
+extract:page=269:units=HKD/thousand
+extract:page=270:units=HKD/thousand
+extract:page=271:units=HKD/thousand
+extract:page=271:duplicate_fact_dropped(consolidated/current)
+extract:page=271:duplicate_fact_dropped(consolidated/current)
+extract:page=272:units=HKD/thousand
+extract:page=272:duplicate_fact_dropped(consolidated/current)
+extract:page=272:duplicate_fact_dropped(consolidated/current)
+extract:page=272:duplicate_fact_dropped(consolidated/current)
+extract:page=272:duplicate_fact_dropped(consolidated/current)
+extract:page=272:duplicate_fact_dropped(consolidated/current)
+extract:page=272:duplicate_fact_dropped(consolidated/current)
+extract:page=272:duplicate_fact_dropped(consolidated/current)
+extract:page=272:duplicate_fact_dropped(consolidated/current)
+extract:page=272:duplicate_fact_dropped(consolidated/current)
+extract:page=274:units=HKD/thousand
+extract:page=274:duplicate_fact_dropped(consolidated/current)
+extract:page=274:duplicate_fact_dropped(consolidated/current)
+extract:page=274:duplicate_fact_dropped(consolidated/current)
+extract:page=274:duplicate_fact_dropped(consolidated/current)
+extract:page=274:duplicate_fact_dropped(consolidated/current)
+extract:page=274:duplicate_fact_dropped(consolidated/current)
+extract:page=274:duplicate_fact_dropped(consolidated/current)
+extract:page=274:duplicate_fact_dropped(consolidated/current)
+extract:page=274:duplicate_fact_dropped(consolidated/current)
+extract:page=274:duplicate_fact_dropped(consolidated/current)
+extract:page=276:units=HKD/thousand
+extract:page=277:units=HKD/thousand
+extract:page=277:units=HKD/thousand
+extract:page=278:units=HKD/thousand
+extract:page=279:units=HKD/thousand
+extract:page=280:units=HKD/thousand
+extract:page=281:units=HKD/thousand
+extract:page=282:units=HKD/thousand
+extract:page=283:units=HKD/thousand
+extract:page=284:units=HKD/thousand
+extract:page=285:units=HKD/thousand
 extract:page=286:entity_scope=page_scope(consolidated)
 extract:page=286:units=HKD/thousand
+extract:page=287:units=HKD/thousand
+extract:page=288:units=HKD/thousand
+extract:page=290:units=HKD/thousand
+extract:page=291:units=HKD/thousand
+extract:page=292:units=HKD/thousand
+extract:page=294:units=HKD/thousand
+extract:page=295:equity_matrix_columns=5
+extract:page=296:units=HKD/thousand
+extract:page=298:units=HKD/thousand
+extract:page=298:duplicate_fact_dropped(consolidated/prior)
+extract:page=299:units=HKD/thousand
+extract:page=299:period_selection=kept_both(consolidated/current_col1)
+extract:page=299:period_selection=kept_both(consolidated/current_col2)
+extract:page=299:duplicate_fact_dropped(consolidated/current)
+extract:page=299:duplicate_fact_dropped(consolidated/current)
+extract:page=299:duplicate_fact_dropped(consolidated/current)
+extract:page=300:units=HKD/thousand
+extract:page=300:period_selection=kept_both(consolidated/current_col1)
+extract:page=300:period_selection=kept_both(consolidated/current_col2)
+extract:page=302:units=HKD/thousand
+extract:page=302:period_selection=kept_both(consolidated/current_col1)
+extract:page=304:units=HKD/thousand
+extract:page=304:duplicate_fact_dropped(consolidated/current)
+extract:page=304:duplicate_fact_dropped(consolidated/current)
+extract:page=304:duplicate_fact_dropped(consolidated/current)
+extract:page=304:duplicate_fact_dropped(consolidated/current)
+extract:page=309:period_selection=kept_both(consolidated/current_col1)
+extract:page=309:period_selection=kept_both(consolidated/current_col2)
+extract:page=309:period_selection=kept_both(consolidated/current_col3)
+extract:page=309:period_selection=kept_both(consolidated/prior_col5)
+extract:page=314:period_selection=kept_both(consolidated/current_col1)
+extract:page=316:period_selection=by_heading_date(2022|2022|2022|2022|2015)
+extract:page=316:period_selection=kept_both(consolidated/current_col2)
+extract:page=316:period_selection=kept_both(consolidated/current_col3)
+extract:page=316:period_selection=kept_both(consolidated/current_col4)
+extract:page=318:period_selection=kept_both(consolidated/prior_col2)
+extract:page=324:period_selection=kept_both(consolidated/prior_col2)
+extract:page=324:duplicate_fact_dropped(consolidated/current)
+extract:page=326:period_selection=kept_both(consolidated/current_col1)
+extract:page=326:period_selection=kept_both(consolidated/current_col2)
+extract:page=326:period_selection=kept_both(consolidated/prior_col4)
+extract:page=329:units=HKD/thousand
+extract:page=330:units=HKD/thousand
+extract:page=331:units=HKD/thousand
+extract:page=332:units=HKD/thousand
+extract:page=333:units=HKD/thousand
+extract:page=334:units=HKD/thousand
+extract:page=335:units=HKD/thousand
+extract:page=336:units=HKD/thousand
+extract:page=341:units=HKD/thousand
+extract:page=342:units=HKD/thousand
+extract:page=343:equity_matrix_columns=5
+extract:page=344:equity_matrix_columns=5
+extract:page=345:units=HKD/thousand
+extract:page=345:duplicate_fact_dropped(consolidated/prior)
+extract:page=346:units=HKD/thousand
+extract:page=346:duplicate_fact_dropped(consolidated/prior)
 extract:page=348:entity_scope=page_scope(company)
 extract:page=348:units=HKD/thousand
 extract:page=349:entity_scope=page_scope(company)
 extract:page=349:units=HKD/thousand
 extract:page=350:equity_matrix_columns=6
+extract:page=364:equity_matrix_columns=5
+extract:page=365:units=HKD/thousand
 extract:ocr_failed(No module named 'docling')
 extract:pdf_line_items=285 note_tables=190
 stage:extract:done
@@ -59,10 +193,11 @@ stage:map_ontology:start
 map_ontology:strategy=llm_description(intended) scope=per_statement
 map_ontology:groups=7 batched_rows=285 per_line_rows=0 chunks=7 max_chunk=11
 map_ontology:focus_routing keys=8 rows_to_llm=45 rows_deterministic=240 sections_skipped=14
-map_ontology:note_items_mapped=124
+map_ontology:prose_captions_skipped=162 'Lai Sun Garment (International) Limited (the'(latin_chars=310>120+finite_verb); 'Details of the principal subsidiaries are se'(cross_reference); 'These financial statements have been prepare'(latin_chars=330>120+finite_verb)
+map_ontology:note_items_mapped=120
 map_ontology:split_declined(bs_nca__total_non_current_assets): 2 rows carry it
 map_ontology:split_declined(bs_ca__inventories): component already filed
-map_ontology:split_declined(bs_ca__trade_and_other_receivables): 2 rows carry it
+map_ontology:split_declined(bs_ca__trade_and_other_receivables): component already filed
 map_ontology:split_declined(bs_ca__total_current_assets): 2 rows carry it
 map_ontology:split_declined(bs_ncl__total_non_current_liabilities): 2 rows carry it
 map_ontology:split_declined(bs_cl__cpltd_bank): 2 rows carry it
@@ -79,15 +214,13 @@ map_ontology:split_declined(bs_nca__other_intangible_assets): 2 rows carry it
 map_ontology:split_declined(bs_nca__goodwill): cited note detail does not account for the face amount
 map_ontology:split_declined(bs_nca__investments_in_associates): 2 rows carry it
 map_ontology:split_declined(bs_nca__invest_in_jvs_and_partnerships): the disclosure itemises 0 of this section's concepts
-map_ontology:split_declined(bs_nca__other_receivables_ltp): 3 rows carry it
-map_ontology:split_declined(bs_nca__swaps_nca): cited note detail does not account for the face amount
-map_ontology:split_declined(bs_nca__entrusted_loan_receivables_third_parties_ltp): cited note detail does not account for the face amount
 map_ontology:split_declined(bs_nca__deferred_tax_assets): cited note detail does not account for the face amount
 map_ontology:split_declined(bs_nca__pledged_deposits_ltp): 2 rows carry it
-map_ontology:split_declined(bs_ca__wip): 2 rows carry it
+map_ontology:split_declined(bs_ca__wip): cited note detail does not account for the face amount
 map_ontology:split_declined(bs_ca__finished_goods): cited note detail does not account for the face amount
 map_ontology:split_declined(bs_ca__secur_and_other_fincl_assets_cp): cited note detail does not account for the face amount
 map_ontology:split_declined(bs_ca__wealth_management_products_cp_from_cash_equ): 2 rows carry it
+map_ontology:split_declined(bs_ca__assets_related_to_disc_ops): cited note detail does not account for the face amount
 map_ontology:split_declined(bs_cl__lease_liabilities_cp): 2 rows carry it
 map_ontology:split_declined(bs_cl__cpltd_other): 2 rows carry it
 map_ontology:split_declined(bs_ncl__lease_liabilities_ltp): 2 rows carry it
@@ -98,36 +231,41 @@ map_ontology:split_declined(cf_oper_indirect__depreciation): 2 rows carry it
 map_ontology:split_declined(cf_oper_indirect__amortization_and_asset_impairment): cited note detail does not account for the face amount
 map_ontology:split_declined(cf_investing__sale_assoc_and_affiliates): 4 rows carry it
 map_ontology:template_roles_adopted=18
-map_ontology:mapped=125/288 llm_calls=7
+map_ontology:mapped=117/288 llm_calls=7
 stage:map_ontology:done
 stage:residual:start
 residual:not_absorbed(bs_nca__other_non_current_assets):'Financial assets at fair value through other comprehensive income' is bs_nca__secur_and_other_fincl_assets_ltp's own caption
 residual:not_absorbed(bs_nca__other_non_current_assets):'Financial assets at fair value through profit or loss' is bs_nca__secur_and_other_fincl_assets_ltp's own caption
+residual:not_absorbed(bs_nca__other_non_current_assets):'Financial assets at fair value through other comprehensive income' is bs_nca__secur_and_other_fincl_assets_ltp's own caption
+residual:not_absorbed(bs_nca__other_non_current_assets):'Financial assets at fair value through profit or loss' is bs_nca__secur_and_other_fincl_assets_ltp's own caption
+residual:unallocated_gap:bs_nca:consolidated|current=916919 reported=53035061.0 dedicated=51449685.0 residual=668457.0 tolerance=13.0
+residual:unallocated_gap:bs_nca:consolidated|prior=1060638 reported=55400066.0 dedicated=53626255.0 residual=713173.0 tolerance=14.0
 residual:unallocated_gap:bs_nca:standalone|prior=65340 reported=7598873.0 dedicated=7533329.0 residual=204.0 tolerance=8.0
-residual:unallocated_gap:bs_ca:consolidated|prior=47131 reported=14941501.0 dedicated=14780626.0 residual=113744.0 tolerance=10.0
+residual:unallocated_gap:bs_ca:consolidated|current=40904 reported=13991585.0 dedicated=13606657.0 residual=344024.0 tolerance=10.0
+residual:unallocated_gap:bs_ca:consolidated|prior=47131 reported=14941501.0 dedicated=14616902.0 residual=277468.0 tolerance=11.0
 residual:unallocated_gap:bs_ncl:consolidated|current=5420025 reported=16510189.0 dedicated=4535094.0 residual=6555070.0 tolerance=9.0
 residual:unallocated_gap:bs_ncl:consolidated|prior=-8352720 reported=29614005.0 dedicated=5512341.0 residual=32454384.0 tolerance=9.0
 residual:unallocated_gap:bs_ncl:standalone|current=949564 reported=5949.0 dedicated=2387.0 residual=-946002.0 tolerance=4.0
 residual:unallocated_gap:bs_ncl:standalone|prior=-23017 reported=975877.0 dedicated=469531.0 residual=529363.0 tolerance=7.0
-residual:unallocated_gap:is_pl:consolidated|current=6153891 reported=-3237857.0 dedicated=-5128953.0 residual=-4262795.0 tolerance=16.0
-residual:unallocated_gap:is_pl:consolidated|prior=8255553 reported=-4255979.0 dedicated=-6551538.0 residual=-5959994.0 tolerance=16.0
+residual:unallocated_gap:is_pl:consolidated|current=6153891 reported=-3237857.0 dedicated=-6155912.0 residual=-3235836.0 tolerance=15.0
+residual:unallocated_gap:is_pl:consolidated|prior=8255553 reported=-4255979.0 dedicated=-8257578.0 residual=-4253954.0 tolerance=15.0
 residual:unallocated_gap:cf_oper_indirect:consolidated|current=150569 reported=292696.0 dedicated=-1845879.0 residual=1988006.0 tolerance=57.0
 residual:unallocated_gap:cf_oper_indirect:consolidated|prior=270794 reported=-758358.0 dedicated=-2582199.0 residual=1553047.0 tolerance=53.0
 residual:unallocated_gap:cf_investing:consolidated|current=25364 reported=286808.0 dedicated=403417.0 residual=-141973.0 tolerance=16.0
 residual:unallocated_gap:cf_investing:consolidated|prior=1367166 reported=896450.0 dedicated=-330911.0 residual=-139805.0 tolerance=15.0
 residual:unallocated_gap:cf_financing:consolidated|current=-2841539 reported=-394472.0 dedicated=2667485.0 residual=-220418.0 tolerance=9.0
 residual:unallocated_gap:cf_financing:consolidated|prior=-3681616 reported=-992576.0 dedicated=2928411.0 residual=-239371.0 tolerance=10.0
-residual:itemised(bs_nca__other_non_current_assets) components=1 standalone|prior:unallocated_gap triggers=residual_review:unallocated_gap
-residual:itemised(bs_ca__other_current_assets) components=1 consolidated|prior:unallocated_gap triggers=residual_review:unallocated_gap
+residual:itemised(bs_nca__other_non_current_assets) components=4 consolidated|current:unallocated_gap consolidated|prior:unallocated_gap standalone|prior:unallocated_gap triggers=residual_review:unallocated_gap
+residual:itemised(bs_ca__other_current_assets) components=2 consolidated|current:unallocated_gap consolidated|prior:unallocated_gap standalone|current:tied standalone|prior:tied triggers=residual_review:component_share_of_subtotal>2%,residual_review:vetoed_dedicated_match,residual_review:unallocated_gap,residual_review:residual_share_of_subtotal>5%
 residual:itemised(bs_equity__other_reserves) components=11 consolidated|current:no_reported_subtotal consolidated|prior:no_reported_subtotal standalone|Capital reduction reserve:no_reported_subtotal standalone|Fair value reserve-financial assets:no_reported_subtotal standalone|Retained profits:no_reported_subtotal standalone|Revaluation reserve-property, plant and equipment:no_reported_subtotal standalone|Share option reserve:no_reported_subtotal standalone|Total:no_reported_subtotal standalone|current:no_reported_subtotal standalone|prior:no_reported_subtotal triggers=residual_review:component_count>6
 residual:itemised(bs_ncl__other_non_current_liabilities) components=9 consolidated|current:unallocated_gap consolidated|prior:unallocated_gap standalone|current:unallocated_gap standalone|prior:unallocated_gap triggers=residual_review:residual_share_of_subtotal>5%,residual_review:component_share_of_subtotal>2%,residual_review:component_count>6,residual_review:unallocated_gap,residual_review:sign_opposite_to_section:positive_expected
 residual:itemised(bs_cl__other_current_liabilities) components=9 consolidated|current:tied consolidated|prior:tied standalone|current:tied standalone|prior:tied triggers=residual_review:residual_share_of_subtotal>5%,residual_review:component_share_of_subtotal>2%,residual_review:component_count>6
-residual:itemised(is_pl__other_operating_expenses) components=6 consolidated|col2:no_reported_subtotal consolidated|col3:no_reported_subtotal consolidated|col4:no_reported_subtotal consolidated|current:unallocated_gap consolidated|prior:unallocated_gap triggers=residual_review:residual_share_of_subtotal>5%,residual_review:component_share_of_subtotal>2%,residual_review:unallocated_gap
+residual:itemised(is_pl__other_operating_expenses) components=4 consolidated|col2:no_reported_subtotal consolidated|col3:no_reported_subtotal consolidated|current:unallocated_gap consolidated|prior:unallocated_gap triggers=residual_review:residual_share_of_subtotal>5%,residual_review:component_share_of_subtotal>2%,residual_review:unallocated_gap
 residual:itemised(is_oci__other_equity_and_reserves_adj) components=8 consolidated|current:no_reported_subtotal consolidated|prior:no_reported_subtotal triggers=residual_review:component_count>6
 residual:itemised(cf_oper_indirect__other_non_cash_adjs_oper) components=53 consolidated|current:unallocated_gap consolidated|prior:unallocated_gap triggers=residual_review:residual_share_of_subtotal>5%,residual_review:component_share_of_subtotal>2%,residual_review:component_count>6,residual_review:unallocated_gap
 residual:itemised(cf_investing__other_invest_cash_flows) components=7 consolidated|current:unallocated_gap consolidated|prior:unallocated_gap triggers=residual_review:residual_share_of_subtotal>5%,residual_review:component_share_of_subtotal>2%,residual_review:component_count>6,residual_review:unallocated_gap
 residual:itemised(cf_financing__other_financing_cash_flows) components=4 consolidated|current:unallocated_gap consolidated|prior:unallocated_gap triggers=residual_review:residual_share_of_subtotal>5%,residual_review:component_share_of_subtotal>2%,residual_review:unallocated_gap
-residual:swept=109 ineligible=23 section_unresolved=32 unmapped_remaining=55
+residual:swept=111 ineligible=29 section_unresolved=32 unmapped_remaining=61
 stage:residual:done
 stage:normalize:start
 normalize:units=thousand/HKD
@@ -141,7 +279,7 @@ stage:deprec_impairment:start
 deprec_impairment:4 value(s) computed
 stage:deprec_impairment:done
 stage:secur_fincl_assets:start
-secur_fincl_assets:2 value(s) computed
+secur_fincl_assets:4 value(s) computed
 stage:secur_fincl_assets:done
 stage:related_party_receivables:start
 related_party_receivables:bs_nca__due_from_related_parties_ltp:not_computed(status=NOT_COMPUTABLE flags=MISSING_NOTE:receivable_notes|MISSING_NOTE:related_party_note|NOT_COMPUTABLE)
@@ -170,7 +308,7 @@ stage:gap_closing:start
 gap_closing:no gaps
 stage:gap_closing:done
 stage:face_mapping_contract:start
-face_mapping_contract:stored_unclassified=54 labels=['Owners of the Company', 'Owners of the Company', 'TOTAL ASSETS LESS CURRENT LIABILITIES', 'Equity attributable to owners of the Company Share capital', 'At 1 August 2023', 'Loss for the year', 'Exchange realignments', 'Share of other comprehensive expense of associates', 'Share of other comprehensive income of joint ventures', 'Release of exchange reserve upon disposal of interest in an associate']
+face_mapping_contract:stored_unclassified=60 labels=['Owners of the Company', 'Owners of the Company', 'Financial assets at fair value through other comprehensive income', 'Financial assets at fair value through profit or loss', 'TOTAL ASSETS LESS CURRENT LIABILITIES', 'Equity attributable to owners of the Company Share capital', 'At 1 August 2023', 'Loss for the year', 'Exchange realignments', 'Share of other comprehensive expense of associates']
 stage:face_mapping_contract:done
 stage:structural:start
 structural:evaluated=6 failed=4 not_evaluable=60 flagged_values=8
@@ -183,10 +321,10 @@ segment:current_assets(17 rows, 8 notes)
 segment:non_current_assets(27 rows, 17 notes)
 segment:current_liabilities(21 rows, 8 notes)
 segment:non_current_liabilities(15 rows, 8 notes)
-segment:equity(50 rows, 2 notes)
+segment:equity(48 rows, 2 notes)
 segment:cash_flow_operating(69 rows, 10 notes)
 segment:cash_flow_investing(28 rows, 1 notes)
 segment:cash_flow_financing(14 rows, 1 notes)
-segment:others(48 rows, 8 notes)
-segment:unresolved(54 face rows reached Others because nothing could place them)
+segment:others(50 rows, 8 notes)
+segment:unresolved(60 face rows reached Others because nothing could place them)
 stage:segment:done

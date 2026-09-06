@@ -21,27 +21,53 @@ them byte for byte.
 
 ## The runs
 
+Both are LLM-backed (`strategy: llm_description`), not deterministic fallbacks — check
+`mapping.llm_calls` in `runs_index.json` if in doubt, because a run with no provider resolved still
+succeeds and simply maps far fewer rows.
+
 **`LaiSun_FY2025_en`** — Lai Sun Garment (International) Limited, year ended 2025-07-31. 367 pages,
-HKEX, English. `HKD` / thousands. **8/8 agreement** on the focus items:
-529,841 · 57,576 · 174,822 · 916,919 · 1,310,743 · null · null · 4,995,768.
+HKEX, English, `HKD` / thousands. 7 LLM calls. **8/8 on the focus items:**
+
+| Item | Value |
+| --- | --- |
+| Deprec & Impairment (Oper Exp) | 529,841 |
+| Deprec & Impairment (COS) | 57,576 |
+| Secur & Other Fincl Assets (CP) | 0 |
+| Secur & Other Fincl Assets (LTP) | 628,486 |
+| Contingent Liabilities | 1,310,743 |
+| Due from Related Parties (LTP) | null |
+| Other Receivables (CP) | null |
+| Sales (Revenues) | 4,995,768 |
+
+CP is 0 and LTP is 628,486 because Find_3 (the Level 3 fair-value column, 463,255) exceeds CP's
+Find_1 of 174,822; the 288,433 residual carries into LTP. `__focus_items.json` holds the full
+derivation for each, and its contributions now sum to the published figure.
 
 **`SunCreate_FY2024_zh`** — Sun Create Electronics Co.,Ltd (安徽四创电子), FY2024. 210 pages, CSRC,
-Simplified Chinese (`locale=zh`). This one is **not** clean, and the known-wrong items are recorded
-here deliberately rather than quietly omitted:
+Simplified Chinese, `CNY`. 8 LLM calls. **3/4 — one item is still wrong, and knowingly so:**
 
-| Item | This run | Correct (PDF-verified) |
+| Item | This run | Correct |
 | --- | --- | --- |
-| Due from Related Parties (LTP) | `null` | **532,030.87** |
-| Other Receivables (CP) | 254,937,045.24 | **131,419,251.75** |
+| Due from Related Parties (LTP) | **532,030.87** | ✓ |
+| Other Receivables (CP) | **131,419,251.75** | ✓ |
+| Contingent Liabilities | **118,754,500.00** | ✓ |
 | Main Business Revenue | 1,603,146,551.95 | **1,589,859,743.31** |
-| Contingent Liabilities | `"No"` | **118,754,500.00** |
 
-Contingent liabilities is **fixed in code** since this run (the run predates the fix) — a fresh run
-produces 118,754,500.00. The other three share one unfixed root defect: a note's column grid has no
-*measure* axis, so a two-level PRC header (本期/上期 × 收入/成本, 期末/期初 × 账面余额/坏账准备)
-collapses into positional `current`/`prior`/`col2`/`col3`. A current-year **cost** therefore sits in
-the `prior` slot on the revenue note, and a **provision** sits there on the related-party note. An
-unfinished implementation of that fix is preserved at `_wip/measure-axis-unfinished.patch`.
+That last one regresses ONLY when the LLM is enabled, which is why it must be recorded here rather
+than assumed fixed: measured with `llm_mapping=false` it produces 1,589,859,743.31 correctly.
+
+The cause is known and unfixed. The concept wants the 主营业务 row of the 营业收入 note;
+`spec_alias_curation.py` denies the face caption `^营业收入$` outright ("§4: Do not use total
+营业收入 as a fallback"). But that denial filters ALIAS LISTS and is never applied to an
+LLM-proposed binding, so the model bound `其中：营业收入` — the face TOTAL — and its own recorded
+reason quotes the right figure as justification for the wrong row:
+
+    llm_reason: Operating revenue detail (其中：营业收入) supported by note 61 showing
+                主营业务 1,589,859,743.31. Matches sales_revenues definition
+
+`stages/sales_revenues.py` then skips any slot already filled, so the correct value it computed was
+discarded. Two changes are needed: enforce the spec's alias denials against LLM bindings, and let a
+spec-derived figure displace a weaker binding rather than yield to it.
 
 ## Reproducing on another machine
 

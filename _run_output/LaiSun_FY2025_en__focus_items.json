@@ -8,12 +8,16 @@
      "basis": "consolidated",
      "period": "current",
      "value": "529841",
+     "currency": null,
+     "scale": "1",
      "flags": []
     },
     {
      "basis": "consolidated",
      "period": "prior",
      "value": "665553",
+     "currency": null,
+     "scale": "1",
      "flags": []
     }
    ],
@@ -144,12 +148,16 @@
      "basis": "consolidated",
      "period": "current",
      "value": "57576",
+     "currency": null,
+     "scale": "1",
      "flags": []
     },
     {
      "basis": "consolidated",
      "period": "prior",
      "value": "70282",
+     "currency": null,
+     "scale": "1",
      "flags": []
     }
    ],
@@ -431,125 +439,232 @@
     {
      "basis": "consolidated",
      "period": "current",
-     "value": "174822",
+     "value": "0",
+     "currency": null,
+     "scale": "1",
      "flags": []
     },
     {
      "basis": "consolidated",
      "period": "prior",
-     "value": "70948",
-     "flags": []
-    }
-   ],
-   "derivation": null
-  }
- ],
- "bs_nca__secur_and_other_fincl_assets_ltp": [
-  {
-   "source_label": "bs_nca__secur_and_other_fincl_assets_ltp",
-   "section": "non_current_assets",
-   "values": [
-    {
-     "basis": "consolidated",
-     "period": "current",
-     "value": "916919",
-     "flags": []
-    },
-    {
-     "basis": "consolidated",
-     "period": "prior",
-     "value": "1060638",
+     "value": "0",
+     "currency": null,
+     "scale": "1",
      "flags": []
     }
    ],
    "derivation": {
-    "consolidated:current": {
+    "consolidated:prior": {
      "method": "secur_fincl_assets",
-     "formula": "LTP_base + CP_negative_carryforward_to_LTP",
-     "result": "916919",
+     "formula": "Find_1_CP - Find_2_CP - Find_3_CP",
+     "result": "0",
      "inputs": [
-      {
-       "dataset": null,
-       "note": "25",
-       "note_heading": "FINANCIAL ASSETS AT FAIR VALUE THROUGH OTHER COMPREHENSIVE INCOME",
-       "label": "Financial assets at fair value through other comprehensive income Listed investment, at fair value (i)",
-       "value": "7620",
-       "provenance": {
-        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
-        "page_index": 284,
-        "bbox": {
-         "x0": 0.7284178245836512,
-         "y0": 0.6438269933503614,
-         "x1": 0.7714230449250394,
-         "y1": 0.6591635610440694
-        },
-        "label_bbox": {
-         "x0": 0.17618662438498423,
-         "y0": 0.6091681242845383,
-         "x1": 0.6285145332688336,
-         "y1": 0.6591635610440694
-        },
-        "value_bbox": {
-         "x0": 0.7284178245836512,
-         "y0": 0.6438269933503614,
-         "x1": 0.7714230449250394,
-         "y1": 0.6591635610440694
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "Financial assets at fair value through other comprehensive income Listed investment, at fair value (i)",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
-      {
-       "dataset": null,
-       "note": "25",
-       "note_heading": "FINANCIAL ASSETS AT FAIR VALUE THROUGH OTHER COMPREHENSIVE INCOME",
-       "label": "Unlisted investments, at fair value (ii)",
-       "value": "120792",
-       "provenance": {
-        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
-        "page_index": 284,
-        "bbox": {
-         "x0": 0.7090990548346038,
-         "y0": 0.6611564278832729,
-         "x1": 0.7714230449250394,
-         "y1": 0.676492995576981
-        },
-        "label_bbox": {
-         "x0": 0.1928679497861274,
-         "y0": 0.6616144140376156,
-         "x1": 0.6306647942859029,
-         "y1": 0.676492995576981
-        },
-        "value_bbox": {
-         "x0": 0.7090990548346038,
-         "y0": 0.6611564278832729,
-         "x1": 0.7714230449250394,
-         "y1": 0.676492995576981
-        },
-        "sheet": null,
-        "cell": null,
-        "label_cell": null,
-        "text_snippet": "Unlisted investments, at fair value (ii)",
-        "source_kind": "native",
-        "producer": "extract:native@0.1.0",
-        "transforms": []
-       },
-       "counted": true,
-       "duplicate_of_note": null
-      },
       {
        "dataset": null,
        "note": "26",
        "note_heading": "FINANCIAL ASSETS AT FAIR VALUE THROUGH PROFIT OR LOSS",
-       "label": "Non-current portion",
-       "value": "788507",
+       "label": "Portion classified as current (as the note states it)",
+       "value": "70948",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 285,
+        "bbox": {
+         "x0": 0.8141075947692823,
+         "y0": 0.3605622924632191,
+         "x1": 0.871408721130171,
+         "y1": 0.375440836227415
+        },
+        "label_bbox": {
+         "x0": 0.15238092845669465,
+         "y0": 0.3605622924632191,
+         "x1": 0.3004299086578676,
+         "y1": 0.375440836227415
+        },
+        "value_bbox": {
+         "x0": 0.8141075947692823,
+         "y0": 0.3605622924632191,
+         "x1": 0.871408721130171,
+         "y1": 0.375440836227415
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Non-current portion",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "47",
+       "note_heading": "FAIR VALUE HIERARCHY OF FINANCIAL INSTRUMENTS",
+       "label": "less: Financial assets Financial assets at fair value through other comprehensive income",
+       "value": "-120792",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 334,
+        "bbox": {
+         "x0": 0.7405880773940168,
+         "y0": 0.4539609833873871,
+         "x1": 0.7904473412391385,
+         "y1": 0.4692975510810951
+        },
+        "label_bbox": {
+         "x0": 0.1761843686692569,
+         "y0": 0.419302114321564,
+         "x1": 0.3895710520719672,
+         "y1": 0.4692975510810951
+        },
+        "value_bbox": {
+         "x0": 0.7405880773940168,
+         "y0": 0.4539609833873871,
+         "x1": 0.7904473412391385,
+         "y1": 0.4692975510810951
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Financial assets Financial assets at fair value through other comprehensive income",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "47",
+       "note_heading": "FAIR VALUE HIERARCHY OF FINANCIAL INSTRUMENTS",
+       "label": "less: Financial assets at fair value through profit or loss",
+       "value": "-153594",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 334,
+        "bbox": {
+         "x0": 0.7405746456321859,
+         "y0": 0.48861985245321016,
+         "x1": 0.7904339094773076,
+         "y1": 0.5039564201469182
+        },
+        "label_bbox": {
+         "x0": 0.1761708856411595,
+         "y0": 0.47174844184981074,
+         "x1": 0.33839475783968875,
+         "y1": 0.5039564201469182
+        },
+        "value_bbox": {
+         "x0": 0.7405746456321859,
+         "y0": 0.48861985245321016,
+         "x1": 0.7904339094773076,
+         "y1": 0.5039564201469182
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Financial assets at fair value through profit or loss",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "47",
+       "note_heading": "FAIR VALUE HIERARCHY OF FINANCIAL INSTRUMENTS",
+       "label": "less: Financial assets included in deposits, prepayments, other receivables and other assets — —",
+       "value": "-14654",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 334,
+        "bbox": {
+         "x0": 0.7482886294906943,
+         "y0": 0.5406081560519448,
+         "x1": 0.7904203751829437,
+         "y1": 0.5559447237456528
+        },
+        "label_bbox": {
+         "x0": 0.17615745387932863,
+         "y0": 0.5064073109156338,
+         "x1": 0.6856756514558286,
+         "y1": 0.5559447237456528
+        },
+        "value_bbox": {
+         "x0": 0.7482886294906943,
+         "y0": 0.5406081560519448,
+         "x1": 0.7904203751829437,
+         "y1": 0.5559447237456528
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Financial assets included in deposits, prepayments, other receivables and other assets — —",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "47",
+       "note_heading": "FAIR VALUE HIERARCHY OF FINANCIAL INSTRUMENTS",
+       "label": "less: Film investments",
+       "value": "-174215",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 334,
+        "bbox": {
+         "x0": 0.7405476795759911,
+         "y0": 0.5579375905848564,
+         "x1": 0.7904069434211128,
+         "y1": 0.5732741582785644
+        },
+        "label_bbox": {
+         "x0": 0.17614397085123124,
+         "y0": 0.5583956145143685,
+         "x1": 0.27603711144527604,
+         "y1": 0.5732741582785644
+        },
+        "value_bbox": {
+         "x0": 0.7405476795759911,
+         "y0": 0.5579375905848564,
+         "x1": 0.7904069434211128,
+         "y1": 0.5732741582785644
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Film investments",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      }
+     ],
+     "flags": [
+      "NEGATIVE_CP_CARRIED_TO_LTP"
+     ]
+    },
+    "consolidated:current": {
+     "method": "secur_fincl_assets",
+     "formula": "Find_1_CP - Find_2_CP - Find_3_CP",
+     "result": "0",
+     "inputs": [
+      {
+       "dataset": null,
+       "note": "26",
+       "note_heading": "FINANCIAL ASSETS AT FAIR VALUE THROUGH PROFIT OR LOSS",
+       "label": "Portion classified as current (as the note states it)",
+       "value": "174822",
        "provenance": {
         "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
         "page_index": 285,
@@ -581,16 +696,194 @@
        },
        "counted": true,
        "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "47",
+       "note_heading": "FAIR VALUE HIERARCHY OF FINANCIAL INSTRUMENTS",
+       "label": "less: Financial assets Financial assets at fair value through other comprehensive income",
+       "value": "-120792",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 334,
+        "bbox": {
+         "x0": 0.7405880773940168,
+         "y0": 0.4539609833873871,
+         "x1": 0.7904473412391385,
+         "y1": 0.4692975510810951
+        },
+        "label_bbox": {
+         "x0": 0.1761843686692569,
+         "y0": 0.419302114321564,
+         "x1": 0.3895710520719672,
+         "y1": 0.4692975510810951
+        },
+        "value_bbox": {
+         "x0": 0.7405880773940168,
+         "y0": 0.4539609833873871,
+         "x1": 0.7904473412391385,
+         "y1": 0.4692975510810951
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Financial assets Financial assets at fair value through other comprehensive income",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "47",
+       "note_heading": "FAIR VALUE HIERARCHY OF FINANCIAL INSTRUMENTS",
+       "label": "less: Financial assets at fair value through profit or loss",
+       "value": "-153594",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 334,
+        "bbox": {
+         "x0": 0.7405746456321859,
+         "y0": 0.48861985245321016,
+         "x1": 0.7904339094773076,
+         "y1": 0.5039564201469182
+        },
+        "label_bbox": {
+         "x0": 0.1761708856411595,
+         "y0": 0.47174844184981074,
+         "x1": 0.33839475783968875,
+         "y1": 0.5039564201469182
+        },
+        "value_bbox": {
+         "x0": 0.7405746456321859,
+         "y0": 0.48861985245321016,
+         "x1": 0.7904339094773076,
+         "y1": 0.5039564201469182
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Financial assets at fair value through profit or loss",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "47",
+       "note_heading": "FAIR VALUE HIERARCHY OF FINANCIAL INSTRUMENTS",
+       "label": "less: Financial assets included in deposits, prepayments, other receivables and other assets — —",
+       "value": "-14654",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 334,
+        "bbox": {
+         "x0": 0.7482886294906943,
+         "y0": 0.5406081560519448,
+         "x1": 0.7904203751829437,
+         "y1": 0.5559447237456528
+        },
+        "label_bbox": {
+         "x0": 0.17615745387932863,
+         "y0": 0.5064073109156338,
+         "x1": 0.6856756514558286,
+         "y1": 0.5559447237456528
+        },
+        "value_bbox": {
+         "x0": 0.7482886294906943,
+         "y0": 0.5406081560519448,
+         "x1": 0.7904203751829437,
+         "y1": 0.5559447237456528
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Financial assets included in deposits, prepayments, other receivables and other assets — —",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "47",
+       "note_heading": "FAIR VALUE HIERARCHY OF FINANCIAL INSTRUMENTS",
+       "label": "less: Film investments",
+       "value": "-174215",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 334,
+        "bbox": {
+         "x0": 0.7405476795759911,
+         "y0": 0.5579375905848564,
+         "x1": 0.7904069434211128,
+         "y1": 0.5732741582785644
+        },
+        "label_bbox": {
+         "x0": 0.17614397085123124,
+         "y0": 0.5583956145143685,
+         "x1": 0.27603711144527604,
+         "y1": 0.5732741582785644
+        },
+        "value_bbox": {
+         "x0": 0.7405476795759911,
+         "y0": 0.5579375905848564,
+         "x1": 0.7904069434211128,
+         "y1": 0.5732741582785644
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Film investments",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
       }
      ],
      "flags": [
-      "MISSING_CP_CARRYFORWARD_TO_LTP"
+      "NEGATIVE_CP_CARRIED_TO_LTP"
      ]
+    }
+   }
+  }
+ ],
+ "bs_nca__secur_and_other_fincl_assets_ltp": [
+  {
+   "source_label": "bs_nca__secur_and_other_fincl_assets_ltp",
+   "section": "non_current_assets",
+   "values": [
+    {
+     "basis": "consolidated",
+     "period": "prior",
+     "value": "668331",
+     "currency": null,
+     "scale": "1",
+     "flags": []
     },
+    {
+     "basis": "consolidated",
+     "period": "current",
+     "value": "628486",
+     "currency": null,
+     "scale": "1",
+     "flags": []
+    }
+   ],
+   "derivation": {
     "consolidated:prior": {
      "method": "secur_fincl_assets",
      "formula": "LTP_base + CP_negative_carryforward_to_LTP",
-     "result": "1060638",
+     "result": "668331",
      "inputs": [
       {
        "dataset": null,
@@ -672,7 +965,7 @@
        "dataset": null,
        "note": "26",
        "note_heading": "FINANCIAL ASSETS AT FAIR VALUE THROUGH PROFIT OR LOSS",
-       "label": "Non-current portion",
+       "label": "Non-current portion (as the note states it)",
        "value": "941274",
        "provenance": {
         "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
@@ -705,11 +998,151 @@
        },
        "counted": true,
        "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "",
+       "note_heading": "",
+       "label": "less: Level 3 residual carried from Secur & Other Fincl Assets (CP)",
+       "value": "-392307",
+       "provenance": null,
+       "counted": true,
+       "duplicate_of_note": null
       }
      ],
-     "flags": [
-      "MISSING_CP_CARRYFORWARD_TO_LTP"
-     ]
+     "flags": []
+    },
+    "consolidated:current": {
+     "method": "secur_fincl_assets",
+     "formula": "LTP_base + CP_negative_carryforward_to_LTP",
+     "result": "628486",
+     "inputs": [
+      {
+       "dataset": null,
+       "note": "25",
+       "note_heading": "FINANCIAL ASSETS AT FAIR VALUE THROUGH OTHER COMPREHENSIVE INCOME",
+       "label": "Financial assets at fair value through other comprehensive income Listed investment, at fair value (i)",
+       "value": "7620",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 284,
+        "bbox": {
+         "x0": 0.7284178245836512,
+         "y0": 0.6438269933503614,
+         "x1": 0.7714230449250394,
+         "y1": 0.6591635610440694
+        },
+        "label_bbox": {
+         "x0": 0.17618662438498423,
+         "y0": 0.6091681242845383,
+         "x1": 0.6285145332688336,
+         "y1": 0.6591635610440694
+        },
+        "value_bbox": {
+         "x0": 0.7284178245836512,
+         "y0": 0.6438269933503614,
+         "x1": 0.7714230449250394,
+         "y1": 0.6591635610440694
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Financial assets at fair value through other comprehensive income Listed investment, at fair value (i)",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "25",
+       "note_heading": "FINANCIAL ASSETS AT FAIR VALUE THROUGH OTHER COMPREHENSIVE INCOME",
+       "label": "Unlisted investments, at fair value (ii)",
+       "value": "120792",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 284,
+        "bbox": {
+         "x0": 0.7090990548346038,
+         "y0": 0.6611564278832729,
+         "x1": 0.7714230449250394,
+         "y1": 0.676492995576981
+        },
+        "label_bbox": {
+         "x0": 0.1928679497861274,
+         "y0": 0.6616144140376156,
+         "x1": 0.6306647942859029,
+         "y1": 0.676492995576981
+        },
+        "value_bbox": {
+         "x0": 0.7090990548346038,
+         "y0": 0.6611564278832729,
+         "x1": 0.7714230449250394,
+         "y1": 0.676492995576981
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Unlisted investments, at fair value (ii)",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "26",
+       "note_heading": "FINANCIAL ASSETS AT FAIR VALUE THROUGH PROFIT OR LOSS",
+       "label": "Non-current portion (as the note states it)",
+       "value": "788507",
+       "provenance": {
+        "document_id": "9fd31e773141df1afa35fbb763c583a5f7ebbcc0042fc0bed2525a6c295b03c9",
+        "page_index": 285,
+        "bbox": {
+         "x0": 0.6852765948371589,
+         "y0": 0.3601042685337069,
+         "x1": 0.7476005849275946,
+         "y1": 0.375440836227415
+        },
+        "label_bbox": {
+         "x0": 0.15238092845669465,
+         "y0": 0.3605622924632191,
+         "x1": 0.3004299086578676,
+         "y1": 0.375440836227415
+        },
+        "value_bbox": {
+         "x0": 0.6852765948371589,
+         "y0": 0.3601042685337069,
+         "x1": 0.7476005849275946,
+         "y1": 0.375440836227415
+        },
+        "sheet": null,
+        "cell": null,
+        "label_cell": null,
+        "text_snippet": "Non-current portion",
+        "source_kind": "native",
+        "producer": "extract:native@0.1.0",
+        "transforms": []
+       },
+       "counted": true,
+       "duplicate_of_note": null
+      },
+      {
+       "dataset": null,
+       "note": "",
+       "note_heading": "",
+       "label": "less: Level 3 residual carried from Secur & Other Fincl Assets (CP)",
+       "value": "-288433",
+       "provenance": null,
+       "counted": true,
+       "duplicate_of_note": null
+      }
+     ],
+     "flags": []
     }
    }
   }
@@ -723,12 +1156,16 @@
      "basis": "consolidated",
      "period": "current",
      "value": "1310743",
+     "currency": null,
+     "scale": "1",
      "flags": []
     },
     {
      "basis": "consolidated",
      "period": "prior",
      "value": "1475717",
+     "currency": null,
+     "scale": "1",
      "flags": []
     }
    ],
@@ -746,12 +1183,16 @@
      "basis": "consolidated",
      "period": "current",
      "value": "4995768",
+     "currency": "HKD",
+     "scale": "1000",
      "flags": []
     },
     {
      "basis": "consolidated",
      "period": "prior",
      "value": "6096141",
+     "currency": "HKD",
+     "scale": "1000",
      "flags": []
     }
    ],
