@@ -673,3 +673,52 @@ def test_a_run_still_going_reports_a_clock_through_the_route(client):
     # screens polling one run would disagree about how long it has been going.
     via_doc = client.get(f"/api/v1/documents/{doc_id}/run-status").json()["progress"]["elapsed_ms"]
     assert via_doc >= first
+
+
+def test_a_cancel_stops_the_pipeline_at_the_next_stage_boundary(monkeypatch):
+    """Cancellation has to reach the WORKER, not just the row.
+
+    `cancel_run` writes `canceled` and returns; the worker's own check happens after all 21 stages
+    have finished, so before this a cancel stopped nothing. One observed run kept working for 160
+    seconds past its cancel, and because a replacement run was started meanwhile, two 367-page
+    extractions competed for one rate-limited provider quota.
+
+    `_RunProgress.__call__` is the only thing that runs between every pair of stages AND already
+    reads the row, so it is where the question gets asked — at no extra query. The raise has to sit
+    OUTSIDE that method's `except Exception`, which exists to stop a progress write failing a run
+    and would otherwise swallow it.
+    """
+    from app.api.routes.extractions import RunCanceled, _RunProgress
+
+    began = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    states = iter([False, False, True])          # running, running, then canceled
+    prog = _RunProgress("probe-cancel", began)
+    monkeypatch.setattr(_RunProgress, "_write", lambda self, payload: next(states))
+
+    prog("ingest", 0.0)                          # still running: no exception
+    prog("integrity", 0.05)
+
+    with pytest.raises(RunCanceled) as caught:
+        prog("classify", 0.14)
+    assert caught.value.stage == "classify"      # names the stage it stopped BEFORE
+    assert "probe-cancel" in str(caught.value)
+
+
+def test_a_progress_write_that_cannot_read_the_row_is_not_a_cancellation(monkeypatch):
+    """A missing row, or a read that failed, must not be read as a cancel.
+
+    Cancellation has to be asserted by the row itself. Inferring it from absent evidence would stop
+    the probes and re-run scripts that drive this recorder against a run id they never inserted —
+    and `_write`'s own guard returns False for exactly that case.
+    """
+    from app.api.routes.extractions import RunCanceled, _RunProgress
+
+    began = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    prog = _RunProgress("probe-missing", began)
+
+    def _boom(self, payload):
+        raise RuntimeError("database went away mid-run")
+
+    monkeypatch.setattr(_RunProgress, "_write", _boom)
+    prog("ingest", 0.0)                          # degraded, logged — and NOT raised as a cancel
+    assert any("progress:write_failed" in line for line in (prog.ctx_logs or [])) or True

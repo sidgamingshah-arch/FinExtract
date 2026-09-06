@@ -408,6 +408,38 @@ def _served_progress(record: dict | None, status: str = "") -> dict | None:
                                       - _as_utc(began)).total_seconds() * 1000))}
 
 
+class RunCanceled(Exception):
+    """The run's row says ``canceled`` — stop the pipeline where it stands.
+
+    Raised from ``_RunProgress.__call__`` (the pipeline's ``progress_cb``, which fires between
+    every pair of stages) and caught by ``_run_extraction_task``. It is the whole of the
+    cooperative half of cancellation: ``cancel_run`` writes the word onto the row, and this carries
+    that word back into the worker.
+
+    AN ``Exception``, DELIBERATELY NOT A ``BaseException``, and both halves of that matter:
+
+      * ``_run_extraction_task``'s handler ends with ``if not isinstance(exc, Exception): raise``,
+        so a BaseException subclass would be re-raised out of the worker. Starlette awaits sync
+        BackgroundTasks inside the request/response cycle — which is also why TestClient runs them
+        synchronously — so that re-raise would surface out of the client's own POST: a 500 handed
+        back for a cancellation that WORKED.
+      * ``_RunProgress.__call__`` wraps its body in ``except Exception`` on purpose, so raising
+        inside that body would be swallowed by the very guard that stops a progress write failing a
+        run. It is raised AFTER the guard instead — see ``__call__``.
+
+    Before this, cancelling wrote ``status='canceled'`` and nothing else: the worker read that
+    field once, AFTER all 21 stages had finished, so a cancel bought nothing. One observed run kept
+    working for 160 seconds past its cancel, and because a replacement run was started meanwhile,
+    two 367-page extractions competed for the same rate-limited provider quota.
+    """
+
+    def __init__(self, run_id: str, stage: str = "") -> None:
+        super().__init__(f"run {run_id} was canceled"
+                         + (f" before stage {stage}" if stage else ""))
+        self.run_id = run_id
+        self.stage = stage
+
+
 class _RunProgress:
     """Persists the pipeline's progress onto the run row, one small write per stage transition.
 
@@ -459,6 +491,7 @@ class _RunProgress:
         extraction — a run that reached its rows reported as broken because a status write did not
         land.
         """
+        canceled = False
         try:
             if phase not in self.stage_names:
                 # The pipeline's closing ``done`` emit means ITS work is over, not the RUN's: the
@@ -474,9 +507,17 @@ class _RunProgress:
             # the pipeline's own position and a stage run twice does not report the same index twice.
             self._entered.append(phase)
             # The emit precedes its stage, so the stage being announced is not yet done.
-            self._write(self._payload(phase, pct, self._entered[:-1]))
+            canceled = self._write(self._payload(phase, pct, self._entered[:-1]))
         except Exception as exc:  # noqa: BLE001 — see above; reporting must not fail the run
             self._degraded(exc)
+        # OUTSIDE THE GUARD ABOVE, AND THAT IS THE ENTIRE MECHANISM. `cancel_run` only writes
+        # `canceled` onto the row; the worker's own check happens after the pipeline has finished,
+        # so a cancellation used to stop nothing. This is the one place that runs between every
+        # pair of stages AND already holds a session, so it is where the row gets asked. Raising
+        # inside the `try` would hand the exception straight to the `except Exception` above, which
+        # exists precisely to swallow it, and the pipeline would carry on as if nothing was asked.
+        if canceled:
+            raise RunCanceled(self.run_id, phase)
 
     def settle(self, phase: str) -> dict:
         """The terminal record for the worker's own commit — ``done`` or ``failed`` — in the same
@@ -498,7 +539,19 @@ class _RunProgress:
                                  stage_count=len(self.stage_names), stage=self._current,
                                  stages_done=done)
 
-    def _write(self, payload: dict) -> None:
+    def _write(self, payload: dict) -> bool:
+        """Flush one progress record. Returns True only when the row POSITIVELY says ``canceled``.
+
+        The cancellation read IS this method's existing ``session.get`` — no second query per
+        stage, and the fresh short-lived session is what makes it work at all: the worker's own
+        session has held this row since before the cancel was committed and would keep answering
+        ``running`` for the rest of the run.
+
+        A MISSING ROW IS NOT A CANCELLATION, and neither is a read that failed (the caller's guard
+        catches that and leaves its flag False). Cancellation has to be asserted by the row itself
+        — inferring it from absent evidence would stop the probes and re-run scripts that drive
+        this recorder against a run id they never inserted.
+        """
         from app.db.base import SessionLocal
         from app.db.models import ExtractionRun
 
@@ -506,7 +559,12 @@ class _RunProgress:
         try:
             run = session.get(ExtractionRun, self.run_id)
             if run is None:
-                return
+                return False
+            if run.status == "canceled":
+                # Nothing is written: `cancel_run` already stamped `phase: canceled` against the
+                # stage that was in flight, and overwriting it here with the stage about to NOT run
+                # would publish forward motion on a run that has just been stopped.
+                return True
             run.progress = payload
             # A moving WINDOW on the log, replaced each time rather than appended to: bounded, so a
             # thousand-stage-line run does not rewrite a growing column fourteen times, and the whole
@@ -514,6 +572,7 @@ class _RunProgress:
             # entire run, so a screen watching a slow stage had nothing at all to show.
             run.logs = _log_tail(getattr(self._ctx, "logs", None))
             session.commit()
+            return False
         finally:
             session.close()   # rolls back anything left pending by a failed commit
 
@@ -1215,6 +1274,27 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
             # a reader asking "how long did this take" means.
             duration_ms=audit_svc.elapsed_ms(began),
         ))
+    except RunCanceled:
+        # AN ORDERLY STOP, NOT A FAILURE, and it must not be filed as one. The row already says
+        # `canceled` — that is what the pipeline noticed — the user knows why, and nothing is wrong
+        # with the filing or the code. The row is left untouched: `cancel_run` published the phase
+        # against the stage that was actually in flight, which is more informative than a terminal
+        # record written later.
+        #
+        # The audit entry IS written, and as "canceled" rather than "failed": a cancelled run still
+        # spent real provider budget on the batches it had already sent, so a trail that recorded
+        # only runs which finished would under-report spend — but recording a deliberate
+        # cancellation as a failure would misreport its cause. Not re-raised, because this is a
+        # normal outcome and letting it escape a BackgroundTask would surface a traceback out of
+        # the client's own POST for a button the user meant to press.
+        session.rollback()
+        canceled_run = session.get(ExtractionRun, run_id)
+        audit_svc.record(
+            canceled_run.document_id if canceled_run else "unknown", audit_svc.AuditEntry(
+                run_id=run_id, entity=entity, action="extraction",
+                provider=provider, model=model_fallback,
+                input_tokens=None, output_tokens=None, status="canceled",
+                duration_ms=audit_svc.elapsed_ms(began)))
     except BaseException as exc:  # noqa: BLE001 — record failure on the run, don't crash the worker
         # BaseException, not Exception, and that difference is the whole point. asyncio.CancelledError
         # has been a BaseException since Python 3.8 (its MRO is CancelledError -> BaseException), so
