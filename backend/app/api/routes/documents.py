@@ -4,6 +4,7 @@ from __future__ import annotations
 import copy
 import re
 from collections.abc import Iterable
+from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel
@@ -736,6 +737,52 @@ def get_document_integrity(document_id: str, locale: str = Query("en"),
     if row is None:
         raise HTTPException(status_code=404, detail="Document not found")
     return _serialize_document_integrity(row, locale)
+
+
+# A disclosure the pipeline also QUANTIFIES, and the concept carrying that figure.
+#
+# The disclosure catalogue is a presence scan — label, page, snippet — and that is all the Analysis
+# screen could ever show: "Contingent liabilities · p.197 · <snippet>", with the amount nowhere on
+# the screen even though the pipeline had computed it. On the measured CSRC filing that amount is
+# ¥118,754,500 (¥117,523,500 of 保函 plus ¥1,231,000 of 国内信用证), and a reader was told the
+# disclosure EXISTS while the figure sat in a row they were not looking at.
+#
+# Read off the run's own rows rather than from a new field on the stored result, deliberately: the
+# figure is already there, so nothing about what extraction WRITES changes, and the export sheets
+# that consume `result` see the identical shape they did before. Only this endpoint's response
+# gains the two keys.
+_QUANTIFIED_DISCLOSURE = {"contingent_liabilities": "notes__contingent_liabilities"}
+
+
+def _with_quantified_amounts(disclosures: list[dict], rows: list[dict]) -> list[dict]:
+    """`disclosures` with `amount`/`currency` added wherever the pipeline computed a figure.
+
+    Only the CURRENT period of the consolidated basis, which is what the presence scan is about,
+    and only a value that is genuinely numeric — a concept left empty because the rulebook forbids
+    inferring a zero from silence must stay empty here too, not become a confident 0.
+    """
+    out: list[dict] = []
+    for d in disclosures:
+        key = _QUANTIFIED_DISCLOSURE.get(str(d.get("key") or ""))
+        amount = currency = None
+        if key:
+            for r in rows:
+                if r.get("canonical_key") != key:
+                    continue
+                for v in r.get("values") or []:
+                    if (v.get("basis") == "consolidated"
+                            and (v.get("period_label") or "") == "current"
+                            and v.get("value") not in (None, "")):
+                        try:
+                            Decimal(str(v["value"]))       # numeric, not a "Yes"/"No" leftover
+                        except (InvalidOperation, ValueError):
+                            continue
+                        amount, currency = str(v["value"]), v.get("currency")
+                        break
+                if amount is not None:
+                    break
+        out.append({**d, "amount": amount, "currency": currency})
+    return out
 
 
 def _latest_run(session: Session, document_id: str):
@@ -2725,7 +2772,8 @@ def get_document_analysis(document_id: str, locale: str = Query("en"),
     # None here is what left the Analysis screen reading a different set of numbers from the KPI
     # view beside it (see rollups.figures_as_shown).
     template_def = _template_for_run(session, run)
-    disclosures = localize_disclosures(run.result.get("disclosures", []), locale)
+    disclosures = _with_quantified_amounts(
+        localize_disclosures(run.result.get("disclosures", []), locale), rows)
     credit = build_credit_analysis(rows, disclosures, locale=locale, template_def=template_def)
     # Fold in the cached LLM narrative (auto-generated at extraction when a provider is
     # configured, or produced on demand) so the Analysis screen shows it without a click.

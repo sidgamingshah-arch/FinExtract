@@ -224,13 +224,30 @@ function AnalysisSection({ id, locale, t }: { id: string; locale: Locale; t: (k:
           {t("ex.disclosures")}
         </div>
         {disclosures.map((d) => (
-          <div key={d.key} style={{ display: "grid", gridTemplateColumns: "1.4fr 70px 2.5fr",
+          <div key={d.key} style={{ display: "grid",
+                                    // …plus a column for the AMOUNT, where the pipeline computed
+                                    // one. This panel used to say only that a disclosure existed
+                                    // and on which page, so a reader was told a filing HAS
+                                    // contingent liabilities while the ¥118,754,500 the pipeline
+                                    // had already computed sat on a row they were not looking at.
+                                    gridTemplateColumns: "1.4fr 70px 1.1fr 2.5fr",
                                     gap: 10, alignItems: "center", padding: "6px 0",
                                     borderBottom: `1px solid ${color.hairline2}` }}>
             <span style={{ fontSize: 12, color: color.ink }}>{d.label}</span>
             <span style={{ fontSize: 10.5, fontWeight: 700,
                            color: d.present ? color.greenFg : color.faint }}>
               {d.present ? t("view.folioN").replace("{n}", String(d.page)) : "—"}
+            </span>
+            {/* Right-aligned and tabular, like every other figure on this screen. Blank rather
+                than "0" when there is no amount: most of these disclosures are qualitative, and
+                for the quantified one an empty cell means "no figure was disclosed", which is a
+                different statement from "the exposure is nil". */}
+            <span style={{ fontSize: 11.5, color: color.ink, textAlign: "right",
+                           fontVariantNumeric: "tabular-nums" }}>
+              {d.amount
+                ? `${d.currency ? `${d.currency} ` : ""}${Number(d.amount).toLocaleString(
+                    undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : ""}
             </span>
             <span style={{ fontSize: 11, color: color.muted, fontStyle: d.snippet ? "italic" : "normal",
                            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>

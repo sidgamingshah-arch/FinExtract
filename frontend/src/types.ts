@@ -693,6 +693,13 @@ export interface Disclosure {
    *  numeric), falling back to the 1-based sheet position. Rendered, never arithmetic. */
   page: number | string | null;
   snippet: string;
+  /** The figure the pipeline COMPUTED for this disclosure, where it computes one — today only
+   *  contingent liabilities. A decimal STRING, never a number: these are money, and a JSON number
+   *  would round ¥118,754,500.00 through a float. Null when the disclosure is qualitative, or when
+   *  the rulebook forbids inferring an amount ("do not infer a numeric zero from silence") — which
+   *  has to render blank, never as 0. */
+  amount: string | null;
+  currency: string | null;
 }
 export interface FreeNote {
   title: string;
