@@ -1195,7 +1195,25 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
             # a reader asking "how long did this take" means.
             duration_ms=audit_svc.elapsed_ms(began),
         ))
-    except Exception as exc:  # noqa: BLE001 — record failure on the run, don't crash the worker
+    except BaseException as exc:  # noqa: BLE001 — record failure on the run, don't crash the worker
+        # BaseException, not Exception, and that difference is the whole point. asyncio.CancelledError
+        # has been a BaseException since Python 3.8 (its MRO is CancelledError -> BaseException), so
+        # `except Exception` could not see it — and Starlette runs BackgroundTasks inside the
+        # request/response cycle, where a cancellation is exactly what a client going away produces.
+        # A cancelled run therefore left this function without touching the row: status stayed
+        # `running`, result stayed null, no error was recorded, and nothing on the screen could tell
+        # an ABANDONED run from a slow one. A 21-stage run that had already done 20 stages of work
+        # then polled for ever. Recording it costs nothing and is re-raised below, so cancellation
+        # still propagates and SystemExit/KeyboardInterrupt still stop the process.
+        #
+        # ROLL BACK FIRST. If the exception came from the commit itself — a result the JSON column
+        # cannot take, say — the session is already in a failed transaction, and every statement on
+        # it raises PendingRollbackError until it is rolled back. That included this handler's own
+        # `session.get` below, so the handler died on the wreckage of the failure it exists to
+        # record: no status written, no audit row, nothing in the log. A 21-stage run then looked
+        # like it had silently evaporated, which is a far harder thing to diagnose than the
+        # TypeError underneath it. Unconditional because rolling back a clean session is a no-op.
+        session.rollback()
         run = session.get(ExtractionRun, run_id)
         if run is not None and run.status != "canceled":
             run.status = "failed"
@@ -1210,7 +1228,14 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
             # failure that reports its own type and nothing about where the pipeline had got to
             # sends the reader back to reproduce it just to learn which stage it was.
             trail = list(getattr(progress, "ctx_logs", None) or [])
-            run.logs = _log_tail([*trail, f"{type(exc).__name__}: {exc}"])
+            # A cancellation carries no message of its own — str(CancelledError()) is "" — so a bare
+            # "CancelledError: " would name the type and say nothing about what it means. Spell out
+            # that the worker was abandoned rather than that the pipeline rejected the filing: the
+            # two call for completely different responses from whoever reads this.
+            detail = (f"{type(exc).__name__}: {exc}" if isinstance(exc, Exception) else
+                      f"worker abandoned before finalizing ({type(exc).__name__}) — the run was "
+                      f"cancelled out from under the pipeline, not refused by it; re-run it")
+            run.logs = _log_tail([*trail, detail])
             session.commit()
         audit_svc.record(run.document_id if run else "unknown", audit_svc.AuditEntry(
             run_id=run_id, entity=entity, action="extraction",
@@ -1221,6 +1246,11 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
             # different problems.
             duration_ms=audit_svc.elapsed_ms(began),
         ))
+        if not isinstance(exc, Exception):
+            # Recorded, not swallowed. A cancellation must still cancel and SystemExit must still
+            # exit — absorbing either here would trade a stranded run row for a process that ignores
+            # shutdown, which is a worse bug than the one this handler exists to fix.
+            raise
     finally:
         session.close()
 

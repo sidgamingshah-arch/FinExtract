@@ -31,6 +31,31 @@ def _identity(item: dict) -> tuple:
             str(item.get("label") or ""))
 
 
+def _json_safe_provenance(prov: Any) -> dict | None:
+    """A provenance as a PLAIN DICT, whatever the service handed over.
+
+    Every one of the six services that feeds this function stores ``ev.provenance`` — a
+    ``Provenance`` pydantic MODEL, not a dict (deprec_impairment, related_party_receivables,
+    sales_revenues and secur_fincl_assets, seven call sites). A derivation is written to a row and
+    the row is written to ``extraction_runs.result``, a JSON column, so a model object reaching
+    this far ends the run: the flush raises ``TypeError: Object of type Provenance is not JSON
+    serializable``, SQLAlchemy rolls the transaction back, and the ``status='succeeded'`` in the
+    same UPDATE is rolled back with it — a run that did all 21 stages of work is left reading
+    ``running`` with a null result, for ever.
+
+    Coerced HERE rather than at the serialization boundary because this is where the object enters
+    the derivation payload, so one conversion covers all seven call sites and every consumer
+    downstream gets the same shape. ``_src_label`` below already hedged with ``isinstance(prov,
+    dict)``, which is the same problem noticed and worked around instead of fixed.
+    """
+    if prov is None or isinstance(prov, dict):
+        return prov
+    dump = getattr(prov, "model_dump", None)
+    if callable(dump):
+        return dump(mode="json")
+    return None
+
+
 def input_from_evidence(evidence: dict) -> dict:
     """One evidence record as an input row: what it was, where it came from, what it said."""
     return {
@@ -39,7 +64,7 @@ def input_from_evidence(evidence: dict) -> dict:
         "note_heading": evidence.get("note_heading"),
         "label": evidence.get("line_item"),
         "value": evidence.get("value"),
-        "provenance": evidence.get("provenance"),
+        "provenance": _json_safe_provenance(evidence.get("provenance")),
         # An evidence record the restatement control kept as corroboration rather than as an
         # addend — see services.restatement. Shown, but never presented as part of the sum.
         "counted": not (evidence.get("duplicate_of_note") or

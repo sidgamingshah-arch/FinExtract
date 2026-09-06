@@ -126,3 +126,40 @@ def test_a_non_numeric_value_does_not_break_the_fold():
     store = _store([_ev("pbt_depreciation", "6", "Depreciation", "not a number")])
     _, contributions = merge_for_basis(store, "consolidated")
     assert contributions[0]["v1"] is None
+
+
+def test_a_provenance_model_survives_the_json_column_the_run_is_stored_in():
+    """The six services pass a Provenance MODEL, not a dict, and the derivation is stored in a
+    JSON column.
+
+    Every helper above builds provenance as a dict, which is the one shape production never
+    produces: deprec_impairment, related_party_receivables, sales_revenues and
+    secur_fincl_assets all store ``ev.provenance`` — a pydantic model — across seven call sites.
+    A model reaching ``extraction_runs.result`` ends the run, and not with a bad figure: the flush
+    raises ``TypeError: Object of type Provenance is not JSON serializable``, SQLAlchemy rolls the
+    transaction back, and the ``status='succeeded'`` written in that same UPDATE is rolled back
+    with it. A run that completed all 21 stages is left reporting ``running`` with a null result,
+    for ever. json.dumps is the assertion because the JSON column is the actual requirement.
+    """
+    import json
+
+    from app.core.models.geometry import BBox, Provenance
+
+    prov = Provenance(page_index=7, bbox=BBox(x0=0, y0=0, x1=1, y1=1),
+                      text_snippet="Depreciation", source_kind="native")
+    row = input_from_evidence({
+        "dataset_key": "pbt_depreciation", "note_number": "7", "note_heading": "Note 7",
+        "line_item": "Depreciation", "value": "529841", "provenance": prov,
+    })
+
+    assert isinstance(row["provenance"], dict), "a model would break the run's JSON column"
+    assert row["provenance"]["page_index"] == 7
+    json.dumps(row)  # raises TypeError if anything in here is still a model
+
+    # …and through the fold the inspector renders, which carries provenance under other keys.
+    store = record(None, basis="consolidated", period_label="current",
+                   derivation=build(method="deprec_impairment", formula="P2",
+                                    inputs=[row], result="529841"))
+    _, contributions = merge_for_basis(store, "consolidated")
+    json.dumps(contributions)
+    assert contributions[0]["src"] == "p.7", "the page label reads the coerced dict"
