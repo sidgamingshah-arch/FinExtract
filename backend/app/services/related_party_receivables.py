@@ -60,6 +60,28 @@ _RELATED_PARTY_RE = re.compile(
     r"|其他关联方|应收关联方款项|关联方应收款项|关联方资金往来|关联方往来款")
 _ENTRUSTED_LOAN_RE = re.compile(r"委托贷款|委托借款|委托银行贷款")
 
+# ── a ranking table is a subset, never a pool ─────────────────────────────────────────────────
+# 按欠款方归集的期末余额前五名 lists the five largest debtors as a SUBSET of a class the note has
+# already totalled, so adding it to that class double counts by construction. It also prints a
+# 占…比例(%) column beside each balance, and a ratio is not a receivable: 麦捷微电子 published
+# bs_nca__due_from_related_parties_ltp = 2.69 — the percentage column of a row whose 对子公司投资
+# caption matched 子公司 in :data:`_RELATED_PARTY_RE`.
+#
+# Only the ranking shape is excluded. A 关联方组合 row inside an ordinary 其他应收款 note IS a
+# related-party grouping §4 counts (see test_ltp_selects_the_max_not_the_sum_of_the_three_
+# candidates), so risk-grouping captions are deliberately NOT matched here — an earlier draft of
+# this guard excluded them and contradicted that spec.
+#
+# Keyed on the table's own caption rather than on magnitude: a threshold would silently drop a
+# genuinely large related-party balance, while a caption states what the table IS.
+_NON_ADDITIVE_TABLE_RE = re.compile(r"前[五三十]名|按欠款方归集|按债务人归集")
+
+
+
+def _is_non_additive(table) -> bool:
+    """Whether this table lists a subset or a risk grouping rather than the class itself."""
+    return bool(_NON_ADDITIVE_TABLE_RE.search(table.title or ""))
+
 # ── section 3.2: the net amount rule ──────────────────────────────────────────────────────────
 # An amount is on a net basis when it says so — an explicit net carrying amount, or a closing
 # balance already stated as less its allowance.
@@ -341,6 +363,10 @@ def _find_2(doc: DocumentModel, pk: PeriodKey, flags: list[str]) -> _Signal:
         if _note_basis_disagrees(table, pk):
             continue                       # the parent company's own note — see the docstring
         found_note = True
+        if _is_non_additive(table):
+            # A top-five ranking or a risk-grouping bucket, not the class pool.
+            flags.append("NON_ADDITIVE_TABLE_SKIPPED")
+            continue
         pooled = _has_pooled_allowance(table)
         for item in table.items:
             if item.role != LineRole.LINE:
@@ -379,6 +405,9 @@ def _find_3(doc: DocumentModel, pk: PeriodKey, flags: list[str]) -> _Signal:
         if _note_basis_disagrees(table, pk):
             continue
         found_note = True
+        if _is_non_additive(table):
+            flags.append("NON_ADDITIVE_TABLE_SKIPPED")
+            continue
         pooled = _has_pooled_allowance(table)
         for item in table.items:
             if item.role != LineRole.LINE:
