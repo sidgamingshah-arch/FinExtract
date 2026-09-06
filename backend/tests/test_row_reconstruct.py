@@ -355,3 +355,72 @@ def test_the_current_period_cost_is_never_published_as_the_prior_revenue():
     prior = li.get_value(Basis.CONSOLIDATED, period_label="prior")
     assert prior is not None and str(prior.value) == "2278141066.50"
     assert str(prior.value) != "1516811244.12"
+
+
+# ── a mainland statement's own top-level lines ─────────────────────────────────────────────────
+#
+# The residual framework's eligibility list already forbids sweeping "a section subtotal,
+# statement total, …" into a bucket, and that guard reads `role`. A CAS face numbers its
+# statement-level lines 一、…八、 and nothing else, so untagged they were LINE rows and the sweep
+# took them: measured on two filings, is_pl__other_operating_expenses carried the operating
+# profit, the pre-tax profit and the net profit added together (4.49bn against a company with
+# 3.64bn of revenue), and cf_oper_indirect__other_non_cash_adjs_oper carried 6.70bn of CLOSING
+# CASH as a non-cash adjustment.
+
+
+def _cas_face(label: str, on_face: bool = True):
+    words = [
+        _w(label, 0.10, 0.20, 0.30, 0.21),
+        _w("1,412,617,850.07", 0.60, 0.20, 0.75, 0.21),
+        _w("其他项目", 0.10, 0.24, 0.20, 0.25),
+        _w("96,006,550.08", 0.62, 0.24, 0.75, 0.25),
+    ]
+    items, _ = build_line_items(words, page_index=153, document_id="d1",
+                                source_kind="native", on_face=on_face)
+    return next(li for li in items if (li.source_label or "").startswith(label[:4]))
+
+
+def test_an_enumerated_face_caption_is_a_statement_total():
+    from app.core.models.enums import LineRole
+
+    for label in ("一、营业总收入", "三、营业利润", "四、利润总额", "五、净利润",
+                  "六、其他综合收益的税后净额", "八、每股收益"):
+        assert _cas_face(label).role is LineRole.TOTAL, label
+
+
+def test_an_unenumerated_caption_beside_it_is_an_ordinary_line():
+    """A component is prefixed 其中：/加：/减：, or carries no prefix at all."""
+    from app.core.models.enums import LineRole
+
+    for label in ("其中：营业收入", "加：其他收益", "减：所得税费用", "销售费用"):
+        assert _cas_face(label).role is LineRole.LINE, label
+
+
+def test_a_note_reference_in_the_same_form_is_not_a_total():
+    """The same page prints its note references as 七、61 / 七、70, and one of those arrives as a
+    row's whole label when the caption beside it is lost. A note reference is not a subtotal."""
+    from app.core.models.enums import LineRole
+
+    assert _cas_face("七、61").role is LineRole.LINE
+    assert _cas_face("七、70").role is LineRole.LINE
+
+
+def test_an_enumeration_in_the_MIDDLE_of_a_caption_promotes_nothing():
+    """Anchored, because a caption carrying one mid-string is a reconstruction failure.
+
+    An empty 资产处置收益 row absorbs the caption printed beneath it and arrives as
+    "资产处置收益（损失以“－”号填列） 三、营业利润（亏损以“－”号填列）". Reading the enumeration
+    out of the middle of that would tag a row whose caption belongs to a different line — the
+    row needs the review queue, not a promotion that hides it.
+    """
+    from app.core.models.enums import LineRole
+
+    glued = "资产处置收益（损失以“－”号填列） 三、营业利润（亏损以“－”号填列）"
+    assert _cas_face(glued).role is LineRole.LINE
+
+
+def test_the_same_numbering_inside_a_note_means_nothing_about_totals():
+    """Inside a note it is a sub-note enumeration, not the statement's spine."""
+    from app.core.models.enums import LineRole
+
+    assert _cas_face("三、营业利润", on_face=False).role is LineRole.LINE

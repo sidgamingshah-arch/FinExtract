@@ -1275,6 +1275,22 @@ def _names_company_only(label: str, stems: tuple[tuple[str, ...], ...]) -> bool:
     return any(all(s in low for s in group) for group in stems)
 
 
+# THE CAS FACE FORMAT'S OWN ENUMERATION of its top-level lines: 一、营业总收入, 二、营业总成本,
+# 三、营业利润, 四、利润总额, 五、净利润, 六、其他综合收益的税后净额, 七、综合收益总额, 八、每股收益.
+# A mainland statement numbers its statement-level lines and nothing else — a component is
+# prefixed 其中： or 加： or 减：, or carries no prefix at all — so this is structural evidence of
+# a total, not a phrase test on the wording.
+#
+# THE DISTINCTION MATTERS BECAUSE A CAPTION TEST WAS ALREADY REFUSED HERE, and rightly: a test
+# broad enough to catch "Total current tax" also catches "Total return on funds", which is a
+# detail line. An enumerated caption cannot be a detail line: the enumeration is the statement's
+# spine and a filing prints at most eight of them.
+#
+# The negative lookahead for a digit is load-bearing. The same page prints its NOTE REFERENCES in
+# the same form — 七、61, 七、70 — and one of those arrives as a row's whole label when the
+# caption beside it is lost. A note reference is not a subtotal of anything.
+_CAS_STATEMENT_LINE = re.compile(r"^[一二三四五六七八九十]+、\s*(?![0-9０-９])[^\s]")
+
 _CONSOL = re.compile(r"consolidat", re.IGNORECASE)
 _STANDALONE = re.compile(r"standalone|separate", re.IGNORECASE)
 # No column header is printed in the lower half of a page. This bounds the region below when the
@@ -3075,8 +3091,17 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         # "Total return on funds", which is a detail line, and demoting a detail out of a note's
         # details breaks the note→face tie it belongs to. The promoted row is the one case where
         # this function KNOWS, because it is the one it synthesised the caption for.
+        # A STATEMENT-LEVEL LINE OF A MAINLAND FACE IS A TOTAL, and saying so is what keeps it out
+        # of a section's residual bucket: the residual framework's eligibility list already
+        # excludes "a section subtotal, statement total, …", and that guard reads `role`. Untagged,
+        # 三、营业利润 / 四、利润总额 / 五、净利润 were swept into is_pl__other_operating_expenses —
+        # measured on TWO filings, so an expense bucket carried the operating profit, the
+        # pre-tax profit and the net profit added together. `on_face` because inside a NOTE the
+        # same numbering is a sub-note enumeration and means nothing about totals.
+        statement_line = on_face and bool(_CAS_STATEMENT_LINE.match(label))
         li = LineItem(source_label=label, ordinal=ordinal,
-                      role=LineRole.SUBTOTAL if promoted else LineRole.LINE,
+                      role=(LineRole.SUBTOTAL if promoted
+                            else LineRole.TOTAL if statement_line else LineRole.LINE),
                       caption_borrowed=promoted,
                       component_ordinals=list(block_ordinals) if promoted else [],
                       section_hint=section, group_hint=group, source=ValueSource.MACHINE)
