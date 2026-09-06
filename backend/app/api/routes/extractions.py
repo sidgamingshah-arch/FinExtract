@@ -703,6 +703,22 @@ def _serialize_rows(doc_model, ontology=None) -> list[dict]:
                 "column_index": ev.column_index,
                 "basis": ev.basis.value,
                 "value": (str(ev.value) if ev.value is not None else None),
+                # THE UNIT THIS FIGURE IS IN, per value rather than per document.
+                #
+                # Neither field was emitted, so every one of a run's values arrived at the screen
+                # with no currency and no scale (measured: None on all 663 English and 517 Chinese
+                # values) and the UI could only ever show the DOCUMENT-level currency from
+                # result['units']. That is right for a single-currency filing and wrong for the
+                # ones this rulebook is written for: a note stating a USD balance inside an RMB
+                # statement would be labelled RMB, and a note printed in thousands beside a face
+                # printed in units would be labelled the same as the face. The pipeline has always
+                # carried both on the value's own unit context — §"Persist unit on every fact;
+                # never normalise scale silently" — and only the serializer dropped them.
+                "currency": (getattr(ev.unit_ctx, "currency", None) or None
+                             if getattr(ev, "unit_ctx", None) is not None else None),
+                "scale": (str(ev.unit_ctx.scale_factor)
+                          if getattr(ev, "unit_ctx", None) is not None
+                          and getattr(ev.unit_ctx, "scale_factor", None) is not None else None),
                 "provenance": prov,
                 # Per-value confidence vector — the weakest signal and any flags let the UI
                 # colour and explain each number, not just the row.
