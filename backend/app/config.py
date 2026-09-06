@@ -189,6 +189,22 @@ class ExtractionSettings(BaseModel):
     # be checked in: present but inert, so it cannot silently reconfigure the test suite the way an
     # always-on list did.
     llm_focus_only: bool = False
+
+    # Refuse to ask the model about a note row whose caption is PROSE rather than a line-item name.
+    #
+    # map_ontology's per-line pass runs over every LINE row of every extracted note, and on a real
+    # filing that means sentences: measured on a 367-page HKEX filing, 587 of 627 note rows reached
+    # no concept and the longest run to 419 characters ("HK$237,892,000 and HK$222,784,000,
+    # respectively, mainly represented sales proceeds rec…"). Each becomes its own paid call asking
+    # which balance-sheet concept a sentence fragment is, and two such calls failed on truncated
+    # JSON because the reply could not fit.
+    #
+    # DEFAULT OFF, and it must stay that way until it has been reviewed against more than two
+    # filings. Suppression removes answers, and on the English filing measured it would remove
+    # rows that map TODAY — note 39's withholding-tax paragraphs, at 399 and 227 characters, which
+    # currently bind to a concept. Those bindings look wrong, but "the mapper now answers fewer
+    # rows" is a product rule and not a bug fix, so it ships inert and is enabled deliberately.
+    skip_prose_captions: bool = False
     # Publish only notes a face row cites (see stages/prune_notes.py). False publishes every
     # extracted note table regardless of whether any face figure references it.
     prune_unreferenced_notes: bool = True

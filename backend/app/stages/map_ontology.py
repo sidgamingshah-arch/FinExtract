@@ -35,6 +35,7 @@ from app.core.models import DocumentModel
 from app.core.models.enums import AllocationStatus, LineRole, MappingMethod, PrintedIn
 from app.core.models.line_item import LineItem
 from app.core.stage import PipelineContext
+from app.services.caption_shape import prose_reasons
 from app.services.mapping import (
     OntologyMatcher,
     normalize_label,
@@ -485,6 +486,14 @@ class MapOntologyStage:
         det_matcher = (OntologyMatcher(ontology, locale=doc.locale, settings=ctx.settings)
                        if focus_keys else None)
         focus_det = focus_llm = focus_sections_skipped = 0
+        # PROSE CAPTIONS (extraction.skip_prose_captions, DEFAULT OFF). The per-line note pass
+        # below runs over every LINE row of every extracted note, and on a real filing that means
+        # sentences — 587 of 627 note rows on the reference English filing reached no concept,
+        # the longest 419 characters. Each was its own paid call asking which balance-sheet
+        # concept a sentence fragment is. See services.caption_shape for why the test is
+        # script-aware rather than a character count.
+        skip_prose = bool(getattr(ctx.settings.extraction, 'skip_prose_captions', False))
+        prose_skipped: list[tuple[str, list[str]]] = []
         # …and the PER-LINE call sites. `match()` consults the provider even when an exact alias
         # already hit (the exact tier only short-circuits when the matcher has no provider), and
         # the note-item loop below runs over every LINE row of every extracted note — on a real
@@ -700,6 +709,11 @@ class MapOntologyStage:
             for item in table.items:
                 if item.role is not LineRole.LINE or item.canonical_key:
                     continue
+                if skip_prose:
+                    why = prose_reasons(item.raw_label or "")
+                    if why:
+                        prose_skipped.append((item.raw_label or "", why))
+                        continue
                 item_statement, item_section = statement, section
                 if normalize_label(item.raw_label) in {
                     "depreciation of property plant and equipment",
@@ -709,6 +723,12 @@ class MapOntologyStage:
                 if _apply(item, line_matcher.match(item.raw_label, statement=item_statement,
                                                    section=item_section)):
                     mapped_notes += 1
+        if prose_skipped:
+            # Named, not merely counted: a suppressed caption is an answer withheld, and a
+            # reviewer has to be able to see which rows and why.
+            sample = "; ".join(f"{lab[:44]!r}({'+'.join(why)})"
+                               for lab, why in prose_skipped[:3])
+            ctx.log(f"map_ontology:prose_captions_skipped={len(prose_skipped)} {sample}")
         if mapped_notes:
             ctx.log(f"map_ontology:note_items_mapped={mapped_notes}")
 
