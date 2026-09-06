@@ -64,6 +64,67 @@ def _note_matches(table: NotesTable, pattern: re.Pattern) -> bool:
     return bool(pattern.search(table.title or ""))
 
 
+# A NOTE CAN SERVE BOTH MATURITIES, and when it does it says so itself:
+#
+#     Listed investments (i)                    36,071
+#     Unlisted investments (ii)                927,258
+#     Less: Portion classified as current    -174,822     <- CP's share
+#     Non-current portion                     788,507     <- LTP's share
+#
+# The balance sheet then cites that one note from BOTH sections — Current Assets for 174,822 and
+# Non-Current Assets for 788,507. `_classify_notes` records one maturity per note
+# (`out.setdefault`), so the first face row walked won and the other side found no note at all:
+# measured, note 26 was claimed as non-current and CP's Find_1 came out NOT_COMPUTABLE, which left
+# nothing to deduct Level 3 from and no residual to carry into LTP.
+#
+# Read from the note rather than apportioned: these are the filing's own two figures, so nothing is
+# estimated or allocated.
+_CURRENT_PORTION_RE = re.compile(
+    r"portion\s+classified\s+as\s+current|current\s+portion|分類為即期的部分|即期部分|流動部分",
+    re.IGNORECASE)
+_NON_CURRENT_PORTION_RE = re.compile(
+    r"non.current\s+portion|非即期部分|非流動部分", re.IGNORECASE)
+
+
+def _portion_split(table: NotesTable, pk: PeriodKey) -> tuple[Decimal | None, Decimal | None]:
+    """(current, non_current) as the note itself states them, or (None, None)."""
+    cur = non_cur = None
+    for item in table.items:
+        label = item.raw_label or ""
+        is_cur = bool(_CURRENT_PORTION_RE.search(label))
+        is_non = bool(_NON_CURRENT_PORTION_RE.search(label))
+        if not (is_cur or is_non):
+            continue
+        for ev in item.values.values():
+            if ev.value is None or (ev.basis.value, ev.period_label or "") != pk:
+                continue
+            # "Less: Portion classified as current" prints NEGATIVE, being a deduction from the
+            # note's own total. Its magnitude is what the current row on the face carries.
+            if is_non:
+                non_cur = abs(ev.value)
+            else:
+                cur = abs(ev.value)
+            break
+    return cur, non_cur
+
+
+def _notes_cited_from_both(doc: DocumentModel) -> set[str]:
+    """Notes a FACE row cites from Current Assets AND another cites from Non-Current Assets."""
+    seen: dict[str, set[str]] = {}
+    available = {t.note_number for t in doc.notes}
+    for li in doc.line_items:
+        if li.printed_in not in (None, PrintedIn.FACE):
+            continue
+        norm = normalize_label(li.section_hint or "")
+        kind = ("non_current" if "non current assets" in norm
+                else "current" if "current assets" in norm else None)
+        if kind is None:
+            continue
+        for n in li.cited_notes_among(available):
+            seen.setdefault(n, set()).add(kind)
+    return {n for n, kinds in seen.items() if len(kinds) > 1}
+
+
 def _classify_notes(doc: DocumentModel) -> dict[str, str]:
     """note_number -> "current" | "non_current", from the FACE rows that cite it.
 
@@ -359,11 +420,30 @@ def compute(doc: DocumentModel) -> dict[PeriodKey, dict[str, SecurResult]]:
         # one disclosure — must not join the sum. One ledger per classification, since a current
         # and a non-current note may legitimately report the same amount.
         total_ledgers = {"current": RestatementLedger(), "non_current": RestatementLedger()}
+        both = _notes_cited_from_both(doc)
         for table in qualifying:
             kind = classification[table.note_number]
             total, currency, scale, total_evidence, lines_sum = _note_total(table, pk)
             if total is None:
                 continue
+            if table.note_number in both:
+                # CITED FROM BOTH SECTIONS, so it feeds BOTH fields — split by the note's own
+                # portion rows rather than handed whole to whichever face row was walked first.
+                # Deductions are not apportioned across the split: an allocation would be an
+                # estimate, and §3.3 only permits deducting what is demonstrably inside the figure
+                # being reduced. The portions are the filing's own numbers; a share of a deduction
+                # would not be.
+                cur_part, non_cur_part = _portion_split(table, pk)
+                if cur_part is not None or non_cur_part is not None:
+                    if cur_part is not None:
+                        cp_totals.append(cur_part)
+                        cp_deduct.append(Decimal(0))
+                        cp_evidence.extend(total_evidence)
+                    if non_cur_part is not None:
+                        ltp_totals.append(non_cur_part)
+                        ltp_deduct.append(Decimal(0))
+                        ltp_evidence.extend(total_evidence)
+                    continue
             if not table.items:
                 (cp_flags if kind == "current" else ltp_flags).append(
                     f"DEDUCTION_NOT_PROVEN_INCLUDED:{table.note_number}")
