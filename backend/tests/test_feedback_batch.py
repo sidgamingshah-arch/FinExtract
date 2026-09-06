@@ -140,3 +140,55 @@ def test_template_detail_renders_real_template(client):
     assert leaves and all(n["id"] in detail["node_config"] for n in leaves)
     some = detail["node_config"][leaves[0]["id"]]
     assert {"breadcrumb", "label", "aliases", "sign", "netting"} <= set(some)
+
+
+# ── the entity name, on a mainland filing ─────────────────────────────────────────────────────
+#
+# A pure-CJK company name carries no Latin letter, and the reader required one — so
+# 澜起科技股份有限公司 (688008), printed on the cover and in every page header, was refused and the
+# run carried no entity at all. \b does not apply between CJK characters either, so the suffixes
+# need their own pattern.
+
+def test_a_pure_cjk_company_name_is_read():
+    from app.services.derived import detect_entity_name
+
+    assert detect_entity_name(
+        [(0, "澜起科技股份有限公司\n2024 年年度报告\n1 / 256\n")]) == "澜起科技股份有限公司"
+
+
+def test_a_name_printed_on_the_same_line_as_the_report_title_is_still_read():
+    """THE REGRESSION A SECOND FILING CAUGHT. 河钢股份有限公司 (000709) prints
+    "河钢股份有限公司 2024 年年度报告全文" as ONE line, and the statement-phrase test — which has
+    to know 年度报告 so that a running header is not mistaken for the entity — refused the whole
+    line and the entity with it. The name is truncated at its suffix first, which drops the report
+    title, and the phrase test is then applied to the NAME.
+    """
+    from app.services.derived import detect_entity_name
+
+    assert detect_entity_name(
+        [(0, "河钢股份有限公司 2024 年年度报告全文\n目录\n")]) == "河钢股份有限公司"
+
+
+def test_the_label_a_filing_prints_in_front_of_the_name_is_not_the_name():
+    from app.services.derived import detect_entity_name
+
+    assert detect_entity_name(
+        [(0, "合并资产负债表\n编制单位：澜起科技股份有限公司\n")]) == "澜起科技股份有限公司"
+
+
+def test_a_statement_title_is_never_an_entity():
+    """母公司资产负债表 contains 公司 and must not be read as a company."""
+    from app.services.derived import detect_entity_name
+
+    for text in ("合并资产负债表\n2024 年12 月31 日\n", "母公司资产负债表\n", "合并利润表\n"):
+        assert detect_entity_name([(0, text)]) is None, text
+
+
+def test_an_english_running_header_still_splits_on_the_slash():
+    from app.services.derived import detect_entity_name
+
+    assert detect_entity_name(
+        [(0, "ACME Holdings Limited / Annual Report 2024\n")]) == "ACME Holdings Limited"
+    assert detect_entity_name(
+        [(0, "LAI SUN GARMENT (INTERNATIONAL) LIMITED\nAnnual Report 2025\n")]) \
+        == "LAI SUN GARMENT (INTERNATIONAL) LIMITED"

@@ -47,6 +47,30 @@ class NoteRef(BaseModel):
 _NOTE_BASE = re.compile(r"^\s*(\d{1,3})")
 
 
+def _chapter_match(token: str | None, available: Container[str]) -> str | None:
+    """The chapter-qualified note a BARE citation names, when exactly one chapter offers it.
+
+    A mainland filing numbers its notes within each top-level chapter, so a note's identity is
+    "七、9" (``services.notes_extract.qualified_note_number``) and the face normally prints the
+    same — the 附注 column reads 七、9. A BILINGUAL filing is the case this exists for: a chapter
+    heading can appear on its notes pages while the face cites plain "15", and the citation would
+    then match nothing at all and the row be left with no note behind it.
+
+    ONLY WHEN ONE CHAPTER OFFERS THE NUMBER. If two do, the bare citation genuinely does not say
+    which — that ambiguity is the defect chapter-qualification exists to end, and guessing a
+    chapter here would reintroduce it one row at a time. Unlinked is the honest answer.
+
+    ``available`` is a Container, which need not be iterable, so the candidates are formed from
+    the token rather than by scanning: there are at most a handful of chapters a filing can use.
+    """
+    bare = (token or "").strip()
+    if not bare or "、" in bare:
+        return None                       # already qualified, or nothing to qualify
+    hits = [f"{numeral}、{bare}" for numeral in _CHAPTER_NUMERALS
+            if f"{numeral}、{bare}" in available]
+    return hits[0] if len(hits) == 1 else None
+
+
 def base_note_number(token: str | None) -> str | None:
     """The parent note a printed sub-reference belongs to — ``"16(b)"`` -> ``"16"``.
 
@@ -57,6 +81,17 @@ def base_note_number(token: str | None) -> str | None:
     if m is None:
         return None
     return None if m.group(1) == (token or "").strip() else m.group(1)
+
+
+# Every CJK numeral a top-level chapter is printed with. A filing has never needed past 二十-odd,
+# and the list is finite on purpose: ``_chapter_match`` forms candidates from it rather than
+# iterating the note index, which is a Container and need not be iterable.
+_CHAPTER_NUMERALS: tuple[str, ...] = tuple(
+    [c for c in "一二三四五六七八九"] + ["十"]
+    + [f"十{c}" for c in "一二三四五六七八九"]
+    + [f"{t}十" for t in "二三四五六七八九"]
+    + [f"{t}十{c}" for t in "二三四五六七八九" for c in "一二三四五六七八九"]
+)
 
 
 class ValueKey(BaseModel, frozen=True):
@@ -220,10 +255,18 @@ class LineItem(BaseModel):
         The parent is used ONLY when the citation itself names nothing, so a filing that numbers
         the table "16(b)" links to that table exactly, and no row is ever tied to both a sub-note
         and its parent (which would let the reconciliation subtract the same detail twice).
+
+        A BARE CITATION ALSO REACHES A CHAPTER-QUALIFIED NOTE, when exactly one chapter offers
+        that number — see :func:`_chapter_match`. A mainland filing's notes are identified by
+        chapter and number together ("七、9"), and the face usually prints the same thing; but a
+        bilingual filing can carry a chapter heading on its notes pages while its face cites bare
+        numbers, and then a citation that names one unambiguous note must not go unlinked.
         """
         out: list[str] = []
         for token in self.cited_notes():
             hit = token if token in available else base_note_number(token)
+            if hit is None or hit not in available:
+                hit = _chapter_match(token, available)
             if hit and hit in available and hit not in out:
                 out.append(hit)
         return out

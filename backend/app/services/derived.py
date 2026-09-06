@@ -929,20 +929,27 @@ def _entity_from_segment(seg: str) -> str | None:
     line = re.sub(r"\s+", " ", seg).strip(" .-—·|")
     if not (3 <= len(line) <= 90):
         return None
+    # A PURE-CJK NAME, which carries no Latin letter and so can never reach the English test
+    # below. Taken up to the end of its suffix, and from the last punctuation before it, because a
+    # mainland filing labels the name — "编制单位：澜起科技股份有限公司" — and the label is not the
+    # entity.
+    #
+    # TRIED FIRST, AND THE STATEMENT-PHRASE TEST APPLIED TO THE NAME RATHER THAN THE LINE. The
+    # order is the whole of it: 河钢股份有限公司 (000709) prints "河钢股份有限公司 2024 年年度报告全文"
+    # as ONE line, so refusing the line for containing 年度报告 refused the entity with it and the
+    # run carried no entity at all. Truncating at the suffix has already dropped the report title —
+    # the same thing the English path achieves by splitting the running header on "/".
+    hit = _ENTITY_SUFFIX_CJK.search(line)
+    if hit:
+        name = re.split(r"[:：]", line[:hit.end()])[-1].strip()
+        if (4 <= len(name) <= 40 and not _STATEMENTish.search(name)
+                and sum(c.isdigit() for c in name) <= 4):
+            return name
     if _STATEMENTish.search(line):
         return None                               # a statement/section/running-header phrase
     if _ENTITY_SUFFIX.search(line) and re.search(r"[A-Za-z]", line) \
             and sum(c.isdigit() for c in line) <= 4:
         return line
-    # A PURE-CJK NAME, which carries no Latin letter and so could never reach the test above.
-    # Taken up to the end of its suffix and from the last punctuation before the name, because a
-    # mainland filing labels it — "编制单位：澜起科技股份有限公司" — and the label is not the entity.
-    hit = _ENTITY_SUFFIX_CJK.search(line)
-    if hit and sum(c.isdigit() for c in line) <= 4:
-        name = line[:hit.end()]
-        name = re.split(r"[:：]", name)[-1].strip()
-        if 4 <= len(name) <= 40:
-            return name
     return None
 
 

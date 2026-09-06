@@ -145,6 +145,20 @@ _CP_CLASS_RE = re.compile(r"其他应收款项|其他应收款|一年内到期�
 # stating a share OF a total cannot also be added TO it.
 _ANONYMOUS_DEBTOR_RE = re.compile(
     r"^(?:单位|單位|客户|客戶|公司|供应商|供應商)\s*(?:[一二三四五六七八九十]{1,3}|\d{1,2})\s*$")
+# …AND A DEBTOR THE FILING DOES NAME, which is the same containment in the other spelling. 688008
+# lists its five largest other-receivable debtors by name — 西安腾飞信息技术孵化器有限公司,
+# 融科物业投资有限公司, 上海奚泰实业有限公司 — in a fragment of the note whose total they are five
+# parts of. None carries a receivable CLASS in its own caption, so each entered the gross pool
+# only through its `group_hint`, the note's own heading 其他应收款: +2,625,044.82 on a pool whose
+# printed figure is 4,143,856.36.
+#
+# A COUNTERPARTY IS NAMED BY ITS LEGAL FORM, and that is the test. Every one of these ends in a
+# company suffix and no receivable class does — a class is 其他应收款, 长期应收款, 拆出资金. The
+# anonymised form above stays: a withheld name has no suffix to find.
+_NAMED_DEBTOR_RE = re.compile(
+    r"(?:有限公司|有限責任公司|有限责任公司|股份公司|研究所|事務所|事务所"
+    r"|\b(?:co\.?|ltd\.?|limited|inc\.?|corp\.?|trust|gmbh)\b)\s*$",
+    re.IGNORECASE)
 _CP_NOTE_HEADING_RE = re.compile(
     r"其他应收款项|其他应收款|一年内到期的非流动资产|一年内到期的长期应收款|一年内到期的贷款及垫款"
     r"|发放贷款及垫款|拆出资金|往来款|其他流动资产")
@@ -435,6 +449,14 @@ def _cp_pool(doc: DocumentModel, pk: PeriodKey, flags: list[str]
         text = f"{label} {group_hint}"
         klass = _CP_CLASS_RE.search(text)
         if not klass:
+            return
+        # A NAMED COUNTERPARTY whose class evidence comes only from the note it sits in: one
+        # debtor inside a total this pool already carries — see `_NAMED_DEBTOR_RE`. Tested after
+        # the class match, so it only ever removes a row the pool would have taken, and only when
+        # the row's OWN caption names no class — "其他应收款——关联方有限公司" states both and keeps
+        # its figure.
+        if (_NAMED_DEBTOR_RE.search((label or "").strip())
+                and not _CP_CLASS_RE.search(label or "")):
             return
         if _cited_note_contradicts(note_number, source_kind):
             return

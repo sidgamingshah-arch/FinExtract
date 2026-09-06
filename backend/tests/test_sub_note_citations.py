@@ -224,3 +224,41 @@ def _seed_note_run(client, note_details: list[dict], rows: list[dict]) -> str:
                                           "note_details": note_details}))
         session.commit()
         return doc.id
+
+
+# ── a bare citation reaching a chapter-qualified note ─────────────────────────────────────────
+#
+# A mainland filing numbers its notes WITHIN each top-level chapter, so a note's identity is
+# "七、9" and the face normally prints the same — the 附注 column reads 七、9. A BILINGUAL filing
+# is the case this exists for: a chapter heading can appear on its notes pages while the face
+# cites plain "15", and without this the citation matches nothing and the row is left with no
+# note behind it — unlinked, its note unpublished, its section holding nothing that explains the
+# figure.
+
+def _citing(citation: str):
+    from app.core.models.line_item import LineItem
+
+    return LineItem(source_label="其他应收款", note_number=citation)
+
+
+def test_a_bare_citation_reaches_the_one_chapter_that_offers_the_number():
+    assert _citing("9").cited_notes_among({"七、9", "七、61", "十九、2"}) == ["七、9"]
+    assert _citing("2").cited_notes_among({"七、9", "七、61", "十九、2"}) == ["十九、2"]
+
+
+def test_a_bare_citation_two_chapters_could_mean_stays_unlinked():
+    """Guessing a chapter would reintroduce, one row at a time, the ambiguity that
+    chapter-qualification exists to end. Unlinked is the honest answer."""
+    assert _citing("2").cited_notes_among({"七、2", "十九、2"}) == []
+
+
+def test_a_qualified_citation_matches_exactly_and_never_falls_back():
+    assert _citing("七、9").cited_notes_among({"七、9", "十九、9"}) == ["七、9"]
+    assert _citing("十九、9").cited_notes_among({"七、9", "十九、9"}) == ["十九、9"]
+    assert _citing("八、9").cited_notes_among({"七、9", "十九、9"}) == []
+
+
+def test_an_exact_bare_match_is_preferred_over_a_chapter_search():
+    """An English filing's notes are bare and must keep matching bare, unchanged."""
+    assert _citing("15").cited_notes_among({"15", "16"}) == ["15"]
+    assert _citing("16(b)").cited_notes_among({"15", "16"}) == ["16"]      # parent fallback, as before
