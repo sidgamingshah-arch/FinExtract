@@ -258,6 +258,11 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     # footnote legend that opens its page with no heading of its own (see ``extract_note_tables``)
     # still attaches to the note it explains. A non-NOTES page in between breaks the run.
     notes_carry: tuple[str, str] | None = None
+    # The two-level column grid (period band over measure band) the last NOTES page was read with.
+    # A PRC related-party note prints that header once and runs for eight pages; without the carry
+    # every page after the first reads its four columns positionally again — a 坏账准备 provision
+    # back in the "prior" slot three rows later. Reset with `notes_carry`, on the same break.
+    notes_grid = None
     for ps in targets:
         if ps.index >= pdf.page_count:
             continue
@@ -289,15 +294,21 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         # other page → face line items. Both keep page + bbox provenance.
         if ps.kind == PageKind.NOTES:
             from app.services.notes_extract import extract_note_tables
+            grids: list = []
             tables = extract_note_tables(words, page_index=ps.index,
                                          document_id=doc.content_hash, source_kind=source_kind,
                                          scope=scope, normalisation=normalisation,
-                                         carry_note=notes_carry)
+                                         carry_note=notes_carry, log=ctx.log,
+                                         carry_grid=notes_grid, grid_out=grids)
             doc.notes.extend(tables)
             notes_carry = ((tables[-1].note_number, tables[-1].title) if tables
                            else notes_carry)
+            # The note still open when this page ended is the LAST section, so its grid — None
+            # included — is what the next page's continuation inherits.
+            notes_grid = grids[-1] if grids else None
             continue
         notes_carry = None
+        notes_grid = None
         # ``ps.statement`` (from the classifier) is what tells the reconstructor that a page is a
         # component matrix rather than a two-column comparative; ``ctx.log`` records the cases
         # where a matrix page could not be attributed and was skipped.

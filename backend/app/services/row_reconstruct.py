@@ -26,6 +26,7 @@ from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 from pathlib import Path
 
+from app.core.models.confidence import ConfidenceVector
 from app.core.models.enums import Basis, LineRole, ValueSource
 from app.core.models.geometry import BBox, Provenance
 from app.core.models.line_item import ExtractedValue, LineItem, NoteRef, UnitContext
@@ -837,10 +838,29 @@ def _tight_below(cur: BBox, nxt: BBox) -> bool:
 
 
 def _wrap_adjacent(cur: BBox, nxt: BBox, nxt_label: list[Word]) -> bool:
-    """True when `cur` sits directly above `nxt`'s label with paragraph-tight spacing."""
+    """True when `cur` sits directly above `nxt`'s label with paragraph-tight spacing.
+
+    A NEXT ROW WITH NO LABEL AT ALL HAS NOTHING TO ALIGN TO, and comparing the caption's left edge
+    against the row's own box then compares it against the first FIGURE — half a page to the right,
+    so the test could only fail. That is a real printed shape, not an edge case: a table cell whose
+    caption wraps over two lines has its figures set on the line BETWEEN them, which is how
+
+        中电科技（合肥）博微信息发展有限责任公
+                    95,239.27   28,571.78   68,604.36   20,581.31
+        司
+
+    is drawn. The caption row and the bare-figure row were emitted separately, the figure row had
+    no caption, and reconstruction dropped it — measured on Sun Create Electronics 11077098, note
+    6(1), where it lost exactly one party of a nine-party block and with it 95,239.27 of a
+    757,464.77 period-end balance. The vertical tightness `_tight_below` already required IS the
+    whole test here, and the caller's other vetoes (a banner is not a continuation, the caption has
+    to reach a figure) are unchanged.
+    """
     if not _tight_below(cur, nxt):                       # tight spacing (same text block)
         return False
-    label_x0 = min((w.bbox.x0 for w in nxt_label), default=nxt.x0)
+    if not nxt_label:
+        return True
+    label_x0 = min(w.bbox.x0 for w in nxt_label)
     return abs(cur.x0 - label_x0) <= 0.06                # left-aligned in the label column
 
 
@@ -1604,6 +1624,272 @@ def _period_for(x: float, bands: list[tuple[str, float]]) -> str | None:
     return min(bands, key=lambda b: abs(b[1] - x))[0]
 
 
+# ── THE TWO-LEVEL COLUMN GRID: a period band over a measure band ─────────────────────────────
+#
+# A PRC note's column header is TWO printed rows, not one, and both of them name something:
+#
+#     项目    |      本期发生额      |      上期发生额          ← the PERIOD band
+#             |   收入   |   成本   |   收入   |   成本        ← the MEASURE band
+#
+# Everything above this point models exactly two axes — basis x period — and labels a period by
+# POSITION unless every column carries a parseable DATE (`_DATE_PHRASE`, `_period_date`). Neither
+# half of that header carries a date, so on the filing this was measured against (Sun Create
+# Electronics, 11077098, 210pp, locale=zh) note 61 came out as four positional columns:
+#
+#     current = 1,589,859,743.31   ← 本期 收入, correct by luck
+#     prior   = 1,389,417,976.40   ← 本期 成本. A COST PUBLISHED AS A REVENUE.
+#     col2    = 1,920,773,532.54   ← 上期 收入, unreachable by anything reading "prior"
+#     col3    = 1,590,200,224.12   ← 上期 成本
+#
+# `is_pl__sales_revenues` therefore served this year's COST as last year's revenue, and the same
+# shape in the related-party note 6(1) (期末余额{账面余额|坏账准备} / 期初余额{...}) put a bad-debt
+# PROVISION in the "prior" slot, so no service could compute gross-minus-provision for one period.
+#
+# THE MEASURE IS EXPRESSED AS A SUFFIX ON THE PERIOD LABEL, the way this file already spells a
+# variant of a period ("current_restated", f"{base}_col{c}" below). `ValueKey` gains no dimension:
+#
+#   * the PRIMARY measure of a period keeps the BARE label — "current" / "prior". Primary is the
+#     amount itself (收入, 账面余额, 金额, 期末余额), so `periods.split_current_prior` and every
+#     consumer that reads "current"/"prior" receives the RIGHT column with no edit at all;
+#   * every OTHER measure is addressable as "<period>:<slug>" — "current:cost",
+#     "current:allowance", "current:ratio" — so a service that needs the second measure can now
+#     ask for it by name.
+#
+# A cost can never again occupy a revenue slot: the two now have different keys.
+
+# The standard DATELESS PRC period captions, and which slot each one is: 0 is the period being
+# reported, 1 is the comparative. Slot comes from the CAPTION'S OWN SEMANTICS and never from
+# x-position, for the same reason `_column_periods` prefers the heading date over position — a
+# filing may print the comparative on the left, and then position files every figure a year out.
+#
+# Longest first, because the test is containment: 本期发生额 has to be decided before 本期, and
+# 上年同期数 before 上年. Both scripts are listed rather than folded through `to_simplified`,
+# which is a no-op when the opencc converter is not installed.
+_PRC_PERIOD_CAPTIONS: tuple[tuple[str, int], ...] = (
+    ("上年同期数", 1), ("上期发生额", 1), ("上期發生額", 1),
+    ("本期发生额", 0), ("本期發生額", 0),
+    ("期末余额", 0), ("期末餘額", 0), ("期初余额", 1), ("期初餘額", 1),
+    ("上年同期", 1), ("本期数", 0), ("本年数", 0),
+    ("本期", 0), ("上期", 1), ("本年", 0), ("上年", 1),
+    ("期末", 0), ("期初", 1), ("年末", 0), ("年初", 1),
+)
+
+# The measure captions printed in the band UNDER a period caption, and the slug each one takes.
+# An empty slug means PRIMARY — the amount itself, which keeps the bare period label.
+_MEASURE_CAPTIONS: tuple[tuple[str, str], ...] = (
+    ("账面余额", ""), ("賬面餘額", ""), ("帳面餘額", ""),
+    ("坏账准备", "allowance"), ("壞賬準備", "allowance"), ("壞帳準備", "allowance"),
+    ("期末余额", ""), ("期末餘額", ""),
+    ("收入", ""), ("收益", ""), ("金额", ""), ("金額", ""),
+    ("成本", "cost"),
+    ("比例", "ratio"), ("占比", "ratio"), ("佔比", "ratio"),
+    ("数量", "quantity"), ("數量", "quantity"),
+)
+
+
+def _caption_text(run: list[Word]) -> str:
+    """One header phrase, folded for matching against the caption tables above."""
+    return unicodedata.normalize("NFKC", "".join(w.text for w in run)).strip(" ,.:;（）()")
+
+
+def _prc_period_slot(text: str) -> int | None:
+    """Which period a dateless PRC caption names — 0 reported, 1 comparative — or None."""
+    for caption, slot in _PRC_PERIOD_CAPTIONS:
+        if caption in text:
+            return slot
+    return None
+
+
+def _measure_slug(text: str) -> str | None:
+    """The measure a caption names: "" for the primary amount, a slug otherwise, None for a
+    caption that names no measure this reader knows."""
+    for caption, slug in _MEASURE_CAPTIONS:
+        if caption in text:
+            return slug
+    return None
+
+
+@dataclass
+class ColumnGrid:
+    """A page's value columns read as PERIOD x MEASURE rather than period alone.
+
+    ``slot_of`` is the period slot (0 reported, 1 comparative) and ``measure_of`` the measure slug
+    ("" = primary) per value column; ``captions`` carries what was actually printed over each
+    column, for the log line and for ``period_display``. ``columns`` is the column count the grid
+    was read against, so a continuation page whose figures cluster into a different number of
+    columns cannot inherit it (see ``build_line_items(column_grid=…)``).
+    """
+    columns: int
+    slot_of: dict[int, int]
+    measure_of: dict[int, str]
+    captions: dict[int, tuple[str, str]]
+
+    @property
+    def two_level(self) -> bool:
+        """Whether a MEASURE band was actually read. False for the plain dateless comparative
+        (`本期发生额 | 上期发生额` over two columns), which gains a period ORDER from its captions
+        and nothing else — there is no interpretation for a reviewer to be told about."""
+        return any(self.measure_of.values())
+
+    def describe(self) -> str:
+        return ",".join(f"{self.captions[c][0]}/{self.captions[c][1] or 'primary'}"
+                        for c in sorted(self.captions))
+
+
+def _runs_of_columns(value_bands: list[float], centres: list[float]) -> dict[int, int]:
+    """Which caption each value column belongs to, by the same rules as :func:`_basis_of_columns`.
+
+    A band caption governs a CONTIGUOUS run of columns and may be anchored anywhere over it, so
+    nearest-caption assignment breaks on the middle columns of a four-column page — which is
+    exactly the shape a two-level PRC header has. Equal runs when the columns divide evenly by the
+    number of captions (a period x measure grid prints the same measures under each period), and
+    otherwise the nearest caption made monotonic so the runs stay contiguous.
+    """
+    n, k = len(value_bands), len(centres)
+    if not n or not k:
+        return {}
+    if k == 1:
+        return {i: 0 for i in range(n)}
+    ordered = sorted(range(k), key=lambda j: centres[j])
+    if n % k == 0:
+        width = n // k
+        return {i: ordered[min(i // width, k - 1)] for i in range(n)}
+    out: dict[int, int] = {}
+    seen = 0
+    for i, x in enumerate(value_bands):
+        j = min(range(k), key=lambda t: abs(centres[t] - x))
+        seen = max(seen, min(ordered.index(j), k - 1))
+        out[i] = ordered[seen]
+    return out
+
+
+def _prc_period_row(rows: list[list[Word]], value_bands: list[float],
+                    area: tuple[float, float] | None, fmt=None
+                    ) -> tuple[int, list[tuple[str, int, float]]] | None:
+    """The header row that captions the value columns with dateless PRC period captions, as
+    ``(index within the header region, [(caption, slot, x-centre), …])``.
+
+    ACCEPTED ONLY AS A CLEAN TWO-SLOT PARTITION: exactly the reported period and its comparative,
+    one caption each. A movement schedule captions its columns 期初余额 | 本期增加 | 本期减少 |
+    期末余额 on ONE row — three of those contain 本期/期末 and would land in slot 0 together —
+    and there the printed order is the only thing that means anything, so it keeps the positional
+    reading it has today rather than being forced into two periods it does not have.
+    """
+    region = _header_region(rows, fmt)
+    for idx, row in enumerate(region):
+        if _carries_amounts(row, fmt):
+            continue
+        hits: list[tuple[str, int, float]] = []
+        for run in _x_runs(row, _CAPTION_GAP):
+            xc = sum(_xc(w) for w in run) / len(run)
+            if not _over_value_columns(xc, area):
+                continue
+            text = _caption_text(run)
+            slot = _prc_period_slot(text)
+            if slot is not None:
+                hits.append((text, slot, xc))
+        if len(hits) != 2 or {s for _, s, _ in hits} != {0, 1}:
+            continue
+        return idx, hits
+    return None
+
+
+def _measure_band(region: list[list[Word]], after: int, value_bands: list[float],
+                  area: tuple[float, float] | None, fmt=None) -> dict[int, tuple[str, str]] | None:
+    """The measure caption per value column, read from the header row(s) BELOW the period band.
+
+    Only the next two printed rows are considered: the measure band is the second line of one
+    printed header block, and looking further down reaches the note's own first data row.
+    """
+    for row in region[after + 1:after + 3]:
+        if _carries_amounts(row, fmt):
+            continue
+        found: dict[int, tuple[str, str]] = {}
+        for run in _x_runs(row, _CAPTION_GAP):
+            xc = sum(_xc(w) for w in run) / len(run)
+            if not _over_value_columns(xc, area):
+                continue
+            text = _caption_text(run)
+            slug = _measure_slug(text)
+            if slug is None:
+                continue
+            col = _nearest_col(xc, value_bands)
+            # Within a column's own width: a measure caption is printed over the figures it
+            # names, and a caption that lands between two columns names neither.
+            if col is not None and abs(value_bands[col] - xc) <= 0.06 and col not in found:
+                found[col] = (text, slug)
+        if found:
+            return found
+    return None
+
+
+def _period_measure_grid(rows: list[list[Word]], value_bands: list[float],
+                         area: tuple[float, float] | None, fmt=None) -> ColumnGrid | None:
+    """Read the page's value columns as PERIOD x MEASURE, or None to keep today's behaviour.
+
+    Every condition below is a veto, because the failure direction matters: a missed grid leaves
+    the positional reading that is already there, while a false grid would relabel a column that
+    is genuinely a period as a measure of another one — and then two periods' figures share a key.
+
+    A PERIOD SPAN WITH ONE COLUMN KEEPS TODAY'S BEHAVIOUR EXACTLY, save for one thing it can only
+    gain: `项目 | 本期发生额 | 上期发生额` over two columns is an ordinary comparative, and the
+    grid then carries the period ORDER its captions state and no measure at all. That is the half
+    of `period_selection` a dateless filing had no way to express — a note printing the
+    comparative first read every figure a year out, and nothing downstream could see it.
+    """
+    if not value_bands:
+        return None
+    found = _prc_period_row(rows, value_bands, area, fmt)
+    if found is None:
+        return None
+    idx, hits = found
+    region = _header_region(rows, fmt)
+    slot_by_caption = _runs_of_columns(value_bands, [x for _, _, x in hits])
+    if not slot_by_caption:
+        return None
+    spans: dict[int, list[int]] = {}
+    for col, which in slot_by_caption.items():
+        spans.setdefault(which, []).append(col)
+    if not any(len(cols) > 1 for cols in spans.values()):
+        # One column per period caption: a plain comparative. Order from the captions, no measures.
+        return ColumnGrid(
+            columns=len(value_bands),
+            slot_of={c: hits[which][1] for c, which in slot_by_caption.items()},
+            measure_of={c: "" for c in slot_by_caption},
+            captions={c: (hits[which][0], "") for c, which in slot_by_caption.items()},
+        )
+    measures = _measure_band(region, idx, value_bands, area, fmt)
+    if measures is None:
+        return None
+    for which, cols in spans.items():
+        if len(cols) == 1:
+            continue
+        # EVERY column of a multi-column span must be captioned, and exactly one of them must be
+        # the primary amount. A span with two primaries has nothing to give the bare period label
+        # to, and a span with an unread column would silently keep a positional label beside two
+        # suffixed ones — a worse mixture than the positional reading it replaced.
+        if any(c not in measures for c in cols):
+            return None
+        if sum(1 for c in cols if measures[c][1] == "") != 1:
+            return None
+    return ColumnGrid(
+        columns=len(value_bands),
+        slot_of={c: hits[which][1] for c, which in slot_by_caption.items()},
+        measure_of={c: (measures[c][1] if c in measures else "")
+                    for c in slot_by_caption},
+        captions={c: (hits[which][0], measures[c][0] if c in measures else "")
+                  for c, which in slot_by_caption.items()},
+    )
+
+
+# The flag a value carries when its column was read from a two-level header. Raised on
+# ``ExtractedValue.confidence.flags`` — the mechanism `stages/confidence.py` already uses for
+# ``balance_mismatch`` / ``note_untied`` and that ``_serialize_rows`` already serves per value —
+# so a reviewer is told the column was INTERPRETED from a period band over a measure band rather
+# than read straight off one caption.
+GRID_FLAG = "column_grid:period_x_measure"
+
+
 # ── scope_selection.period_selection ─────────────────────────────────────────────────────────
 #
 # "Identify the current period from the column heading date, not from column position; HKEX
@@ -1732,12 +2018,19 @@ def _restated_columns(rows: list[list[Word]], value_bands: list[float],
 def _column_periods(basis_cols: dict[Basis, list[int]], value_bands: list[float],
                     period_bands: list[tuple[str, float]], *,
                     restated: tuple[str, ...] = (), restated_cols: set[int] | None = None,
+                    grid: ColumnGrid | None = None,
                     log=None, page_index: int | None = None) -> dict[tuple[Basis, int], str]:
     """The period label for every (basis, value column).
 
-    Ordering is by the column HEADING DATE when every column of a basis carries one, and by
-    printed position otherwise — a page whose header cannot be read offers nothing better, and
-    guessing would be the mistake this exists to prevent.
+    Ordering is by the column HEADING DATE when every column of a basis carries one, then by the
+    dateless PRC period caption when the header states one (``grid``), and by printed position
+    otherwise — a page whose header cannot be read offers nothing better, and guessing would be
+    the mistake this exists to prevent.
+
+    ``grid`` also carries the MEASURE band, and a non-primary measure becomes a SUFFIX on the
+    period label: "current:cost", "current:allowance". See :class:`ColumnGrid` for why the suffix
+    rather than a new dimension on ``ValueKey``, and for the cost figure that was published as a
+    revenue until it existed.
 
     ``restatement_rule``: a comparative headed "(restated)" loads as the comparative. When the
     original is printed BESIDE it the two share a slot, and the restated column takes a
@@ -1752,12 +2045,23 @@ def _column_periods(basis_cols: dict[Basis, list[int]], value_bands: list[float]
                  for c in cols}
         groups = sorted({d for d in dates.values() if d}, reverse=True)
         by_date = len(groups) > 1 and all(dates[c] for c in cols)
+        # The measure suffix per column; empty for every column that is a primary amount, and for
+        # every page with no grid at all.
+        suffix = {c: "" for c in cols}
         if by_date:
             slot_of = {c: groups.index(dates[c]) for c in cols}
             order = sorted(cols, key=lambda c: (slot_of[c], flags[c]))
             if order != sorted(cols) and log:
                 log(f"extract:page={page_index}:period_selection=by_heading_date"
                     f"({'|'.join(heads[c] for c in order)})")
+        elif grid is not None and all(c in grid.slot_of for c in cols):
+            # The caption's own semantics, not the column's x-position: a filing may print the
+            # comparative on the left, and 本期/上期 says which is which where no date does.
+            slot_of = {c: grid.slot_of[c] for c in cols}
+            suffix = {c: grid.measure_of.get(c, "") for c in cols}
+            # Sorted so the PRIMARY measure of a slot is labelled first and therefore keeps the
+            # bare "current"/"prior" that every existing consumer reads.
+            order = sorted(cols, key=lambda c: (slot_of[c], suffix[c] != "", flags[c], c))
         else:
             slot_of = {c: i for i, c in enumerate(sorted(cols))}
             order = sorted(cols, key=lambda c: (slot_of[c], flags[c]))
@@ -1765,8 +2069,8 @@ def _column_periods(basis_cols: dict[Basis, list[int]], value_bands: list[float]
         for c in order:
             i = slot_of[c]
             base = "current" if i == 0 else "prior" if i == 1 else f"col{i}"
-            label = base
-            if base in used:
+            label = f"{base}:{suffix[c]}" if suffix[c] else base
+            if label in used:
                 label = f"{base}_restated" if flags[c] else f"{base}_col{c}"
                 if log:
                     log(f"extract:page={page_index}:period_selection=kept_both"
@@ -2369,7 +2673,9 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                      on_face: bool = True,
                      page_scope: str | None = None,
                      page_title: str | None = None,
-                     page_chrome: frozenset[str] = frozenset()
+                     page_chrome: frozenset[str] = frozenset(),
+                     column_grid: ColumnGrid | None = None,
+                     grid_out: list[ColumnGrid | None] | None = None
                      ) -> tuple[list[LineItem], int]:
     """Reconstruct line items from positioned words. Returns (items, next_ordinal).
 
@@ -2398,7 +2704,14 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     evidence about the whole page; ``company_only_markers`` is last, because it infers the entity
     from one line item being present. See :data:`_PAGE_SCOPE_BASIS`. On a MATRIX page the same
     verdict is instead the first thing consulted, because a matrix has no basis band to outrank it
-    and its own words name no entity — see :func:`_matrix_basis`."""
+    and its own words name no entity — see :func:`_matrix_basis`.
+
+    ``column_grid`` is a :class:`ColumnGrid` read from an EARLIER page of the same note, used only
+    when these rows carry no header of their own and cluster into the same number of columns. A
+    PRC related-party note runs over eight pages and prints its two-level header once, on the
+    first: without the carry, page two onward reads four columns positionally again — which is the
+    defect the grid exists to close, reappearing three rows later. ``grid_out``, when given, is
+    appended the grid these rows were actually read with, so the caller can carry it forward."""
     if scope is None or normalisation is None:
         in_force_scope, in_force_norm = in_force_rules()
         scope = scope if scope is not None else in_force_scope
@@ -2515,10 +2828,26 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     for i in range(len(value_bands)):
         basis_cols.setdefault(col_basis[i], []).append(i)
     restated = _restated_markers(scope)
+    # THE TWO-LEVEL COLUMN GRID (see :class:`ColumnGrid`). Read from the UNMERGED rows for the same
+    # reason the basis bands are: after `_merge_wrapped_labels` a caption row no longer sits where
+    # it was printed. A page with no such header keeps the grid its note's first page established,
+    # provided its figures cluster into the same number of columns.
+    grid = _period_measure_grid(raw_rows, value_bands,
+                                _value_area(value_bands, col_xs), number_format)
+    if grid is None and column_grid is not None and column_grid.columns == len(value_bands):
+        grid = column_grid
+        if log and grid.two_level:
+            log(f"extract:page={page_index}:column_grid=carried({grid.describe()})")
+    elif grid is not None and grid.two_level and log:
+        # ONCE PER PAGE, naming every (period/measure) pair that was read. The reviewer's second
+        # signal is per value — see `GRID_FLAG` where the facts are stored below.
+        log(f"extract:page={page_index}:column_grid=period_x_measure({grid.describe()})")
+    if grid_out is not None:
+        grid_out.append(grid)
     col_periods = _column_periods(
         basis_cols, value_bands, period_bands, restated=restated,
         restated_cols=_restated_columns(raw_rows, value_bands, restated, number_format),
-        log=log, page_index=page_index)
+        grid=grid, log=log, page_index=page_index)
     section: str | None = None
     # THE SUB-HEADING WITHIN THE SECTION, kept separately from it and for a different job.
     #
@@ -2782,11 +3111,23 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                 value_bbox=vw.source_bbox, label_bbox=label_bbox, text_snippet=label,
                 source_kind=source_kind, producer=f"extract:{source_kind}@0.1.0",
             )
+            display = _period_for(xc, period_bands)      # display-only date, if detected
+            conf = ConfidenceVector()
+            if grid is not None and grid.two_level and col is not None and col in grid.captions:
+                # THE REVIEW CALL-OUT, on the existing per-value signal: this figure's column was
+                # INTERPRETED from a period band over a measure band, not read off one caption.
+                # `stages/confidence.py` raises `balance_mismatch`/`note_untied` the same way and
+                # `_serialize_rows` already serves `values[].confidence.flags` to every screen.
+                conf.flags.append(GRID_FLAG)
+                period_cap, measure_cap = grid.captions[col]
+                # The printed header, both levels of it, so the reviewer reads "本期发生额 成本"
+                # rather than an internal token whose suffix they would have to decode.
+                display = display or " ".join(t for t in (period_cap, measure_cap) if t) or None
             store_fact(li, ExtractedValue(
                 value_raw=dec, value=dec, basis=basis,
                 period_label=period_label,
-                period_display=_period_for(xc, period_bands),  # display-only date, if detected
-                unit_ctx=unit_ctx, provenance=prov,
+                period_display=display,
+                unit_ctx=unit_ctx, provenance=prov, confidence=conf,
             ), dims, log=log, where=f"page={page_index}:")
         if note_ref:
             li.note_refs.append(NoteRef(raw=note_ref, numbers=[note_ref]))

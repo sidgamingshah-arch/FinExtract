@@ -786,6 +786,12 @@ def _serialize_notes(doc_model) -> list[dict]:
                 "period_display": ev.period_display,
                 "basis": ev.basis.value,
                 "value": (str(ev.value) if ev.value is not None else None),
+                # THE PER-VALUE FLAGS, which the face serializer has always carried and this one
+                # dropped. A note's column can now be read from a TWO-LEVEL header (a period band
+                # over a measure band — `row_reconstruct.GRID_FLAG`), and that is an
+                # interpretation a reviewer has to be told about on the figure it produced. Without
+                # this the call-out was raised on the value and served to nobody.
+                "flags": list(ev.confidence.flags),
                 "provenance": _prov_dict(ev.provenance, folio_of),
             } for ev in it.values.values()]
             # Carry the row's role (line/subtotal/total) and mapping confidence so the notes
@@ -796,6 +802,7 @@ def _serialize_notes(doc_model) -> list[dict]:
             rows.append({"label": it.raw_label, "role": it.role.value,
                          "canonical_key": it.canonical_key,
                          "supports_face_key": supports_face_key,
+                         "flags": list(it.confidence.flags),
                          "confidence": it.confidence.overall, "values": values,
                          # THE SUB-HEADING, AND WHETHER THIS ROW'S CAPTION IS ITS OWN.
                          #

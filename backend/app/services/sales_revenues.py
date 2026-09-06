@@ -31,6 +31,28 @@ _ROW_RE = re.compile(r"主营业务收入|主营业务")
 _COST_RE = re.compile(r"成本")
 
 
+def _is_primary_measure(period_label: str | None) -> bool:
+    """Whether this value is the PERIOD'S OWN AMOUNT rather than a second measure of it.
+
+    THE ROW TEST ABOVE CANNOT SEE A COST COLUMN. `_COST_RE` tests the row's CAPTION, and the note
+    this module exists for does not caption its cost rows — it captions its cost COLUMNS:
+
+        项目    |      本期发生额      |      上期发生额
+                |   收入   |   成本   |   收入   |   成本
+        主营业务 | 1,589,859,743.31 | 1,389,417,976.40 | 1,920,773,532.54 | 1,590,200,224.12
+
+    One row, four figures, two of them costs. Harvesting `item.values.values()` wholesale took all
+    four: on the measured filing (Sun Create Electronics, 11077098) that published this year's
+    COST, 1,389,417,976.40, as `is_pl__sales_revenues` for the prior period — a cost figure under
+    a revenue concept, and internally consistent enough that nothing downstream could see it.
+
+    `row_reconstruct` now labels a non-primary measure "<period>:<slug>" ("current:cost"), so the
+    bare label IS the amount and a suffixed one never is. §4's prohibition on reading a cost as
+    revenue is therefore enforced on the column as well as on the caption.
+    """
+    return ":" not in (period_label or "")
+
+
 @dataclass
 class SalesRevenuesResult:
     value: Decimal | None
@@ -59,6 +81,8 @@ def compute_note_fallback(doc: DocumentModel) -> dict[PeriodKey, SalesRevenuesRe
             for ev in item.values.values():
                 if ev.value is None:
                     continue
+                if not _is_primary_measure(ev.period_label):
+                    continue           # a 成本 column of this same row — see `_is_primary_measure`
                 pk = (ev.basis.value, ev.period_label or "")
                 meta = {"note_number": table.note_number, "note_heading": table.title,
                         "line_item": label, "value": str(ev.value), "provenance": ev.provenance}

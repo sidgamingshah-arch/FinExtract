@@ -46,6 +46,38 @@ _EXPLICITLY_NET_RE = re.compile(
 # combined provision, so no related-party share of it can be read off without allocating.
 _POOLED_ALLOWANCE_RE = re.compile(r"^(?!.*减).*?(坏账准备|壞賬準備|信用损失准备|损失准备|减值准备)")
 
+# THE ALLOWANCE PRINTED AS A COLUMN, NOT A LINE — §3.2's second preference, made computable.
+#
+# The CSRC-standard related-party note prints its allowance beside every balance rather than
+# beneath the block:
+#
+#     项目名称 | 关联方 |     期末余额     |     期初余额
+#                       | 账面余额 | 坏账准备 | 账面余额 | 坏账准备
+#
+# Every row therefore carries its OWN provision, which is the case §4.3's "cannot be read off
+# without allocating" was never about: nothing has to be allocated, the filing already split it.
+# `row_reconstruct` labels that second column "<period>:allowance" (see `ColumnGrid`), so the net
+# is the row's own subtraction. Before the grid existed, the provision landed in the "prior" slot
+# of a two-axis reading and no service could compute gross-minus-provision for one period at all —
+# measured on Sun Create Electronics 11077098, note 6(1), where 坏账准备 held the "prior" label.
+_ALLOWANCE_MEASURE = "allowance"
+
+
+def _is_primary_measure(period_label: str | None) -> bool:
+    """Whether a value is the PERIOD'S OWN AMOUNT rather than a second measure of it.
+
+    "current" / "prior" are amounts; "current:allowance" is a measure OF that amount and must
+    never be summed as though it were a receivable of its own.
+    """
+    return ":" not in (period_label or "")
+
+
+def _allowance_beside(values, ev):
+    """The 坏账准备 figure printed in the same row, for the same period — or None."""
+    want = f"{ev.period_label}:{_ALLOWANCE_MEASURE}"
+    return next((o for o in values
+                 if o.basis == ev.basis and o.period_label == want and o.value is not None), None)
+
 
 def _has_pooled_allowance(table: NotesTable) -> bool:
     return any(_POOLED_ALLOWANCE_RE.search(item.raw_label or "")
@@ -94,14 +126,24 @@ class _Signal:
     mixed_scale: bool = False
     duplicated: bool = False
     net_not_derivable: bool = False
+    # §3.2 applied: at least one contribution was reduced by the 坏账准备 printed beside it, so
+    # the total is a NET related-party amount and not a gross one. Reported, because "1,000" and
+    # "1,000 net of a 300 provision" are different assertions about the same row.
+    net_of_allowance: bool = False
+    gross: Decimal | None = None
+    allowance: Decimal | None = None
     evidence: list[dict] = field(default_factory=list)
     _ledger: RestatementLedger = field(default_factory=RestatementLedger)
 
     def add(self, amount: Decimal, currency: str | None, scale: Decimal | None,
-            meta: dict) -> None:
+            meta: dict, *, allowance: Decimal | None = None) -> None:
         # §3.5: "Treat the same balance repeated in the balance sheet, a detailed note, and the
         # related-party note as separate candidate evidence, not additive evidence." Within one
         # candidate that is a restatement — see services.restatement.
+        #
+        # THE RESTATEMENT LEDGER IS FED THE GROSS, not the net: what identifies the same balance
+        # printed twice is the balance, and one note stating it beside its provision does not make
+        # it a different receivable from the same figure printed alone.
         note = meta.get("note_number")
         if self._ledger.is_restatement(amount, currency, scale, note):
             self.duplicated = True
@@ -116,7 +158,16 @@ class _Signal:
             self.currency = currency
         if self.scale is None:
             self.scale = scale
-        self.value = amount if self.value is None else self.value + amount
+        self.gross = amount if self.gross is None else self.gross + amount
+        net = amount
+        if allowance is not None:
+            # §3.2: "a closing balance already stated as less its allowance". Here the filing
+            # states both halves, so the subtraction is the filing's own arithmetic, not an
+            # allocation — which is what §4.3 forbids and this is not.
+            self.allowance = allowance if self.allowance is None else self.allowance + allowance
+            self.net_of_allowance = True
+            net = amount - allowance
+        self.value = net if self.value is None else self.value + net
         self.evidence.append(meta)
 
     @property
@@ -138,6 +189,8 @@ class _Signal:
             out.append(f"POSSIBLE_DUPLICATE:{name}")
         if self.net_not_derivable:
             out.append(f"NET_AMOUNT_NOT_DERIVABLE:{name}")
+        if self.net_of_allowance:
+            out.append(f"NET_OF_ALLOWANCE:{name}")
         return out
 
 
@@ -145,13 +198,26 @@ def _note_matches(table: NotesTable, pattern: re.Pattern) -> bool:
     return bool(pattern.search(table.title or ""))
 
 
-def _add_item(sig: _Signal, table_number: str, table_title: str, label: str, ev, pk: PeriodKey) -> bool:
+def _add_item(sig: _Signal, table_number: str, table_title: str, label: str, ev, pk: PeriodKey,
+              siblings=()) -> bool:
+    """Contribute one figure to a candidate, net of the allowance printed beside it (§3.2).
+
+    ``siblings`` are the other values of the SAME printed row, which is where the row's own
+    坏账准备 column lives once ``row_reconstruct`` has read the two-level header. Passing the row
+    rather than the single value is what makes the net computable per period — see
+    :data:`_ALLOWANCE_MEASURE`.
+    """
     if ev.value is None or (ev.basis.value, ev.period_label or "") != pk:
         return False
     unit = getattr(ev, "unit_ctx", None)
+    prov = _allowance_beside(siblings, ev)
+    meta = {"note_number": table_number, "note_heading": table_title,
+            "line_item": label, "value": str(ev.value), "provenance": ev.provenance}
+    if prov is not None:
+        meta = {**meta, "gross": str(ev.value), "allowance": str(prov.value),
+                "net": str(ev.value - prov.value), "net_rule": "§3.2 账面余额 - 坏账准备"}
     sig.add(ev.value, getattr(unit, "currency", None), getattr(unit, "scale_factor", None),
-            {"note_number": table_number, "note_heading": table_title,
-             "line_item": label, "value": str(ev.value), "provenance": ev.provenance})
+            meta, allowance=(prov.value if prov is not None else None))
     return True
 
 
@@ -168,8 +234,10 @@ def _find_1(doc: DocumentModel, pk: PeriodKey, flags: list[str]) -> _Signal:
         if _ENTRUSTED_LOAN_RE.search(text):
             flags.append("ENTRUSTED_LOAN_NOT_SEPARABLE")
             continue
-        for ev in li.values.values():
-            _add_item(sig, li.note_number or "", li.section_hint or "", li.source_label, ev, pk)
+        row = list(li.values.values())
+        for ev in row:
+            _add_item(sig, li.note_number or "", li.section_hint or "", li.source_label, ev, pk,
+                      row)
     return sig
 
 
@@ -197,10 +265,14 @@ def _find_2(doc: DocumentModel, pk: PeriodKey, flags: list[str]) -> _Signal:
             # share of that allowance cannot be read off, and the specification forbids
             # allocating it arbitrarily. The gross figure is still reported — a reviewer needs a
             # number to check — carrying NET_AMOUNT_NOT_DERIVABLE to say it is not yet net.
-            if pooled and not _EXPLICITLY_NET_RE.search(text):
+            row = list(item.values.values())
+            # …unless the row carries its OWN 坏账准备 column. Then nothing is pooled about it and
+            # nothing is allocated: `_add_item` subtracts the filing's own two halves (§3.2).
+            if (pooled and not _EXPLICITLY_NET_RE.search(text)
+                    and not any(not _is_primary_measure(e.period_label) for e in row)):
                 sig.net_not_derivable = True
-            for ev in item.values.values():
-                _add_item(sig, table.note_number, table.title, item.raw_label, ev, pk)
+            for ev in row:
+                _add_item(sig, table.note_number, table.title, item.raw_label, ev, pk, row)
     if not found_note:
         flags.append("MISSING_NOTE:receivable_notes")
     return sig
@@ -220,17 +292,24 @@ def _find_3(doc: DocumentModel, pk: PeriodKey, flags: list[str]) -> _Signal:
             if item.role != LineRole.LINE:
                 continue
             label = item.raw_label or ""
-            if not _RELATED_PARTY_NOTE_ITEM_RE.search(label):
+            # THE SUB-HEADING COUNTS TOO, exactly as it does in `_find_2` above. This note prints
+            # its 项目名称 column once per block and leaves the rows it governs captioned with
+            # nothing but a related party's name, so the class a row belongs to reaches here on
+            # `group_hint` — testing the label alone saw one row of a nine-row block.
+            text = f"{label} {item.group_hint}"
+            if not _RELATED_PARTY_NOTE_ITEM_RE.search(text):
                 continue
-            if pooled and not _EXPLICITLY_NET_RE.search(f"{label} {item.group_hint}"):
+            row = list(item.values.values())
+            if (pooled and not _EXPLICITLY_NET_RE.search(text)
+                    and not any(not _is_primary_measure(e.period_label) for e in row)):
                 sig.net_not_derivable = True
-            if _RELATED_PARTY_NOTE_EXCLUDE_RE.search(label):
+            if _RELATED_PARTY_NOTE_EXCLUDE_RE.search(text):
                 continue
-            if _ENTRUSTED_LOAN_RE.search(label):
+            if _ENTRUSTED_LOAN_RE.search(text):
                 flags.append("ENTRUSTED_LOAN_NOT_SEPARABLE")
                 continue
-            for ev in item.values.values():
-                _add_item(sig, table.note_number, table.title, label, ev, pk)
+            for ev in row:
+                _add_item(sig, table.note_number, table.title, label, ev, pk, row)
     if not found_note:
         flags.append("MISSING_NOTE:related_party_note")
     return sig
@@ -251,24 +330,27 @@ def _cp_pool(doc: DocumentModel, pk: PeriodKey, flags: list[str]
     deduction = _Signal()
     inspected = False
 
-    def _scan(label: str, group_hint: str, note_number: str, note_title: str, ev) -> None:
+    def _scan(label: str, group_hint: str, note_number: str, note_title: str, ev,
+              row=()) -> None:
         nonlocal inspected
         text = f"{label} {group_hint}"
         if not _CP_CLASS_RE.search(text):
             return
-        if not _add_item(gross, note_number, note_title, label, ev, pk):
+        if not _add_item(gross, note_number, note_title, label, ev, pk, row):
             return
         # This line belongs to the gross pool and has now been tested for a related-party
         # marker, which is what makes a nil deduction a finding rather than a gap.
         inspected = True
         if _RELATED_PARTY_RE.search(text):
-            _add_item(deduction, note_number, note_title, label, ev, pk)
+            _add_item(deduction, note_number, note_title, label, ev, pk, row)
 
     for li in doc.line_items:
         if li.printed_in not in (None, PrintedIn.FACE):
             continue
-        for ev in li.values.values():
-            _scan(li.source_label, li.group_hint, li.note_number or "", li.section_hint or "", ev)
+        row = list(li.values.values())
+        for ev in row:
+            _scan(li.source_label, li.group_hint, li.note_number or "", li.section_hint or "", ev,
+                  row)
 
     found_note = False
     for table in doc.notes:
@@ -278,8 +360,10 @@ def _cp_pool(doc: DocumentModel, pk: PeriodKey, flags: list[str]
         for item in table.items:
             if item.role != LineRole.LINE:
                 continue
-            for ev in item.values.values():
-                _scan(item.raw_label or "", item.group_hint, table.note_number, table.title, ev)
+            row = list(item.values.values())
+            for ev in row:
+                _scan(item.raw_label or "", item.group_hint, table.note_number, table.title, ev,
+                      row)
     if not found_note and gross.value is None:
         flags.append("MISSING_NOTE:cp_gross_notes")
     flags.extend(gross.unit_flags("CP_Gross"))
@@ -298,14 +382,20 @@ class ReceivablesResult:
 
 
 def compute(doc: DocumentModel) -> dict[PeriodKey, dict[str, ReceivablesResult]]:
+    # ONLY PRIMARY MEASURES ARE PERIODS. Once a two-level header is read, a row also carries
+    # "current:allowance" — a measure OF the current period, not a period of its own. Left in this
+    # set it became a (basis, period) the whole computation was run for, and the answer published
+    # under it would be a sum of bad-debt provisions presented as related-party receivables.
     keys: set[PeriodKey] = set()
     for li in doc.line_items:
         for ev in li.values.values():
-            keys.add((ev.basis.value, ev.period_label or ""))
+            if _is_primary_measure(ev.period_label):
+                keys.add((ev.basis.value, ev.period_label or ""))
     for table in doc.notes:
         for item in table.items:
             for ev in item.values.values():
-                keys.add((ev.basis.value, ev.period_label or ""))
+                if _is_primary_measure(ev.period_label):
+                    keys.add((ev.basis.value, ev.period_label or ""))
 
     out: dict[PeriodKey, dict[str, ReceivablesResult]] = {}
     for pk in keys:

@@ -9,11 +9,12 @@ whatever rows the note contains — keeping page + bbox provenance. The result p
 from __future__ import annotations
 
 import re
+import statistics
 
 from app.core.models.enums import LineRole
 from app.core.models.line_item import NoteItem, NotesTable
 from app.services.row_reconstruct import (
-    Word, _group_rows, _num, _scan_row, build_line_items, row_tolerance)
+    GRID_FLAG, ColumnGrid, Word, _group_rows, _num, _scan_row, build_line_items, row_tolerance)
 
 # "Note 15: Trade receivables", "Note 15 Trade receivables", "15. Trade receivables"
 _HEADING = re.compile(r"^(?:note[s]?\.?\s+)?(?P<no>\d{1,3})\s*[:.\)\-]?\s*(?P<title>.*)$",
@@ -192,11 +193,118 @@ def _has_at_most_two_value_columns(words: list[Word], source_kind: str) -> bool:
     return True
 
 
+# ── A NOTE'S FIRST COLUMN CAN BE A MERGED CATEGORY CELL ──────────────────────────────────────
+#
+# The CSRC related-party note is captioned in TWO label columns, not one:
+#
+#     项目名称  |          关联方              |  期末余额 …
+#     其他应收款 | 中国电子科技集团公司第三十八研究所 |  88,998.71 …
+#               | 中国电子科技集团公司第四十八研究所 | 200,000.00 …
+#               | 安徽中电光达通信技术有限公司        |  15,753.60 …
+#
+# 项目名称 is printed ONCE per block and the eight rows it governs carry nothing but a related
+# party's NAME. Read row by row, eight of the nine rows of the 其他应收款 block name no receivable
+# class at all, so a service asking "is this row an 其他应收款?" saw one row of nine — and the one
+# it saw was 88,998.71 of a 757,464.77 period-end balance.
+#
+# The cell is also printed VERTICALLY MERGED: on the measured filing (Sun Create Electronics
+# 11077098, page index 191) "其他应收款" is drawn as "其他应收" / "款" on two lines that straddle
+# the block's first data row, so neither fragment is on any row's own baseline. That is why the
+# cells are assembled from the section's geometry here rather than left to the row reader, which
+# folds a caption into the row BELOW it and had nowhere to put a caption that spans several.
+#
+# The carry is written onto ``group_hint`` — "the sub-heading printed above this row WITHIN its
+# section", which is exactly what a merged 项目名称 cell is — and only where the row reader left
+# it empty, so a colon sub-heading it did read always wins.
+_OUTER_COLUMN_GAP = 0.05        # clear air between the category column and the caption column
+_MAX_CATEGORY_CHARS = 24        # a category is a caption; a sentence in the margin is not
+_CJK_SENTENCE_MARK = re.compile(r"[，。；]")
+
+
+def _category_cells(rows: list[list[Word]], fmt=None) -> list[tuple[float, str]]:
+    """``(top y, caption)`` for each category cell printed in a note's OUTER label column.
+
+    Empty unless the section really has two label columns: the captions have to split into a
+    dominant column and a column at least ``_OUTER_COLUMN_GAP`` to its left, and there have to be
+    at least two categories and three rows under them. Every one of those is a veto — a note with
+    one label column must come out of here unchanged, because ``group_hint`` is read as a row's
+    meaning by the mapper and by four services.
+    """
+    scanned = [(row, _scan_row(row, fmt, extract_note_refs=False)) for row in rows]
+    valued = [(row, lw) for row, (lw, _nr, vw) in scanned if lw and vw]
+    edges = [round(min(w.bbox.x0 for w in lw), 2) for _row, lw in valued]
+    if len(edges) < 3:
+        return []
+    main = statistics.mode(edges)
+    limit = main - _OUTER_COLUMN_GAP
+    frags: list[tuple[float, float, str]] = []
+    for row, (lw, _nr, _vw) in scanned:
+        # Measured on the word's LEFT edge and bounded by the caption column's: a category cell
+        # STARTS a clear gap to the left of the captions and ENDS before them. Testing the right
+        # edge instead found nothing — "其他应收" is four characters wide and runs to within 0.02
+        # of the caption column, which is the cell being wide, not the cell being absent.
+        outer = [w for w in lw if w.bbox.x0 <= limit and w.bbox.x1 < main]
+        if not outer:
+            continue
+        text = "".join(w.text for w in sorted(outer, key=lambda w: w.bbox.x0)).strip()
+        if text:
+            frags.append((min(w.bbox.y0 for w in outer), max(w.bbox.y1 for w in outer), text))
+    if not frags:
+        return []
+    # A merged cell drawn on several lines is ONE category: join fragments that are printed
+    # directly below one another, ignoring the data rows interleaved between them.
+    frags.sort()
+    cells: list[tuple[float, float, str]] = [frags[0]]
+    for y0, y1, text in frags[1:]:
+        py0, py1, ptext = cells[-1]
+        line_h = max(py1 - py0, 1e-4)
+        if -0.5 * line_h <= y0 - py1 <= 0.6 * line_h:
+            cells[-1] = (py0, y1, ptext + text)
+        else:
+            cells.append((y0, y1, text))
+    out = [(y0, text) for y0, _y1, text in cells
+           if len(text) <= _MAX_CATEGORY_CHARS and not _CJK_SENTENCE_MARK.search(text)]
+    return out if len(out) >= 2 else []
+
+
+def _row_top(li) -> float | None:
+    """Where a reconstructed row was printed, in page-normalised y.
+
+    Its LABEL's top edge when there is one, and its first figure's otherwise: a row whose caption
+    wrapped over the line above its figures is anchored by the caption it is captioned with.
+    """
+    for ev in li.values.values():
+        prov = ev.provenance
+        if prov is None:
+            continue
+        box = prov.label_bbox or prov.bbox
+        if box is not None:
+            return box.y0
+    return None
+
+
+def _category_for(cells: list[tuple[float, str]], y: float | None) -> str:
+    """The category cell governing the row printed at ``y`` — the last one that opens at or
+    above it. A row above the first cell belongs to no category, not to the first one."""
+    if not cells or y is None:
+        return ""
+    found = ""
+    for top, text in cells:
+        if top <= y + 0.004:            # within a line of the cell's own top edge
+            found = text
+        else:
+            break
+    return found
+
+
 def extract_note_tables(words: list[Word], *, page_index: int, document_id: str | None,
                         source_kind: str, scope=None,
                         normalisation=None, llm_provider=None,
                         ai_required: bool = False,
-                        carry_note: tuple[str, str] | None = None) -> list[NotesTable]:
+                        carry_note: tuple[str, str] | None = None,
+                        log=None,
+                        carry_grid: ColumnGrid | None = None,
+                        grid_out: list[ColumnGrid | None] | None = None) -> list[NotesTable]:
     """Split a notes page into note sections and reconstruct each note's detail rows.
 
     ``scope``/``normalisation`` are the run's own rulebook blocks; a note's columns are read by
@@ -213,6 +321,18 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
     carry, that prose has nowhere to attach and is silently dropped from every page it opens
     before the next real heading. Seeding ``current`` with the carried note lets it attach
     instead, exactly as it would if the page break were not there.
+
+    ``log`` is the run log. It was NOT passed through before, and that silence was a real gap: the
+    reconstructor logs every scope decision it takes — which column it read as the current period,
+    the unit it resolved, and now the two-level column grid — and on a filing whose figures are
+    almost all in its notes (a PRC annual report), none of those decisions appeared in the run
+    record at all.
+
+    ``carry_grid`` is the two-level column grid read from an earlier page of the note still open,
+    and ``grid_out`` collects the grid each section was read with so the caller can carry it to
+    the next page. A PRC related-party note prints its 期末余额{账面余额|坏账准备} header once and
+    then runs for eight pages; without the carry every page after the first reads four columns
+    positionally, which is the mis-load the grid exists to prevent.
     """
     # The same page-derived tolerance the face uses: a note's detail lines are set as tightly as a
     # statement's, and two of them merged into one row interleave their captions (row_reconstruct.
@@ -258,13 +378,29 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
         # column is company-only"). A note IS where that caption is normally printed, and reading
         # it here would relabel the note of a consolidated statement as the Company's — breaking
         # the note→face tie, which matches on (basis, period).
+        seen: list[ColumnGrid | None] = []
+        # ONLY THE CARRIED SECTION INHERITS A GRID. A section that starts on its own heading is a
+        # different table, and letting it borrow the previous note's header would hand a four-column
+        # grid to whatever four columns the next note happens to print — the same wrong-column
+        # failure this closes, in the opposite direction.
         items, _ = build_line_items(sec["words"], page_index=page_index,
                                     document_id=document_id, source_kind=source_kind,
-                                    on_face=False, scope=scope, normalisation=normalisation)
+                                    on_face=False, scope=scope, normalisation=normalisation,
+                                    log=log,
+                                    column_grid=(carry_grid if sec is carried else None),
+                                    grid_out=seen)
+        # What the NEXT page inherits is the grid of the note still open when this page ended, so
+        # the carry is whatever the last section was read with — None included.
+        carry_grid = seen[0] if seen else None
+        if grid_out is not None:
+            grid_out.append(carry_grid)
         if not items and not sec["title"]:
             continue
         table = NotesTable(note_number=sec["no"], title=sec["title"], source_pages=[page_index],
                    source_text=" ".join(word.text for word in sec["words"]).strip())
+        # The note's own 项目名称 column, if it has one — see `_category_cells` for the nine-row
+        # block whose eight continuation rows named no receivable class at all without it.
+        cells = _category_cells(_group_rows(sec["words"], row_tolerance(sec["words"], source_kind)))
         for li in items:
             # THE CAPTION DECIDES THE ROLE, EXCEPT WHERE THE BUILDER ALREADY KNEW. Almost every
             # row reaches here as ``LINE`` — the promotion that classifies a face row runs in
@@ -283,10 +419,17 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                           # The rows the builder counted, so the arithmetic check does not have to
                           # guess them from a caption that is not an identity.
                           component_ordinals=list(li.component_ordinals),
-                          section_hint=li.section_hint, group_hint=li.group_hint,
+                          section_hint=li.section_hint,
+                          group_hint=(li.group_hint
+                                      or _category_for(cells, _row_top(li))),
                           provenance=li.values and next(iter(li.values.values())).provenance or None)
             for ev in li.values.values():
                 ni.set_value(ev)
+                # The two-level-header call-out travels on the ROW as well as the value, because
+                # the notes payload serves the row's flags and the note pane reads them; a value
+                # flag alone would be raised where nothing on this screen looks for it.
+                if GRID_FLAG in ev.confidence.flags and GRID_FLAG not in ni.confidence.flags:
+                    ni.confidence.flags.append(GRID_FLAG)
             table.items.append(ni)
         tables.append(table)
     return without_empty_duplicates(tables)
