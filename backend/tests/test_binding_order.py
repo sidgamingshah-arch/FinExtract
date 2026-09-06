@@ -463,6 +463,12 @@ def test_a_page_the_classifier_could_not_place_is_routed_per_line(v2):
     ctx.ontology = v2                                      # type: ignore[attr-defined]
     ctx.registry.register("llm", "fake", lambda: spy)      # type: ignore[attr-defined]
     ctx.settings.llm.provider = "fake"
+    # THIS TEST IS ABOUT UNFOCUSED ROUTING, so it says so rather than inheriting whichever way the
+    # deployment default happens to point. Focus routing decides most rows deterministically and
+    # forwards only those that could be a focus concept, which is a different question from the one
+    # asserted here — and with it on, "Inventories" is answered by the deterministic tiers instead
+    # of being offered per line, so the assertions below describe a run that did not happen.
+    ctx.settings.extraction.llm_focus_only = False
     MapOntologyStage().run(doc, ctx)
 
     batched = {i["item_id"] for p in spy.batch_payloads for i in p["source_items"]}

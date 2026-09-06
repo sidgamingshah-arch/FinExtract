@@ -129,16 +129,26 @@ llm_only_keys = []
 
 # FOCUS RUN — spend the provider budget on the lines under review instead of the whole filing.
 # `llm_focus_keys` names WHICH concepts (a deployment decision, and a list, so it cannot travel
-# through the admin Settings patch); `llm_focus_only` is the switch, which an admin flips from the
-# Settings screen. The switch is OFF here, which is why the list is safe to check in: present but
-# inert, so it cannot quietly reconfigure a test run.
+# through the admin Settings patch); `llm_focus_only` is the switch, which an admin can also flip
+# from the Settings screen at run time.
+#
+# ON HERE, so that it TRAVELS. The switch an admin flips is stored in the database
+# (`setting_overrides`), and the database is deliberately not in git — so a second machine used to
+# start with focus routing off and quietly spend the whole provider budget on its first run. This
+# file is the value a fresh clone gets.
+#
+# It was previously false to keep a checked-in value from reconfiguring the test suite, and one
+# test did depend on the old default: test_binding_order.py::
+# test_a_page_the_classifier_could_not_place_is_routed_per_line asserts UNFOCUSED per-line routing.
+# It now pins `llm_focus_only = False` itself, which is where that precondition belongs — a test
+# about unfocused routing should say so rather than inherit whichever way a deployment points.
 #
 # Do NOT confuse this with `llm_only_keys` above, which restricts the CANDIDATE LIST and is not
 # safe: measured on this rulebook it destroys the deterministic answer for every row it does not
 # name ("Trade receivables" resolves EXACT 1.0 without it, UNMATCHED with it) and still sends those
 # rows to the model with a candidate list that cannot hold their answer. Focus routing restricts
 # the ROWS instead and leaves each forwarded row's candidates untouched.
-llm_focus_only = false
+llm_focus_only = true
 llm_focus_keys = [
   "is_pl__deprec_and_impairment_oper_exp",
   "is_pl__deprec_and_impairment_cos",

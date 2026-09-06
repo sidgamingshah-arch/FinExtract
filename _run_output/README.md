@@ -88,6 +88,10 @@ So on a fresh machine: install, start the backend, upload the filing, flip `llm_
 Settings if you want the focused run, and extract. `<run>__focus_items.json` is what to check the
 result against.
 
-**One thing that does not travel:** `llm_focus_only` lives in the database (`setting_overrides`),
-not git, so a new machine starts from `config.toml`'s `false`. Turn it on in Settings there, or set
-`llm_focus_only = true` in `config.toml` before pushing if it should be on everywhere.
+**Focus routing now travels.** `config.toml` carries `llm_focus_only = true` and the eight
+`llm_focus_keys`, so a fresh clone gets focused runs without anyone flipping a switch — the admin
+toggle writes to `setting_overrides` in the database, which is deliberately not in git, so relying
+on it meant a second machine silently spent the whole provider budget on its first run. The Settings
+screen still overrides the file at run time, per deployment.
+
+`skip_prose_captions` is likewise `true` by default in code, so it travels too.
