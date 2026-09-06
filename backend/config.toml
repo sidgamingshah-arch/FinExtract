@@ -126,6 +126,29 @@ recon_rel_tolerance = 0.005     # relative tolerance (fraction of the face value
 # FINEX_EXTRACTION__LLM_ONLY_KEYS env var instead, since a checked-in restriction here would
 # also apply to every test and script that reads settings.
 llm_only_keys = []
+
+# FOCUS RUN — spend the provider budget on the lines under review instead of the whole filing.
+# `llm_focus_keys` names WHICH concepts (a deployment decision, and a list, so it cannot travel
+# through the admin Settings patch); `llm_focus_only` is the switch, which an admin flips from the
+# Settings screen. The switch is OFF here, which is why the list is safe to check in: present but
+# inert, so it cannot quietly reconfigure a test run.
+#
+# Do NOT confuse this with `llm_only_keys` above, which restricts the CANDIDATE LIST and is not
+# safe: measured on this rulebook it destroys the deterministic answer for every row it does not
+# name ("Trade receivables" resolves EXACT 1.0 without it, UNMATCHED with it) and still sends those
+# rows to the model with a candidate list that cannot hold their answer. Focus routing restricts
+# the ROWS instead and leaves each forwarded row's candidates untouched.
+llm_focus_only = false
+llm_focus_keys = [
+  "is_pl__deprec_and_impairment_oper_exp",
+  "is_pl__deprec_and_impairment_cos",
+  "bs_ca__secur_and_other_fincl_assets_cp",
+  "bs_nca__secur_and_other_fincl_assets_ltp",
+  "notes__contingent_liabilities",
+  "bs_nca__due_from_related_parties_ltp",
+  "bs_ca__other_receivables_cp",
+  "is_pl__sales_revenues",
+]
 llm_max_concurrency = 6          # concurrent LLM batch calls during map_ontology
 # Publish every extracted note regardless of face citation — set per-run via the
 # FINEX_EXTRACTION__PRUNE_UNREFERENCED_NOTES env var instead of here, since a checked-in

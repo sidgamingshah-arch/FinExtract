@@ -181,6 +181,14 @@ class ExtractionSettings(BaseModel):
     # with their candidate list untouched, so a forwarded row is still judged against the full
     # statement/section scope. Empty (the default) = no routing, i.e. today's behaviour exactly.
     llm_focus_keys: list[str] = Field(default_factory=list)
+    # …and the switch that turns the above on, separated from it because the two answer different
+    # questions and belong to different people. WHICH concepts are in focus is a deployment
+    # decision (a list, so it cannot travel through the admin Settings patch, which carries only
+    # float/bool/str); WHETHER to restrict this run to them is an operational one an admin flips
+    # from the Settings screen. Keeping the switch OFF by default is also what lets the key list
+    # be checked in: present but inert, so it cannot silently reconfigure the test suite the way an
+    # always-on list did.
+    llm_focus_only: bool = False
     # Publish only notes a face row cites (see stages/prune_notes.py). False publishes every
     # extracted note table regardless of whether any face figure references it.
     prune_unreferenced_notes: bool = True

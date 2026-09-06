@@ -476,7 +476,12 @@ class MapOntologyStage:
         # model; every other row keeps its DETERMINISTIC answer (the exact/alias tiers), which is
         # precisely what `llm_only_keys` destroys. `det_matcher` is provider-less — the same
         # construction `_match_chunk` already makes internally for its deterministic evidence.
-        focus_keys = set(ctx.settings.extraction.llm_focus_keys or ())
+        focus_keys = (set(ctx.settings.extraction.llm_focus_keys or ())
+                      if getattr(ctx.settings.extraction, "llm_focus_only", False) else set())
+        if getattr(ctx.settings.extraction, "llm_focus_only", False) and not focus_keys:
+            # Asked to restrict and given nothing to restrict TO. Left unreported this would read
+            # as a normal full run, so say it rather than silently ignoring the switch.
+            ctx.log("map_ontology:focus_only_requested_but_no_focus_keys_configured")
         det_matcher = (OntologyMatcher(ontology, locale=doc.locale, settings=ctx.settings)
                        if focus_keys else None)
         focus_det = focus_llm = focus_sections_skipped = 0

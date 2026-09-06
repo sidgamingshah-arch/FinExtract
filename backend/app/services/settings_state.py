@@ -85,6 +85,14 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "When an LLM provider is configured, concepts are chosen by MEANING from each "
          "candidate's definition and criteria, and the lexical tiers only shortlist. Turn this "
          "off to force the deterministic ensemble even with a provider available."),
+    Knob("llm_focus_only", "bool", "Ask the model only about focus concepts",
+         "Restrict the model to the rows that could be one of the concepts named by "
+         "extraction.llm_focus_keys; every other row keeps the answer the deterministic tiers "
+         "already gave it. Rows that ARE forwarded are still judged against the full candidate "
+         "list for their statement and section, so nothing is force-fit onto a focus concept. Use "
+         "it to spend a small provider budget on the lines under review instead of on the whole "
+         "filing — on a 367-page filing it was 45 rows to the model rather than 285. With no "
+         "focus keys configured this does nothing and says so in the run log."),
     Knob("llm_gap_routing", "bool", "Close subtotal gaps (LLM)",
          "When a section subtotal computed from the template's lines differs from the printed "
          "one, offer the model the extracted lines that reached no statement and ask which "
