@@ -264,3 +264,31 @@ def test_a_line_stating_it_is_net_of_the_allowance_is_not_flagged():
     ])
     result = compute(doc)[("consolidated", "current")]["ltp"]
     assert not any(f.startswith("NET_AMOUNT_NOT_DERIVABLE") for f in result.flags)
+
+
+def test_a_note_number_naming_two_different_notes_is_declined():
+    """A CSRC filing numbers its notes WITHIN each top-level section.
+
+    七、合并财务报表项目注释 runs 1..80, 十四、母公司财务报表主要项目注释 restarts at 1, and
+    reconstruction keeps only the trailing number — so on 688008 "note 2" names both the group's
+    交易性金融资产 and the parent company's 其他应收款. The restatement ledger collapses two
+    printings of ONE balance by comparing note numbers and had no way to tell two different notes
+    apart, so the parent's 1,247,570,989.98 was added to the group's 4,143,856.36 and the concept
+    published 2,484,202,201.08 — 600 times the printed figure.
+    """
+    from app.services.related_party_receivables import _ambiguous_note_numbers
+
+    class _Doc:
+        def __init__(self, notes):
+            self.notes = notes
+
+    class _T:
+        def __init__(self, no, title):
+            self.note_number, self.title = no, title
+
+    doc = _Doc([_T("9", "其他应收款"), _T("2", "交易性金融资产"), _T("2", "其他应收款"),
+                _T("2", "其他应收款"), _T("18", "其他权益工具投资")])
+
+    # 2 names two different notes; 9 and 18 name one each, and a note extracted as several
+    # fragments under one heading is still one note.
+    assert _ambiguous_note_numbers(doc) == frozenset({"2"})

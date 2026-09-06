@@ -27,6 +27,30 @@ from app.services.restatement import RestatementLedger
 
 PeriodKey = tuple[str, str]                 # (basis, period_label)
 
+
+def _ambiguous_note_numbers(doc) -> frozenset[str]:
+    """Note numbers this document uses for MORE THAN ONE note.
+
+    A CSRC filing numbers its notes WITHIN each top-level section — 七、合并财务报表项目注释 runs
+    1..80, 十、关联方及关联交易 restarts at 1, 十四、母公司财务报表主要项目注释 restarts again —
+    and reconstruction keeps only the trailing number. On 688008 that leaves 15 of 48 numbers
+    carrying two or more different headings, so "note 2" names both the group's 交易性金融资产 and
+    the parent company's 其他应收款.
+
+    Every mechanism that identifies a note by its number is unreliable for those: the note→face
+    tie, the cascades' note lookups, and the restatement ledger that collapses two printings of
+    one balance. This service asks the question so it can DECLINE such a note rather than sum
+    across two of them — which is a gap a reviewer can see, and not a figure they cannot.
+
+    The real fix is to qualify a note's identity with its section, which is also how the face
+    cites it (the balance sheet's 附注 column reads 七、9, not 9).
+    """
+    headings: dict[str, set[str]] = {}
+    for table in doc.notes:
+        if table.note_number:
+            headings.setdefault(str(table.note_number), set()).add((table.title or "").strip())
+    return frozenset(no for no, titles in headings.items() if len({t for t in titles if t}) > 1)
+
 LTP_KEY = "bs_nca__due_from_related_parties_ltp"
 CP_KEY = "bs_ca__other_receivables_cp"
 
@@ -372,6 +396,7 @@ def _cp_pool(doc: DocumentModel, pk: PeriodKey, flags: list[str]
     # not the caption that owns the amount, and the match is refused. Only face rows are tested —
     # a note row's note_number is the note it is IN, not one it points at.
     note_titles = {t.note_number: (t.title or "") for t in doc.notes if t.note_number}
+    ambiguous = _ambiguous_note_numbers(doc)
 
     def _cited_note_contradicts(note_number: str, source_kind: str) -> bool:
         if source_kind != "face" or not note_number:
@@ -391,6 +416,14 @@ def _cp_pool(doc: DocumentModel, pk: PeriodKey, flags: list[str]
         if not klass:
             return
         if _cited_note_contradicts(note_number, source_kind):
+            return
+        # AN AMBIGUOUS NOTE NUMBER CANNOT BE THE SOURCE OF A FIGURE. See
+        # `_ambiguous_note_numbers`: on 688008 the parent company's 其他应收款 is note 2 and so is
+        # the group's 交易性金融资产, and the restatement ledger — which collapses two printings of
+        # ONE balance by comparing note numbers — has no way to tell two different notes apart.
+        # The parent's 1,247,570,989.98 was added to the group's 4,143,856.36 and the concept
+        # published 2,484,202,201.08. A gap the reviewer can see beats that.
+        if source_kind == "note" and note_number in ambiguous:
             return
         if not _add_item(gross, note_number, note_title, label, ev, pk, row,
                          source_kind=source_kind):
