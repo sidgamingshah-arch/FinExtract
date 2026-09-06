@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 import statistics
 
-from app.core.models.enums import LineRole
+from app.core.models.enums import Basis, LineRole
 from app.core.models.line_item import NoteItem, NotesTable
 from app.services.row_reconstruct import (
     GRID_FLAG, ColumnGrid, Word, _group_rows, _num, _scan_row, build_line_items, row_tolerance)
@@ -119,6 +119,130 @@ def _title_only_row(row: list[Word]) -> str | None:
 # 、 is a different mark and DOES appear in real titles ("收益、其他收入及收益", "現金及現金等價物、
 # 受限制現金"), so it is deliberately absent from this class.
 _CJK_SENTENCE = re.compile(r"[，。；]")
+
+
+# ── The notes' TOP-LEVEL CHAPTER, and why a note number alone is not an identity ───────────────
+#
+# A mainland (CSRC) annual report numbers its notes WITHIN each top-level chapter:
+#
+#     七、合并财务报表项目注释        notes 1 … 80
+#     十四、关联方及关联交易          notes restart at 1
+#     十九、母公司财务报表主要项目注释  notes restart at 1 again
+#
+# Keeping only the trailing number leaves the identity ambiguous, and not rarely: on 澜起科技
+# 688008 FY2024, 15 of 48 note numbers carry two or more different headings. "note 2" names both
+# the group's 交易性金融资产 (七、2) and the parent company's 其他应收款 (十九、2).
+#
+# WHAT THAT COST. Every mechanism that identifies a note by its number was unreliable for those:
+# the note→face tie, each spec service's note lookup, and the restatement ledger that collapses
+# two printings of ONE balance by comparing note numbers. Other Receivables (CP) published
+# 2,484,202,201.08 against a printed 4,143,856.36, because the parent company's
+# 1,247,570,989.98 was summed with the group's 4,143,856.36.
+#
+# THE FILING ITSELF SPELLS THE IDENTITY OUT: the balance sheet's 附注 column reads 七、9, not 9.
+# Qualifying the note number with its chapter makes the two sides agree for the first time
+# (row_reconstruct._note_ref_value keeps the chapter for the same reason), and an English filing —
+# which prints no chapters — keeps bare numbers, byte for byte as before.
+_CHAPTER_HEADING = re.compile(r"^\s*(?P<ch>[一二三四五六七八九十]{1,3})\s*、\s*(?P<title>.{0,60})$")
+_CJK_UNITS = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5,
+              "六": 6, "七": 7, "八": 8, "九": 9}
+
+
+def chapter_ordinal(numeral: str) -> int | None:
+    """A CJK chapter numeral as an integer — 十九 -> 19 — or None if it is not one.
+
+    Only the forms a chapter heading uses: 一…九, 十, 十一…十九, 二十…九十九. A filing has never
+    needed more than 二十-odd chapters, and refusing the rest keeps this from accepting a numeral
+    that is really part of a caption.
+    """
+    text = (numeral or "").strip()
+    if not text or any(c not in _CJK_UNITS and c != "十" for c in text):
+        return None
+    if "十" not in text:
+        return _CJK_UNITS.get(text) if len(text) == 1 else None
+    tens, _, units = text.partition("十")
+    if (tens and tens not in _CJK_UNITS) or (units and units not in _CJK_UNITS):
+        return None                        # 十十, 十甲 — not a numeral this reader accepts
+    high = _CJK_UNITS.get(tens, 1) if tens else 1
+    return high * 10 + (_CJK_UNITS[units] if units else 0)
+
+
+# The chapter that holds the PARENT COMPANY's own notes. A CSRC filing repeats every material
+# balance for the company alone under this heading, so those notes state the SAME concepts as the
+# group's with different figures — 其他应收款 is 4,143,856.36 in 七、9 and 1,247,570,989.98 in
+# 十九、2. Pooling the two is how Other Receivables (CP) came to publish 2,484,202,201.08, and the
+# chapter is what finally distinguishes them: the note's ``basis`` is set from it, so a consumer
+# computing a consolidated figure can decline a company-only note instead of summing across bases.
+_COMPANY_CHAPTER = re.compile(r"母公司")
+
+
+def read_chapter(rows: list[list[Word]], seen: int) -> tuple[str, int, str] | None:
+    """The last top-level chapter heading on this page, as ``(numeral, ordinal, title)``, or None.
+
+    STRICTLY INCREASING, and that is the whole of what tells a chapter from its namesakes. The
+    same CJK-numeral form is printed by three different things:
+
+      * the top-level chapters themselves  — 七、合并财务报表项目注释
+      * a sub-enumeration INSIDE one note  — 一、账面原值 / 二、累计折旧 in the 固定资产 note
+      * a statement's own face lines        — 一、营业总收入 (a FACE page, so not seen here)
+
+    A chapter's number only ever goes up, while a sub-enumeration restarts at 一、 — so a numeral
+    that is not greater than the highest chapter already seen is not a chapter. Measured on
+    688008: walking the notes from their first page this recovers all 18 chapters exactly, 五、
+    through 二十、, and admits none of the note-internal enumerations. It is also self-correcting
+    from a mid-document start, because a sub-enumeration never reaches a real chapter's number
+    once one has been read.
+
+    ``seen`` is the highest ordinal read so far in this document, which is why the caller carries
+    it from page to page — a chapter heads a run of pages and is printed once.
+    """
+    found: tuple[str, int, str] | None = None
+    for row in rows:
+        _, _, values = _scan_row(row)
+        if values:
+            continue                       # a row with figures is a detail line, not a heading
+        text = " ".join(w.text for w in row).strip()
+        match = _CHAPTER_HEADING.match(text)
+        if match is None:
+            continue
+        ordinal = chapter_ordinal(match.group("ch"))
+        if ordinal is None or ordinal <= max(seen, found[1] if found else 0):
+            continue
+        title = match.group("title").strip()
+        if title and _CJK_SENTENCE.search(title):
+            continue                       # a sentence that happens to open with a numeral
+        found = (match.group("ch"), ordinal, title)
+    return found
+
+
+def split_note_number(identity: str | None) -> tuple[int, str]:
+    """A note identity back into ``(chapter ordinal, note number)`` — ``"七、9"`` -> ``(7, "9")``.
+
+    ``0`` for the chapter when there is none, so a bare-numbered note (every English filing) sorts
+    before the chaptered ones and among itself exactly as it always did.
+
+    The inverse of :func:`qualified_note_number`, and the reason both live here: a sort key or a
+    comparison that took the identity apart with its own regex would be a second definition of
+    what a note identity IS, and the two would drift.
+    """
+    text = str(identity or "")
+    head, sep, tail = text.partition("、")
+    if not sep:
+        return 0, text
+    ordinal = chapter_ordinal(head)
+    return (ordinal, tail) if ordinal is not None else (0, text)
+
+
+def qualified_note_number(chapter: str | None, number: str | None) -> str | None:
+    """``"七、9"`` from a chapter and a note number — or the bare number when there is no chapter.
+
+    ONE spelling of the identity, called by everything that forms or compares one, so the note
+    side and the face side cannot drift apart. An English filing has no chapters and this is the
+    identity function for it.
+    """
+    if not number:
+        return number
+    return f"{chapter}、{number}" if chapter else number
 
 
 def _is_heading(row: list[Word]) -> tuple[str, str] | None:
@@ -304,7 +428,8 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                         carry_note: tuple[str, str] | None = None,
                         log=None,
                         carry_grid: ColumnGrid | None = None,
-                        grid_out: list[ColumnGrid | None] | None = None) -> list[NotesTable]:
+                        grid_out: list[ColumnGrid | None] | None = None,
+                        chapter: list | None = None) -> list[NotesTable]:
     """Split a notes page into note sections and reconstruct each note's detail rows.
 
     ``scope``/``normalisation`` are the run's own rulebook blocks; a note's columns are read by
@@ -328,6 +453,12 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
     almost all in its notes (a PRC annual report), none of those decisions appeared in the run
     record at all.
 
+    ``chapter`` is the notes' TOP-LEVEL CHAPTER, carried across pages as a one-element
+    ``[numeral, ordinal]`` cell the caller owns — a chapter heads a run of pages and is printed
+    once, and the strictly-increasing rule that identifies one needs the highest ordinal seen so
+    far. Passing it in makes every note number on the page chapter-qualified; passing None keeps
+    the bare numbers an English filing has always had. See ``read_chapter``.
+
     ``carry_grid`` is the two-level column grid read from an earlier page of the note still open,
     and ``grid_out`` collects the grid each section was read with so the caller can carry it to
     the next page. A PRC related-party note prints its 期末余额{账面余额|坏账准备} header once and
@@ -338,6 +469,23 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
     # statement's, and two of them merged into one row interleave their captions (row_reconstruct.
     # row_tolerance). A note whose caption comes out scrambled ties to nothing.
     rows = _group_rows(words, row_tolerance(words, source_kind))
+    # READ BEFORE THE SECTIONS ARE WALKED, because a chapter heading is a label-only row and the
+    # walker would otherwise fold it into whichever note is open — it reaches the
+    # ``current["words"].extend(row)`` arm and disappears into that note's text. The chapter is
+    # orthogonal to the note number, so it changes nothing about where a section starts.
+    if chapter is not None:
+        found = read_chapter(rows, chapter[1] if chapter[0] else 0)
+        if found is not None:
+            chapter[0], chapter[1], chapter[2] = found
+            if log:
+                log(f"notes:page={page_index}:chapter={found[0]}、{found[2]}({found[1]})")
+    chapter_numeral = chapter[0] if chapter else None
+    # A COMPANY-ONLY NOTE, from the chapter that holds it. The heading is printed once, pages
+    # before the note itself, so the chapter is the only thing on the page that can say so — and
+    # the concepts these notes state are the same ones the group's notes state.
+    chapter_basis = (Basis.STANDALONE
+                     if chapter and len(chapter) > 2 and chapter[2]
+                     and _COMPANY_CHAPTER.search(chapter[2]) else None)
     sections: list[dict] = []
     current: dict | None = None
     # Not appended to ``sections`` until it actually claims a row — a page that opens straight
@@ -396,7 +544,8 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
             grid_out.append(carry_grid)
         if not items and not sec["title"]:
             continue
-        table = NotesTable(note_number=sec["no"], title=sec["title"], source_pages=[page_index],
+        table = NotesTable(note_number=qualified_note_number(chapter_numeral, sec["no"]),
+                           title=sec["title"], basis=chapter_basis, source_pages=[page_index],
                    source_text=" ".join(word.text for word in sec["words"]).strip())
         # The note's own 项目名称 column, if it has one — see `_category_cells` for the nine-row
         # block whose eight continuation rows named no receivable class at all without it.

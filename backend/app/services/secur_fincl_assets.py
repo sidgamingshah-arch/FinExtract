@@ -171,6 +171,23 @@ def _classify_notes(doc: DocumentModel) -> dict[str, str]:
     return out
 
 
+def _note_basis_disagrees(table, pk) -> bool:
+    """Whether this note's own basis contradicts the (basis, period) being computed.
+
+    A CSRC filing repeats every material balance for the PARENT COMPANY alone, under
+    十九、母公司财务报表主要项目注释, and those notes state the SAME concepts as the group's with
+    different figures: 其他应收款 is 4,143,856.36 in note 七、9 and 1,247,570,989.98 in 十九、2.
+    Nothing distinguished them — both were "note 9" and "note 2" to a reader that kept only the
+    trailing number — so the two were pooled and the concept published 2,484,202,201.08, six
+    hundred times the printed figure.
+
+    ``notes_extract`` now sets ``NotesTable.basis`` from the chapter that holds the note, which is
+    the only place on the page that says so: the chapter heading is printed once, pages before the
+    note. A table that states no basis is the group's ordinary note and contributes to either.
+    """
+    return table.basis is not None and table.basis.value != pk[0]
+
+
 @dataclass
 class _Signal:
     value: Decimal | None = None
@@ -452,6 +469,8 @@ def compute(doc: DocumentModel) -> dict[PeriodKey, dict[str, SecurResult]]:
         total_ledgers = {"current": RestatementLedger(), "non_current": RestatementLedger()}
         both = _notes_cited_from_both(doc)
         for table in qualifying:
+            if _note_basis_disagrees(table, pk):
+                continue                   # the parent company's own note — see the docstring
             kind = classification[table.note_number]
             total, currency, scale, total_evidence, lines_sum = _note_total(table, pk)
             if total is None:

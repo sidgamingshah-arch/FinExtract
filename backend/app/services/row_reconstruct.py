@@ -75,12 +75,31 @@ def _is_note_ref_token(t: str) -> bool:
 
 
 def _note_ref_value(t: str) -> str | None:
-    """Normalize a printed note-reference cell to the note's own subsection identifier."""
+    """Normalize a printed note-reference cell to the note's own subsection identifier.
+
+    THE CHAPTER IS PART OF THE IDENTITY AND WAS BEING DISCARDED. A mainland balance sheet prints
+    its 附注 column as 七、9 — chapter seven, note nine — and this returned "9". A CSRC filing
+    numbers its notes WITHIN each chapter (七、合并财务报表项目注释 runs 1..80,
+    十九、母公司财务报表主要项目注释 restarts at 1), so on 澜起科技 688008 fifteen of forty-eight
+    numbers named two different notes and a face citation could not say which it meant. Keeping
+    the chapter makes the citation match the note; ``notes_extract.qualified_note_number`` forms
+    the same identity on the other side.
+
+    The separator is normalised to 、 so "七 、 9" and "七,9" cite the same note as "七、9" — a
+    filing sets the character it likes and the two sides must agree on one spelling.
+
+    NOTHING ABOUT COLUMN DETECTION CHANGES. Every other caller reaches this through
+    :func:`_is_note_number`, which only asks whether a token is note-reference SHAPED; what the
+    token is WORTH was only ever read here and stored. So a figure cannot start being read as a
+    note reference, or a note reference as a figure, because of this.
+    """
     s = t.strip().strip(".,;")
     if _NOTE_REF_TOKEN.match(s):
         return s
     match = _CHINESE_CHAPTER_NOTE_REF.match(s)
-    return match.group("no") if match is not None else None
+    if match is None:
+        return None
+    return re.sub(r"\s*[、,，.]\s*", "\u3001", match.group(0))
 
 
 def _tight_after(prev: Word, w: Word) -> bool:

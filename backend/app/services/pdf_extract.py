@@ -263,6 +263,18 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     # every page after the first reads its four columns positionally again — a 坏账准备 provision
     # back in the "prior" slot three rows later. Reset with `notes_carry`, on the same break.
     notes_grid = None
+    # THE NOTES' TOP-LEVEL CHAPTER, as ``[numeral, highest ordinal seen]``. A mainland filing
+    # numbers its notes WITHIN each chapter, so the chapter is half of a note's identity — see
+    # ``notes_extract.read_chapter``. A mutable cell because the reader updates it while walking a
+    # page and the strictly-increasing rule that identifies a chapter needs the highest ordinal so
+    # far.
+    #
+    # DELIBERATELY NOT RESET WITH ``notes_carry``, which the two lines above are. Those two carry
+    # state about ONE note and a non-notes page ends that note; a chapter heads a run of notes and
+    # is printed once at its start, so a filing that puts a face page or a signature page inside
+    # its notes would lose every chapter after it. There is nothing to reset TO either: the
+    # chapter only ever advances.
+    notes_chapter: list = [None, 0, ""]
     for ps in targets:
         if ps.index >= pdf.page_count:
             continue
@@ -299,7 +311,8 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                                          document_id=doc.content_hash, source_kind=source_kind,
                                          scope=scope, normalisation=normalisation,
                                          carry_note=notes_carry, log=ctx.log,
-                                         carry_grid=notes_grid, grid_out=grids)
+                                         carry_grid=notes_grid, grid_out=grids,
+                                         chapter=notes_chapter)
             doc.notes.extend(tables)
             notes_carry = ((tables[-1].note_number, tables[-1].title) if tables
                            else notes_carry)

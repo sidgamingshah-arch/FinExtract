@@ -150,6 +150,23 @@ _CP_NOTE_HEADING_RE = re.compile(
     r"|发放贷款及垫款|拆出资金|往来款|其他流动资产")
 
 
+def _note_basis_disagrees(table, pk) -> bool:
+    """Whether this note's own basis contradicts the (basis, period) being computed.
+
+    A CSRC filing repeats every material balance for the PARENT COMPANY alone, under
+    十九、母公司财务报表主要项目注释, and those notes state the SAME concepts as the group's with
+    different figures: 其他应收款 is 4,143,856.36 in note 七、9 and 1,247,570,989.98 in 十九、2.
+    Nothing distinguished them — both were "note 9" and "note 2" to a reader that kept only the
+    trailing number — so the two were pooled and the concept published 2,484,202,201.08, six
+    hundred times the printed figure.
+
+    ``notes_extract`` now sets ``NotesTable.basis`` from the chapter that holds the note, which is
+    the only place on the page that says so: the chapter heading is printed once, pages before the
+    note. A table that states no basis is the group's ordinary note and contributes to either.
+    """
+    return table.basis is not None and table.basis.value != pk[0]
+
+
 @dataclass
 class _Signal:
     """One candidate's running total, plus what it would take to trust it.
@@ -299,6 +316,8 @@ def _find_2(doc: DocumentModel, pk: PeriodKey, flags: list[str]) -> _Signal:
     for table in doc.notes:
         if not _note_matches(table, _RECEIVABLE_NOTE_HEADING_RE):
             continue
+        if _note_basis_disagrees(table, pk):
+            continue                       # the parent company's own note — see the docstring
         found_note = True
         pooled = _has_pooled_allowance(table)
         for item in table.items:
@@ -334,6 +353,8 @@ def _find_3(doc: DocumentModel, pk: PeriodKey, flags: list[str]) -> _Signal:
     found_note = False
     for table in doc.notes:
         if not _note_matches(table, _RELATED_PARTY_NOTE_HEADING_RE):
+            continue
+        if _note_basis_disagrees(table, pk):
             continue
         found_note = True
         pooled = _has_pooled_allowance(table)
@@ -417,12 +438,12 @@ def _cp_pool(doc: DocumentModel, pk: PeriodKey, flags: list[str]
             return
         if _cited_note_contradicts(note_number, source_kind):
             return
-        # AN AMBIGUOUS NOTE NUMBER CANNOT BE THE SOURCE OF A FIGURE. See
-        # `_ambiguous_note_numbers`: on 688008 the parent company's 其他应收款 is note 2 and so is
-        # the group's 交易性金融资产, and the restatement ledger — which collapses two printings of
-        # ONE balance by comparing note numbers — has no way to tell two different notes apart.
-        # The parent's 1,247,570,989.98 was added to the group's 4,143,856.36 and the concept
-        # published 2,484,202,201.08. A gap the reviewer can see beats that.
+        # AN AMBIGUOUS NOTE NUMBER CANNOT BE THE SOURCE OF A FIGURE — a backstop now, not the
+        # fix. `notes_extract` qualifies a note's identity with its chapter (七、9 rather than 9),
+        # which took 688008's ambiguous numbers from fifteen to one, and the parent company's
+        # notes are separated from the group's by `NotesTable.basis` instead of by declining them.
+        # This stays for the filing whose chapter headings this reader cannot see at all: an
+        # identity that names two different notes must not be summed across.
         if source_kind == "note" and note_number in ambiguous:
             return
         if not _add_item(gross, note_number, note_title, label, ev, pk, row,
@@ -447,6 +468,8 @@ def _cp_pool(doc: DocumentModel, pk: PeriodKey, flags: list[str]
     found_note = False
     for table in doc.notes:
         if not _note_matches(table, _CP_NOTE_HEADING_RE):
+            continue
+        if _note_basis_disagrees(table, pk):
             continue
         found_note = True
         for item in table.items:
@@ -473,6 +496,8 @@ def _cp_pool(doc: DocumentModel, pk: PeriodKey, flags: list[str]
     # and deducting it would understate the row.
     for table in doc.notes:
         if not _note_matches(table, _RELATED_PARTY_NOTE_HEADING_RE):
+            continue
+        if _note_basis_disagrees(table, pk):
             continue
         for item in table.items:
             if item.role != LineRole.LINE:

@@ -65,7 +65,18 @@ def test_a_note_reference_is_recorded_as_a_citation_on_both_fields():
     assert int(li.get_value(Basis.CONSOLIDATED, period_label="current").value) == 3410
 
 
-def test_a_chinese_chapter_prefixed_note_column_is_linked_to_its_subsection():
+def test_a_chinese_chapter_prefixed_note_column_keeps_its_chapter():
+    """The chapter is HALF THE IDENTITY, and this test used to assert it away.
+
+    A CSRC filing numbers its notes WITHIN each top-level chapter — 七、合并财务报表项目注释 runs
+    1..80, 十九、母公司财务报表主要项目注释 restarts at 1 — so on 澜起科技 688008 fifteen of
+    forty-eight numbers named two different notes. The face already prints the identity in full
+    (the 附注 column reads 七、1) and the reader was throwing the chapter away, leaving a citation
+    that could not say which note it meant. Other Receivables (CP) published 2,484,202,201.08
+    against a printed 4,143,856.36 because the parent company's note and the group's were pooled.
+
+    An English filing prints no chapter and its citations stay bare — the test below pins that.
+    """
     items = _build([
         _w("项目", 0.10, 0.15, 0.16, 0.17),
         _w("附注", 0.50, 0.15, 0.55, 0.17),
@@ -78,8 +89,44 @@ def test_a_chinese_chapter_prefixed_note_column_is_linked_to_its_subsection():
     ])
 
     line = next(item for item in items if item.source_label == "货币资金")
-    assert line.note_number == "1"
-    assert [ref.numbers for ref in line.note_refs] == [["1"]]
+    assert line.note_number == "七、1"
+    assert [ref.numbers for ref in line.note_refs] == [["七、1"]]
+    # …and the figures are untouched: the note column is still a note column. `_is_note_number`
+    # only ever asked whether a token is note-reference SHAPED, which has not changed.
+    assert _slots(line) == {("consolidated", "current"): "451359912.13",
+                            ("consolidated", "prior"): "389309367.78"}
+
+
+def test_an_unprefixed_note_reference_stays_bare():
+    """An English/HKEX filing has no chapters, and its citations must not grow one."""
+    items = _build([
+        _w("Trade", 0.10, 0.20, 0.16, 0.22),
+        _w("receivables", 0.17, 0.20, 0.28, 0.22),
+        _w("15", 0.52, 0.20, 0.55, 0.22),
+        _w("3,410", 0.72, 0.20, 0.80, 0.22),
+        _w("2,900", 0.86, 0.20, 0.94, 0.22),
+    ])
+
+    line = next(item for item in items if item.source_label == "Trade receivables")
+    assert line.note_number == "15"
+
+
+def test_the_chapter_separator_a_filing_prints_is_normalised():
+    """A filing sets 、 or a comma or a full stop; the note side writes one spelling.
+
+    If the two disagree the citation stops matching the note it names, which is the failure this
+    whole change exists to end.
+    """
+    from app.services.row_reconstruct import _note_ref_value
+
+    assert _note_ref_value("七、9") == "七、9"
+    assert _note_ref_value("七 、 9") == "七、9"
+    assert _note_ref_value("七,9") == "七、9"
+    assert _note_ref_value("七.9") == "七、9"
+    assert _note_ref_value("十九、2") == "十九、2"
+    assert _note_ref_value("9") == "9"
+    assert _note_ref_value("16(b)") == "16(b)"
+    assert _note_ref_value("1,234.56") is None
 
 
 def test_wrapped_label_is_merged_into_the_valued_line():

@@ -713,10 +713,16 @@ def _add_analysis_sheets(wb, rows: list[dict], disclosures: list[dict],
     ri = 2
 
     def _note_sort_key(note):
+        # Chapter first — a mainland note number is "七、9" and a bare int() on it raises, so
+        # every one of them used to fall to the string branch and sort after (and among)
+        # themselves lexically. See api.routes.documents._note_sort_key_str.
+        from app.services.notes_extract import split_note_number
+
+        chapter, number = split_note_number(note.get("no"))
         try:
-            return (0, int(str(note.get("no")).strip()))
+            return (chapter, 0, int((number or "").strip()), "")
         except (TypeError, ValueError):
-            return (1, str(note.get("no")))
+            return (chapter, 1, 0, str(number or ""))
 
     for note in sorted(note_details, key=_note_sort_key):
         title = note.get("title") or ""

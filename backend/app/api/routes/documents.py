@@ -4595,10 +4595,21 @@ def _face_prefixes(template_def: dict | None) -> set[str]:
     return out
 
 
-def _note_sort_key_str(no: str) -> tuple[int, str]:
-    """Note numbers in the order a filing prints them: numerically, with any sub-letter after."""
-    head = re.match(r"\d+", str(no) or "")
-    return (int(head.group(0)) if head else 10_000, str(no))
+def _note_sort_key_str(no: str) -> tuple[int, int, str]:
+    """Note numbers in the order a filing prints them: by chapter, then numerically, then any
+    sub-letter.
+
+    A mainland note number is CHAPTER-QUALIFIED — "七、9" — because a CSRC filing numbers its
+    notes within each top-level chapter (see ``notes_extract.qualified_note_number``). Matching a
+    leading ``\\d+`` therefore found nothing on such a number and every one of them fell to the
+    string tail, which sorted them 七、1, 七、10, 七、11, 七、2 … and after every bare-numbered
+    note. The chapter is read as the CJK numeral it is, so 十九 follows 七 rather than preceding it.
+    """
+    from app.services.notes_extract import split_note_number
+
+    chapter, number = split_note_number(no)
+    head = re.match(r"\d+", number or "")
+    return (chapter, int(head.group(0)) if head else 10_000, str(no))
 
 
 def _build_statement(rows: list[dict], template_def: dict | None, statement_type: str,
