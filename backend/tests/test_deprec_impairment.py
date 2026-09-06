@@ -112,8 +112,11 @@ def test_combined_depreciation_and_amortisation_line_is_excluded():
         _note("28", "Administrative expenses",
               [_item("Depreciation and amortisation", "999")]),
     )
-    result = compute(doc)[("consolidated", "current")] if compute(doc) else None
-    assert not result or result["oper_exp"].value is None
+    # Whatever key it comes back under: a filing whose only charge was refused for being combined
+    # returns ONE period-less entry carrying the reason (see the COMBINED_CHARGE_ONLY test), so
+    # the assertion is about the VALUE rather than about which period holds it.
+    results = compute(doc)
+    assert all(fields["oper_exp"].value is None for fields in results.values())
 
 
 def test_movement_reconciliation_rows_are_excluded_from_asset_notes():
@@ -417,3 +420,36 @@ def test_the_inputs_the_inspector_lists_add_up_to_the_figure_above_them():
     assert sum(c["v1"] for c in contributions) == 57576
     assert sum(c["v2"] for c in contributions) == float(
         both[("consolidated", "prior")]["cos"].value)
+
+
+def test_a_mainland_note_is_found_and_its_combined_charge_refused_with_a_reason():
+    """688008 discloses depreciation ONLY as 折旧及摊销费 in each expense note.
+
+    Two facts have to be told apart: a note this reader could not find, and a note it read and
+    declined. The spec declines a combined depreciation-and-amortisation charge — amortisation of
+    intangibles is a different line and a combined figure would overstate depreciation — so the
+    concept is correctly absent, and `COMBINED_CHARGE_ONLY` is what says so. Before the mainland
+    spellings were added the note was not found at all and the run reported MISSING_NOTE, which
+    is a different and untrue claim.
+    """
+    doc = _doc(_note("65", "研发费用", [_item2("折旧及摊销费", "44110253.08", "27886145.26")]))
+
+    results = compute(doc)
+
+    # No period carries a figure, so the service returns ONE period-less entry whose only job is
+    # to carry the reason out — otherwise the flags reach nobody and the run says "0 computed".
+    assert len(results) == 1
+    out = next(iter(results.values()))
+    assert out["oper_exp"].value is None
+    assert any(f.startswith("COMBINED_CHARGE_ONLY") for f in out["oper_exp"].flags)
+    assert "MISSING_NOTE:rd_depreciation" not in out["oper_exp"].flags
+
+
+def test_a_mainland_asset_note_depreciation_line_qualifies():
+    from app.services.deprec_impairment import _qualifies
+
+    assert _qualifies("固定资产折旧", asset_note=False)
+    assert _qualifies("使用权资产折旧", asset_note=False)
+    assert _qualifies("本期计提", asset_note=True)
+    assert not _qualifies("折旧及摊销费", asset_note=False)      # combined
+    assert not _qualifies("累计折旧", asset_note=True)           # a balance, not a charge

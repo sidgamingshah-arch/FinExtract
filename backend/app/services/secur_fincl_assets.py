@@ -44,20 +44,39 @@ _ASSET_NOTE_RE = re.compile(
     r"|short.term\s+money\s+market\s+deposits"
     r"|按公平值計入損益的金融資產|按公平值計入其他全面收益的金融資產|金融資產|可供出售金融資產"
     r"|持有至到期金融資產|含嵌入式衍生工具的結構性存款|債務投資|其他債務投資|其他金融資產"
-    r"|投資證券|貨幣市場工具|有價證券|短期貨幣市場存款", re.IGNORECASE)
+    r"|投資證券|貨幣市場工具|有價證券|短期貨幣市場存款"
+    # THE CAS BALANCE-SHEET CLASSES, which are named differently from the HKFRS ones and so
+    # matched none of the above: a mainland filing books these as 交易性金融资产 (FVTPL),
+    # 其他权益工具投资 (FVTOCI equity), 其他非流动金融资产, 债权投资 / 其他债权投资, and
+    # 理财产品 for the wealth-management products the spec's deduction rules are about.
+    r"|交易性金融资产|其他权益工具投资|其他非流动金融资产|其他流动金融资产"
+    r"|债权投资|其他债权投资|理财产品|结构性存款|可供出售金融资产|持有至到期投资",
+    re.IGNORECASE)
 _FV_HIERARCHY_RE = re.compile(
     r"fair\s+value\s+hierarchy|fair\s+value\s+measurements?"
-    r"|公平值層級|公平值計量|金融工具公平值層級", re.IGNORECASE)
-_LEVEL_3_RE = re.compile(r"^\s*level\s*3\b|第三級總額|第三層級總額|^\s*第三級|^\s*第三層", re.IGNORECASE)
-_LEVEL_1_2_RE = re.compile(r"^\s*level\s*[12]\b|第一級|第二級|第一層|第二層", re.IGNORECASE)
+    r"|公平值層級|公平值計量|金融工具公平值層級"
+    r"|公允价值层级|公允价值计量|以公允价值计量的资产和负债", re.IGNORECASE)
+_LEVEL_3_RE = re.compile(
+    r"^\s*level\s*3\b|第三級總額|第三層級總額|^\s*第三級|^\s*第三層"
+    r"|第三层次|^\s*第三级", re.IGNORECASE)
+_LEVEL_1_2_RE = re.compile(
+    r"^\s*level\s*[12]\b|第一級|第二級|第一層|第二層|第一层次|第二层次|第一级|第二级",
+    re.IGNORECASE)
 
 # ── section 4.2: deduction items, matched only inside an already-identified note ────────────────
-_DERIVATIVES_RE = re.compile(r"derivatives?(?:\s+financial\s+instruments?)?|衍生工具|衍生金融工具",
-                             re.IGNORECASE)
-_OTHER_RECEIVABLES_RE = re.compile(r"other\s+receivables|其他應收款項", re.IGNORECASE)
-_RELATED_PARTY_RE = re.compile(r"investment\s+in\s+related\s+part(?:y|ies)|於關聯方的投資", re.IGNORECASE)
-_ASSOCIATE_RE = re.compile(r"investment\s+in\s+associates?|於聯營公司的投資", re.IGNORECASE)
-_JV_RE = re.compile(r"investment\s+in\s+(?:joint\s+ventures?|jv)|於合營企業的投資", re.IGNORECASE)
+# EVERY DEDUCTION PATTERN NEEDS BOTH SCRIPTS. These read a note's raw printed label, not a
+# normalised alias, so the Traditional-only forms matched nothing on a mainland filing — the
+# note was found and then none of its rows could be classified.
+_DERIVATIVES_RE = re.compile(
+    r"derivatives?(?:\s+financial\s+instruments?)?|衍生工具|衍生金融工具|衍生金融资产",
+    re.IGNORECASE)
+_OTHER_RECEIVABLES_RE = re.compile(r"other\s+receivables|其他應收款項|其他应收款", re.IGNORECASE)
+_RELATED_PARTY_RE = re.compile(
+    r"investment\s+in\s+related\s+part(?:y|ies)|於關聯方的投資|对关联方的投资", re.IGNORECASE)
+_ASSOCIATE_RE = re.compile(
+    r"investment\s+in\s+associates?|於聯營公司的投資|对联营企业的投资|长期股权投资", re.IGNORECASE)
+_JV_RE = re.compile(
+    r"investment\s+in\s+(?:joint\s+ventures?|jv)|於合營企業的投資|对合营企业的投资", re.IGNORECASE)
 
 
 def _note_matches(table: NotesTable, pattern: re.Pattern) -> bool:

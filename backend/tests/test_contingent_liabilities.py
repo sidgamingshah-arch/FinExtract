@@ -246,3 +246,19 @@ def test_a_bare_refundable_performance_deposit_is_not_classified_as_a_bond():
     result = compute(doc)[("consolidated", "current")]
     assert result.classified_summary == []
     assert len(result.unclassified_items) == 1
+
+
+def test_a_capital_commitment_is_a_classified_exposure():
+    """688008 states its exposures under 重要承诺事项 and nothing else.
+
+    Only a CLASSIFIED item reaches the quantifiable total, so with no commitments category its
+    资本承诺 85,066,126.15 and 投资承诺 145,700,000.00 were read, left unclassified, and the
+    concept came back with no figure on a filing that discloses 230,766,126.15.
+    """
+    from app.services.contingent_liabilities import _classify
+
+    for label in ("资本承诺", "投资承诺", "Capital commitments",
+                  "contracted for but not provided"):
+        assert _classify(label)[0] == "Commitments", label
+    # …and a guarantee sitting inside a commitments note keeps its own classification.
+    assert _classify("对外担保 资本承诺")[0] == "Corporate guarantees"

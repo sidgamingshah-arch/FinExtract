@@ -905,9 +905,22 @@ _ENTITY_SUFFIX = re.compile(
     r"corporation|corp\.?|company|co\.?|l\.?l\.?c\.?|l\.?l\.?p\.?|holdings?|group|"
     r"berhad|bhd\.?|n\.?v\.?|s\.?a\.?|s\.?p\.?a\.?|gmbh|a\.?g\.?|pte\.?|sdn"
     r")\b", re.I)
+# The CJK company-name suffixes, which need their own pattern for two reasons: \b does not apply
+# between CJK characters, and a pure-CJK name carries no Latin letter at all — the test below
+# required one, so 澜起科技股份有限公司 (688008), printed on the cover and in every page header,
+# was refused and the run carried no entity name. Longest first, so the matched suffix is the
+# whole of what the filing printed rather than its tail.
+_ENTITY_SUFFIX_CJK = re.compile(
+    r"(股份有限公司|有限责任公司|有限責任公司|控股有限公司|集团有限公司|集團有限公司|"
+    r"有限公司|股份公司)")
 _STATEMENTish = re.compile(
     r"balance sheet|statement of|profit (and|or) loss|cash flow|comprehensive income|"
-    r"annual report|financial statements|notes to|independent auditor",
+    r"annual report|financial statements|notes to|independent auditor|"
+    # …and the same phrases as a mainland filing prints them. Without these, a CJK name is read
+    # off whichever line mentions one first — "编制单位：澜起科技股份有限公司" is the entity, but
+    # "合并资产负债表" is not, and neither is the notes' own running header.
+    r"资产负债表|資產負債表|利润表|利潤表|现金流量表|現金流量表|所有者权益变动表|"
+    r"股东权益变动表|年度报告|年度報告|财务报表|財務報表|审计报告|審計報告",
     re.I)
 
 
@@ -921,6 +934,15 @@ def _entity_from_segment(seg: str) -> str | None:
     if _ENTITY_SUFFIX.search(line) and re.search(r"[A-Za-z]", line) \
             and sum(c.isdigit() for c in line) <= 4:
         return line
+    # A PURE-CJK NAME, which carries no Latin letter and so could never reach the test above.
+    # Taken up to the end of its suffix and from the last punctuation before the name, because a
+    # mainland filing labels it — "编制单位：澜起科技股份有限公司" — and the label is not the entity.
+    hit = _ENTITY_SUFFIX_CJK.search(line)
+    if hit and sum(c.isdigit() for c in line) <= 4:
+        name = line[:hit.end()]
+        name = re.split(r"[:：]", name)[-1].strip()
+        if 4 <= len(name) <= 40:
+            return name
     return None
 
 

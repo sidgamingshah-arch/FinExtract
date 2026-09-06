@@ -71,5 +71,12 @@ class DeprecImpairmentStage:
                     continue
                 _apply(doc, canonical_key, basis, period_label, result, next_ordinal)
                 applied += 1
-        ctx.log(f"deprec_impairment:{applied} value(s) computed")
+        # WHY, when nothing was computed. A run that says "0 value(s) computed" and no more is
+        # indistinguishable from a filing that discloses no depreciation — and on 688008 the
+        # charge IS disclosed, as a combined depreciation-and-amortisation line the spec declines.
+        why = sorted({f for r in results.values() for res in r.values() for f in res.flags
+                      if f.startswith(("COMBINED_CHARGE_ONLY", "MISSING_NOTE"))}) if not applied \
+            else []
+        ctx.log(f"deprec_impairment:{applied} value(s) computed"
+                + (f" ({', '.join(why)})" if why else ""))
         return doc

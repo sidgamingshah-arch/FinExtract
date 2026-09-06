@@ -37,6 +37,11 @@ _NOTE_HEADING_RE = re.compile(
     # settlement notes, where it describes how a trade balance is settled rather than an exposure;
     # 保函 needs no qualifier, as the word only ever names the instrument.
     r"|开出保函|开具保函|保函|(?:开出|开具|国内)信用证"
+    # A CAS filing puts its commitments and contingencies under 承诺事项, and a STAR-market
+    # one routinely heads the section 重要承诺事项 with the contingencies beneath it. Neither
+    # spelling contains 或有, so the whole note went unread on 688008 — Contingent
+    # Liabilities came back absent on a filing that discloses them.
+    r"|重要承诺事项|承诺事项|资本承诺|重大承诺"
     # \b on the bare English alternative: unbounded, "guarantee" also matched a DEBT-INSTRUMENT
     # note titled "GUARANTEED NOTES", pulling its rows in as contingent exposures (which is what
     # raised POSSIBLE_DUPLICATE / AMOUNT_NOT_DISCLOSED on real filings). "GUARANTEES",
@@ -47,7 +52,11 @@ _NOTE_HEADING_RE = re.compile(
 
 # ── section 3: amount labels that DO / do not represent the exposure itself ────────────────────
 _AMOUNT_LABEL_RE = re.compile(
-    r"担保金额|担保余额|担保责任余额|实际担保金额|尚未履行金额|未结金额|涉案金额|诉讼金额|仲裁金额"
+    # …and the commitment amounts a CAS filing states under 承诺事项, which are exposures of the
+    # same kind: a contracted capital or investment commitment is an amount the entity owes on a
+    # condition. Without them 688008's 重要承诺事项 note was read and every row of it declined.
+    r"资本承诺|投资承诺|已签约但未拨备|已订约但未拨备|对外投资承诺|租赁承诺"
+    r"|担保金额|担保余额|担保责任余额|实际担保金额|尚未履行金额|未结金额|涉案金额|诉讼金额|仲裁金额"
     r"|或有负债金额|预计财务影响"
     r"|guarantee(?:d)?\s+amount|amount\s+guaranteed|outstanding\s+amount|amount\s+in\s+dispute"
     r"|amount\s+claimed|estimated\s+financial\s+impact",
@@ -95,11 +104,25 @@ _CORPORATE_GUARANTEE_RE = re.compile(
     r"|(?:given|issued|provided)\s+guarantees?\s+(?:to|for|on\s+behalf\s+of)"
     r"|guarantees?\s+in\s+respect\s+of\s+(?:banking\s+facilities|borrowings|loans)",
     re.IGNORECASE)
+# CONTRACTED COMMITMENTS, which a CAS filing states under 承诺事项 beside its contingencies and
+# an HKFRS one under "Capital commitments". They are exposures of the same kind — an amount owed
+# on a condition — and only a CLASSIFIED item reaches the quantifiable total, so without a
+# category of their own 688008's 资本承诺 85,066,126.15 and 投资承诺 145,700,000.00 were read,
+# left unclassified, and the concept came back with no figure at all. Last in the order, so a
+# guarantee or a letter of credit that happens to sit in a commitments note keeps its own, more
+# specific classification.
+_COMMITMENT_RE = re.compile(
+    r"资本承诺|資本承諾|投资承诺|投資承諾|对外投资承诺|租赁承诺|租賃承諾|重大承诺|重要承诺"
+    r"|已签约但未拨备|已訂約但未撥備|已订约但未拨备"
+    r"|capital\s+commitments?|investment\s+commitments?|lease\s+commitments?"
+    r"|contracted\s+(?:for\s+)?but\s+not\s+provided",
+    re.IGNORECASE)
 _CLASSIFY_ORDER = (
     ("Letters of Credit", _LETTER_OF_CREDIT_RE),
     ("Performance bonds", _PERFORMANCE_BOND_RE),
     ("Bank guarantees", _BANK_GUARANTEE_RE),
     ("Corporate guarantees", _CORPORATE_GUARANTEE_RE),
+    ("Commitments", _COMMITMENT_RE),
 )
 UNCLASSIFIED = "Unclassified contingent liability"
 

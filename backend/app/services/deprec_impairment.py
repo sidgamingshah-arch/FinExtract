@@ -46,20 +46,35 @@ _QUALIFYING_RE = re.compile(
     r"|amortisation\s+of\s+prepaid\s+lease\s+payments?"
     r"|release\s+of\s+prepaid\s+lease\s+payments?"
     r"|^\s*depreciation\s*$"
-    r"|投資物業折舊|固定資產折舊|物業[,、]?\s*廠房及設備折舊|在建工程折舊|使用權資產折舊|預付租賃款項攤銷|預付租賃款項轉出|^折舊$",
+    r"|投資物業折舊|固定資產折舊|物業[,、]?\s*廠房及設備折舊|在建工程折舊|使用權資產折舊|預付租賃款項攤銷|預付租賃款項轉出|^折舊$"
+    # The mainland spellings. `normalize_label` folds Traditional to Simplified for ALIAS
+    # matching, but these services read a note's raw printed label, so every pattern here needs
+    # both scripts. On 688008 none of the depreciation vocabulary was in the mainland form, so
+    # the cascade found no note and no row and reported the concept absent.
+    r"|投资性房地产折旧|投资物业折旧|固定资产折旧|在建工程折旧|使用权资产折旧|预付租赁款项摊销"
+    r"|^折旧$|^折旧费$|折旧费用",
     re.IGNORECASE,
 )
 # An asset note's own reconciliation prints "Depreciation charge for the year" against opening/
 # closing accumulated-depreciation balances; the balances are not a charge and must not join it.
 _CHARGE_RE = re.compile(
     r"depreciation\s+charge(?:d)?(?:\s+for\s+the\s+(?:year|period))?|charge\s+for\s+the\s+(?:year|period)"
-    r"|本(?:年度?|期)折舊|折舊費用", re.IGNORECASE)
+    r"|本(?:年度?|期)折舊|折舊費用"
+    r"|本(?:年度?|期)折旧|本期计提|计提折旧", re.IGNORECASE)
 _MOVEMENT_EXCLUDE_RE = re.compile(
     r"^\s*at\s+\d|^\s*at\s+(?:1|31)|opening|closing|disposal|write.?off|transfer|reclassif"
     r"|exchange\s+difference|acquisition|impairment"
-    r"|累計|期初|期末|處置|轉撥|滙兌|匯兌|收購|減值", re.IGNORECASE)
-_INTANGIBLE_RE = re.compile(r"intangible|goodwill|無形資產|商譽", re.IGNORECASE)
-_COMBINED_DA_RE = re.compile(r"depreciation\s+and\s+amortisation|折舊及攤銷|折舊攤銷", re.IGNORECASE)
+    r"|累計|期初|期末|處置|轉撥|滙兌|匯兌|收購|減值"
+    r"|累计|期初|期末|处置|转拨|转出|汇兑|收购|减值|外币折算|到期|账面原值|账面价值", re.IGNORECASE)
+_INTANGIBLE_RE = re.compile(r"intangible|goodwill|無形資產|商譽|无形资产|商誉", re.IGNORECASE)
+# A COMBINED CHARGE IS REFUSED, and the mainland spelling had to be added for the refusal to be
+# a decision rather than an accident: 688008 discloses its depreciation ONLY as 折旧及摊销费 in
+# each expense note, so nothing here qualifies and the concept is absent. That is what the spec
+# asks for — amortisation of intangibles is a different line and a combined figure would
+# overstate depreciation — but a reader is owed the reason, so `COMBINED_CHARGE_ONLY` is flagged
+# where a note offered nothing but combined lines.
+_COMBINED_DA_RE = re.compile(
+    r"depreciation\s+and\s+amortisation|折舊及攤銷|折舊攤銷|折旧及摊销|折旧摊销", re.IGNORECASE)
 _OPEX_SPECIFIC_RE = re.compile(
     r"included\s+in\s+[\"'\u201c\u201d]?(?:other\s+)?operating\s+expenses"
     r"|charged\s+to\s+[\"'\u201c\u201d]?(?:other\s+)?operating\s+expenses"
@@ -82,35 +97,51 @@ _EXPLICIT_OPEX_DEP_RE = re.compile(
 # ── section 4: which note headings feed which dataset ───────────────────────────────────────────
 _NOTE_HEADINGS: dict[str, re.Pattern] = {
     "rd_depreciation": re.compile(
-        r"research\s+and\s+development|r\s*&\s*d\s+expenses?|研究及開發開支|研發開支", re.IGNORECASE),
+        r"research\s+and\s+development|r\s*&\s*d\s+expenses?|研究及開發開支|研發開支"
+        r"|研发费用|研发开支|研发支出|研究开发费用|研究与开发", re.IGNORECASE),
     "selling_marketing_depreciation": re.compile(
         r"selling\s+and\s+marketing|selling\s+expenses?|selling\s+and\s+distribution"
         r"|distribution\s+costs?|marketing\s+expenses?"
-        r"|銷售及市場推廣開支|銷售開支|銷售及分銷開支|分銷成本", re.IGNORECASE),
+        r"|銷售及市場推廣開支|銷售開支|銷售及分銷開支|分銷成本"
+        r"|销售费用|营业费用|分销费用|销售及市场推广开支", re.IGNORECASE),
     "ga_depreciation": re.compile(
         r"general\s+and\s+administrative|administrative\s+expenses?|g\s*&\s*a\s+expenses?"
-        r"|一般及行政開支|行政開支", re.IGNORECASE),
+        r"|一般及行政開支|行政開支"
+        r"|管理费用|一般及行政费用|行政费用|一般及管理费用", re.IGNORECASE),
     "operating_expense_depreciation": re.compile(
-        r"operating\s+expenses?|operating\s+costs?|經營開支|其他經營開支|經營成本", re.IGNORECASE),
+        r"operating\s+expenses?|operating\s+costs?|經營開支|其他經營開支|經營成本"
+        r"|经营费用|经营开支|其他经营费用", re.IGNORECASE),
     "pbt": re.compile(
         r"profit\s*/?\s*loss\s+before\s+tax(?:ation)?|profit\s+before\s+tax(?:ation)?"
         r"|arrived\s+at\s+after\s+charging"
         r"|(?:profit|loss).{0,30}from\s+operating\s+activities"
-        r"|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤", re.IGNORECASE),
+        r"|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤"
+        r"|除税前溢利|税前利润|利润总额", re.IGNORECASE),
     "cos_depreciation": re.compile(
         r"cost\s+of\s+sales|cost\s+of\s+revenue|cost\s+of\s+services|direct\s+operating\s+costs?"
-        r"|銷售成本|收益成本|服務成本|直接經營成本", re.IGNORECASE),
-    "ppe_depreciation": re.compile(r"property\s*,?\s*plant\s+and\s+equipment|物業、廠房及設備", re.IGNORECASE),
+        r"|銷售成本|收益成本|服務成本|直接經營成本"
+        r"|营业成本|主营业务成本|销售成本|营业收入和营业成本", re.IGNORECASE),
+    "ppe_depreciation": re.compile(
+        r"property\s*,?\s*plant\s+and\s+equipment|物業、廠房及設備"
+        # A CAS filing has no "property, plant and equipment" note: it discloses 固定资产 and,
+        # since IFRS 16 came into CAS, 使用权资产 alongside it. Both carry a depreciation
+        # charge and both belong to the asset-note tier of the cascade.
+        r"|固定资产|使用权资产|使用權資產", re.IGNORECASE),
     "prepaid_lease_depreciation": re.compile(
         r"prepaid\s+land\s+lease\s+payments?|prepaid\s+lease\s+payments?"
         r"|預付土地租賃款項|預付租賃款項", re.IGNORECASE),
-    "fixed_asset_depreciation": re.compile(r"fixed\s+assets?|固定資產", re.IGNORECASE),
-    "investment_property_depreciation": re.compile(r"investment\s+propert(?:y|ies)|投資物業", re.IGNORECASE),
+    "fixed_asset_depreciation": re.compile(r"fixed\s+assets?|固定資產|固定资产", re.IGNORECASE),
+    "investment_property_depreciation": re.compile(r"investment\s+propert(?:y|ies)|投資物業|投资性房地产|投资物业", re.IGNORECASE),
     "cip_depreciation": re.compile(r"construction\s+in\s+progress|在建工程", re.IGNORECASE),
     "cfo_depreciation": re.compile(
         r"cash\s+flow\s+from\s+operating\s+activities|cash\s+generated\s+from\s+operations"
         r"|reconciliation\s+of\s+profit\s+before\s+taxation\s+to\s+cash"
-        r"|經營活動所得現金流量|除稅前溢利與經營所得現金的對賬", re.IGNORECASE),
+        r"|經營活動所得現金流量|除稅前溢利與經營所得現金的對賬"
+        # The CAS equivalent of the "reconciliation of profit before tax to cash" note is the
+        # cash-flow statement's own supplementary schedule, which is where a mainland filing
+        # states the year's depreciation and amortisation as an add-back.
+        r"|现金流量表补充资料|将净利润调节为经营活动现金流量|净利润调节为经营活动的?现金流量"
+        r"|经营活动产生的现金流量", re.IGNORECASE),
 }
 _OPEX_DIRECT_KEYS = (
     "rd_depreciation", "selling_marketing_depreciation", "ga_depreciation",
@@ -193,6 +224,8 @@ def _collect(doc: DocumentModel) -> tuple[dict[str, dict[PeriodKey, _Signal]], d
     datasets["pbt_depreciation"] = {}
     note_found = {k: False for k in datasets}
     note_found["pbt"] = False
+    # Datasets whose note offered a charge and had it refused for being combined with amortisation.
+    combined_only: set[str] = set()
 
     for table in doc.notes:
         for key, pattern in _NOTE_HEADINGS.items():
@@ -219,6 +252,11 @@ def _collect(doc: DocumentModel) -> tuple[dict[str, dict[PeriodKey, _Signal]], d
                     continue
                 label = item.raw_label or ""
                 if not _qualifies(label, asset_note=asset_note):
+                    # A combined depreciation-and-amortisation line is the one refusal worth
+                    # reporting: the note DOES disclose a charge and the spec declines to use it,
+                    # which is a different fact from a note that discloses nothing.
+                    if _COMBINED_DA_RE.search(label) and not _INTANGIBLE_RE.search(label):
+                        combined_only.add(dest)
                     continue
                 for ev in item.values.values():
                     if ev.value is None:
@@ -261,7 +299,7 @@ def _collect(doc: DocumentModel) -> tuple[dict[str, dict[PeriodKey, _Signal]], d
                                      "excerpt": sentence,
                                      "value": str(amount), "provenance": any_ev.provenance})
                     note_found["pbt_oper_exp_depreciation"] = True
-    return datasets, note_found
+    return datasets, note_found, combined_only
 
 
 
@@ -342,15 +380,31 @@ def _first_valid(candidates: list[tuple[str, Decimal | None]],
 
 def compute(doc: DocumentModel) -> dict[PeriodKey, dict[str, DeprecResult]]:
     """Both fields for every (basis, period) the document's notes carry a candidate for."""
-    datasets, note_found = _collect(doc)
+    datasets, note_found, combined_only = _collect(doc)
     doc_flags: list[str] = []
     for key, found in note_found.items():
         if not found:
             doc_flags.append(f"MISSING_NOTE:{key}")
+    # A note that DISCLOSED a charge and had it refused for being combined with amortisation is a
+    # different fact from a note that disclosed nothing, and only one of them is the filing's
+    # doing. Reported per dataset, so a reader can see which notes were read and declined.
+    for key in sorted(combined_only):
+        doc_flags.append(f"COMBINED_CHARGE_ONLY:{key}")
 
     keys = set()
     for per_key in datasets.values():
         keys.update(per_key.keys())
+    if not keys and combined_only:
+        # NO PERIOD, BUT SOMETHING TO SAY. A filing whose every disclosed charge was refused for
+        # being combined with amortisation leaves `datasets` empty, so the loop below runs zero
+        # times and the doc-level flags — the only record of WHY — reach nobody. One period-less
+        # entry carries them out with a value of None, so a caller reporting "0 computed" can say
+        # what it declined. Gated on `combined_only`: a filing that discloses no depreciation at
+        # all still returns {} and says nothing, because there is nothing to say.
+        return {("", ""): {
+            "oper_exp": DeprecResult(None, None, "NOT_FOUND_OR_NOT_COMPUTABLE", list(doc_flags), []),
+            "cos": DeprecResult(None, None, "NOT_FOUND_OR_NOT_COMPUTABLE", list(doc_flags), []),
+        }}
 
     out: dict[PeriodKey, dict[str, DeprecResult]] = {}
     for pk in keys:
