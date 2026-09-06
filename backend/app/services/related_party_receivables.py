@@ -106,6 +106,21 @@ _RELATED_PARTY_NOTE_EXCLUDE_RE = re.compile(
 
 # ── section 5.1/5.2: CP's gross pool (current-portion classes only) ────────────────────────────
 _CP_CLASS_RE = re.compile(r"其他应收款项|其他应收款|一年内到期的长期应收款|一年内到期的贷款及垫款|拆出资金|往来款")
+# AN ANONYMISED COUNTERPARTY IS NEVER A RECEIVABLE CLASS — it is one debtor inside a breakdown of a
+# total that has already been counted.
+#
+# A CAS filing discloses its five largest debtors as 单位一 … 单位五 (sometimes 客户一, 公司一),
+# withholding the names. Those rows carry no class of their own, so they only ever entered the gross
+# pool through a `group_hint`, and on the measured filing that hint was
+# 其他应收款核销说明： — the heading of the WRITE-OFF sub-section, mis-assigned to a different
+# table, which happens to contain 其他应收款. The result was the top five debtors added on top of
+# the 其他应收款 total they are five parts of: +10,202,862.04 against a pool of 36,770,065.47.
+#
+# The filing proves the containment itself. Its own printed ratio column reads 12.54%, and
+# 10,202,862.04 / 81,372,152.22 (the gross before its 44,602,086.75 allowance) = 12.5384%. Rows
+# stating a share OF a total cannot also be added TO it.
+_ANONYMOUS_DEBTOR_RE = re.compile(
+    r"^(?:单位|單位|客户|客戶|公司|供应商|供應商)\s*(?:[一二三四五六七八九十]{1,3}|\d{1,2})\s*$")
 _CP_NOTE_HEADING_RE = re.compile(
     r"其他应收款项|其他应收款|一年内到期的非流动资产|一年内到期的长期应收款|一年内到期的贷款及垫款"
     r"|发放贷款及垫款|拆出资金|往来款|其他流动资产")
@@ -369,6 +384,8 @@ def _cp_pool(doc: DocumentModel, pk: PeriodKey, flags: list[str]
     def _scan(label: str, group_hint: str, note_number: str, note_title: str, ev,
               row=(), source_kind: str = "note") -> None:
         nonlocal inspected
+        if _ANONYMOUS_DEBTOR_RE.match((label or "").strip()):
+            return                              # one debtor inside a total already counted
         text = f"{label} {group_hint}"
         klass = _CP_CLASS_RE.search(text)
         if not klass:
