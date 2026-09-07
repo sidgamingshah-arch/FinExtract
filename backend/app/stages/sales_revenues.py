@@ -34,6 +34,7 @@ from app.core.models.document import DocumentModel
 from app.core.models.enums import Basis
 from app.core.models.line_item import ExtractedValue, LineItem
 from app.core.stage import PipelineContext
+from app.services.computed_paths import apply_computed, policy_from
 from app.services.derivation import build, input_from_evidence, record
 from app.services.sales_revenues import (
     SALES_REVENUES_KEY,
@@ -59,14 +60,38 @@ class SalesRevenuesStage:
             ctx.log("sales_revenues:skipped(no notes extracted)")
             return doc
 
+        # THE COMPLEX PATH IS SWITCHABLE. Off, the rulebook's own reading of these
+        # concepts is what publishes — see services.computed_paths.
+        policy = policy_from(ctx.settings)
+        if not policy.runs("sales_revenues"):
+            ctx.log("sales_revenues:skipped(complex path disabled)")
+            return doc
+
         results = compute_note_fallback(doc)
 
         # WHAT THE MAPPER BOUND, split by whether the spec accepts the caption as Priority 1.
         # Only on a filing that carries a 营业收入 note: with no note there is nothing to displace
         # a face reading with, and this spec has no jurisdiction over that filing's captions.
         bound = [li for li in doc.line_items if li.canonical_key == SALES_REVENUES_KEY]
+        # UNBINDING IS THE COMPLEX PATH'S MOST AGGRESSIVE ACT — it discards a reading the mapper
+        # made from a caption the filing really printed — so it is the first thing the precedence
+        # has to govern. Under `generic` or `corroborate` the printed reading is what publishes,
+        # and throwing it away would make those settings mean nothing for this concept: §4's
+        # refusal becomes a review flag instead of a deletion.
+        may_unbind = policy.precedence_for(SALES_REVENUES_KEY) == "complex"
         refused = ([li for li in bound if not is_priority_one_caption(li.source_label)]
-                   if has_revenue_note(doc) else [])
+                   if has_revenue_note(doc) and may_unbind else [])
+        if not may_unbind and has_revenue_note(doc):
+            kept = [li for li in bound if not is_priority_one_caption(li.source_label)]
+            for li in kept:
+                for flag in ("spec_refused_caption", "requires_concept_review"):
+                    if flag not in li.confidence.flags:
+                        li.confidence.flags.append(flag)
+            if kept:
+                ctx.log("sales_revenues:kept "
+                        f"{[(li.source_label or '').strip() for li in kept]} — §4 refuses these "
+                        "captions but the precedence is not `complex`, so they are flagged for "
+                        "review rather than unbound")
         for li in refused:
             bound.remove(li)
             li.canonical_key = None

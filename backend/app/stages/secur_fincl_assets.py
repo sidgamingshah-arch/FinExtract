@@ -7,37 +7,24 @@ reconcile, so a tie-out sees the computed figure rather than a blank cell.
 from __future__ import annotations
 
 from app.core.models.document import DocumentModel
-from app.core.models.enums import Basis
-from app.core.models.line_item import ExtractedValue, LineItem
 from app.core.stage import PipelineContext
-from app.services.derivation import build, input_from_evidence, record
+from app.services.computed_paths import apply_computed, policy_from
 from app.services.secur_fincl_assets import CP_KEY, LTP_KEY, SecurResult, compute
 
 
 def _apply(doc: DocumentModel, canonical_key: str, basis: str, period_label: str,
-          result: SecurResult, next_ordinal: list[int]) -> None:
-    if result.value is None:
-        return
-    row = next((li for li in doc.line_items if li.canonical_key == canonical_key), None)
-    if row is None:
-        row = LineItem(source_label=canonical_key, canonical_key=canonical_key,
-                       ordinal=next_ordinal[0])
-        next_ordinal[0] += 1
-        doc.line_items.append(row)
-    src_prov = next((e["provenance"] for e in result.evidence if e.get("provenance")), None)
-    ev = ExtractedValue(value=result.value, value_raw=result.value,
-                        basis=Basis(basis), period_label=period_label,
-                        provenance=src_prov)
-    row.set_value(ev)
-    row.confidence.method = f"computed:secur_fincl_assets:{result.formula_used}"
-    row.derivation = record(
-        row.derivation, basis=basis, period_label=period_label,
-        derivation=build(method="secur_fincl_assets", formula=result.formula_used,
-                         inputs=[input_from_evidence(e) for e in result.evidence],
-                         result=result.value, flags=result.flags))
-    for flag in result.flags:
-        if flag not in row.confidence.flags:
-            row.confidence.flags.append(flag)
+          result, next_ordinal: list[int], policy, log=None) -> None:
+    """Hand the derived figure to the two-path policy — see services.computed_paths.
+
+    This used to write unconditionally, which made the complex path win over the
+    rulebook's own reading with no record and no way to choose. The decision now lives in
+    one place for all five derivations.
+    """
+    apply_computed(doc, canonical_key=canonical_key, basis=basis,
+                   period_label=period_label, value=result.value,
+                   formula=result.formula_used, service="secur_fincl_assets",
+                   evidence=result.evidence, flags=list(result.flags),
+                   next_ordinal=next_ordinal, policy=policy, log=log)
 
 
 class SecurFinclAssetsStage:
@@ -56,6 +43,13 @@ class SecurFinclAssetsStage:
             ctx.log("secur_fincl_assets:skipped(no notes extracted)")
             return doc
 
+        # THE COMPLEX PATH IS SWITCHABLE. Off, the rulebook's own reading of these
+        # concepts is what publishes — see services.computed_paths.
+        policy = policy_from(ctx.settings)
+        if not policy.runs("secur_fincl_assets"):
+            ctx.log("secur_fincl_assets:skipped(complex path disabled)")
+            return doc
+
         results = compute(doc)
         next_ordinal = [max((li.ordinal for li in doc.line_items), default=0) + 1]
         applied = 0
@@ -63,7 +57,8 @@ class SecurFinclAssetsStage:
             for canonical_key, result in ((CP_KEY, fields["cp"]), (LTP_KEY, fields["ltp"])):
                 if result.value is None:
                     continue
-                _apply(doc, canonical_key, basis, period_label, result, next_ordinal)
+                _apply(doc, canonical_key, basis, period_label, result, next_ordinal,
+                       policy, ctx.log)
                 applied += 1
         ctx.log(f"secur_fincl_assets:{applied} value(s) computed")
         return doc

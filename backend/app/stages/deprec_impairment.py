@@ -10,40 +10,25 @@ from __future__ import annotations
 from decimal import Decimal
 
 from app.core.models.document import DocumentModel
-from app.core.models.enums import Basis
-from app.core.models.line_item import ExtractedValue, LineItem
 from app.core.stage import PipelineContext
-from app.services.derivation import build, input_from_evidence, record
+from app.services.computed_paths import apply_computed, policy_from
 from app.services.deprec_impairment import (COS_FORMULA, COS_KEY, OPER_EXP_FORMULA, OPER_EXP_KEY,
                                             DeprecResult, compute)
 
 
 def _apply(doc: DocumentModel, canonical_key: str, basis: str, period_label: str,
-          result: DeprecResult, next_ordinal: list[int]) -> None:
-    if result.value is None:
-        return
-    row = next((li for li in doc.line_items if li.canonical_key == canonical_key), None)
-    if row is None:
-        row = LineItem(source_label=canonical_key, canonical_key=canonical_key,
-                       ordinal=next_ordinal[0])
-        next_ordinal[0] += 1
-        doc.line_items.append(row)
-    src_prov = next((e["provenance"] for e in result.evidence if e.get("provenance")), None)
-    ev = ExtractedValue(value=result.value, value_raw=result.value,
-                        basis=Basis(basis), period_label=period_label,
-                        provenance=src_prov)
-    row.set_value(ev)
-    row.confidence.method = f"computed:deprec_impairment:{result.priority_used}"
-    formulae = COS_FORMULA if canonical_key == COS_KEY else OPER_EXP_FORMULA
-    row.derivation = record(
-        row.derivation, basis=basis, period_label=period_label,
-        derivation=build(method="deprec_impairment",
-                         formula=formulae.get(result.priority_used or "", result.priority_used),
-                         inputs=[input_from_evidence(e) for e in result.evidence],
-                         result=result.value, flags=result.flags))
-    for flag in result.flags:
-        if flag not in row.confidence.flags:
-            row.confidence.flags.append(flag)
+          result, next_ordinal: list[int], policy, log=None) -> None:
+    """Hand the derived figure to the two-path policy — see services.computed_paths.
+
+    This used to write unconditionally, which made the complex path win over the
+    rulebook's own reading with no record and no way to choose. The decision now lives in
+    one place for all five derivations.
+    """
+    apply_computed(doc, canonical_key=canonical_key, basis=basis,
+                   period_label=period_label, value=result.value,
+                   formula=result.priority_used, service="deprec_impairment",
+                   evidence=result.evidence, flags=list(result.flags),
+                   next_ordinal=next_ordinal, policy=policy, log=log)
 
 
 class DeprecImpairmentStage:
@@ -62,6 +47,13 @@ class DeprecImpairmentStage:
             ctx.log("deprec_impairment:skipped(no notes extracted)")
             return doc
 
+        # THE COMPLEX PATH IS SWITCHABLE. Off, the rulebook's own reading of these
+        # concepts is what publishes — see services.computed_paths.
+        policy = policy_from(ctx.settings)
+        if not policy.runs("deprec_impairment"):
+            ctx.log("deprec_impairment:skipped(complex path disabled)")
+            return doc
+
         results = compute(doc)
         next_ordinal = [max((li.ordinal for li in doc.line_items), default=0) + 1]
         applied = 0
@@ -69,7 +61,8 @@ class DeprecImpairmentStage:
             for canonical_key, result in ((OPER_EXP_KEY, fields["oper_exp"]), (COS_KEY, fields["cos"])):
                 if result.value is None:
                     continue
-                _apply(doc, canonical_key, basis, period_label, result, next_ordinal)
+                _apply(doc, canonical_key, basis, period_label, result, next_ordinal,
+                       policy, ctx.log)
                 applied += 1
         # WHY, when nothing was computed. A run that says "0 value(s) computed" and no more is
         # indistinguishable from a filing that discloses no depreciation — and on 688008 the

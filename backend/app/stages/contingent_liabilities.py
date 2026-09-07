@@ -14,6 +14,7 @@ from app.core.models.document import DocumentModel
 from app.core.models.enums import Basis
 from app.core.models.line_item import ExtractedValue, LineItem
 from app.core.stage import PipelineContext
+from app.services.computed_paths import policy_from
 from app.services.contingent_liabilities import ContingentLiabilitiesResult, compute
 
 NOTES_KEY = "notes__contingent_liabilities"
@@ -49,6 +50,12 @@ class ContingentLiabilitiesStage:
             return doc
         if not doc.notes:
             ctx.log("contingent_liabilities:skipped(no notes extracted)")
+            return doc
+        # THE COMPLEX PATH IS SWITCHABLE — see services.computed_paths. Off, this concept is left
+        # to whatever the rulebook's own 或有负债 / contingent-liability aliases bind.
+        policy = policy_from(ctx.settings)
+        if not policy.runs("contingent_liabilities"):
+            ctx.log("contingent_liabilities:skipped(complex path disabled)")
             return doc
 
         # The document's own page text, for the case where the disclosure's PAGE never became a
