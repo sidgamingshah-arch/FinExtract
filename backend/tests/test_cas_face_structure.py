@@ -27,11 +27,16 @@ def _w(text: str, x: float, y: float, width: float = 0.09) -> Word:
     return Word(text=text, bbox=BBox(x0=x, y0=y, x1=x + width, y1=y + 0.012))
 
 
-def _rows(*lines, statement: str | None = None):
-    """``lines`` are ``(label, current, prior)``; a None figure prints an empty row."""
+def _rows(*lines, statement: str | None = None, pitch: float = 0.030):
+    """``lines`` are ``(label, current, prior)``; a None figure prints an empty row.
+
+    ``pitch`` is the baseline-to-baseline distance. The default is loose enough that no two lines
+    read as one wrapped caption, which is what the section-banner tests want; the wrap tests set it
+    to a real statement's leading so the reconstructor's tightness test can fire.
+    """
     words: list[Word] = []
     for i, (label, cur, pri) in enumerate(lines):
-        y = 0.10 + i * 0.030
+        y = 0.10 + i * pitch
         words.append(_w(label, 0.10, y))
         if cur is not None:
             words.append(_w(cur, 0.60, y))
@@ -164,3 +169,59 @@ def test_a_caption_that_merely_names_the_statement_keeps_its_figures():
 
     assert [(i.source_label, str(next(iter(i.values.values())).value)) for i in items] \
         == [("资产负债表日后事项", "1234.50")]
+
+
+# ── a caption that wraps the other way ─────────────────────────────────────────────────────────
+
+def test_a_caption_whose_remainder_is_printed_under_its_figures_is_folded_back():
+    """THE OTHER WRAP SHAPE. The wrap merge folds a label-only line FORWARD into the valued row
+    beneath it, which is the shape of a caption whose figures sit beside its LAST line. A mainland
+    equity block is the reverse — the figures sit beside the FIRST line and the caption's remainder
+    is printed under them — so folding forward glued the tail of one caption onto the head of the
+    next and handed the mapper "（或股东权益）合计少数股东权益" holding the minority interest, while
+    the parent's equity total kept a caption truncated to 归属于母公司所有者权益 and matched nothing.
+
+    Both shapes have identical geometry, so the tail is recognised on its own WORDS: 或 is "or", and
+    a parenthetical alternative has nothing on its line to be an alternative to.
+    """
+    items = _rows(
+        ("归属于母公司所有者权益", "11,403,438,067.08", "10,191,406,155.95"),
+        ("（或股东权益）合计", None, None),
+        ("少数股东权益", "-6,932,502.17", "15,213,296.92"),
+        statement="balance_sheet", pitch=0.014)
+
+    assert [i.source_label for i in items] == ["归属于母公司所有者权益（或股东权益）合计", "少数股东权益"]
+
+
+def test_a_caption_broken_inside_its_parenthesis_is_folded_back():
+    """The structural half of the same shape, and independent of the vocabulary: a line carrying a
+    closing bracket that nothing on it opened was written on an earlier line."""
+    items = _rows(
+        ("所有者权益（或股东权", "11,396,505,564.91", "10,206,619,452.87"),
+        ("益）合计", None, None),
+        statement="balance_sheet", pitch=0.014)
+
+    assert [i.source_label for i in items] == ["所有者权益（或股东权益）合计"]
+
+
+def test_an_enumerator_is_not_a_wrapped_tail():
+    """"1)" closes a bracket it never opened and is the OPENING of a caption, not a continuation."""
+    items = _rows(
+        ("Trade receivables", "3,410", "2,900"),
+        ("1) Amounts due within one year", "3,000", "2,500"),
+        statement="balance_sheet", pitch=0.014)
+
+    assert [i.source_label for i in items] == ["Trade receivables",
+                                               "1) Amounts due within one year"]
+
+
+def test_a_tail_is_only_folded_into_a_row_that_carries_figures():
+    """A tail whose head has no figures has nothing to be the tail OF here — both lines are
+    label-only and the forward merge already owns that case."""
+    items = _rows(
+        ("所有者权益（或股东权", None, None),
+        ("益）合计", None, None),
+        ("实收资本（或股本）", "1,144,789,273.00", "1,138,740,286.00"),
+        statement="balance_sheet", pitch=0.014)
+
+    assert [i.source_label for i in items] == ["实收资本（或股本）"]

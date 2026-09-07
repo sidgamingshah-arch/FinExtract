@@ -323,6 +323,53 @@ def test_critical_face_captions_have_their_correct_owner():
 # test_secur_fincl_assets.py instead.
 
 
+def test_a_statement_level_total_reaches_its_concept_whatever_banner_it_is_printed_under():
+    """A MAINLAND BALANCE SHEET PRINTS ITS STATEMENT TOTALS INSIDE ANOTHER SECTION.
+
+    资产总计 comes after the non-current block, 负债合计 after the non-current liabilities, and
+    负债和所有者权益总计 at the very end of the equity block — so the banner in force where each is
+    printed is NEVER the section its compact key namespaces it into (bs_ca__, bs_cl__). The section
+    gate therefore refused all three, and on 澜起科技 688008 that had a consequence worse than a
+    missing row: 资产总计 was refused on the consolidated sheet and accepted four pages later on the
+    parent company's — whose section happened to carry over as current assets — so Total Assets
+    published 7,388,035,311.08, the PARENT's balance, as the group's, and Total Liabilities published
+    nothing at all.
+
+    Scoping them to ``bs_top_level`` is how this schema says "no banner constrains this concept"
+    (see ``OntologyMatcher._scope_tokens``), and it is a statement of intent in the rulebook rather
+    than a special case in the reader.
+    """
+    matcher = OntologyMatcher(_ontology(), llm_provider=None)
+    printed_under = {
+        ("资产总计", "非流动资产："): "bs_ca__total_assets",
+        ("负债合计", "非流动负债："): "bs_cl__total_liabilities",
+        ("负债和所有者权益总计", "所有者权益（或股东权益）："): "bs_cl__total_equity_and_liabilities",
+        # …and the section totals, which ARE printed in the section they belong to, still resolve
+        # there: the change must not have loosened the gate for the concepts it correctly scopes.
+        ("流动资产合计", "流动资产："): "bs_ca__total_current_assets",
+        ("非流动资产合计", "非流动资产："): "bs_nca__total_non_current_assets",
+        ("所有者权益（或股东权益）合计", "所有者权益（或股东权益）："):
+            "bs_equity__total_equity_and_reserves",
+    }
+
+    actual = {(label, section): matcher.match(label, statement="balance_sheet",
+                                              section=section).canonical_key
+              for label, section in printed_under}
+
+    assert actual == printed_under
+
+
+def test_only_the_statement_level_totals_are_scoped_above_their_section():
+    """The exemption is three concepts wide, and naming them here is what keeps it that way: a
+    concept scoped to no section is claimable under every banner on its statement, which is exactly
+    the confident wrong answer the gate exists to prevent."""
+    unconstrained = sorted(m.canonical_key for m in _ontology().mappings
+                           if m.section_scope == ["bs_top_level"])
+
+    assert unconstrained == ["bs_ca__total_assets", "bs_cl__total_equity_and_liabilities",
+                             "bs_cl__total_liabilities"]
+
+
 def test_each_supported_output_subsection_has_exactly_one_residual():
     ontology = _ontology()
     residuals = [mapping for mapping in ontology.mappings

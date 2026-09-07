@@ -621,18 +621,21 @@ def test_the_valued_row_keeps_its_own_caption_and_figures():
 
 def test_a_genuinely_wrapped_caption_still_merges():
     """The other half of the contract, and the reason the test is MEANING and not geometry: an
-    incomplete fragment has to keep merging or a caption comes out truncated."""
+    incomplete fragment has to keep merging or a caption comes out truncated.
+
+    The continuation is printed BELOW the figures — what a vertically-centred cell looks like — so
+    it folds BACKWARD into the row it completes rather than forward into the next one. This once
+    asserted the truncated 负债和所有者权益（或, on the grounds that the fragment was at least not
+    orphaned and had not swallowed the caption beneath it; the whole caption is what the filing
+    prints, and it is what the concept's alias is written against.
+    """
     labels = _labels([
         _w("负债和所有者权益（或", 0.204, 0.093, 0.38, 0.103),
         _w("7,388,035,311.08", 0.566, 0.0996, 0.68, 0.1096),
         _w("股东权益）总计", 0.151, 0.1095, 0.274, 0.1195),
     ])
 
-    # The caption's first line merges into the valued row it sits above — it is a fragment and
-    # names nothing on its own. Its continuation is printed BELOW the figures (which is what a
-    # vertically-centred cell looks like) and carries no value, so it is not a row: what matters
-    # is that the fragment was not left orphaned and did not swallow another caption.
-    assert labels == ["负债和所有者权益（或"], labels
+    assert labels == ["负债和所有者权益（或股东权益）总计"], labels
 
 
 def test_an_english_wrap_is_untouched_by_the_caption_test():

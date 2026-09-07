@@ -231,6 +231,49 @@ def test_equity_page_without_a_matrix_layout_falls_back_to_the_two_column_path()
     assert any("equity_no_matrix_layout" in m for m in logs)
 
 
+def test_a_header_less_continuation_page_of_a_matrix_is_refused_not_read_as_periods():
+    """THE CONTINUATION PAGE. A statutory CAS statement of changes in equity runs over three pages
+    per basis, and only the first carries the component header. ``_detect_matrix`` wants
+    ``_MATRIX_MIN_ROWS`` rows of ``_MATRIX_MIN_COLS`` amounts before it will believe in a grid, and
+    a continuation page does not have them — most movements touch two components, so only the
+    balance rows are wide.
+
+    Falling through to the comparative path then reads the component columns as PERIODS, which is
+    the one thing ``_matrix_items`` is written to refuse. Measured on 澜起科技 688008: twelve rows
+    over pages 160 and 163, among them the 2023 consolidated closing 资本公积 of 5,432,387,416.86
+    filed as the CURRENT period's figure — the real 2024 figure, 5,625,969,898.50, is printed on
+    the same page.
+    """
+    words = [
+        *_label("三、本期增减变动金额", 0.14), _cell("6,048,987.00", 0, 0.14),
+        _cell("193,582,481.64", 1, 0.14),
+        *_label("四、本期期末余额", 0.16),
+        *[_cell(v, c, 0.16) for c, v in enumerate(
+            ["1,144,789,273.00", "5,625,969,898.50", "427,557,874.81", "255,293,498.30",
+             "286,559,941.59", "4,518,383,330.50"])],
+    ]
+
+    items, nxt, logs = _build(words)
+
+    assert items == [] and nxt == 0
+    assert any("equity_matrix_continuation_no_header" in m and "skipped" in m for m in logs)
+
+
+def test_a_two_column_equity_statement_is_still_not_a_continuation_page():
+    """The width of ONE row is the whole discriminator, so the small entity's plain comparative —
+    two amounts per row — has to keep falling through. Asserted next to the refusal above because
+    the two answers come from the same test."""
+    words = [
+        *_label("Share capital", 0.14), _cell("500", 4, 0.14), _cell("500", 5, 0.14),
+        *_label("Retained profits", 0.16), _cell("9,120", 4, 0.16), _cell("7,540", 5, 0.16),
+    ]
+
+    items, _, logs = _build(words)
+
+    assert [li.source_label for li in items] == ["Share capital", "Retained profits"]
+    assert any("equity_no_matrix_layout" in m for m in logs)
+
+
 def _bases(items) -> set:
     return {ev.basis for li in items for ev in li.values.values()}
 

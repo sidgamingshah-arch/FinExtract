@@ -360,6 +360,53 @@ def test_a_per_share_row_is_ineligible_until_the_eligibility_list_stops_saying_s
     assert doc.line_items[1].canonical_key == "pl_expenses__others"
 
 
+def test_a_truncated_caption_is_ineligible_while_the_eligibility_list_says_so(raw_ontology):
+    """A CAPTION WHOSE REMAINDER IS ON ANOTHER PAGE NAMES NOTHING.
+
+    The wrap merge puts a caption back together within a page; it cannot reach across one. 澜起科技
+    688008 prints its consolidated balance sheet's balancing total as the last line of the page —
+    负债和所有者权益（或, with both figures beside it — and 股东权益）总计 as the first text of the
+    next page, above that page's own running header. The fragment is not a concept anyone can look
+    up, and swept it put 12,218,911,386.38, the whole balance sheet, into a bucket meant for what
+    one section of it leaves over.
+
+    An open bracket with nothing closing it is the evidence, and it is script-independent.
+    """
+    def statement() -> DocumentModel:
+        return _doc("profit_and_loss", [
+            _li(0, "Total operating cost", "pl_expenses__total_operating_cost", -100,
+                LineRole.SUBTOTAL),
+            _li(1, "负债和所有者权益（或", None, -40),
+        ])
+
+    # The shipped HKFRS list does not name it, so there the row is still swept — which is what
+    # makes this a term of the framework and not a rule of the code.
+    doc = statement()
+    _run(doc, _ontology(raw_ontology))
+    assert doc.line_items[1].canonical_key == "pl_expenses__others"
+
+    raw = copy.deepcopy(raw_ontology)
+    elig = raw["residual_framework"]["sweep"]["eligibility"]
+    elig[2] = elig[2].replace("or note-reference-only row.",
+                              "note-reference-only row or truncated caption.")
+    doc = statement()
+    _run(doc, _ontology(raw))
+    assert doc.line_items[1].canonical_key is None
+    assert "residual_ineligible:truncated caption" in doc.line_items[1].confidence.flags
+
+
+def test_the_output_template_names_the_truncated_caption_term(raw_ontology):
+    """…and the rulebook the mainland filings are actually run against does name it."""
+    import json
+    from pathlib import Path
+
+    shipped = json.loads((Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
+                          / "output_csv_hk_ontology.json").read_text(encoding="utf-8"))
+    eligibility = shipped["residual_framework"]["sweep"]["eligibility"]
+
+    assert any("truncated caption" in line for line in eligibility)
+
+
 def test_an_attribution_caption_is_not_merged_into_the_section_above_it(raw_ontology):
     """"Non-controlling interests" printed under the profit-attribution heading is a FLOW belonging
     to its own concept. Left eligible it resolves to the nearest section with a residual — the
