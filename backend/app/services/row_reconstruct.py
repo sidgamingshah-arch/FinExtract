@@ -142,7 +142,16 @@ _HDR_LABEL = re.compile(
     # shape of the leak: the label keeps the words and "31"/"2025" go to the value columns.
     r"notes to (the )?financial statements|財務報表附註|财务报表附注|"
     r"截至|止年度|財務狀況|现金流量|現金流量|權益變動|权益变动|全面收益|損益及其他|损益及其他|"
-    r"綜合.{0,8}表|综合.{0,8}表",
+    r"綜合.{0,8}表|综合.{0,8}表|"
+    # A MAINLAND FACE'S OWN TWO CHROME LINES. Every CSRC statement is headed by its title
+    # (1、合并资产负债表) and then by its column header (项目 附注 2024年12月31日 2023年12月31日),
+    # and both land on a figure's baseline: the title keeps "2024" and the column header keeps
+    # "2024" and "2023", so each was published as a line item whose amount was a year — swept,
+    # on 688008, into bs_ca__other_current_assets on four separate pages. 综合.{0,8}表 above is
+    # 综合 and does not reach 合并; the mainland titles are spelled out. Still gated on every
+    # value being a date fragment, so 资产负债表日后事项 with real figures keeps them.
+    r"项目\s*附注|項目\s*附註|期末余额|期初余额|本期金额|上期金额|"
+    r"资产负债表|資產負債表|利润表|利潤表|所有者权益变动表|股东权益变动表",
     re.IGNORECASE)
 
 

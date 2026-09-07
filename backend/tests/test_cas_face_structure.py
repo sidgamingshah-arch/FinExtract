@@ -140,3 +140,27 @@ def test_a_note_table_total_is_left_to_the_note_reader():
 
     assert {i.source_label: i.role for i in items} == {"押金、保证金": LineRole.LINE,
                                                        "合计": LineRole.LINE}
+
+
+# ── the statement's own chrome ─────────────────────────────────────────────────────────────────
+
+def test_a_mainland_statements_title_and_column_header_are_not_line_items():
+    """Both land on a figure's baseline, so both were published as line items whose amount was a
+    year — 合并资产负债表 carrying 2024 and 项目 附注 carrying 2024 and 2023, on each of the four
+    balance-sheet pages, swept into bs_ca__other_current_assets."""
+    items = _rows(
+        ("合并资产负债表", "2024", None),
+        ("项目附注", "2024", "2023"),
+        ("货币资金", "6,843,296,852.61", "5,743,574,648.73"),
+        statement="balance_sheet")
+
+    assert [i.source_label for i in items] == ["货币资金"]
+
+
+def test_a_caption_that_merely_names_the_statement_keeps_its_figures():
+    """The refusal is gated on every value being a date fragment, so a real note caption that
+    opens with the statement's name is untouched."""
+    items = _rows(("资产负债表日后事项", "1,234.50", "900.00"), statement="balance_sheet")
+
+    assert [(i.source_label, str(next(iter(i.values.values())).value)) for i in items] \
+        == [("资产负债表日后事项", "1234.50")]
