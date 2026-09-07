@@ -32,7 +32,7 @@ def test_normalize_label():
 
 # --- what normalisation drops before the exact tier sees a caption -------------------------------
 #
-# Three things are stripped ahead of the punctuation fold, each because the fold turns the printed
+# Four things are stripped ahead of the punctuation fold, each because the fold turns the printed
 # decoration into a SPACE and leaves what was inside it behind as a WORD — so the caption gains a
 # token no alias carries and the exact tier misses a concept the rulebook already names. They are
 # on the hot path of the entire mapper, which is the reason each has its own case here: the risk
@@ -67,6 +67,33 @@ def test_normalize_label():
     ("Deferred tax credited for the year (32)", "deferred tax credited for the year"),
     # ...and the sub-item letters that DO distinguish captions, which are not numbers.
     ("Pledged deposits (a)", "pledged deposits a"),
+    # A MAINLAND STATEMENT'S OWN LINE NUMBERING, and the 其中：/加：/减： markers it uses for a
+    # component of the line above. The CAS face format numbers its statement-level lines; the
+    # number names the line's POSITION, never the concept. Left in place the punctuation fold
+    # turns 一、营业总收入 into "一 营业总收入" and no alias in any rulebook carries that token —
+    # measured against the 57 face captions CAS prescribes, 45 resolved bare and 0 resolved
+    # prefixed.
+    ("一、营业总收入", "营业总收入"),
+    ("二、营业总成本", "营业总成本"),
+    ("三、营业利润", "营业利润"),
+    ("十一、其他综合收益", "其他综合收益"),
+    ("其中：营业收入", "营业收入"),
+    ("加：营业外收入", "营业外收入"),
+    ("减：库存股", "库存股"),
+    ("（一）应收账款", "应收账款"),
+    ("1、营业收入", "营业收入"),
+    # Traditional script reaches the same rule, because the fold to Simplified runs first.
+    ("減：預期信用損失準備", "预期信用损失准备"),
+    # A NOTE REFERENCE IS PRINTED IN THE SAME SHAPE AS AN ENUMERATOR — 七、61, 七、70 — and one
+    # arrives as a row's entire label when the caption beside it is lost. Stripping there would
+    # leave a bare number to be matched against the rulebook, promoting an unmatchable label to a
+    # plausibly matchable one. It must stay unmatchable, so the digit lookahead refuses it.
+    ("七、70", "七 70"),
+    ("七、61", "七 61"),
+    # 减 inside a word is not a 减： marker, and this is the caption that would be gutted if the
+    # colon were optional: 资产减值损失 is a concept in its own right.
+    ("资产减值损失", "资产减值损失"),
+    ("信用减值损失", "信用减值损失"),
 ])
 def test_a_printed_decoration_is_dropped_but_a_meaning_is_not(printed, expected):
     assert normalize_label(printed) == expected

@@ -224,6 +224,38 @@ _BRACKETED_NUMBER = re.compile(r"[(（]\s*\d{1,4}\s*[)）]")
 _TRAILING_NUMERIC_NOTE = re.compile(r"\b\d{1,3}\s*[(（][a-z0-9]{1,3}[)）]\s*$",
                                     re.IGNORECASE)
 
+# THE CAS FACE FORMAT NUMBERS ITS OWN LINES, and the number is not part of the concept's name:
+# 一、营业总收入, 二、营业总成本, 三、营业利润 … and a component beneath one of those is marked
+# 其中：/加：/减： instead. `row_reconstruct._CAS_STATEMENT_LINE` reads that same enumeration as
+# structural evidence that a line is a statement-level total, which is what it is for there. Here
+# it is noise: it stands between the printed caption and the alias that names it.
+#
+# MEASURED, because the size of this was not obvious: against the 57 face captions CAS prescribes,
+# the rulebook resolved 45 when they were fed bare and 0 — not fewer, ZERO — when each was fed
+# with the prefix a mainland filing actually prints. Punctuation stripping below does not rescue
+# it: it turns 一、营业总收入 into "一 营业总收入", which is not "营业总收入".
+#
+# SAFE BECAUSE IT IS SYMMETRIC. `normalize_label` is applied to every alias as well as every
+# caption (see `OntologyMatcher.__init__`), so an alias that itself carries a marker — the
+# rulebook ships 减：预期信用损失准备 — is stripped identically and still matches. The only way
+# this can lose a mapping is by COLLISION, two distinct aliases on different concepts folding
+# to one string, which is counted in the ambiguity check rather than assumed absent.
+#
+# THE DIGIT LOOKAHEAD IS LOAD-BEARING, for the reason `_CAS_STATEMENT_LINE` documents: the same
+# pages print NOTE REFERENCES in the very same shape — 七、61, 七、70 — and one of those arrives
+# as a row's entire label when the caption beside it is lost. Stripping there would leave a bare
+# "70" to be matched against the rulebook, turning an unmatchable label into a plausibly
+# matchable one. A note reference must stay unmatchable.
+_CAS_LINE_PREFIX = re.compile(
+    r"^\s*(?:"
+    r"[一二三四五六七八九十]+\s*[、.]\s*(?![0-9０-９])"   # 一、营业总收入 — but never 七、70
+    r"|\d{1,2}\s*、\s*(?![0-9０-９])"                    # 1、营业收入, the Arabic-numeral variant
+    r"|[（(]\s*[一二三四五六七八九十]{1,3}\s*[）)]"        # （一）应收账款 sub-enumerator
+    r"|其\s*中\s*[：:]"                                  # 其中：营业收入
+    r"|[加减]\s*[：:]"                                   # 加：营业外收入 / 减：库存股
+    r")\s*"
+)
+
 
 def normalize_label(text: str) -> str:
     """Lowercase, strip accents/punctuation, collapse whitespace (locale-agnostic).
@@ -233,13 +265,22 @@ def normalize_label(text: str) -> str:
     in the other script would otherwise never match.
 
     A quoted abbreviation gloss is dropped first — see ``_ABBREV_GLOSS`` for why the punctuation
-    stripping below does not already do it.
+    stripping below does not already do it. A mainland statement's own line numbering and its
+    其中：/加：/减： component markers are dropped too — see ``_CAS_LINE_PREFIX``.
     """
     text = _ABBREV_GLOSS.sub(" ", text)
     text = _NOTE_CITATION.sub(" ", text)
     text = _TRAILING_NUMERIC_NOTE.sub(" ", text)
     text = _BRACKETED_NUMBER.sub(" ", text)
     text = to_simplified(text)
+    # Folded to Simplified first so 減：/其中： in a Traditional filing reach the same rule, and
+    # looped because a continuation line can carry both an enumerator and a marker. Bounded, so a
+    # pathological caption of nothing but markers cannot spin.
+    for _ in range(3):
+        stripped = _CAS_LINE_PREFIX.sub("", text, count=1)
+        if stripped == text:
+            break
+        text = stripped
     text = unicodedata.normalize("NFKD", text)
     text = "".join(c for c in text if not unicodedata.combining(c))
     text = text.lower()
