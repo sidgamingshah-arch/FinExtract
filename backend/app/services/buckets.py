@@ -51,7 +51,12 @@ import re
 from app.core.models.buckets import BucketedSource, BucketSegment
 from app.core.models.document import DocumentModel
 from app.core.models.enums import PageKind, PrintedIn
-from app.services.mapping import HEADING_ROW_SECTIONS, section_of_banner, section_of_key
+from app.services.mapping import (
+    HEADING_ROW_SECTIONS,
+    normalize_statement,
+    section_of_banner,
+    section_of_key,
+)
 
 # In the reviewer's own order — this is a presentation vocabulary, and the order is the one an
 # analyst reads a filing in, not alphabetical.
@@ -188,8 +193,19 @@ def _bucket_of_token(token: str) -> str | None:
 # Profit-and-loss and cash flow used to be here, each a whole-statement bucket. They are not any
 # more: the requested taxonomy splits them by section (income / expenses / interest / non-operating,
 # and the three activities), and a statement cannot answer a question its own sections disagree on.
+#
+# ONE STATEMENT, TWO SPELLINGS, and this table was keyed on the one the CALLER never uses. The page
+# classifier — and therefore ``_statement_by_page``, and therefore every face row reaching
+# ``bucket_of`` — says "changes_in_equity"; ``StatementType``, which a rulebook's ``statement``
+# field validates against, spells the same statement "equity_changes". So the lookup below never
+# hit for a face row and the changes-in-equity bucket held nothing: on 澜起科技 688008 the
+# "Equity & reserves" segment carried 61 rows of which 15 were balance-sheet equity, the other 46
+# being the movements this bucket exists to separate from them. Both spellings are folded through
+# ``normalize_statement`` before the lookup, the same way ``mapping`` folds them before the
+# statement gate and for the same reason: a table the caller's value cannot be compared to is a
+# table that buckets nothing.
 _STATEMENT_BUCKETS: dict[str, str] = {
-    "equity_changes": "changes_in_equity",
+    "changes_in_equity": "changes_in_equity",
 }
 
 # ``bs_s2_current_assets`` -> ``current_assets``; ``bs_top_level`` -> ``top_level``.
@@ -241,7 +257,7 @@ def bucket_of(section: str | None, statement: str | None,
         return OTHERS, "unknown_declared_bucket"
     # A section id carries its own statement, so the answer does not depend on the caller having a
     # page to read: a note's rows are placed from their sections alone.
-    statement = statement or statement_of_section(section)
+    statement = normalize_statement(statement or statement_of_section(section)) or None
     if statement in _STATEMENT_BUCKETS:
         return _STATEMENT_BUCKETS[statement], "statement"
     token = section_token(section or "")
@@ -338,7 +354,7 @@ def segment_source(doc: DocumentModel, ontology=None) -> BucketedSource:
                 seg.face_pages.append(p)
         if is_unclassified_face_key(li.canonical_key):
             out.unresolved_face_item_ids.append(str(li.id))
-        elif reason == "unresolved" and statement == "equity_changes":
+        elif reason == "unresolved" and normalize_statement(statement) == "changes_in_equity":
             # Only changes-in-equity is allowed to stay unresolved at section granularity.
             out.unresolved_face_item_ids.append(str(li.id))
         elif reason == "unknown_section" and section:

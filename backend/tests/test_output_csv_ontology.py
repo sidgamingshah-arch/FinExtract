@@ -323,6 +323,53 @@ def test_critical_face_captions_have_their_correct_owner():
 # test_secur_fincl_assets.py instead.
 
 
+def test_a_statement_level_total_reaches_its_concept_whatever_banner_it_is_printed_under():
+    """A MAINLAND BALANCE SHEET PRINTS ITS STATEMENT TOTALS INSIDE ANOTHER SECTION.
+
+    资产总计 comes after the non-current block, 负债合计 after the non-current liabilities, and
+    负债和所有者权益总计 at the very end of the equity block — so the banner in force where each is
+    printed is NEVER the section its compact key namespaces it into (bs_ca__, bs_cl__). The section
+    gate therefore refused all three, and on 澜起科技 688008 that had a consequence worse than a
+    missing row: 资产总计 was refused on the consolidated sheet and accepted four pages later on the
+    parent company's — whose section happened to carry over as current assets — so Total Assets
+    published 7,388,035,311.08, the PARENT's balance, as the group's, and Total Liabilities published
+    nothing at all.
+
+    Scoping them to ``bs_top_level`` is how this schema says "no banner constrains this concept"
+    (see ``OntologyMatcher._scope_tokens``), and it is a statement of intent in the rulebook rather
+    than a special case in the reader.
+    """
+    matcher = OntologyMatcher(_ontology(), llm_provider=None)
+    printed_under = {
+        ("资产总计", "非流动资产："): "bs_ca__total_assets",
+        ("负债合计", "非流动负债："): "bs_cl__total_liabilities",
+        ("负债和所有者权益总计", "所有者权益（或股东权益）："): "bs_cl__total_equity_and_liabilities",
+        # …and the section totals, which ARE printed in the section they belong to, still resolve
+        # there: the change must not have loosened the gate for the concepts it correctly scopes.
+        ("流动资产合计", "流动资产："): "bs_ca__total_current_assets",
+        ("非流动资产合计", "非流动资产："): "bs_nca__total_non_current_assets",
+        ("所有者权益（或股东权益）合计", "所有者权益（或股东权益）："):
+            "bs_equity__total_equity_and_reserves",
+    }
+
+    actual = {(label, section): matcher.match(label, statement="balance_sheet",
+                                              section=section).canonical_key
+              for label, section in printed_under}
+
+    assert actual == printed_under
+
+
+def test_only_the_statement_level_totals_are_scoped_above_their_section():
+    """The exemption is three concepts wide, and naming them here is what keeps it that way: a
+    concept scoped to no section is claimable under every banner on its statement, which is exactly
+    the confident wrong answer the gate exists to prevent."""
+    unconstrained = sorted(m.canonical_key for m in _ontology().mappings
+                           if m.section_scope == ["bs_top_level"])
+
+    assert unconstrained == ["bs_ca__total_assets", "bs_cl__total_equity_and_liabilities",
+                             "bs_cl__total_liabilities"]
+
+
 def test_each_supported_output_subsection_has_exactly_one_residual():
     ontology = _ontology()
     residuals = [mapping for mapping in ontology.mappings
@@ -464,6 +511,120 @@ def test_no_alias_steals_another_concepts_exact_label_within_a_statement():
                 shadows.append((mapping.canonical_key, alias, sorted(owners)))
 
     assert shadows == []
+
+
+def test_no_alias_is_a_fragment_of_the_workbook_that_authored_it():
+    """AN ALIAS IS A CAPTION A FILING PRINTS, and the rulebook was imported from a spreadsheet whose
+    cells also hold the extraction INSTRUCTIONS. Six of those came across as aliases —
+
+        "] in the whole Balance Sheet and all Notes (except for notes"
+        ")\nFind 2: Sum of items named in 1 included in Note"
+        ") include in"                    (on three separate payables/receivables concepts)
+
+    — and an alias like that cannot match anything on purpose; it can only match by accident, at
+    the priority its concept carries. An unbalanced bracket, or a newline, is what they have in
+    common and no printed caption does: every legitimate parenthetical alias in this rulebook —
+    "(Payments for) Purchase of property, plant and equipment" and its two dozen siblings — closes
+    what it opens.
+    """
+    offenders = [
+        (mapping.canonical_key, alias)
+        for mapping in _ontology().mappings
+        for alias in dict.fromkeys(list(mapping.aliases)
+                                   + [a for al in mapping.aliases_i18n.values() for a in al])
+        if "\n" in alias or _bracket_depth_ever_negative(alias) or _brackets_left_open(alias)
+        or _WORKBOOK_INSTRUCTION.search(alias)
+    ]
+
+    assert offenders == []
+
+
+# …and the workbook's own words, which no printed caption uses. "1st priority" / "2nd priority"
+# ordered the instructions the spreadsheet gave a human extractor; ``Find 1:`` / ``Find 2:`` named
+# their steps. Two of these survived the bracket test above by being balanced prose.
+_WORKBOOK_INSTRUCTION = re.compile(r"\b(?:1st|2nd|3rd)\s+priority\b|\bFind\s+\d\s*:|"
+                                   r"\bSum of items named\b", re.IGNORECASE)
+
+
+def _bracket_depth_ever_negative(text: str) -> bool:
+    depth = 0
+    for ch in text:
+        if ch in "(（[［":
+            depth += 1
+        elif ch in ")）]］":
+            depth -= 1
+            if depth < 0:
+                return True
+    return False
+
+
+def _brackets_left_open(text: str) -> bool:
+    depth = 0
+    for ch in text:
+        if ch in "(（[［":
+            depth += 1
+        elif ch in ")）]］":
+            depth = max(0, depth - 1)
+    return depth > 0
+
+
+def test_no_caption_of_an_asset_is_also_a_caption_of_an_overdraft():
+    """An overdraft is the LIABILITY that cash is netted against, and it carried "Cash" and
+    "Bank deposits" as aliases at match_priority 81 against bs_ca__cash_in_hand_and_at_banks at 79.
+    A balance sheet whose caption is just "Cash" therefore resolved to overdrafts wherever no
+    current-asset banner was in force to stop it — a condensed statement, a note table, a
+    spreadsheet upload.
+
+    Named narrowly rather than as a blanket asset/liability invariant, because the balance sheet
+    really does print one caption on both sides: a derivative, an option, a swap and an entrusted
+    loan are an asset or a liability according to their fair value, and the section banner is the
+    only thing that tells those apart — which is what the section gate is for.
+    """
+    matcher = OntologyMatcher(_ontology(), llm_provider=None)
+
+    unbannered = {label: matcher.match(label, statement="balance_sheet").canonical_key
+                  for label in ("Cash", "Bank deposits", "Cash and cash equivalents")}
+
+    assert unbannered == {"Cash": "bs_ca__cash_in_hand_and_at_banks",
+                          "Bank deposits": "bs_ca__cash_in_hand_and_at_banks",
+                          "Cash and cash equivalents": "bs_ca__cash_in_hand_and_at_banks"}
+
+
+def test_a_carve_out_never_carries_the_caption_of_the_line_it_is_carved_out_of():
+    """THE WEALTH-MANAGEMENT CARVE-OUTS TOOK THEIR PARENTS' CAPTIONS, at a higher priority than the
+    parents. Each *_from_* concept is a carve-out OUT of a printed line — its own derivation says
+    "run the extraction logic of [the parent] first" — so it is computed, never claimed by the
+    parent's caption. Measured on the shipped rulebook before this was corrected:
+
+        "Cash and cash equivalents" -> bs_ca__wealth_management_products_cp_from_cash_equ   (81)
+        "Cash"                      -> the same                                            (79 lost)
+        银行结余及现金 / 现金及现金等价物  -> the same
+        "Trade and other receivables", 其他应收款项 -> ..._cp_from_receivables
+        其他非流动金融资产 / 衍生金融工具   -> ..._ltp_from_secur_and_fincl
+
+    which is the most common caption on any balance sheet, in either language, resolving to a
+    wealth-management product — and it reached the English/HKEX path exactly as it reached the
+    mainland one. What the concepts keep is what they ARE: "Wealth management products",
+    "Bank wealth management products", and 理财产品 / 银行理财产品, which the rulebook did not have
+    at all and which 002273, 002004 and 688008 all print.
+    """
+    parents = {
+        "cash_equ": ("Cash and cash equivalents", "bs_ca__cash_in_hand_and_at_banks"),
+        "receivables": ("Trade and other receivables", "bs_ca__trade_and_other_receivables"),
+        "secur_and_fincl": ("交易性金融资产", "bs_ca__secur_and_other_fincl_assets_cp"),
+    }
+    matcher = OntologyMatcher(_ontology(), llm_provider=None)
+
+    reached = {name: matcher.match(caption, statement="balance_sheet",
+                                   section="current assets").canonical_key
+               for name, (caption, _want) in parents.items()}
+    carve_outs = {name: matcher.match(caption, statement="balance_sheet",
+                                      section="current assets").canonical_key
+                  for name, caption in (("wmp", "Wealth management products"),
+                                        ("zh", "理财产品"))}
+
+    assert reached == {name: want for name, (_c, want) in parents.items()}
+    assert set(carve_outs.values()) == {"bs_ca__wealth_management_products_cp_from_secur_and_fincl"}
 
 
 def test_each_mapping_has_unique_normalized_aliases():

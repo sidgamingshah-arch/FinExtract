@@ -90,6 +90,7 @@ from app.services.mapping import (
     section_of_key,
     section_token_of_scope,
 )
+from app.services.row_reconstruct import opens_a_bracket_it_never_closes
 from app.services.rollups import reconcile_section, section_members
 
 # How a residual assignment is recorded on the line, so the review queue and the statement
@@ -248,6 +249,12 @@ _EXCLUSIONS: tuple[tuple[str, object], ...] = (
     (_PER_SHARE_PHRASE, lambda row: bool(_PER_SHARE.search(_label(row)))),
     ("narrative row", lambda row: _is_narrative(_label(row))),
     ("note-reference-only row", lambda row: bool(_NOTE_REF_ONLY.match(_label(row)))),
+    # A CAPTION THAT NAMES NOTHING, because the rest of it is printed where the reader could not
+    # reach it. A mainland balance sheet's balancing total is the last line of its page and wraps:
+    # 688008 prints 负债和所有者权益（或 with its figures and 股东权益）总计 as the first text of the
+    # NEXT page. Swept, that put 12,218,911,386.38 into the current-assets residual — the whole
+    # balance sheet inside a bucket meant for what is left over from one section of it.
+    ("truncated caption", lambda row: opens_a_bracket_it_never_closes(_label(row))),
 )
 
 # Entry 5 of the framework's eligibility list, which needs the TARGET section and so cannot be a

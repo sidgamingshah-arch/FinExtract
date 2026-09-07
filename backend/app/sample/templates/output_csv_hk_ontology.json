@@ -151,7 +151,7 @@
       "eligibility": [
         "The row printed a value for the selected entity_scope, period, currency and unit.",
         "No dedicated concept whose section_scope contains this section claimed the row.",
-        "The row is not a section subtotal, statement total, section header, attribution caption, per-share figure, narrative row or note-reference-only row.",
+        "The row is not a section subtotal, statement total, section header, attribution caption, per-share figure, narrative row, note-reference-only row or truncated caption.",
         "The row was printed INSIDE this section. A row printed in any other section is ineligible however similar its wording — there is no cross-section rescue.",
         "The row's sign agrees with the section's sign_convention, where the section states one. A row signed against its section is evidence the SECTION is wrong, not the amount, so it goes to review rather than into the bucket — a cost swept into income moves the income subtotal and every total below it."
       ],
@@ -2041,9 +2041,7 @@
       "aliases": [
         "Due from S'holder(LTP)",
         "Due from Shareholders/ holding companies/ ultimate holding company/intermediate holding company/Parent company",
-        "Shareholders/ holding companies/ ultimate holding company/ intermediate holding company/Parent company's current account",
-        "] in the whole Balance Sheet and all Notes (except for notes",
-        ")\nFind 2: Sum of items named in 1 included in Note"
+        "Shareholders/ holding companies/ ultimate holding company/ intermediate holding company/Parent company's current account"
       ],
       "keyword_hints": [
         "Due from S'holder(LTP)"
@@ -2074,9 +2072,7 @@
         "en": [
           "Due from S'holder(LTP)",
           "Due from Shareholders/ holding companies/ ultimate holding company/intermediate holding company/Parent company",
-          "Shareholders/ holding companies/ ultimate holding company/ intermediate holding company/Parent company's current account",
-          "] in the whole Balance Sheet and all Notes (except for notes",
-          ")\nFind 2: Sum of items named in 1 included in Note"
+          "Shareholders/ holding companies/ ultimate holding company/ intermediate holding company/Parent company's current account"
         ]
       }
     },
@@ -2121,11 +2117,8 @@
           "Bank wealth management products"
         ],
         "zh": [
-          "以公允价值计量且其变动计入损益的金融资产",
-          "以摊余成本计量的金融资产",
-          "其他金融资产",
-          "其他非流动金融资产",
-          "衍生金融工具"
+          "理财产品",
+          "银行理财产品"
         ]
       }
     },
@@ -2535,9 +2528,7 @@
       "aliases": [
         "Wealth management products(LTP) (from OtherAsset)",
         "Wealth management products",
-        "Bank wealth management products",
-        "Other Non-Current Asset",
-        "Other Asset"
+        "Bank wealth management products"
       ],
       "keyword_hints": [
         "Wealth management products(LTP) (from OtherAsset)"
@@ -2568,9 +2559,11 @@
         "en": [
           "Wealth management products(LTP) (from OtherAsset)",
           "Wealth management products",
-          "Bank wealth management products",
-          "Other Non-Current Asset",
-          "Other Asset"
+          "Bank wealth management products"
+        ],
+        "zh": [
+          "理财产品",
+          "银行理财产品"
         ]
       }
     },
@@ -2871,8 +2864,7 @@
       "aliases": [
         "Wealth management products(LTP) (from Receivables)",
         "Wealth management products",
-        "Bank wealth management products",
-        "Other Receivables"
+        "Bank wealth management products"
       ],
       "keyword_hints": [
         "Wealth management products(LTP) (from Receivables)"
@@ -2903,18 +2895,11 @@
         "en": [
           "Wealth management products(LTP) (from Receivables)",
           "Wealth management products",
-          "Bank wealth management products",
-          "Other Receivables"
+          "Bank wealth management products"
         ],
         "zh": [
-          "其他应收款项",
-          "按金、预付款项及其他应收款",
-          "按金及预付款项",
-          "贸易及其他应收款",
-          "贸易应收款、预付款项及其他应收款",
-          "预付款项、其他应收款及其他资产",
-          "预付款项、按金及其他应收款项",
-          "预付款项及其他应收款项"
+          "理财产品",
+          "银行理财产品"
         ]
       }
     },
@@ -3743,11 +3728,8 @@
           "Bank wealth management products"
         ],
         "zh": [
-          "以公允价值计量且其变动计入损益的金融资产",
-          "以摊余成本计量的金融资产",
-          "其他金融资产",
-          "其他非流动金融资产",
-          "衍生金融工具"
+          "理财产品",
+          "银行理财产品"
         ]
       }
     },
@@ -4492,9 +4474,7 @@
       "aliases": [
         "Wealth management products(CP) (from OtherAsset)",
         "Wealth management products",
-        "Bank wealth management products",
-        "Other Current Asset",
-        "Other Asset"
+        "Bank wealth management products"
       ],
       "keyword_hints": [
         "Wealth management products(CP) (from OtherAsset)"
@@ -4525,9 +4505,11 @@
         "en": [
           "Wealth management products(CP) (from OtherAsset)",
           "Wealth management products",
-          "Bank wealth management products",
-          "Other Current Asset",
-          "Other Asset"
+          "Bank wealth management products"
+        ],
+        "zh": [
+          "理财产品",
+          "银行理财产品"
         ]
       }
     },
@@ -4772,8 +4754,7 @@
         "Trade and other receivables",
         "Trade receivables",
         "Accounts and other receivables",
-        "Trade and other receivables from related parties",
-        ") include in"
+        "Trade and other receivables from related parties"
       ],
       "keyword_hints": [
         "Trade and other receivables"
@@ -4805,8 +4786,7 @@
           "Trade and other receivables",
           "Trade receivables",
           "Accounts and other receivables",
-          "Trade and other receivables from related parties",
-          ") include in"
+          "Trade and other receivables from related parties"
         ],
         "zh": [
           "其他应收款项",
@@ -5052,8 +5032,7 @@
       "aliases": [
         "Wealth management products(CP) (from Receivables)",
         "Wealth management products",
-        "Bank wealth management products",
-        "Other Receivables"
+        "Bank wealth management products"
       ],
       "keyword_hints": [
         "Wealth management products(CP) (from Receivables)"
@@ -5084,18 +5063,11 @@
         "en": [
           "Wealth management products(CP) (from Receivables)",
           "Wealth management products",
-          "Bank wealth management products",
-          "Other Receivables"
+          "Bank wealth management products"
         ],
         "zh": [
-          "其他应收款项",
-          "按金、预付款项及其他应收款",
-          "按金及预付款项",
-          "贸易及其他应收款",
-          "贸易应收款、预付款项及其他应收款",
-          "预付款项、其他应收款及其他资产",
-          "预付款项、按金及其他应收款项",
-          "预付款项及其他应收款项"
+          "理财产品",
+          "银行理财产品"
         ]
       }
     },
@@ -5236,9 +5208,7 @@
       "aliases": [
         "Wealth management products(CP) (from cash equ.)",
         "Wealth management products",
-        "Bank wealth management products",
-        "Cash and Cash Equivalents",
-        "Cash"
+        "Bank wealth management products"
       ],
       "keyword_hints": [
         "Wealth management products(CP) (from cash equ.)"
@@ -5269,15 +5239,11 @@
         "en": [
           "Wealth management products(CP) (from cash equ.)",
           "Wealth management products",
-          "Bank wealth management products",
-          "Cash and Cash Equivalents",
-          "Cash"
+          "Bank wealth management products"
         ],
         "zh": [
-          "现金及现金等价物",
-          "现金及银行结余",
-          "银行存款及现金",
-          "银行结余及现金"
+          "理财产品",
+          "银行理财产品"
         ]
       }
     },
@@ -5490,7 +5456,10 @@
           "资产总计",
           "资产总额"
         ]
-      }
+      },
+      "section_scope": [
+        "bs_top_level"
+      ]
     },
     {
       "canonical_key": "bs_equity__common_share_capital",
@@ -6141,8 +6110,7 @@
       "label": "Subordinated Debt from related parties",
       "definition": "Extract the reported value for 'Subordinated Debt from related parties' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
       "aliases": [
-        "Subordinated Debt from related parties",
-        "in notes"
+        "Subordinated Debt from related parties"
       ],
       "keyword_hints": [
         "Subordinated Debt from related parties"
@@ -6171,8 +6139,7 @@
       "template_note": "Exact field from Balance Sheet!A121; value cell B121.",
       "aliases_i18n": {
         "en": [
-          "Subordinated Debt from related parties",
-          "in notes"
+          "Subordinated Debt from related parties"
         ]
       }
     },
@@ -8793,9 +8760,7 @@
       "definition": "Extract the reported value for 'Overdrafts' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
       "aliases": [
         "Overdrafts",
-        "Bank overdrafts",
-        "Cash",
-        "Bank deposits"
+        "Bank overdrafts"
       ],
       "keyword_hints": [
         "Overdrafts"
@@ -8825,9 +8790,7 @@
       "aliases_i18n": {
         "en": [
           "Overdrafts",
-          "Bank overdrafts",
-          "Cash",
-          "Bank deposits"
+          "Bank overdrafts"
         ]
       }
     },
@@ -10139,8 +10102,7 @@
         "principal activity/business/engagement",
         "Trade and other payables",
         "Trade payables",
-        "Trade and other payables to related parties",
-        ") include in"
+        "Trade and other payables to related parties"
       ],
       "keyword_hints": [
         "Trade and other payables(CP)"
@@ -10173,8 +10135,7 @@
           "principal activity/business/engagement",
           "Trade and other payables",
           "Trade payables",
-          "Trade and other payables to related parties",
-          ") include in"
+          "Trade and other payables to related parties"
         ],
         "zh": [
           "其他应付款及应计费用",
@@ -10203,8 +10164,7 @@
         "creditors and accruals",
         "Trade payables",
         "Account payables",
-        "Trade payables to related parties",
-        ") include in ("
+        "Trade payables to related parties"
       ],
       "keyword_hints": [
         "Trade Payables(CP)"
@@ -10239,8 +10199,7 @@
           "creditors and accruals",
           "Trade payables",
           "Account payables",
-          "Trade payables to related parties",
-          ") include in ("
+          "Trade payables to related parties"
         ],
         "zh": [
           "应付账款",
@@ -10611,7 +10570,10 @@
         "zh": [
           "负债合计"
         ]
-      }
+      },
+      "section_scope": [
+        "bs_top_level"
+      ]
     },
     {
       "canonical_key": "bs_cl__total_equity_and_liabilities",
@@ -10658,9 +10620,14 @@
           "权益及负债总额",
           "负债及权益总额",
           "负债和所有者权益总计",
-          "负债和股东权益总计"
+          "负债和所有者权益（或股东权益）总计",
+          "负债和股东权益总计",
+          "负债和股东权益（或所有者权益）总计"
         ]
-      }
+      },
+      "section_scope": [
+        "bs_top_level"
+      ]
     },
     {
       "canonical_key": "is_pl__sales_revenues",
@@ -12407,9 +12374,7 @@
         "Impairment of property, plant and equipment",
         "Property, plant and equipments",
         "Impairment of property,plant and equipments",
-        "impairment of",
-        "in notes [(1st priority)",
-        "; (2nd priority)"
+        "impairment of"
       ],
       "keyword_hints": [
         "Impairment(Fixed Assets)(Oper Exp)"
@@ -12443,9 +12408,7 @@
           "Impairment of property, plant and equipment",
           "Property, plant and equipments",
           "Impairment of property,plant and equipments",
-          "impairment of",
-          "in notes [(1st priority)",
-          "; (2nd priority)"
+          "impairment of"
         ]
       }
     },
@@ -19419,7 +19382,9 @@
         "zh": [
           "归属于母公司所有者权益",
           "归属于母公司所有者权益合计",
-          "归属于母公司股东权益合计"
+          "归属于母公司所有者权益（或股东权益）合计",
+          "归属于母公司股东权益合计",
+          "归属于母公司股东权益（或所有者权益）合计"
         ]
       },
       "aliases": [

@@ -139,7 +139,14 @@ def test_the_income_statement_and_the_cash_flow_are_read_section_by_section():
         assert bucket_of(section, None) == ("others", "statement_total")
     # The one statement that still answers for its rows: the movement of a reserve through the year
     # is that statement's content, not the balance sheet's closing position on the same reserve.
+    # The one statement that still answers for its rows — in BOTH of its spellings. The page
+    # classifier (and so every face row) says "changes_in_equity"; `StatementType`, which a
+    # rulebook's `statement` field validates against, says "equity_changes". The table was keyed on
+    # the second alone, so a face row never hit it and this bucket held nothing: on 澜起科技 688008
+    # the "Equity & reserves" segment carried 61 rows of which 15 were balance-sheet equity, the
+    # other 46 being the movements this bucket exists to separate from them.
     assert bucket_of(None, "equity_changes") == ("changes_in_equity", "statement")
+    assert bucket_of(None, "changes_in_equity") == ("changes_in_equity", "statement")
 
 
 def test_a_section_the_taxonomy_does_not_name_is_reported_not_pulled_in_by_a_word():

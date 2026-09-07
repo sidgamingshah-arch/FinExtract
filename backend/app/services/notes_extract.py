@@ -239,10 +239,28 @@ def qualified_note_number(chapter: str | None, number: str | None) -> str | None
     ONE spelling of the identity, called by everything that forms or compares one, so the note
     side and the face side cannot drift apart. An English filing has no chapters and this is the
     identity function for it.
+
+    IDEMPOTENT, and that is not a nicety. A note table that runs over more than one page is carried
+    to the next page as ``carry_note`` (``services.pdf_extract`` passes the last table's
+    ``note_number``, which is already an identity), and this was stamping the chapter on again for
+    every page the note continued over. Measured on 澜起科技 688008 the extractor produced 七、七、1,
+    七、七、七、17, 七、七、七、七、九、9, 五、五、五、11 and 十九、十九、十九、十九、十九、2 — around 80 of
+    the 219 note tables ``stages.prune_notes`` dropped had an identity like that, so they could
+    never match the face citation that was looking for them.
+
+    A number that ALREADY names a chapter keeps the one it has, and the cross-chapter cases in that
+    same measurement say why this is the right answer rather than merely a cheaper one: 十九、十八、8
+    and 八、七、81 are notes that STARTED in one chapter and continued onto a page where the reader
+    had advanced to the next. The chapter a note was printed under is the chapter it belongs to; the
+    page it spills onto does not re-home it.
     """
     if not number:
         return number
-    return f"{chapter}、{number}" if chapter else number
+    if not chapter:
+        return number
+    if split_note_number(number)[0]:
+        return number                      # already an identity — see the docstring
+    return f"{chapter}、{number}"
 
 
 def _is_heading(row: list[Word]) -> tuple[str, str] | None:

@@ -34,7 +34,11 @@ from app.schemas.ontology import Normalisation, ScopeSelection
 from app.services.han import to_simplified
 # The section vocabulary is a property of how statements are PRINTED, not of any ontology, so
 # reading a banner here uses the same function mapping does rather than a second copy of it.
-from app.services.mapping import section_of_banner, section_of_banner_only
+from app.services.mapping import (
+    normalize_label,
+    section_of_banner,
+    section_of_banner_only,
+)
 
 # The five sections a balance sheet prints, and the whole of them. Used to refuse a data-less row
 # that names one of the OTHER statements' sections as this statement's banner.
@@ -854,6 +858,49 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             out.append(pending + row if pending else row)   # chrome: never a caption's head
             pending = []
             continue
+        # A TAIL FOLDS THE OTHER WAY. Everything below folds a label-only line FORWARD into the
+        # valued row beneath it, which is the shape of a caption whose figures are printed beside
+        # its LAST line. The mainland equity block is the other shape — the figures are beside the
+        # FIRST line and the caption's remainder is printed under them:
+        #
+        #     归属于母公司所有者权益        11,403,438,067.08   10,191,406,155.95
+        #     （或股东权益）合计
+        #     少数股东权益                  -6,932,502.17        15,213,296.92
+        #     所有者权益（或股东权          11,396,505,564.91   10,206,619,452.87
+        #     益）合计
+        #
+        # Folded forward, the tail of one caption was glued onto the head of the next and the
+        # mapper was handed "（或股东权益）合计少数股东权益" holding the minority interest, while the
+        # parent's equity total kept the truncated 归属于母公司所有者权益 and matched nothing. Both
+        # shapes have IDENTICAL geometry, so a tail is recognised on its own words and never on
+        # spacing — see :func:`_looks_like_wrapped_tail`.
+        tail = bool(label_words) and note_ref is None and _looks_like_wrapped_tail(
+            apply_pipeline(_join_words(label_words), steps))
+        if tail and pending and _wrap_adjacent(_row_box(pending), _row_box(row), label_words):
+            # The head is still in `pending`, waiting for figures that are printed further down.
+            # Completing the caption HERE is what lets the known-caption veto below see it whole:
+            # 所有者权益（或股东权 alone is no caption anyone recognises, so it folded forward onto
+            # the next line item and took 益）合计 with it — "所有者权益（或股东权益）合计实收资本
+            # （或股本）", one row where the filing printed two.
+            pending = pending + row
+            if _is_known_caption(pending, steps, known):
+                out.append(pending)
+                pending = []
+            continue
+        if tail and not pending and out:
+            prev_labels, _prev_note, prev_values = _scan_row(out[-1], fmt)
+            if (prev_values and prev_labels
+                    and _wrap_adjacent(_row_box(out[-1]), _row_box(row), label_words)):
+                # SPLICED IN AFTER THE PREVIOUS LABEL, not appended to the row. ``_scan_row`` reads
+                # a row in LIST order and stops treating words as label once the value columns
+                # begin, so a tail appended at the end lands past them and is silently dropped —
+                # which is what happened to （或股东权益）合计 and 益）合计 the first time this was
+                # written: the glue was gone and so was the caption's other half.
+                consumed = {id(w) for w in prev_labels}
+                rest = [w for w in out[-1] if id(w) not in consumed]
+                out[-1] = prev_labels + label_words + rest
+                continue
+
         # Label-only (or note-only) line: candidate wrapped-label continuation.
         nxt = rows[idx + 1] if idx + 1 < len(rows) else None
         is_wrap = (
@@ -905,7 +952,12 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
 # 澜起科技 688008 (STAR/上交所) and 河钢股份 000709 (深交所). Header words and fragments the same
 # scan turned up — 项目, 小计, 准备, 列）, 单位：元 — are deliberately absent: each is a piece of a
 # caption or a column header, and admitting one would stop a legitimate wrap from merging.
-_CAS_FACE_CAPTIONS: frozenset[str] = frozenset({
+# NORMALISED AT CONSTRUCTION, because the comparison in `_is_known_caption` is against text that
+# has been through `normalize_label` — which folds case, Traditional-to-Simplified AND punctuation.
+# Written raw and compared raw, every entry carrying a bracket was dead on arrival: the STAR Market
+# form of the equity captions is 所有者权益（或股东权益）合计, which normalises to
+# "所有者权益 或股东权益 合计" and matched no literal in this set.
+_CAS_FACE_CAPTIONS: frozenset[str] = frozenset(normalize_label(_c) for _c in {
     # 流动资产
     "货币资金", "结算备付金", "拆出资金", "交易性金融资产", "衍生金融资产", "应收票据",
     "应收账款", "应收款项融资", "预付款项", "应收保费", "应收分保账款", "其他应收款",
@@ -936,6 +988,10 @@ _CAS_FACE_CAPTIONS: frozenset[str] = frozenset({
     # the statements' own totals
     "流动资产合计", "非流动资产合计", "资产总计", "流动负债合计", "非流动负债合计",
     "负债合计", "所有者权益合计", "股东权益合计", "负债和所有者权益总计",
+    # …and the STAR Market form of the same captions, which names each of the two owner
+    # vocabularies where the Shenzhen form names one. Printed exactly this way on 688008.
+    "实收资本（或股本）", "所有者权益（或股东权益）合计", "归属于母公司所有者权益（或股东权益）合计",
+    "负债和所有者权益（或股东权益）总计",
     "经营活动产生的现金流量净额", "投资活动产生的现金流量净额", "筹资活动产生的现金流量净额",
     "期末现金及现金等价物余额",
 })
@@ -1268,10 +1324,72 @@ def apply_pipeline(text: str, steps: tuple[tuple[str, object], ...] = (), *,
 # and re-homed its tax line. Nothing in a financial statement opens a section with "and".
 _TAIL_CONTINUATION = re.compile(r"^\s*(and|or|及|与|與|和)\b", re.IGNORECASE)
 
+# A PARENTHETICAL ALTERNATIVE, which always attaches to text before it. The mainland equity block
+# names each of its lines twice — 所有者权益（或股东权益）合计 — and in the narrow caption column of
+# a CSRC balance sheet that wraps, leaving （或股东权益）合计 on a line of its own. It reads as a
+# complete caption and is not one: 或 is "or", and nothing it could be an alternative TO is on the
+# line.
+_PARENTHETICAL_ALTERNATIVE = re.compile(r"^\s*[(（]\s*(或|or)", re.IGNORECASE)
+
+# An enumerator, which opens a caption rather than continuing one: "1)", "a)", "iii)". Excluded
+# from the bracket test below, whose whole subject is a bracket with no opener on the line.
+_ENUMERATOR = re.compile(r"^\s*[0-9a-z]{1,3}[)）]", re.IGNORECASE)
+
+_OPENS = "(（[［【"
+_CLOSES = ")）]］】"
+
+
+def _closes_a_bracket_it_never_opened(caption: str) -> bool:
+    """Whether the caption closes a bracket that was opened on an earlier printed line.
+
+    The structural half of the same defect. A caption too long for its column breaks INSIDE the
+    parenthetical — 所有者权益（或股东权 / 益）合计, 负债和所有者权益（或 / 股东权益）总计 — and the
+    second line then carries a closing bracket with nothing open. That is not something a complete
+    caption does, in any language, so it is evidence independent of the vocabulary.
+    """
+    if _ENUMERATOR.match(caption):
+        return False
+    depth = 0
+    for ch in caption:
+        if ch in _OPENS:
+            depth += 1
+        elif ch in _CLOSES:
+            if depth == 0:
+                return True
+            depth -= 1
+    return False
+
+
+def opens_a_bracket_it_never_closes(caption: str) -> bool:
+    """Whether the caption leaves a bracket open — the head of a caption whose remainder is
+    printed somewhere this reader did not reach.
+
+    The one place that happens after the wrap merge has run is a caption broken across a PAGE: on
+    澜起科技 688008 the consolidated balance sheet's last line is printed
+    负债和所有者权益（或 with its figures, and 股东权益）总计 is the first text on the next page, above
+    that page's own running header. Nothing on either page can put them back together.
+
+    A row captioned with a fragment names no concept, and the consequence of leaving it to the
+    residual sweep is not a missing row: 12,218,911,386.38 — the balance sheet's balancing total —
+    was summed into bs_ca__other_current_assets. Public so ``stages.residual`` can refuse it
+    through the framework's own eligibility list rather than spelling out brackets a second time.
+    """
+    depth = 0
+    for ch in caption:
+        if ch in _OPENS:
+            depth += 1
+        elif ch in _CLOSES:
+            depth = max(0, depth - 1)
+    return depth > 0
+
 
 def _looks_like_wrapped_tail(caption: str) -> bool:
     """Whether a normalised caption is the TAIL of a caption that wrapped, not a line of its own."""
-    return bool(caption) and _TAIL_CONTINUATION.match(caption) is not None
+    if not caption:
+        return False
+    return (_TAIL_CONTINUATION.match(caption) is not None
+            or _PARENTHETICAL_ALTERNATIVE.match(caption) is not None
+            or _closes_a_bracket_it_never_opened(caption))
 
 
 def _is_units_caption(label_words: list[Word]) -> bool:
@@ -2575,6 +2693,25 @@ def _strong_cells(cells: list[Word], fmt=None) -> int:
                or _is_money_like(_cell_text(w.text), fmt))
 
 
+def _widest_valued_row(rows: list[list[Word]], fmt=None) -> int:
+    """The most value-shaped cells any ONE row of the page prints.
+
+    :func:`_detect_matrix` asks a different question — it wants ``_MATRIX_MIN_ROWS`` rows this wide
+    before it will believe in a grid, which is right for ESTABLISHING column geometry out of a
+    page's own figures. This answers the narrower question a CONTINUATION page has to answer: is
+    any row wider than a comparative could print? A comparative's widest row is four figures, two
+    bases by two periods (which
+    ``test_four_column_two_basis_statement_is_not_treated_as_a_matrix`` pins), so
+    ``_MATRIX_MIN_COLS`` cells on a single row already say the page is a matrix.
+    """
+    best = 0
+    for row in rows:
+        cells = _matrix_cells(row, fmt)
+        if cells and _strong_cells(cells, fmt) * 2 >= len(cells):
+            best = max(best, len(cells))
+    return best
+
+
 @dataclass
 class _Matrix:
     rows: list[list[Word]]
@@ -2981,6 +3118,26 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             if log:
                 log(f"extract:page={page_index}:equity_matrix_unnamed_columns"
                     f"={len(matrix.bands)}(skipped)")
+            return [], ordinal_start
+        # NO GRID, AND STILL NOT A COMPARATIVE. `_detect_matrix` needs `_MATRIX_MIN_ROWS` rows
+        # `_MATRIX_MIN_COLS` wide before it will believe in one, and the CONTINUATION page of a
+        # statutory CAS statement of changes in equity does not have them: most movements touch
+        # two components, so only the balance rows are wide. The page is a matrix all the same —
+        # 澜起科技 688008 p160's widest row prints NINE component figures — and falling through
+        # reads those components as PERIODS, which is exactly what `_matrix_items` refuses to do
+        # ("a component is not a period, and labelling it so would feed equity components into
+        # period-over-period arithmetic"). Measured on that filing: 12 rows over two pages, among
+        # them the 2023 consolidated closing 资本公积 of 5,432,387,416.86 stored as the CURRENT
+        # period's figure, whose real 2024 value is 5,625,969,898.50 and is printed on the same
+        # page.
+        #
+        # The width of ONE row decides it, because that is the only evidence a header-less
+        # continuation page carries. A genuinely two-column equity statement — which small
+        # entities do present — prints two amounts per row and still falls through below.
+        if _widest_valued_row(_group_rows(words, _line_tol(words)),
+                              number_format) >= _MATRIX_MIN_COLS:
+            if log:
+                log(f"extract:page={page_index}:equity_matrix_continuation_no_header(skipped)")
             return [], ordinal_start
         if log:
             log(f"extract:page={page_index}:equity_no_matrix_layout(two_column_path)")
