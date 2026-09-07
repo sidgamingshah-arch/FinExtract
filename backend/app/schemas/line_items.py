@@ -53,7 +53,7 @@ anywhere, exactly as it was before the gate existed.
 from __future__ import annotations
 
 import re
-from typing import Literal
+from typing import Callable, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -407,26 +407,60 @@ class LineItemDef(BaseModel):
                 or any(s in SECTION_SIDE for s in self.section_scope))
 
     # ── the gate, as the matcher will ask it ─────────────────────────────────────────────────
-    def claimable_on(self, statement: StatementType | str | None) -> bool:
+    def claimable_on(self, statement: StatementType | str | None,
+                     normalize: Callable[[object], str] | None = None) -> bool:
         """Whether a caption printed on `statement` may be claimed by this line item.
 
         PERMISSIVE WHEN SILENT. `statement=None` on the definition means nothing was said, so
         every statement is allowed; an unknown statement on the caption side is likewise not a
         reason to refuse, because refusing everything the classifier could not name would delete
         rows rather than mis-file them.
+
+        `normalize` folds both sides into ONE spelling and a caller that gates must pass it. One
+        statement has two names in this codebase: the page classifier and every caller say
+        `changes_in_equity`, while `StatementType` — which this field validates against — spells
+        it `equity_changes`. Compared raw, a definition on that statement is refused on every page
+        of it, which is the same failure the `income_statement` token would have caused. Folded
+        through `services.mapping.normalize_statement`, they agree.
         """
         if self.statement is None or statement is None:
             return True
-        want = statement.value if isinstance(statement, StatementType) else str(statement)
-        return self.statement.value == want
+        if normalize is None:
+            want = statement.value if isinstance(statement, StatementType) else str(statement)
+            return self.statement.value == want
+        return normalize(self.statement) == normalize(statement)
 
-    def claimable_under(self, section: str | None) -> bool:
-        """Whether a caption under this section banner may be claimed by this line item."""
-        if not self.section_scope:
-            return True                      # unconstrained, not "no banner allowed"
+    def claimable_under(self, section: str | None,
+                        resolve: Callable[[str], str | None] | None = None) -> bool:
+        """Whether a caption under this section banner may be claimed by this line item.
+
+        `resolve` maps a `section_scope` id to the BANNER TOKEN it names, and passing it is not
+        optional for correctness — it is optional only so a caller with compact ids (the shipped
+        section layer uses `bs_ca`, `is_pl`, `notes`, which name themselves) need not supply one.
+
+        WHY IT EXISTS. Scope ids and banner tokens are authored for different readers. A scope id
+        carries the section's printed position as well as its name (`bs_s4_non_current_liabilities`)
+        while a banner names the section itself, so the two cannot be string-compared. And the
+        `*_top_level` ids name NO section at all: they hold the statement-level totals, which no
+        banner may constrain, because a section hint is the nearest PRECEDING banner and a
+        statement total routinely carries the banner of the last section printed above it.
+
+        Compared literally instead, `bs_ca__total_assets` — scoped `['bs_top_level']` — is refused
+        under every banner in its own statement. Measured: that alone was 130 of the 133
+        disagreements against the incumbent matcher, every one of them a real caption ("total
+        assets", "share capital", 资产总计) resolving today and going unmapped after the port.
+        """
         if not section:
             return True                      # a statement total sits under no banner
-        return section.strip().lower() in {s.strip().lower() for s in self.section_scope}
+        if resolve is None:
+            scopes = {s.strip().lower() for s in self.section_scope}
+        else:
+            scopes = {tok.strip().lower() for s in self.section_scope if (tok := resolve(s))}
+        if not scopes:
+            # Either nothing was declared, or everything declared names no section. Both mean
+            # unconstrained — "nothing was said", never "no banner allowed".
+            return True
+        return section.strip().lower() in scopes
 
     def resolved_side(self, section: str | None) -> Side:
         """The side in force, given the section a caption was actually found under.

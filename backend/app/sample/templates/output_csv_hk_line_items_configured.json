@@ -1,0 +1,1496 @@
+{
+ "schema_version": 1,
+ "line_items_key": "output_csv_hk",
+ "target_template_key": "output_csv_hk_v1",
+ "locale": "en",
+ "supported_locales": [
+  "en"
+ ],
+ "metadata": {
+  "name": "Output CSV (HK) line items",
+  "version": "2",
+  "changes": [
+   "merged the ontology's scoping layer in: statement + section_scope via `inherits`",
+   "children of the two depreciation lines marked `alternatives`, never summed",
+   "COS_P2 restored — the first port dropped a rung the service has",
+   "`exclude` split into `exclude_hints` (regex) and `exclude_criteria` (prose)"
+  ],
+  "breaking_changes": [
+   "the seed is an object, not an array",
+   "`exclude` renamed to `exclude_hints`"
+  ]
+ },
+ "section_defaults": {
+  "bs_nca": {
+   "statement": "balance_sheet",
+   "section_scope": [
+    "bs_nca"
+   ],
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "face_only": true,
+   "note_use": "decomposition_allowed",
+   "sign_convention": "positive_expected",
+   "match_priority": 50,
+   "note_use_rationale": "A cited note may supply dedicated template concepts before the face aggregate, but only when same-subsection detail and residual rows reconcile to the face amount."
+  },
+  "bs_ca": {
+   "statement": "balance_sheet",
+   "section_scope": [
+    "bs_ca"
+   ],
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "face_only": true,
+   "note_use": "decomposition_allowed",
+   "sign_convention": "positive_expected",
+   "match_priority": 50,
+   "note_use_rationale": "A cited note may supply dedicated template concepts before the face aggregate, but only when same-subsection detail and residual rows reconcile to the face amount."
+  },
+  "bs_equity": {
+   "statement": "balance_sheet",
+   "section_scope": [
+    "bs_equity"
+   ],
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "face_only": true,
+   "note_use": "decomposition_allowed",
+   "sign_convention": "either",
+   "match_priority": 50,
+   "note_use_rationale": "A cited note may supply dedicated template concepts before the face aggregate, but only when same-subsection detail and residual rows reconcile to the face amount."
+  },
+  "bs_ncl": {
+   "statement": "balance_sheet",
+   "section_scope": [
+    "bs_ncl"
+   ],
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "face_only": true,
+   "note_use": "decomposition_allowed",
+   "sign_convention": "positive_expected",
+   "match_priority": 50,
+   "note_use_rationale": "A cited note may supply dedicated template concepts before the face aggregate, but only when same-subsection detail and residual rows reconcile to the face amount."
+  },
+  "bs_cl": {
+   "statement": "balance_sheet",
+   "section_scope": [
+    "bs_cl"
+   ],
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "face_only": true,
+   "note_use": "decomposition_allowed",
+   "sign_convention": "positive_expected",
+   "match_priority": 50,
+   "note_use_rationale": "A cited note may supply dedicated template concepts before the face aggregate, but only when same-subsection detail and residual rows reconcile to the face amount."
+  },
+  "is_pl": {
+   "statement": "profit_and_loss",
+   "section_scope": [
+    "is_pl"
+   ],
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "face_only": true,
+   "note_use": "decomposition_allowed",
+   "sign_convention": "either",
+   "match_priority": 50,
+   "note_use_rationale": "A cited note may supply dedicated template concepts before the face aggregate, but only when same-subsection detail and residual rows reconcile to the face amount."
+  },
+  "is_oci": {
+   "statement": "profit_and_loss",
+   "section_scope": [
+    "is_oci"
+   ],
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "face_only": true,
+   "note_use": "decomposition_allowed",
+   "sign_convention": "either",
+   "match_priority": 50,
+   "note_use_rationale": "A cited note may supply dedicated template concepts before the face aggregate, but only when same-subsection detail and residual rows reconcile to the face amount."
+  },
+  "is_retained": {
+   "statement": "profit_and_loss",
+   "section_scope": [
+    "is_retained"
+   ],
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "face_only": true,
+   "note_use": "decomposition_allowed",
+   "sign_convention": "either",
+   "match_priority": 50,
+   "note_use_rationale": "A cited note may supply dedicated template concepts before the face aggregate, but only when same-subsection detail and residual rows reconcile to the face amount."
+  },
+  "cf_oper_indirect": {
+   "statement": "cash_flow",
+   "section_scope": [
+    "cf_oper_indirect"
+   ],
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "face_only": true,
+   "note_use": "decomposition_allowed",
+   "sign_convention": "either",
+   "match_priority": 50,
+   "note_use_rationale": "A cited note may supply dedicated template concepts before the face aggregate, but only when same-subsection detail and residual rows reconcile to the face amount."
+  },
+  "cf_oper_direct": {
+   "statement": "cash_flow",
+   "section_scope": [
+    "cf_oper_direct"
+   ],
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "face_only": true,
+   "note_use": "decomposition_allowed",
+   "sign_convention": "either",
+   "match_priority": 50,
+   "note_use_rationale": "A cited note may supply dedicated template concepts before the face aggregate, but only when same-subsection detail and residual rows reconcile to the face amount."
+  },
+  "cf_investing": {
+   "statement": "cash_flow",
+   "section_scope": [
+    "cf_investing"
+   ],
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "face_only": true,
+   "note_use": "decomposition_allowed",
+   "sign_convention": "either",
+   "match_priority": 50,
+   "note_use_rationale": "A cited note may supply dedicated template concepts before the face aggregate, but only when same-subsection detail and residual rows reconcile to the face amount."
+  },
+  "cf_financing": {
+   "statement": "cash_flow",
+   "section_scope": [
+    "cf_financing"
+   ],
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "face_only": true,
+   "note_use": "decomposition_allowed",
+   "sign_convention": "either",
+   "match_priority": 50,
+   "note_use_rationale": "A cited note may supply dedicated template concepts before the face aggregate, but only when same-subsection detail and residual rows reconcile to the face amount."
+  },
+  "statement_setup_controls": {
+   "statement": "statement_setup",
+   "section_scope": [
+    "statement_setup_controls"
+   ],
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "face_only": false,
+   "note_use": "evidence_only",
+   "sign_convention": "either",
+   "match_priority": 90
+  },
+  "supplemental_data": {
+   "statement": "covenants_supplemental",
+   "section_scope": [
+    "supplemental_data"
+   ],
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "face_only": false,
+   "note_use": "evidence_only",
+   "sign_convention": "either",
+   "match_priority": 75
+  },
+  "off_balance_sheet_data": {
+   "statement": "covenants_supplemental",
+   "section_scope": [
+    "off_balance_sheet_data"
+   ],
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "face_only": false,
+   "note_use": "evidence_only",
+   "sign_convention": "either",
+   "match_priority": 80
+  },
+  "credit_compliance": {
+   "statement": "covenants_supplemental",
+   "section_scope": [
+    "credit_compliance"
+   ],
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "face_only": false,
+   "note_use": "evidence_only",
+   "sign_convention": "either",
+   "match_priority": 95
+  },
+  "capital_and_lease_commitments": {
+   "statement": "covenants_supplemental",
+   "section_scope": [
+    "capital_and_lease_commitments"
+   ],
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "face_only": false,
+   "note_use": "evidence_only",
+   "sign_convention": "either",
+   "match_priority": 85
+  },
+  "notes": {
+   "statement": "notes",
+   "section_scope": [
+    "notes"
+   ],
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "face_only": false,
+   "note_use": "evidence_only",
+   "sign_convention": "either",
+   "match_priority": 80,
+   "scopes": [
+    "notes"
+   ]
+  }
+ },
+ "items": [
+  {
+   "key": "sub__rd_depreciation",
+   "label": "R&D note — depreciation",
+   "type": "extracted",
+   "in_output": false,
+   "parent": "is_pl__deprec_and_impairment_oper_exp",
+   "order": 1,
+   "namespace": "internal",
+   "inherits": "notes",
+   "description": "Depreciation rows inside the note that R&D note names.",
+   "note_source": {
+    "note_title_any": [
+     "research\\s+and\\s+development|r\\s*&\\s*d\\s+expenses?|研究及開發開支|研發開支|研发费用|研发开支|研发支出|研究开发费用|研究与开发"
+    ],
+    "row_caption_any": [
+     "depreciation\\s+of\\s+investment\\s+propert",
+     "depreciation\\s+of\\s+fixed\\s+assets",
+     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
+     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
+     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
+     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "^\\s*depreciation\\s*$",
+     "投資物業折舊",
+     "固定資產折舊",
+     "物業[,、]?\\s*廠房及設備折舊",
+     "在建工程折舊",
+     "使用權資產折舊",
+     "預付租賃款項攤銷",
+     "預付租賃款項轉出",
+     "^折舊$",
+     "投资性房地产折旧",
+     "投资物业折旧",
+     "固定资产折旧",
+     "在建工程折旧",
+     "使用权资产折旧",
+     "预付租赁款项摊销",
+     "^折旧$",
+     "^折旧费$",
+     "折旧费用"
+    ],
+    "row_caption_none": [
+     "^\\s*at\\s+\\d",
+     "^\\s*at\\s+(?:1|31)",
+     "opening",
+     "closing",
+     "disposal",
+     "write.?off",
+     "transfer",
+     "reclassif",
+     "exchange\\s+difference",
+     "acquisition",
+     "impairment",
+     "累計",
+     "期初",
+     "期末",
+     "處置",
+     "轉撥",
+     "滙兌",
+     "匯兌",
+     "收購",
+     "減值",
+     "累计",
+     "期初",
+     "期末",
+     "处置",
+     "转拨",
+     "转出",
+     "汇兑",
+     "收购",
+     "减值",
+     "外币折算",
+     "到期",
+     "账面原值",
+     "账面价值"
+    ]
+   }
+  },
+  {
+   "key": "sub__selling_marketing_depreciation",
+   "label": "Selling & marketing note — depreciation",
+   "type": "extracted",
+   "in_output": false,
+   "parent": "is_pl__deprec_and_impairment_oper_exp",
+   "order": 2,
+   "namespace": "internal",
+   "inherits": "notes",
+   "description": "Depreciation rows inside the note that Selling & marketing note names.",
+   "note_source": {
+    "note_title_any": [
+     "selling\\s+and\\s+marketing|selling\\s+expenses?|selling\\s+and\\s+distribution|distribution\\s+costs?|marketing\\s+expenses?|銷售及市場推廣開支|銷售開支|銷售及分銷開支|分銷成本|销售费用|营业费用|分销费用|销售及市场推广开支"
+    ],
+    "row_caption_any": [
+     "depreciation\\s+of\\s+investment\\s+propert",
+     "depreciation\\s+of\\s+fixed\\s+assets",
+     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
+     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
+     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
+     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "^\\s*depreciation\\s*$",
+     "投資物業折舊",
+     "固定資產折舊",
+     "物業[,、]?\\s*廠房及設備折舊",
+     "在建工程折舊",
+     "使用權資產折舊",
+     "預付租賃款項攤銷",
+     "預付租賃款項轉出",
+     "^折舊$",
+     "投资性房地产折旧",
+     "投资物业折旧",
+     "固定资产折旧",
+     "在建工程折旧",
+     "使用权资产折旧",
+     "预付租赁款项摊销",
+     "^折旧$",
+     "^折旧费$",
+     "折旧费用"
+    ],
+    "row_caption_none": [
+     "^\\s*at\\s+\\d",
+     "^\\s*at\\s+(?:1|31)",
+     "opening",
+     "closing",
+     "disposal",
+     "write.?off",
+     "transfer",
+     "reclassif",
+     "exchange\\s+difference",
+     "acquisition",
+     "impairment",
+     "累計",
+     "期初",
+     "期末",
+     "處置",
+     "轉撥",
+     "滙兌",
+     "匯兌",
+     "收購",
+     "減值",
+     "累计",
+     "期初",
+     "期末",
+     "处置",
+     "转拨",
+     "转出",
+     "汇兑",
+     "收购",
+     "减值",
+     "外币折算",
+     "到期",
+     "账面原值",
+     "账面价值"
+    ]
+   }
+  },
+  {
+   "key": "sub__ga_depreciation",
+   "label": "G&A note — depreciation",
+   "type": "extracted",
+   "in_output": false,
+   "parent": "is_pl__deprec_and_impairment_oper_exp",
+   "order": 3,
+   "namespace": "internal",
+   "inherits": "notes",
+   "description": "Depreciation rows inside the note that G&A note names.",
+   "note_source": {
+    "note_title_any": [
+     "general\\s+and\\s+administrative|administrative\\s+expenses?|g\\s*&\\s*a\\s+expenses?|一般及行政開支|行政開支|管理费用|一般及行政费用|行政费用|一般及管理费用"
+    ],
+    "row_caption_any": [
+     "depreciation\\s+of\\s+investment\\s+propert",
+     "depreciation\\s+of\\s+fixed\\s+assets",
+     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
+     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
+     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
+     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "^\\s*depreciation\\s*$",
+     "投資物業折舊",
+     "固定資產折舊",
+     "物業[,、]?\\s*廠房及設備折舊",
+     "在建工程折舊",
+     "使用權資產折舊",
+     "預付租賃款項攤銷",
+     "預付租賃款項轉出",
+     "^折舊$",
+     "投资性房地产折旧",
+     "投资物业折旧",
+     "固定资产折旧",
+     "在建工程折旧",
+     "使用权资产折旧",
+     "预付租赁款项摊销",
+     "^折旧$",
+     "^折旧费$",
+     "折旧费用"
+    ],
+    "row_caption_none": [
+     "^\\s*at\\s+\\d",
+     "^\\s*at\\s+(?:1|31)",
+     "opening",
+     "closing",
+     "disposal",
+     "write.?off",
+     "transfer",
+     "reclassif",
+     "exchange\\s+difference",
+     "acquisition",
+     "impairment",
+     "累計",
+     "期初",
+     "期末",
+     "處置",
+     "轉撥",
+     "滙兌",
+     "匯兌",
+     "收購",
+     "減值",
+     "累计",
+     "期初",
+     "期末",
+     "处置",
+     "转拨",
+     "转出",
+     "汇兑",
+     "收购",
+     "减值",
+     "外币折算",
+     "到期",
+     "账面原值",
+     "账面价值"
+    ]
+   }
+  },
+  {
+   "key": "sub__operating_expense_depreciation",
+   "label": "Other operating expenses note — depreciation",
+   "type": "extracted",
+   "in_output": false,
+   "parent": "is_pl__deprec_and_impairment_oper_exp",
+   "order": 4,
+   "namespace": "internal",
+   "inherits": "notes",
+   "description": "Depreciation rows inside the note that Other operating expenses note names.",
+   "note_source": {
+    "note_title_any": [
+     "operating\\s+expenses?|operating\\s+costs?|經營開支|其他經營開支|經營成本|经营费用|经营开支|其他经营费用"
+    ],
+    "row_caption_any": [
+     "depreciation\\s+of\\s+investment\\s+propert",
+     "depreciation\\s+of\\s+fixed\\s+assets",
+     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
+     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
+     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
+     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "^\\s*depreciation\\s*$",
+     "投資物業折舊",
+     "固定資產折舊",
+     "物業[,、]?\\s*廠房及設備折舊",
+     "在建工程折舊",
+     "使用權資產折舊",
+     "預付租賃款項攤銷",
+     "預付租賃款項轉出",
+     "^折舊$",
+     "投资性房地产折旧",
+     "投资物业折旧",
+     "固定资产折旧",
+     "在建工程折旧",
+     "使用权资产折旧",
+     "预付租赁款项摊销",
+     "^折旧$",
+     "^折旧费$",
+     "折旧费用"
+    ],
+    "row_caption_none": [
+     "^\\s*at\\s+\\d",
+     "^\\s*at\\s+(?:1|31)",
+     "opening",
+     "closing",
+     "disposal",
+     "write.?off",
+     "transfer",
+     "reclassif",
+     "exchange\\s+difference",
+     "acquisition",
+     "impairment",
+     "累計",
+     "期初",
+     "期末",
+     "處置",
+     "轉撥",
+     "滙兌",
+     "匯兌",
+     "收購",
+     "減值",
+     "累计",
+     "期初",
+     "期末",
+     "处置",
+     "转拨",
+     "转出",
+     "汇兑",
+     "收购",
+     "减值",
+     "外币折算",
+     "到期",
+     "账面原值",
+     "账面价值"
+    ]
+   }
+  },
+  {
+   "key": "sub__ppe_depreciation",
+   "label": "PP&E note — depreciation",
+   "type": "extracted",
+   "in_output": false,
+   "parent": "is_pl__deprec_and_impairment_oper_exp",
+   "order": 5,
+   "namespace": "internal",
+   "inherits": "notes",
+   "description": "Depreciation rows inside the note that PP&E note names.",
+   "note_source": {
+    "note_title_any": [
+     "property\\s*,?\\s*plant\\s+and\\s+equipment|物業、廠房及設備|固定资产|使用权资产|使用權資產"
+    ],
+    "row_caption_any": [
+     "depreciation\\s+of\\s+investment\\s+propert",
+     "depreciation\\s+of\\s+fixed\\s+assets",
+     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
+     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
+     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
+     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "^\\s*depreciation\\s*$",
+     "投資物業折舊",
+     "固定資產折舊",
+     "物業[,、]?\\s*廠房及設備折舊",
+     "在建工程折舊",
+     "使用權資產折舊",
+     "預付租賃款項攤銷",
+     "預付租賃款項轉出",
+     "^折舊$",
+     "投资性房地产折旧",
+     "投资物业折旧",
+     "固定资产折旧",
+     "在建工程折旧",
+     "使用权资产折旧",
+     "预付租赁款项摊销",
+     "^折旧$",
+     "^折旧费$",
+     "折旧费用"
+    ],
+    "row_caption_none": [
+     "^\\s*at\\s+\\d",
+     "^\\s*at\\s+(?:1|31)",
+     "opening",
+     "closing",
+     "disposal",
+     "write.?off",
+     "transfer",
+     "reclassif",
+     "exchange\\s+difference",
+     "acquisition",
+     "impairment",
+     "累計",
+     "期初",
+     "期末",
+     "處置",
+     "轉撥",
+     "滙兌",
+     "匯兌",
+     "收購",
+     "減值",
+     "累计",
+     "期初",
+     "期末",
+     "处置",
+     "转拨",
+     "转出",
+     "汇兑",
+     "收购",
+     "减值",
+     "外币折算",
+     "到期",
+     "账面原值",
+     "账面价值"
+    ]
+   }
+  },
+  {
+   "key": "sub__prepaid_lease_depreciation",
+   "label": "Prepaid lease payments note — amortisation",
+   "type": "extracted",
+   "in_output": false,
+   "parent": "is_pl__deprec_and_impairment_oper_exp",
+   "order": 6,
+   "namespace": "internal",
+   "inherits": "notes",
+   "description": "Depreciation rows inside the note that Prepaid lease payments note names.",
+   "note_source": {
+    "note_title_any": [
+     "prepaid\\s+land\\s+lease\\s+payments?|prepaid\\s+lease\\s+payments?|預付土地租賃款項|預付租賃款項"
+    ],
+    "row_caption_any": [
+     "depreciation\\s+of\\s+investment\\s+propert",
+     "depreciation\\s+of\\s+fixed\\s+assets",
+     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
+     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
+     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
+     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "^\\s*depreciation\\s*$",
+     "投資物業折舊",
+     "固定資產折舊",
+     "物業[,、]?\\s*廠房及設備折舊",
+     "在建工程折舊",
+     "使用權資產折舊",
+     "預付租賃款項攤銷",
+     "預付租賃款項轉出",
+     "^折舊$",
+     "投资性房地产折旧",
+     "投资物业折旧",
+     "固定资产折旧",
+     "在建工程折旧",
+     "使用权资产折旧",
+     "预付租赁款项摊销",
+     "^折旧$",
+     "^折旧费$",
+     "折旧费用"
+    ],
+    "row_caption_none": [
+     "^\\s*at\\s+\\d",
+     "^\\s*at\\s+(?:1|31)",
+     "opening",
+     "closing",
+     "disposal",
+     "write.?off",
+     "transfer",
+     "reclassif",
+     "exchange\\s+difference",
+     "acquisition",
+     "impairment",
+     "累計",
+     "期初",
+     "期末",
+     "處置",
+     "轉撥",
+     "滙兌",
+     "匯兌",
+     "收購",
+     "減值",
+     "累计",
+     "期初",
+     "期末",
+     "处置",
+     "转拨",
+     "转出",
+     "汇兑",
+     "收购",
+     "减值",
+     "外币折算",
+     "到期",
+     "账面原值",
+     "账面价值"
+    ]
+   }
+  },
+  {
+   "key": "sub__fixed_asset_depreciation",
+   "label": "Fixed assets note — depreciation",
+   "type": "extracted",
+   "in_output": false,
+   "parent": "is_pl__deprec_and_impairment_oper_exp",
+   "order": 7,
+   "namespace": "internal",
+   "inherits": "notes",
+   "description": "Depreciation rows inside the note that Fixed assets note names.",
+   "note_source": {
+    "note_title_any": [
+     "fixed\\s+assets?|固定資產|固定资产"
+    ],
+    "row_caption_any": [
+     "depreciation\\s+of\\s+investment\\s+propert",
+     "depreciation\\s+of\\s+fixed\\s+assets",
+     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
+     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
+     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
+     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "^\\s*depreciation\\s*$",
+     "投資物業折舊",
+     "固定資產折舊",
+     "物業[,、]?\\s*廠房及設備折舊",
+     "在建工程折舊",
+     "使用權資產折舊",
+     "預付租賃款項攤銷",
+     "預付租賃款項轉出",
+     "^折舊$",
+     "投资性房地产折旧",
+     "投资物业折旧",
+     "固定资产折旧",
+     "在建工程折旧",
+     "使用权资产折旧",
+     "预付租赁款项摊销",
+     "^折旧$",
+     "^折旧费$",
+     "折旧费用"
+    ],
+    "row_caption_none": [
+     "^\\s*at\\s+\\d",
+     "^\\s*at\\s+(?:1|31)",
+     "opening",
+     "closing",
+     "disposal",
+     "write.?off",
+     "transfer",
+     "reclassif",
+     "exchange\\s+difference",
+     "acquisition",
+     "impairment",
+     "累計",
+     "期初",
+     "期末",
+     "處置",
+     "轉撥",
+     "滙兌",
+     "匯兌",
+     "收購",
+     "減值",
+     "累计",
+     "期初",
+     "期末",
+     "处置",
+     "转拨",
+     "转出",
+     "汇兑",
+     "收购",
+     "减值",
+     "外币折算",
+     "到期",
+     "账面原值",
+     "账面价值"
+    ]
+   }
+  },
+  {
+   "key": "sub__investment_property_depreciation",
+   "label": "Investment property note — depreciation",
+   "type": "extracted",
+   "in_output": false,
+   "parent": "is_pl__deprec_and_impairment_oper_exp",
+   "order": 8,
+   "namespace": "internal",
+   "inherits": "notes",
+   "description": "Depreciation rows inside the note that Investment property note names.",
+   "note_source": {
+    "note_title_any": [
+     "investment\\s+propert(?:y|ies)|投資物業|投资性房地产|投资物业"
+    ],
+    "row_caption_any": [
+     "depreciation\\s+of\\s+investment\\s+propert",
+     "depreciation\\s+of\\s+fixed\\s+assets",
+     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
+     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
+     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
+     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "^\\s*depreciation\\s*$",
+     "投資物業折舊",
+     "固定資產折舊",
+     "物業[,、]?\\s*廠房及設備折舊",
+     "在建工程折舊",
+     "使用權資產折舊",
+     "預付租賃款項攤銷",
+     "預付租賃款項轉出",
+     "^折舊$",
+     "投资性房地产折旧",
+     "投资物业折旧",
+     "固定资产折旧",
+     "在建工程折旧",
+     "使用权资产折旧",
+     "预付租赁款项摊销",
+     "^折旧$",
+     "^折旧费$",
+     "折旧费用"
+    ],
+    "row_caption_none": [
+     "^\\s*at\\s+\\d",
+     "^\\s*at\\s+(?:1|31)",
+     "opening",
+     "closing",
+     "disposal",
+     "write.?off",
+     "transfer",
+     "reclassif",
+     "exchange\\s+difference",
+     "acquisition",
+     "impairment",
+     "累計",
+     "期初",
+     "期末",
+     "處置",
+     "轉撥",
+     "滙兌",
+     "匯兌",
+     "收購",
+     "減值",
+     "累计",
+     "期初",
+     "期末",
+     "处置",
+     "转拨",
+     "转出",
+     "汇兑",
+     "收购",
+     "减值",
+     "外币折算",
+     "到期",
+     "账面原值",
+     "账面价值"
+    ]
+   }
+  },
+  {
+   "key": "sub__cip_depreciation",
+   "label": "Construction in progress note — depreciation",
+   "type": "extracted",
+   "in_output": false,
+   "parent": "is_pl__deprec_and_impairment_oper_exp",
+   "order": 9,
+   "namespace": "internal",
+   "inherits": "notes",
+   "description": "Depreciation rows inside the note that Construction in progress note names.",
+   "note_source": {
+    "note_title_any": [
+     "construction\\s+in\\s+progress|在建工程"
+    ],
+    "row_caption_any": [
+     "depreciation\\s+of\\s+investment\\s+propert",
+     "depreciation\\s+of\\s+fixed\\s+assets",
+     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
+     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
+     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
+     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "^\\s*depreciation\\s*$",
+     "投資物業折舊",
+     "固定資產折舊",
+     "物業[,、]?\\s*廠房及設備折舊",
+     "在建工程折舊",
+     "使用權資產折舊",
+     "預付租賃款項攤銷",
+     "預付租賃款項轉出",
+     "^折舊$",
+     "投资性房地产折旧",
+     "投资物业折旧",
+     "固定资产折旧",
+     "在建工程折旧",
+     "使用权资产折旧",
+     "预付租赁款项摊销",
+     "^折旧$",
+     "^折旧费$",
+     "折旧费用"
+    ],
+    "row_caption_none": [
+     "^\\s*at\\s+\\d",
+     "^\\s*at\\s+(?:1|31)",
+     "opening",
+     "closing",
+     "disposal",
+     "write.?off",
+     "transfer",
+     "reclassif",
+     "exchange\\s+difference",
+     "acquisition",
+     "impairment",
+     "累計",
+     "期初",
+     "期末",
+     "處置",
+     "轉撥",
+     "滙兌",
+     "匯兌",
+     "收購",
+     "減值",
+     "累计",
+     "期初",
+     "期末",
+     "处置",
+     "转拨",
+     "转出",
+     "汇兑",
+     "收购",
+     "减值",
+     "外币折算",
+     "到期",
+     "账面原值",
+     "账面价值"
+    ]
+   }
+  },
+  {
+   "key": "sub__cfo_depreciation",
+   "label": "Cash flow from operations — depreciation add-back",
+   "type": "extracted",
+   "in_output": false,
+   "parent": "is_pl__deprec_and_impairment_oper_exp",
+   "order": 10,
+   "namespace": "internal",
+   "inherits": "notes",
+   "description": "The cash-flow add-back is the last resort: it is the whole group's depreciation, so it needs the cost-of-sales share deducted.",
+   "note_source": {
+    "note_title_any": [
+     "cash\\s+flow\\s+from\\s+operating\\s+activities|cash\\s+generated\\s+from\\s+operations|reconciliation\\s+of\\s+profit\\s+before\\s+taxation\\s+to\\s+cash|經營活動所得現金流量|除稅前溢利與經營所得現金的對賬|现金流量表补充资料|将净利润调节为经营活动现金流量|净利润调节为经营活动的?现金流量|经营活动产生的现金流量"
+    ],
+    "row_caption_any": [
+     "depreciation\\s+of\\s+investment\\s+propert",
+     "depreciation\\s+of\\s+fixed\\s+assets",
+     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
+     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
+     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
+     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "^\\s*depreciation\\s*$",
+     "投資物業折舊",
+     "固定資產折舊",
+     "物業[,、]?\\s*廠房及設備折舊",
+     "在建工程折舊",
+     "使用權資產折舊",
+     "預付租賃款項攤銷",
+     "預付租賃款項轉出",
+     "^折舊$",
+     "投资性房地产折旧",
+     "投资物业折旧",
+     "固定资产折旧",
+     "在建工程折旧",
+     "使用权资产折旧",
+     "预付租赁款项摊销",
+     "^折旧$",
+     "^折旧费$",
+     "折旧费用"
+    ],
+    "row_caption_none": [
+     "^\\s*at\\s+\\d",
+     "^\\s*at\\s+(?:1|31)",
+     "opening",
+     "closing",
+     "disposal",
+     "write.?off",
+     "transfer",
+     "reclassif",
+     "exchange\\s+difference",
+     "acquisition",
+     "impairment",
+     "累計",
+     "期初",
+     "期末",
+     "處置",
+     "轉撥",
+     "滙兌",
+     "匯兌",
+     "收購",
+     "減值",
+     "累计",
+     "期初",
+     "期末",
+     "处置",
+     "转拨",
+     "转出",
+     "汇兑",
+     "收购",
+     "减值",
+     "外币折算",
+     "到期",
+     "账面原值",
+     "账面价值"
+    ]
+   }
+  },
+  {
+   "key": "sub__pbt_oper_exp_depreciation",
+   "label": "PBT note — operating-expense depreciation callout",
+   "type": "extracted",
+   "in_output": false,
+   "parent": "is_pl__deprec_and_impairment_oper_exp",
+   "order": 11,
+   "namespace": "internal",
+   "inherits": "notes",
+   "description": "The one dataset that already means operating-expense depreciation, which is why it needs no deduction.",
+   "note_source": {
+    "note_title_any": [
+     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额"
+    ],
+    "row_caption_any": [
+     "depreciation\\s+of\\s+investment\\s+propert",
+     "depreciation\\s+of\\s+fixed\\s+assets",
+     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
+     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
+     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
+     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "^\\s*depreciation\\s*$",
+     "投資物業折舊",
+     "固定資產折舊",
+     "物業[,、]?\\s*廠房及設備折舊",
+     "在建工程折舊",
+     "使用權資產折舊",
+     "預付租賃款項攤銷",
+     "預付租賃款項轉出",
+     "^折舊$",
+     "投资性房地产折旧",
+     "投资物业折旧",
+     "固定资产折旧",
+     "在建工程折旧",
+     "使用权资产折旧",
+     "预付租赁款项摊销",
+     "^折旧$",
+     "^折旧费$",
+     "折旧费用"
+    ],
+    "row_caption_none": [
+     "^\\s*at\\s+\\d",
+     "^\\s*at\\s+(?:1|31)",
+     "opening",
+     "closing",
+     "disposal",
+     "write.?off",
+     "transfer",
+     "reclassif",
+     "exchange\\s+difference",
+     "acquisition",
+     "impairment",
+     "累計",
+     "期初",
+     "期末",
+     "處置",
+     "轉撥",
+     "滙兌",
+     "匯兌",
+     "收購",
+     "減值",
+     "累计",
+     "期初",
+     "期末",
+     "处置",
+     "转拨",
+     "转出",
+     "汇兑",
+     "收购",
+     "减值",
+     "外币折算",
+     "到期",
+     "账面原值",
+     "账面价值"
+    ]
+   }
+  },
+  {
+   "key": "sub__pbt_depreciation",
+   "label": "PBT note — total depreciation",
+   "type": "extracted",
+   "in_output": false,
+   "parent": "is_pl__deprec_and_impairment_oper_exp",
+   "order": 12,
+   "namespace": "internal",
+   "inherits": "notes",
+   "description": "Depreciation rows inside the note that PBT note names.",
+   "note_source": {
+    "note_title_any": [
+     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额"
+    ],
+    "row_caption_any": [
+     "depreciation\\s+of\\s+investment\\s+propert",
+     "depreciation\\s+of\\s+fixed\\s+assets",
+     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
+     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
+     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
+     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "^\\s*depreciation\\s*$",
+     "投資物業折舊",
+     "固定資產折舊",
+     "物業[,、]?\\s*廠房及設備折舊",
+     "在建工程折舊",
+     "使用權資產折舊",
+     "預付租賃款項攤銷",
+     "預付租賃款項轉出",
+     "^折舊$",
+     "投资性房地产折旧",
+     "投资物业折旧",
+     "固定资产折旧",
+     "在建工程折旧",
+     "使用权资产折旧",
+     "预付租赁款项摊销",
+     "^折旧$",
+     "^折旧费$",
+     "折旧费用"
+    ],
+    "row_caption_none": [
+     "^\\s*at\\s+\\d",
+     "^\\s*at\\s+(?:1|31)",
+     "opening",
+     "closing",
+     "disposal",
+     "write.?off",
+     "transfer",
+     "reclassif",
+     "exchange\\s+difference",
+     "acquisition",
+     "impairment",
+     "累計",
+     "期初",
+     "期末",
+     "處置",
+     "轉撥",
+     "滙兌",
+     "匯兌",
+     "收購",
+     "減值",
+     "累计",
+     "期初",
+     "期末",
+     "处置",
+     "转拨",
+     "转出",
+     "汇兑",
+     "收购",
+     "减值",
+     "外币折算",
+     "到期",
+     "账面原值",
+     "账面价值"
+    ]
+   }
+  },
+  {
+   "key": "sub__cos_depreciation",
+   "label": "Cost of sales note — depreciation",
+   "type": "extracted",
+   "in_output": false,
+   "parent": "is_pl__deprec_and_impairment_cos",
+   "order": 13,
+   "namespace": "internal",
+   "inherits": "notes",
+   "description": "Depreciation rows inside the note that Cost of sales note names.",
+   "note_source": {
+    "note_title_any": [
+     "cost\\s+of\\s+sales|cost\\s+of\\s+revenue|cost\\s+of\\s+services|direct\\s+operating\\s+costs?|銷售成本|收益成本|服務成本|直接經營成本|营业成本|主营业务成本|销售成本|营业收入和营业成本"
+    ],
+    "row_caption_any": [
+     "depreciation\\s+of\\s+investment\\s+propert",
+     "depreciation\\s+of\\s+fixed\\s+assets",
+     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
+     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
+     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
+     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
+     "^\\s*depreciation\\s*$",
+     "投資物業折舊",
+     "固定資產折舊",
+     "物業[,、]?\\s*廠房及設備折舊",
+     "在建工程折舊",
+     "使用權資產折舊",
+     "預付租賃款項攤銷",
+     "預付租賃款項轉出",
+     "^折舊$",
+     "投资性房地产折旧",
+     "投资物业折旧",
+     "固定资产折旧",
+     "在建工程折旧",
+     "使用权资产折旧",
+     "预付租赁款项摊销",
+     "^折旧$",
+     "^折旧费$",
+     "折旧费用"
+    ],
+    "row_caption_none": [
+     "^\\s*at\\s+\\d",
+     "^\\s*at\\s+(?:1|31)",
+     "opening",
+     "closing",
+     "disposal",
+     "write.?off",
+     "transfer",
+     "reclassif",
+     "exchange\\s+difference",
+     "acquisition",
+     "impairment",
+     "累計",
+     "期初",
+     "期末",
+     "處置",
+     "轉撥",
+     "滙兌",
+     "匯兌",
+     "收購",
+     "減值",
+     "累计",
+     "期初",
+     "期末",
+     "处置",
+     "转拨",
+     "转出",
+     "汇兑",
+     "收购",
+     "减值",
+     "外币折算",
+     "到期",
+     "账面原值",
+     "账面价值"
+    ]
+   }
+  },
+  {
+   "key": "is_pl__deprec_and_impairment_oper_exp",
+   "label": "Deprec & Impairment (Oper Exp)",
+   "type": "derived",
+   "in_output": true,
+   "order": 1,
+   "implemented_by": "deprec_impairment",
+   "inherits": "is_pl",
+   "rollup": "alternatives",
+   "description": "Depreciation charged to operating expenses. Never printed as one caption — assembled from the notes and resolved by trying the rungs in order.",
+   "cascade": [
+    {
+     "id": "P1",
+     "note": "The four operating-expense notes, summed. Any subset a filing discloses is still a sum, so each term is optional.",
+     "terms": [
+      {
+       "ref": "sub__rd_depreciation",
+       "sign": 1,
+       "role": "any_of"
+      },
+      {
+       "ref": "sub__selling_marketing_depreciation",
+       "sign": 1,
+       "role": "any_of"
+      },
+      {
+       "ref": "sub__ga_depreciation",
+       "sign": 1,
+       "role": "any_of"
+      },
+      {
+       "ref": "sub__operating_expense_depreciation",
+       "sign": 1,
+       "role": "any_of"
+      }
+     ]
+    },
+    {
+     "id": "P2",
+     "note": "The PBT note's own operating-expense callout. Already means this line, so nothing is deducted.",
+     "terms": [
+      {
+       "ref": "sub__pbt_oper_exp_depreciation",
+       "sign": 1,
+       "role": "required"
+      }
+     ]
+    },
+    {
+     "id": "P3",
+     "note": "Total depreciation less the cost-of-sales share. A filing that discloses no cost-of-sales depreciation is taken to charge none, so the deduction is optional and the base is not.",
+     "terms": [
+      {
+       "ref": "sub__pbt_depreciation",
+       "sign": 1,
+       "role": "required"
+      },
+      {
+       "ref": "sub__cos_depreciation",
+       "sign": -1,
+       "role": "adjustment"
+      }
+     ]
+    },
+    {
+     "id": "P4",
+     "note": "The asset notes, less the cost-of-sales share.",
+     "terms": [
+      {
+       "ref": "sub__ppe_depreciation",
+       "sign": 1,
+       "role": "any_of"
+      },
+      {
+       "ref": "sub__prepaid_lease_depreciation",
+       "sign": 1,
+       "role": "any_of"
+      },
+      {
+       "ref": "sub__fixed_asset_depreciation",
+       "sign": 1,
+       "role": "any_of"
+      },
+      {
+       "ref": "sub__investment_property_depreciation",
+       "sign": 1,
+       "role": "any_of"
+      },
+      {
+       "ref": "sub__cip_depreciation",
+       "sign": 1,
+       "role": "any_of"
+      },
+      {
+       "ref": "sub__cos_depreciation",
+       "sign": -1,
+       "role": "adjustment"
+      }
+     ]
+    },
+    {
+     "id": "P5",
+     "note": "The cash-flow add-back, less the cost-of-sales share.",
+     "terms": [
+      {
+       "ref": "sub__cfo_depreciation",
+       "sign": 1,
+       "role": "required"
+      },
+      {
+       "ref": "sub__cos_depreciation",
+       "sign": -1,
+       "role": "adjustment"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "is_pl__deprec_and_impairment_cos",
+   "label": "Deprec & Impairment (COS)",
+   "type": "derived",
+   "in_output": true,
+   "order": 2,
+   "implemented_by": "deprec_impairment",
+   "inherits": "is_pl",
+   "rollup": "alternatives",
+   "description": "Depreciation charged to cost of sales. Read from the cost-of-sales note.",
+   "cascade": [
+    {
+     "id": "COS_P1",
+     "note": "The cost-of-sales note's depreciation rows.",
+     "terms": [
+      {
+       "ref": "sub__cos_depreciation",
+       "sign": 1,
+       "role": "required"
+      }
+     ]
+    },
+    {
+     "id": "COS_P2",
+     "note": "Total depreciation less the operating-expense share. Used when the cost-of-sales note itself discloses nothing.",
+     "terms": [
+      {
+       "ref": "sub__pbt_depreciation",
+       "sign": 1,
+       "role": "required"
+      },
+      {
+       "ref": "is_pl__deprec_and_impairment_oper_exp",
+       "sign": -1,
+       "role": "required"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "is_pl__sales_revenues",
+   "label": "Sales (Revenues)",
+   "type": "derived",
+   "in_output": true,
+   "order": 3,
+   "implemented_by": "sales_revenues",
+   "description": "The top line. Priority 1 is the face caption the spec accepts; Priority 2 is the revenue note's own total.",
+   "inherits": "is_pl",
+   "rollup": "none"
+  },
+  {
+   "key": "bs_ca__secur_and_other_fincl_assets_cp",
+   "label": "Secur & Other Fincl Assets (CP)",
+   "type": "derived",
+   "in_output": true,
+   "order": 4,
+   "implemented_by": "secur_fincl_assets",
+   "description": "Current-portion securities and other financial assets, net of the pools carved out of it.",
+   "inherits": "bs_ca",
+   "rollup": "none"
+  },
+  {
+   "key": "bs_nca__secur_and_other_fincl_assets_ltp",
+   "label": "Secur & Other Fincl Assets (LTP)",
+   "type": "derived",
+   "in_output": true,
+   "order": 5,
+   "implemented_by": "secur_fincl_assets",
+   "description": "The long-term portion, plus any negative current-portion carryforward.",
+   "inherits": "bs_nca",
+   "rollup": "none"
+  },
+  {
+   "key": "bs_nca__due_from_related_parties_ltp",
+   "label": "Due from Related Parties (LTP)",
+   "type": "derived",
+   "in_output": true,
+   "order": 6,
+   "implemented_by": "related_party_receivables",
+   "description": "The largest valid of three searches — the receivable notes, the related-party grouping, and the related-party transactions note.",
+   "inherits": "bs_nca",
+   "rollup": "none"
+  },
+  {
+   "key": "bs_ca__other_receivables_cp",
+   "label": "Other Receivables (CP)",
+   "type": "derived",
+   "in_output": true,
+   "order": 7,
+   "implemented_by": "related_party_receivables",
+   "description": "Gross other receivables less the related-party amount carved out of them.",
+   "inherits": "bs_ca",
+   "rollup": "none"
+  },
+  {
+   "key": "notes__contingent_liabilities",
+   "label": "Contingent liabilities",
+   "type": "derived",
+   "in_output": true,
+   "order": 8,
+   "implemented_by": "contingent_liabilities",
+   "description": "Guarantees, letters of credit, performance bonds and bank guarantees, summed by type.",
+   "inherits": "notes",
+   "rollup": "none"
+  }
+ ]
+}

@@ -1,0 +1,192 @@
+"""Turn ontology concepts into line-item definitions — the content half of the merge.
+
+The schema merge made `LineItemDef` able to CARRY everything a concept declares. This module is
+what actually moves the 462, so the line-item set stops being 21 definitions describing a corner of
+the rulebook and becomes the rulebook.
+
+WHY THIS IS APP CODE AND NOT A SCRIPT. Two callers need the same projection and must not drift:
+`scripts/build_line_items.py` writes the seed with it, and `scripts/project_ontology.py` checks
+parity with it. A projection that differs between the thing that builds and the thing that verifies
+proves nothing at all.
+
+THE THREE POPULATIONS, measured on the shipped rulebook:
+
+    454  concepts the configurator never described  ->  projected as-is
+      8  keys in BOTH — exactly the output lines    ->  projected, then the configurator's
+                                                        assembly (cascade, rollup, type) wins
+     13  `sub__*` note-level parts, configurator only -> carried through untouched
+
+The 8 are the whole point of the overlap rule. The ontology knows WHERE those lines may be
+claimed from; the configurator knows HOW they are assembled from note-level parts. Neither
+description is complete and the merged definition needs both halves, so the merge is per-field
+rather than one artefact winning.
+"""
+from __future__ import annotations
+
+import copy
+from enum import Enum
+from typing import Any
+
+from app.services.mapping import _KEY_SECTION_OVERRIDES
+
+# Ontology field -> line-item field, where the merge deliberately renamed it. `exclude` is the
+# rename that mattered: the rulebook has BOTH `exclude` (prose criteria shown to the LLM) and
+# `exclude_hints` (regexes that veto a match), and the first configurator collapsed them into one
+# regex-validated list — which would either refuse the prose at the door or compile it as an
+# accidental veto.
+RENAMED: dict[str, str] = {
+    "canonical_key": "key",
+    "include": "include_criteria",
+    "exclude": "exclude_criteria",
+}
+
+# Carried under the same name. Every one of these is read by live code or by the LLM payload;
+# `scripts/project_ontology.py` fails the build if a concept declares a field that lands nowhere.
+SAME: tuple[str, ...] = (
+    "label", "description", "definition", "confusable_with", "value_scope", "extraction_mode",
+    "analyst_bucket", "aliases", "aliases_i18n", "keyword_hints", "regex_hints", "exclude_hints",
+    "sign_rule", "min_confidence_to_auto_accept", "inherits", "statement", "section_scope",
+    "temporality", "face_only", "unit_of_account", "note_use", "note_use_rationale",
+    "sign_convention", "match_priority", "alias_matching", "residual_policy",
+    "expected_components", "never_sweep",
+    # Containment — the discriminator whose absence left 31 caption collisions undecidable, all
+    # of one shape: a gross parent against the child it contains, same statement, same banner,
+    # same priority. mapping.py and map_ontology.py both read these.
+    "is_gross_parent", "children_if_decomposed", "sole_component_of",
+    # Prose. `section_disambiguation` is read by mapping.py and answers "which of two look-alike
+    # captions is this" — it is the first discriminator for 30 of the 420 collisions.
+    "decomposition_rule", "others_rule", "section_disambiguation", "derivation",
+    "aggregation_note", "template_note", "notes_as_source_rationale",
+)
+
+# How `extraction_mode` becomes a line-item `type`. The ontology says how a value may ARRIVE;
+# `type` says the same in the configurator's vocabulary.
+#
+# `derive` is the interesting one: it means the framework COMPUTES this and a filing does not print
+# it. That is `derived`, and `mapping.py` keeps such a concept out of every matching tier and out of
+# the LLM payload — which the merged model expresses as `extraction_mode` rather than by having the
+# matcher special-case a type.
+TYPE_OF_MODE: dict[str, str] = {
+    "extract": "extracted",
+    "extract_or_derive": "extracted",   # printed when printed, derived when not — read first
+    "derive": "derived",
+    "do_not_extract": "extracted",      # refused by `extraction_mode`, never by `type`
+}
+
+# Fields the configurator owns for a key it shares with the ontology. Everything else on such a
+# key comes from the rulebook, because the rulebook is what knows where a caption may be claimed.
+ASSEMBLY_FIELDS: tuple[str, ...] = (
+    "type", "cascade", "terms", "rollup", "implemented_by", "parent", "order", "in_output",
+    "namespace", "note_source", "scopes", "side", "allow_contra", "description",
+)
+
+
+def _jsonable(value: Any) -> Any:
+    """Plain JSON types only.
+
+    The resolved concept hands over live pydantic models (`SignRule`, `ResidualPolicy`) and enum
+    members (`StatementType`), which `LineItemDef` would happily re-validate but `json.dumps`
+    refuses — and the seed has to round-trip through a file. Converted here rather than at the
+    call site so the projection is serialisable by construction for every caller.
+    """
+    if hasattr(value, "model_dump"):
+        return value.model_dump(mode="json")
+    if isinstance(value, Enum):
+        return value.value              # StatementType.BALANCE_SHEET -> "balance_sheet"
+    if isinstance(value, dict):
+        return {k: _jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(v) for v in value]
+    return value
+
+
+def project_concept(m: Any) -> dict:
+    """One resolved `OntologyMapping` as a `LineItemDef` dict.
+
+    Takes the RESOLVED concept — `loader.load_ontology(..., resolve=True)` — because the gate is
+    what matters and 462 of 462 concepts declare `statement` on none of themselves. Projecting the
+    unresolved shape would produce 462 definitions that constrain nothing.
+    """
+    out: dict = {}
+    for src, dst in RENAMED.items():
+        out[dst] = _jsonable(getattr(m, src))
+    for field in SAME:
+        value = getattr(m, field, None)
+        if value is None or value == [] or value == {}:
+            continue                     # absent stays absent; a default is not a declaration
+        out[field] = _jsonable(value)
+
+    # A HARD-CODED CORRECTION, TURNED INTO DATA. `mapping._KEY_SECTION_OVERRIDES` holds one entry:
+    # `is_pl__minority_interests_pl` -> `profit_attributable_to`. The concept declares `is_pl`,
+    # the broad namespace, but the row it describes really sits in the profit-attribution tail —
+    # so `_sections_of` overrides the declaration in code, and the gate obeys the override while
+    # the rulebook, the only place a reviewer can look, says otherwise.
+    #
+    # Projecting the override INTO `section_scope` is the merge doing its job: the definition now
+    # declares the section it is actually gated to, the matcher needs no table, and a reviewer
+    # reading the config sees what the pipeline does. Measured: without this the ported matcher
+    # accepted 15 captions the rulebook refuses, every one of them a minority-interest caption
+    # offered under the income-and-expenses banner.
+    override = _KEY_SECTION_OVERRIDES.get(out["key"])
+    if override:
+        out["section_scope"] = [override]
+
+    mode = str(getattr(m, "extraction_mode", "extract") or "extract")
+    out["type"] = TYPE_OF_MODE.get(mode, "extracted")
+    if out["type"] == "derived":
+        # A derived line needs a cascade or a named implementer. The rulebook says HOW in prose
+        # (`derivation`), which is not a cascade, so the projection records who computes it today
+        # rather than inventing rungs nobody wrote.
+        out["implemented_by"] = "rulebook_derivation"
+    out.setdefault("namespace", "template")
+    return out
+
+
+def merge_assembly(projected: dict, configured: dict) -> dict:
+    """A key the rulebook and the configurator both describe: gate from one, assembly from the other.
+
+    Field-by-field rather than whole-artefact, because each side knows something the other does
+    not. For `is_pl__deprec_and_impairment_oper_exp` the rulebook supplies the statement, the
+    section, the priority, the aliases and the sign expectation; the configurator supplies the
+    five-rung cascade and the twelve note-level parts it draws on. Letting either win outright
+    would throw away half of what is known about that line.
+    """
+    merged = copy.deepcopy(projected)
+    for field in ASSEMBLY_FIELDS:
+        if field in configured:
+            merged[field] = copy.deepcopy(configured[field])
+    # The configurator's own prose is written for a reader of this screen; keep the rulebook's
+    # `definition` (which the LLM matches against) either way.
+    return merged
+
+
+def build_definitions(concepts: list[Any], configured: list[dict]) -> tuple[list[dict], dict]:
+    """The whole merged set, plus a census of where each definition came from.
+
+    Order is the rulebook's declaration order first, then the configurator's own additions. That
+    is deliberate and load-bearing: for a caption whose claimants tie on every principled field —
+    one such pair exists, `presented in` — both engines answer by declaration order, so preserving
+    the rulebook's order is what makes the merged set equivalent rather than merely similar.
+    """
+    by_key = {d["key"]: d for d in configured}
+    out: list[dict] = []
+    census = {"projected": 0, "merged": 0, "configurator_only": 0}
+
+    seen: set[str] = set()
+    for concept in concepts:
+        projected = project_concept(concept)
+        key = projected["key"]
+        seen.add(key)
+        if key in by_key:
+            out.append(merge_assembly(projected, by_key[key]))
+            census["merged"] += 1
+        else:
+            out.append(projected)
+            census["projected"] += 1
+
+    for definition in configured:
+        if definition["key"] not in seen:
+            out.append(copy.deepcopy(definition))
+            census["configurator_only"] += 1
+
+    return out, census

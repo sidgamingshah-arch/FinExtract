@@ -1,0 +1,326 @@
+"""Match a printed caption to a line item — the FUNCTIONALITY half of the merge.
+
+The schema merge made `LineItemDef` able to carry every declaration a concept makes; the seed
+build moved all 462 across. Neither of those changed what the pipeline does, because the
+line-item layer had no matcher: for an extracted line `services.line_items.evaluate` was one line
+returning whatever it had been handed. Every declaration on the screen — aliases, hints, vetoes,
+the gate — was read by nothing. This module reads them.
+
+WHAT IT PORTS, and from where. `OntologyMatcher`'s DETERMINISTIC path, tier for tier:
+
+    the gate            `_allowed`      = statement AND section AND not vetoed      (mapping:1649)
+    locks               `_unmatchable`  = alias_matching disabled, extraction_mode derive
+    exact alias         `_exact`        gate handed IN, then label ownership, then priority
+                                                                                    (mapping:1083)
+    forbidden ties      `_exact_tie`    mutually-confusable at equal priority -> review
+                                                                                    (mapping:1137)
+    rule tier           `_rule`         regex_hints then keyword_hints, priority-ordered, on BOTH
+                                        the raw-lowercased and the normalised caption (mapping:1193)
+
+THE SEMANTIC TIER IS NOT PORTED, and that is a scope statement rather than an omission. The LLM
+tier consumes the same per-concept payload — `definition`, `include_criteria`,
+`exclude_criteria`, `confusable_with` — which the merged model now carries in full, so it can be
+pointed at this registry without changing what it is shown. What it cannot be is proven equivalent
+the way the deterministic path can, and the deterministic path is what decides a figure when no
+LLM is configured.
+
+NORMALISATION IS IMPORTED, NEVER REIMPLEMENTED. `normalize_label`, `label_segments`,
+`section_of_banner` and `normalize_statement` all come from `services.mapping`. Two copies of a
+nine-step normalisation is how the two models diverge in the first place, and the whole point of
+this exercise was to stop having two answers to one question. `scripts/parity_line_items.py`
+holds the port to that standard: every caption in the rulebook, through both engines, same answer.
+"""
+from __future__ import annotations
+
+import re
+from collections import defaultdict
+from dataclasses import dataclass, field
+
+from app.schemas.line_items import LineItemDef, LineItemSet
+from app.services.mapping import (
+    _STATEMENT_OF_PREFIX,
+    MappingMethod,
+    label_segments,
+    normalize_label,
+    normalize_statement,
+    section_of_banner,
+    section_token_of_scope,
+)
+
+# The statements the gate is willing to reason about — the incumbent's own set, IMPORTED rather
+# than restated. It is the FOUR the key namespace encodes (bs_/pl_/cf_/eq_), not the seven
+# `StatementType` declares: `notes`, `statement_setup` and `covenants_supplemental` are places a
+# caption can be printed, not statements the gate narrows by, so a caption from one of those is
+# never refused for belonging elsewhere.
+#
+# Restating this as "all seven" was measurable: it refused `bs_ca__total_assets` for a caption
+# printed under a statement-setup banner and `bs_nca__options_nca` for one in the notes, which was
+# 3 of the 133 parity disagreements and the last 3 to go.
+_STATEMENTS = frozenset(_STATEMENT_OF_PREFIX.values())
+
+
+@dataclass
+class LineItemMatch:
+    """One caption's resolution, and enough to explain or audit it."""
+
+    key: str | None
+    method: str
+    confidence: float
+    needs_review: bool = False
+    # Every key that survived the gate and claimed this caption, when more than one did. Populated
+    # for a forbidden tie so the review item can list them, empty otherwise.
+    tied: list[str] = field(default_factory=list)
+    # Why nothing matched, or why this one did — one short phrase, for the run log.
+    reason: str = ""
+
+    @property
+    def resolved(self) -> bool:
+        return self.key is not None
+
+
+class LineItemMatcher:
+    """The deterministic tiers, over a `LineItemSet`.
+
+    Built from the RESOLVED set: the gate is what this class is for, and 462 of 462 definitions
+    declare `statement` on none of themselves and inherit all of it. Handed an unresolved set,
+    every gate check would pass and the matcher would be a plain alias lookup.
+    """
+
+    def __init__(self, line_items: LineItemSet):
+        self.set = line_items
+        self.by_key: dict[str, LineItemDef] = {d.key: d for d in line_items.items}
+
+        # DECLARATION ORDER IS RECORDED, because it is the last tie-break and both engines use it.
+        # One caption in the shipped rulebook (`presented in`) has two claimants that tie on every
+        # principled field; `OntologyMatcher` answers it by whichever `_alias_index` saw first,
+        # which is file order. Keeping the index insertion-ordered reproduces that exactly instead
+        # of leaving it to dict iteration luck.
+        self._order: dict[str, int] = {d.key: i for i, d in enumerate(line_items.items)}
+
+        # Unreachable by MATCHING, for two different declared reasons.
+        #
+        #   alias_matching == "disabled" — the section "Others" buckets, populated by the residual
+        #   sweep alone. A residual's caption is the most attractive one in the rulebook: "Others"
+        #   matches almost anything short, and a figure landing there is a figure in the bucket
+        #   that is supposed to be the section's UNEXPLAINED remainder, so the reconciliation that
+        #   would have reported the gap instead ties.
+        #
+        #   extraction_mode == "derive" — the framework computes it and a filing does not print
+        #   it. Offering it as a candidate asserts a row on the page IS the derived subtotal, which
+        #   then overwrites the computation with whatever caption happened to match.
+        self._unmatchable: set[str] = {
+            d.key for d in line_items.items
+            if d.alias_matching == "disabled" or d.extraction_mode == "derive"
+        }
+
+        # alias -> claimants, insertion-ordered, every locale folded in. `aliases_for(None)` is the
+        # default list plus the English anchor; the per-locale lists are added explicitly so a Han
+        # alias is reachable without the caller knowing which locale a page was printed in.
+        self._alias_index: dict[str, list[str]] = defaultdict(list)
+        self._label_index: dict[str, list[str]] = defaultdict(list)
+        for d in line_items.items:
+            names = [d.label, *d.aliases]
+            for locale_aliases in d.aliases_i18n.values():
+                names.extend(locale_aliases)
+            for raw in names:
+                norm = normalize_label(raw or "")
+                if norm and d.key not in self._alias_index[norm]:
+                    self._alias_index[norm].append(d.key)
+            label_norm = normalize_label(d.label or "")
+            if label_norm and d.key not in self._label_index[label_norm]:
+                self._label_index[label_norm].append(d.key)
+
+    # ── the gate ─────────────────────────────────────────────────────────────────────────────
+
+    def _priority_of(self, key: str) -> int:
+        """Declared `match_priority`, or 0 when none is declared.
+
+        0 rather than a mid-scale guess: a set that declares no priority anywhere must degenerate
+        to exactly the ordering it had before priorities existed.
+        """
+        d = self.by_key.get(key)
+        return d.match_priority if (d is not None and d.match_priority is not None) else 0
+
+    def _vetoed(self, key: str, caption: str) -> bool:
+        """Whether this line item's `exclude_hints` rule the caption out.
+
+        AN EXCLUSION OUTRANKS THE LINE ITEM'S OWN ALIAS, and it has to: the point of the field is
+        that someone looking at a mis-mapping can add one line and have it stop. Matched
+        case-insensitively against the RAW caption — `re.IGNORECASE` rather than lowercasing the
+        pattern, because lowercasing would silently invert `\\S`, `\\B`, `\\W` and `\\D`.
+        """
+        d = self.by_key.get(key)
+        if d is None or not d.exclude_hints:
+            return False
+        return any(re.search(ex, caption, re.IGNORECASE) for ex in d.exclude_hints)
+
+    def _allowed(self, key: str, statement: str | None, section: str | None,
+                 caption: str) -> bool:
+        """The conjunction, in ONE place so no call site can apply only part of the scoping.
+
+        That single-place rule is why `mapping._allowed` exists and it is repeated here for the
+        same reason: the gate is handed INTO the alias lookup as a predicate rather than applied to
+        its output, because when two line items claim one alias the winner has to be the one that
+        fits where the caption was printed.
+        """
+        d = self.by_key.get(key)
+        if d is None:
+            return False
+        if key in self._unmatchable:
+            return False
+        want = normalize_statement(statement)
+        # Both sides folded to one spelling — `equity_changes` and `changes_in_equity` are the
+        # same statement under two names, and a raw compare refuses every definition on it.
+        if want in _STATEMENTS and not d.claimable_on(want, normalize=normalize_statement):
+            return False
+        banner = section_of_banner(section)
+        # The resolver is what makes this the incumbent's gate rather than a string compare: a
+        # scope id carries printed position as well as name, and `*_top_level` names no section, so
+        # the statement-level totals must stay claimable under every banner in their statement.
+        if banner and not d.claimable_under(banner, resolve=section_token_of_scope):
+            return False
+        return not self._vetoed(key, caption)
+
+    def mappable_keys(self, statement: str | None = None, section: str | None = None,
+                      caption: str = "") -> list[str]:
+        """The restricted candidate set — `binding.order` step 3, applied BEFORE any tier runs.
+
+        Restricting first rather than filtering each tier's output reaches the same winner but a
+        different shortlist, and the shortlist is what a semantic tier is shown.
+        """
+        return [d.key for d in self.set.items
+                if self._allowed(d.key, statement, section, caption)]
+
+    # ── tie handling ─────────────────────────────────────────────────────────────────────────
+
+    def _prefer_label_owners(self, norm: str, keys: list[str]) -> list[str]:
+        """Prefer line items whose own label IS the caption being matched.
+
+        A line item may carry another's full label as an over-broad alias. Priority is useful
+        between aliases of differing specificity, but it must never let a borrowed alias beat the
+        line item the filing actually named.
+        """
+        owners = set(self._label_index.get(norm) or [])
+        exact = [k for k in keys if k in owners]
+        return exact or keys
+
+    def _mutually_confusable(self, a: str, b: str) -> bool:
+        """Both name the other. MUTUAL on purpose.
+
+        `confusable_with` is a directed graph and a one-way edge is usually a warning about a
+        bigger concept ("do not confuse this leaf with that subtotal"). Only a pair that each names
+        the other is the rulebook saying these two are mistaken for one another.
+        """
+        da, db = self.by_key.get(a), self.by_key.get(b)
+        return bool(da and db and b in da.confusable_with and a in db.confusable_with)
+
+    def _forbidden_tie(self, norm: str, statement: str | None, section: str | None,
+                       caption: str) -> list[str]:
+        """Claimants of this alias that may NOT be separated by priority.
+
+        An alias claimed by two line items is normally settled by descending `match_priority` — but
+        a mutually-confusable pair sitting at the SAME priority (current vs non-current borrowings,
+        notes payable, properties under development) would be settled by taking the first declared,
+        which the binding order forbids in as many words. The banner normally separates them and
+        this never fires; when it does not, the honest answer is both, for review.
+        """
+        keys = [k for k in (self._alias_index.get(norm) or [])
+                if self._allowed(k, statement, section, caption)]
+        if len(keys) < 2:
+            return []
+        keys = self._prefer_label_owners(norm, keys)
+        if len(keys) < 2:
+            return []
+        top = max(self._priority_of(k) for k in keys)
+        tied = [k for k in keys if self._priority_of(k) == top]
+        for i, a in enumerate(tied):
+            for b in tied[i + 1:]:
+                if self._mutually_confusable(a, b):
+                    return tied
+        return []
+
+    # ── the tiers ────────────────────────────────────────────────────────────────────────────
+
+    def _exact(self, norm: str, statement: str | None, section: str | None,
+               caption: str) -> str | None:
+        """An exact normalised-alias hit that the gate allows.
+
+        Order, and it is the rulebook's: gate, then label ownership, then highest priority, then
+        declaration order. `max` over an insertion-ordered list keeps the first declared on a full
+        tie, which is what the other engine does.
+        """
+        keys = [k for k in (self._alias_index.get(norm) or [])
+                if self._allowed(k, statement, section, caption)]
+        if not keys:
+            return None
+        choices = self._prefer_label_owners(norm, keys)
+        return max(choices, key=lambda k: (self._priority_of(k), -self._order.get(k, 0)))
+
+    def _rule(self, raw: str, allowed: set[str]) -> tuple[str | None, float]:
+        """regex_hints, then keyword_hints, in descending priority, with exclude_hints as a veto.
+
+        Run on BOTH spellings of the caption: as printed (lowercased) and normalised the way the
+        alias tier normalises it. Authored hints are anchored far more often than not, and an
+        anchored hint never fires on a real caption — `^net cash.*investing activities$` is
+        defeated by "Net cash flows from/(used in) investing activities 投資活動…". The raw
+        spelling is kept because a hint may deliberately target punctuation normalisation removes.
+        """
+        text = raw.lower()
+        norm = normalize_label(raw)
+        spellings = (text, norm) if norm and norm != text else (text,)
+        hits: list[str] = []
+        for d in self.set.items:
+            if d.key in self._unmatchable or d.key not in allowed:
+                continue
+            if any(re.search(ex, t, re.IGNORECASE)
+                   for ex in d.exclude_hints for t in spellings):
+                continue
+            if any(re.search(rx, t, re.IGNORECASE) for rx in d.regex_hints for t in spellings):
+                hits.append(d.key)
+            elif d.keyword_hints and any(all(kw.lower() in t for kw in d.keyword_hints)
+                                         for t in spellings):
+                hits.append(d.key)
+        if not hits:
+            return None, 0.0
+        # Several hits stay ambiguous — below every accept threshold — but the key reported is the
+        # highest-priority claimant, since that is what a shortlist carries forward.
+        best = max(hits, key=lambda k: (self._priority_of(k), -self._order.get(k, 0)))
+        return best, (0.95 if len(hits) == 1 else 0.6)
+
+    def match(self, caption: str, statement: str | None = None,
+              section: str | None = None) -> LineItemMatch:
+        """Resolve one printed caption deterministically.
+
+        `statement` is what the page classifier decided; `section` is the banner the row sat under.
+        Both may be None and both being None is not an error — it simply leaves the gate with
+        nothing to narrow by, which is the situation a caller with an unclassified page has.
+
+        Tried on the whole caption and on each script's half: either alone can be an exact alias,
+        so "REVENUE 收益" resolves the way the monolingual "Revenue" would.
+        """
+        segments = label_segments(caption)
+
+        for seg in segments:
+            seg_norm = normalize_label(seg)
+            if not seg_norm:
+                continue
+            tied = self._forbidden_tie(seg_norm, statement, section, caption)
+            if tied:
+                return LineItemMatch(
+                    None, MappingMethod.UNMATCHED, 0.0, needs_review=True, tied=tied,
+                    reason="mutually-confusable claimants at equal priority; the binding order "
+                           "forbids separating them by declaration order")
+            hit = self._exact(seg_norm, statement, section, caption)
+            if hit:
+                return LineItemMatch(hit, MappingMethod.EXACT, 1.0, reason="exact alias")
+
+        allowed = set(self.mappable_keys(statement, section, caption))
+        key, score = self._rule(caption, allowed)
+        if key:
+            return LineItemMatch(key, MappingMethod.RULE, score,
+                                 needs_review=score < 0.95,
+                                 reason="rule hint" if score >= 0.95
+                                        else "several rule hints fired; ambiguous")
+
+        return LineItemMatch(None, MappingMethod.UNMATCHED, 0.0, needs_review=True,
+                             reason="no alias and no rule hint the gate allows")

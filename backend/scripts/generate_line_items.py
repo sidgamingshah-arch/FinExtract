@@ -238,7 +238,12 @@ document = {
     "items": items,
 }
 
-out = pathlib.Path("app/sample/templates/output_csv_hk_line_items.json")
+# The CONFIGURED definitions only. `build_line_items.py` merges these with the 462
+# rulebook concepts to produce the seed the API serves. Two files because the merged
+# seed must never be an input to its own build: reading it back would treat 462
+# projected definitions as hand-configured ones, and the build would stop being
+# reproducible from its sources.
+out = pathlib.Path("app/sample/templates/output_csv_hk_line_items_configured.json")
 out.write_text(json.dumps(document, ensure_ascii=False, indent=1), encoding="utf-8")
 
 # ── validate through the registry, AS RESOLVED ───────────────────────────────────────────────
