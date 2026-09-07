@@ -5459,6 +5459,10 @@
       },
       "section_scope": [
         "bs_top_level"
+      ],
+      "exclude_hints": [
+        "^total assets less current liabilities",
+        "^net current (?:assets|liabilities)"
       ]
     },
     {
@@ -10573,6 +10577,10 @@
       },
       "section_scope": [
         "bs_top_level"
+      ],
+      "exclude_hints": [
+        "^total assets less current liabilities",
+        "^net current (?:assets|liabilities)"
       ]
     },
     {
@@ -10627,6 +10635,10 @@
       },
       "section_scope": [
         "bs_top_level"
+      ],
+      "exclude_hints": [
+        "^total assets less current liabilities",
+        "^net current (?:assets|liabilities)"
       ]
     },
     {
