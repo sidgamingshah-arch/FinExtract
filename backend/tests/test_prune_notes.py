@@ -4,7 +4,8 @@ A filing's notes section is mostly not about the published figures — accountin
 segment commentary, governance tables. The requirement is that an unreferenced note is not
 delivered at all, so this asserts the keep/drop rule and, just as importantly, that nothing is
 dropped for the wrong reason (a note cited only from inside another note must not survive; a
-filing we could not classify must not lose everything).
+filing we could not classify must not lose everything; a filing whose face prints no note-reference
+column at all offers no evidence to prune ON, and must not be emptied).
 """
 from __future__ import annotations
 
@@ -125,25 +126,45 @@ def test_a_reference_from_inside_another_note_does_not_keep_it():
 
 
 def test_a_link_whose_face_item_is_not_on_a_face_page_is_ignored():
+    """A note cited only from inside ANOTHER note does not keep itself alive.
+
+    The filing has to cite something from its face for this to be decidable at all — without that
+    there is no citation evidence either way and every note is kept (see
+    ``test_a_filing_whose_face_prints_no_note_column_keeps_its_notes``). So note 15 is cited from
+    the face and note 12 only from a note page: 15 survives, 12 does not.
+    """
     doc = _doc(face_pages=(0,), note_pages=(1,))
     inside = _face_item("Sub-line inside a note", page=1)
-    doc.line_items = [inside]
-    note = _note("12")
-    doc.notes = [note]
-    doc.links = [FaceNoteLink(face_item_id=inside.id, notes_table_id=note.id, note_number="12")]
+    doc.line_items = [_face_item("Trade receivables", refs=["15"]), inside]
+    note12, note15 = _note("12"), _note("15")
+    doc.notes = [note12, note15]
+    doc.links = [FaceNoteLink(face_item_id=inside.id, notes_table_id=note12.id, note_number="12")]
     _run(doc)
-    assert doc.notes == []
+    assert [n.note_number for n in doc.notes] == ["15"]
 
 
-def test_no_face_reference_at_all_publishes_nothing_and_says_so():
-    """Publishing every note would contradict the requirement; doing it silently would hide a
-    note-column detection failure, so the run records it."""
+def test_a_filing_whose_face_prints_no_note_column_keeps_its_notes():
+    """NO CITATION EVIDENCE IS NOT EVIDENCE THAT NO NOTE IS WANTED, and this branch treated the two
+    as one. A mainland filing need not print a 附注 column beside its statement lines and 河钢股份
+    000709 does not: no face row carries a reference, ``link_notes`` can build nothing —
+    ``link_type="explicit_note_ref"`` is the only kind of link there is — and all 285 extracted
+    note tables were discarded, taking the notes index, the export's note detail and the review
+    queue's note evidence with them, on a filing whose notes were read correctly.
+
+    The asymmetry is the argument. Keeping them where a filing genuinely cites none publishes
+    tables nobody asked for: visible, and recoverable by reading past them. Dropping them where the
+    face prints no note column publishes nothing and says nothing about what was lost. The stage
+    already answers the same question the same way one function up, for a document with no
+    classifiable face page.
+    """
     doc = _doc()
     doc.line_items = [_face_item("Trade receivables")]
     doc.notes = [_note("15"), _note("2")]
+
     ctx = _run(doc)
-    assert doc.notes == []
-    assert any("no_face_references" in line for line in ctx.logs)
+
+    assert [n.note_number for n in doc.notes] == ["15", "2"]
+    assert any("no_note_column_on_the_face" in line for line in ctx.logs)
 
 
 def test_an_unclassifiable_filing_does_not_lose_every_note():

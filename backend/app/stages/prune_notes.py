@@ -12,6 +12,11 @@ are trustworthy. Pruning here means one filter governs every consumer of ``doc.n
 
 Nothing is deleted from the source document or from provenance — this only decides what is
 PUBLISHED, and the log records exactly what was dropped so a missing note is explainable.
+
+The rule needs the face to POINT at something. A mainland filing need not print a 附注 column
+beside its statement lines, and where it does not there is no evidence to prune on — so nothing is
+pruned, rather than everything (see the ``not wanted`` branch, and ``_is_face_item`` for the same
+answer to the same question about a filing with no classifiable face page).
 """
 from __future__ import annotations
 
@@ -84,11 +89,26 @@ class PruneNotesStage:
         # backstop for a note whose table the linker could not match.
         wanted = linked | _face_note_numbers(doc)
         if not wanted:
-            # No face row cited any note. Publishing every note would contradict the
-            # requirement; publishing none could equally be a note-column detection failure,
-            # so say so loudly rather than silently emptying the notes index.
-            ctx.log(f"prune_notes:no_face_references kept=0 dropped={len(doc.notes)}")
-            doc.notes = []
+            # NO CITATION EVIDENCE AT ALL, which is not the same as evidence that no note is
+            # wanted — and the two were being treated as one. A mainland filing need not print a
+            # 附注 column beside its statement lines, and 河钢股份 000709 does not: not one of its
+            # face rows carries a note reference, `link_notes` can therefore build nothing
+            # (`link_type="explicit_note_ref"` is the only kind of link there is), and this branch
+            # then discarded all 285 extracted note tables — the notes index, the note detail in
+            # the export and the review queue's note evidence, gone, on a filing whose notes were
+            # read correctly.
+            #
+            # So the notes are kept, and the asymmetry of the two mistakes is the argument. Keeping
+            # them on a filing that genuinely cites none publishes tables the analyst did not ask
+            # for: visible, and recoverable by reading past them. Dropping them on a filing that
+            # prints no note column publishes nothing and says nothing about what was lost — no
+            # consumer of the result can tell the notes ever existed. ``_is_face_item`` one
+            # function above already decided the identical question the same way, for a document
+            # with no classifiable face page: "failing closed there would publish nothing at all".
+            #
+            # The log names this reason rather than the old one, because "no face references" read
+            # as a finding about the filing when it was a finding about the reader.
+            ctx.log(f"prune_notes:no_note_column_on_the_face kept={len(doc.notes)} dropped=0")
             return doc
 
         kept, dropped = [], []

@@ -115,6 +115,26 @@ def test_a_filing_with_no_chapters_keeps_bare_numbers():
     assert qualified_note_number("七", None) is None
 
 
+def test_forming_an_identity_twice_forms_the_same_identity():
+    """A note table that runs over more than one page is handed to the next page as its
+    ``carry_note``, and ``services.pdf_extract`` carries the last table's ``note_number`` — which
+    is already an identity. Stamping the chapter on again produced, on 688008, 七、七、1 and then
+    七、七、七、17 and then 七、七、七、七、九、9 as the note continued; around 80 of the 219 note tables
+    ``stages.prune_notes`` dropped had an identity of that shape, so the face citation looking for
+    them could never match one.
+    """
+    assert qualified_note_number("七", qualified_note_number("七", "1")) == "七、1"
+    assert qualified_note_number("七", "七、七、1") == "七、七、1"     # already spoiled, not re-spoiled
+
+
+def test_a_note_carried_onto_the_next_chapters_page_keeps_its_own_chapter():
+    """THE REASON IDEMPOTENCE IS THE RIGHT RULE and not merely the cheap one. 十九、十八、8 and
+    八、七、81 were both produced by a note that STARTED in one chapter and continued onto a page
+    where the reader had already advanced to the next. The chapter a note was printed under is the
+    chapter it belongs to; the page it spills onto does not re-home it."""
+    assert qualified_note_number("十九", "十八、8") == "十八、8"
+
+
 def test_the_identity_splits_back_for_sorting():
     """`split_note_number` is the inverse, and it exists so a sort key or a comparison never
     takes the identity apart with a regex of its own — two definitions of what an identity IS
