@@ -356,10 +356,21 @@ export interface StatementRow {
    *  - `extracted`            — read off the document (the ordinary line);
    *  - `calculated`           — computed from the components the template declares;
    *  - `manual`              — a value an analyst typed, which outranks both;
+   *  - `derived`              — assembled by an extraction rule from NOTE lines rather than read
+   *                             off one caption. The template's own components were not
+   *                             extracted, so the rollup could not check the figure — but unlike
+   *                             `reported_uncomputed` the row DOES carry its `contributions`,
+   *                             each with the page it was printed on, and that is its
+   *                             traceability;
    *  - `reported_uncomputed`  — a calculated line none of whose components were extracted, so
    *                             the printed figure is shown UNVERIFIED and is in the review queue.
+   *
+   * `derived` was ABSENT FROM THIS UNION while the server had been sending it since c67e723, and
+   * a type that under-states what an API returns is not a smaller type — it is a wrong one. The
+   * server's own glossary for these values is `_CALC_NOTES` in api/routes/documents.py; anything
+   * added there belongs here, and in `ORIGIN_CHIP` in screens/Workspace.tsx, in the same commit.
    */
-  origin?: "extracted" | "calculated" | "manual" | "reported_uncomputed";
+  origin?: "extracted" | "calculated" | "manual" | "derived" | "reported_uncomputed";
   /** Per-period origin. The row-level `origin` is a summary for the chip; these are what each
    *  column actually is, and they can differ — a figure corrected this year says nothing about
    *  last year, and a period whose components were not extracted is not made computable by the

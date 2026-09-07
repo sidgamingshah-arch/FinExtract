@@ -372,10 +372,37 @@ const ORIGIN_CHIP: Record<Origin, { label: string; bg: string; fg: string; help:
                 help: "Computed from this line's components, not read off the page" },
   manual: { label: "✎", bg: color.amberBg, fg: color.amberFg,
             help: "A value entered by hand, which overrides both the document and the components" },
+  // ASSEMBLED FROM NOTE LINES by an extraction rule. Amber and not red, and a glyph of its own,
+  // because it is NOT the `reported_uncomputed` story: the template's rollup could not check the
+  // figure in either case, but a derived row carries its `contributions` — the note lines it was
+  // built from, each with its page — so there is somewhere to go and check. Red beside a figure
+  // that can be traced would over-state it, and reusing ƒ would claim the rollup verified it.
+  derived: { label: "≡", bg: color.amberBg, fg: color.amberFg,
+             help: "Assembled by an extraction rule from note lines rather than read off one "
+                   + "caption. The template's components were not extracted, so the rollup could "
+                   + "not check it — see the contributions below for the lines it came from" },
   reported_uncomputed: { label: "!", bg: color.redBg, fg: color.redFg,
                          help: "Printed in the document but not verifiable — none of this line's "
                                + "components were extracted" },
 };
+
+/** The chip for an origin, or null when this build has never heard of it.
+ *
+ * A MISSING ENTRY USED TO UNMOUNT THE WHOLE APP. `ORIGIN_CHIP[origin]` is typed as total over
+ * `Origin`, so `.help` on the result reads as safe — but the type is a claim about the server,
+ * and when the server began sending `derived` (c67e723) the lookup returned `undefined` at
+ * runtime, `.help` threw inside render, and with no error boundary above it React unmounted the
+ * tree: clicking P&L blanked the page. It reproduced on 6 of 8 documents in the workspace, on
+ * P&L only, and exactly on the 6 whose P&L carried a derived row.
+ *
+ * So the total type is not the guard here — the server is. Falling back to "no chip" degrades a
+ * value this build does not recognise to the way an ordinary extracted row already renders, which
+ * is the one outcome that cannot lose the reader their screen.
+ */
+function originChip(origin: string | null | undefined) {
+  if (!origin || origin === "extracted") return null;
+  return (ORIGIN_CHIP as Record<string, typeof ORIGIN_CHIP[Origin] | undefined>)[origin] ?? null;
+}
 
 /* ---- printed on the face, or inside a note ----
  *
@@ -403,8 +430,8 @@ function PrintedInChip({ printedIn }: { printedIn?: StatementRow["printed_in"] }
 }
 
 function OriginChip({ origin }: { origin?: Origin }) {
-  if (!origin || origin === "extracted") return null;
-  const c = ORIGIN_CHIP[origin];
+  const c = originChip(origin);
+  if (!c) return null;
   return (
     <span
       title={c.help}
@@ -1229,7 +1256,10 @@ export default function WorkspaceScreen() {
   // summary — a row whose current figure was overridden still has an extracted prior one.
   const inspOrigin = (inspPeriod === "current" ? selRowObj?.origin1 : selRowObj?.origin2)
     ?? selRowObj?.origin ?? "extracted";
-  const inspChip = ORIGIN_CHIP[inspOrigin];
+  // Through the same guard as the grid's chip, and for the same reason: this is the SECOND
+  // unguarded read of `ORIGIN_CHIP`, and it would have blanked the screen on selecting a derived
+  // row even after the grid was fixed. `inspChip?.help` below is then the whole difference.
+  const inspChip = originChip(inspOrigin);
   const inspReported = inspPeriod === "current" ? selRowObj?.reported1 : selRowObj?.reported2;
   const inspShown = inspPeriod === "current" ? selRowObj?.v1 : selRowObj?.v2;
   const inspComputed = inspPeriod === "current" ? selRowObj?.calculated1 : selRowObj?.calculated2;
@@ -1776,8 +1806,8 @@ export default function WorkspaceScreen() {
                   </span>
                 )}
                 {/* Where the figure on show came from — extracted, computed from its components,
-                    overridden by hand, or printed and unverifiable. */}
-                {inspOrigin !== "extracted" && (
+                    overridden by hand, assembled from note lines, or printed and unverifiable. */}
+                {inspChip && (
                   <span
                     title={inspChip.help}
                     data-testid={`inspector-origin-${inspOrigin}`}
@@ -1790,8 +1820,15 @@ export default function WorkspaceScreen() {
                       color: inspChip.fg,
                     }}
                   >
+                    {/* "printed, unverified" IS NOT THE FALLBACK IT LOOKS LIKE. It is one specific
+                        claim — that nothing was extracted to check the figure against — and a
+                        derived figure fails it: that row was assembled from note lines it can
+                        name. An unlabelled origin therefore says the neutral thing instead. */}
                     {inspOrigin === "calculated" ? "calculated"
-                      : inspOrigin === "manual" ? "manual override" : "printed, unverified"}
+                      : inspOrigin === "manual" ? "manual override"
+                      : inspOrigin === "derived" ? "assembled from notes"
+                      : inspOrigin === "reported_uncomputed" ? "printed, unverified"
+                      : inspOrigin}
                   </span>
                 )}
                 {insp && inspOrigin === "extracted" && (

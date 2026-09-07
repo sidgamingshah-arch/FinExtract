@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { useEffect } from "react";
-import { Navigate, Route, Routes, useParams } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 
+import { ScreenErrorBoundary } from "./components/ScreenErrorBoundary";
 import { NavRail } from "./components/shell/NavRail";
 import { TopBar } from "./components/shell/TopBar";
 import Login from "./screens/Login";
@@ -47,9 +48,17 @@ function AdoptDocumentAndRedirect() {
 }
 
 /** Route guard: renders the screen only if the caller's role may see it; otherwise
- * redirects to the first screen the role can access. */
+ * redirects to the first screen the role can access.
+ *
+ * ALSO WHERE EVERY SCREEN GETS ITS ERROR BOUNDARY. One wrapper here covers all fourteen routes
+ * and sits below the TopBar and NavRail, so a screen that throws while rendering costs the reader
+ * that screen and not the application — see ScreenErrorBoundary for what the absence of it cost.
+ * Keyed by pathname because a caught boundary stays caught: without the remount, one screen's
+ * crash would follow the reader to every other screen for the rest of the session.
+ */
 function RequireScreen({ screen, children }: { screen: string; children: ReactNode }) {
   const { data: me, isPending } = useMe();
+  const { pathname } = useLocation();
   if (isPending || !me) {
     return <div style={{ padding: 60, textAlign: "center", color: color.muted }}>Loading…</div>;
   }
@@ -57,7 +66,11 @@ function RequireScreen({ screen, children }: { screen: string; children: ReactNo
     const first = me.screens[0] ?? "workspace";
     return <Navigate to={SCREENS[first]?.path ?? "/workspace"} replace />;
   }
-  return <>{children}</>;
+  return (
+    <ScreenErrorBoundary key={pathname} resetKey={pathname}>
+      {children}
+    </ScreenErrorBoundary>
+  );
 }
 
 /** The authenticated application shell. */
