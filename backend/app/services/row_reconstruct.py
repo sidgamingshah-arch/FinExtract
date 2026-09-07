@@ -36,6 +36,13 @@ from app.services.han import to_simplified
 # reading a banner here uses the same function mapping does rather than a second copy of it.
 from app.services.mapping import section_of_banner, section_of_banner_only
 
+# The five sections a balance sheet prints, and the whole of them. Used to refuse a data-less row
+# that names one of the OTHER statements' sections as this statement's banner.
+_BALANCE_SHEET_SECTIONS = frozenset({
+    "non_current_assets", "current_assets", "non_current_liabilities", "current_liabilities",
+    "equity",
+})
+
 _NUM = re.compile(r"^\(?-?[\d,]*\.?\d+\)?$")
 _NOTE = re.compile(r"^note[s]?\.?$", re.IGNORECASE)
 # A column header for the note-reference column (English + Chinese). Real statements print it
@@ -1417,6 +1424,21 @@ def _names_company_only(label: str, stems: tuple[tuple[str, ...], ...]) -> bool:
 # the same form — 七、61, 七、70 — and one of those arrives as a row's whole label when the
 # caption beside it is lost. A note reference is not a subtotal of anything.
 _CAS_STATEMENT_LINE = re.compile(r"^[一二三四五六七八九十]+、\s*(?![0-9０-９])[^\s]")
+
+# AND ITS TOTALS, which carry no enumeration. The balance sheet is not enumerated at all — its
+# spine is 流动资产合计 / 非流动资产合计 / 资产总计 / 流动负债合计 / 负债合计 /
+# 所有者权益合计 / 负债和所有者权益总计 — and the cash flow statement's activity subtotals are
+# 经营活动现金流入小计 and its siblings. Measured on 688008, all eleven were swept into a
+# section's residual bucket, so bs_nca__other_non_current_assets carried 资产总计 (12.2bn) and
+# 负债合计 added on top of the assets it is meant to be the residual of.
+#
+# 合计 / 总计 / 小计 END the caption; they are never the whole of it and never in the middle. A
+# component of a total reads 其中：… and a detail line carries none of them, so — unlike the
+# English "Total …" test this deliberately does not spell — there is no caption on a mainland face
+# that ends this way and is a detail. Traditional forms included for a Hong Kong printing of the
+# same statement. ``on_face`` at the call site: inside a NOTE, 合计 is the note table's own total
+# and the note→face tie already reads it as one.
+_CAS_TOTAL_LINE = re.compile(r"(合计|合計|总计|總計|小计|小計)\s*$")
 
 _CONSOL = re.compile(r"consolidat", re.IGNORECASE)
 _STANDALONE = re.compile(r"standalone|separate", re.IGNORECASE)
@@ -3233,10 +3255,52 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             # A row that normalises to NOTHING is not a banner either: the units caption
             # ("RMB'000") and an audit-status note ("（未經審核）") are label-only rows that scope
             # no concept, and taking one as the section put a unit where a section belongs.
+            # EXHAUSTED BY THE SECTION PHRASE, not merely containing it. A mainland face prints
+            # the whole statutory caption list whether or not the entity has the balance, so a
+            # dozen rows per statement arrive with no figures — and a substring test read three
+            # of them as the banner for the section they name a member of:
+            #
+            #   一年内到期的非流动资产  ("non-current assets falling due within one year") contains
+            #                        非流动资产, so every current asset printed after it — and
+            #                        其他流动资产 and 流动资产合计 are printed after it — was
+            #                        scoped to non-current assets;
+            #   其他权益工具投资        ("other equity instrument investments") contains 权益, so on
+            #                        the parent-company sheet, where it has no balance, the whole
+            #                        asset side below it declared the EQUITY section;
+            #   其他综合收益            is the OCI banner on an income statement and an equity LINE
+            #                        ITEM on a balance sheet, and exhaustion cannot tell those
+            #                        apart — see the ``HEADING_ROW_SECTIONS`` test below.
+            #
+            # Each mis-section then cascaded, because the section gate restricts the matcher to
+            # that section's concepts: 投资性房地产 and 固定资产 mapped on the consolidated sheet
+            # and reached NO concept on the parent's, having been offered only equity concepts.
             caption = apply_pipeline(label, steps)
-            banner = section_of_banner(caption)
-            if label and caption and not value_words and (_looks_like_header(label_words, steps)
-                                                          or banner is not None):
+            heading = _looks_like_header(label_words, steps)
+            banner = section_of_banner_only(caption)
+            if banner is None and _ends_with_colon(label, steps):
+                # A TRAILING COLON IS THE GEOMETRY EXHAUSTION STANDS IN FOR. ``section_of_banner``
+                # matches a section phrase anywhere in the text, which its own docstring calls
+                # right "where geometry has already established that the text is a standalone
+                # heading" — and a data-less line printed with a colon is that. The mainland equity
+                # banner needs it: 所有者权益（或股东权益）： names the section twice with an
+                # alternative between the two, so 权益 does not exhaust it and no reading of the
+                # words alone can, yet it is unmistakably the heading of the equity block.
+                banner = section_of_banner(caption)
+            if banner is not None and statement == "balance_sheet" \
+                    and banner not in _BALANCE_SHEET_SECTIONS:
+                # AND A SECTION THIS STATEMENT COULD NOT PRINT IS NOT ITS BANNER. Exhaustion is
+                # not enough for 其他综合收益: it is the whole of the OCI banner an income
+                # statement prints AND the whole of a caption a mainland BALANCE SHEET prints in
+                # its equity block, where the parent company has no balance for it. Read as the
+                # banner there, it scoped 盈余公积 and 未分配利润 — the two rows printed after it —
+                # to the OCI section of a balance sheet, which no concept lives in.
+                #
+                # Scoped to the balance sheet on purpose. The other statements' families overlap
+                # each other legitimately (a cash flow statement's indirect reconciliation is
+                # spelled in profit-and-loss captions), and no defect is known there; the balance
+                # sheet's five sections are closed, so anything else named on one is a caption.
+                banner = None
+            if label and caption and not value_words and (heading or banner is not None):
                 if _is_units_caption(label_words):
                     # A units caption is not a section, whatever it is printed in. The declared
                     # unit-and-currency annotation step strips the currencies the RULEBOOK NAMES,
@@ -3293,7 +3357,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         # measured on TWO filings, so an expense bucket carried the operating profit, the
         # pre-tax profit and the net profit added together. `on_face` because inside a NOTE the
         # same numbering is a sub-note enumeration and means nothing about totals.
-        statement_line = on_face and bool(_CAS_STATEMENT_LINE.match(label))
+        statement_line = on_face and (bool(_CAS_STATEMENT_LINE.match(label))
+                                     or bool(_CAS_TOTAL_LINE.search(label)))
         li = LineItem(source_label=label, ordinal=ordinal,
                       role=(LineRole.SUBTOTAL if promoted
                             else LineRole.TOTAL if statement_line else LineRole.LINE),

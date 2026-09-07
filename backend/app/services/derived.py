@@ -924,9 +924,34 @@ _STATEMENTish = re.compile(
     re.I)
 
 
+# A cover title set with LETTER SPACING, which is how a Shenzhen-listed filing routinely prints
+# its own name on the front page. 002004 华邦生命健康 prints
+#
+#     华 邦 生 命 健 康 股 份 有 限 公 司
+#
+# with a space between every character, and prints the name unspaced for the first time on the
+# report's sixth page — past the five pages ``detect_entity_name`` reads. No suffix pattern matches
+# the spaced form, so the entity came back as "HUAPONT LIFE SCIENCES CO.,LTD", the English line
+# printed under it, while the other three mainland filings in the corpus all yield the registered
+# Chinese name.
+#
+# Scoped to a run of FOUR OR MORE single Han characters each separated by one space, which is
+# letter spacing and nothing else: Chinese is written without spaces between characters, so four
+# consecutive one-character tokens do not occur in prose, and a two-word line is left alone.
+# LATIN IS NEVER TOUCHED — the class is Han-only — so "HUAPONT LIFE SCIENCES CO.,LTD" on the same
+# cover, and every English/HKEX cover and running header, reads exactly as before.
+_HAN_CHAR = r"[\u3400-\u4dbf\u4e00-\u9fff]"
+_LETTER_SPACED_HAN = re.compile(rf"(?:{_HAN_CHAR}[ \u3000]){{3,}}{_HAN_CHAR}")
+
+
+def _unspace_han(line: str) -> str:
+    """A letter-spaced Han run closed up; every other character left where it was."""
+    return _LETTER_SPACED_HAN.sub(lambda m: re.sub(r"[ \u3000]", "", m.group(0)), line)
+
+
 def _entity_from_segment(seg: str) -> str | None:
     """A single candidate segment → the entity name if it looks like one, else None."""
-    line = re.sub(r"\s+", " ", seg).strip(" .-—·|")
+    line = _unspace_han(re.sub(r"\s+", " ", seg).strip(" .-—·|"))
     if not (3 <= len(line) <= 90):
         return None
     # A PURE-CJK NAME, which carries no Latin letter and so can never reach the English test
