@@ -767,7 +767,6 @@
           "Property, plant and equipments"
         ],
         "zh": [
-          "固定资产",
           "物业、厂房及设备",
           "物业及设备"
         ]
@@ -1067,6 +1066,10 @@
       "aliases_i18n": {
         "en": [
           "Net Fixed Assets"
+        ],
+        "zh": [
+          "固定资产",
+          "固定资产净额"
         ]
       }
     },
@@ -1376,6 +1379,9 @@
           "Research and development",
           "development cost",
           "research cost"
+        ],
+        "zh": [
+          "开发支出"
         ]
       }
     },
@@ -1643,7 +1649,8 @@
           "合营公司之股本增加",
           "向联营公司注资",
           "购买投资",
-          "购买金融资产"
+          "购买金融资产",
+          "长期股权投资"
         ]
       }
     },
@@ -2178,17 +2185,20 @@
         ],
         "zh": [
           "以公允价值计量且其变动计入损益的金融资产",
+          "债务投资",
+          "债权投资",
+          "其他债务投资",
+          "其他债权投资",
+          "其他权益工具投资",
           "其他金融资产",
           "其他非流动金融资产",
-          "按公平值计入损益的金融资产",
-          "按公平值计入其他全面收益的金融资产",
-          "金融资产",
           "可供出售金融资产",
-          "持有至到期金融资产",
           "含嵌入式衍生工具的结构性存款",
-          "债务投资",
-          "其他债务投资",
-          "投资证券"
+          "投资证券",
+          "持有至到期金融资产",
+          "按公平值计入其他全面收益的金融资产",
+          "按公平值计入损益的金融资产",
+          "金融资产"
         ]
       }
     },
@@ -2750,6 +2760,10 @@
           "Other Non-Current Assets",
           "Total Non-current asset",
           "Due from related parties (definition in cell C32 of NCA)"
+        ],
+        "zh": [
+          "其他非流动资产",
+          "长期待摊费用"
         ]
       }
     },
@@ -3217,6 +3231,7 @@
           "Due from related parties (definition in C32 of NCA)"
         ],
         "zh": [
+          "非流动资产合计",
           "非流动资产总计",
           "非流动资产总额"
         ]
@@ -3797,21 +3812,22 @@
           "Financial assets at fair value through other comprehensive income"
         ],
         "zh": [
+          "交易性金融资产",
           "以公允价值计量且其变动计入损益的金融资产",
-          "其他金融资产",
-          "其他非流动金融资产",
-          "按公平值计入损益的金融资产",
-          "按公平值计入其他全面收益的金融资产",
-          "金融资产",
-          "可供出售金融资产",
-          "持有至到期金融资产",
-          "含嵌入式衍生工具的结构性存款",
           "债务投资",
           "其他债务投资",
+          "其他金融资产",
+          "其他非流动金融资产",
+          "可供出售金融资产",
+          "含嵌入式衍生工具的结构性存款",
           "投资证券",
-          "货币市场工具",
+          "持有至到期金融资产",
+          "按公平值计入其他全面收益的金融资产",
+          "按公平值计入损益的金融资产",
           "有价证券",
-          "短期货币市场存款"
+          "短期货币市场存款",
+          "货币市场工具",
+          "金融资产"
         ]
       }
     },
@@ -4270,6 +4286,7 @@
         "zh": [
           "可收回税项",
           "预付所得税",
+          "预付款项",
           "预付税项",
           "预缴企业所得税",
           "预缴税项"
@@ -4640,6 +4657,11 @@
           "Other Current Assets",
           "Total Current asset",
           "Due from related parties (definition in C32 of NCA)"
+        ],
+        "zh": [
+          "一年内到期的非流动资产",
+          "其他流动资产",
+          "合同资产"
         ]
       }
     },
@@ -4773,7 +4795,10 @@
         ],
         "zh": [
           "其他应收款项",
+          "应收款项融资",
+          "应收票据",
           "应收账款",
+          "应收账款及应收票据",
           "应收账款及票据",
           "按金、预付款项及其他应收款",
           "按金及预付款项",
@@ -5166,17 +5191,17 @@
           "Current portion of long term lending"
         ],
         "zh": [
+          "一年内到期的贷款及垫款",
+          "一年内到期的长期应收款",
+          "其他应收款",
           "其他应收款项",
+          "往来款",
+          "拆出资金",
           "按金、预付款项及其他应收款",
           "按金及预付款项",
           "预付款项、其他应收款及其他资产",
           "预付款项、按金及其他应收款项",
-          "预付款项及其他应收款项",
-          "其他应收款",
-          "一年内到期的长期应收款",
-          "一年内到期的贷款及垫款",
-          "拆出资金",
-          "往来款"
+          "预付款项及其他应收款项"
         ]
       },
       "exclude_hints": [
@@ -5392,6 +5417,7 @@
           "Due from related parties (definition in C32 of NCA)"
         ],
         "zh": [
+          "流动资产合计",
           "流动资产总计",
           "流动资产总额"
         ]
@@ -5440,6 +5466,7 @@
         ],
         "zh": [
           "总资产",
+          "资产合计",
           "资产总计",
           "资产总额"
         ]
@@ -5498,6 +5525,8 @@
           "Owners' equity"
         ],
         "zh": [
+          "实收资本",
+          "实收资本（或股本）",
           "已发行及缴足股本",
           "已发行股本",
           "股本"
@@ -5691,6 +5720,7 @@
           "法定储备",
           "法定公积金",
           "法定盈余公积",
+          "盈余公积",
           "资本储备",
           "资本公积"
         ]
@@ -5879,6 +5909,7 @@
           "Total Equity / Stockholders Equity/ Owners' Equity"
         ],
         "zh": [
+          "专项储备",
           "储备",
           "其他储备"
         ]
@@ -6204,6 +6235,9 @@
           "Partners funds",
           "Partners contributions",
           "Shares held for award scheme"
+        ],
+        "zh": [
+          "其他权益工具"
         ]
       }
     },
@@ -6296,6 +6330,9 @@
           "Hedging reserve",
           "Cash flow hedging reserve",
           "Gain (loss) on hedging instruments"
+        ],
+        "zh": [
+          "其他综合收益"
         ]
       }
     },
@@ -6395,6 +6432,11 @@
         "en": [
           "Total Equity & Reserves",
           "Equity / Stockholders Equity/ Owners' Equity"
+        ],
+        "zh": [
+          "所有者权益合计",
+          "所有者权益（或股东权益）合计",
+          "股东权益合计"
         ]
       }
     },
@@ -6664,7 +6706,7 @@
           "优先票据",
           "优先票据及境内债券",
           "境内债券",
-          "应付票据",
+          "应付债券",
           "流动应付票据",
           "非流动应付票据"
         ]
@@ -7221,7 +7263,9 @@
           "其他权益工具",
           "可转换优先股",
           "永续债",
-          "永续资本证券"
+          "永续资本证券",
+          "长期应付款",
+          "长期应付款项"
         ]
       }
     },
@@ -7645,12 +7689,10 @@
           "其他应付款及应计费用",
           "其他应付款项",
           "其他应付款项及应计费用",
-          "应付账款",
           "应付账款及票据",
           "应付贸易款项",
           "应计费用",
           "应计费用及其他应付款项",
-          "流动应付账款",
           "贸易及其他应付款",
           "贸易应付款、其他应付款及应计费用",
           "贸易应付款项及票据"
@@ -7701,13 +7743,7 @@
           "Accounts payables",
           "Creditors"
         ],
-        "zh": [
-          "应付账款",
-          "应付账款及票据",
-          "应付贸易款项",
-          "流动应付账款",
-          "贸易应付款项及票据"
-        ]
+        "zh": []
       }
     },
     {
@@ -7887,6 +7923,9 @@
           "Mandatory provident funds",
           "Provident funds",
           "Provident contributions"
+        ],
+        "zh": [
+          "长期应付职工薪酬"
         ]
       }
     },
@@ -8065,7 +8104,8 @@
           "复原拨备",
           "大修拨备",
           "拨备",
-          "长期拨备"
+          "长期拨备",
+          "预计负债"
         ]
       }
     },
@@ -8119,6 +8159,7 @@
           "可转换优先股",
           "永续债",
           "永续资本证券",
+          "非流动负债合计",
           "非流动负债总计",
           "非流动负债总额"
         ]
@@ -8296,10 +8337,10 @@
           "Sukuk"
         ],
         "zh": [
+          "一年内到期的非流动负债",
           "优先票据",
           "优先票据及境内债券",
           "境内债券",
-          "应付票据",
           "流动应付票据",
           "非流动应付票据"
         ]
@@ -9274,6 +9315,11 @@
       "aliases_i18n": {
         "en": [
           "Other Current Liabilities"
+        ],
+        "zh": [
+          "其他应付款",
+          "其他流动负债",
+          "应付职工薪酬"
         ]
       }
     },
@@ -9333,7 +9379,8 @@
           "合同负债",
           "合约负债",
           "已收预售款项",
-          "预收客户款项"
+          "预收客户款项",
+          "预收款项"
         ]
       }
     },
@@ -9826,6 +9873,9 @@
           "Soc Sec & Other Taxes(CP)",
           "Social Security & Other Taxes",
           "Social Security Contributions"
+        ],
+        "zh": [
+          "应交税费"
         ]
       }
     },
@@ -9950,6 +10000,10 @@
           "Notes Payable(CP)",
           "Notes acceptance",
           "Commercial acceptance"
+        ],
+        "zh": [
+          "应付票据",
+          "应付票据及应付账款"
         ]
       }
     },
@@ -10477,6 +10531,7 @@
           "Total Current Liabilities"
         ],
         "zh": [
+          "流动负债合计",
           "流动负债总计",
           "流动负债总额"
         ]
@@ -10522,6 +10577,9 @@
       "aliases_i18n": {
         "en": [
           "Total Liabilities"
+        ],
+        "zh": [
+          "负债合计"
         ]
       }
     },
@@ -10569,7 +10627,8 @@
         "zh": [
           "权益及负债总额",
           "负债及权益总额",
-          "负债和所有者权益总计"
+          "负债和所有者权益总计",
+          "负债和股东权益总计"
         ]
       }
     },
@@ -10839,6 +10898,7 @@
           "已售物业成本",
           "服务成本",
           "直接成本",
+          "营业成本",
           "销售成本",
           "销货成本"
         ]
@@ -11120,6 +11180,9 @@
       "aliases_i18n": {
         "en": [
           "Total Cost of Sales"
+        ],
+        "zh": [
+          "营业总成本"
         ]
       }
     },
@@ -11839,6 +11902,9 @@
         "en": [
           "Asset impairment loss",
           "Impairment loss on other assets"
+        ],
+        "zh": [
+          "资产减值损失"
         ]
       }
     },
@@ -11896,8 +11962,7 @@
         "zh": [
           "其他经营开支",
           "其他营业成本",
-          "其他营运成本",
-          "营业成本"
+          "其他营运成本"
         ]
       }
     },
@@ -12118,6 +12183,9 @@
           "Impairment loss of finance lease receivables",
           "Impairment loss of loan receivables",
           "Impairment loss of credit"
+        ],
+        "zh": [
+          "信用减值损失"
         ]
       }
     },
@@ -12830,14 +12898,8 @@
           "Bank interest"
         ],
         "zh": [
-          "利息开支",
-          "利息支出",
           "利息收入",
-          "融资成本",
-          "财务成本",
-          "财务费用",
           "银行利息收入",
-          "银行及其他借款之利息开支",
           "银行存款利息收入"
         ]
       }
@@ -13253,6 +13315,7 @@
         "zh": [
           "利息开支",
           "利息支出",
+          "利息费用",
           "融资成本",
           "财务成本",
           "财务费用",
@@ -13448,6 +13511,7 @@
           "Share of profit and loss of associates"
         ],
         "zh": [
+          "对联营企业和合营企业的投资收益",
           "应占联营公司业绩",
           "应占联营公司损益",
           "应占联营公司溢利及亏损",
@@ -13977,6 +14041,10 @@
           "Fair value change on debt instruments",
           "Fair value change on debt investments",
           "Fair value change on securities"
+        ],
+        "zh": [
+          "公允价值变动损益",
+          "公允价值变动收益"
         ]
       }
     },
@@ -14062,6 +14130,10 @@
           "Gain(Loss) Disp of Fixed Assets",
           "Gain/Loss on disposal of property, plants and equipments / contruction in progress / right-of-use assets",
           "Write off of property, plant and equipments /construction in progress / right-of-use assets"
+        ],
+        "zh": [
+          "资产处置损益",
+          "资产处置收益"
         ]
       }
     },
@@ -14226,6 +14298,10 @@
       "aliases_i18n": {
         "en": [
           "Other Non-Income Related Taxes"
+        ],
+        "zh": [
+          "税金及附加",
+          "营业税金及附加"
         ]
       }
     },
@@ -14276,11 +14352,8 @@
           "Operating profit"
         ],
         "zh": [
-          "息税前利润",
-          "经营利润",
-          "经营活动业绩",
-          "营业利润",
-          "营业利润/息税前利润"
+          "营业外支出",
+          "营业外收入"
         ]
       }
     },
@@ -14903,6 +14976,8 @@
           "年度亏损",
           "年度利润",
           "年度溢利",
+          "归属于母公司所有者的净利润",
+          "归属于母公司股东的净利润",
           "期内亏损",
           "期间利润",
           "本年净利润",
@@ -15314,6 +15389,10 @@
         "en": [
           "Total Other Comprehensive Income",
           "Other Comprehensive Income"
+        ],
+        "zh": [
+          "其他综合收益的税后净额",
+          "归属母公司所有者的其他综合收益的税后净额"
         ]
       }
     },
@@ -17185,6 +17264,9 @@
         "en": [
           "Cash Receipts from Customers",
           "Net cash used in/generated from operating activities(Direct)"
+        ],
+        "zh": [
+          "销售商品、提供劳务收到的现金"
         ]
       }
     },
@@ -17223,6 +17305,9 @@
       "aliases_i18n": {
         "en": [
           "Cash Paid to Suppliers"
+        ],
+        "zh": [
+          "购买商品、接受劳务支付的现金"
         ]
       }
     },
@@ -17263,6 +17348,9 @@
         "en": [
           "Cash Paid to Employees",
           "Net cash used in/generated from operating activities(Direct)"
+        ],
+        "zh": [
+          "支付给职工以及为职工支付的现金"
         ]
       }
     },
@@ -17301,6 +17389,9 @@
       "aliases_i18n": {
         "en": [
           "Income Taxes Paid(Direct)"
+        ],
+        "zh": [
+          "支付的各项税费"
         ]
       }
     },
@@ -17518,6 +17609,9 @@
           "(Payments for)Purchase of construction in progress",
           "(Payments for)Purchase of leasehold land",
           "Purchase of items of property, plant and equipment"
+        ],
+        "zh": [
+          "购建固定资产、无形资产和其他长期资产支付的现金"
         ]
       }
     },
@@ -17579,6 +17673,7 @@
         ],
         "zh": [
           "出售物业、厂房及设备所得款项",
+          "处置固定资产、无形资产和其他长期资产收回的现金净额",
           "处置物业、厂房及设备所得款项"
         ]
       }
@@ -17734,6 +17829,9 @@
           "Purchase of/Payments for Held-to-maturity financial assets",
           "Purchase of/Payments for Financial assets at amortised cost",
           "Purchase of/Payments for Wealth management products"
+        ],
+        "zh": [
+          "投资支付的现金"
         ]
       }
     },
@@ -17792,6 +17890,9 @@
           "Proceeds from disposal of Held-to-maturity financial assets",
           "Proceeds from disposal of Financial assets at amortised cost",
           "Proceeds from redemption of Wealth management products"
+        ],
+        "zh": [
+          "收回投资收到的现金"
         ]
       }
     },
@@ -18450,6 +18551,9 @@
           "Net Proceeds Issuance of Capital",
           "Net Proceeds from Issuance of Capital",
           "Capital injections"
+        ],
+        "zh": [
+          "吸收投资收到的现金"
         ]
       }
     },
@@ -18542,6 +18646,9 @@
           "Proceeds/cash recepit from issue of bonds/debentures",
           "Proceeds/cash recepit from finance lease",
           "New bank borrowings raised"
+        ],
+        "zh": [
+          "取得借款收到的现金"
         ]
       }
     },
@@ -18644,6 +18751,9 @@
           "Proceeds/cash recepit from finance lease",
           "Repayment of bank borrowings",
           "Redemption and repurchase of guaranteed notes"
+        ],
+        "zh": [
+          "偿还债务支付的现金"
         ]
       }
     },
@@ -18907,6 +19017,7 @@
           "Dividends Paid"
         ],
         "zh": [
+          "分配股利、利润或偿付利息支付的现金",
           "向股东分派",
           "已付股利",
           "已付股息",
@@ -19276,6 +19387,11 @@
       "aliases_i18n": {
         "en": [
           "Equity & Reserves"
+        ],
+        "zh": [
+          "归属于母公司所有者权益",
+          "归属于母公司所有者权益合计",
+          "归属于母公司股东权益合计"
         ]
       },
       "aliases": [
