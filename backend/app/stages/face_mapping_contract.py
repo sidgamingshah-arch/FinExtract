@@ -7,6 +7,9 @@ reviewable without feeding its amount into an unrelated calculation.
 """
 from __future__ import annotations
 
+import re
+from collections import Counter
+
 from app.core.models import DocumentModel
 from app.core.models.enums import PrintedIn
 from app.core.stage import PipelineContext
@@ -70,10 +73,53 @@ def _statement_of(row, doc: DocumentModel) -> str:
     return "unknown_statement"
 
 
-def _storage_key(row, doc: DocumentModel) -> str:
+_SLUG_MAX = 44
+
+
+def _slug(caption: str) -> str:
+    """A stable, readable identifier for a printed caption.
+
+    ASCII where the caption gives one, because a key a person has to read in a formula or a
+    mapping table should say what it is: "owners_of_the_company", not a hash. A caption with no
+    usable ASCII — every Chinese one — falls back to a short digest of its NORMALISED form, so
+    the Traditional and Simplified spellings of one caption land on the same key.
+    """
+    from hashlib import sha1
+
+    from app.services.mapping import normalize_label
+
+    norm = normalize_label(caption or "")
+    ascii_slug = re.sub(r"[^a-z0-9]+", "_", norm).strip("_")[:_SLUG_MAX].strip("_")
+    if ascii_slug:
+        return ascii_slug
+    if not norm:
+        return "unnamed"
+    return "x" + sha1(norm.encode("utf-8")).hexdigest()[:12]
+
+
+def _storage_key(row, doc: DocumentModel, seen: Counter) -> str:
+    """A key for an unmapped face value that is THE SAME ON THE NEXT RUN.
+
+    THIS USED TO BE `row.id.hex` — a uuid minted per run. Measured on two identical runs of one
+    367-page filing: 66 unclassified face rows on each side and ZERO keys in common. The rows
+    carried real figures the whole time and nothing downstream could ever refer to them, so an
+    operator could not name one, attach it under a template line, or put it in a formula: the
+    thing they were configuring had a different identity by the time the next run answered.
+
+    Derived from what the filing PRINTED instead — statement, section banner, caption — so the
+    same line is the same key run over run. A genuine duplicate (one section printing the same
+    caption twice) gets an occurrence index rather than being collapsed, because two printed lines
+    are two facts even when they read alike; `seen` is the per-document counter that assigns it,
+    and it must be passed in so the numbering is stable across the whole document rather than
+    restarting per call.
+    """
     statement = _statement_of(row, doc)
     section = section_of_banner(row.section_hint or "") or "unresolved_section"
-    return f"{UNCLASSIFIED_FACE_PREFIX}{statement}__{section}__{row.id.hex}"
+    slug = _slug(row.source_label or "")
+    ordinal = seen[(statement, section, slug)]
+    seen[(statement, section, slug)] += 1
+    suffix = "" if ordinal == 0 else f"__{ordinal + 1}"
+    return f"{UNCLASSIFIED_FACE_PREFIX}{statement}__{section}__{slug}{suffix}"
 
 
 class FaceMappingContractStage:
@@ -95,8 +141,11 @@ class FaceMappingContractStage:
             ctx.log("face_mapping_contract:passed")
             return doc
 
+        # ONE counter for the whole document, so the occurrence index of a repeated
+        # caption is stable rather than restarting at each row.
+        seen: Counter = Counter()
         for row in unresolved:
-            row.canonical_key = _storage_key(row, doc)
+            row.canonical_key = _storage_key(row, doc, seen)
             row.confidence.mapping = 0.0
             row.confidence.method = "engine_unclassified_face"
             row.confidence.flags.append("engine_unclassified_face")

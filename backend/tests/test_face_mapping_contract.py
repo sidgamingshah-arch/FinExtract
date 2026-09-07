@@ -124,3 +124,76 @@ def test_contract_runs_after_gap_closing_and_before_structural_checks():
     names = [stage.name for stage in default_pipeline().stages]
     assert names.index("gap_closing") < names.index("face_mapping_contract")
     assert names.index("face_mapping_contract") < names.index("structural")
+
+# --- the key has to survive to the next run ------------------------------------------------------
+#
+# It used to be `row.id.hex`, a uuid minted per run. Measured on two identical runs of one
+# 367-page filing: 66 unclassified face rows on each side and ZERO keys in common. Those rows
+# carry real figures, so an operator could see a line, decide to name it, attach it under a
+# template parent or put it in a formula — and none of that could be stored against anything,
+# because the identity was regenerated before the next run answered. Configuring the extraction
+# inventory is impossible until this is stable, which is why it is pinned here.
+
+def test_the_same_printed_line_gets_the_same_key_on_a_second_run():
+    """Determinism, asserted by running the stage twice over freshly built documents — the same
+    way two runs of the same PDF reach it, rather than by re-running one object."""
+    keys = []
+    for _ in range(2):
+        doc = DocumentModel(filename="f.pdf", line_items=[
+            _row("Owners of the Company"), _row("Net exchange differences")])
+        _run(doc)
+        keys.append([li.canonical_key for li in doc.line_items])
+
+    assert keys[0] == keys[1], "a second run must reproduce the keys exactly"
+    assert all("__owners_of_the_company" in k or "__net_exchange_differences" in k
+               for k in keys[0]), keys[0]
+
+
+def test_the_key_says_what_the_line_is_rather_than_carrying_a_digest():
+    """A key a person reads in a formula or a mapping table should name the caption. This is the
+    difference between configuring against `owners_of_the_company` and against a uuid."""
+    doc = DocumentModel(filename="f.pdf", line_items=[_row("Owners of the Company")])
+
+    _run(doc)
+
+    assert doc.line_items[0].canonical_key.endswith("__owners_of_the_company")
+
+
+def test_one_section_printing_the_same_caption_twice_keeps_two_facts():
+    """Two printed lines are two facts even when they read alike, so the second gets an occurrence
+    index rather than colliding onto the first — which would silently drop a figure."""
+    doc = DocumentModel(filename="f.pdf", line_items=[
+        _row("Other income"), _row("Other income")])
+
+    _run(doc)
+
+    first, second = (li.canonical_key for li in doc.line_items)
+    assert first != second
+    assert first.endswith("__other_income") and second.endswith("__other_income__2")
+
+
+def test_a_chinese_caption_folds_its_two_scripts_onto_one_key():
+    """No usable ASCII, so the key is a digest of the NORMALISED caption — and normalisation folds
+    Traditional to Simplified, so one concept printed either way is one key."""
+    simplified = DocumentModel(filename="f.pdf", line_items=[_row("其他综合收益的税后净额")])
+    traditional = DocumentModel(filename="f.pdf", line_items=[_row("其他綜合收益的稅後淨額")])
+
+    _run(simplified)
+    _run(traditional)
+
+    assert (simplified.line_items[0].canonical_key
+            == traditional.line_items[0].canonical_key)
+
+
+def test_no_key_carries_a_uuid():
+    """The regression guard. A 32-hex run of the shape uuid4().hex produces is what this replaced;
+    if one reappears the key has stopped being derived from the filing."""
+    import re
+
+    doc = DocumentModel(filename="f.pdf", line_items=[
+        _row("Administrative expenses"), _row("其他综合收益的税后净额")])
+
+    _run(doc)
+
+    for li in doc.line_items:
+        assert not re.search(r"[0-9a-f]{32}", li.canonical_key), li.canonical_key
