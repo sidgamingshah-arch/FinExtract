@@ -795,13 +795,34 @@ def _is_page_title(label_words: list[Word], page_title: str | None) -> bool:
 
 def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
                           steps: tuple[tuple[str, object], ...] = (),
-                          page_title: str | None = None) -> list[list[Word]]:
+                          page_title: str | None = None,
+                          known: frozenset[str] = frozenset()) -> list[list[Word]]:
     """Fold a label-only line into the following valued row when the two are clearly one
     wrapped label: tight vertical spacing *and* left-alignment inside the label column.
 
     Conservative on purpose — a wrong merge corrupts a label. A label-only line that reads
     like a section header, that is the page's own statement title, or that is loosely spaced /
     mis-aligned, is left untouched (the main loop then simply skips it, as before).
+
+    ``known`` IS WHAT SEPARATES A WRAP FROM AN EMPTY LINE ITEM, and geometry cannot. A CSRC
+    balance sheet prints every template line whether the filer uses it or not, so 衍生金融资产
+    and 应收票据 stand there with no figures at all — and on that filing the intra-cell leading
+    equals the row pitch, so a label-only row a full row above the figures is spaced exactly like
+    a caption's continuation. Both merged into the next valued row and the mapper was handed
+    "衍生金融资产应收票据应收账款" holding 应收账款's figures: three captions read as one, and the
+    two empty lines silently gone.
+
+    What tells them apart is MEANING, not shape. A wrapped first line is an incomplete fragment —
+    "Property, plant and", "负债和所有者权益（或" — while an empty line item is a complete caption
+    the rulebook recognises. English already has a grammar test for the same question
+    (:func:`_is_wrapped_head`); Chinese has no whitespace to reason about, so the rulebook's own
+    vocabulary is the evidence (``services.mapping.known_captions``).
+
+    Empty by default, which is exactly the behaviour that was here before: a caller with no
+    rulebook merges on geometry alone. The failure direction is also the safe one — a complete
+    caption wrongly refused a merge is emitted as its own valueless row, which is what every
+    unmergeable label-only row already becomes, whereas a wrong merge destroys a caption and
+    files a figure under it.
     """
     out: list[list[Word]] = []
     pending: list[Word] = []
@@ -823,6 +844,8 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             nxt is not None
             and label_words
             and note_ref is None
+            # A COMPLETE CAPTION IS A LINE ITEM, not the head of a wrap — see ``known``.
+            and not _is_known_caption(label_words, steps, known)
             # An ALL-CAPS banner is not a continuation — unless grammar shows the caption
             # actually wraps into the next line (see `_is_wrapped_head`).
             # `_looks_like_header` accepts only ALL-CAPS or a trailing colon, so a filing that
@@ -846,6 +869,91 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
     if pending:                                          # trailing label-only text, no value
         out.append(pending)
     return out
+
+
+# ── The line items a CAS face statement PRINTS ────────────────────────────────────────────────
+#
+# WHY A LIST AND NOT THE RULEBOOK. The wrap test asks "is this a complete caption?", which is a
+# different question from "does this bind to a concept?". A CSRC filing prints every line of the
+# standard statement layout whether the filer uses it or not, so a page carries 衍生金融资产 and
+# 应收票据 with no figures beside them — and the template has no concept for some of those at all.
+# Recognising the caption is what stops the wrap merge eating it; binding it is finding 3's
+# separate business, and conflating the two here would mean rushing a mapping decision per line.
+#
+# WHAT IT COST. On 688008's consolidated balance sheet the merge produced
+# "衍生金融资产应收票据应收账款" holding 应收账款's figures, "应收款项融资预付款项",
+# "其中：应收利息应收股利存货" and "合同资产持有待售资产一年内到期的非流动资产其他流动资产" — four
+# rows carrying eleven captions, and the ten line items that had no figures this year gone.
+#
+# GROUNDED IN TWO FILINGS, not invented: every entry below is printed on the face of both
+# 澜起科技 688008 (STAR/上交所) and 河钢股份 000709 (深交所). Header words and fragments the same
+# scan turned up — 项目, 小计, 准备, 列）, 单位：元 — are deliberately absent: each is a piece of a
+# caption or a column header, and admitting one would stop a legitimate wrap from merging.
+_CAS_FACE_CAPTIONS: frozenset[str] = frozenset({
+    # 流动资产
+    "货币资金", "结算备付金", "拆出资金", "交易性金融资产", "衍生金融资产", "应收票据",
+    "应收账款", "应收款项融资", "预付款项", "应收保费", "应收分保账款", "其他应收款",
+    "应收股利", "应收利息", "买入返售金融资产", "存货", "合同资产", "持有待售资产",
+    "一年内到期的非流动资产", "其他流动资产",
+    # 非流动资产
+    "债权投资", "其他债权投资", "长期应收款", "长期股权投资", "其他权益工具投资",
+    "其他非流动金融资产", "投资性房地产", "固定资产", "在建工程", "生产性生物资产",
+    "油气资产", "使用权资产", "无形资产", "开发支出", "商誉", "长期待摊费用",
+    "递延所得税资产", "其他非流动资产",
+    # 流动负债
+    "短期借款", "向中央银行借款", "拆入资金", "交易性金融负债", "衍生金融负债", "应付票据",
+    "应付账款", "预收款项", "合同负债", "应付职工薪酬", "应交税费", "其他应付款",
+    "应付股利", "应付利息", "持有待售负债", "一年内到期的非流动负债", "其他流动负债",
+    # 非流动负债
+    "长期借款", "应付债券", "永续债", "租赁负债", "长期应付款", "长期应付职工薪酬",
+    "预计负债", "递延收益", "递延所得税负债", "其他非流动负债",
+    # 所有者权益
+    "实收资本", "股本", "其他权益工具", "优先股", "资本公积", "库存股", "其他综合收益",
+    "专项储备", "盈余公积", "一般风险准备", "未分配利润", "归属于母公司所有者权益",
+    "少数股东权益",
+    # 利润表
+    "营业总收入", "营业收入", "营业总成本", "营业成本", "税金及附加", "销售费用",
+    "管理费用", "研发费用", "财务费用", "利息费用", "利息收入", "其他收益", "投资收益",
+    "公允价值变动收益", "信用减值损失", "资产减值损失", "资产处置收益", "营业利润",
+    "营业外收入", "营业外支出", "利润总额", "所得税费用", "净利润",
+    "其他综合收益的税后净额", "综合收益总额", "基本每股收益", "稀释每股收益",
+    # the statements' own totals
+    "流动资产合计", "非流动资产合计", "资产总计", "流动负债合计", "非流动负债合计",
+    "负债合计", "所有者权益合计", "股东权益合计", "负债和所有者权益总计",
+    "经营活动产生的现金流量净额", "投资活动产生的现金流量净额", "筹资活动产生的现金流量净额",
+    "期末现金及现金等价物余额",
+})
+
+
+def _is_known_caption(label_words: list[Word], steps: tuple[tuple[str, object], ...],
+                      known: frozenset[str]) -> bool:
+    """Whether these label words are a caption the rulebook recognises, whole.
+
+    Tested on the WHOLE line and on each of its printed sub-lines, because a bilingual caption
+    comes back interleaved — the same reason :func:`_any_banner_line` splits them — and either
+    script's half alone is a complete caption.
+
+    Normalised through the rulebook's own pipeline first, then through ``normalize_label``, so the
+    comparison is the one the alias index was built with: the same folding of case, punctuation
+    and Traditional-to-Simplified. A caption that only matches after a different normalisation is
+    not a match this reader may claim.
+    """
+    from app.services.mapping import normalize_label
+
+    if not label_words:
+        return False
+    for line in (label_words, *_label_sub_lines(label_words)):
+        raw = _join_words(line)
+        text = normalize_label(apply_pipeline(raw, steps))
+        if text and (text in known or text in _CAS_FACE_CAPTIONS):
+            return True
+        # …and the caption as PRINTED, because `apply_pipeline` applies the rulebook's declared
+        # strips and a CAS caption carries the 其中：/减：/加： prefix those are written for. The
+        # bare form is what the list holds.
+        stripped = normalize_label(re.sub(r"^(?:其中|加|减|其他)?[:：]\s*", "", raw.strip()))
+        if stripped and (stripped in known or stripped in _CAS_FACE_CAPTIONS):
+            return True
+    return False
 
 
 def _tight_below(cur: BBox, nxt: BBox) -> bool:
@@ -2774,8 +2882,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                      page_title: str | None = None,
                      page_chrome: frozenset[str] = frozenset(),
                      column_grid: ColumnGrid | None = None,
-                     grid_out: list[ColumnGrid | None] | None = None
-                     ) -> tuple[list[LineItem], int]:
+                     grid_out: list[ColumnGrid | None] | None = None,
+                     known_captions: frozenset[str] | None = None) -> tuple[list[LineItem], int]:
     """Reconstruct line items from positioned words. Returns (items, next_ordinal).
 
     Both bases are extracted in one pass: a two-basis header band (Group | Company,
@@ -2890,7 +2998,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     bands = _basis_bands(raw_rows, value_bands, _value_area(value_bands, col_xs),
                          signals=entity_signals, fmt=number_format,
                          log=log, page_index=page_index)
-    rows = _merge_wrapped_labels(raw_rows, number_format, steps, page_title=page_title)
+    rows = _merge_wrapped_labels(raw_rows, number_format, steps, page_title=page_title,
+                                 known=known_captions or frozenset())
     if not bands and on_face and page_scope in _PAGE_SCOPE_BASIS:
         # The classifier read the entity off the page's own title (or off its position past the
         # notes, which is what an untitled Company statement is). No column header names an entity

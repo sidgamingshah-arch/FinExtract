@@ -429,7 +429,8 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                         log=None,
                         carry_grid: ColumnGrid | None = None,
                         grid_out: list[ColumnGrid | None] | None = None,
-                        chapter: list | None = None) -> list[NotesTable]:
+                        chapter: list | None = None,
+                        known_captions: frozenset[str] | None = None) -> list[NotesTable]:
     """Split a notes page into note sections and reconstruct each note's detail rows.
 
     ``scope``/``normalisation`` are the run's own rulebook blocks; a note's columns are read by
@@ -536,7 +537,7 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                                     on_face=False, scope=scope, normalisation=normalisation,
                                     log=log,
                                     column_grid=(carry_grid if sec is carried else None),
-                                    grid_out=seen)
+                                    grid_out=seen, known_captions=known_captions)
         # What the NEXT page inherits is the grid of the note still open when this page ended, so
         # the carry is whatever the last section was read with — None included.
         carry_grid = seen[0] if seen else None

@@ -155,9 +155,17 @@ _ANONYMOUS_DEBTOR_RE = re.compile(
 # A COUNTERPARTY IS NAMED BY ITS LEGAL FORM, and that is the test. Every one of these ends in a
 # company suffix and no receivable class does — a class is 其他应收款, 长期应收款, 拆出资金. The
 # anonymised form above stays: a withheld name has no suffix to find.
+# NOT ANCHORED AT THE END, because the breakdown's captions arrive glued. Each of the five
+# debtor rows is one printed line and several have no figures in a given column, so row
+# reconstruction folds a run of them into one label —
+# "西安腾飞信息技术孵化器有限公司融科物业投资有限公司…" — and an end-anchored test saw only
+# whichever name happened to land last, or none at all when the run broke mid-name. A receivable
+# CLASS never contains a company suffix anywhere in it, so looking anywhere costs nothing; the
+# caller still requires the row's own caption to name no class, which is what protects a note
+# genuinely captioned "其他应收款——关联方有限公司".
 _NAMED_DEBTOR_RE = re.compile(
     r"(?:有限公司|有限責任公司|有限责任公司|股份公司|研究所|事務所|事务所"
-    r"|\b(?:co\.?|ltd\.?|limited|inc\.?|corp\.?|trust|gmbh)\b)\s*$",
+    r"|\b(?:co\.?|ltd\.?|limited|inc\.?|corp\.?|trust|gmbh)\b)",
     re.IGNORECASE)
 _CP_NOTE_HEADING_RE = re.compile(
     r"其他应收款项|其他应收款|一年内到期的非流动资产|一年内到期的长期应收款|一年内到期的贷款及垫款"

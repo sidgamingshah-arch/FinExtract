@@ -7,6 +7,7 @@ from __future__ import annotations
 from app.core.models.enums import PageKind, PageSourceKind, PrintedIn
 from app.core.models.geometry import BBox
 from app.core.stage import PipelineContext
+from app.services.mapping import known_captions
 from app.services.row_reconstruct import Word, build_line_items
 
 
@@ -275,6 +276,14 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     # its notes would lose every chapter after it. There is nothing to reset TO either: the
     # chapter only ever advances.
     notes_chapter: list = [None, 0, ""]
+    # THE RULEBOOK'S OWN VOCABULARY, so reconstruction can tell a wrapped caption's first
+    # line from a line item that simply has no figures this year. A CSRC balance sheet prints
+    # every template line whether the filer uses it or not, and on such a filing the two are
+    # spaced identically — see ``services.mapping.known_captions`` for what it cost. Read once
+    # per run rather than per page: the rulebook does not change while a document is read.
+    captions = known_captions(getattr(ctx, "ontology", None)) \
+        if getattr(ctx, "ontology", None) is not None else frozenset()
+
     for ps in targets:
         if ps.index >= pdf.page_count:
             continue
@@ -312,7 +321,8 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                                          scope=scope, normalisation=normalisation,
                                          carry_note=notes_carry, log=ctx.log,
                                          carry_grid=notes_grid, grid_out=grids,
-                                         chapter=notes_chapter)
+                                         chapter=notes_chapter,
+                                         known_captions=captions)
             doc.notes.extend(tables)
             notes_carry = ((tables[-1].note_number, tables[-1].title) if tables
                            else notes_carry)
@@ -371,7 +381,7 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                 source_kind=source_kind, ordinal_start=ordinal, number_format=number_format,
                 statement=statement, log=ctx.log, scope=scope, normalisation=normalisation,
                 page_scope=page_scope, page_title=page_title,
-                page_chrome=chrome)
+                page_chrome=chrome, known_captions=captions)
             items.extend(batch_items)
         if ps.kind == PageKind.FACE:
             # Said HERE because here is where it is known: this branch reads the FACE of a

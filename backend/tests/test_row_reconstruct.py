@@ -547,3 +547,122 @@ def test_every_row_on_the_page_keeps_its_current_year_figure():
     for label, cur in (("货币资金", "6843296852.61"), ("应收账款", "387791885.96"),
                        ("其他应收款", "4143856.36")):
         assert _slots(_bs_row(words, label))[("consolidated", "current")] == cur, label
+
+
+# ── a complete caption is a line item, not the head of a wrap ─────────────────────────────────
+#
+# A CSRC filing prints every line of the standard statement layout whether the filer uses it or
+# not, so a balance-sheet page carries 衍生金融资产 and 应收票据 with no figures beside them. On
+# 688008 the intra-cell leading equals the row pitch, so a label-only row a full row above the
+# figures is spaced exactly like a caption's continuation — and the wrap merge ate them:
+#
+#     衍生金融资产                       (no figures this year)
+#     应收票据                           (no figures this year)
+#     七、5   387,791,885.96   294,253,723.40
+#     应收账款
+#
+# came out as ONE row, "衍生金融资产应收票据应收账款", holding 应收账款's figures. Four such rows
+# on that page carried eleven captions between them, and the ten empty line items were gone.
+#
+# Geometry cannot separate them. What can is MEANING: a wrapped first line is an incomplete
+# fragment, a line item is a complete caption. See `_CAS_FACE_CAPTIONS` and `known_captions`.
+
+
+def _empty_items_then_a_valued_row() -> list[Word]:
+    """The shape as 688008 prints it: two empty line items, then one that has figures.
+
+    The label sits ~0.002 BELOW its own figures, which is how a vertically-centred cell prints,
+    and consecutive line items are a full 0.017 apart.
+    """
+    return [
+        _w("交易性金融资产", 0.169, 0.243, 0.29, 0.253),
+        _w("1,783,494,750.68", 0.566, 0.241, 0.68, 0.251),
+        _w("衍生金融资产", 0.169, 0.260, 0.27, 0.270),
+        _w("应收票据", 0.169, 0.277, 0.24, 0.287),
+        _w("七、5", 0.398, 0.2926, 0.43, 0.3026),
+        _w("387,791,885.96", 0.579, 0.2929, 0.69, 0.3029),
+        _w("294,253,723.40", 0.782, 0.2929, 0.89, 0.3029),
+        _w("应收账款", 0.169, 0.2948, 0.24, 0.3048),
+    ]
+
+
+def _labels(words):
+    items, _ = build_line_items(words, page_index=149, document_id="d1", source_kind="native",
+                                statement="balance_sheet", on_face=True,
+                                page_scope="consolidated")
+    return [li.source_label for li in items]
+
+
+def test_an_empty_line_item_is_not_folded_into_the_next_valued_row():
+    """The empty items do not become rows — a row needs a figure, and that was true before.
+
+    What changed is that they no longer take 应收账款's caption with them: the glued label is
+    gone and the valued row is itself. Asserted as the absence of the glue plus the presence of
+    the real caption, because those are the two things that were wrong.
+    """
+    labels = _labels(_empty_items_then_a_valued_row())
+
+    assert "衍生金融资产应收票据应收账款" not in labels
+    assert "应收账款" in labels, labels
+    assert not any(l and "衍生金融资产" in l and l != "衍生金融资产" for l in labels), labels
+
+
+def test_the_valued_row_keeps_its_own_caption_and_figures():
+    words = _empty_items_then_a_valued_row()
+    items, _ = build_line_items(words, page_index=149, document_id="d1", source_kind="native",
+                                statement="balance_sheet", on_face=True,
+                                page_scope="consolidated")
+
+    row = next(li for li in items if li.source_label == "应收账款")
+    assert row.note_number == "七、5"
+    assert _slots(row) == {("consolidated", "current"): "387791885.96",
+                           ("consolidated", "prior"): "294253723.40"}
+
+
+def test_a_genuinely_wrapped_caption_still_merges():
+    """The other half of the contract, and the reason the test is MEANING and not geometry: an
+    incomplete fragment has to keep merging or a caption comes out truncated."""
+    labels = _labels([
+        _w("负债和所有者权益（或", 0.204, 0.093, 0.38, 0.103),
+        _w("7,388,035,311.08", 0.566, 0.0996, 0.68, 0.1096),
+        _w("股东权益）总计", 0.151, 0.1095, 0.274, 0.1195),
+    ])
+
+    # The caption's first line merges into the valued row it sits above — it is a fragment and
+    # names nothing on its own. Its continuation is printed BELOW the figures (which is what a
+    # vertically-centred cell looks like) and carries no value, so it is not a row: what matters
+    # is that the fragment was not left orphaned and did not swallow another caption.
+    assert labels == ["负债和所有者权益（或"], labels
+
+
+def test_an_english_wrap_is_untouched_by_the_caption_test():
+    """No rulebook, no CAS caption — the English path merges on geometry exactly as before."""
+    items, _ = build_line_items([
+        _w("Property,", 0.10, 0.300, 0.18, 0.315),
+        _w("plant", 0.19, 0.300, 0.24, 0.315),
+        _w("and", 0.25, 0.300, 0.29, 0.315),
+        _w("equipment", 0.10, 0.318, 0.22, 0.333),
+        _w("12,500", 0.72, 0.318, 0.82, 0.333),
+    ], page_index=0, document_id="d1", source_kind="native")
+
+    assert [li.source_label for li in items] == ["Property, plant and equipment"]
+
+
+def test_the_prefix_a_cas_caption_carries_does_not_hide_it():
+    """A CAS statement writes 其中：/加：/减： in front of a line it is qualifying, and the list
+    holds the bare form — so "其中：应收利息" has to be recognised as 应收利息."""
+    from app.services.row_reconstruct import _is_known_caption
+
+    for text in ("应收利息", "其中：应收利息", "减：所得税费用", "加：其他收益"):
+        words = [_w(text, 0.169, 0.20, 0.30, 0.21)]
+        assert _is_known_caption(words, (), frozenset()), text
+
+
+def test_a_caption_fragment_is_not_recognised():
+    """The failure direction that matters: a fragment must NOT be treated as complete, or a real
+    wrap stops merging and a caption comes out truncated."""
+    from app.services.row_reconstruct import _is_known_caption
+
+    for text in ("负债和所有者权益（或", "股东权益）总计", "项目", "小计", "准备", "列）"):
+        words = [_w(text, 0.169, 0.20, 0.30, 0.21)]
+        assert not _is_known_caption(words, (), frozenset()), text

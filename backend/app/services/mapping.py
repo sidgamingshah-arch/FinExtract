@@ -389,6 +389,39 @@ SECTION_WORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 
 
+def known_captions(ontology) -> frozenset[str]:
+    """Every caption the rulebook RECOGNISES, normalised — its labels and all of its aliases.
+
+    WHAT THIS IS FOR: row reconstruction cannot tell a wrapped caption's first line from a line
+    item that simply has no figures this year, because on a mainland filing the two are printed
+    identically — the intra-cell leading equals the row pitch, so geometry says nothing. A CSRC
+    balance sheet prints every template line whether the filer uses it or not, so 衍生金融资产 and
+    应收票据 sit there empty and the wrap merge folded both into the next valued row:
+    "衍生金融资产应收票据应收账款", holding 应收账款's figures. The caption the mapper then saw was
+    not the caption the filing printed.
+
+    What separates them is not shape but MEANING: a wrapped first line is an incomplete fragment
+    ("Property, plant and"), while an empty line item is a complete caption the rulebook knows.
+    English has a grammar test for the same question (``_is_wrapped_head``); Chinese has no
+    whitespace to reason about, so the rulebook's own vocabulary is the evidence.
+
+    Every locale's aliases, like ``_alias_index`` — a bilingual filing prints both scripts and
+    recognising the printed text is locale-independent. Built as a plain set rather than by
+    constructing an ``OntologyMatcher``, because extraction runs BEFORE mapping and has no reason
+    to pay for the rest of the index.
+    """
+    out: set[str] = set()
+    for m in getattr(ontology, "mappings", ()) or ():
+        out.add(normalize_label(m.label or ""))
+        for alias in (m.aliases or ()):
+            out.add(normalize_label(alias))
+        for locale_aliases in (getattr(m, "aliases_i18n", None) or {}).values():
+            for alias in locale_aliases or ():
+                out.add(normalize_label(alias))
+    out.discard("")
+    return frozenset(out)
+
+
 def section_of_banner(text: str | None) -> str | None:
     """The section a banner names, or None when it names none we recognise.
 
