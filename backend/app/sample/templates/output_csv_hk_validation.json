@@ -1,0 +1,10 @@
+{
+ "schema_version": 1,
+ "validation_key": "output_csv_hk_validation",
+ "target_template_key": "output_csv_hk_v1",
+ "target_template_version": null,
+ "metadata": {},
+ "identities": [],
+ "cross_concept_guards": [],
+ "section_reconciliation": ""
+}

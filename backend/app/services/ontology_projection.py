@@ -90,7 +90,15 @@ def _jsonable(value: Any) -> Any:
     call site so the projection is serialisable by construction for every caller.
     """
     if hasattr(value, "model_dump"):
-        return value.model_dump(mode="json")
+        # `exclude_unset` IS THE WHOLE POINT, not a size optimisation. `residual_policy` is read
+        # through `residual._declared`, which asks `name in policy.model_fields_set` to decide
+        # whether the CONCEPT overrode a term or inherits the framework's value. A plain dump
+        # writes all seven fields at their defaults, so the reloaded policy reports every term as
+        # authored — and the `residual_framework` block, one definition meant to govern all
+        # thirteen residuals, would then govern none of them. Measured on a real policy:
+        # authored {itemise, section_scope} dumps as all 7 and round-trips as all 7; with
+        # `exclude_unset` it round-trips as the 2 that were written.
+        return value.model_dump(mode="json", exclude_unset=True)
     if isinstance(value, Enum):
         return value.value              # StatementType.BALANCE_SHEET -> "balance_sheet"
     if isinstance(value, dict):

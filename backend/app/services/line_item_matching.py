@@ -36,27 +36,149 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-from app.schemas.line_items import LineItemDef, LineItemSet
+from app.schemas.line_items import LineItemDef, LineItemSet, MappingVocabulary
+# The FALLBACKS, for a set that declares no `vocabulary` block. Imported rather than copied so an
+# undeclared vocabulary and the incumbent are the same objects, not two versions of one list.
 from app.services.mapping import (
+    _COMPACT_SECTION_TOKENS,
     _STATEMENT_OF_PREFIX,
+    _STATEMENT_SPELLINGS,
+    EXCLUSIVE_VOCABULARIES,
+    HEADING_ROW_SECTIONS,
+    SECTION_WORDS,
     MappingMethod,
     label_segments,
     normalize_label,
-    normalize_statement,
-    section_of_banner,
-    section_token_of_scope,
 )
 
-# The statements the gate is willing to reason about — the incumbent's own set, IMPORTED rather
-# than restated. It is the FOUR the key namespace encodes (bs_/pl_/cf_/eq_), not the seven
-# `StatementType` declares: `notes`, `statement_setup` and `covenants_supplemental` are places a
-# caption can be printed, not statements the gate narrows by, so a caption from one of those is
-# never refused for belonging elsewhere.
-#
-# Restating this as "all seven" was measurable: it refused `bs_ca__total_assets` for a caption
-# printed under a statement-setup banner and `bs_nca__options_nca` for one in the notes, which was
-# 3 of the 133 parity disagreements and the last 3 to go.
-_STATEMENTS = frozenset(_STATEMENT_OF_PREFIX.values())
+class Vocabulary:
+    """The mapping vocabularies, READ FROM THE SET rather than from Python constants.
+
+    THIS IS THE POINT OF THE CLASS. Every question it answers — what section a printed banner
+    names, which statement a key's namespace implies, whether a caption names an exclusive class —
+    decides which line item a caption resolves to. All of it lived in `services.mapping` as module
+    constants that no configuration could reach, so someone could read all 475 definitions and
+    still not be able to say why a row landed where it did, or change it without a release.
+
+    EMPTY FALLS BACK TO THE BUILT-IN. A set that declares no `vocabulary` block must behave
+    exactly as it did before the block existed — otherwise adding these fields to the schema would
+    silently change the answers of every set already written. So each accessor prefers the
+    declaration and drops through to the shipped constant when the declaration is absent, and the
+    fallbacks are the SAME objects `mapping` uses rather than copies of them.
+    """
+
+    def __init__(self, vocab: MappingVocabulary | None):
+        self._v = vocab or MappingVocabulary()
+
+        # Banner order is load-bearing — longest heading first, so "non current liabilities" is
+        # never read as "current liabilities". The declaration preserves list order; the fallback
+        # is the shipped tuple, which is already ordered.
+        self._banners: tuple[tuple[str, tuple[str, ...]], ...] = (
+            tuple((b.token, tuple(b.headings)) for b in self._v.section_banners)
+            or SECTION_WORDS)
+        self._umbrella = tuple(self._v.umbrella_banners)
+        self._heading_rows = frozenset(
+            b.token for b in self._v.section_banners if b.heading_row) or HEADING_ROW_SECTIONS
+        self._scope_tokens = dict(self._v.scope_tokens) or dict(_COMPACT_SECTION_TOKENS)
+        self._prefixes = dict(self._v.statement_prefixes) or dict(_STATEMENT_OF_PREFIX)
+        self._spellings = dict(self._v.statement_spellings) or dict(_STATEMENT_SPELLINGS)
+        self._vocabs: tuple[tuple[str, ...], ...] = (
+            tuple(tuple(x.members) for x in self._v.exclusive_vocabularies)
+            or EXCLUSIVE_VOCABULARIES)
+        self._words = {w: re.compile(rf"\b{re.escape(w)}\b", re.IGNORECASE)
+                       for vocab in self._vocabs for w in vocab}
+
+    # ── statements ───────────────────────────────────────────────────────────────────────────
+
+    @property
+    def statements(self) -> frozenset[str]:
+        """The statements the gate narrows by — the FOUR the key namespace encodes.
+
+        Not the seven `StatementType` declares: `notes`, `statement_setup` and
+        `covenants_supplemental` are places a caption can be printed, not statements to refuse a
+        line item for belonging elsewhere. Restating this as "all seven" refused
+        `bs_ca__total_assets` under a statement-setup banner and `bs_nca__options_nca` in the
+        notes — 3 of the 133 parity disagreements, and the last 3 to go.
+        """
+        return frozenset(self._prefixes.values())
+
+    def normalize_statement(self, statement) -> str:
+        """One spelling per statement, whichever vocabulary it arrived in.
+
+        The classifier says `changes_in_equity`; `StatementType` spells it `equity_changes`. A
+        declaration the gate cannot compare to the classifier's verdict refuses every line item in
+        that statement, on every page of it.
+        """
+        if statement is None:
+            return ""
+        raw = getattr(statement, "value", statement)
+        text = str(raw).strip().lower()
+        return self._spellings.get(text, text)
+
+    def statement_of_key(self, key: str) -> str | None:
+        """The statement a key's namespace names — the fallback for a line item declaring none."""
+        return self._prefixes.get((key or "").split("_", 1)[0])
+
+    # ── sections ─────────────────────────────────────────────────────────────────────────────
+
+    def section_of_banner(self, text: str | None) -> str | None:
+        """The section a printed banner names, or None when it names none, or spans several."""
+        if not text:
+            return None
+        folded = normalize_label(text)
+        for umbrella in self._umbrella:
+            if umbrella.spans_sections(folded):
+                return None
+        if not self._umbrella and (("equity" in folded or "权益" in folded)
+                                   and ("liabilit" in folded or "负债" in folded)):
+            return None                  # the built-in umbrella rule, for a set declaring none
+        for token, headings in self._banners:
+            if any(h in folded for h in headings):
+                return token
+        return None
+
+    def token_of_scope(self, scope_id: str) -> str | None:
+        """The banner token a `section_scope` id names, or None when it names no section.
+
+        A scope id carries the section's printed POSITION as well as its name
+        ("bs_s4_non_current_liabilities") while a banner names the section itself, so the token is
+        read off the END of an id. Longest-first for the same reason the banners are:
+        "bs_s1_non_current_assets" also ends with "current_assets".
+
+        `*_top_level` ids name no section and return None — those are the statement-level totals,
+        which no banner may constrain, because a section hint is the nearest PRECEDING banner and a
+        statement total routinely carries the banner of the last section printed above it.
+        """
+        if (compact := self._scope_tokens.get(scope_id)):
+            return compact
+        return next((token for token, _ in self._banners if scope_id.endswith(token)), None)
+
+    def is_heading_row_section(self, token: str | None) -> bool:
+        """Whether a row carrying only this heading, with no figures, may declare the section."""
+        return bool(token) and token in self._heading_rows
+
+    # ── exclusive classes ────────────────────────────────────────────────────────────────────
+
+    def names_a_different_class(self, key: str, caption: str,
+                                sections: frozenset[str] | None = None) -> bool:
+        """Whether the caption names a member of an exclusive vocabulary the line item is not in.
+
+        Which member the LINE ITEM is in is read from its resolved sections when the caller has
+        them, and off the key otherwise. Only refuses when the caption names exactly ONE member
+        and it is not the line item's own: a caption naming two ("cash flows from operating and
+        investing activities") is a genuine combined line and is left to the ordinary tiers.
+        """
+        key_text = (key or "").lower()
+        declared = " ".join(sorted(sections)).lower() if sections else ""
+        for vocab in self._vocabs:
+            in_scope = [w for w in vocab if w in declared]
+            in_key = in_scope or [w for w in vocab if w in key_text]
+            if len(in_key) != 1:
+                continue                 # not in this vocabulary, or ambiguous
+            in_caption = [w for w in vocab if self._words[w].search(caption)]
+            if len(in_caption) == 1 and in_caption[0] != in_key[0]:
+                return True
+        return False
 
 
 @dataclass
@@ -88,6 +210,9 @@ class LineItemMatcher:
 
     def __init__(self, line_items: LineItemSet):
         self.set = line_items
+        # Every vocabulary the gate consults, read off the set. Nothing below reaches for a
+        # module constant, which is what makes the config the authority rather than a description.
+        self.vocab = Vocabulary(line_items.vocabulary)
         self.by_key: dict[str, LineItemDef] = {d.key: d for d in line_items.items}
 
         # DECLARATION ORDER IS RECORDED, because it is the last tie-break and both engines use it.
@@ -168,18 +293,35 @@ class LineItemMatcher:
             return False
         if key in self._unmatchable:
             return False
-        want = normalize_statement(statement)
+        want = self.vocab.normalize_statement(statement)
         # Both sides folded to one spelling — `equity_changes` and `changes_in_equity` are the
         # same statement under two names, and a raw compare refuses every definition on it.
-        if want in _STATEMENTS and not d.claimable_on(want, normalize=normalize_statement):
+        if want in self.vocab.statements and not d.claimable_on(
+                want, normalize=self.vocab.normalize_statement):
             return False
-        banner = section_of_banner(section)
+        banner = self.vocab.section_of_banner(section)
         # The resolver is what makes this the incumbent's gate rather than a string compare: a
         # scope id carries printed position as well as name, and `*_top_level` names no section, so
         # the statement-level totals must stay claimable under every banner in their statement.
-        if banner and not d.claimable_under(banner, resolve=section_token_of_scope):
+        if banner and not d.claimable_under(banner, resolve=self.vocab.token_of_scope):
+            return False
+        if caption and self._names_a_different_class(d, caption, banner):
             return False
         return not self._vetoed(key, caption)
+
+    def _names_a_different_class(self, d: LineItemDef, caption: str,
+                                 banner: str | None) -> bool:
+        """The fourth gate: the caption names an exclusive class this line item is not in.
+
+        Ported because `mapping._allowed` is a conjunction of FOUR constraints and applying three
+        is not applying the gate. "Net cash used in investing activities" and "Net cash flows used
+        in financing activities" differ by one word in seven, which similarity scores at 0.92, and
+        the consequence is silent: the financing figure filed under investing, investing showing
+        two figures summed, financing empty.
+        """
+        tokens = frozenset(t for s in d.section_scope
+                           if (t := self.vocab.token_of_scope(s)))
+        return self.vocab.names_a_different_class(d.key, caption, tokens)
 
     def mappable_keys(self, statement: str | None = None, section: str | None = None,
                       caption: str = "") -> list[str]:

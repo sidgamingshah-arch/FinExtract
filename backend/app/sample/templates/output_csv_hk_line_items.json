@@ -251,6 +251,355 @@
    ]
   }
  },
+ "vocabulary": {
+  "section_banners": [
+   {
+    "token": "non_current_liabilities",
+    "headings": [
+     "non current liabilities",
+     "noncurrent liabilities",
+     "非流动负债",
+     "长期负债"
+    ],
+    "heading_row": true
+   },
+   {
+    "token": "non_current_assets",
+    "headings": [
+     "non current assets",
+     "noncurrent assets",
+     "非流动资产",
+     "长期资产"
+    ],
+    "heading_row": true
+   },
+   {
+    "token": "current_liabilities",
+    "headings": [
+     "current liabilities",
+     "流动负债"
+    ],
+    "heading_row": true
+   },
+   {
+    "token": "current_assets",
+    "headings": [
+     "current assets",
+     "流动资产"
+    ],
+    "heading_row": true
+   },
+   {
+    "token": "equity",
+    "headings": [
+     "equity",
+     "capital and reserves",
+     "权益",
+     "股本及储备",
+     "资本及储备"
+    ],
+    "heading_row": true
+   },
+   {
+    "token": "cash_flow_from_operating_activities",
+    "headings": [
+     "operating activities",
+     "经营活动",
+     "营运活动"
+    ],
+    "heading_row": true
+   },
+   {
+    "token": "cash_flow_from_investing_activities",
+    "headings": [
+     "investing activities",
+     "投资活动"
+    ],
+    "heading_row": true
+   },
+   {
+    "token": "cash_flow_from_financing_activities",
+    "headings": [
+     "financing activities",
+     "融资活动",
+     "筹资活动"
+    ],
+    "heading_row": true
+   },
+   {
+    "token": "other_comprehensive_income",
+    "headings": [
+     "other comprehensive income",
+     "其他综合收益",
+     "其他綜合收益",
+     "其他全面收益",
+     "其他全面收入"
+    ],
+    "heading_row": false
+   },
+   {
+    "token": "income_and_expenses",
+    "headings": [
+     "income_and_expenses",
+     "income and expenses",
+     "income expenses"
+    ],
+    "heading_row": false
+   },
+   {
+    "token": "adjustments_to_retained_profits",
+    "headings": [
+     "adjustments to retained profits",
+     "adjustments to retained earnings"
+    ],
+    "heading_row": false
+   },
+   {
+    "token": "total_comprehensive_income_attributable_to",
+    "headings": [
+     "comprehensive",
+     "全面收",
+     "全面亏"
+    ],
+    "heading_row": false
+   },
+   {
+    "token": "profit_attributable_to",
+    "headings": [
+     "profit attributable",
+     "loss attributable",
+     "attributable to",
+     "溢利归属",
+     "亏损归属",
+     "应占溢利"
+    ],
+    "heading_row": false
+   },
+   {
+    "token": "non_operating_expenses",
+    "headings": [
+     "non operating",
+     "nonoperating",
+     "非经营",
+     "非营运"
+    ],
+    "heading_row": false
+   },
+   {
+    "token": "exceptional_items",
+    "headings": [
+     "exceptional",
+     "非经常性",
+     "特殊项目"
+    ],
+    "heading_row": false
+   },
+   {
+    "token": "tax_expense",
+    "headings": [
+     "tax expense",
+     "taxation",
+     "税项",
+     "所得税"
+    ],
+    "heading_row": false
+   },
+   {
+    "token": "expenses",
+    "headings": [
+     "expenses",
+     "开支",
+     "费用"
+    ],
+    "heading_row": false
+   },
+   {
+    "token": "income",
+    "headings": [
+     "revenue",
+     "turnover",
+     "营业额",
+     "营业收入",
+     "收益"
+    ],
+    "heading_row": false
+   }
+  ],
+  "umbrella_banners": [
+   {
+    "id": "equity_and_liabilities",
+    "groups": [
+     [
+      "equity",
+      "权益"
+     ],
+     [
+      "liabilit",
+      "负债"
+     ]
+    ],
+    "note": "IFRS statements print EQUITY AND LIABILITIES above the Equity, Non-current and Current sub-banners; reading it as equity would refuse every liability line item beneath it."
+   }
+  ],
+  "scope_tokens": {
+   "bs_nca": "non_current_assets",
+   "bs_ca": "current_assets",
+   "bs_ncl": "non_current_liabilities",
+   "bs_cl": "current_liabilities",
+   "bs_equity": "equity",
+   "is_pl": "income_and_expenses",
+   "is_oci": "other_comprehensive_income",
+   "is_retained": "adjustments_to_retained_profits",
+   "cf_oper_indirect": "cash_flow_from_operating_activities",
+   "cf_oper_direct": "cash_flow_from_operating_activities",
+   "cf_investing": "cash_flow_from_investing_activities",
+   "cf_financing": "cash_flow_from_financing_activities"
+  },
+  "statement_prefixes": {
+   "bs": "balance_sheet",
+   "pl": "profit_and_loss",
+   "cf": "cash_flow",
+   "eq": "changes_in_equity"
+  },
+  "statement_spellings": {
+   "equity_changes": "changes_in_equity"
+  },
+  "exclusive_vocabularies": [
+   {
+    "id": "cash_flow_activities",
+    "members": [
+     "operating",
+     "investing",
+     "financing"
+    ],
+    "note": "IAS 7 divides cash flows into exactly three activities and a statement labels each subtotal with its own, so naming one rules out the others."
+   }
+  ],
+  "families": [
+   {
+    "id": "lease_liability",
+    "siblings": [
+     "bs_current_liabilities__current_lease_liabilities",
+     "bs_non_current_liabilities__non_current_lease_liabilities"
+    ]
+   },
+   {
+    "id": "borrowings",
+    "siblings": [
+     "bs_current_liabilities__current_borrowings",
+     "bs_non_current_liabilities__non_current_borrowings"
+    ]
+   },
+   {
+    "id": "notes_payable",
+    "siblings": [
+     "bs_current_liabilities__current_notes_payable",
+     "bs_non_current_liabilities__non_current_notes_payable"
+    ]
+   },
+   {
+    "id": "properties_under_development",
+    "siblings": [
+     "bs_current_assets__properties_under_development",
+     "bs_non_current_assets__properties_under_development"
+    ]
+   },
+   {
+    "id": "interest_received",
+    "siblings": [
+     "cf_cash_flow_from_operating_activities__interest_received",
+     "cf_cash_flow_from_investing_activities__interest_received"
+    ]
+   },
+   {
+    "id": "interest_paid",
+    "siblings": [
+     "cf_cash_flow_from_operating_activities__interest_paid",
+     "cf_cash_flow_from_financing_activities__interest_paid"
+    ]
+   },
+   {
+    "id": "nci_attribution",
+    "siblings": [
+     "bs_equity__non_controlling_interests",
+     "pl_profit_attributable_to__non_controlling_interests",
+     "pl_total_comprehensive_income_attributable_to__non_controlling_interests"
+    ]
+   },
+   {
+    "id": "owners_of_parent",
+    "siblings": [
+     "pl_profit_attributable_to__owners_of_the_parent",
+     "pl_total_comprehensive_income_attributable_to__owners_of_the_parent"
+    ]
+   },
+   {
+    "id": "pl_bottom_line",
+    "siblings": [
+     "pl_profit_for_the_year",
+     "pl_total_comprehensive_income_for_the_year"
+    ]
+   }
+  ],
+  "section_overrides": {}
+ },
+ "residual_framework": {
+  "note": "One definition governing the 11 output-template subsection residuals. Each uses an existing template line; no template row is added.",
+  "applies_to": "every concept with value_scope: exclusive_residual",
+  "alias_matching": "disabled",
+  "population": "sweep_only",
+  "sweep": {
+   "runs": "after all dedicated concepts in the section have been resolved, before section reconciliation",
+   "candidate_set": "every printed value row on the FACE of the statement whose resolved section equals the residual's single section_scope value",
+   "eligibility": [
+    "The row printed a value for the selected entity_scope, period, currency and unit.",
+    "No dedicated concept whose section_scope contains this section claimed the row.",
+    "The row is not a section subtotal, statement total, section header, attribution caption, per-share figure, narrative row, note-reference-only row or truncated caption.",
+    "The row was printed INSIDE this section. A row printed in any other section is ineligible however similar its wording — there is no cross-section rescue.",
+    "The row's sign agrees with the section's sign_convention, where the section states one. A row signed against its section is evidence the SECTION is wrong, not the amount, so it goes to review rather than into the bucket — a cost swept into income moves the income subtotal and every total below it."
+   ],
+   "cross_section": false,
+   "notes_as_source": false,
+   "derivation": "forbidden",
+   "plug_behaviour": "forbidden — the residual is never computed as (reported subtotal − mapped children)",
+   "literal_others_caption": "A row captioned 'Others' / '其他' is simply one unmapped face row and sweeps in as a single component. It gets no privileged treatment and no dedicated concept."
+  },
+  "itemisation": {
+   "required": true,
+   "component_fields": [
+    "source_row_label",
+    "source_row_label_normalised",
+    "source_row_locale",
+    "value",
+    "sign_as_reported",
+    "source_fact_id",
+    "rejected_candidates"
+   ],
+   "aggregation": "sum_of_components",
+   "rule": "The residual's value is the arithmetic sum of its components. Original labels and signs are always retained; a swept row is never relabelled to 'Others'."
+  },
+  "reconciliation": {
+   "identity": "reported_section_subtotal − Σ(dedicated concepts in section) − Σ(residual components) = 0",
+   "tolerance": "one rounding unit per contributing row",
+   "on_failure": "Emit an unallocated_gap fact carrying the difference and route the section to review. Never adjust the residual, and never adjust a dedicated concept, to close the gap.",
+   "sections_without_reported_subtotal": "If the section prints no subtotal, the residual is still itemised but is flagged unreconciled and carries lower confidence."
+  },
+  "review_triggers": [
+   "|residual| exceeds 5% of |reported section subtotal|",
+   "any single component exceeds 2% of |reported section subtotal|",
+   "component count exceeds 6",
+   "a component label scored at or above the semantic threshold against a dedicated concept but was vetoed by exclude_hints",
+   "residual sign is opposite to the section's sign_convention",
+   "the section reconciliation emitted an unallocated_gap"
+  ],
+  "prohibitions": [
+   "Never a balancing plug.",
+   "Never populated by alias, regex or embedding match.",
+   "Never carries a value with no itemised components.",
+   "Never absorbs a row a dedicated concept could have claimed but was not tested for — all dedicated concepts in the section must be evaluated first.",
+   "Never spans sections, statements, periods, entity scopes or units."
+  ]
+ },
  "items": [
   {
    "key": "bs_nca__land",
@@ -281,10 +630,7 @@
    "regex_hints": [
     "^Land$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -349,10 +695,7 @@
    "regex_hints": [
     "^Buildings$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -409,10 +752,7 @@
    "regex_hints": [
     "^Leasehold\\s+Improvements$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -483,10 +823,7 @@
    "regex_hints": [
     "^Plant\\s+\\&\\s+Equipment$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -543,10 +880,7 @@
    "regex_hints": [
     "^Furniture\\s+\\&\\s+Fixtures$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -613,10 +947,7 @@
    "regex_hints": [
     "^Vehicles\\s+\\&\\s+Transport\\s+Equipment$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -684,10 +1015,7 @@
    "regex_hints": [
     "^Other\\s+Fixed\\s+Assets$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -744,10 +1072,7 @@
    "regex_hints": [
     "^Construction\\s+in\\s+Progress$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -800,10 +1125,7 @@
    "regex_hints": [
     "^Gross\\s+Fixed\\s+Assets$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -859,10 +1181,7 @@
    "regex_hints": [
     "^Accum\\s+Deprec\\s+\\&\\s+Impairment\\([\\-–—]?\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -914,10 +1233,7 @@
    "regex_hints": [
     "^Net\\s+Fixed\\s+Assets$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -968,10 +1284,7 @@
    "regex_hints": [
     "^Goodwill$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -1026,10 +1339,7 @@
    "regex_hints": [
     "^Accum\\s+Goodwill\\s+Amortized\\([\\-–—]?\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -1092,10 +1402,7 @@
    "regex_hints": [
     "^Land\\s+use\\s+rights$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -1164,10 +1471,7 @@
     "^Concessions",
     "\\s+Licenses\\s+\\&\\s+Trdmrks$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -1222,10 +1526,7 @@
    "regex_hints": [
     "^Patents$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -1282,10 +1583,7 @@
    "regex_hints": [
     "^Start[\\-–—]?Up\\s+Capitalized\\s+Expenses$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -1347,10 +1645,7 @@
    "regex_hints": [
     "^R\\&D\\s+Capitalized\\s+Expenses$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -1409,10 +1704,7 @@
    "regex_hints": [
     "^Other\\s+Intangible\\s+Assets$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -1465,10 +1757,7 @@
    "regex_hints": [
     "^Accum\\s+Intgbl\\s+Assets\\s+Amort\\([\\-–—]?\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -1520,10 +1809,7 @@
    "regex_hints": [
     "^Net\\s+Intangibles$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -1591,10 +1877,7 @@
    "regex_hints": [
     "^Investment\\s+Property\\(Net\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -1654,10 +1937,7 @@
    "regex_hints": [
     "^Investment\\s+in\\s+Subsidiaries$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -1726,10 +2006,7 @@
    "regex_hints": [
     "^Investments\\s+in\\s+Associates$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -1784,10 +2061,7 @@
    "regex_hints": [
     "^Invest\\s+in\\s+JVs\\s+\\&\\s+Partnerships$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -1842,10 +2116,7 @@
    "regex_hints": [
     "^Entrusted\\s+loan\\s+receivables[\\-–—]?\\s+related\\s+parties\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -1906,10 +2177,7 @@
    "regex_hints": [
     "^Due\\s+from\\s+directors$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -1970,10 +2238,7 @@
    "regex_hints": [
     "^Due\\s+from\\s+subsidiaries$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -2090,10 +2355,7 @@
     "\\bdebtors?\\b",
     "trade\\s+receivable"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -2153,10 +2415,7 @@
    "regex_hints": [
     "^Entrusted\\s+loan\\s+receivables[\\-–—]?\\s+shareholders\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -2229,10 +2488,7 @@
    "regex_hints": [
     "^Due\\s+from\\s+MI$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -2289,10 +2545,7 @@
    "regex_hints": [
     "^Due\\s+from\\s+S'holder\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -2353,10 +2606,7 @@
    "regex_hints": [
     "^Wealth\\s+management\\s+products\\(LTP\\)\\s+\\(from\\s+Secur\\&Fincl\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -2450,10 +2700,7 @@
    "regex_hints": [
     "^Secur\\s+\\&\\s+Other\\s+Fincl\\s+Assets\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -2515,10 +2762,7 @@
    "regex_hints": [
     "^Futures\\(NCA\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -2583,10 +2827,7 @@
    "regex_hints": [
     "^Options\\(NCA\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -2647,10 +2888,7 @@
    "regex_hints": [
     "^Forwards\\(NCA\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -2705,10 +2943,7 @@
    "regex_hints": [
     "^Commodities\\(NCA\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -2771,10 +3006,7 @@
    "regex_hints": [
     "^Swaps\\(NCA\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -2839,10 +3071,7 @@
    "regex_hints": [
     "^Deriv\\s+\\&\\s+Hedg\\s+Assets\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -2899,10 +3128,7 @@
    "regex_hints": [
     "^Rtrmnt\\s+Plan\\s+Actuarial\\s+Surplus$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -2963,10 +3189,7 @@
    "regex_hints": [
     "^Wealth\\s+management\\s+products\\(LTP\\)\\s+\\(from\\s+OtherAsset\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -3051,10 +3274,7 @@
    "regex_hints": [
     "^Pledged\\s+Deposits\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -3143,10 +3363,7 @@
    "regex_hints": [
     "^Pledged\\s+Secur\\s+\\&\\s+Other\\s+Fincl\\s+Assets\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -3207,10 +3424,7 @@
    "regex_hints": [
     "^Other\\s+Non[\\-–—]?Current\\s+Assets$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -3283,10 +3497,7 @@
    "regex_hints": [
     "^Deferred\\s+Tax\\s+Assets$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -3343,10 +3554,7 @@
    "regex_hints": [
     "^Entrusted\\s+loan\\s+receivables[\\-–—]?\\s+third\\s+parties\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -3407,10 +3615,7 @@
    "regex_hints": [
     "^Wealth\\s+management\\s+products\\(LTP\\)\\s+\\(from\\s+Receivables\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -3467,10 +3672,7 @@
    "regex_hints": [
     "^Reverse\\s+repo\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -3565,10 +3767,7 @@
    "regex_hints": [
     "^Other\\s+Receivables\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -3623,10 +3822,7 @@
    "regex_hints": [
     "^Prepaid\\s+land\\s+lease\\s+payments\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -3710,10 +3906,7 @@
    "regex_hints": [
     "^Prepayments\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -3772,10 +3965,7 @@
    "regex_hints": [
     "^Restricted\\s+Cash$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -3835,10 +4025,7 @@
    "regex_hints": [
     "^Total\\s+Non[\\-–—]?Current\\s+Assets$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
@@ -3894,10 +4081,7 @@
    "regex_hints": [
     "^Operating\\s+Lease\\s+Receivables$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -3956,10 +4140,7 @@
    "regex_hints": [
     "^Raw\\s+materials$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -4022,10 +4203,7 @@
    "regex_hints": [
     "^WIP$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -4090,10 +4268,7 @@
    "regex_hints": [
     "^Finished\\s+goods$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -4150,10 +4325,7 @@
    "regex_hints": [
     "^Inventories$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -4209,10 +4381,7 @@
    "regex_hints": [
     "^Due\\s+from\\s+JVs\\s+\\&\\s+Partnerships$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -4265,10 +4434,7 @@
    "regex_hints": [
     "^Entrusted\\s+loan\\s+receivables[\\-–—]?\\s+related\\s+parties\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -4321,10 +4487,7 @@
    "regex_hints": [
     "^Due\\s+from\\s+Related\\s+Parties\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -4381,10 +4544,7 @@
    "regex_hints": [
     "^Entrusted\\s+loan\\s+receivables[\\-–—]?\\s+shareholders\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -4437,10 +4597,7 @@
    "regex_hints": [
     "^Due\\s+from\\s+S'holder\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -4493,10 +4650,7 @@
    "regex_hints": [
     "^Short\\s+Term\\s+Securities$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -4557,10 +4711,7 @@
    "regex_hints": [
     "^Wealth\\s+management\\s+products\\(CP\\)\\s+\\(from\\s+Secur\\&Fincl\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -4661,10 +4812,7 @@
    "regex_hints": [
     "^Secur\\s+\\&\\s+Other\\s+Fincl\\s+Assets\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -4726,10 +4874,7 @@
    "regex_hints": [
     "^Futures\\(CA\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -4794,10 +4939,7 @@
    "regex_hints": [
     "^Options\\(CA\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -4858,10 +5000,7 @@
    "regex_hints": [
     "^Forwards\\(CA\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -4916,10 +5055,7 @@
    "regex_hints": [
     "^Commodities\\(CA\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -4982,10 +5118,7 @@
    "regex_hints": [
     "^Swaps\\(CA\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -5049,10 +5182,7 @@
    "regex_hints": [
     "^Deriv\\s+\\&\\s+Hedg\\s+Assets\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -5107,10 +5237,7 @@
    "regex_hints": [
     "^Assets\\s+Plgd\\s+Under\\s+Securitization$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -5167,10 +5294,7 @@
    "regex_hints": [
     "^Current\\s+Tax\\s+Receivables$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -5225,10 +5349,7 @@
    "regex_hints": [
     "^Prepaid\\s+land\\s+lease\\s+payments\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -5309,10 +5430,7 @@
    "regex_hints": [
     "^Prepayments\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -5368,10 +5486,7 @@
    "regex_hints": [
     "^Assets\\s+Related\\s+to\\s+Disc\\s+Ops$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -5456,10 +5571,7 @@
    "regex_hints": [
     "^Pledged\\s+Deposits$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -5546,10 +5658,7 @@
    "regex_hints": [
     "^Pledged\\s+Secur\\s+\\&\\s+Other\\s+Fincl\\s+Assets\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -5610,10 +5719,7 @@
    "regex_hints": [
     "^Wealth\\s+management\\s+products\\(CP\\)\\s+\\(from\\s+OtherAsset\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -5683,10 +5789,7 @@
    "regex_hints": [
     "^Segregated\\s+Account\\(CA\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -5739,10 +5842,7 @@
    "regex_hints": [
     "^Suspense\\s+Account\\(CA\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -5804,10 +5904,7 @@
    "regex_hints": [
     "^Other\\s+Current\\s+Assets$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -5873,10 +5970,7 @@
    "regex_hints": [
     "^Trade\\s+receivables[\\-–—]?\\s+related\\s+parties$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -5933,10 +6027,7 @@
    "regex_hints": [
     "^Trade\\s+and\\s+other\\s+receivables[\\-–—]?\\s+related\\s+parties$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -6013,10 +6104,7 @@
    "regex_hints": [
     "^Trade\\s+and\\s+other\\s+receivables$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -6084,10 +6172,7 @@
    "regex_hints": [
     "^Trade\\s+Receivables\\(Gross\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -6148,10 +6233,7 @@
    "regex_hints": [
     "^Allow\\s+for\\s+Doubtful\\s+Accounts\\([\\-–—]?\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -6199,10 +6281,7 @@
    "regex_hints": [
     "^Net\\s+Trade\\s+Receivables$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -6258,10 +6337,7 @@
    "regex_hints": [
     "^Subscribed\\s+Capital[\\-–—]?Called\\s+Not\\s+Paid$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -6318,10 +6394,7 @@
    "regex_hints": [
     "^Entrusted\\s+loan\\s+receivables[\\-–—]?\\s+third\\s+parties\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -6382,10 +6455,7 @@
    "regex_hints": [
     "^Wealth\\s+management\\s+products\\(CP\\)\\s+\\(from\\s+Receivables\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -6441,10 +6511,7 @@
    "regex_hints": [
     "^Reverse\\s+repo\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -6548,10 +6615,7 @@
     "(?:deposits?|prepayments?|prepaid)[\\s\\S]{0,80}other\\s+receivable",
     "other\\s+receivable[\\s\\S]{0,80}(?:deposits?|prepayments?|prepaid|other\\s+assets)"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -6615,10 +6679,7 @@
    "regex_hints": [
     "^Wealth\\s+management\\s+products\\(CP\\)\\s+\\(from\\s+cash\\s+equ\\.\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -6684,10 +6745,7 @@
    "regex_hints": [
     "^Cash\\s+Equivalents$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -6763,10 +6821,7 @@
    "regex_hints": [
     "^Cash\\s+in\\s+Hand\\s+and\\s+at\\s+Banks$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -6826,10 +6881,7 @@
    "regex_hints": [
     "^Total\\s+Current\\s+Assets$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -6895,10 +6947,7 @@
     "^total assets less current liabilities",
     "^net current (?:assets|liabilities)"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
@@ -6977,10 +7026,7 @@
    "regex_hints": [
     "^Common\\s+Share\\s+Capital$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
@@ -7040,10 +7086,7 @@
    "regex_hints": [
     "^Pref\\s+Share\\s+Capital$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
@@ -7104,10 +7147,7 @@
    "regex_hints": [
     "^Share\\s+Premium$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
@@ -7160,10 +7200,7 @@
    "regex_hints": [
     "^Special\\s+Items\\s+with\\s+Equity\\s+Character$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
@@ -7246,10 +7283,7 @@
    "regex_hints": [
     "^Capital\\s+\\&\\s+Restricted\\s+Reserves$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
@@ -7302,10 +7336,7 @@
    "regex_hints": [
     "^Permanent\\s+Equity$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
@@ -7371,10 +7402,7 @@
    "regex_hints": [
     "^Revaluation\\s+Reserves$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
@@ -7433,10 +7461,7 @@
    "regex_hints": [
     "^Hedging\\s+Reserves$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
@@ -7496,10 +7521,7 @@
    "regex_hints": [
     "^Other\\s+Reserves$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
@@ -7561,10 +7583,7 @@
    "regex_hints": [
     "^Auditor\\s+adj\\s+on\\s+retained\\s+profits$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
@@ -7635,10 +7654,7 @@
    "regex_hints": [
     "^Retained\\s+Profits$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
@@ -7698,10 +7714,7 @@
    "regex_hints": [
     "^Treasury\\s+Shares\\([\\-–—]?\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
@@ -7772,10 +7785,7 @@
    "regex_hints": [
     "^Forex\\s+Translation\\s+Equity$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
@@ -7828,10 +7838,7 @@
    "regex_hints": [
     "^Subordinated\\s+Debt\\s+from\\s+related\\s+parties$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
@@ -7884,10 +7891,7 @@
    "regex_hints": [
     "^Subordinated\\s+Debt\\s+Equity$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
@@ -7953,10 +7957,7 @@
    "regex_hints": [
     "^Other\\s+Equity$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
@@ -8009,10 +8010,7 @@
    "regex_hints": [
     "^Policyholders\\s+Equity$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
@@ -8084,10 +8082,7 @@
    "regex_hints": [
     "^Accum\\s+Oth\\s+Eqty\\s+Rsrv\\s+Inc$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
@@ -8156,10 +8151,7 @@
    "regex_hints": [
     "^Minority\\s+Interest\\s+Equity$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
@@ -8219,10 +8211,7 @@
    "regex_hints": [
     "^Total\\s+Equity\\s+\\&\\s+Reserves$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
@@ -8307,10 +8296,7 @@
    "regex_hints": [
     "^LTD\\s+Bank$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -8375,10 +8361,7 @@
    "regex_hints": [
     "^Entrusted\\s+loan\\s+payables[\\-–—]?\\s+third\\s+parties\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -8441,10 +8424,7 @@
    "regex_hints": [
     "^Perpetual\\s+Bond$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -8501,10 +8481,7 @@
    "regex_hints": [
     "^Repo\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -8583,10 +8560,7 @@
    "regex_hints": [
     "^LTD\\s+Other$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -8643,10 +8617,7 @@
    "regex_hints": [
     "^LTD\\s+Convertible$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -8707,10 +8678,7 @@
    "regex_hints": [
     "^LTD\\s+Subordinated$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -8771,10 +8739,7 @@
    "regex_hints": [
     "^Finance\\s+Leases\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -8827,10 +8792,7 @@
    "regex_hints": [
     "^Entrusted\\s+loan\\s+payables[\\-–—]?\\s+related\\s+parties\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -8891,10 +8853,7 @@
    "regex_hints": [
     "^Due\\s+to\\s+directors\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -8955,10 +8914,7 @@
    "regex_hints": [
     "^Due\\s+to\\s+subsidiaries\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -9019,10 +8975,7 @@
    "regex_hints": [
     "^Due\\s+to\\s+Related\\s+Parties\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -9079,10 +9032,7 @@
    "regex_hints": [
     "^Entrusted\\s+loan\\s+payables[\\-–—]?\\s+shareholders\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -9145,10 +9095,7 @@
    "regex_hints": [
     "^Due\\s+to\\s+MI\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -9209,10 +9156,7 @@
    "regex_hints": [
     "^Due\\s+to\\s+S'holder\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -9274,10 +9218,7 @@
    "regex_hints": [
     "^Lease\\s+liabilities\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -9348,10 +9289,7 @@
     "^net current (?:assets|liabilities)",
     "^total assets less current liabilities"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -9419,10 +9357,7 @@
    "regex_hints": [
     "^Customer\\s+Advances\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -9486,10 +9421,7 @@
    "regex_hints": [
     "^Deferred\\s+Income\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -9548,10 +9480,7 @@
    "regex_hints": [
     "^Futures\\(NCL\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -9616,10 +9545,7 @@
    "regex_hints": [
     "^Options\\(NCL\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -9680,10 +9606,7 @@
    "regex_hints": [
     "^Forwards\\(NCL\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -9738,10 +9661,7 @@
    "regex_hints": [
     "^Commodities\\(NCL\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -9804,10 +9724,7 @@
    "regex_hints": [
     "^Swaps\\(NCL\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -9870,10 +9787,7 @@
    "regex_hints": [
     "^Deriv\\s+\\&\\s+Hedg\\s+Liab\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -9948,10 +9862,7 @@
    "regex_hints": [
     "^Trade\\s+and\\s+other\\s+payables\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -10013,10 +9924,7 @@
    "regex_hints": [
     "^Trade\\s+Payables\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -10073,10 +9981,7 @@
    "regex_hints": [
     "^Soc\\s+Sec\\s+\\&\\s+Other\\s+Taxes\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -10137,10 +10042,7 @@
    "regex_hints": [
     "^Decomm\\s+\\&\\s+Envir\\s+Costs\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -10197,10 +10099,7 @@
    "regex_hints": [
     "^Share\\s+Option\\s+Costs\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -10268,10 +10167,7 @@
    "regex_hints": [
     "^Retirement\\s+Benefits\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -10333,10 +10229,7 @@
    "regex_hints": [
     "^Deferred\\s+Tax\\s+Liability$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -10393,10 +10286,7 @@
    "regex_hints": [
     "^Restruct\\s+Provision\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -10453,10 +10343,7 @@
    "regex_hints": [
     "^Tax\\s+Provision\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -10520,10 +10407,7 @@
    "regex_hints": [
     "^Other\\s+Provisions\\(LTP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -10589,10 +10473,7 @@
    "regex_hints": [
     "^Total\\s+Non[\\-–—]?Current\\s+Liabilities$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
@@ -10678,10 +10559,7 @@
    "regex_hints": [
     "^CPLTD\\s+Bank$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -10746,10 +10624,7 @@
    "regex_hints": [
     "^Entrusted\\s+loan\\s+payables[\\-–—]?\\s+third\\s+parties\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -10826,10 +10701,7 @@
    "regex_hints": [
     "^CPLTD\\s+Other$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -10886,10 +10758,7 @@
    "regex_hints": [
     "^CPLTD\\s+Convertible$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -10948,10 +10817,7 @@
    "regex_hints": [
     "^CPLTD\\s+Subordinated$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -11030,10 +10896,7 @@
    "regex_hints": [
     "^Trade\\s+financing$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -11100,10 +10963,7 @@
    "regex_hints": [
     "^ST\\s+Bank\\s+Loans\\s+Payable$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -11158,10 +11018,7 @@
    "regex_hints": [
     "^IPO\\s+Loans\\s+\\(ST\\s+Bank\\s+Loans\\s+Pay\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -11216,10 +11073,7 @@
    "regex_hints": [
     "^IPO\\s+Loans\\s+\\(ST\\s+Other\\s+Loans\\s+Pay\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -11277,10 +11131,7 @@
    "regex_hints": [
     "^Repo\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -11343,10 +11194,7 @@
    "regex_hints": [
     "^ST\\s+Other\\s+Loans\\s+Payable$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -11407,10 +11255,7 @@
    "regex_hints": [
     "^Finance\\s+Leases\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -11465,10 +11310,7 @@
    "regex_hints": [
     "^Overdrafts$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -11521,10 +11363,7 @@
    "regex_hints": [
     "^Entrusted\\s+loan\\s+payables[\\-–—]?\\s+related\\s+parties\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -11585,10 +11424,7 @@
    "regex_hints": [
     "^Due\\s+to\\s+directors\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -11649,10 +11485,7 @@
    "regex_hints": [
     "^Due\\s+to\\s+subsidiaries\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -11713,10 +11546,7 @@
    "regex_hints": [
     "^Due\\s+to\\s+Related\\s+Parties\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -11773,10 +11603,7 @@
    "regex_hints": [
     "^Entrusted\\s+loan\\s+payables[\\-–—]?\\s+shareholders\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -11837,10 +11664,7 @@
    "regex_hints": [
     "^Due\\s+to\\s+MI\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -11899,10 +11723,7 @@
    "regex_hints": [
     "^Due\\s+to\\s+S'holder\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -11955,10 +11776,7 @@
    "regex_hints": [
     "^Liabilities\\s+to\\s+Enterprises$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -12020,10 +11838,7 @@
    "regex_hints": [
     "^Lease\\s+liabilities\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -12079,10 +11894,7 @@
    "regex_hints": [
     "^Segregated\\s+Account\\(CL\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -12135,10 +11947,7 @@
    "regex_hints": [
     "^Suspense\\s+Account\\(CL\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -12198,10 +12007,7 @@
    "regex_hints": [
     "^Other\\s+Current\\s+Liabilities$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -12286,10 +12092,7 @@
    "regex_hints": [
     "^Customer\\s+Advances\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -12353,10 +12156,7 @@
    "regex_hints": [
     "^Deferred\\s+Income\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -12409,10 +12209,7 @@
    "regex_hints": [
     "^Billings\\s+in\\s+Excess\\s+of\\s+Costs$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -12471,10 +12268,7 @@
    "regex_hints": [
     "^Futures\\(CL\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -12539,10 +12333,7 @@
    "regex_hints": [
     "^Options\\(CL\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -12603,10 +12394,7 @@
    "regex_hints": [
     "^Forwards\\(CL\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -12661,10 +12449,7 @@
    "regex_hints": [
     "^Commodities\\(CL\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -12727,10 +12512,7 @@
    "regex_hints": [
     "^Swaps\\(CL\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -12796,10 +12578,7 @@
    "regex_hints": [
     "^Deriv\\s+\\&\\s+Hedg\\s+Liab\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -12858,10 +12637,7 @@
    "regex_hints": [
     "^Current\\s+Tax\\s+Payable$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -12918,10 +12694,7 @@
    "regex_hints": [
     "^Interest\\s+Payable$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -12981,10 +12754,7 @@
    "regex_hints": [
     "^Soc\\s+Sec\\s+\\&\\s+Other\\s+Taxes\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -13041,10 +12811,7 @@
    "regex_hints": [
     "^Proposed\\s+Dividends$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -13099,10 +12866,7 @@
    "regex_hints": [
     "^Dividends\\s+Payable$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -13163,10 +12927,7 @@
    "regex_hints": [
     "^Notes\\s+Payable\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -13226,10 +12987,7 @@
    "regex_hints": [
     "^Trade\\s+payables[\\-–—]?\\s+related\\s+parties$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -13286,10 +13044,7 @@
    "regex_hints": [
     "^Trade\\s+and\\s+other\\s+payables[\\-–—]?\\s+related\\s+parties$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -13364,10 +13119,7 @@
    "regex_hints": [
     "^Trade\\s+and\\s+other\\s+payables\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -13439,10 +13191,7 @@
    "regex_hints": [
     "^Trade\\s+Payables\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -13501,10 +13250,7 @@
    "regex_hints": [
     "^Decomm\\s+\\&\\s+Envir\\s+Costs\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -13561,10 +13307,7 @@
    "regex_hints": [
     "^Share\\s+Option\\s+Costs\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -13629,10 +13372,7 @@
    "regex_hints": [
     "^Retirement\\s+Benefits\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -13689,10 +13429,7 @@
    "regex_hints": [
     "^Restruct\\s+Provision\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -13749,10 +13486,7 @@
    "regex_hints": [
     "^Tax\\s+Provision\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -13815,10 +13549,7 @@
    "regex_hints": [
     "^Other\\s+Provisions\\(CP\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -13876,10 +13607,7 @@
    "regex_hints": [
     "^Total\\s+Current\\s+Liabilities$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -13942,10 +13670,7 @@
     "^total assets less current liabilities",
     "^net current (?:assets|liabilities)"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -14013,10 +13738,7 @@
     "^total assets less current liabilities",
     "^net current (?:assets|liabilities)"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
@@ -14093,10 +13815,7 @@
     "营业总收入",
     "^(?:[一二三四五六七八九十]+、|其中：)?\\s*(?:收益|营业额|销售收入|客户合约收益)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -14154,10 +13873,7 @@
    "regex_hints": [
     "^Net\\s+Premium\\s+Earned$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -14210,10 +13926,7 @@
    "regex_hints": [
     "^Changes\\s+in\\s+Inventories\\s+Incr/\\(Dcr\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -14270,10 +13983,7 @@
    "exclude_hints": [
     "interest"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -14328,10 +14038,7 @@
    "regex_hints": [
     "^Derivatives\\(COS\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -14399,10 +14106,7 @@
    "regex_hints": [
     "^Cost\\s+of\\s+Sales$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -14459,10 +14163,7 @@
    "regex_hints": [
     "^Net\\s+Claims\\s+and\\s+Benefits$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -14515,10 +14216,7 @@
    "regex_hints": [
     "^Goods\\s+\\&\\s+Services$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -14571,10 +14269,7 @@
    "regex_hints": [
     "^Material\\s+Expenses$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -14642,10 +14337,7 @@
    "regex_hints": [
     "^Amort\\s+\\&\\s+Impairment\\(Intgbl\\)\\(COS\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -14725,10 +14417,7 @@
     "^Deprec\\s+\\&\\s+Impairment\\(COS\\)$",
     "^Depreciation\\s+of\\s+property\\s*,\\s*plant\\s+and\\s+equipment(?:\\W.*)?$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -14811,10 +14500,7 @@
    "regex_hints": [
     "^Total\\s+Cost\\s+of\\s+Sales$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -14877,10 +14563,7 @@
    "regex_hints": [
     "^Gross\\s+Profit$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -14942,10 +14625,7 @@
    "regex_hints": [
     "^Rents\\s+\\&\\s+Royalty\\s+Income$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -15032,10 +14712,7 @@
    "regex_hints": [
     "^Other\\s+Operating\\s+Income$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -15090,10 +14767,7 @@
    "regex_hints": [
     "^Commission\\s+Income\\s+\\(Other\\s+Operating\\s+Inc\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -15148,10 +14822,7 @@
    "regex_hints": [
     "^Commission\\s+Income\\s+\\(Sales\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -15208,10 +14879,7 @@
    "regex_hints": [
     "^Grants\\s+\\&\\s+Subsidies$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -15288,10 +14956,7 @@
    "regex_hints": [
     "^Selling\\s+\\&\\s+Marketing\\s+Expenses$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -15372,10 +15037,7 @@
    "regex_hints": [
     "^General\\s+\\&\\s+Admin\\s+Expenses$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -15454,10 +15116,7 @@
    "regex_hints": [
     "^Personnel\\s+\\&\\s+Benefit\\s+Expenses$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -15532,10 +15191,7 @@
    "regex_hints": [
     "^Officers\\s+Compensation$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -15600,10 +15256,7 @@
    "regex_hints": [
     "^Operating\\s+Lease\\s+\\&\\s+Rent\\s+Expenses$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -15667,10 +15320,7 @@
    "regex_hints": [
     "^Research\\s+\\&\\s+Development$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -15725,10 +15375,7 @@
    "regex_hints": [
     "^Restructuring\\s+Costs$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -15786,10 +15433,7 @@
    "regex_hints": [
     "^Asset\\s+impairment\\s+loss$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -15853,10 +15497,7 @@
    "regex_hints": [
     "^Other\\s+Operating\\s+Expenses$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -15920,10 +15561,7 @@
    "regex_hints": [
     "^Commission\\s+Expenses\\s+\\(Other\\s+Operating\\s+Exp\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -15978,10 +15616,7 @@
    "regex_hints": [
     "^Commission\\s+Expenses\\s+\\(Cost\\s+of\\s+Sales\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -16042,10 +15677,7 @@
    "regex_hints": [
     "^Bad\\s+Debt\\s+Expense\\s+\\(Other\\s+Receivables\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -16102,10 +15734,7 @@
    "regex_hints": [
     "^Bad\\s+Debt\\s+Expense\\s+\\(Trade\\s+and\\s+Other\\s+Receivables\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -16175,10 +15804,7 @@
    "regex_hints": [
     "^Bad\\s+Debt\\s+Expense$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -16245,10 +15871,7 @@
    "regex_hints": [
     "^Prov\\s+for\\s+Retirement\\s+Costs$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -16305,10 +15928,7 @@
    "regex_hints": [
     "^Share\\s+Option\\s+Costs$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -16365,10 +15985,7 @@
    "regex_hints": [
     "^Other\\s+Taxes$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -16425,10 +16042,7 @@
    "regex_hints": [
     "^Other\\s+Oper\\s+Exp\\(Provisions\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -16491,10 +16105,7 @@
    "regex_hints": [
     "^Impairment\\(Fixed\\s+Assets\\)\\(Oper\\s+Exp\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -16578,10 +16189,7 @@
     "^Deprec\\s+\\&\\s+Impairment\\(Oper\\s+Exp\\)$",
     "^Depreciation\\s+of\\s+Investment\\s+Property(?:\\W.*)?$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -16737,10 +16345,7 @@
    "regex_hints": [
     "^Impairment\\(Intgbl\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -16808,10 +16413,7 @@
    "regex_hints": [
     "^Amort\\s+\\&\\s+Impairment\\(Intgbl\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -16868,10 +16470,7 @@
    "regex_hints": [
     "^Goodwill\\s+Amortization$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -16924,10 +16523,7 @@
    "regex_hints": [
     "^Capitalized\\s+Costs$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -16997,10 +16593,7 @@
    "regex_hints": [
     "^Net\\s+Operating\\s+Profit$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -17056,10 +16649,7 @@
    "regex_hints": [
     "^Interest\\s+income\\s+from\\s+derivatives$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -17116,10 +16706,7 @@
    "regex_hints": [
     "^Interest\\s+income\\s+from\\s+wealth\\s+management\\s+products$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -17176,10 +16763,7 @@
    "regex_hints": [
     "^Interest\\s+income\\s+from\\s+Entrusted\\s+loan\\s+receivables$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -17249,10 +16833,7 @@
    "regex_hints": [
     "^Interest\\s+Income$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -17305,10 +16886,7 @@
    "regex_hints": [
     "^Interest\\s+on\\s+lease\\s+liabilities$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -17388,10 +16966,7 @@
    "regex_hints": [
     "^Interest\\s+on\\s+debt\\s+market\\s+instruments$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -17454,10 +17029,7 @@
    "regex_hints": [
     "^Interest\\s+on\\s+capital\\s+market\\s+instruments$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -17524,10 +17096,7 @@
    "regex_hints": [
     "^Interest\\s+on\\s+trade\\s+finance$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -17582,10 +17151,7 @@
    "regex_hints": [
     "^Interest\\s+paid\\s+to\\s+related\\s+parties$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -17640,10 +17206,7 @@
    "regex_hints": [
     "^Interest\\s+expense\\s+[\\-–—]?\\s+capitalised$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -17702,10 +17265,7 @@
    "regex_hints": [
     "^Finance\\s+cost\\s+on\\s+derivatives$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -17762,10 +17322,7 @@
    "regex_hints": [
     "^Bank\\s+charge\\s+and\\s+interest\\s+expense$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -17829,10 +17386,7 @@
    "regex_hints": [
     "^Interest\\s+Expense\\([\\-–—]?\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -17908,10 +17462,7 @@
    "regex_hints": [
     "^Other\\s+Debt\\s+Service\\s+Expenses\\([\\-–—]?\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -17964,10 +17515,7 @@
    "regex_hints": [
     "^Deferred\\s+Interest\\s+Expense\\([\\-–—]?\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -18020,10 +17568,7 @@
    "regex_hints": [
     "^Net\\s+Interest\\s+Income\\(Expense\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -18094,10 +17639,7 @@
    "regex_hints": [
     "^Income\\(Loss\\)\\s+from\\s+Related\\s+Party$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -18166,10 +17708,7 @@
    "regex_hints": [
     "^Income\\(Loss\\)\\s+from\\s+Joint\\s+Ventures$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -18224,10 +17763,7 @@
    "regex_hints": [
     "^Fncl\\s+income\\s+from\\s+derivatives$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -18282,10 +17818,7 @@
    "regex_hints": [
     "^Fncl\\s+income\\s+from\\s+wealth\\s+management\\s+products$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -18351,10 +17884,7 @@
    "regex_hints": [
     "^Other\\s+Fncl\\s+Asset\\s+Income\\(Dvds\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -18407,10 +17937,7 @@
    "regex_hints": [
     "^Gain\\(loss\\)\\s+on\\s+derivatives$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -18465,10 +17992,7 @@
    "regex_hints": [
     "^Gain\\(loss\\)\\s+on\\s+wealth\\s+management\\s+products$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -18531,10 +18055,7 @@
    "regex_hints": [
     "^Gain\\(Loss\\)\\s+on\\s+Fncl\\s+Assets$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -18589,10 +18110,7 @@
    "regex_hints": [
     "^Adjsts\\s+to\\s+Scrtzn\\s+Programs$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -18651,10 +18169,7 @@
    "regex_hints": [
     "^Rlzd\\s+Forex\\s+Translation\\s+G\\(L\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -18707,10 +18222,7 @@
    "regex_hints": [
     "^FMV\\s+adj\\s+on\\s+derivatives$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -18767,10 +18279,7 @@
    "regex_hints": [
     "^FMV\\s+adj\\s+on\\s+wealth\\s+management\\s+products$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -18839,10 +18348,7 @@
    "regex_hints": [
     "^FMV\\s+Adj\\s+on\\s+Fncl\\s+Assets$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -18895,10 +18401,7 @@
    "regex_hints": [
     "^Net\\s+Other\\s+Financial\\s+Inc\\(Exp\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -18962,10 +18465,7 @@
    "regex_hints": [
     "^Gain\\(Loss\\)\\s+Disp\\s+of\\s+Fixed\\s+Assets$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -19024,10 +18524,7 @@
    "regex_hints": [
     "^Gain\\(Loss\\)\\s+on\\s+Invest\\s+Properties$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -19084,10 +18581,7 @@
    "regex_hints": [
     "^Gain\\(Loss\\)\\s+Disp\\s+of\\s+Disc\\s+Ops$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -19142,10 +18636,7 @@
    "regex_hints": [
     "^Exchange\\s+Gain\\(Loss\\)\\s+Sale\\s+of\\s+Bus$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -19202,10 +18693,7 @@
    "regex_hints": [
     "^Other\\s+Non[\\-–—]?Income\\s+Related\\s+Taxes$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -19272,10 +18760,7 @@
    "regex_hints": [
     "^Other\\s+Non[\\-–—]?Operating\\s+Inc\\(Exp\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -19334,10 +18819,7 @@
    "regex_hints": [
     "^FMV\\s+adj\\s+on\\s+investment\\s+properties$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -19392,10 +18874,7 @@
    "regex_hints": [
     "^Other\\s+Non[\\-–—]?Oper\\s+Inc\\(Exp\\)\\(NC\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -19448,10 +18927,7 @@
    "regex_hints": [
     "^Other\\s+Income\\(Expense\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -19528,10 +19004,7 @@
    "regex_hints": [
     "^Profit\\(Loss\\)\\s+Before\\s+Tax$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -19601,10 +19074,7 @@
    "regex_hints": [
     "^Current\\s+Income\\s+Taxes$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -19657,10 +19127,7 @@
    "regex_hints": [
     "^Deferred\\s+Income\\s+Taxes\\(NC\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -19713,10 +19180,7 @@
    "regex_hints": [
     "^Prior\\s+Year\\s+Tax\\s+Adj\\([\\-–—]?\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -19789,10 +19253,7 @@
    "regex_hints": [
     "^Total\\s+Income\\s+Tax$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -19848,10 +19309,7 @@
    "regex_hints": [
     "^Profit\\(Loss\\)\\s+Bef\\s+Extraord\\s+Items$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -19907,10 +19365,7 @@
    "regex_hints": [
     "^Extraordinary\\s+Income\\(Exp\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -19963,10 +19418,7 @@
    "regex_hints": [
     "^Extraordinary\\s+Income\\(Exp\\)\\(NC\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -20043,10 +19495,7 @@
    "exclude_hints": [
     "comprehensive income"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -20121,10 +19570,7 @@
    "regex_hints": [
     "^Profit\\s+for\\s+the\\s+year$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
@@ -20201,10 +19647,7 @@
    "regex_hints": [
     "^Unreal\\s+Gain\\(Loss\\)\\s+Fixed\\s+Assets$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_oci",
    "statement": "profit_and_loss",
@@ -20269,10 +19712,7 @@
    "regex_hints": [
     "^Unreal\\s+Gain\\(Loss\\)\\s+Invest\\s+Prpty$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_oci",
    "statement": "profit_and_loss",
@@ -20341,10 +19781,7 @@
    "regex_hints": [
     "^Unreal\\s+Gain\\(Loss\\)\\s+Investments$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_oci",
    "statement": "profit_and_loss",
@@ -20409,10 +19846,7 @@
    "regex_hints": [
     "^Deferred\\s+Hedging\\s+Gain\\(Loss\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_oci",
    "statement": "profit_and_loss",
@@ -20469,10 +19903,7 @@
    "regex_hints": [
     "^Derivatives\\s+FMV\\s+Adjustment$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_oci",
    "statement": "profit_and_loss",
@@ -20539,10 +19970,7 @@
    "regex_hints": [
     "^Minimum\\s+Pension\\s+Liability\\s+Adj$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_oci",
    "statement": "profit_and_loss",
@@ -20603,10 +20031,7 @@
     "total comprehensive (?:income|loss)",
     "^other comprehensive income/loss for the year$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_oci",
    "statement": "profit_and_loss",
@@ -20674,10 +20099,7 @@
    "regex_hints": [
     "^Total\\s+Other\\s+Comprehensive\\s+Income$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_oci",
    "statement": "profit_and_loss",
@@ -20743,10 +20165,7 @@
    "regex_hints": [
     "^Cash\\s+Div\\s+Pref\\s+Shares\\([\\-–—]?\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_retained",
    "statement": "profit_and_loss",
@@ -20819,10 +20238,7 @@
    "regex_hints": [
     "^Proposed\\s+Cash\\s+Dividends$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_retained",
    "statement": "profit_and_loss",
@@ -20893,10 +20309,7 @@
    "regex_hints": [
     "^Cash\\s+Div\\s+Common\\s+Shares\\([\\-–—]?\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_retained",
    "statement": "profit_and_loss",
@@ -20965,10 +20378,7 @@
    "regex_hints": [
     "^Stock\\s+Dividends\\(NC\\)\\([\\-–—]?\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_retained",
    "statement": "profit_and_loss",
@@ -21031,10 +20441,7 @@
    "regex_hints": [
     "^Transfer\\s+to\\s+Reserves\\([\\-–—]?\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_retained",
    "statement": "profit_and_loss",
@@ -21103,10 +20510,7 @@
    "regex_hints": [
     "^Prior\\s+Period\\s+Adjustments$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_retained",
    "statement": "profit_and_loss",
@@ -21167,10 +20571,7 @@
    "regex_hints": [
     "^Other\\s+Adj\\s+to\\s+Retained\\s+Profits$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_retained",
    "statement": "profit_and_loss",
@@ -21259,10 +20660,7 @@
    "regex_hints": [
     "^Net\\s+Profit/\\(Loss\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -21315,10 +20713,7 @@
    "regex_hints": [
     "^Other\\s+After\\s+Tax\\s+\\(Income\\)/Expense$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -21371,10 +20766,7 @@
    "regex_hints": [
     "^Minority\\s+Interests\\(CF\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -21439,10 +20831,7 @@
    "regex_hints": [
     "^Income\\s+Tax\\s+Expense$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -21510,10 +20899,7 @@
    "regex_hints": [
     "^Depreciation$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -21578,10 +20964,7 @@
    "regex_hints": [
     "^Amortization\\s+\\&\\s+Asset\\s+Impairment$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -21636,10 +21019,7 @@
    "regex_hints": [
     "^Cash\\s+Flow\\s+from\\s+Hedging\\(Oper\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -21714,10 +21094,7 @@
    "regex_hints": [
     "^Assoc\\s+Profit\\s+Share\\(Net\\s+of\\s+Dvds\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -21772,10 +21149,7 @@
    "regex_hints": [
     "^Interest\\s+Inc\\s+Received\\(Oper\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -21838,10 +21212,7 @@
    "regex_hints": [
     "^Interest\\s+Expense$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -21904,10 +21275,7 @@
    "regex_hints": [
     "^Cash\\s+Flow\\s+Disp\\s+Fixed\\s+Assets$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -21976,10 +21344,7 @@
    "regex_hints": [
     "^Cash\\s+Flow\\s+Disp\\s+Financial\\s+Assets$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -22038,10 +21403,7 @@
    "regex_hints": [
     "^Chg\\s+in\\s+Trade\\s+Receivables$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -22098,10 +21460,7 @@
    "regex_hints": [
     "^Chg\\s+in\\s+Other\\s+Receivables$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -22156,10 +21515,7 @@
    "regex_hints": [
     "^Chg\\s+in\\s+Inventories$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -22214,10 +21570,7 @@
    "regex_hints": [
     "^Chg\\s+in\\s+Prepayments\\s+\\&\\s+Def\\s+Assets$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -22272,10 +21625,7 @@
    "regex_hints": [
     "^Chg\\s+in\\s+Fncl\\s+Instruments\\(Trading\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -22332,10 +21682,7 @@
    "regex_hints": [
     "^Chg\\s+in\\s+Other\\s+Current\\s+Assets$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -22392,10 +21739,7 @@
    "regex_hints": [
     "^Chg\\s+in\\s+Trade\\s+Payables$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -22450,10 +21794,7 @@
    "regex_hints": [
     "^Chg\\s+in\\s+Provisions$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -22510,10 +21851,7 @@
    "regex_hints": [
     "^Chg\\s+in\\s+Post\\s+Employ\\s+Bnft\\s+Oblig$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -22580,10 +21918,7 @@
    "regex_hints": [
     "^Chg\\s+in\\s+Other\\s+Current\\s+Liab$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -22638,10 +21973,7 @@
    "regex_hints": [
     "^Chg\\s+in\\s+Other\\s+Wkng\\s+Capital\\s+Items$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -22694,10 +22026,7 @@
    "regex_hints": [
     "^Chg\\s+in\\s+Taxes\\s+Payable$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -22752,10 +22081,7 @@
    "regex_hints": [
     "^Chg\\s+in\\s+Deferred\\s+Taxes$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -22816,10 +22142,7 @@
    "regex_hints": [
     "^Dividends\\s+Received\\(Oper\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -22878,10 +22201,7 @@
    "regex_hints": [
     "^Income\\s+Taxes\\s+Paid\\(Indirect\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -22947,10 +22267,7 @@
    "regex_hints": [
     "^Interest\\s+Paid\\(Oper\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -23011,10 +22328,7 @@
    "regex_hints": [
     "^Dividends\\s+Paid\\(Oper\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -23069,10 +22383,7 @@
    "regex_hints": [
     "^Cash\\s+Flow\\s+Extraord\\s+Items\\(Oper\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -23130,10 +22441,7 @@
     "cash generated from operations",
     "net cash .*operating activities"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -23205,10 +22513,7 @@
    "regex_hints": [
     "^Cash\\s+Flows\\s+Oper\\s+Activ\\(Indirect\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
@@ -23269,10 +22574,7 @@
    "regex_hints": [
     "^Cash\\s+Receipts\\s+from\\s+Customers$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_direct",
    "statement": "cash_flow",
@@ -23328,10 +22630,7 @@
    "regex_hints": [
     "^Cash\\s+Paid\\s+to\\s+Suppliers$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_direct",
    "statement": "cash_flow",
@@ -23389,10 +22688,7 @@
    "regex_hints": [
     "^Cash\\s+Paid\\s+to\\s+Employees$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_direct",
    "statement": "cash_flow",
@@ -23448,10 +22744,7 @@
    "regex_hints": [
     "^Income\\s+Taxes\\s+Paid\\(Direct\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_direct",
    "statement": "cash_flow",
@@ -23506,10 +22799,7 @@
    "regex_hints": [
     "^Borrowing\\s+Costs\\s+Paid$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_direct",
    "statement": "cash_flow",
@@ -23562,10 +22852,7 @@
    "regex_hints": [
     "^Cash\\s+Flows\\s+Oper\\s+Activ\\(Direct\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_direct",
    "statement": "cash_flow",
@@ -23625,10 +22912,7 @@
    "regex_hints": [
     "^Purchase\\s+Intangible\\s+Assets$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
@@ -23685,10 +22969,7 @@
    "regex_hints": [
     "^Proceeds\\s+Sale\\s+Intgbl\\s+Assets$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
@@ -23756,10 +23037,7 @@
    "regex_hints": [
     "^Purchase\\s+PPE$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
@@ -23837,10 +23115,7 @@
    "regex_hints": [
     "^Proceeds\\s+Sale\\s+PPE$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
@@ -23902,10 +23177,7 @@
    "regex_hints": [
     "^Purchase\\s+Investment\\s+Property$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
@@ -23969,10 +23241,7 @@
    "regex_hints": [
     "^Proceeds\\s+Sale\\s+Investment\\s+Prop$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
@@ -24048,10 +23317,7 @@
    "regex_hints": [
     "^Purchase\\s+Financial\\s+Assets$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
@@ -24127,10 +23393,7 @@
    "regex_hints": [
     "^Proceeds\\s+Sale\\s+Fncl\\s+Assets$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
@@ -24189,10 +23452,7 @@
    "regex_hints": [
     "^Purchase\\s+Other\\s+Assets$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
@@ -24251,10 +23511,7 @@
    "regex_hints": [
     "^Proceeds\\s+Sale\\s+Other\\s+Assets$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
@@ -24321,10 +23578,7 @@
    "regex_hints": [
     "^Investment\\s+Assoc\\s+\\&\\s+Affiliates$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
@@ -24398,10 +23652,7 @@
    "regex_hints": [
     "^Sale\\s+Assoc\\s+\\&\\s+Affiliates$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
@@ -24456,10 +23707,7 @@
    "regex_hints": [
     "^Acq\\s+of\\s+Sub\\(Net\\s+of\\s+Cash\\s+Acqrd\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
@@ -24516,10 +23764,7 @@
    "regex_hints": [
     "^Proceeds\\s+Sale\\s+of\\s+Subsidiary$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
@@ -24574,10 +23819,7 @@
    "regex_hints": [
     "^Payment\\s+Fin\\s+Lease\\s+Liab$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
@@ -24642,10 +23884,7 @@
    "regex_hints": [
     "^Interest\\s+Income\\s+Rcvd\\(Invest\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
@@ -24721,10 +23960,7 @@
    "regex_hints": [
     "^Dividends\\s+Received\\(Invest\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
@@ -24779,10 +24015,7 @@
    "regex_hints": [
     "^Cash\\s+Flow\\s+Extraord\\s+Items\\(Invest\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
@@ -24841,10 +24074,7 @@
    "regex_hints": [
     "^Cash\\s+Flow\\s+Hedging\\(Invest\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
@@ -24899,10 +24129,7 @@
    "regex_hints": [
     "^Other\\s+Invest\\s+Cash\\s+Flows$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
@@ -24972,10 +24199,7 @@
    "regex_hints": [
     "^Cash\\s+Flows\\s+from\\s+Invest\\s+Activities$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
@@ -25038,10 +24262,7 @@
    "regex_hints": [
     "^Net\\s+Proceeds\\s+Issuance\\s+of\\s+Capital$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
@@ -25096,10 +24317,7 @@
    "regex_hints": [
     "^Purchase\\(Sale\\)\\s+Treasury\\s+Stock$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
@@ -25169,10 +24387,7 @@
    "regex_hints": [
     "^Proceeds\\s+Non[\\-–—]?Cur\\s+Borrowings$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
@@ -25235,10 +24450,7 @@
    "regex_hints": [
     "^Issue\\s+Costs\\s+Non[\\-–—]?Cur\\s+Borrowings$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
@@ -25310,10 +24522,7 @@
    "regex_hints": [
     "^Repayments\\s+Non[\\-–—]?Cur\\s+Borrowings$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
@@ -25382,10 +24591,7 @@
    "regex_hints": [
     "^Chg\\s+in\\s+Current\\s+Borrowings$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
@@ -25447,10 +24653,7 @@
    "regex_hints": [
     "^Interest\\s+Paid\\(Fin\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
@@ -25505,10 +24708,7 @@
    "regex_hints": [
     "^Translation\\s+Adj\\s+Relating\\s+to\\s+Cash$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
@@ -25561,10 +24761,7 @@
    "regex_hints": [
     "^Cash\\s+Flow\\s+Extraord\\s+Items\\(Fin\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
@@ -25621,10 +24818,7 @@
    "regex_hints": [
     "^Cash\\s+Flow\\s+from\\s+Hedging\\(Fin\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
@@ -25686,10 +24880,7 @@
    "regex_hints": [
     "^Dividends\\s+Paid\\(Fin\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
@@ -25750,10 +24941,7 @@
    "regex_hints": [
     "^Dvds\\s+Paid\\(Minority\\s+S'holders\\)$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
@@ -25813,10 +25001,7 @@
     "cash and cash equivalents at (?:beginning|end)",
     "non-pledged and non-restricted (?:cash|time deposits)"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
@@ -25887,10 +25072,7 @@
    "regex_hints": [
     "^Cash\\s+Flows\\s+from\\s+Finance\\s+Activities$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
@@ -25957,10 +25139,7 @@
    "regex_hints": [
     "^Net\\s+Foreign\\s+Exchange\\s+Difference$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
@@ -26022,10 +25201,7 @@
    "regex_hints": [
     "^Beg\\s+of\\s+Period[\\-–—]?Cash\\s+\\&\\s+Cash\\s+Equiv$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
@@ -26087,10 +25263,7 @@
    "regex_hints": [
     "^End\\s+of\\s+Period[\\-–—]?Cash\\s+\\&\\s+Cash\\s+Equiv$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
@@ -26146,10 +25319,7 @@
    "regex_hints": [
     "^Unexplained\\s+Adjustment\\s+to\\s+Cash$"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
@@ -26207,10 +25377,7 @@
      "归属于母公司股东权益（或所有者权益）合计"
     ]
    },
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
@@ -26261,10 +25428,7 @@
     "legal name",
     "reporting entity"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
@@ -26310,10 +25474,7 @@
     "group",
     "combined"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
@@ -26361,10 +25522,7 @@
     "000",
     "mn"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
@@ -26407,10 +25565,7 @@
     "presentation currency",
     "reporting currency"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
@@ -26451,10 +25606,7 @@
     "output",
     "spread currency"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
@@ -26501,10 +25653,7 @@
     "period ended",
     "reporting date"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
@@ -26548,10 +25697,7 @@
     "quarter",
     "period"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
@@ -26590,10 +25736,7 @@
     "total",
     "assets"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
@@ -26633,10 +25776,7 @@
     "reserves",
     "liab"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
@@ -26675,10 +25815,7 @@
     "income",
     "expenses"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
@@ -26719,10 +25856,7 @@
     "ret",
     "profits"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
@@ -26763,10 +25897,7 @@
     "reconciliation",
     "balance"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
@@ -26811,10 +25942,7 @@
     "adverse",
     "disclaimer"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
@@ -26860,10 +25988,7 @@
     "local GAAP",
     "accounting standards"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
@@ -26905,10 +26030,7 @@
     "accountant",
     "audit firm"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
@@ -26948,10 +26070,7 @@
     "analyst",
     "prepared by"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
@@ -26994,10 +26113,7 @@
     "half-year",
     "management accounts"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
@@ -27039,10 +26155,7 @@
     "completed",
     "review"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
@@ -27085,10 +26198,7 @@
     "previous period",
     "reconcile"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
@@ -27132,10 +26242,7 @@
     "period end",
     "spot rate"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "supplemental_data",
    "statement": "covenants_supplemental",
@@ -27180,10 +26287,7 @@
     "outstanding",
     "issued shares"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "supplemental_data",
    "statement": "covenants_supplemental",
@@ -27227,10 +26331,7 @@
     "preferred shares",
     "outstanding"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "supplemental_data",
    "statement": "covenants_supplemental",
@@ -27276,10 +26377,7 @@
     "workforce",
     "staff"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "supplemental_data",
    "statement": "covenants_supplemental",
@@ -27322,10 +26420,7 @@
     "equity",
     "insurance"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "supplemental_data",
    "statement": "covenants_supplemental",
@@ -27369,10 +26464,7 @@
     "technical provisions",
     "insurance contract liabilities"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "supplemental_data",
    "statement": "covenants_supplemental",
@@ -27415,10 +26507,7 @@
     "memorandum",
     "assets"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "off_balance_sheet_data",
    "statement": "covenants_supplemental",
@@ -27461,10 +26550,7 @@
     "commitments",
     "minimum lease payments"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "off_balance_sheet_data",
    "statement": "covenants_supplemental",
@@ -27508,10 +26594,7 @@
     "liabilities",
     "commitments"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "off_balance_sheet_data",
    "statement": "covenants_supplemental",
@@ -27554,10 +26637,7 @@
     "weighted average",
     "exchange rate"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "supplemental_data",
    "statement": "covenants_supplemental",
@@ -27599,10 +26679,7 @@
     "gross written premium",
     "gwp"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "supplemental_data",
    "statement": "covenants_supplemental",
@@ -27642,10 +26719,7 @@
     "life gross premiums written",
     "gross written premium - life"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "supplemental_data",
    "statement": "covenants_supplemental",
@@ -27685,10 +26759,7 @@
     "non-life gross premiums written",
     "general insurance gross written premium"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "supplemental_data",
    "statement": "covenants_supplemental",
@@ -27730,10 +26801,7 @@
     "net written premium",
     "nwp"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "supplemental_data",
    "statement": "covenants_supplemental",
@@ -27773,10 +26841,7 @@
     "net investment income",
     "insurance investment income, net"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "supplemental_data",
    "statement": "covenants_supplemental",
@@ -27816,10 +26881,7 @@
     "working",
     "capital"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
@@ -27859,10 +26921,7 @@
     "current",
     "ratio"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
@@ -27902,10 +26961,7 @@
     "quick",
     "ratio"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
@@ -27947,10 +27003,7 @@
     "tangible",
     "worth"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
@@ -27990,10 +27043,7 @@
     "interest",
     "coverage"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
@@ -28033,10 +27083,7 @@
     "earnings",
     "coverage"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
@@ -28077,10 +27124,7 @@
     "flow",
     "coverage"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
@@ -28120,10 +27164,7 @@
     "capital",
     "expenditures"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
@@ -28165,10 +27206,7 @@
     "sheet",
     "leverage"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
@@ -28209,10 +27247,7 @@
     "profit",
     "margin"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
@@ -28253,10 +27288,7 @@
     "on",
     "assets"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
@@ -28297,10 +27329,7 @@
     "on",
     "equity"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
@@ -28342,10 +27371,7 @@
     "receivable",
     "days"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
@@ -28385,10 +27411,7 @@
     "inventory",
     "days"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
@@ -28429,10 +27452,7 @@
     "payable",
     "days"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
@@ -28472,10 +27492,7 @@
     "sales",
     "growth"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
@@ -28516,10 +27533,7 @@
     "net",
     "worth"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
@@ -28559,10 +27573,7 @@
     "subordinated",
     "debt"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
@@ -28602,10 +27613,7 @@
     "cash",
     "dividends"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
@@ -28645,10 +27653,7 @@
     "cash",
     "balance"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
@@ -28689,10 +27694,7 @@
     "fixed",
     "assets"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "capital_and_lease_commitments",
    "statement": "covenants_supplemental",
@@ -28734,10 +27736,7 @@
     "lt",
     "assets"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "capital_and_lease_commitments",
    "statement": "covenants_supplemental",
@@ -28778,10 +27777,7 @@
     "intangible",
     "assets"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "capital_and_lease_commitments",
    "statement": "covenants_supplemental",
@@ -28821,10 +27817,7 @@
     "commitments",
     "investments"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "capital_and_lease_commitments",
    "statement": "covenants_supplemental",
@@ -28863,10 +27856,7 @@
     "capital",
     "commitments"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "capital_and_lease_commitments",
    "statement": "covenants_supplemental",
@@ -28907,10 +27897,7 @@
     "commitments",
     "notes"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "capital_and_lease_commitments",
    "statement": "covenants_supplemental",
@@ -28957,10 +27944,7 @@
     "parent",
     "subsidiary"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "notes",
    "statement": "notes",
@@ -29008,10 +27992,7 @@
     "security",
     "collateral"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "notes",
    "statement": "notes",
@@ -29058,10 +28039,7 @@
     "security",
     "charge"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "notes",
    "statement": "notes",
@@ -29112,10 +28090,7 @@
     "notional",
     "fair value"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "notes",
    "statement": "notes",
@@ -29196,10 +28171,7 @@
     "已解除担保金额",
     "已确认预计负债"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "notes",
    "statement": "notes",
@@ -29256,10 +28228,7 @@
     "going concern",
     "emphasis"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "notes",
    "statement": "notes",
@@ -29304,10 +28273,7 @@
     "additional",
     "material disclosure"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "notes",
    "statement": "notes",
@@ -29349,10 +28315,7 @@
     "relationship manager",
     "confirmation"
    ],
-   "sign_rule": {
-    "convention": "natural",
-    "flip_if_label_matches": []
-   },
+   "sign_rule": {},
    "min_confidence_to_auto_accept": 0.85,
    "inherits": "notes",
    "statement": "notes",

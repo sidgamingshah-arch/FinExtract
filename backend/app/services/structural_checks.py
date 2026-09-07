@@ -278,6 +278,24 @@ def relations(template: TemplateDefinition) -> list[Relation]:
     return out
 
 
+def _validation_of(source):
+    """The validation rules, whichever shape they arrive in.
+
+    `source` may be a rulebook carrying a nested `validation` block, or a `ValidationRuleSet` —
+    the separate master those rules now live in. They are the SAME rules; where they are stored is
+    a packaging decision this evaluator has no reason to care about, and accepting both is what
+    lets the master be adopted without a flag day.
+
+    Duck-typed on `.identities` rather than isinstance-checked, so this module need not import the
+    schema and the schema need not import this one.
+    """
+    if source is None:
+        return None
+    if hasattr(source, "identities"):
+        return source
+    return getattr(source, "validation", None)
+
+
 # --- validation.identities ---------------------------------------------------------------------
 # The rulebook authors each identity as one expression over canonical keys. Only ``+`` and ``-``
 # over bare identifiers are accepted: anything else (a literal, a product, a parenthesised group)
@@ -297,7 +315,8 @@ def ontology_identities(template: TemplateDefinition, ontology) -> list[Relation
     make it "look right" would pass on a filing whose costs were loaded with the wrong sign, which
     is the single defect this identity exists to catch.
     """
-    rules = getattr(ontology, "validation", None)
+    # ACCEPTS EITHER SHAPE — see `_validation_of`.
+    rules = _validation_of(ontology)
     if rules is None:
         return []
     key_of = {n.node_id: n.canonical_key for n in template.all_nodes()}
@@ -363,7 +382,8 @@ def section_relations(template: TemplateDefinition, ontology) -> list[Relation]:
     nil — the sweep gives every printed row a home, so a still-absent child is a row the filing
     does not print.
     """
-    rules = getattr(ontology, "validation", None)
+    # ACCEPTS EITHER SHAPE — see `_validation_of`.
+    rules = _validation_of(ontology)
     text = ((rules.section_reconciliation if rules else "") or "").strip()
     if not text:
         return []
@@ -473,7 +493,8 @@ def cross_concept_guards(ontology) -> list[Guard]:
     Every guard leaves here with an id no other guard in the same rulebook carries — see
     ``_unique``.
     """
-    rules = getattr(ontology, "validation", None)
+    # ACCEPTS EITHER SHAPE — see `_validation_of`.
+    rules = _validation_of(ontology)
     if rules is None:
         return []
     concept_keys = {m.canonical_key for m in getattr(ontology, "mappings", [])}

@@ -31,6 +31,10 @@ sys.path.insert(0, ".")
 warnings.filterwarnings("ignore")
 
 from app.schemas.loader import load_ontology  # noqa: E402
+from app.services.mapping import (CONCEPT_FAMILIES, EXCLUSIVE_VOCABULARIES,
+                                  HEADING_ROW_SECTIONS, SECTION_WORDS,
+                                  _COMPACT_SECTION_TOKENS, _STATEMENT_OF_PREFIX,
+                                  _STATEMENT_SPELLINGS)  # noqa: E402
 from app.services.line_items import build  # noqa: E402
 from app.services.ontology_projection import build_definitions  # noqa: E402
 from app.schemas.line_items import load_line_item_set  # noqa: E402
@@ -104,6 +108,46 @@ def main() -> int:
             ],
         },
         "section_defaults": sections,
+        # THE MAPPING VOCABULARIES, LIFTED OUT OF PYTHON. Every one of these decides which line
+        # item a caption resolves to, and every one lived in `services.mapping` as a module
+        # constant no configuration could reach — so a reviewer could read all 475 definitions and
+        # still not know why a row landed where it did. Read from the constants rather than
+        # retyped, for the same reason the section layer is: a retyped vocabulary is a second
+        # answer to one question, which is the thing this merge exists to end.
+        "vocabulary": {
+            # Order is preserved and load-bearing: longest heading first, so "non current
+            # liabilities" is never read as "current liabilities".
+            "section_banners": [{"token": token, "headings": list(headings),
+                                 "heading_row": token in HEADING_ROW_SECTIONS}
+                                for token, headings in SECTION_WORDS],
+            # Tested before the banners: an umbrella heading must scope nothing rather than
+            # resolve to whichever of its sections is declared first.
+            "umbrella_banners": [{
+                "id": "equity_and_liabilities",
+                "groups": [["equity", "权益"], ["liabilit", "负债"]],
+                "note": "IFRS statements print EQUITY AND LIABILITIES above the Equity, "
+                        "Non-current and Current sub-banners; reading it as equity would refuse "
+                        "every liability line item beneath it.",
+            }],
+            "scope_tokens": dict(_COMPACT_SECTION_TOKENS),
+            "statement_prefixes": dict(_STATEMENT_OF_PREFIX),
+            "statement_spellings": dict(_STATEMENT_SPELLINGS),
+            "exclusive_vocabularies": [
+                {"id": "cash_flow_activities", "members": list(vocab),
+                 "note": "IAS 7 divides cash flows into exactly three activities and a statement "
+                         "labels each subtotal with its own, so naming one rules out the others."}
+                for vocab in EXCLUSIVE_VOCABULARIES],
+            "families": [{"id": fid, "siblings": list(siblings)}
+                         for fid, siblings in CONCEPT_FAMILIES],
+            # Empty on purpose: the projection writes each correction straight into the line
+            # item's own `section_scope`, so the definition declares the section it is gated to
+            # instead of a table overriding it from the side.
+            "section_overrides": {},
+        },
+        # One definition governing every exclusive_residual line item. A per-item `residual_policy`
+        # overrides a term only where its author wrote that term down, which is why the projection
+        # dumps a policy with `exclude_unset`.
+        "residual_framework": (raw.get("residual_framework") or None),
         "items": items,
     }
 

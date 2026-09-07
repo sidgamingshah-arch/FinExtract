@@ -62,6 +62,7 @@ from app.schemas.ontology import (
     AliasMatching,
     ExtractionMode,
     NoteUse,
+    ResidualFramework,
     ResidualPolicy,
     SignExpectation,
     SignRule,
@@ -498,6 +499,159 @@ class LineItemSetMetadata(BaseModel):
     breaking_changes: list[str] = Field(default_factory=list)
 
 
+class SectionBanner(BaseModel):
+    """One section token and the printed headings that name it, in every language it appears in.
+
+    THIS WAS `mapping.SECTION_WORDS`, a Python tuple. It decides what `section_of_banner` makes of
+    a printed heading, and therefore which section gate applies to every row beneath it — so it is
+    mapping data of the most consequential kind, and it was unreachable to anyone configuring the
+    system. A filing whose balance sheet says "CURRENT ASSETS AND LIABILITIES" or 流動資產淨值
+    could not be accommodated without a release.
+
+    ORDER MATTERS AND IS PRESERVED. The list is matched longest-first for a reason the original
+    comment states plainly: "non current liabilities" also ends with "current liabilities", and
+    reading it as the current-liability section would let a current-liability banner claim every
+    non-current concept. The loader keeps declaration order, so a set must declare the longer
+    heading first — which `refuse_shadowed_banners` checks rather than trusting.
+    """
+
+    token: str
+    headings: list[str] = Field(default_factory=list)
+    # Whether a row carrying ONLY this heading, with no figures, may declare this section.
+    #
+    # THIS WAS `mapping.HEADING_ROW_SECTIONS`, and the eight it holds are the unambiguous ones: no
+    # line item in a statement is CAPTIONED "Current assets" or "Operating activities", so a row
+    # saying only that is a heading. The rest are matched on words that are themselves complete
+    # captions — `income` matches "Revenue" and "Turnover", `profit_attributable_to` matches
+    # "attributable to" inside "Profit attributable to owners of the parent" — so a row carrying
+    # one is far more likely to be an item with no figures than a heading, and treating it as a
+    # banner would scope every row below it wrongly.
+    heading_row: bool = False
+
+
+class UmbrellaBanner(BaseModel):
+    """A heading that spans MORE THAN ONE section, and therefore scopes nothing.
+
+    THIS WAS AN INLINE CONDITIONAL: `("equity" in folded or "权益" in folded) and ("liabilit" in
+    folded or "负债" in folded)`. IFRS statements print "EQUITY AND LIABILITIES" above the Equity,
+    Non-current and Current sub-banners, and reading it as the equity section would refuse every
+    liability line item beneath it.
+
+    `groups` is a conjunction of disjunctions: at least one word from EVERY group must appear for
+    the banner to be umbrella. Two groups of two express the original exactly, and the shape
+    generalises to the umbrella headings other frameworks print without another code change.
+    """
+
+    id: str = ""
+    groups: list[list[str]] = Field(default_factory=list)
+    note: str = ""
+
+    def spans_sections(self, folded: str) -> bool:
+        return bool(self.groups) and all(any(w in folded for w in group) for group in self.groups)
+
+
+class ExclusiveVocabulary(BaseModel):
+    """Words a caption may name only ONE of, so naming another member refuses the match.
+
+    THIS WAS `mapping.EXCLUSIVE_VOCABULARIES`. IAS 7 divides cash flows into exactly three
+    activities and a statement labels each subtotal with its own, so a caption saying "financing
+    activities" is not the investing subtotal under any reading. It cannot be left to similarity:
+    "Net cash used in investing activities" and "Net cash flows used in financing activities"
+    differ by one word in seven, which token similarity scores at 0.92 — above any threshold
+    anyone would pick — and the consequence is silent, with the financing figure filed under
+    investing and the financing line left empty.
+
+    Declare one only where naming a member genuinely rules out the others for EVERY filing: this
+    gate cannot be overridden by evidence, so a merely-usually-true grouping refuses correct
+    mappings.
+    """
+
+    id: str = ""
+    members: list[str] = Field(default_factory=list)
+    note: str = ""
+
+
+class ConceptFamily(BaseModel):
+    """Line items a statement prints under ONE caption, differing only in which section they are.
+
+    THIS WAS `mapping.CONCEPT_FAMILIES`, and its own comment said so: "a typed family block on the
+    schema is the right home". The banner above the row is the only evidence separating them, so
+    when a decision names the right kind of thing and the wrong variant, the banner corrects it to
+    the sibling instead of the answer being discarded — and discarding it drops the row to a weaker
+    path, which for the P&L bottom line loses the largest figure on the statement (a wrapped
+    bilingual "TOTAL COMPREHENSIVE / LOSS FOR THE YEAR" reaches the matcher as the bare fragment
+    "LOSS FOR THE YEAR", an alias of the OTHER bottom line).
+
+    A FAMILY IS NOT `confusable_with`, and the two must not be conflated. `confusable_with` is a
+    confusion GRAPH whose mutual pairs connect into a single 47-concept component in the shipped
+    rulebook — share capital to reserves to NCI to the tax lines to both bottom lines — so
+    re-routing anywhere inside it would move an answer between concepts that are different facts.
+    A family is a small, closed set of variants of one fact.
+    """
+
+    id: str
+    siblings: list[str] = Field(default_factory=list)
+    note: str = ""
+
+
+class MappingVocabulary(BaseModel):
+    """The vocabularies the MATCHER runs on, which used to be Python constants.
+
+    Every field here decides which line item a caption resolves to, or whether it resolves at all.
+    None of it was reachable to anyone configuring the system, which is the whole objection: a
+    reviewer could read all 475 definitions and still not know why a row landed where it did.
+
+    EMPTY MEANS "USE THE BUILT-IN", not "no vocabulary". A set that declares none of this must
+    behave exactly as it did before these fields existed — otherwise adding the block to the
+    schema would silently change every existing rulebook's answers.
+    """
+
+    # banner heading -> section token. Order-sensitive; longest heading first.
+    section_banners: list[SectionBanner] = Field(default_factory=list)
+    # Headings that span more than one section and so scope nothing, tested BEFORE the banners.
+    umbrella_banners: list[UmbrellaBanner] = Field(default_factory=list)
+    # `section_scope` id -> section token, for a template using compact ids ("bs_ca") rather than
+    # descriptive ones ("bs_s1_current_assets"). Both must resolve through one vocabulary.
+    scope_tokens: dict[str, str] = Field(default_factory=dict)
+    # key namespace prefix -> statement. The FALLBACK reading of which statement a line item is
+    # on, for a definition that declares none.
+    statement_prefixes: dict[str, str] = Field(default_factory=dict)
+    # One statement, two names. The classifier says `changes_in_equity`; `StatementType` spells it
+    # `equity_changes`. Both sides fold through this before comparison, because a declaration the
+    # gate cannot compare to the classifier's verdict refuses every line item in that statement on
+    # every page of it.
+    statement_spellings: dict[str, str] = Field(default_factory=dict)
+    exclusive_vocabularies: list[ExclusiveVocabulary] = Field(default_factory=list)
+    families: list[ConceptFamily] = Field(default_factory=list)
+    # A hard-coded correction of a line item's declared section, which `mapping` held as
+    # `_KEY_SECTION_OVERRIDES`. Carried for completeness, but the projection now writes the
+    # correction straight into `section_scope`, so a merged set should declare none.
+    section_overrides: dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def refuse_shadowed_banners(self):
+        """A longer heading declared AFTER one it contains can never match.
+
+        Longest-first is the rule and declaration order is how this file expresses it, so an author
+        who writes "current liabilities" above "non current liabilities" has silently disabled the
+        second — every non-current banner would read as current, and every non-current concept
+        would be claimable under it. Refused here because the symptom is a figure on the wrong line
+        of a balance sheet that still ties.
+        """
+        seen: list[str] = []
+        for banner in self.section_banners:
+            for heading in banner.headings:
+                low = heading.strip().lower()
+                for earlier in seen:
+                    if earlier != low and earlier in low:
+                        raise ValueError(
+                            f"banner heading {heading!r} contains {earlier!r}, which is declared "
+                            f"earlier and would always match first — declare the longer heading "
+                            f"before the shorter one")
+                seen.append(low)
+        return self
+
+
 class LineItemSet(BaseModel):
     """A whole set of definitions, with the things that are true of the set rather than an item.
 
@@ -517,6 +671,14 @@ class LineItemSet(BaseModel):
     supported_locales: list[str] = Field(default_factory=lambda: ["en"])
     metadata: LineItemSetMetadata = Field(default_factory=LineItemSetMetadata)
     section_defaults: dict[str, SectionDefaults] = Field(default_factory=dict)
+    # The vocabularies the matcher runs on — banners, scope tokens, statement spellings, exclusive
+    # classes, families. Formerly Python constants in `services.mapping`.
+    vocabulary: MappingVocabulary = Field(default_factory=MappingVocabulary)
+    # One definition governing every `exclusive_residual` line item: what may be swept, how it is
+    # itemised, how the section must reconcile, and what is forbidden outright. A per-item
+    # `residual_policy` overrides a term ONLY where its author wrote that term down — which is why
+    # the projection dumps a policy with `exclude_unset`, and why this block governs the rest.
+    residual_framework: ResidualFramework | None = None
     items: list[LineItemDef] = Field(default_factory=list)
 
 
