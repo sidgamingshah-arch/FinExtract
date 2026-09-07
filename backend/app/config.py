@@ -18,6 +18,7 @@ read at call time from the environment variable named by ``llm.api_key_env``.
 """
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -25,6 +26,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 from pydantic_settings import (
     BaseSettings,
+    DotEnvSettingsSource,
     PydanticBaseSettingsSource,
     SettingsConfigDict,
     TomlConfigSettingsSource,
@@ -335,6 +337,45 @@ class Settings(BaseSettings):
         )
 
 
+def _export_provider_keys(settings: Settings) -> None:
+    """Publish the API keys named by ``*_api_key_env`` from ``.env`` into ``os.environ``.
+
+    WHY THIS IS NEEDED AND WAS NOT OBVIOUS. Every adapter reads its key at CALL time with
+    ``os.environ.get(cfg.api_key_env)`` — ``anthropic_llm.py:48``, ``azure_doc_intelligence.py:92``
+    — deliberately, so the key is never held in a settings object, never persisted, and never
+    reaches the settings API that the admin UI reads. But pydantic-settings loads ``.env`` into the
+    MODEL, not into the process environment, so a key placed in ``.env`` was read by nothing:
+    ``"OPENROUTER_API_KEY" in os.environ`` stayed False both before and after ``get_settings()``.
+    The only thing that ever worked was an ad-hoc ``export`` in the shell that launched uvicorn —
+    which is invisible, unshared, and silently lost on the next restart, taking LLM extraction with
+    it while every other route kept answering.
+
+    So: the VALUE still only ever lives in the environment, and ``.env`` becomes a place to put it
+    that survives a restart. ``.env`` is gitignored (``.gitignore:35``), and this reads only the
+    variables the configuration actually names as key-holders — not everything in the file.
+
+    A REAL ENVIRONMENT VARIABLE ALWAYS WINS. Someone who exported a key for one run must not have
+    it overridden by a stale line in a file, which is the same precedence ``settings_customise_sources``
+    already gives env over .env.
+    """
+    named = {settings.llm.api_key_env, settings.ocr.azure_api_key_env}
+    from_dotenv = DotEnvSettingsSource(Settings, env_file=".env", env_prefix="")
+    try:
+        values = from_dotenv()
+    except Exception:                      # a missing or unreadable .env is not an error here
+        return
+    # DotEnvSettingsSource lowercases keys for field matching, so compare case-insensitively.
+    lowered = {str(k).lower(): v for k, v in values.items()}
+    for var in sorted(n for n in named if n):
+        if os.environ.get(var):
+            continue                       # an exported key wins over the file
+        found = lowered.get(var.lower())
+        if isinstance(found, str) and found.strip():
+            os.environ[var] = found.strip()
+
+
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    settings = Settings()
+    _export_provider_keys(settings)
+    return settings
