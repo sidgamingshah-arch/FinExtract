@@ -19,7 +19,7 @@ from app.api.routes import (
     ontologies,
     projects,
     settings as settings_routes,
-    templates,
+    templates, line_items,
 )
 from app.config import get_settings
 from app.db.base import init_db
@@ -61,6 +61,7 @@ def create_app() -> FastAPI:
     application.include_router(extractions.router, prefix=prefix)
     application.include_router(templates.router, prefix=prefix)
     application.include_router(ontologies.router, prefix=prefix)
+    application.include_router(line_items.router, prefix=prefix)
     application.include_router(fx_rates.router, prefix=prefix)
     application.include_router(languages.router, prefix=prefix)
     application.include_router(projects.router, prefix=prefix)

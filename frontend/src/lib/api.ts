@@ -174,6 +174,7 @@ import type {
   RulebookRecord,
   SettingsPatch,
   SourceDoc,
+  LineItemsResponse,
   StatementKey,
   StatementResponse,
   TemplateRef,
@@ -368,6 +369,8 @@ export const api = {
       `/documents/${documentId}/scope`,
       { method: "PUT", body: JSON.stringify({ included_pages: includedPages }) },
     ),
+  /** The configured line items — the eight output lines and their sub-line items. */
+  lineItems: () => req<LineItemsResponse>("/line-items"),
   /** Data-driven commentary computed from a document's real extraction (not the demo). */
   documentCommentary: (documentId: string, locale: Locale = "en") =>
     req<Commentary>(`/documents/${documentId}/commentary?locale=${locale}`),

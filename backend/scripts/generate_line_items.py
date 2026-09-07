@@ -8,6 +8,7 @@ services' own test suites can then prove the config equivalent.
 """
 import json
 import pathlib
+import re
 import sys
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -20,8 +21,39 @@ from app.services.deprec_impairment import (_ASSET_NOTE_KEYS, _MOVEMENT_EXCLUDE_
                                             _NOTE_HEADINGS, _OPEX_DIRECT_KEYS, _QUALIFYING_RE,
                                             COS_KEY, OPER_EXP_KEY)
 
-QUALS = [a.strip() for a in _QUALIFYING_RE.pattern.split("|") if a.strip()]
-EXCL = [a.strip() for a in _MOVEMENT_EXCLUDE_RE.pattern.split("|") if a.strip()]
+def alternatives(rx) -> list[str]:
+    """Split a shipped regex into its TOP-LEVEL alternatives.
+
+    A plain ``.split("|")`` is wrong and was: ``^\\s*at\\s+(?:1|31)`` came apart into
+    ``^\\s*at\\s+(?:1`` and ``31)``, neither of which compiles, so the exclusion silently stopped
+    excluding. Track group depth and character classes and only cut on a bar that is outside both.
+    """
+    out, buf, depth, in_class, i = [], [], 0, False, 0
+    pat = rx.pattern
+    while i < len(pat):
+        ch = pat[i]
+        if ch == "\\" and i + 1 < len(pat):        # an escape carries its next char verbatim
+            buf.append(pat[i:i + 2]); i += 2; continue
+        if in_class:
+            in_class = ch != "]"
+        elif ch == "[":
+            in_class = True
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        elif ch == "|" and depth == 0:
+            out.append("".join(buf)); buf = []; i += 1; continue
+        buf.append(ch); i += 1
+    out.append("".join(buf))
+    alts = [a.strip() for a in out if a.strip()]
+    for a in alts:                                 # never emit what cannot be read back
+        re.compile(a)
+    return alts
+
+
+QUALS = alternatives(_QUALIFYING_RE)
+EXCL = alternatives(_MOVEMENT_EXCLUDE_RE)
 TITLE = {k: p.pattern.replace("\n", " ").strip() for k, p in _NOTE_HEADINGS.items()}
 
 LABEL = {
@@ -140,7 +172,7 @@ for i, (key, label, svc, desc) in enumerate(OTHERS, start=3):
     items.append({"key": key, "label": label, "type": "derived", "in_output": True,
                   "order": i, "implemented_by": svc, "description": desc})
 
-out = pathlib.Path("../_wip/line_items_seed.json")
+out = pathlib.Path("app/sample/templates/output_csv_hk_line_items.json")
 out.write_text(json.dumps(items, ensure_ascii=False, indent=1), encoding="utf-8")
 
 # ── validate through the registry ────────────────────────────────────────────────────────────

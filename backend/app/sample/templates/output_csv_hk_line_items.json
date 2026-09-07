@@ -44,8 +44,7 @@
    ],
    "row_caption_none": [
     "^\\s*at\\s+\\d",
-    "^\\s*at\\s+(?:1",
-    "31)",
+    "^\\s*at\\s+(?:1|31)",
     "opening",
     "closing",
     "disposal",
@@ -125,8 +124,7 @@
    ],
    "row_caption_none": [
     "^\\s*at\\s+\\d",
-    "^\\s*at\\s+(?:1",
-    "31)",
+    "^\\s*at\\s+(?:1|31)",
     "opening",
     "closing",
     "disposal",
@@ -206,8 +204,7 @@
    ],
    "row_caption_none": [
     "^\\s*at\\s+\\d",
-    "^\\s*at\\s+(?:1",
-    "31)",
+    "^\\s*at\\s+(?:1|31)",
     "opening",
     "closing",
     "disposal",
@@ -287,8 +284,7 @@
    ],
    "row_caption_none": [
     "^\\s*at\\s+\\d",
-    "^\\s*at\\s+(?:1",
-    "31)",
+    "^\\s*at\\s+(?:1|31)",
     "opening",
     "closing",
     "disposal",
@@ -368,8 +364,7 @@
    ],
    "row_caption_none": [
     "^\\s*at\\s+\\d",
-    "^\\s*at\\s+(?:1",
-    "31)",
+    "^\\s*at\\s+(?:1|31)",
     "opening",
     "closing",
     "disposal",
@@ -449,8 +444,7 @@
    ],
    "row_caption_none": [
     "^\\s*at\\s+\\d",
-    "^\\s*at\\s+(?:1",
-    "31)",
+    "^\\s*at\\s+(?:1|31)",
     "opening",
     "closing",
     "disposal",
@@ -530,8 +524,7 @@
    ],
    "row_caption_none": [
     "^\\s*at\\s+\\d",
-    "^\\s*at\\s+(?:1",
-    "31)",
+    "^\\s*at\\s+(?:1|31)",
     "opening",
     "closing",
     "disposal",
@@ -611,8 +604,7 @@
    ],
    "row_caption_none": [
     "^\\s*at\\s+\\d",
-    "^\\s*at\\s+(?:1",
-    "31)",
+    "^\\s*at\\s+(?:1|31)",
     "opening",
     "closing",
     "disposal",
@@ -692,8 +684,7 @@
    ],
    "row_caption_none": [
     "^\\s*at\\s+\\d",
-    "^\\s*at\\s+(?:1",
-    "31)",
+    "^\\s*at\\s+(?:1|31)",
     "opening",
     "closing",
     "disposal",
@@ -773,8 +764,7 @@
    ],
    "row_caption_none": [
     "^\\s*at\\s+\\d",
-    "^\\s*at\\s+(?:1",
-    "31)",
+    "^\\s*at\\s+(?:1|31)",
     "opening",
     "closing",
     "disposal",
@@ -854,8 +844,7 @@
    ],
    "row_caption_none": [
     "^\\s*at\\s+\\d",
-    "^\\s*at\\s+(?:1",
-    "31)",
+    "^\\s*at\\s+(?:1|31)",
     "opening",
     "closing",
     "disposal",
@@ -935,8 +924,7 @@
    ],
    "row_caption_none": [
     "^\\s*at\\s+\\d",
-    "^\\s*at\\s+(?:1",
-    "31)",
+    "^\\s*at\\s+(?:1|31)",
     "opening",
     "closing",
     "disposal",
@@ -1016,8 +1004,7 @@
    ],
    "row_caption_none": [
     "^\\s*at\\s+\\d",
-    "^\\s*at\\s+(?:1",
-    "31)",
+    "^\\s*at\\s+(?:1|31)",
     "opening",
     "closing",
     "disposal",

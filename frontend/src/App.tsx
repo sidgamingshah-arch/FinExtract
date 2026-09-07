@@ -15,6 +15,7 @@ import DisclosuresScreen from "./screens/Disclosures";
 import ExportScreen from "./screens/Export";
 import ExtractionView from "./screens/ExtractionView";
 import IntegrityScreen from "./screens/Integrity";
+import LineItemsScreen from "./screens/LineItems";
 import NotesScreen from "./screens/Notes";
 import ReviewScreen from "./screens/Review";
 import ScopeScreen from "./screens/Scope";
@@ -102,6 +103,7 @@ function Shell() {
             <Route path="/commentary" element={<RequireScreen screen="commentary"><CommentaryScreen /></RequireScreen>} />
             <Route path="/disclosures" element={<RequireScreen screen="disclosures"><DisclosuresScreen /></RequireScreen>} />
             <Route path="/template" element={<RequireScreen screen="template"><TemplateScreen /></RequireScreen>} />
+            <Route path="/line-items" element={<RequireScreen screen="line_items"><LineItemsScreen /></RequireScreen>} />
             <Route path="/settings" element={<RequireScreen screen="settings"><SettingsScreen /></RequireScreen>} />
             {/* Gated by the SCREEN list the server serves per role, the same as every other route
                 here — the endpoint behind it is separately gated on `audit:view`, so a non-admin who

@@ -95,7 +95,7 @@ SCREENS_BY_ROLE: dict[Role, list[str]] = {
     # spent. Admin only, and the only screen that crosses document ownership, which is why it is
     # gated on AUDIT_VIEW rather than on COMMENTARY_VIEW like the per-document trail beside it.
     Role.ADMIN: ["upload", "integrity", "scope", "extraction", "workspace", "notes", "review",
-                 "commentary", "disclosures", "template", "settings", "audit", "export"],
+                 "commentary", "disclosures", "template", "line_items", "settings", "audit", "export"],
     # A reviewer sees the extraction screen to READ a run — its stages, its log, its rows — and
     # cannot start one: PIPELINE_RUN is the analyst's and the admin's. Granting the screen without
     # the permission is deliberate, not an oversight; the screen's own re-extract control is gated on

@@ -1383,3 +1383,72 @@ export interface ExportOption {
   label: string;
   on: boolean;
 }
+
+/* ── Line-item definitions (Configure > Line items) ──────────────────────────────────────────
+ * The configuration behind the eight output lines and their sub-line items. Mirrors
+ * backend/app/schemas/line_items.py — the type decides which fields carry meaning, which is why
+ * almost everything below is optional rather than a discriminated union: the backend serves one
+ * shape and the screen shows the parts that apply. */
+export type LineItemType = "extracted" | "calculated" | "intermediate" | "derived";
+export type SearchScope = "notes" | "income_statement" | "balance_sheet" | "cash_flow"
+  | "changes_in_equity" | "front_matter";
+/** `from_section` reads the side off the section banner a caption sits under — the right answer
+ *  for a balance-sheet line printed inside a section, and no answer for a statement total. */
+export type LineItemSide = "from_section" | "asset" | "liability" | "equity" | "none";
+/** What a term's absence means. `adjustment` never justifies a cascade rung on its own. */
+export type TermRole = "required" | "any_of" | "adjustment";
+
+export interface LineItemTerm {
+  ref: string;
+  const: number | null;
+  sign: 1 | -1;
+  abs: boolean;
+  role: TermRole;
+}
+export interface CascadeRung {
+  id: string;
+  terms: LineItemTerm[];
+  note: string;
+}
+export interface NoteSource {
+  note_title_any: string[];
+  row_caption_any: string[];
+  row_caption_none: string[];
+}
+export interface LineItemDef {
+  key: string;
+  label: string;
+  type: LineItemType;
+  description: string;
+  in_output: boolean;
+  parent: string;
+  order: number;
+  scopes: SearchScope[];
+  side: LineItemSide;
+  allow_contra: boolean;
+  aliases: string[];
+  pattern: string;
+  exclude: string[];
+  note_source: NoteSource | null;
+  terms: LineItemTerm[];
+  cascade: CascadeRung[];
+  /** The service that computes this line today, while the config only describes it. */
+  implemented_by: string;
+  /** Nested by the backend for display; storage is flat and keyed by `parent`. */
+  children: LineItemDef[];
+}
+export interface LineItemProblem {
+  key: string;
+  message: string;
+  severity: string;
+}
+export interface LineItemsResponse {
+  items: LineItemDef[];
+  counts: {
+    total: number; output: number; sub_line_items: number;
+    by_type: Record<LineItemType, number>;
+  };
+  problems: LineItemProblem[];
+  valid: boolean;
+  evaluation_order: string[];
+}

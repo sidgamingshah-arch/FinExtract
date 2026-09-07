@@ -507,6 +507,11 @@ export const useDocumentAnalysis = (documentId: string | undefined, locale: Loca
     retry: false,
   });
 
+/** The configured line items. Deployment configuration, not per-document, so it is cached for
+ *  the session rather than refetched per screen visit. */
+export const useLineItems = () =>
+  useQuery({ queryKey: ["line-items"], queryFn: () => api.lineItems(), staleTime: 300_000 });
+
 /** Real per-document notes index + one note's detail. */
 export const useDocumentNotes = (documentId: string | undefined, runId?: string) =>
   useQuery({

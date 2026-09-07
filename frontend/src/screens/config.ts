@@ -27,6 +27,10 @@ export const SCREENS: Record<string, ScreenDef> = {
   // a long scroll past what most readers came for, and not where its name says it is.
   disclosures: { id: "disclosures", path: "/disclosures", label: "Disclosures", icon: "❑" },
   template: { id: "template", path: "/template", label: "Template & Ontology", icon: "◆" },
+  // The eight output lines and the parts each is assembled from. Its own destination beside
+  // Template & Ontology because it configures a different thing: the template says WHICH lines
+  // the output has, this says where each one's figure comes from.
+  line_items: { id: "line_items", path: "/line-items", label: "Line Items", icon: "≡" },
   settings: { id: "settings", path: "/settings", label: "Settings", icon: "⚙" },
   // The deployment-wide run trail. Not a pipeline step and not per-document: it is admin oversight,
   // which is why it sits in CONFIGURE beside Settings rather than in ANALYSIS beside the
@@ -55,7 +59,7 @@ export const NAV_GROUPS: { group: string; items: string[] }[] = [
   { group: "EXTRACT", items: ["extraction", "workspace", "notes"] },
   { group: "QUALITY", items: ["review"] },
   { group: "ANALYSIS", items: ["commentary", "disclosures"] },
-  { group: "CONFIGURE", items: ["template", "settings", "audit"] },
+  { group: "CONFIGURE", items: ["template", "line_items", "settings", "audit"] },
   { group: "DELIVER", items: ["export"] },
 ];
 

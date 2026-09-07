@@ -25,6 +25,7 @@ one line at a time instead of as a migration.
 """
 from __future__ import annotations
 
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -114,6 +115,36 @@ class NoteSource(BaseModel):
     row_caption_any: list[str] = Field(default_factory=list)
     row_caption_none: list[str] = Field(default_factory=list)
 
+    @model_validator(mode="after")
+    def _patterns_compile(self):
+        _refuse_uncompilable(
+            ("note_title_any", self.note_title_any),
+            ("row_caption_any", self.row_caption_any),
+            ("row_caption_none", self.row_caption_none),
+        )
+        return self
+
+
+def _refuse_uncompilable(*groups: tuple[str, list[str]]) -> None:
+    """Every configured pattern must be a valid regex, checked where it is written.
+
+    Not defensive padding. Splitting a shipped 34-alternative regex on ``|`` to seed this config
+    tore ``^\\s*at\\s+(?:1|31)`` into ``^\\s*at\\s+(?:1`` and ``31)`` — two fragments that compile
+    nowhere and match nothing. Read at extraction time that is a silent hole: the exclusion simply
+    stops excluding, and the wrong rows get summed into a figure nobody can trace back. Refusing it
+    here means a bad pattern is a load error on a screen that names it, which is the entire reason
+    this configuration layer exists.
+    """
+    bad = []
+    for field, values in groups:
+        for i, raw in enumerate(values):
+            try:
+                re.compile(raw)
+            except re.error as exc:
+                bad.append(f"{field}[{i}] {raw!r}: {exc}")
+    if bad:
+        raise ValueError("pattern does not compile — " + "; ".join(bad))
+
 
 class LineItemDef(BaseModel):
     """One configured line item."""
@@ -164,6 +195,8 @@ class LineItemDef(BaseModel):
         if self.side == "from_section" and "balance_sheet" not in self.scopes:
             raise ValueError(f"{self.key}: `from_section` needs the balance sheet in `scopes` — "
                              "there is no section banner anywhere else to read it from")
+        _refuse_uncompilable(("pattern", [self.pattern] if self.pattern else []),
+                             ("exclude", self.exclude))
         return self
 
     def resolved_side(self, section: str | None) -> Side:
