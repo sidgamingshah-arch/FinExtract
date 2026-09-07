@@ -16,7 +16,8 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.line_items import CascadeRung, LineItemDef, NoteSource, Term
+from app.schemas.line_items import (CascadeRung, LineItemDef, NoteSource, Term,
+                                    load_line_item_set)
 from app.services.line_items import build, check_rollups, evaluate_all
 
 OPER = "is_pl__deprec_and_impairment_oper_exp"
@@ -236,8 +237,13 @@ def test_a_term_needs_exactly_one_of_a_reference_or_a_number():
 
 def test_from_section_is_refused_without_the_balance_sheet_in_scope():
     """There is no section banner in a note or a cash-flow statement to resolve it against, so a
-    definition that asks for one is a configuration error rather than a silent 'none'."""
-    with pytest.raises(ValidationError, match="no section banner"):
+    definition that asks for one is a configuration error rather than a silent 'none'.
+
+    Since the merge, the gate satisfies this as well as the search order does — a definition
+    confined to `section_scope: ['bs_ca']` can read a side even while it searches the notes — so
+    the refusal now needs BOTH to be absent. See `test_line_item_gate.py` for that half.
+    """
+    with pytest.raises(ValidationError, match="from_section"):
         LineItemDef(key="x", type="extracted", side="from_section", scopes=["notes"])
 
 
@@ -323,7 +329,7 @@ def test_the_intact_alternation_is_accepted():
 
 def test_an_uncompilable_exclusion_on_the_line_itself_is_refused():
     with pytest.raises(ValidationError, match="does not compile"):
-        LineItemDef(key="x", type="extracted", exclude=["total("])
+        LineItemDef(key="x", type="extracted", exclude_hints=["total("])
 
 
 def test_every_pattern_in_the_shipped_seed_compiles():
@@ -331,7 +337,7 @@ def test_every_pattern_in_the_shipped_seed_compiles():
     seed = (pathlib.Path(__file__).resolve().parents[1]
             / "app" / "sample" / "templates" / "output_csv_hk_line_items.json")
     raw = json.loads(seed.read_text(encoding="utf-8"))
-    defs = [LineItemDef.model_validate(d) for d in raw]   # the validator above does the work
+    defs = load_line_item_set(raw).items                  # the validator above does the work
 
     patterns = [v for d in defs if d.note_source
                 for f in ("note_title_any", "row_caption_any", "row_caption_none")

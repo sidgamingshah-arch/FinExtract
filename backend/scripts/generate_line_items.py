@@ -84,7 +84,10 @@ def sub(key, parent, order, *, title_key=None, label=None):
     return {
         "key": f"sub__{key}", "label": label or LABEL.get(key, key), "type": "extracted",
         "in_output": False, "parent": parent, "order": order,
-        "scopes": ["notes"], "side": "none",
+        # A note-level part is not a template line, so the template key-gate must not demand it.
+        "namespace": "internal",
+        # The gate arrives from the section layer, authored once — not restated 13 times.
+        "inherits": "notes",
         "description": WHY.get(key, f"Depreciation rows inside the note that "
                                     f"{LABEL.get(key, key).split('—')[0].strip()} names."),
         "note_source": {"note_title_any": [TITLE[tk]],
@@ -114,6 +117,7 @@ ref = lambda k, sign=1, role="required": {"ref": f"sub__{k}", "sign": sign, "rol
 items.append({
     "key": OPER_EXP_KEY, "label": "Deprec & Impairment (Oper Exp)", "type": "derived",
     "in_output": True, "order": 1, "implemented_by": "deprec_impairment",
+    "inherits": "is_pl", "rollup": "alternatives",
     "description": "Depreciation charged to operating expenses. Never printed as one caption — "
                    "assembled from the notes and resolved by trying the rungs in order.",
     "cascade": [
@@ -138,9 +142,19 @@ items.append({
 items.append({
     "key": COS_KEY, "label": "Deprec & Impairment (COS)", "type": "derived",
     "in_output": True, "order": 2, "implemented_by": "deprec_impairment",
+    "inherits": "is_pl", "rollup": "alternatives",
     "description": "Depreciation charged to cost of sales. Read from the cost-of-sales note.",
-    "cascade": [{"id": "COS_P1", "note": "The cost-of-sales note's depreciation rows.",
-                 "terms": [ref("cos_depreciation")]}],
+    "cascade": [
+        {"id": "COS_P1", "note": "The cost-of-sales note's depreciation rows.",
+         "terms": [ref("cos_depreciation")]},
+        # The service has this rung too (deprec_impairment.py:355, :504) and the first port
+        # dropped it, which would have blanked this line for any filing that discloses total
+        # depreciation and the operating-expense share but no cost-of-sales note.
+        {"id": "COS_P2", "note": "Total depreciation less the operating-expense share. Used when "
+                                 "the cost-of-sales note itself discloses nothing.",
+         "terms": [ref("pbt_depreciation"),
+                   {"ref": OPER_EXP_KEY, "sign": -1, "role": "required"}]},
+    ],
 })
 
 # ── the other six, declared with the derivation that owns them ───────────────────────────────
@@ -169,18 +183,74 @@ OTHERS = [
      "Guarantees, letters of credit, performance bonds and bank guarantees, summed by type."),
 ]
 for i, (key, label, svc, desc) in enumerate(OTHERS, start=3):
+    # The section is already in the key — the rulebook's own convention — so deriving `inherits`
+    # from it cannot drift from the key it gates.
     items.append({"key": key, "label": label, "type": "derived", "in_output": True,
-                  "order": i, "implemented_by": svc, "description": desc})
+                  "order": i, "implemented_by": svc, "description": desc,
+                  "inherits": key.split("__", 1)[0], "rollup": "none"})
+
+# ── the section layer, PROJECTED FROM THE RULEBOOK'S OWN ENTRIES ─────────────────────────────
+# Not retyped. The gate these definitions inherit has to be the SAME gate the 462 ontology
+# concepts inherit, or the merge has produced two answers to one question — which is the whole
+# failure the merge exists to end. So the 18 entries are read out of the shipped rulebook and
+# narrowed to the fields a line item declares.
+ONT = json.loads(pathlib.Path("app/sample/templates/output_csv_hk_ontology.json")
+                 .read_text(encoding="utf-8"))
+_KEEP = ("statement", "section_scope", "temporality", "unit_of_account", "note_use",
+         "note_use_rationale", "sign_convention", "match_priority", "face_only",
+         "analyst_bucket")
+SECTION_DEFAULTS = {
+    name: {k: v for k, v in entry.items() if k in _KEEP}
+    for name, entry in ONT["section_defaults"].items()
+}
+# A note-level part is searched in the notes and nowhere else; the rulebook's `notes` section
+# says the statement, and this says the search order under it.
+SECTION_DEFAULTS["notes"]["scopes"] = ["notes"]
+
+used = sorted({d["inherits"] for d in items if d.get("inherits")})
+unknown = [u for u in used if u not in SECTION_DEFAULTS]
+if unknown:
+    raise SystemExit(f"definitions inherit sections the rulebook does not declare: {unknown}")
+
+document = {
+    "schema_version": 1,
+    "line_items_key": "output_csv_hk",
+    "target_template_key": ONT.get("target_template_key", "output_csv_hk_v1"),
+    "locale": ONT.get("locale", "en"),
+    "supported_locales": ONT.get("supported_locales", ["en"]),
+    "metadata": {
+        "name": "Output CSV (HK) line items",
+        "version": "2",
+        "changes": [
+            "merged the ontology's scoping layer in: statement + section_scope via `inherits`",
+            "children of the two depreciation lines marked `alternatives`, never summed",
+            "COS_P2 restored — the first port dropped a rung the service has",
+            "`exclude` split into `exclude_hints` (regex) and `exclude_criteria` (prose)",
+        ],
+        "breaking_changes": [
+            "the seed is an object, not an array",
+            "`exclude` renamed to `exclude_hints`",
+        ],
+    },
+    # Authored once per section, claimed by `inherits`. 462 ontology concepts do exactly this;
+    # restating the gate per item would be the flat model that cannot be kept consistent.
+    "section_defaults": SECTION_DEFAULTS,
+    "items": items,
+}
 
 out = pathlib.Path("app/sample/templates/output_csv_hk_line_items.json")
-out.write_text(json.dumps(items, ensure_ascii=False, indent=1), encoding="utf-8")
+out.write_text(json.dumps(document, ensure_ascii=False, indent=1), encoding="utf-8")
 
-# ── validate through the registry ────────────────────────────────────────────────────────────
-from app.schemas.line_items import LineItemDef
+# ── validate through the registry, AS RESOLVED ───────────────────────────────────────────────
+from app.schemas.line_items import load_line_item_set
 from app.services.line_items import build
 
-defs = [LineItemDef.model_validate(d) for d in items]
+st = load_line_item_set(document)
+defs = st.items
 reg = build(defs)
+print(f"  section_defaults: {len(SECTION_DEFAULTS)} entries, {len(used)} inherited by definitions")
+gated = sum(1 for d in defs if d.statement is not None)
+print(f"  gate resolved onto {gated}/{len(defs)} definitions")
 print(f"  {len(defs)} definitions: "
       f"{sum(1 for d in defs if d.in_output)} output lines, "
       f"{sum(1 for d in defs if d.parent)} sub-line items")

@@ -138,6 +138,10 @@ class Evaluation:
     inputs: list[dict] = field(default_factory=list)
     missing: list[str] = field(default_factory=list)
     rung_used: str | None = None
+    # Rungs that DID resolve and were passed over for computing below zero. Reported rather than
+    # discarded: "P3 computed -50, so P4 was used" is the sentence a reviewer needs, and a silent
+    # skip looks identical to a rung whose inputs were simply absent.
+    refused_rungs: list[str] = field(default_factory=list)
 
     @property
     def resolved(self) -> bool:
@@ -190,12 +194,24 @@ def evaluate(d: LineItemDef, known: dict[str, Decimal | None]) -> Evaluation:
         return _apply_terms(d.terms, known)
 
     if d.type == "derived":
+        refused: list[str] = []
         for rung in d.cascade:
             got = _apply_terms(rung.terms, known)
-            if got.resolved:
-                got.rung_used = rung.id
-                return got
-        return Evaluation(None, [], [], None)
+            if not got.resolved:
+                continue
+            # A RUNG BELOW ZERO IS NOT AN ANSWER, it is evidence this rung's inputs did not mean
+            # what the rung assumed. `deprec_impairment._first_valid` skips such a candidate and
+            # flags NEGATIVE_RESIDUAL, then tries the next priority; the config that claimed to
+            # port that cascade had no such refusal, so a rung computing -50 would have won here
+            # and been refused by the service it describes. Same rule, and the refusals are
+            # reported rather than swallowed so a reviewer can see which rung was passed over.
+            if rung.refuse_negative and got.value is not None and got.value < 0:
+                refused.append(f"{rung.id} computed {got.value}")
+                continue
+            got.rung_used = rung.id
+            got.refused_rungs = refused
+            return got
+        return Evaluation(None, [], [], None, refused_rungs=refused)
 
     # extracted — the document supplies it; this layer only reports what it was given
     return Evaluation(_dec(known.get(d.key)))
@@ -222,9 +238,18 @@ def check_rollups(reg: Registry, values: dict[str, Decimal | None], *,
     with the sum of its children is worth a reviewer's attention, not a refusal to publish.
     Silence here would leave the arithmetic unchecked, which is the thing a configurator most
     needs to be honest about.
+
+    ONLY WHERE `rollup == "sum"`. This check used to run on every parent, which was wrong for the
+    line it was written for: the twelve sub-line items under `is_pl__deprec_and_impairment_oper_exp`
+    are ALTERNATIVE sources for one figure — `deprec_impairment`'s module docstring says they must
+    never be summed "since they routinely restate the same figure" — so summing them would have
+    reported the parent as disagreeing with a total that means nothing. `parent` was carrying two
+    relations at once; `rollup` separates them.
     """
     out: list[Problem] = []
     for parent in reg.by_key.values():
+        if parent.rollup != "sum":
+            continue
         kids = [k for k in reg.children_of(parent.key) if k.type != "intermediate"]
         if not kids or parent.type in COMPUTED_TYPES:
             continue                    # a formula already states its own arithmetic

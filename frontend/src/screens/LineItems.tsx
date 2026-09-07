@@ -30,16 +30,35 @@ const TYPE_TONE: Record<LineItemType, { bg: string; fg: string; label: string }>
 
 const SCOPE_LABEL: Record<SearchScope, string> = {
   notes: "Notes to the accounts",
-  income_statement: "Income statement",
   balance_sheet: "Balance sheet",
+  profit_and_loss: "Profit & loss",
   cash_flow: "Cash flow",
-  changes_in_equity: "Changes in equity",
+  equity_changes: "Changes in equity",
+  covenants_supplemental: "Covenants / supplemental",
+  statement_setup: "Statement setup",
   front_matter: "Chairman / MD&A",
+};
+
+/** The seven statements a line item can be gated to, as a reader names them. */
+const STATEMENT_LABEL: Record<string, string> = {
+  statement_setup: "Statement setup",
+  balance_sheet: "Balance sheet",
+  profit_and_loss: "Profit & loss",
+  cash_flow: "Cash flow",
+  equity_changes: "Changes in equity",
+  covenants_supplemental: "Covenants / supplemental",
+  notes: "Notes",
 };
 
 const SIDE_LABEL: Record<string, string> = {
   from_section: "From section", asset: "Asset", liability: "Liability",
   equity: "Equity", none: "n/a",
+};
+
+const ROLLUP_HELP: Record<string, string> = {
+  sum: "the parts below add up to this line",
+  alternatives: "the parts below are alternative sources for ONE figure — never summed",
+  none: "this line has no parts configured yet",
 };
 
 const ROLE_HELP: Record<string, string> = {
@@ -148,6 +167,73 @@ function Detail({ item, byKey }: { item: LineItemDef; byKey: Map<string, LineIte
                      margin: "0 0 14px" }}>{item.description}</p>
       )}
 
+      {/* THE GATE — shown for every type, and first, because it decides whether a figure lands
+          on this line at all. 420 of the rulebook's 1,969 normalised captions are claimed by more
+          than one line item; 96 of those span different statements. Without this panel the most
+          consequential declaration on the screen was the one a reader could not see. */}
+      <div style={box}>
+        <div style={lbl}>Where it may be claimed from</div>
+        <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "5px 12px",
+                       marginTop: 7, fontSize: 12.5, alignItems: "baseline" }}>
+          <span style={{ color: color.muted }}>Statement</span>
+          <span>
+            {item.statement
+              ? (STATEMENT_LABEL[item.statement] ?? item.statement)
+              : <span style={{ color: color.muted }}>any — nothing was said</span>}
+          </span>
+          <span style={{ color: color.muted }}>Section</span>
+          <span>
+            {item.section_scope.length
+              ? item.section_scope.map(s => (
+                  <span key={s} style={{ fontFamily: font.mono, fontSize: 11,
+                                          background: color.segBg, borderRadius: 3,
+                                          padding: "1px 5px", marginRight: 4 }}>{s}</span>
+                ))
+              : <span style={{ color: color.muted }}>unconstrained</span>}
+          </span>
+          {item.match_priority !== null && (
+            <>
+              <span style={{ color: color.muted }}>Priority</span>
+              <span style={{ fontFamily: font.mono }} title="higher wins a tie the gate leaves">
+                {item.match_priority}
+              </span>
+            </>
+          )}
+          {item.inherits && (
+            <>
+              <span style={{ color: color.muted }}>Inherited from</span>
+              <span style={{ fontFamily: font.mono, fontSize: 11 }}
+                    title="the gate is authored once per section, not per line item">
+                {item.inherits}
+              </span>
+            </>
+          )}
+          {item.alias_matching === "disabled" && (
+            <>
+              <span style={{ color: color.muted }}>Alias matching</span>
+              <span style={{ color: color.amberFg }}
+                    title="unreachable by every matching tier; filled only by the residual sweep">
+                locked
+              </span>
+            </>
+          )}
+          {item.is_gross_parent && (
+            <>
+              <span style={{ color: color.muted }}>Contains</span>
+              <span title="a gross parent is never loaded additively with its children">
+                {item.children_if_decomposed.join(", ") || "children, when decomposed"}
+              </span>
+            </>
+          )}
+        </div>
+        {item.section_disambiguation && (
+          <p style={{ fontSize: 11.5, color: color.sec, margin: "9px 0 0", lineHeight: 1.55,
+                       borderLeft: `2px solid ${color.hairline2}`, paddingLeft: 8 }}>
+            {item.section_disambiguation}
+          </p>
+        )}
+      </div>
+
       {item.type === "extracted" && (
         <>
           <div style={box}>
@@ -190,8 +276,17 @@ function Detail({ item, byKey }: { item: LineItemDef; byKey: Map<string, LineIte
           <div style={box}>
             <div style={lbl}>How to recognise it</div>
             <Patterns label="Aliases" values={item.aliases} />
+            {Object.entries(item.aliases_i18n ?? {}).map(([loc, vals]) => (
+              <Patterns key={loc} label={`Aliases (${loc})`} values={vals} />
+            ))}
             {item.pattern && <Patterns label="Pattern" values={[item.pattern]} />}
-            <Patterns label="Never match" values={item.exclude} tone={color.redFg} />
+            <Patterns label="Regex hints" values={item.regex_hints} />
+            <Patterns label="Keyword hints" values={item.keyword_hints} />
+            {/* Regex vetoes and prose criteria are separate fields now: folding the prose into a
+                regex-validated list either failed at the door or compiled as an accidental veto. */}
+            <Patterns label="Never match" values={item.exclude_hints} tone={color.redFg} />
+            <Patterns label="Counts as this" values={item.include_criteria} />
+            <Patterns label="Does not count" values={item.exclude_criteria} tone={color.redFg} />
             {item.note_source && (
               <>
                 <Patterns label="Note title" values={item.note_source.note_title_any} />
@@ -283,7 +378,7 @@ export default function LineItemsScreen() {
     );
   }
 
-  const { items, counts, problems, valid } = q.data;
+  const { items, counts, problems, valid, set } = q.data;
   const flat: LineItemDef[] = [];
   const walk = (xs: LineItemDef[]) => xs.forEach((x) => { flat.push(x); walk(x.children); });
   walk(items);
@@ -350,9 +445,28 @@ export default function LineItemsScreen() {
             <b style={{ fontFamily: font.mono }}>{counts.by_type[k]}</b> {TYPE_TONE[k].label.toLowerCase()}
           </span>
         ))}
+        <span title="how many resolved a statement gate, and how many got it from a section
+rather than declaring it themselves">
+          <b style={{ fontFamily: font.mono }}>{counts.gated}</b> gated
+          {counts.inherited ? <> · <b style={{ fontFamily: font.mono }}>{counts.inherited}</b> inherited</> : null}
+        </span>
         <span style={{ color: color.amberFg }}>
           Read-only — these describe what the pipeline computes today
         </span>
+      </div>
+
+      {/* THE SET-LEVEL FACTS. `target_template_key` is the one the ontology requires at its own
+          door and a bare JSON array had nowhere to put — which is why the ontology's key-gate
+          could not simply be copied across when these two models were merged. */}
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", margin: "0 0 16px",
+                     fontSize: 11, color: color.muted }}>
+        <span>binds to <b style={{ fontFamily: font.mono, color: color.sec2 }}>
+          {set.target_template_key || "—"}</b></span>
+        <span><b style={{ fontFamily: font.mono, color: color.sec2 }}>
+          {Object.keys(set.section_defaults).length}</b> section defaults</span>
+        <span>locales <b style={{ fontFamily: font.mono, color: color.sec2 }}>
+          {set.supported_locales.join(", ")}</b></span>
+        {set.metadata.version && <span>v{set.metadata.version}</span>}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(320px, 1fr) minmax(380px, 1fr)",

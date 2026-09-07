@@ -1390,8 +1390,19 @@ export interface ExportOption {
  * almost everything below is optional rather than a discriminated union: the backend serves one
  * shape and the screen shows the parts that apply. */
 export type LineItemType = "extracted" | "calculated" | "intermediate" | "derived";
-export type SearchScope = "notes" | "income_statement" | "balance_sheet" | "cash_flow"
-  | "changes_in_equity" | "front_matter";
+/** Where a caption may be READ FROM, in search order — not a gate. The tokens are
+ *  `StatementType`'s own: this list once said `income_statement` and `changes_in_equity`, neither
+ *  of which the backend knows (it says `profit_and_loss` and `equity_changes`), so a scope sent
+ *  back would have matched nothing. */
+export type SearchScope = "notes" | "balance_sheet" | "profit_and_loss" | "cash_flow"
+  | "equity_changes" | "covenants_supplemental" | "statement_setup" | "front_matter";
+/** The seven statements a line item may be gated to. `null` means claimable on any of them. */
+export type StatementToken = "statement_setup" | "balance_sheet" | "profit_and_loss"
+  | "cash_flow" | "equity_changes" | "covenants_supplemental" | "notes";
+/** What a parent asserts about its children: addends, or alternative sources for one figure. */
+export type LineItemRollup = "sum" | "alternatives" | "none";
+/** Which key-space a definition lives in — a note-level part is deliberately off-template. */
+export type LineItemNamespace = "template" | "internal";
 /** `from_section` reads the side off the section banner a caption sits under — the right answer
  *  for a balance-sheet line printed inside a section, and no answer for a statement total. */
 export type LineItemSide = "from_section" | "asset" | "liability" | "equity" | "none";
@@ -1409,27 +1420,109 @@ export interface CascadeRung {
   id: string;
   terms: LineItemTerm[];
   note: string;
+  /** A rung computing below zero is passed over and the next tried — the derivation services
+   *  refuse a negative candidate, and the config that ported them originally did not. */
+  refuse_negative: boolean;
 }
 export interface NoteSource {
   note_title_any: string[];
   row_caption_any: string[];
   row_caption_none: string[];
+  caption_normalization: "none" | "mapping_v1";
+}
+/** Sweep terms for a residual bucket — the section's unexplained remainder. */
+export interface ResidualPolicy {
+  framework: string;
+  section_scope: string;
+  population: string;
+  cross_section: boolean;
+  notes_as_source: boolean;
+  plug: boolean;
+  itemise: boolean;
+}
+export interface SignRule {
+  convention: string;
+  flip_if_label_matches: string[];
 }
 export interface LineItemDef {
   key: string;
   label: string;
   type: LineItemType;
   description: string;
+  /** The authoritative accounting meaning, matched against by the LLM's description tier.
+   *  Separate from `description`, which is display prose. */
+  definition: string;
   in_output: boolean;
   parent: string;
+  /** What this parenthood means arithmetically. The twelve parts of the depreciation line are
+   *  `alternatives` — alternative sources for one figure, never addends. */
+  rollup: LineItemRollup;
   order: number;
+  namespace: LineItemNamespace;
+
+  // ── the gate: where this line item may be claimed from ───────────────────────────────────
+  /** Names a `section_defaults` entry; the gate is folded in from there before validation. */
+  inherits: string | null;
+  /** `null` means claimable on any statement — "nothing was said", not "nothing allowed". */
+  statement: StatementToken | null;
+  /** The banners it may be claimed under. EMPTY MEANS UNCONSTRAINED. */
+  section_scope: string[];
+  /** Descending tie-break for collisions the gate leaves standing. */
+  match_priority: number | null;
+  /** `disabled` makes it unreachable by every matching tier, fillable only by the sweep. */
+  alias_matching: "enabled" | "disabled";
+  extraction_mode: "extract" | "extract_or_derive" | "derive" | "do_not_extract";
+  value_scope: string;
+  residual_policy: ResidualPolicy | null;
+  expected_components: string[];
+  never_sweep: string[];
+  confusable_with: string[];
+
+  // ── containment ──────────────────────────────────────────────────────────────────────────
+  /** Declares this line the gross parent of the children it already contains, so the pair is
+   *  never loaded additively. Without it, 31 caption collisions had no discriminator. */
+  is_gross_parent: boolean;
+  children_if_decomposed: string[];
+  sole_component_of: string | null;
+
+  // ── extracted: how the caption is recognised ─────────────────────────────────────────────
   scopes: SearchScope[];
   side: LineItemSide;
   allow_contra: boolean;
   aliases: string[];
+  /** Per-locale aliases; the matcher folds every locale into one index. */
+  aliases_i18n: Record<string, string[]>;
   pattern: string;
-  exclude: string[];
+  regex_hints: string[];
+  keyword_hints: string[];
+  /** Regex vetoes against the raw caption. Renamed from `exclude`, which was doing the work of
+   *  two fields — these, and the prose criteria below. */
+  exclude_hints: string[];
+  include_criteria: string[];
+  exclude_criteria: string[];
   note_source: NoteSource | null;
+  note_use: "evidence_only" | "decomposition_allowed" | null;
+  face_only: boolean | null;
+  min_confidence_to_auto_accept: number;
+
+  // ── measurement ──────────────────────────────────────────────────────────────────────────
+  temporality: "instant" | "duration" | null;
+  unit_of_account: "balance" | "flow" | "subtotal" | null;
+  /** An expectation, never a transformation — `sign_rule` performs the flip. */
+  sign_convention: "positive_expected" | "negative_expected" | "either" | null;
+  sign_rule: SignRule | null;
+  analyst_bucket: string | null;
+
+  // ── prose a reviewer or the LLM reads ────────────────────────────────────────────────────
+  decomposition_rule: string | null;
+  others_rule: string | null;
+  /** Which of two look-alike captions this is — resolves 30 of the 420 collisions. */
+  section_disambiguation: string | null;
+  derivation: string | null;
+  aggregation_note: string | null;
+  template_note: string | null;
+  notes_as_source_rationale: string | null;
+
   terms: LineItemTerm[];
   cascade: CascadeRung[];
   /** The service that computes this line today, while the config only describes it. */
@@ -1442,11 +1535,34 @@ export interface LineItemProblem {
   message: string;
   severity: string;
 }
+/** What is true of the SET rather than of an item. A bare JSON array had nowhere to say which
+ *  template these keys bind to, which is why the ontology's key-gate could not simply be copied. */
+export interface LineItemSetInfo {
+  schema_version: number;
+  line_items_key: string;
+  target_template_key: string;
+  locale: string;
+  supported_locales: string[];
+  metadata: {
+    name: string; version: string; supersedes: string | null;
+    changes: string[]; breaking_changes: string[];
+  };
+  /** The gate, authored once per section and claimed by `inherits`. */
+  section_defaults: Record<string, Partial<{
+    statement: StatementToken; section_scope: string[]; scopes: SearchScope[];
+    side: LineItemSide; temporality: string; unit_of_account: string; note_use: string;
+    note_use_rationale: string; sign_convention: string; match_priority: number;
+    face_only: boolean; analyst_bucket: string;
+  }>>;
+}
 export interface LineItemsResponse {
   items: LineItemDef[];
+  set: LineItemSetInfo;
   counts: {
     total: number; output: number; sub_line_items: number;
     by_type: Record<LineItemType, number>;
+    /** How many resolved a statement gate, and how many got it from a section. */
+    gated: number; inherited: number;
   };
   problems: LineItemProblem[];
   valid: boolean;
