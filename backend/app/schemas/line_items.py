@@ -674,12 +674,43 @@ class LineItemSet(BaseModel):
     # The vocabularies the matcher runs on — banners, scope tokens, statement spellings, exclusive
     # classes, families. Formerly Python constants in `services.mapping`.
     vocabulary: MappingVocabulary = Field(default_factory=MappingVocabulary)
+    # Families whose siblings this set does not define. Populated at load, never authored: a
+    # dangling family is inert, and inert config that LOOKS declared is worse than none.
+    dangling_families: dict[str, list[str]] = Field(default_factory=dict, exclude=True)
     # One definition governing every `exclusive_residual` line item: what may be swept, how it is
     # itemised, how the section must reconcile, and what is forbidden outright. A per-item
     # `residual_policy` overrides a term ONLY where its author wrote that term down — which is why
     # the projection dumps a policy with `exclude_unset`, and why this block governs the rest.
     residual_framework: ResidualFramework | None = None
     items: list[LineItemDef] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _record_dangling_families(self):
+        """A family whose siblings this set does not define is INERT, and says so out loud.
+
+        Not an error, because a set may legitimately carry a vocabulary written for a wider
+        key-space. But silence here produced exactly the failure this whole exercise is against:
+        the nine families lifted out of `mapping.CONCEPT_FAMILIES` name keys like
+        `bs_current_liabilities__current_lease_liabilities`, which belong to the HKFRS rulebook —
+        the `output_csv_hk` set defines NONE of them, so all nine families resolved to nothing
+        while looking, on the screen and in the file, exactly like working configuration.
+
+        Recording it means `scripts/build_line_items.py` can refuse to emit an inert family and a
+        reader can see which ones do nothing, instead of both believing a re-route exists.
+        """
+        known = {d.key for d in self.items}
+        if not known:
+            return self                     # nothing to check against yet
+        self.dangling_families = {
+            f.id: [s for s in f.siblings if s not in known]
+            for f in self.vocabulary.families
+            if any(s not in known for s in f.siblings)
+        }
+        return self
+
+    def live_families(self) -> list[ConceptFamily]:
+        """Only the families every sibling of which this set defines."""
+        return [f for f in self.vocabulary.families if f.id not in self.dangling_families]
 
 
 class UnknownInheritsError(ValueError):

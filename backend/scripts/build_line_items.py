@@ -76,6 +76,14 @@ def main() -> int:
     print(f"  configurator only       : {census['configurator_only']}")
     print(f"  total                   : {len(items)}")
 
+    item_keys = {d["key"] for d in items}
+    dropped = [fid for fid, siblings in CONCEPT_FAMILIES
+               if not all(s in item_keys for s in siblings)]
+    if dropped:
+        print(f"\n  families NOT emitted (siblings this key-space does not define): "
+              f"{len(dropped)}/{len(CONCEPT_FAMILIES)}")
+        print(f"     {', '.join(dropped)}")
+
     sections = {
         name: {k: v for k, v in entry.items() if k in SECTION_FIELDS}
         for name, entry in raw["section_defaults"].items()
@@ -137,8 +145,18 @@ def main() -> int:
                  "note": "IAS 7 divides cash flows into exactly three activities and a statement "
                          "labels each subtotal with its own, so naming one rules out the others."}
                 for vocab in EXCLUSIVE_VOCABULARIES],
+            # ONLY THE FAMILIES THIS KEY-SPACE ACTUALLY HAS. `mapping.CONCEPT_FAMILIES` was
+            # written for the HKFRS rulebook: its siblings are keys like
+            # `bs_current_liabilities__current_lease_liabilities`, and the output_csv_hk set
+            # defines NONE of the 22 keys across all 9 families. Emitting them anyway produced 9
+            # families that resolved to nothing while looking, in the file and on the screen,
+            # exactly like working configuration — the "config field nothing reads" failure this
+            # merge is supposed to end. So the builder filters and reports what it dropped, and
+            # for this rulebook the honest answer is that it has no families at all (which also
+            # says something worth knowing: family re-routing has never applied to this path).
             "families": [{"id": fid, "siblings": list(siblings)}
-                         for fid, siblings in CONCEPT_FAMILIES],
+                         for fid, siblings in CONCEPT_FAMILIES
+                         if all(s in item_keys for s in siblings)],
             # Empty on purpose: the projection writes each correction straight into the line
             # item's own `section_scope`, so the definition declares the section it is gated to
             # instead of a table overriding it from the side.

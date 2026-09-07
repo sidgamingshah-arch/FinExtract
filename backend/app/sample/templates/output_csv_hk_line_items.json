@@ -475,72 +475,7 @@
     "note": "IAS 7 divides cash flows into exactly three activities and a statement labels each subtotal with its own, so naming one rules out the others."
    }
   ],
-  "families": [
-   {
-    "id": "lease_liability",
-    "siblings": [
-     "bs_current_liabilities__current_lease_liabilities",
-     "bs_non_current_liabilities__non_current_lease_liabilities"
-    ]
-   },
-   {
-    "id": "borrowings",
-    "siblings": [
-     "bs_current_liabilities__current_borrowings",
-     "bs_non_current_liabilities__non_current_borrowings"
-    ]
-   },
-   {
-    "id": "notes_payable",
-    "siblings": [
-     "bs_current_liabilities__current_notes_payable",
-     "bs_non_current_liabilities__non_current_notes_payable"
-    ]
-   },
-   {
-    "id": "properties_under_development",
-    "siblings": [
-     "bs_current_assets__properties_under_development",
-     "bs_non_current_assets__properties_under_development"
-    ]
-   },
-   {
-    "id": "interest_received",
-    "siblings": [
-     "cf_cash_flow_from_operating_activities__interest_received",
-     "cf_cash_flow_from_investing_activities__interest_received"
-    ]
-   },
-   {
-    "id": "interest_paid",
-    "siblings": [
-     "cf_cash_flow_from_operating_activities__interest_paid",
-     "cf_cash_flow_from_financing_activities__interest_paid"
-    ]
-   },
-   {
-    "id": "nci_attribution",
-    "siblings": [
-     "bs_equity__non_controlling_interests",
-     "pl_profit_attributable_to__non_controlling_interests",
-     "pl_total_comprehensive_income_attributable_to__non_controlling_interests"
-    ]
-   },
-   {
-    "id": "owners_of_parent",
-    "siblings": [
-     "pl_profit_attributable_to__owners_of_the_parent",
-     "pl_total_comprehensive_income_attributable_to__owners_of_the_parent"
-    ]
-   },
-   {
-    "id": "pl_bottom_line",
-    "siblings": [
-     "pl_profit_for_the_year",
-     "pl_total_comprehensive_income_for_the_year"
-    ]
-   }
-  ],
+  "families": [],
   "section_overrides": {}
  },
  "residual_framework": {
