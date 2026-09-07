@@ -18,9 +18,36 @@ from decimal import Decimal
 from app.core.models import DocumentModel
 from app.core.stage import PipelineContext
 
-_ASSETS = "bs_total_assets"
-_EQ_LIAB = "bs_total_equity_and_liabilities"
-_TOL = Decimal(1)
+# THE BALANCE-SHEET IDENTITY'S OPERANDS, as a list of spellings rather than one.
+#
+# THIS CHECK WAS DEAD. It was written against `bs_total_assets` /
+# `bs_total_equity_and_liabilities`, which is the LEGACY 183-concept rulebook's spelling. Measured
+# on what actually ships: neither key occurs in the 462-concept rulebook or in the 475-definition
+# line-item set — the live spellings are `bs_ca__total_assets` and
+# `bs_cl__total_equity_and_liabilities`. So `by_key.get(_ASSETS, [])` returned an empty list on
+# every document, the loop body never ran, no `validation` signal was set, no `balance_mismatch`
+# was ever raised — and nothing said so. Assets = equity + liabilities is the most basic check
+# there is on a balance sheet, and it has been silently absent.
+#
+# A LIST, because the rulebook that supplies the keys is swappable and each generation spells them
+# differently; the identity is the same identity. First spelling present in the document wins, and
+# `_resolve_operands` below reports when NONE is present instead of returning quietly.
+_ASSET_KEYS: tuple[str, ...] = ("bs_ca__total_assets", "bs_total_assets")
+_EQ_LIAB_KEYS: tuple[str, ...] = ("bs_cl__total_equity_and_liabilities",
+                                  "bs_total_equity_and_liabilities")
+
+
+def _resolve_operands(by_key: dict) -> tuple[str | None, str | None]:
+    """The first spelling of each operand the document actually carries.
+
+    RETURNS None RATHER THAN GUESSING, and the caller flags that rather than skipping quietly.
+    The failure this replaces was not a wrong answer — it was silence: a protective check whose
+    operands had been renamed out from under it, doing nothing, indistinguishable from a filing
+    whose balance sheet happens not to state a total.
+    """
+    assets = next((k for k in _ASSET_KEYS if by_key.get(k)), None)
+    eq_liab = next((k for k in _EQ_LIAB_KEYS if by_key.get(k)), None)
+    return assets, eq_liab
 
 
 def _raw(ev):
@@ -49,20 +76,37 @@ class ConfidenceStage:
                 by_key.setdefault(li.canonical_key, []).append(li)
 
         failed = 0
-        for assets in by_key.get(_ASSETS, []):
-            for ev in assets.values.values():
-                match = next((e for eqliab in by_key.get(_EQ_LIAB, [])
-                              for e in eqliab.values.values()
-                              if e.basis == ev.basis and e.period_label == ev.period_label), None)
-                a, e = _raw(ev), (_raw(match) if match else None)
-                if a is None or e is None:
-                    continue
-                ok = abs(Decimal(a) - Decimal(e)) <= _TOL
-                ev.confidence.validation = 1.0 if ok else 0.4
-                match.confidence.validation = 1.0 if ok else 0.4
-                if not ok:
-                    failed += 1
-                    ev.confidence.flags.append("balance_mismatch")
+        # The tolerance is the SAME knob the rest of the reconciliation uses. It was a private
+        # `Decimal(1)` here while `extraction.recon_abs_tolerance` — read at six other sites and
+        # exposed to the operator on the Settings screen — held the identical default. A second
+        # copy is not a missing setting, it is a duplicated one: move the knob and this check
+        # keeps its own answer.
+        tol = Decimal(str(getattr(ctx.settings.extraction, "recon_abs_tolerance", 1)))
+        assets_key, eq_liab_key = _resolve_operands(by_key)
+        if not (assets_key and eq_liab_key):
+            # SAY SO. The old code's empty `by_key.get(...)` made a renamed operand look exactly
+            # like a filing that states no total, so the check's absence was unobservable.
+            missing = [name for name, key in (("total_assets", assets_key),
+                                              ("total_equity_and_liabilities", eq_liab_key))
+                       if not key]
+            ctx.log(f"confidence:balance_identity_not_checked:missing={'+'.join(missing)}:"
+                    f"looked_for={'|'.join(_ASSET_KEYS)}/{'|'.join(_EQ_LIAB_KEYS)}")
+        else:
+            for assets in by_key.get(assets_key, []):
+                for ev in assets.values.values():
+                    match = next((e for eqliab in by_key.get(eq_liab_key, [])
+                                  for e in eqliab.values.values()
+                                  if e.basis == ev.basis
+                                  and e.period_label == ev.period_label), None)
+                    a, e = _raw(ev), (_raw(match) if match else None)
+                    if a is None or e is None:
+                        continue
+                    ok = abs(Decimal(a) - Decimal(e)) <= tol
+                    ev.confidence.validation = 1.0 if ok else 0.4
+                    match.confidence.validation = 1.0 if ok else 0.4
+                    if not ok:
+                        failed += 1
+                        ev.confidence.flags.append("balance_mismatch")
 
         # Note→face ties that failed lower the face value's validation signal. Only a
         # corroborated breakdown that does not tie counts: an "unconfirmed" entry means the

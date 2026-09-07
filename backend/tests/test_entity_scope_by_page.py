@@ -227,7 +227,10 @@ def test_the_balance_identity_is_checked_on_both_bases():
     from app.core.models.line_item import ExtractedValue, LineItem
     from app.core.models.document import DocumentModel
     from app.core.stage import PipelineContext
-    from app.stages.confidence import ConfidenceStage, _ASSETS, _EQ_LIAB
+    # The operands are a LIST of spellings now, not one: the check was written against the legacy
+    # 183-concept rulebook's `bs_total_assets` and was dead on the shipped 462-concept one.
+    from app.stages.confidence import ConfidenceStage, _ASSET_KEYS, _EQ_LIAB_KEYS
+    _ASSETS, _EQ_LIAB = _ASSET_KEYS[0], _EQ_LIAB_KEYS[0]
 
     def item(key: str, basis: Basis, value: str) -> LineItem:
         li = LineItem(canonical_key=key, source_label=key, ordinal=0)
