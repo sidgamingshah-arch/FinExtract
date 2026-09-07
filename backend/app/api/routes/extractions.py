@@ -1197,6 +1197,15 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
             entity_name = detect_entity_name(pages_text)
         except Exception:  # noqa: BLE001 — a scan failure must not fail the extraction
             disclosures = []
+        # THE CONTINGENT-LIABILITY WORKING RIDES WITH ITS OWN DISCLOSURE. The presence scan says
+        # only "found, page 209"; the stage has already computed the exposure summed per type and
+        # a one-sentence account of every paragraph that fits no type. Folded in here because
+        # `disclosures` is the one list that reaches the Excel sheet, the JSON export, /analysis
+        # and the Disclosures screen — so the reasoning arrives everywhere the number does,
+        # instead of being recomputed or, as it was, dropped. Runs after the pipeline, so
+        # `doc_model.contingent_liabilities` is populated.
+        from app.services.contingent_liabilities import attach_contingent_explanation
+        disclosures = attach_contingent_explanation(disclosures, doc_model.contingent_liabilities)
 
         recon = doc_model.reconciliation
         structural = doc_model.structural
@@ -1237,6 +1246,14 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
             "rows": [*base_rows, *supplemental_rows],
             "note_details": _serialize_notes(doc_model),
             "disclosures": disclosures,
+            # The contingent-liability working IN FULL, per basis:period — the paragraph, the
+            # per-type sums and the unclassified statements, exactly as
+            # `stages.contingent_liabilities` computed them. The disclosure entry above carries a
+            # reduction of this for the one period a document-level disclosure is about; this is
+            # the whole of it, for a machine consumer and for the other period. It was computed on
+            # every run and never serialised, so nothing downstream could see the reasoning behind
+            # the single total on `notes__contingent_liabilities`.
+            "contingent_liabilities": doc_model.contingent_liabilities,
             "reconciliation": ([e.model_dump(mode="json") for e in recon.entries] if recon else []),
             # A note's OWN arithmetic: a block subtotal the filing printed on a bare line, against
             # the rows above it. Served separately from `reconciliation` because it is a different

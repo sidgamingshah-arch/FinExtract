@@ -16,6 +16,90 @@ import { useT } from "../i18n";
 import { useDocumentAnalysis } from "../lib/queries";
 import { useUI } from "../store";
 import { color, font } from "../theme";
+import type { Disclosure } from "../types";
+
+/** A money string as a figure. Blank for null, never 0 — see `Disclosure.amount`. */
+function amount(value: string | null | undefined, currency: string | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return String(value);
+  return `${currency ? `${currency} ` : ""}${n.toLocaleString(undefined, {
+    minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** The working behind a quantified disclosure: the sentence, the per-type sums, the leftovers.
+ *
+ * Renders nothing at all when the pipeline computed no working, which is every disclosure except
+ * contingent liabilities today — so this cannot change how a qualitative entry looks. */
+function DisclosureWorking({ d }: { d: Disclosure }) {
+  const breakdown = d.breakdown ?? [];
+  const statements = d.statements ?? [];
+  const explanation = (d.explanation ?? "").trim();
+  if (!breakdown.length && !statements.length && !explanation) return null;
+
+  const label = { fontSize: 10, fontWeight: 700 as const, letterSpacing: 0.3,
+                  color: color.muted, textTransform: "uppercase" as const };
+  const fig = { fontSize: 12, color: color.ink, textAlign: "right" as const,
+                fontVariantNumeric: "tabular-nums" as const, fontFamily: font.mono };
+
+  return (
+    <div data-testid={`disc-working-${d.key}`}
+         /* `gridColumn: 1 / -1` — the row above is a 4-column grid and this is a child of it, so
+            spanning the whole width is what puts the working UNDER the disclosure it explains
+            instead of inside one of its cells. */
+         style={{ gridColumn: "1 / -1", marginTop: 8, paddingLeft: 14,
+                  borderLeft: `2px solid ${color.hairline2}`,
+                  display: "flex", flexDirection: "column", gap: 10 }}>
+      {explanation && (
+        <div data-testid={`disc-explanation-${d.key}`}
+             style={{ fontSize: 11.5, color: color.sec2, lineHeight: 1.6 }}>
+          {explanation}
+        </div>
+      )}
+      {breakdown.length > 0 && (
+        <div>
+          <div style={label}>Exposure by type</div>
+          {breakdown.map((g, i) => (
+            <div key={`${g.type}-${g.currency}-${i}`}
+                 data-testid={`disc-breakdown-${d.key}`}
+                 style={{ display: "grid", gridTemplateColumns: "1.4fr 1.1fr 1.4fr",
+                          gap: 12, padding: "3px 0", alignItems: "baseline" }}>
+              <span style={{ fontSize: 12, color: color.ink }}>{g.type}</span>
+              <span style={fig}>{amount(g.amount, g.currency)}</span>
+              <span style={{ fontSize: 10.5, color: color.faint }}>
+                {[g.item_count ? `${g.item_count} disclosed item${g.item_count === 1 ? "" : "s"}` : "",
+                  g.source_pages?.length ? `p.${g.source_pages.join(", p.")}` : ""]
+                  .filter(Boolean).join(" · ")}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {statements.length > 0 && (
+        <div>
+          <div style={label}>Matters not classified to a type</div>
+          {statements.map((s, i) => (
+            <div key={`${s.statement}-${i}`}
+                 data-testid={`disc-statement-${d.key}`}
+                 style={{ display: "grid", gridTemplateColumns: "1.4fr 1.1fr 1.4fr",
+                          gap: 12, padding: "3px 0", alignItems: "baseline" }}>
+              <span style={{ fontSize: 11.5, color: color.ink, lineHeight: 1.5 }}>
+                {s.statement}
+              </span>
+              {/* Blank, never 0: "the amount was not disclosed" and "the exposure is nil" are
+                  different answers and the statement itself already says which. */}
+              <span style={fig}>{amount(s.amount, s.currency)}</span>
+              <span style={{ fontSize: 10.5, color: color.faint }}>
+                {[s.source_note ? `note ${s.source_note}` : "",
+                  s.page ? `p.${s.page}` : ""].filter(Boolean).join(" · ")}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function DisclosuresScreen() {
   const t = useT();
@@ -100,6 +184,12 @@ export default function DisclosuresScreen() {
                              fontStyle: d.snippet ? "italic" : "normal" }}>
                 {d.snippet || t("ex.notFound")}
               </span>
+              {/* HOW THE FIGURE WAS ARRIVED AT. Spans all four columns beneath the row rather
+                  than squeezing into the evidence cell: it is a variable number of lines — one
+                  per type, one per unclassified paragraph — and the amounts have to line up
+                  under one another to be read as a breakdown that sums. Rendered only where the
+                  pipeline computed one, so every other disclosure looks exactly as before. */}
+              <DisclosureWorking d={d} />
             </div>
           ))}
           {!q.data.disclosures.length && (

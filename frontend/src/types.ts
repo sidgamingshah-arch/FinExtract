@@ -719,6 +719,39 @@ export interface Disclosure {
    *  has to render blank, never as 0. */
   amount: string | null;
   currency: string | null;
+  /** HOW that figure was arrived at, where the pipeline can say — today only contingent
+   *  liabilities (`services/contingent_liabilities.disclosure_explanation`). All three are
+   *  optional and absent on an ordinary presence-scan entry.
+   *
+   *  A total with no statement of what it is made of is the one thing a credit reader cannot
+   *  use: ¥118,754,500 of "contingent liabilities" is unreviewable, while "Corporate guarantees
+   *  118,754,500 across 3 disclosed items, p.209" can be checked against the page. */
+  explanation?: string;
+  /** The exposure summed per type. Per CURRENCY AND SCALE as well as type, which is why this is
+   *  a list and not a map: a type disclosed in both thousands and millions is two entries and
+   *  never one wrong sum — and in that case `amount` above is deliberately null, so this is the
+   *  only set of figures there is. */
+  breakdown?: DisclosureBreakdown[];
+  /** One sentence per disclosed paragraph that fits no type, with its amount. */
+  statements?: DisclosureStatement[];
+  /** Which basis and period the explanation describes, e.g. "consolidated:current". */
+  basis_period?: string | null;
+}
+export interface DisclosureBreakdown {
+  type: string | null;
+  /** A decimal STRING for the same reason as `Disclosure.amount`. */
+  amount: string | null;
+  currency: string | null;
+  scale: string | null;
+  item_count: number | null;
+  source_pages: (number | string)[];
+}
+export interface DisclosureStatement {
+  statement: string;
+  amount: string | null;
+  currency: string | null;
+  source_note: string | null;
+  page: number | string | null;
 }
 export interface FreeNote {
   title: string;

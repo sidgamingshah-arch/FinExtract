@@ -262,3 +262,118 @@ def test_a_capital_commitment_is_a_classified_exposure():
         assert _classify(label)[0] == "Commitments", label
     # …and a guarantee sitting inside a commitments note keeps its own classification.
     assert _classify("对外担保 资本承诺")[0] == "Corporate guarantees"
+
+
+# --- the working, attached to the document-level disclosure --------------------------------------
+#
+# Every one of the assertions above was already true BEFORE this section existed, and none of it
+# reached a reader: the stage stored the paragraph and both tables on
+# `DocumentModel.contingent_liabilities`, and the run RESULT carried no such key — so the Excel
+# Disclosures sheet, the JSON export, /analysis and the Disclosures screen could see only the
+# single total that lands on `notes__contingent_liabilities`. These tests are about the reduction
+# that carries the working to them.
+
+def _stage_record(doc) -> dict:
+    """What `stages.contingent_liabilities` stores, built from `compute` the same way it does."""
+    from app.stages.contingent_liabilities import _to_dict
+
+    return {f"{basis}:{period}": _to_dict(result)
+            for (basis, period), result in compute(doc).items()}
+
+
+def test_the_working_carries_the_per_type_sums_and_the_leftover_statements():
+    from app.services.contingent_liabilities import disclosure_explanation
+
+    doc = _doc(
+        _note("35", "对外担保", [_item("为子公司提供的连带责任保证", "5000000"),
+                              _item("为客户开立的不可撤销信用证", "1000000")]),
+        _note("36", "未决诉讼", [_item("未决诉讼涉及一宗合同纠纷", "12000000", group_hint="乙公司")]),
+    )
+    working = disclosure_explanation(_stage_record(doc))
+
+    by_type = {g["type"]: g for g in working["breakdown"]}
+    assert set(by_type) == {"Corporate guarantees", "Letters of Credit"}
+    assert by_type["Corporate guarantees"]["amount"] == "5000000"
+    assert by_type["Letters of Credit"]["amount"] == "1000000"
+    # The paragraph that fits no type survives as ONE SENTENCE WITH ITS AMOUNT, which is the whole
+    # ask: a reader cannot act on "unclassified contingent liability: 12,000,000".
+    assert [s["statement"] for s in working["statements"]] == [
+        "Pending litigation involving 乙公司, with a disclosed exposure of CNY 12,000,000."]
+    assert working["statements"][0]["amount"] == "12000000"
+    assert "Corporate guarantees" in working["explanation"]
+    assert working["basis_period"] == "consolidated:current"
+
+
+def test_an_unquantified_matter_keeps_its_sentence_and_reports_no_amount():
+    """Blank and not zero. "The amount was not disclosed" and "the exposure is nil" are different
+    answers, and the sentence is the only place the difference is stated."""
+    from app.services.contingent_liabilities import disclosure_explanation
+
+    working = disclosure_explanation(_stage_record(_doc(_note("36", "未决仲裁", [_item("未决仲裁事项")]))))
+
+    assert working["breakdown"] == []
+    assert working["statements"][0]["amount"] is None
+    assert "not disclosed or could not be quantified" in working["statements"][0]["statement"]
+    assert "AMOUNT_NOT_DISCLOSED" in working["qa_flags"]
+
+
+def test_two_currencies_stay_two_rows_because_the_concept_publishes_no_total():
+    """The case where the breakdown is not extra colour but the ONLY answer: `_quantifiable_total`
+    withholds a figure across unlike units, so a reader with no breakdown gets nothing at all."""
+    from app.services.contingent_liabilities import disclosure_explanation
+
+    doc = _doc(_note("35", "对外担保", [
+        _item("为子公司提供的连带责任保证", "5000000", currency="CNY"),
+        _item("为境外子公司提供的连带责任保证", "700000", currency="USD")]))
+    result = compute(doc)[("consolidated", "current")]
+    assert result.total_quantifiable is None
+    assert "MULTIPLE_CURRENCIES_NOT_AGGREGATED" in result.flags
+
+    working = disclosure_explanation(_stage_record(doc))
+    assert {(g["currency"], g["amount"]) for g in working["breakdown"]} == {
+        ("CNY", "5000000"), ("USD", "700000")}
+
+
+def test_the_working_is_attached_to_its_own_disclosure_and_no_other():
+    from app.services.contingent_liabilities import attach_contingent_explanation
+
+    doc = _doc(_note("35", "对外担保", [_item("为子公司提供的连带责任保证", "5000000")]))
+    scanned = [{"key": "going_concern", "label": "Going concern", "present": True},
+               {"key": "contingent_liabilities", "label": "Contingent liabilities", "present": True}]
+
+    out = attach_contingent_explanation(scanned, _stage_record(doc))
+
+    assert out[0] == scanned[0], "an unrelated disclosure must be returned untouched"
+    assert out[1]["breakdown"][0]["type"] == "Corporate guarantees"
+    assert out[1]["label"] == "Contingent liabilities", "the scanned keys must survive"
+
+
+def test_a_filing_with_nothing_to_explain_gains_no_empty_scaffolding():
+    """`{}` rather than empty lists, so a consumer can splat it unconditionally and a qualitative
+    disclosure renders exactly as it did before this existed."""
+    from app.services.contingent_liabilities import (attach_contingent_explanation,
+                                                     disclosure_explanation)
+
+    assert disclosure_explanation(None) == {}
+    assert disclosure_explanation({}) == {}
+    scanned = [{"key": "contingent_liabilities", "label": "Contingent liabilities", "present": False}]
+    assert attach_contingent_explanation(scanned, None) == scanned
+
+
+def test_the_consolidated_current_period_is_the_one_explained():
+    """The amount beside the explanation comes from consolidated/current
+    (`documents._with_quantified_amounts`), so the explanation must describe that period and not
+    whichever one the dict happened to yield first."""
+    from app.services.contingent_liabilities import disclosure_explanation
+
+    record = {
+        "consolidated:prior": {"summary_paragraph": "prior", "classified_summary":
+                               [{"type": "Corporate guarantees", "amount": "1"}],
+                               "unclassified_items": [], "qa_flags": []},
+        "consolidated:current": {"summary_paragraph": "current", "classified_summary":
+                                 [{"type": "Corporate guarantees", "amount": "2"}],
+                                 "unclassified_items": [], "qa_flags": []},
+    }
+    working = disclosure_explanation(record)
+    assert working["basis_period"] == "consolidated:current"
+    assert working["breakdown"][0]["amount"] == "2"

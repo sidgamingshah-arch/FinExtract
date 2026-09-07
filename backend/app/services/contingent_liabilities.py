@@ -522,6 +522,92 @@ class ContingentLiabilitiesResult:
     flags: list[str] = field(default_factory=list)
 
 
+# ── the reasoning, attached to the document-level disclosure ────────────────────────────────────
+#
+# THE WORKING WAS COMPUTED AND THEN THROWN AWAY. `_classified_summary` sums the exposure per type
+# (Corporate guarantees / Letters of Credit / Performance bonds / Bank guarantees / Commitments)
+# and `_unclassified_statement` reduces a paragraph that fits no type to one sentence with its
+# amount — exactly the account a reader needs — and the stage stores all of it on
+# `DocumentModel.contingent_liabilities`. But the run RESULT carried no such key, so every
+# consumer downstream (the Excel Disclosures sheet, the JSON export, /analysis, the Disclosures
+# screen) could see only the single total that lands on `notes__contingent_liabilities`. A figure
+# with no statement of what it is made of is the one thing a credit reader cannot use: 118,754,500
+# of "contingent liabilities" is unreviewable, while "Corporate guarantees 118,754,500 across 3
+# disclosed items, pages 209-210" can be checked against the page.
+#
+# ATTACHED TO THE DISCLOSURE ENTRY rather than threaded as a new argument through four export
+# builders and two routes: `disclosures` is one list that ALREADY flows to every one of those
+# places, so enriching the entry puts the working in front of every reader at one insertion point.
+# Additive keys only — a consumer that does not know about them is unaffected.
+_PREFERRED_PERIODS = ("consolidated:current", "consolidated:prior")
+
+
+def _pick_period(record: dict) -> tuple[str | None, dict]:
+    """The one period a DOCUMENT-level disclosure is about.
+
+    Consolidated current first, because that is the basis and period the presence scan and
+    `_with_quantified_amounts` both speak about — the amount beside the explanation must be the
+    amount the explanation explains. Anything else only if that is absent, and the period actually
+    used is returned so the caller can say which one it is rather than implying "the filing".
+    """
+    for key in _PREFERRED_PERIODS:
+        if isinstance(record.get(key), dict):
+            return key, record[key]
+    for key, value in record.items():                      # a run that could not label its columns
+        if isinstance(value, dict):
+            return key, value
+    return None, {}
+
+
+def disclosure_explanation(record: dict | None) -> dict:
+    """The stored per-period record reduced to the keys a disclosure entry carries.
+
+    Returns ``{}`` when there is nothing to say, so a caller can splat it unconditionally and a
+    filing whose notes disclosed nothing quantifiable gains no empty scaffolding.
+    """
+    if not isinstance(record, dict) or not record:
+        return {}
+    period_key, period = _pick_period(record)
+    if not period:
+        return {}
+    breakdown = [
+        {"type": g.get("type"), "amount": g.get("amount"), "currency": g.get("currency"),
+         "scale": g.get("scale"), "item_count": g.get("item_count"),
+         "source_pages": g.get("source_pages") or []}
+        for g in (period.get("classified_summary") or [])
+    ]
+    statements = [
+        {"statement": it.get("short_statement"), "amount": it.get("amount"),
+         "currency": it.get("currency"), "source_note": it.get("source_note"),
+         "page": it.get("page")}
+        for it in (period.get("unclassified_items") or [])
+        if it.get("short_statement")
+    ]
+    if not breakdown and not statements and not period.get("summary_paragraph"):
+        return {}
+    return {
+        "explanation": period.get("summary_paragraph") or "",
+        # Sum-up by type. Per CURRENCY AND SCALE as well as type, which is `_classified_summary`'s
+        # own grouping: a type disclosed in both thousands and millions is two rows, never one
+        # wrong sum, and the total on the concept's row is withheld entirely in that case
+        # (MULTIPLE_CURRENCIES_NOT_AGGREGATED) — so the breakdown is then the ONLY answer.
+        "breakdown": breakdown,
+        # A paragraph that fits no type, as one sentence with its amount.
+        "statements": statements,
+        "basis_period": period_key,
+        "qa_flags": period.get("qa_flags") or [],
+    }
+
+
+def attach_contingent_explanation(disclosures: list[dict], record: dict | None) -> list[dict]:
+    """`disclosures` with the contingent-liability working folded into its own entry."""
+    extra = disclosure_explanation(record)
+    if not extra:
+        return disclosures
+    return [{**d, **extra} if str(d.get("key") or "") == "contingent_liabilities" else d
+            for d in disclosures]
+
+
 def _result_from(items: list[ContingentItem], extra_flags: list[str]
                  ) -> ContingentLiabilitiesResult:
     """One period's result from its items — the assembly shared by the note path and the sweep."""

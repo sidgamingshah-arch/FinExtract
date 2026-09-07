@@ -788,13 +788,28 @@ def _add_analysis_sheets(wb, rows: list[dict], disclosures: list[dict],
 
     # Disclosures
     ws = wb.create_sheet("Disclosures")
-    _header(ws, ["Disclosure", "Present", "Page", "Where found"], [30, 10, 8, 70])
-    for i, d in enumerate(disclosures, start=2):
-        ws.cell(i, 1, d.get("label", ""))
-        ws.cell(i, 2, "Yes" if d.get("present") else "No")
-        ws.cell(i, 3, d.get("page") or "")
-        ws.cell(i, 4, d.get("snippet", "")).alignment = wrap
-    summary_row = len(disclosures) + 3
+    # AMOUNT IS ITS OWN COLUMN. The working emitted below states a figure per type and per
+    # unclassified matter, and those have to land under a heading that says "amount" and in cells
+    # a reader can select and add — putting them in the Page column would have been a lie about
+    # what the number is. The main rows fill it wherever the pipeline quantified the disclosure.
+    _header(ws, ["Disclosure", "Present", "Page", "Amount", "Where found"],
+            [34, 10, 8, 18, 62])
+    ri = 2
+    for d in disclosures:
+        ws.cell(ri, 1, d.get("label", ""))
+        ws.cell(ri, 2, "Yes" if d.get("present") else "No")
+        ws.cell(ri, 3, d.get("page") or "")
+        _disclosure_amount(ws, ri, d.get("amount"), num_fmt, right)
+        ws.cell(ri, 5, d.get("snippet", "")).alignment = wrap
+        ri += 1
+        # THE WORKING BEHIND A QUANTIFIED DISCLOSURE, where the pipeline computed one. Only
+        # contingent liabilities carries it today (`contingent_liabilities.disclosure_explanation`
+        # attaches it to the entry). Written as indented rows UNDER the disclosure rather than as
+        # new columns, because it is a variable number of lines per type and per unclassified
+        # paragraph — and a "Where found" snippet is a location, not an account of the figure.
+        # A sheet showing 118,754,500 with no statement of what it is made of cannot be reviewed.
+        ri = _emit_disclosure_working(ws, d, ri, wrap, num_fmt, right)
+    summary_row = ri + 1
     found = sum(bool(d.get("present")) for d in disclosures)
     ws.cell(summary_row, 1, "Disclosure checks found")
     ws.cell(summary_row, 2, f"{found} of {len(disclosures)}")
@@ -858,6 +873,87 @@ def _add_analysis_sheets(wb, rows: list[dict], disclosures: list[dict],
                       ("disclosures", "Disclosures"), ("credit", "Credit Analysis")):
         if not on(key) and name in wb.sheetnames:
             wb.remove(wb[name])
+
+
+def _disclosure_amount(ws, row: int, value, num_fmt, right) -> None:
+    """The Amount cell of the Disclosures sheet, NUMERIC wherever the value really is one.
+
+    Written as a float and not as formatted text, because the whole point of a per-type breakdown
+    is that a reader can select the type rows and check they come to the total on the concept's
+    own line. A non-numeric value (or none) leaves the cell alone.
+    """
+    if value is None or value == "":
+        return
+    try:
+        cell = ws.cell(row, 4, float(value))
+        cell.number_format = num_fmt
+    except (TypeError, ValueError):
+        cell = ws.cell(row, 4, str(value))
+    cell.alignment = right
+
+
+def _emit_disclosure_working(ws, d: dict, ri: int, wrap, num_fmt, right) -> int:
+    """Indented rows stating HOW a quantified disclosure's figure was arrived at.
+
+    Three things, in the order a reader needs them: the sentence saying what the note discloses,
+    the exposure summed per type, and one line per paragraph that fits no type. The currency goes
+    in the "Where found" text beside each figure rather than into the Amount cell, which stays
+    numeric — and where a breakdown spans two currencies the concept's own row publishes NO total
+    (MULTIPLE_CURRENCIES_NOT_AGGREGATED), so these rows are then the only figures there are.
+
+    Returns the next free row. Emits nothing and returns `ri` unchanged when the disclosure
+    carries no working, so an ordinary presence-scan entry is untouched.
+    """
+    from openpyxl.styles import Alignment, Font
+
+    indent1 = Alignment(indent=1)
+    indent2 = Alignment(indent=2, wrap_text=True, vertical="top")
+    grey = Font(size=9, color="6B7280")
+    bold_grey = Font(bold=True, size=9, color="6B7280")
+    breakdown = d.get("breakdown") or []
+    statements = d.get("statements") or []
+    explanation = (d.get("explanation") or "").strip()
+    if not breakdown and not statements and not explanation:
+        return ri
+
+    def _detail(row: int, currency, *bits: str) -> None:
+        text = " · ".join(x for x in (str(currency) if currency else "", *bits) if x)
+        if text:
+            ws.cell(row, 5, text).font = grey
+
+    if explanation:
+        c = ws.cell(ri, 1, explanation)
+        c.alignment = indent2
+        c.font = grey
+        ws.merge_cells(start_row=ri, start_column=1, end_row=ri, end_column=5)
+        ri += 1
+    if breakdown:
+        h = ws.cell(ri, 1, "Exposure by type")
+        h.font = bold_grey
+        h.alignment = indent1
+        ri += 1
+        for g in breakdown:
+            n = g.get("item_count")
+            pages = g.get("source_pages") or []
+            ws.cell(ri, 1, str(g.get("type") or "")).alignment = indent1
+            _disclosure_amount(ws, ri, g.get("amount"), num_fmt, right)
+            _detail(ri, g.get("currency"),
+                    f"{n} disclosed item{'s' if isinstance(n, int) and n != 1 else ''}" if n else "",
+                    f"p.{', p.'.join(str(p) for p in pages)}" if pages else "")
+            ri += 1
+    if statements:
+        h = ws.cell(ri, 1, "Matters not classified to a type")
+        h.font = bold_grey
+        h.alignment = indent1
+        ri += 1
+        for s in statements:
+            ws.cell(ri, 1, str(s.get("statement") or "")).alignment = indent2
+            _disclosure_amount(ws, ri, s.get("amount"), num_fmt, right)
+            note, page = s.get("source_note"), s.get("page")
+            _detail(ri, s.get("currency"), f"note {note}" if note else "",
+                    f"p.{page}" if page else "")
+            ri += 1
+    return ri
 
 
 def _emit_nodes(ws, nodes, by_key, period_cols, first_val, conf_col, src_col, locale, r,
