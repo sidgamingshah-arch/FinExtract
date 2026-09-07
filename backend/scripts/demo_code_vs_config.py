@@ -133,12 +133,25 @@ def demo_gloss_seam(st: LineItemSet, m: LineItemMatcher) -> None:
         got = m.match(caption, "balance_sheet", "NON-CURRENT ASSETS")
         print(f"    {label:28} {caption!r}")
         print(f"      normalises to {norm!r}")
-        print(f"      resolves to   {got.key or '(unmapped)'}   [{got.method}]")
+        print(f"      resolves to   {got.key or '(unmapped)'}   [{got.method}] "
+              f"conf={got.confidence} needs_review={got.needs_review}")
 
     print(f"""
     The rule fired for the ASCII quotes and not for the others, and there is nowhere in the
     475-definition set to say the others count. A reviewer reading every definition cannot
-    discover it. That inventory is vocabulary; the bracket-plus-quotes SHAPE is mechanism.""")
+    discover it. That inventory is vocabulary; the bracket-plus-quotes SHAPE is mechanism.
+
+    ONE CORRECTION TO AN EARLIER VERSION OF THIS SCRIPT, which called that outcome "a different
+    asset, unflagged". It is NOT unflagged: the wrong answer arrives at confidence 0.6 with
+    needs_review=True and the reason "several rule hints fired; ambiguous", because the exact tier
+    misses and the rule tier finds several claimants. The exact tier's 1.0 becomes the rule tier's
+    0.6 and the row goes to review — the system degrading as designed.
+
+    That makes this a REVIEW-QUEUE cost rather than a silent-wrong-figure cost, which is a
+    materially weaker claim and the honest one. The silent class is elsewhere: the 74 captions the
+    inventory measurement found landing on a different concept are the ones to worry about, and
+    whether each of those is flagged has to be checked one at a time rather than assumed from
+    this example.""")
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════

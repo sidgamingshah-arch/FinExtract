@@ -40,8 +40,21 @@ RENAMED: dict[str, str] = {
     "exclude": "exclude_criteria",
 }
 
-# Carried under the same name. Every one of these is read by live code or by the LLM payload;
-# `scripts/project_ontology.py` fails the build if a concept declares a field that lands nowhere.
+# Carried under the same name. `scripts/project_ontology.py` fails the build if a concept declares
+# a field that lands nowhere HERE — which is a check that every declaration has a home, not that
+# anything reads it.
+#
+# THAT DISTINCTION WAS WORTH THE CORRECTION. This comment used to claim "every one of these is read
+# by live code or by the LLM payload", and it was false. `min_confidence_to_auto_accept` is in the
+# tuple below, carries 0.85 on all 462 concepts, and is read by NOTHING — not by the ported matcher
+# and not by the incumbent, where all four accept decisions compare against the global
+# `settings.extraction.auto_accept_confidence` (default 0.80) instead. Same for
+# `ResidualFramework.alias_matching`, `allow_contra` and `caption_normalization`.
+#
+# A projection that carries a field faithfully is doing its job. A COMMENT that promises the field
+# is live is the failure this whole exercise keeps finding, and it is worse here than in config,
+# because the next person reads it as evidence and stops looking.
+
 SAME: tuple[str, ...] = (
     "label", "description", "definition", "confusable_with", "value_scope", "extraction_mode",
     "analyst_bucket", "aliases", "aliases_i18n", "keyword_hints", "regex_hints", "exclude_hints",

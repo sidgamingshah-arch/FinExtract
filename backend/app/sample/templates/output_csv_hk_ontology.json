@@ -610,9 +610,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -652,9 +649,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -701,9 +695,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -748,9 +739,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -799,9 +787,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -846,9 +831,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -896,9 +878,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -944,9 +923,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1100,9 +1076,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1142,9 +1115,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1182,9 +1152,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1238,9 +1205,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1284,9 +1248,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1325,9 +1286,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1368,9 +1326,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1413,9 +1368,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1540,9 +1492,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1587,9 +1536,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1634,9 +1580,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1686,9 +1629,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1726,9 +1666,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1769,9 +1706,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1815,9 +1749,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1879,9 +1810,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1961,9 +1889,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2011,9 +1936,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2061,9 +1983,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2103,9 +2022,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2159,9 +2075,6 @@
       "alias_matching": "disabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2229,9 +2142,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2276,9 +2186,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2324,9 +2231,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2367,9 +2271,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2411,9 +2312,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2460,9 +2358,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2506,9 +2401,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2548,9 +2440,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2603,9 +2492,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2680,9 +2566,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2738,9 +2621,6 @@
       "alias_matching": "disabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2792,9 +2672,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2842,9 +2719,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2884,9 +2758,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2930,9 +2801,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2987,9 +2855,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -3051,9 +2916,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -3102,9 +2964,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -3159,9 +3018,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_nca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -3253,9 +3109,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -3294,9 +3147,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -3337,9 +3187,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -3386,9 +3233,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -3480,9 +3324,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -3518,9 +3359,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -3556,9 +3394,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -3596,9 +3431,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -3636,9 +3468,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -3674,9 +3503,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -3714,9 +3540,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -3773,9 +3596,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -3847,9 +3667,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -3894,9 +3711,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -3942,9 +3756,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -3985,9 +3796,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4029,9 +3837,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4076,9 +3881,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4122,9 +3924,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4163,9 +3962,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4204,9 +4000,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4253,9 +4046,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4309,9 +4099,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4361,9 +4148,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4437,9 +4221,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4494,9 +4275,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4545,9 +4323,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4593,9 +4368,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4633,9 +4405,6 @@
       "alias_matching": "disabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4689,9 +4458,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4731,9 +4497,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4774,9 +4537,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4838,9 +4598,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4970,9 +4727,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -5010,9 +4764,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -5052,9 +4803,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -5096,9 +4844,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -5154,9 +4899,6 @@
       "alias_matching": "disabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -5228,9 +4970,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -5277,9 +5016,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -5331,9 +5067,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ca",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -5498,9 +5231,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_equity",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -5553,9 +5283,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_equity",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -5598,9 +5325,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_equity",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -5642,9 +5366,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_equity",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -5689,9 +5410,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_equity",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -5796,9 +5514,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_equity",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -5842,9 +5557,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_equity",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -5884,9 +5596,6 @@
       "alias_matching": "disabled",
       "inherits": "bs_equity",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -5937,9 +5646,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_equity",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -6036,9 +5742,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_equity",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -6084,9 +5787,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_equity",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -6134,9 +5834,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_equity",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -6172,9 +5869,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_equity",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -6215,9 +5909,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_equity",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -6261,9 +5952,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_equity",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -6307,9 +5995,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_equity",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -6358,9 +6043,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_equity",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -6470,9 +6152,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -6533,9 +6212,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -6579,9 +6255,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -6627,9 +6300,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -6676,9 +6346,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -6733,9 +6400,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -6777,9 +6441,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -6823,9 +6484,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -6865,9 +6523,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -6907,9 +6562,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -6953,9 +6605,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -6999,9 +6648,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -7043,9 +6689,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -7088,9 +6731,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -7135,9 +6775,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -7179,9 +6816,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -7231,9 +6865,6 @@
       "alias_matching": "disabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -7292,9 +6923,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -7335,9 +6963,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -7385,9 +7010,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -7432,9 +7054,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -7480,9 +7099,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -7523,9 +7139,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -7567,9 +7180,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -7615,9 +7225,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -7663,9 +7270,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -7722,9 +7326,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -7767,9 +7368,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -7811,9 +7409,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -7855,9 +7450,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -7901,9 +7493,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -7950,9 +7539,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -7997,9 +7583,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -8039,9 +7622,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -8081,9 +7661,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_ncl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -8193,9 +7770,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -8258,9 +7832,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -8310,9 +7881,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -8366,9 +7934,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -8409,9 +7974,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -8463,9 +8025,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -8517,9 +8076,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -8567,9 +8123,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -8607,9 +8160,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -8647,9 +8197,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -8692,9 +8239,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -8741,9 +8285,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -8784,9 +8325,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -8823,9 +8361,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -8865,9 +8400,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -8911,9 +8443,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -8957,9 +8486,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -9001,9 +8527,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -9045,9 +8568,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -9090,9 +8610,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -9131,9 +8648,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -9171,9 +8685,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -9216,9 +8727,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -9257,9 +8765,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -9295,9 +8800,6 @@
       "alias_matching": "disabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -9357,9 +8859,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -9412,9 +8911,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -9459,9 +8955,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -9500,9 +8993,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -9547,9 +9037,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -9595,9 +9082,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -9638,9 +9122,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -9682,9 +9163,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -9730,9 +9208,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -9779,9 +9254,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -9822,9 +9294,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -9864,9 +9333,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -9909,9 +9375,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -9950,9 +9413,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -9991,9 +9451,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -10038,9 +9495,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -10082,9 +9536,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -10126,9 +9577,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -10188,9 +9636,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -10242,9 +9687,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -10285,9 +9727,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -10331,9 +9770,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -10377,9 +9813,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -10419,9 +9852,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -10461,9 +9891,6 @@
       "alias_matching": "enabled",
       "inherits": "bs_cl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -10677,9 +10104,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -10726,9 +10150,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -10765,9 +10186,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -10807,9 +10225,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -10846,9 +10261,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -10888,9 +10300,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -10940,9 +10349,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -10980,9 +10386,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -11018,9 +10421,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -11059,9 +10459,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -11118,9 +10515,6 @@
       "alias_matching": "disabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -11273,9 +10667,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -11327,9 +10718,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -11387,9 +10775,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -11427,9 +10812,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -11468,9 +10850,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -11516,9 +10895,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -11580,9 +10956,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -11646,9 +11019,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -11711,9 +11081,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -11766,9 +11133,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -11813,9 +11177,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -11860,9 +11221,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -11900,9 +11258,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -11945,9 +11300,6 @@
       "alias_matching": "disabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -12001,9 +11353,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -12041,9 +11390,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -12084,9 +11430,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -12128,9 +11471,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -12175,9 +11515,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -12230,9 +11567,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -12277,9 +11611,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -12319,9 +11650,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -12361,9 +11689,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -12406,9 +11731,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -12458,9 +11780,6 @@
       "alias_matching": "disabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -12520,9 +11839,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -12568,9 +11884,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -12619,9 +11932,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -12659,9 +11969,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -12757,9 +12064,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -12797,9 +12101,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -12839,9 +12140,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -12885,9 +12183,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -12934,9 +12229,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -12982,9 +12274,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13042,9 +12331,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13092,9 +12378,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13138,9 +12421,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13178,9 +12458,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13220,9 +12497,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13263,9 +12537,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13304,9 +12575,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13360,9 +12628,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13413,9 +12678,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13498,9 +12760,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13552,9 +12811,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13602,9 +12858,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13642,9 +12895,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13685,9 +12935,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13732,9 +12979,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13771,9 +13015,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13815,9 +13056,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13859,9 +13097,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13901,9 +13136,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13942,9 +13174,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13982,9 +13211,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14028,9 +13254,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14121,9 +13344,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14168,9 +13388,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14211,9 +13428,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14252,9 +13466,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14291,9 +13502,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14338,9 +13546,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14388,9 +13593,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14430,9 +13632,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14578,9 +13777,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14628,9 +13824,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14666,9 +13859,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14810,9 +14000,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14848,9 +14035,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14894,9 +14078,6 @@
       "alias_matching": "enabled",
       "inherits": "is_pl",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -15017,9 +14198,6 @@
       "alias_matching": "enabled",
       "inherits": "is_oci",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_oci.",
@@ -15074,9 +14252,6 @@
       "alias_matching": "enabled",
       "inherits": "is_oci",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_oci.",
@@ -15126,9 +14301,6 @@
       "alias_matching": "enabled",
       "inherits": "is_oci",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_oci.",
@@ -15178,9 +14350,6 @@
       "alias_matching": "enabled",
       "inherits": "is_oci",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_oci.",
@@ -15228,9 +14397,6 @@
       "alias_matching": "enabled",
       "inherits": "is_oci",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_oci.",
@@ -15271,9 +14437,6 @@
       "alias_matching": "enabled",
       "inherits": "is_oci",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_oci.",
@@ -15327,9 +14490,6 @@
       "alias_matching": "disabled",
       "inherits": "is_oci",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_oci.",
@@ -15426,9 +14586,6 @@
       "alias_matching": "enabled",
       "inherits": "is_retained",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_retained.",
@@ -15479,9 +14636,6 @@
       "alias_matching": "enabled",
       "inherits": "is_retained",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_retained.",
@@ -15536,9 +14690,6 @@
       "alias_matching": "enabled",
       "inherits": "is_retained",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_retained.",
@@ -15591,9 +14742,6 @@
       "alias_matching": "enabled",
       "inherits": "is_retained",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_retained.",
@@ -15642,9 +14790,6 @@
       "alias_matching": "enabled",
       "inherits": "is_retained",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_retained.",
@@ -15693,9 +14838,6 @@
       "alias_matching": "enabled",
       "inherits": "is_retained",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_retained.",
@@ -15743,9 +14885,6 @@
       "alias_matching": "disabled",
       "inherits": "is_retained",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Income Statement / is_retained.",
@@ -15801,9 +14940,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -15862,9 +14998,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -15900,9 +15033,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -15939,9 +15069,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -15991,9 +15118,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -16047,9 +15171,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -16092,9 +15213,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -16137,9 +15255,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -16192,9 +15307,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -16232,9 +15344,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -16284,9 +15393,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -16335,9 +15441,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -16384,9 +15487,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -16427,9 +15527,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -16468,9 +15565,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -16508,9 +15602,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -16548,9 +15639,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -16589,9 +15677,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -16631,9 +15716,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -16672,9 +15754,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -16713,9 +15792,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -16760,9 +15836,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -16806,9 +15879,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -16845,9 +15915,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -16884,9 +15951,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -16924,9 +15988,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -16972,9 +16033,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -17016,9 +16074,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -17065,9 +16120,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -17111,9 +16163,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -17155,9 +16204,6 @@
       "alias_matching": "disabled",
       "inherits": "cf_oper_indirect",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -17256,9 +16302,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_direct",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_direct.",
@@ -17298,9 +16341,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_direct",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_direct.",
@@ -17340,9 +16380,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_direct",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_direct.",
@@ -17382,9 +16419,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_direct",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_direct.",
@@ -17424,9 +16458,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_oper_direct",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_oper_direct.",
@@ -17508,9 +16539,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_investing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -17550,9 +16578,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_investing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -17596,9 +16621,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_investing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -17653,9 +16675,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_investing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -17708,9 +16727,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_investing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -17755,9 +16771,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_investing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -17812,9 +16825,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_investing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -17873,9 +16883,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_investing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -17927,9 +16934,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_investing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -17971,9 +16975,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_investing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -18019,9 +17020,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_investing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -18071,9 +17069,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_investing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -18124,9 +17119,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_investing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -18165,9 +17157,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_investing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -18206,9 +17195,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_investing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -18248,9 +17234,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_investing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -18302,9 +17285,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_investing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -18357,9 +17337,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_investing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -18399,9 +17376,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_investing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -18441,9 +17415,6 @@
       "alias_matching": "disabled",
       "inherits": "cf_investing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -18542,9 +17513,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_financing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -18586,9 +17554,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_financing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -18632,9 +17597,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_financing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -18685,9 +17647,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_financing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -18736,9 +17695,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_financing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -18793,9 +17749,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_financing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -18840,9 +17793,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_financing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -18887,9 +17837,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_financing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -18926,9 +17873,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_financing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -18966,9 +17910,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_financing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -19007,9 +17948,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_financing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -19057,9 +17995,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_financing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -19106,9 +18041,6 @@
       "alias_matching": "disabled",
       "inherits": "cf_financing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -19208,9 +18140,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_financing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -19256,9 +18185,6 @@
       "alias_matching": "enabled",
       "inherits": "cf_financing",
       "face_only": false,
-      "never_sweep": [
-        "True"
-      ],
       "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
       "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
       "section_disambiguation": "Bind only to Cash Flow / cf_financing.",

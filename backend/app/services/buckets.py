@@ -53,6 +53,8 @@ from app.core.models.document import DocumentModel
 from app.core.models.enums import PageKind, PrintedIn
 from app.services.mapping import (
     HEADING_ROW_SECTIONS,
+    _COMPACT_SECTION_TOKENS,
+    _STATEMENT_OF_PREFIX,
     normalize_statement,
     section_of_banner,
     section_of_key,
@@ -80,20 +82,20 @@ BUCKET_KEYS: tuple[str, ...] = tuple(k for k, _ in BUCKETS)
 BUCKET_LABELS: dict[str, str] = dict(BUCKETS)
 OTHERS = "others"
 
-_COMPACT_SECTION_TOKENS: dict[str, str] = {
-    "bs_nca": "non_current_assets",
-    "bs_ca": "current_assets",
-    "bs_ncl": "non_current_liabilities",
-    "bs_cl": "current_liabilities",
-    "bs_equity": "equity",
-    "is_oci": "other_comprehensive_income",
-    "cf_oper_indirect": "cash_flow_from_operating_activities",
-    "cf_oper_direct": "cash_flow_from_operating_activities",
-    "cf_investing": "cash_flow_from_investing_activities",
-    "cf_financing": "cash_flow_from_financing_activities",
-    "is_pl": "income_and_expenses",
-    "is_retained": "adjustments_to_retained_profits",
-}
+# The compact scope vocabulary and the statement-prefix vocabulary are IMPORTED, not restated. Both
+# describe what a TEMPLATE writes — the ids a rulebook author types — so mapping owns them (it is
+# where the gate compares them to a page's verdict) and this module reads them. ``section_token`` and
+# ``mapping.section_token_of_scope`` must answer the same question the same way, or a concept the gate
+# scoped to a section lands in a bucket that section does not feed.
+#
+# THIS FILE HELD ITS OWN COPY OF BOTH, and the second one had already drifted: the statement table
+# said ``"eq" -> "equity_changes"`` where mapping says ``"eq" -> "changes_in_equity"``. Latent only
+# because no shipped rulebook carries an ``eq_``-prefixed key or scope (0 of 475 definitions, 0 of
+# 462 concepts) and because both callers fold the result through ``normalize_statement`` anyway — but
+# ``statement_of_section`` is public and hands that spelling out unfolded, and this is the third time
+# these two spellings have been found in two places (a ``SearchScope`` token, then the statement
+# gate, where the mismatch refused every line item in the statement on every page of it). A corrected
+# duplicate is still a duplicate; one object cannot diverge.
 
 # Section token → bucket. The tokens are the template's own section phrases with the statement and
 # ordinal stripped (``bs_s2_current_assets`` → ``current_assets``), so this table and a rulebook
@@ -208,11 +210,15 @@ _STATEMENT_BUCKETS: dict[str, str] = {
     "changes_in_equity": "changes_in_equity",
 }
 
-# ``bs_s2_current_assets`` -> ``current_assets``; ``bs_top_level`` -> ``top_level``.
-_SECTION_PREFIX = re.compile(r"^(?:bs|pl|cf|eq)_(?:s\d+[a-z]?_)?")
-_SECTION_STATEMENTS: dict[str, str] = {
-    "bs": "balance_sheet", "pl": "profit_and_loss", "cf": "cash_flow", "eq": "equity_changes",
-}
+# ``bs_s2_current_assets`` -> ``current_assets``; ``bs_top_level`` -> ``top_level``. Built from the
+# imported prefix table rather than spelling the four prefixes a third time: a fifth statement added
+# to mapping must strip here too, or its sections would keep their ``xx_s1_`` head and match no
+# phrase — the whole statement filed as ``unknown_section``. Longest-first because the alternation is
+# ordered and a prefix that is another's head ("cf" / "cfx") would otherwise shadow it; the four
+# today are all two characters, so this is a guard and not a fix.
+_SECTION_PREFIX = re.compile(
+    r"^(?:" + "|".join(sorted(_STATEMENT_OF_PREFIX, key=len, reverse=True))
+    + r")_(?:s\d+[a-z]?_)?")
 
 
 def statement_of_section(section: str | None) -> str | None:
@@ -222,9 +228,15 @@ def statement_of_section(section: str | None) -> str | None:
     operating expenses is printed on a notes page, not on the income statement. Without this, every
     note whose rows resolve to a P&L or cash-flow section would fall to Others — the section token
     alone ("expenses", "cash_flow_from_operating_activities") only answers for the balance sheet.
+
+    The spelling is mapping's, because this is a namespace prefix read the same way
+    :func:`mapping.statement_of_key` reads it — the same table, so the two cannot answer differently
+    for the same ``eq_``/``bs_`` head. Callers still fold through ``normalize_statement`` since a
+    caller's OWN statement (a page classifier's verdict, a rulebook's ``statement`` field) may arrive
+    in either vocabulary; what this returns is already canonical.
     """
     head = (section or "").split("_", 1)[0]
-    return _SECTION_STATEMENTS.get(head)
+    return _STATEMENT_OF_PREFIX.get(head)
 
 
 def section_token(section: str) -> str:

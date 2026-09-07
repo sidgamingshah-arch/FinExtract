@@ -21,9 +21,17 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.models.enums import SignConvention, StatementType
+
+# A ``never_sweep`` entry that is a stringified boolean, which is what a spreadsheet round-trip
+# produces: the ontology workbook has a "Never sweep" column read as
+# ``_split_comma(_cv(r, "Never sweep"))`` (``scripts/build_output_csv_template.py``), so a TRUE
+# ticked in that cell arrives as the one-element list ``["True"]`` instead of a list of keys.
+# Compared case-insensitively because the same cell yields "TRUE"/"True"/"true" depending on how
+# the sheet was written.
+_BOOLISH_NEVER_SWEEP = frozenset({"true", "false"})
 
 
 class NumberFormat(BaseModel):
@@ -186,6 +194,10 @@ class OntologyMapping(BaseModel):
     # the LLM), and the keys it must never absorb however similar the wording.
     residual_policy: ResidualPolicy | None = None
     expected_components: list[str] = Field(default_factory=list)
+    # Every entry NAMES SOMETHING: a ``canonical_key``, which ``residual._residuals`` expands to
+    # that concept's captions in every locale, or a sentence, kept as prose and matched against a
+    # candidate caption. There is no third thing for the sweep to do with an entry, which is why
+    # a boolean in here is refused rather than ignored — see :meth:`_refuse_boolish_never_sweep`.
     never_sweep: list[str] = Field(default_factory=list)
     # Prose the LLM is shown or a reviewer reads; free-form by nature.
     derivation: str | None = None                     # how the value is computed when not printed
@@ -193,6 +205,45 @@ class OntologyMapping(BaseModel):
     aggregation_note: str | None = None               # several printed rows sum into one concept
     template_note: str | None = None                  # a known disagreement with the template
     equivalence: Equivalence | None = None
+
+    @field_validator("never_sweep", mode="before")
+    @classmethod
+    def _refuse_boolish_never_sweep(cls, value):
+        """Refuse a boolean-ish ``never_sweep`` entry, because it silently protects nothing.
+
+        MEASURED on the shipped ``output_csv_hk_ontology.json``: 358 of its 462 concepts carried
+        ``never_sweep: ["True"]`` and not one of them refused a single caption. The field names
+        things, so the string was looked up as a ``canonical_key``, missed (nothing is keyed
+        "True"), and fell through to the prose branch as ``"true"`` —
+        :func:`app.stages.residual._vetoed_by_never_sweep` then asks whether a candidate caption is
+        a SUBSTRING of that sentence, and the only caption that can be is "true" itself. Against
+        the 1,993 captions the rulebook itself knows, it vetoed 0. 347 of the 358 were not even
+        residuals, and ``_residuals`` skips those, so the field was never read for them at all.
+
+        A bool cannot be the missing "never sweep this concept AT ALL" switch either: that already
+        exists as prohibition 4 (``never_untested``), which refuses a row printed with a dedicated
+        concept's own caption in that concept's own section, and it covered all 347 of them
+        (measured 347/347) without a word of per-concept authoring. So a boolean here is an
+        authoring error with no reading that does anything, and it is refused at the door in the
+        same spirit as ``loader._refuse_self_vetoing_concepts``: an entry that protects nothing
+        looks exactly like an entry that protects something, and there is nowhere to look for the
+        reason. Run ``mode="before"`` so JSON ``true`` is caught with this message rather than
+        pydantic's bare "Input should be a valid string", which explains nothing to the author.
+        """
+        if not isinstance(value, (list, tuple)):
+            return value
+        bad = [entry for entry in value
+               if isinstance(entry, bool)
+               or (isinstance(entry, str) and entry.strip().lower() in _BOOLISH_NEVER_SWEEP)]
+        if bad:
+            raise ValueError(
+                f"never_sweep entries must name a canonical_key or state a sentence; "
+                f"{bad!r} is a boolean, which names nothing and so refuses nothing. If the intent "
+                f"was 'this concept is never swept', that is already prohibition 4 "
+                f"(residual_framework.prohibitions, 'never absorbs a row a dedicated concept "
+                f"could have claimed'); if it was 'this residual must not absorb X', list X."
+            )
+        return value
 
     def meaning(self) -> str:
         """Best available semantic text for description-based matching."""

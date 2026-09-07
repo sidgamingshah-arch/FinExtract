@@ -52,8 +52,10 @@ anywhere, exactly as it was before the gate existed.
 """
 from __future__ import annotations
 
+import functools
+import itertools
 import re
-from typing import Callable, Literal
+from typing import Callable, Iterable, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -594,6 +596,382 @@ class ConceptFamily(BaseModel):
     note: str = ""
 
 
+# ── caption normalisation: authorable patterns, and the property that keeps them safe ────────
+#
+# WHY THESE ARE VOCABULARY. `normalize_label` carries three CAS strippers, and each one exists
+# because of a shape a FILING printed: a line enumerator and its 其中：/加：/减： component markers
+# (`_CAS_LINE_PREFIX`), the sign-convention parenthetical a mainland caption carries about itself
+# (`_CAS_SIGN_NOTE`), and the orphaned tail a wrapped caption leaves on the front of the next one
+# (`_CAS_ORPHAN_HEAD`). The middle one was measured on 四创电子 (11077098): twenty-three captions
+# carried it and it defeated the match on every one, leaving the whole bottom of the income
+# statement unreachable. That is the definition of vocabulary — the next framework's enumerator
+# should be an edit, not a release.
+#
+# WHAT THE ORDER IS AND IS NOT DOING, MEASURED TWICE. `normalize_label` says "ORDER MATTERS
+# HERE". Across all six permutations on the eight real mainland captions in
+# `scripts/demo_code_vs_config.py`, 0 of 8 change answer, which reads as a refutation — but that
+# corpus carries no orphaned wrap fragment, and the fragment is the whole point of the third
+# rule. Add the string `_CAS_ORPHAN_HEAD`'s own comment quotes and the answer flips: on
+# `填列） 三、营业利润（亏损以“－”号填列）` three of six orders give `营业利润` and three give
+# `三、营业利润`, and the same 3/3 split holds on `parity_normalisation.py`'s `cas_stacked` shape.
+# 4 of 12 order-sensitive, and the demo's corpus could not see any of them.
+#
+# SO THERE ARE TWO KINDS OF ORDER-DEPENDENCE, and only one of them is a defect.
+#
+#   REVELATION — one transform's removal UNBLOCKS another. Both `_CAS_ORPHAN_HEAD` and
+#   `_CAS_LINE_PREFIX` are anchored at `^`, so while the orphaned fragment sits in front of the
+#   enumerator the prefix rule cannot see it: strip the fragment first and 三、 goes, strip it
+#   second and 三、 stays. `normalize_label`'s comment says exactly this ("it sits in FRONT of the
+#   enumerator the prefix rule is looking for"). The patterns never contend for a character —
+#   measured, their match spans are disjoint on every probe — and the wrong order UNDER-strips.
+#   An under-stripped caption keeps more of what the filing printed, so it either matches or it
+#   does not; it cannot become a caption the filing never printed.
+#
+#   OVERLAP — two transforms claim the SAME characters, and the order decides which text is
+#   destroyed. Substitute one plausible authored orphan head — `^.*?[）)]\s*`, which is what
+#   someone reaching for "drop the fragment up to the first closing bracket" writes — and its span
+#   on 减：营业成本（以“-”号填列） is the whole caption, swallowing both the enumerator's span and
+#   the sign note's. Three of six orders then ERASE THE CAPTION ENTIRELY and three leave
+#   营业成本. What survives depends on the order and is text the filing never printed as a caption.
+#
+# THE SEVERITIES ARE NOT THE SAME SEVERITY, which is the reason this file refuses one and records
+# the other. `parity_normalisation.py` measured the difference on a real perturbation: of 1,050
+# moved resolutions, 976 fell to unmatched and 74 landed on a DIFFERENT concept — "an unmatched
+# row is swept into its section's residual and itemised under its own label, so the statement
+# still ties and a reviewer can see the caption; a row on the wrong specific line also ties and
+# looks finished." Revelation can only produce the first. Overlap is how you get the second.
+#
+# So the invariant is that no two declared transforms OVERLAP. Order-dependence without overlap
+# is real, is recorded, and is what the declaration order is for.
+
+_META = set("\\[](){}|?*+^$.")
+
+# The parse walk below reads a compiled pattern's own syntax tree. The module that exposes it was
+# renamed in 3.11 (`sre_parse` -> `re._parser`, with the old name kept as a deprecated shim), and
+# both are private, so this is tried in order and the whole feature degrades to `_literal_run`
+# rather than failing to import.
+try:                                          # 3.11+
+    import re._parser as _PARSER              # type: ignore[import-not-found]
+except ImportError:                           # pragma: no cover - 3.8-3.10
+    try:
+        import sre_parse as _PARSER           # type: ignore[no-redef]
+    except ImportError:                       # pragma: no cover
+        _PARSER = None                        # type: ignore[assignment]
+
+
+@functools.lru_cache(maxsize=512)
+def _compiled(pattern: str) -> re.Pattern[str]:
+    """One compiled object per pattern string, because the order check applies each one a few
+    thousand times per load (207 probes × six orders on the shipped three) and `re`'s own cache is
+    512 entries shared with everything else in the process."""
+    return re.compile(pattern)
+
+
+def _fold(text: str) -> str:
+    """Whitespace-collapsed, exactly as `normalize_label` finishes.
+
+    THE COMPARISON IS MADE HERE AND NOT ON THE RAW SUBSTITUTION RESULT, because `normalize_label`
+    collapses runs of whitespace and strips the ends three lines after the CAS rules run — so a
+    difference in spacing is not observable by anything downstream and cannot change which line
+    item a caption resolves to.
+
+    Measured, the raw comparison manufactures findings whose entire content is a space. On the
+    enumerator-plus-sign-note probe ` 一 、  （a号 填列 ）` the shipped rules give `' '` one way and
+    `''` the other: `_CAS_LINE_PREFIX`'s trailing `\\s*` consumes the space the sign-note
+    substitution left when the prefix runs second, and there is nothing following it to consume
+    when the prefix runs first. Folded, both are `''`. A list of order-sensitive probes is only
+    worth reading if every line in it is a real one.
+    """
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _literal_run(pattern: str) -> str:
+    """The pattern's literal characters, as a LAST RESORT when the parse walk is unavailable.
+
+    Crude on purpose — it keeps character-class contents and quantifier bounds, so what comes back
+    usually matches nothing. That is acceptable: a probe no transform matches is inert rather than
+    wrong (every order leaves it alone), so this degrades the corpus instead of corrupting it.
+    """
+    out, i = [], 0
+    while i < len(pattern):
+        c = pattern[i]
+        if c == "\\":
+            i += 2                            # skip the escape and whatever it escapes
+            continue
+        if c not in _META:
+            out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def _emit(seq) -> str:
+    """One shortest-ish string for a parsed sub-pattern.
+
+    DISPATCH IS ON THE OPCODE'S NAME, not on the constant, because the constants live in the
+    private module that was renamed in 3.11 and importing them by name from either spelling is
+    one more thing to get wrong per version. The names have been stable since the module existed.
+
+    Zero-width assertions (`^`, `$`, a lookahead) contribute nothing, which is what makes the
+    result a probe rather than a proof: `(?!\\d)` is satisfied by the emitted text or it is not,
+    and `_witness_of` checks rather than assumes.
+    """
+    out: list[str] = []
+    for op, av in seq:
+        name = str(op)
+        if "REPEAT" in name:                  # MAX_REPEAT / MIN_REPEAT / POSSESSIVE_REPEAT
+            lo, hi, sub = av
+            # One copy for an optional atom, so `[^（(]*?` still contributes a character and the
+            # probe exercises the run rather than skipping it. Capped at 4 so a `{1000}` bound
+            # cannot turn a probe into a kilobyte.
+            reps = min(lo if lo > 0 else 1, hi if isinstance(hi, int) else 4, 4)
+            out.append(_emit(sub) * reps)
+        elif "NOT_LITERAL" in name:
+            out.append("x" if av != ord("x") else "y")
+        elif "LITERAL" in name:
+            out.append(chr(av))
+        elif name == "ANY":
+            out.append("x")
+        elif name == "IN":
+            out.append(_from_class(av))
+        elif name == "CATEGORY":
+            out.append(_from_category(av))
+        elif name == "SUBPATTERN":
+            out.append(_emit(av[3]))
+        elif name == "ATOMIC_GROUP":
+            out.append(_emit(av))
+        elif name == "BRANCH":
+            out.append(_emit(av[1][0]))       # the first alternative; one witness is enough
+        # AT / ASSERT / ASSERT_NOT / GROUPREF and anything a future version adds: zero-width or
+        # unrepresentable, so they contribute nothing and the verification step decides.
+    return "".join(out)
+
+
+def _from_category(cat) -> str:
+    c = str(cat)
+    if "NOT" in c:
+        return "-"                            # not a digit, not a space, not a word character
+    return "1" if "DIGIT" in c else " " if "SPACE" in c else "a"
+
+
+def _from_class(items) -> str:
+    """One character satisfying a character class, negation included."""
+    if items and str(items[0][0]) == "NEGATE":
+        banned: set[str] = set()
+        for op, av in items[1:]:
+            name = str(op)
+            if "LITERAL" in name:
+                banned.add(chr(av))
+            elif name == "RANGE":
+                # Bounded: a negated class over a Han block is a 20,000-character range and
+                # expanding it to pick one letter would be the slowest line in the file.
+                banned.update(chr(c) for c in range(av[0], min(av[1], av[0] + 256) + 1))
+        return next((c for c in "abcxyz1 " if c not in banned), "?")
+    for op, av in items:
+        name = str(op)
+        if "LITERAL" in name:
+            return chr(av)
+        if name == "RANGE":
+            return chr(av[0])
+        if name == "CATEGORY":
+            return _from_category(av)
+    return "x"
+
+
+@functools.lru_cache(maxsize=512)
+def _witness_of(pattern: str) -> str:
+    """A short string this pattern matches, synthesised FROM THE PATTERN ITSELF, or "".
+
+    WHY THE PROBES ARE DERIVED THIS WAY. A behavioural order check is only as good as the strings
+    it runs on, and the two obvious corpora are both wrong on their own. The set's captions are
+    stored CLEAN — the rulebook holds 营业利润, never 三、营业利润（亏损以“－”号填列） — so a corpus
+    of aliases alone would exercise the identity transform and none of the strippers, which is the
+    same trap `parity_normalisation.py` documents at length and answers by synthesising printed
+    variants. A hand-written probe list is worse still: it pins whatever its author already thought
+    of, and a transform someone adds next year is checked against probes written before it existed.
+    Deriving one witness per declared pattern means every transform brings its own probe, so the
+    corpus grows with the declaration instead of behind it.
+
+    VERIFIED, NEVER ASSUMED. The walk is a heuristic over a private parse tree; what it returns is
+    checked with `search` and discarded for `_literal_run` if it does not match, so a witness the
+    generator gets wrong weakens the corpus rather than silently passing the check.
+    """
+    if _PARSER is not None:
+        try:
+            candidate = _emit(_PARSER.parse(pattern))
+        except Exception:                     # a private parser, so any failure is possible
+            candidate = ""
+        if candidate and _compiled(pattern).search(candidate):
+            return candidate
+    return _literal_run(pattern)
+
+
+def _stride(seq: list[str], cap: int) -> list[str]:
+    """At most `cap` items, spread evenly and deterministically over `seq`.
+
+    Evenly rather than the first `cap`, because the shipped set is ordered by statement and the
+    first 210 of its 475 items are the balance sheet — the first 32 captions in file order are all
+    `bs_nca`. A prefix sample would probe no P&L caption at all, and the CAS sign note is a P&L
+    phenomenon: it was measured on twenty-three captions at the bottom of an income statement.
+    """
+    if len(seq) <= cap:
+        return list(seq)
+    step = len(seq) / cap
+    return [seq[int(i * step)] for i in range(cap)]
+
+
+def _overlap_message(overlaps: list[str]) -> str:
+    """The refusal, naming the transforms and the probe — bounded like the `inherits` one.
+
+    Three shown rather than all of them: one overlapping pattern conflicts on most of the corpus
+    at once, so the hundredth line says nothing the first three did not, and a wall of Han probes
+    is how a real message gets skimmed past.
+    """
+    return ("caption transforms OVERLAP, so which text survives depends on the order they happen "
+            f"to be declared in — {len(overlaps)} probe(s) affected: " + "; ".join(overlaps[:3])
+            + (f" (+{len(overlaps) - 3} more)" if len(overlaps) > 3 else ""))
+
+
+# How many of the set's own captions reach the corpus. The live filter usually cuts far harder
+# than either of these; they exist so a transform that matches EVERY caption (a bare `^` anchor,
+# say) cannot turn one model load into a several-second regex run.
+_PROBE_CAPTIONS = 200
+# Captions that get decorated with each witness. Smaller because the decoration multiplies by
+# 2 × the number of transforms, and the decorated probes are the redundant half: a caption that
+# already trips a transform is in the corpus undecorated.
+_DECORATED_CAPTIONS = 32
+# Above this many transforms the full-pipeline sample stops being every permutation. 5! = 120
+# orders × a few hundred probes × 5 substitutions each is where a model load starts being felt,
+# and the pairwise scan has already covered every two-transform interaction by then.
+_PERMUTE_UP_TO = 4
+
+
+class CaptionTransform(BaseModel):
+    """One caption-normalisation substitution, declared rather than compiled in.
+
+    `id` is not decoration: it is what the overlap refusal names, and a message saying "the second
+    and third patterns overlap" sends a reviewer counting list entries in a JSON file.
+
+    THE THREE SHIPPED CAS RULES NEED EXACTLY THESE FIELDS, which is why there are no others:
+    `_CAS_SIGN_NOTE` replaces EVERY occurrence with a space (a wrap merge glues two captions and
+    two sign notes onto one line), `_CAS_ORPHAN_HEAD` replaces the FIRST with nothing, and
+    `_CAS_LINE_PREFIX` replaces the first with nothing UP TO THREE TIMES because a continuation
+    line can carry an enumerator and a component marker at once.
+
+    `passes` is the numeric half of a threshold, and the split is the one this codebase makes
+    everywhere: the NUMBER is config, the fact that the loop is bounded at all is code. An
+    unbounded fixed-point loop over an authored pattern is a caption of nothing but markers away
+    from spinning, so `apply` iterates to a fixed point and stops.
+    """
+
+    id: str
+    pattern: str
+    # A SPACE, NOT THE EMPTY STRING, because the failure mode of "" is silent: dropping a stripped
+    # middle glues its neighbours into a token neither caption carried. Five of the seven
+    # substitutions in `normalize_label` use a space for exactly that reason; the two that use ""
+    # are the two anchored at the front, where the leading space would be stripped anyway.
+    replacement: str = " "
+    # `re.sub`'s own convention — 0 is every occurrence — so a reader who knows the stdlib knows
+    # this field, and a reader who does not looks the right thing up.
+    count: int = Field(default=0, ge=0)
+    # Bounded at 8: the worst real caption in the corpus (`cas_stacked` in
+    # `parity_normalisation.py` — an orphan fragment, an enumerator and a component marker on one
+    # wrapped line) reaches its fixed point in two, and the shipped loop bounds at three. A
+    # pattern still moving after eight is consuming one character per pass, which is a different
+    # bug and should be read as one.
+    passes: int = Field(default=1, ge=1, le=8)
+    note: str = ""                            # why this shape appears in a filing, for a reviewer
+
+    @model_validator(mode="after")
+    def _named_and_compilable(self):
+        if not self.id.strip():
+            raise ValueError("a caption transform needs an `id` — it is what the overlap "
+                             "refusal names")
+        _refuse_uncompilable((f"caption_transforms[{self.id}].pattern", [self.pattern]))
+        return self
+
+    def apply(self, text: str) -> str:
+        """This transform alone, run to a fixed point within `passes`."""
+        pattern = _compiled(self.pattern)
+        for _ in range(self.passes):
+            folded = pattern.sub(self.replacement, text, count=self.count)
+            if folded == text:
+                break
+            text = folded
+        return text
+
+    def matches(self, text: str) -> bool:
+        return bool(_compiled(self.pattern).search(text))
+
+    def spans(self, text: str) -> list[tuple[int, int]]:
+        """The character ranges ONE PASS of this transform would replace.
+
+        The overlap test is a comparison of these, and it has to honour `count` to mean anything:
+        `_CAS_ORPHAN_HEAD` replaces the FIRST match only, so a second match further along the
+        string is not a range it claims and an intersection there would be a phantom conflict.
+
+        ZERO-WIDTH MATCHES ARE DROPPED. A pattern that can match the empty string (`\\s*` alone,
+        or a group every branch of which is optional) reports a match at every position while
+        replacing nothing, so counting those as claimed characters would make every such transform
+        overlap everything, refuse the set, and name a conflict over text neither pattern touches.
+        """
+        out: list[tuple[int, int]] = []
+        for m in _compiled(self.pattern).finditer(text):
+            if m.start() != m.end():
+                out.append((m.start(), m.end()))
+                if self.count and len(out) >= self.count:
+                    break
+        return out
+
+    def witness(self) -> str:
+        """A string this pattern matches, built from the pattern — see `_witness_of`."""
+        return _witness_of(self.pattern)
+
+
+class PatternOverlap(ValueError):
+    """Two declared caption transforms claim the same characters, so the order decides the fold."""
+
+
+def _contended(a: CaptionTransform, b: CaptionTransform, probe: str) -> str:
+    """The characters both transforms would replace, on `probe` or on either's output. "" if none.
+
+    The INTERSECTION of the two spans and not their union, because this string is the evidence
+    printed after "both claim" in the refusal, and the union is text one of them merely surrounds.
+
+    THREE STATES, NOT ONE, because a pair can be disjoint on the input and contend on what one of
+    them leaves behind — the shipped `_CAS_LINE_PREFIX` matches nothing at all until the orphaned
+    fragment in front of it is gone, so judging that pair on the probe alone would be reading a
+    transform with no spans at all and concluding whatever it liked from that.
+
+    THE KNOWN GAP, stated rather than papered over: mid-`passes` states are not walked, so a pair
+    that first collides on a transform's second or third pass is classified as a revelation and
+    lands in `order_sensitive_probes` instead of being refused. It is detected either way — the
+    disagreement is what triggered this call — so it is visible and not silent. Reaching that gap
+    takes one transform manufacturing the other's material out of its own output, which no shipped
+    or plausible authored rule does.
+    """
+    for state in (probe, a.apply(probe), b.apply(probe)):
+        for s1, e1 in a.spans(state):
+            for s2, e2 in b.spans(state):
+                if s1 < e2 and s2 < e1:
+                    return state[max(s1, s2):min(e1, e2)]
+    return ""
+
+
+class TransformOrderCheck(BaseModel):
+    """What running the declared transforms in several orders found, sorted by what it costs.
+
+    `overlaps` refuse the set; `revelations` do not. The split is the whole content of this model
+    and `transform_order_check` argues it: overlap destroys text the filing printed and what
+    survives is a caption it never printed, while a revelation only under-strips. Kept as two
+    lists of message strings rather than a structured pair because every consumer of them —
+    the refusal, a screen, a build script — wants the sentence, and the sentence has to name the
+    two transforms and the probe or it is not actionable.
+    """
+
+    overlaps: list[str] = Field(default_factory=list)
+    revelations: list[str] = Field(default_factory=list)
+
+
 class MappingVocabulary(BaseModel):
     """The vocabularies the MATCHER runs on, which used to be Python constants.
 
@@ -627,6 +1005,216 @@ class MappingVocabulary(BaseModel):
     # `_KEY_SECTION_OVERRIDES`. Carried for completeness, but the projection now writes the
     # correction straight into `section_scope`, so a merged set should declare none.
     section_overrides: dict[str, str] = Field(default_factory=dict)
+    # The caption-normalisation substitutions, in the order they are applied. Declaration order IS
+    # the application order and it is load-bearing for the reason `normalize_label`'s own comment
+    # gives — an anchored rule cannot see past what is still in front of it — so the ordering
+    # freedom `refuse_overlapping_transforms` buys is not "any order works", it is "no order
+    # destroys text another rule was going to read".
+    #
+    # EMPTY MEANS THE BUILT-IN, as everywhere else in this class: a set declaring none folds
+    # captions through `mapping.normalize_label`'s own chain, exactly as every shipped set does
+    # today. NOTHING READS THIS YET — `normalize_label` still holds the three CAS rules as module
+    # constants, and wiring it to prefer a declaration is a change to `services.mapping` held by
+    # `scripts/parity_normalisation.py`, which pins the fold of 22,000 captions and is the only
+    # thing that can tell a migration from a regression. Declared config that nothing consults is
+    # normally worse than none — it reads as a control — so what this field earns before that
+    # wiring lands is the validator below: the span-disjointness these three patterns have by
+    # authorship becomes a property an authored set is REFUSED for lacking, which had to exist
+    # before the patterns could leave code at all.
+    caption_transforms: list[CaptionTransform] = Field(default_factory=list)
+    # THE CHARACTER INVENTORIES the caption patterns are BUILT FROM — brackets, quote marks, the
+    # note words, colon marks, digit and Han code-point ranges, the CAS enumerators, delimiters,
+    # component markers and sign-note words. `mapping.build_caption_patterns` consumes exactly this
+    # shape and falls back to `mapping._BUILTIN_CAPTION_INVENTORY` ENTRY BY ENTRY, so a set
+    # declaring one key keeps the built-in for the other twelve.
+    #
+    # THIS IS THE HALF THAT IS SAFE TO AUTHOR, and the distinction is the whole conclusion of the
+    # boundary work. The pattern SHAPE — the `^` anchors, the `[^（(]` non-crossing classes, "both
+    # ends must carry a quote", the digit caps — is a protective skeleton, and exposing a
+    # `pattern: str` lets one edit satisfy the vocabulary half and destroy the skeleton on the same
+    # line. Exposing the inventory instead cannot: a new quote mark or bracket width is additive
+    # and the skeleton is unreachable.
+    #
+    # It is what a filing forces. Measured: with `_ABBREV_GLOSS` disabled, 1,050 of 1,993 rulebook
+    # captions resolve differently and 74 land on a DIFFERENT concept — and a filing that glosses
+    # with ＂ or ﹁﹂ rather than the twelve marks below gets exactly that outcome today, with
+    # nowhere in 475 definitions to say those marks count.
+    caption_characters: dict[str, list] = Field(default_factory=dict)
+
+    def apply_caption_transforms(self, text: str) -> str:
+        """Every declared transform, in declaration order. Untouched when none are declared.
+
+        One implementation, so a consumer never grows a second one — the mistake
+        `line_item_matching` opens its module docstring by refusing ("NORMALISATION IS IMPORTED,
+        NEVER REIMPLEMENTED"), because two engines reading two folds agree on nothing useful.
+        """
+        for transform in self.caption_transforms:
+            text = transform.apply(text)
+        return text
+
+    def transform_probes(self, captions: Iterable[str] = ()) -> list[str]:
+        """The strings the order check runs on, MOST DIAGNOSTIC FIRST.
+
+        Ordered deliberately, because a message shows the first probe that failed and a real alias
+        out of the set is a sentence a reviewer can act on where `'（a号 填列 ）x） '` is not.
+
+          1. The set's own captions THAT A TRANSFORM ALREADY MATCHES. A caption no transform
+             matches is provably order-free — every transform is a no-op on it, so the string
+             never changes and no later transform can start matching either — which makes this
+             filter a proof rather than a sample.
+
+             MEASURED, THIS KEEPS NONE OF THEM: 0 of the 2,006 caption strings in the shipped
+             set (and 0 of the ontology's 1,993) is matched by any of the three CAS patterns,
+             because a rulebook stores what a caption IS and every one of these patterns exists
+             for what a filing PRINTS around it. That number is the whole argument for the other
+             two sources — a corpus of stored aliases would exercise the identity transform and
+             nothing else, which is the trap `parity_normalisation.py` documents at length and
+             answers the same way, by synthesising the printed form.
+          2. Those same captions WEARING each transform's witness, front and back. The printed
+             shape the clean rulebook never holds: a wrapped caption arrives with the previous
+             one's tail glued to its head. Also where a caption's OWN brackets meet a
+             bracket-hunting pattern — the case `_CAS_ORPHAN_HEAD` calls out by name
+             ("Profit/(loss) before tax" must survive).
+          3. The witnesses themselves and every ordered pairing of them, spaced and unspaced. The
+             only probes a bare vocabulary has, and — since a witness is by construction the
+             material its pattern claims — the ones that collide wherever two patterns do.
+        """
+        transforms = self.caption_transforms
+        if not transforms:
+            return []
+        witnesses = [w for w in (t.witness() for t in transforms) if w]
+        clean = list(dict.fromkeys(c.strip() for c in captions if c and c.strip()))
+
+        probes = _stride([c for c in clean if any(t.matches(c) for t in transforms)],
+                         _PROBE_CAPTIONS)
+        probes += [side for caption in _stride(clean, _DECORATED_CAPTIONS)
+                   for w in witnesses for side in (w + caption, caption + w)]
+        probes += witnesses
+        probes += [glue.join(pair) for pair in itertools.permutations(witnesses, 2)
+                   for glue in ("", " ")]
+        return list(dict.fromkeys(p for p in probes if p))
+
+    def _order_samples(self) -> list[tuple[int, ...]]:
+        """Which whole-pipeline orders get compared.
+
+        Every permutation while that is cheap. Beyond `_PERMUTE_UP_TO` it becomes the declared
+        order, its reverse, and each single adjacent swap — a sample, and said to be one. It is
+        not the load-bearing half of the check: the pairwise scan below covers every two-transform
+        interaction exhaustively, and this exists for a three-way one, where A's output makes B
+        match something C would otherwise have taken.
+        """
+        n = len(self.caption_transforms)
+        base = tuple(range(n))
+        if n <= _PERMUTE_UP_TO:
+            return list(itertools.permutations(base))
+        orders = [base, base[::-1]]
+        for i in range(n - 1):
+            swapped = list(base)
+            swapped[i], swapped[i + 1] = swapped[i + 1], swapped[i]
+            orders.append(tuple(swapped))
+        return list(dict.fromkeys(orders))
+
+    def _in_order(self, order: tuple[int, ...], text: str) -> str:
+        for i in order:
+            text = self.caption_transforms[i].apply(text)
+        return text
+
+    def transform_order_check(self, captions: Iterable[str] = ()) -> TransformOrderCheck:
+        """Run the declared transforms in several orders and sort the disagreements into two.
+
+        BEHAVIOURAL, NOT SYNTACTIC. Deciding regex disjointness statically is undecidable in
+        general, and an attempt at it would be a guess wearing the clothes of a proof — refusing
+        sound configurations and passing unsound ones. So the transforms are RUN and disagreement
+        is the evidence. That is sound in the direction that matters: a reported conflict is a real
+        pair of strings the fold produced, never a false alarm. It is a floor and not a
+        certificate in the other direction — a corpus can miss an overlap — which is why
+        `transform_probes` derives probes from the patterns rather than from a list someone
+        maintains and forgets to extend.
+
+        WHY A DISAGREEMENT IS NOT AUTOMATICALLY A DEFECT. Measured, the three shipped CAS rules
+        disagree across orders on any probe carrying an orphaned wrap fragment, and they must:
+        both `_CAS_ORPHAN_HEAD` and `_CAS_LINE_PREFIX` are anchored at `^`, so the fragment hides
+        the enumerator until it is stripped. Their match SPANS never intersect. Refusing that
+        would refuse the very patterns this field exists to hold, and would be refusing a
+        strictly-less-stripped caption — which loses a match and lands the row in the section
+        residual under its own label, where a reviewer sees it. `spans` intersecting is the other
+        thing: two patterns claiming the same characters, where the order decides which text is
+        DESTROYED and what survives is a caption the filing never printed. That is how a figure
+        reaches a line item that has nothing to do with it, with every subtotal still tying.
+
+        THE PAIRWISE SCAN COMES FIRST because it is the only one that names the culprits.
+        Functions that commute pairwise compose to the same result under every permutation, so a
+        non-commuting pair IS the finding; the whole-pipeline sample is consulted only when no
+        pair can be blamed, and then it names two orders instead.
+        """
+        transforms = self.caption_transforms
+        report = TransformOrderCheck()
+        if len(transforms) < 2:
+            return report                     # one transform has no order to be dependent on
+
+        for probe in self.transform_probes(captions):
+            pair = next(
+                ((a, b, ab, ba) for a, b in itertools.combinations(transforms, 2)
+                 if (ab := _fold(b.apply(a.apply(probe))))
+                 != (ba := _fold(a.apply(b.apply(probe))))),
+                None)
+            if pair is not None:
+                a, b, ab, ba = pair
+                claimed = _contended(a, b, probe)
+                where = (f"{a.id!r} and {b.id!r}" if claimed
+                         else f"{a.id!r} then {b.id!r}")
+                line = (f"{where} disagree on {probe!r}: {a.id}->{b.id} gives {ab!r}, "
+                        f"{b.id}->{a.id} gives {ba!r}")
+                if claimed:
+                    report.overlaps.append(line + f" — both claim {claimed!r}")
+                else:
+                    report.revelations.append(line)
+                continue                      # one blamed pair per probe says enough
+            results: dict[str, tuple[int, ...]] = {}
+            for order in self._order_samples():
+                results.setdefault(_fold(self._in_order(order, probe)), order)
+            if len(results) > 1:
+                (r1, o1), (r2, o2) = list(results.items())[:2]
+                names = lambda o: " -> ".join(transforms[i].id for i in o)  # noqa: E731
+                # No pair to blame, so no pair's spans to compare. Recorded rather than refused:
+                # the evidence available says "three of these interact", which is not evidence
+                # that any two of them destroy each other's text.
+                report.revelations.append(
+                    f"no single pair is to blame but the pipeline is order-dependent on {probe!r}: "
+                    f"{names(o1)} gives {r1!r}, {names(o2)} gives {r2!r}")
+        return report
+
+    @model_validator(mode="after")
+    def refuse_overlapping_transforms(self):
+        """Declared transforms that claim the same characters are refused.
+
+        WHAT THIS IS INSTEAD OF. The claim it replaces was that the ORDER of the CAS transforms
+        had to stay in code because reordering them changes the answer. Reordering them does change
+        the answer — 4 of 12 probes, once the corpus carries an orphaned wrap fragment — but the
+        order is not what protects anything, because it protects nothing once someone can author
+        the patterns. Swap in a plausible orphan head (`^.*?[）)]\\s*`), keep the shipped order, and
+        the caption is erased anyway. What separates the shipped rules from that one is not their
+        order, it is that their match spans do not intersect, and that is the property held here.
+
+        REFUSED AT THE DOOR rather than reported, for the reason `_refuse_uncompilable` gives one
+        class up. An erased or half-eaten caption maps to nothing or to the wrong thing, the row
+        is swept into its section's residual and itemised under its own label, and the section
+        still ties — so there is no broken subtotal for anyone to notice, and the only place this
+        can be caught is where the pattern is written.
+        """
+        ids = [t.id for t in self.caption_transforms]
+        if len(set(ids)) != len(ids):
+            # Checked here rather than passed over because every message this validator can emit
+            # identifies a transform by its id, and two transforms sharing one leaves a refusal
+            # naming a pattern the reader cannot find.
+            dupes = sorted({i for i in ids if ids.count(i) > 1})
+            raise PatternOverlap(
+                f"caption transform ids must be unique — {', '.join(map(repr, dupes))} "
+                f"declared more than once, and every refusal here names transforms by id")
+        overlaps = self.transform_order_check().overlaps
+        if overlaps:
+            raise PatternOverlap(_overlap_message(overlaps))
+        return self
 
     @model_validator(mode="after")
     def refuse_shadowed_banners(self):
@@ -677,6 +1265,10 @@ class LineItemSet(BaseModel):
     # Families whose siblings this set does not define. Populated at load, never authored: a
     # dangling family is inert, and inert config that LOOKS declared is worse than none.
     dangling_families: dict[str, list[str]] = Field(default_factory=dict, exclude=True)
+    # Probes on which the declared caption transforms' ORDER changes the fold without any two of
+    # them claiming the same characters. Populated at load, never authored, same reason as above:
+    # this is order-dependence that is real, is not a defect, and is invisible to everything else.
+    order_sensitive_probes: list[str] = Field(default_factory=list, exclude=True)
     # One definition governing every `exclusive_residual` line item: what may be swept, how it is
     # itemised, how the section must reconcile, and what is forbidden outright. A per-item
     # `residual_policy` overrides a term ONLY where its author wrote that term down — which is why
@@ -711,6 +1303,58 @@ class LineItemSet(BaseModel):
     def live_families(self) -> list[ConceptFamily]:
         """Only the families every sibling of which this set defines."""
         return [f for f in self.vocabulary.families if f.id not in self.dangling_families]
+
+    def caption_corpus(self) -> list[str]:
+        """Every caption string this set carries — label, aliases, and every locale's aliases.
+
+        The same three fields `parity_normalisation.build_corpus` reads off the ontology, and for
+        the same reason: these are the strings a filing is expected to print, so they are the only
+        real text available to a check with no filing in front of it. Measured on the shipped set:
+        2,006 distinct strings, 478 of them carrying Han. The Han half is the half that matters
+        here — it is the only place a CAS witness is glued to text of its own script, and
+        therefore the only place a bracket-hunting pattern can reach into a caption rather than
+        stopping at a script boundary.
+        """
+        out: dict[str, None] = {}
+        for d in self.items:
+            for caption in [d.label, *d.aliases,
+                            *(a for group in d.aliases_i18n.values() for a in group)]:
+                if caption and caption.strip():
+                    out.setdefault(caption.strip(), None)
+        return list(out)
+
+    @model_validator(mode="after")
+    def refuse_transforms_overlapping_on_own_captions(self):
+        """The overlap check again, this time over the captions THIS set declares.
+
+        `MappingVocabulary` cannot do it: it is nested inside the set and has no view of the 475
+        definitions, so on its own it runs on pattern-derived probes only — and pydantic validates
+        the nested model first, so an overlap those probes can see is refused before this ever
+        runs.
+
+        WHAT THIS ADDS IS SMALLER THAN IT LOOKS, and the honest version is worth writing down: a
+        witness IS the material its pattern claims, so two overlapping patterns collide on the
+        witness glues almost by construction. Every attempt to build a pair that overlaps on a
+        real caption and not on a glue failed — the greedy orphan head, a bare parenthetical
+        stripper, a `$`-anchored trailing stripper — each was caught one level up. This runs
+        anyway, for 22ms on the shipped set, because "I could not construct one" is not "none
+        exists", and because it is what puts the set's 2,006 real captions into the corpus at all
+        (207 probes against 15).
+
+        THE REVELATIONS ARE RECORDED, NOT RAISED, on the precedent `dangling_families` sets two
+        validators up: not an error, but not silent either. A set whose declared order is
+        load-bearing on some string is a set someone can break by reordering a list, and the three
+        shipped CAS rules ARE such a set — 6 probes of 207, and 4 of the 12 real captions in
+        `scripts/demo_code_vs_config.py`'s corpus once an orphaned fragment is added to it.
+        Nothing but this list would tell them so.
+
+        """
+        if self.vocabulary.caption_transforms and self.items:
+            report = self.vocabulary.transform_order_check(self.caption_corpus())
+            if report.overlaps:
+                raise PatternOverlap(_overlap_message(report.overlaps))
+            self.order_sensitive_probes = report.revelations
+        return self
 
 
 class UnknownInheritsError(ValueError):

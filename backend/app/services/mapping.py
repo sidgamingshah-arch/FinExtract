@@ -52,6 +52,7 @@ import json
 import re
 import threading
 import unicodedata
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 
 from pydantic import BaseModel, Field
@@ -129,6 +130,219 @@ _LLM_BATCH_ADDENDUM = (
 )
 
 
+# ══ CAPTION NORMALISATION: THE SHAPE IS CODE, THE CHARACTER INVENTORY IS VOCABULARY ═══════════
+#
+# Each pattern in the block below is two things welded together, and only one of them belongs in
+# Python.
+#
+# THE SHAPE is mechanism: "a bracket whose content is QUOTED", "an enumerator followed by a
+# delimiter and NOT by a digit", "a closing bracket with nothing on the line that opened it". The
+# shape is what makes `Profit/(loss) before tax` survive `_ABBREV_GLOSS`, `七、70` survive
+# `_CAS_LINE_PREFIX` and `b) Trade receivables` survive `_CAS_ORPHAN_HEAD` — each of those a
+# refusal, and a configurable refusal is not one. So the shapes stay here, as templates.
+#
+# THE INVENTORY is vocabulary: which bracket widths a filing prints, which marks it quotes with,
+# which characters it numbers its face lines with, which word it writes before a note number. Each
+# entry is a claim about the PRINTED page, it is wrong the moment a filing prints something the
+# list does not carry, and it lived as a string literal inside a regex — so a reviewer could read
+# all 475 line-item definitions and never discover that ＂ is not a quote mark as far as this
+# module is concerned.
+#
+# MEASURED, which is why the inventory is the half worth moving. With `_ABBREV_GLOSS` disabled,
+# 1,050 of the rulebook's 1,993 caption resolutions change and 74 land on a DIFFERENT concept
+# (`scripts/parity_normalisation.py`'s negative control; the fold itself moves on 1,993 of 24,029
+# corpus entries). `demo_code_vs_config.py` section 2 runs the live consequence:
+# `Land use rights ("LUR")` reaches `bs_nca__land_use_rights` at the exact tier, confidence 1.0,
+# while the same caption printed with a full-width quote (＂) or a CJK vertical corner bracket
+# (﹁﹂) — marks this inventory does not carry — folds to 'land use rights lur' and lands on
+# `bs_nca__land` through the rule tier. A different asset, both non-current, so the sheet still
+# ties. RE-MEASURED, because the received version of this story says "unflagged" and that is not
+# what either matcher does: it comes back at 0.6 with "several rule hints fired; ambiguous" and
+# `needs_review=True`, under the 0.85 auto-accept. So the cost is a review-queue entry on a
+# caption whose alias the rulebook already carries — and what caught it was the ambiguity check
+# counting hints, not anything able to notice that a quote mark was missed. Until now there was
+# nowhere to say the mark counts; `tests/test_normalisation_vocabulary.py` now says it in three
+# list entries and watches the caption arrive at the right concept, EXACT and unflagged.
+#
+# THE TEMPLATES INTERPOLATE WITH `%(name)s`, not with `str.format` or an f-string, because every
+# pattern here carries a `{1,3}`-shaped quantifier that both would read as a replacement field —
+# and not with `string.Template`, because `$` is an anchor two of them use. No pattern contains a
+# literal `%`, so `%`-formatting has nothing to escape.
+_BUILTIN_CAPTION_INVENTORY: dict[str, list] = {
+    # BRACKETS AS PAIRS, not as an opener list and a closer list, because a bracket width IS a
+    # pair: two independent lists let a set declare three openers and two closers, and every
+    # pattern here that opens a bracket also closes one.
+    "brackets": [["(", ")"], ["（", "）"]],
+    # The marks a filing quotes a coined abbreviation with — straight, curly, and the CJK corner
+    # and lenticular brackets a Chinese filing uses. `_ABBREV_GLOSS` explains why the QUOTES and
+    # not the parenthesis are the signal, and this list is exactly the measured blast radius above.
+    "quote_marks": ['"', "'", "“", "”", "‘", "’", "「", "」", "『", "』", "《", "》"],
+    # The word printed before a note number. Stored SINGULAR: the template accepts the plural,
+    # because English morphology is mechanism and a set made to declare "note" and "notes"
+    # separately will eventually declare only one of them.
+    "note_word_latin": ["note"],
+    # BOTH Han spellings are needed even though `to_simplified` runs inside `normalize_label`:
+    # `_NOTE_CITATION` fires BEFORE the fold (a citation has to be gone before the Han run is
+    # folded), so 附註 arriving from a Hong Kong filing never reaches the Simplified 附注.
+    "note_word_han": ["附註", "附注"],
+    # Colons, for a leading note citation and for the CAS component markers.
+    "colon_marks": [":", "："],
+    # Digits, for `_CAS_LINE_PREFIX`'s refusal lookahead — the one that keeps 七、70 unmatchable.
+    # Full-width included because a mainland filing prints note references in full-width digits.
+    "digit_ranges": [["0030", "0039"], ["FF10", "FF19"]],
+    # THE HAN RANGES, AS CODEPOINTS AND NOT AS CHARACTERS, because one of them is not the range its
+    # author typed. The literal this replaced spelled the third range `豈-﫿`, which reads as
+    # U+F900 (CJK COMPATIBILITY IDEOGRAPH-F900) and IS U+8C48 — U+F900's canonical decomposition,
+    # i.e. what an NFC pass over the source file leaves behind. `han._CJK` carries the same three
+    # ranges with F900 intact, so the two are different sets: measured, `_HAN_RUN` matches 한
+    # (U+D55C) and U+E000 while `has_han` does not, because 8C48-FAFF swallows the Hangul syllables
+    # and the private-use area whole. Not reachable on today's captions — `label_segments` gates on
+    # `has_han` first, so a Hangul-only caption never arrives — but a caption mixing Hangul with
+    # Han loses its split: `label_segments('매출 销售成本')` returns one segment where the corrected
+    # range returns three. PRESERVED EXACTLY AS SHIPPED, deliberately: correcting it is a
+    # four-character edit that `scripts/parity_normalisation.py` would report as a fold change, and
+    # that is a decision for whoever measures it, not a side effect of moving the list. Written as
+    # codepoints so the question is at least askable in review.
+    "han_ranges": [["3400", "4DBF"], ["4E00", "9FFF"], ["8C48", "FAFF"]],
+    # `_CAS_ORPHAN_HEAD` requires PROOF that the fragment is Han, and asks for two of the three
+    # ranges above. Declared separately because the shipped literals were separate: collapsing them
+    # into one entry would widen a REFUSAL as a side effect of a migration, which is the one
+    # direction never to move by accident.
+    "han_ranges_required": [["3400", "4DBF"], ["4E00", "9FFF"]],
+    # The CAS face enumerators — 一、营业总收入 through 十、… — reused by the （一）sub-enumerator.
+    "cas_enumerators": ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"],
+    # What may follow a Han enumerator. The full stop is here because a filing prints 一.营业总收入
+    # as well as 一、营业总收入.
+    "cas_enumerator_delimiters": ["、", "."],
+    # What may follow an ARABIC one, which the shipped pattern deliberately keeps NARROWER: "1." is
+    # a numbered paragraph in prose far more often than it is a face line, so only the ideographic
+    # comma counts. Its own entry because that asymmetry is a judgement about printed pages, and
+    # folding the two entries together would widen the strip without anyone saying so.
+    "cas_arabic_delimiters": ["、"],
+    # The component markers a CAS face prints instead of an enumerator, on a line beneath a total.
+    # A marker longer than one character is matched with `\s*` between its characters — see
+    # `_spaced`, and 递延所得税资产减少（增加以“－” 号填列）for a real filing breaking a line inside one.
+    "cas_component_markers": ["其中", "加", "减"],
+    # The sign-convention parenthetical's own wording, split where the filing breaks the line.
+    "cas_sign_note_words": ["号", "填列"],
+}
+
+# Characters a regex character class cannot carry literally. REFUSED rather than escaped: escaping
+# would make the built source differ from the literal it has to reproduce character for character,
+# and none of these is punctuation a financial statement prints that a caption pattern hunts for.
+_CLASS_UNSAFE = frozenset("]\\^-")
+
+
+def _class_body(chars: Iterable[str], *, what: str) -> str:
+    """The inside of a `[...]`, members in DECLARED order.
+
+    Order is preserved rather than sorted because a character class is a SET — the engine cannot
+    tell two orderings apart — but the order is the only thing that makes the built source
+    comparable, character for character, against the literal it replaced. That comparison is the
+    whole proof this migration is not a rewrite (`tests/test_normalisation_vocabulary.py`).
+    """
+    out: list[str] = []
+    for ch in chars:
+        if not isinstance(ch, str) or len(ch) != 1:
+            raise ValueError(f"caption inventory {what}: {ch!r} is not a single character, so it "
+                             f"cannot be a member of a character class")
+        if ch in _CLASS_UNSAFE:
+            raise ValueError(f"caption inventory {what}: {ch!r} cannot appear unescaped in a "
+                             f"character class")
+        out.append(ch)
+    return "".join(out)
+
+
+def _range_body(pairs: Iterable, *, what: str) -> str:
+    """`lo-hi` runs for a `[...]`, from HEX CODEPOINT pairs — see `han_ranges` for why not chars."""
+    out: list[str] = []
+    for pair in pairs:
+        try:
+            lo, hi = (int(str(x), 16) for x in pair)
+        except (TypeError, ValueError):
+            raise ValueError(f"caption inventory {what}: {pair!r} is not a [low, high] pair of "
+                             f"hex codepoints") from None
+        if lo > hi:
+            raise ValueError(f"caption inventory {what}: {pair!r} runs backwards")
+        out.append(f"{chr(lo)}-{chr(hi)}")
+    return "".join(out)
+
+
+def _spaced(parts: Iterable[str]) -> str:
+    r"""The parts joined by `\s*`, because the filing breaks the line between them.
+
+    Called two ways on purpose. Over a STRING it separates that marker's characters (其中 ->
+    `其\s*中`); over a LIST it separates the words of a phrase (号, 填列 -> `号\s*填列`). Both are
+    the same fact — 递延所得税资产减少（增加以“－” 号填列）is a real caption and the whitespace inside
+    it is whatever row reconstruction left behind — at two granularities, so one helper says it
+    once.
+    """
+    return r"\s*".join(parts)
+
+
+def _marker_branches(markers: Iterable[str], colon: str) -> str:
+    r"""The component-marker alternatives: one branch per multi-character marker, then ONE class
+    holding all the single-character ones.
+
+    Two shapes because the literal this replaced had two — `其\s*中\s*[：:]|[加减]\s*[：:]` — and
+    the reason is `_spaced` above: 加 and 减 have nothing to break a line inside, so a class is
+    both shorter and exactly equivalent, while 其中 must tolerate the break.
+    """
+    markers = list(markers)
+    tail = rf"\s*[{colon}]"
+    branches = [_spaced(m) + tail for m in markers if len(m) > 1]
+    if (single := [m for m in markers if len(m) == 1]):
+        branches.append(f"[{_class_body(single, what='cas_component_markers')}]{tail}")
+    return "|".join(branches)
+
+
+def _placeholders(inv: dict[str, list]) -> dict[str, str]:
+    """The inventory rendered as the fragments the templates interpolate.
+
+    TWO SPELLINGS PER BRACKET AND COLON SET (`open`/`open_rev`) rather than one, because the
+    literals this replaced spell the same set in two orders: the four Latin-lineage patterns write
+    `[(（]` and `[:：]`, the three CAS ones write `[（(]` and `[：:]`. The sets are identical and no
+    regex engine can tell them apart, so the difference is cosmetic — but it is cosmetic in the
+    SOURCE, and the source is what the equivalence test compares. One inventory rendered two ways
+    keeps both spellings byte-exact without becoming two answers to one question.
+    """
+    brackets = [list(p) for p in inv["brackets"]]
+    if any(len(p) != 2 for p in brackets):
+        raise ValueError(f"caption inventory brackets: {inv['brackets']!r} — each entry is an "
+                         f"[open, close] pair, because every pattern that opens one closes one")
+    opens = [o for o, _ in brackets]
+    closes = [c for _, c in brackets]
+    colons = list(inv["colon_marks"])
+    note_latin = "|".join(f"{w}s?" for w in inv["note_word_latin"])
+    note_han = "|".join(inv["note_word_han"])
+    arabic = list(inv["cas_arabic_delimiters"])
+    return {
+        "open": _class_body(opens, what="brackets"),
+        "open_rev": _class_body(reversed(opens), what="brackets"),
+        "close": _class_body(closes, what="brackets"),
+        "close_rev": _class_body(reversed(closes), what="brackets"),
+        "quote": _class_body(inv["quote_marks"], what="quote_marks"),
+        "note_any": f"{note_latin}|{note_han}",
+        "note_han": note_han,
+        "note_latin": note_latin,
+        "colon": _class_body(colons, what="colon_marks"),
+        "colon_rev": _class_body(reversed(colons), what="colon_marks"),
+        "digit": _range_body(inv["digit_ranges"], what="digit_ranges"),
+        "han": _range_body(inv["han_ranges"], what="han_ranges"),
+        "han_req": _range_body(inv["han_ranges_required"], what="han_ranges_required"),
+        "enum": _class_body(inv["cas_enumerators"], what="cas_enumerators"),
+        "enum_delim": _class_body(inv["cas_enumerator_delimiters"],
+                                  what="cas_enumerator_delimiters"),
+        # A single delimiter is written bare, as the literal did, and `re.escape` covers the case
+        # where someone declares "." — outside a class it would otherwise match any character.
+        "arabic_delim": (re.escape(arabic[0]) if len(arabic) == 1
+                         else f"[{_class_body(arabic, what='cas_arabic_delimiters')}]"),
+        "markers": _marker_branches(inv["cas_component_markers"],
+                                    _class_body(reversed(colons), what="colon_marks")),
+        "sign_words": _spaced(inv["cas_sign_note_words"]),
+    }
+
+
 # A QUOTED ABBREVIATION GLOSS: the short name a filing introduces for a term it has just written
 # out, in brackets, in quotes — 'PRC corporate income tax ("CIT")',
 # 'PRC land appreciation tax ("LAT")', '中國企業所得稅（「企業所得稅」）'.
@@ -149,13 +363,12 @@ _LLM_BATCH_ADDENDUM = (
 # quoted, so none is touched. Only a bracket whose content is wrapped in quotation marks — straight,
 # curly, or the CJK corner and lenticular brackets a Chinese filing uses — reads as the filing naming
 # an abbreviation for itself, which is a fact about the PROSE and not about the figure.
-_ABBREV_GLOSS = re.compile(
-    r"""[(（]\s*                     # an opening bracket, either width
-        ["'“”‘’「」『』《》]\s*        # …whose content opens with a quotation mark
-        [^)）]*?                      # the abbreviation itself, never crossing the bracket
-        \s*["'“”‘’「」『』《》]\s*     # …and closes with one
-        [)）]""",
-    re.VERBOSE)
+_ABBREV_GLOSS_TEMPLATE = (
+    r"""[%(open)s]\s*                     # an opening bracket, either width
+        [%(quote)s]\s*        # …whose content opens with a quotation mark
+        [^%(close)s]*?                      # the abbreviation itself, never crossing the bracket
+        \s*[%(quote)s]\s*     # …and closes with one
+        [%(close)s]""")
 
 # A NOTE CITATION printed inside the caption — "Deferred tax credited for the year (note 32)",
 # "Depreciation of right-of-use assets (note 16(b))", "受限制現金（附註(a)）". It is a POINTER to
@@ -190,17 +403,16 @@ _ABBREV_GLOSS = re.compile(
 # with everything after "(note" lost. The truncation itself is a row-reconstruction defect and
 # belongs to that module; recognising the stump as the pointer it is costs nothing and is right
 # regardless, because a caption never ENDS on the word "note" as part of a concept's name.
-_NOTE_CITATION = re.compile(
+_NOTE_CITATION_TEMPLATE = (
     # (note 12), （附註12）, (note 16(b)) — bracketed, the form the rulebook names.
-    r"[(（]\s*(?:notes?|附註|附注)\s*\.?\s*\d{1,3}(?!\d)[a-z]?"
-    r"(?:\s*[(（][a-z0-9]{1,3}[)）])?\s*[)）]"
+    r"[%(open)s]\s*(?:%(note_any)s)\s*\.?\s*\d{1,3}(?!\d)[a-z]?"
+    r"(?:\s*[%(open)s][a-z0-9]{1,3}[%(close)s])?\s*[%(close)s]"
     # 附註12 — the bare CJK marker, which the rulebook names unbracketed.
-    r"|(?:附註|附注)\s*\d{1,3}(?!\d)"
+    r"|(?:%(note_han)s)\s*\d{1,3}(?!\d)"
     # "Note 15: Trade receivables" — a citation LEADING a caption, delimited by its colon.
-    r"|^\s*notes?\s*\.?\s*\d{1,3}(?!\d)[a-z]?\s*[:：]"
+    r"|^\s*%(note_latin)s\s*\.?\s*\d{1,3}(?!\d)[a-z]?\s*[%(colon)s]"
     # "... (note" — a citation truncated mid-word by row reconstruction.
-    r"|[(（]\s*(?:notes?|附註|附注)\s*$",
-    re.IGNORECASE)
+    r"|[%(open)s]\s*(?:%(note_any)s)\s*$")
 
 # A BRACKETED BARE NUMBER — "(32)", "（32）", "(2022)". Two things leave one behind, and both are
 # noise rather than name:
@@ -216,13 +428,12 @@ _NOTE_CITATION = re.compile(
 # the caption: this has to fire mid-string, because the Latin segment of a bilingual caption keeps
 # the residue wherever the Chinese half was. Bare digits only — "(a)", "(b)", "(i)" are sub-item
 # letters that DO distinguish captions ("Pledged deposits (note (b))") and are left alone.
-_BRACKETED_NUMBER = re.compile(r"[(（]\s*\d{1,4}\s*[)）]")
+_BRACKETED_NUMBER_TEMPLATE = r"[%(open)s]\s*\d{1,4}\s*[%(close)s]"
 
 # A TRAILING NUMERIC NOTE MARKER with no "note" word, common in HKEX captions:
 # "Right-of-use assets 16(a)", "Lease liabilities 22(b)". It is a pointer to a
 # note table, not part of the concept name.
-_TRAILING_NUMERIC_NOTE = re.compile(r"\b\d{1,3}\s*[(（][a-z0-9]{1,3}[)）]\s*$",
-                                    re.IGNORECASE)
+_TRAILING_NUMERIC_NOTE_TEMPLATE = r"\b\d{1,3}\s*[%(open)s][a-z0-9]{1,3}[%(close)s]\s*$"
 
 # THE CAS FACE FORMAT NUMBERS ITS OWN LINES, and the number is not part of the concept's name:
 # 一、营业总收入, 二、营业总成本, 三、营业利润 … and a component beneath one of those is marked
@@ -246,13 +457,12 @@ _TRAILING_NUMERIC_NOTE = re.compile(r"\b\d{1,3}\s*[(（][a-z0-9]{1,3}[)）]\s*$"
 # as a row's entire label when the caption beside it is lost. Stripping there would leave a bare
 # "70" to be matched against the rulebook, turning an unmatchable label into a plausibly
 # matchable one. A note reference must stay unmatchable.
-_CAS_LINE_PREFIX = re.compile(
+_CAS_LINE_PREFIX_TEMPLATE = (
     r"^\s*(?:"
-    r"[一二三四五六七八九十]+\s*[、.]\s*(?![0-9０-９])"   # 一、营业总收入 — but never 七、70
-    r"|\d{1,2}\s*、\s*(?![0-9０-９])"                    # 1、营业收入, the Arabic-numeral variant
-    r"|[（(]\s*[一二三四五六七八九十]{1,3}\s*[）)]"        # （一）应收账款 sub-enumerator
-    r"|其\s*中\s*[：:]"                                  # 其中：营业收入
-    r"|[加减]\s*[：:]"                                   # 加：营业外收入 / 减：库存股
+    r"[%(enum)s]+\s*[%(enum_delim)s]\s*(?![%(digit)s])"   # 一、营业总收入 — but never 七、70
+    r"|\d{1,2}\s*%(arabic_delim)s\s*(?![%(digit)s])"      # 1、营业收入, the Arabic-numeral variant
+    r"|[%(open_rev)s]\s*[%(enum)s]{1,3}\s*[%(close_rev)s]"  # （一）应收账款 sub-enumerator
+    r"|%(markers)s"                                       # 其中：营业收入, 加：…, 减：库存股
     r")\s*"
 )
 
@@ -273,7 +483,8 @@ _CAS_LINE_PREFIX = re.compile(
 #
 # Bounded content and the two bracket widths, so it cannot run across a caption. `号\s*填列`
 # because the filing breaks the line inside it: 递延所得税资产减少（增加以“－” 号填列）.
-_CAS_SIGN_NOTE = re.compile(r"[（(][^（()）]{0,24}号\s*填列\s*[）)]")
+_CAS_SIGN_NOTE_TEMPLATE = (
+    r"[%(open_rev)s][^%(open_rev)s%(close)s]{0,24}%(sign_words)s\s*[%(close_rev)s]")
 
 # THE ORPHANED TAIL OF THE CAPTION ABOVE, left on the front of this one by a wrap merge:
 # "填列） 三、营业利润（亏损以“－”号填列）" is 资产处置收益's closing fragment glued to 营业利润's head.
@@ -285,10 +496,90 @@ _CAS_SIGN_NOTE = re.compile(r"[（(][^（()）]{0,24}号\s*填列\s*[）)]")
 # opening bracket, so a legitimate leading parenthetical — （一）综合收益总额, "Profit/(loss) before
 # tax", "(Loss)/profit" — is never matched. A Han character is required as well, which keeps this
 # off the English path entirely: "b) Trade receivables" is left alone.
-_CAS_ORPHAN_HEAD = re.compile(r"^[^（(]*?[㐀-䶿一-鿿][^（(]{0,10}[）)]\s*")
+_CAS_ORPHAN_HEAD_TEMPLATE = (
+    r"^[^%(open_rev)s]*?[%(han_req)s][^%(open_rev)s]{0,10}[%(close_rev)s]\s*")
+
+# A bilingual filing prints one caption in both scripts: "REVENUE 收益",
+# "Cost of sales 銷售成本". Matching the concatenation dilutes every score (half the string is
+# always "wrong" for a single-language alias), so each script's run is also matched on its own
+# and the best segment wins.
+_HAN_RUN_TEMPLATE = r"[%(han)s]+(?:\s*[%(han)s]+)*"
 
 
-def normalize_label(text: str) -> str:
+@dataclass(frozen=True)
+class CaptionPatterns:
+    """The eight compiled caption patterns, in the order `normalize_label` applies them.
+
+    ONE OBJECT rather than eight arguments, so a caller cannot hand the fold half a vocabulary:
+    seven of these strip and `han_run` splits, and a caption stripped by a declared inventory but
+    split by the built-in one is a state no filing corresponds to. It is also what makes the
+    equivalence test a single comparison — build from the built-in inventory, compare all eight
+    sources to the literals they replaced.
+    """
+
+    abbrev_gloss: re.Pattern[str]
+    note_citation: re.Pattern[str]
+    trailing_numeric_note: re.Pattern[str]
+    bracketed_number: re.Pattern[str]
+    cas_sign_note: re.Pattern[str]
+    cas_orphan_head: re.Pattern[str]
+    cas_line_prefix: re.Pattern[str]
+    han_run: re.Pattern[str]
+
+
+def build_caption_patterns(declared: Mapping[str, list] | None = None) -> CaptionPatterns:
+    """Compile the caption patterns from a declared character inventory.
+
+    EMPTY MEANS THE BUILT-IN, entry by entry, exactly as `line_item_matching.Vocabulary` already
+    does for the nine migrated tables: a set declaring nothing must fold captions precisely as it
+    did before any of this was configurable, or adding the field would silently change the answers
+    of every rulebook already written. `tests/test_normalisation_vocabulary.py` holds the eight
+    literals this replaced and proves the built-in path rebuilds each one CHARACTER FOR CHARACTER,
+    which is the only claim strong enough here — `scripts/parity_normalisation.py` pins 24,029
+    captions and says itself that its corpus is a floor and not a certificate.
+
+    AN ENTRY NO TEMPLATE READS IS REFUSED, not ignored. A declared inventory that looks like it
+    carries a mark and does not is worse than one that carries nothing, because it reads as a
+    control — the same objection this whole migration answers, arriving from the other side.
+    """
+    inv = {k: list(v) for k, v in _BUILTIN_CAPTION_INVENTORY.items()}
+    for key, value in (declared or {}).items():
+        if key not in inv:
+            raise ValueError(f"caption inventory: {key!r} is not read by any caption pattern — "
+                             f"known entries are {', '.join(sorted(inv))}")
+        if value:            # empty declares nothing, not "nothing is allowed" — see the docstring
+            inv[key] = list(value)
+    ph = _placeholders(inv)
+    return CaptionPatterns(
+        abbrev_gloss=re.compile(_ABBREV_GLOSS_TEMPLATE % ph, re.VERBOSE),
+        note_citation=re.compile(_NOTE_CITATION_TEMPLATE % ph, re.IGNORECASE),
+        trailing_numeric_note=re.compile(_TRAILING_NUMERIC_NOTE_TEMPLATE % ph, re.IGNORECASE),
+        bracketed_number=re.compile(_BRACKETED_NUMBER_TEMPLATE % ph),
+        cas_sign_note=re.compile(_CAS_SIGN_NOTE_TEMPLATE % ph),
+        cas_orphan_head=re.compile(_CAS_ORPHAN_HEAD_TEMPLATE % ph),
+        cas_line_prefix=re.compile(_CAS_LINE_PREFIX_TEMPLATE % ph),
+        han_run=re.compile(_HAN_RUN_TEMPLATE % ph),
+    )
+
+
+_CAPTION_PATTERNS = build_caption_patterns()
+
+# The individual names kept as aliases, because two consumers reach for them by name rather than
+# through the fold: `tests/test_pattern_overlap.py` builds a `CaptionTransform` out of each CAS
+# pattern's `.pattern`, and `scripts/demo_code_vs_config.py` prints two of them to argue that the
+# disjointness is designed in. Aliases and not copies — same compiled objects, so there is still
+# exactly one answer to "what does this module strip".
+_ABBREV_GLOSS = _CAPTION_PATTERNS.abbrev_gloss
+_NOTE_CITATION = _CAPTION_PATTERNS.note_citation
+_TRAILING_NUMERIC_NOTE = _CAPTION_PATTERNS.trailing_numeric_note
+_BRACKETED_NUMBER = _CAPTION_PATTERNS.bracketed_number
+_CAS_SIGN_NOTE = _CAPTION_PATTERNS.cas_sign_note
+_CAS_ORPHAN_HEAD = _CAPTION_PATTERNS.cas_orphan_head
+_CAS_LINE_PREFIX = _CAPTION_PATTERNS.cas_line_prefix
+_HAN_RUN = _CAPTION_PATTERNS.han_run
+
+
+def normalize_label(text: str, patterns: CaptionPatterns | None = None) -> str:
     """Lowercase, strip accents/punctuation, collapse whitespace (locale-agnostic).
 
     Han text is folded to Simplified so a Traditional caption from a Hong Kong or Taiwan
@@ -300,24 +591,34 @@ def normalize_label(text: str) -> str:
     其中：/加：/减： component markers are dropped too (``_CAS_LINE_PREFIX``), as is the
     sign-convention parenthetical it carries about itself (``_CAS_SIGN_NOTE``) and a wrapped
     caption's orphaned tail left on the front of the next one (``_CAS_ORPHAN_HEAD``).
+
+    ``patterns`` is how a DECLARED character inventory reaches this fold: pass the result of
+    :func:`build_caption_patterns` and the sequence, the substitutions and the loop bound below
+    are unchanged while the characters they hunt for come from the declaration. Omitting it uses
+    the built-in inventory, so every existing caller — and there are forty-odd across the stages,
+    the services and the scripts — folds exactly as before. Parameterised rather than swapped in
+    at module level on purpose: two rulebooks live in one process (the incumbent matcher reads the
+    ontology, ``line_item_matching`` reads the line-item set) and a global inventory would make
+    the second one silently re-fold the first one's aliases.
     """
-    text = _ABBREV_GLOSS.sub(" ", text)
-    text = _NOTE_CITATION.sub(" ", text)
-    text = _TRAILING_NUMERIC_NOTE.sub(" ", text)
-    text = _BRACKETED_NUMBER.sub(" ", text)
+    p = patterns or _CAPTION_PATTERNS
+    text = p.abbrev_gloss.sub(" ", text)
+    text = p.note_citation.sub(" ", text)
+    text = p.trailing_numeric_note.sub(" ", text)
+    text = p.bracketed_number.sub(" ", text)
     text = to_simplified(text)
     # ORDER MATTERS HERE. The sign note goes first because a caption can carry more than one of
     # them — 公允价值变动收益（损失以“－”号填列） 信用减值损失（损失以“-”号填列） is two glued captions
     # with two — and removing them is what exposes the orphaned tail underneath. The tail goes
     # next, because it sits in FRONT of the enumerator the prefix rule is looking for
     # ("填列） 三、营业利润" only becomes "三、营业利润" once the fragment is gone).
-    text = _CAS_SIGN_NOTE.sub(" ", text)
-    text = _CAS_ORPHAN_HEAD.sub("", text, count=1)
+    text = p.cas_sign_note.sub(" ", text)
+    text = p.cas_orphan_head.sub("", text, count=1)
     # Folded to Simplified first so 減：/其中： in a Traditional filing reach the same rule, and
     # looped because a continuation line can carry both an enumerator and a marker. Bounded, so a
     # pathological caption of nothing but markers cannot spin.
     for _ in range(3):
-        stripped = _CAS_LINE_PREFIX.sub("", text, count=1)
+        stripped = p.cas_line_prefix.sub("", text, count=1)
         if stripped == text:
             break
         text = stripped
@@ -329,22 +630,20 @@ def normalize_label(text: str) -> str:
     return text
 
 
-# A bilingual filing prints one caption in both scripts: "REVENUE 收益",
-# "Cost of sales 銷售成本". Matching the concatenation dilutes every score (half the string is
-# always "wrong" for a single-language alias), so each script's run is also matched on its own
-# and the best segment wins.
-_HAN_RUN = re.compile(r"[㐀-䶿一-鿿豈-﫿]+(?:\s*[㐀-䶿一-鿿豈-﫿]+)*")
-
-
-def label_segments(text: str) -> list[str]:
+def label_segments(text: str, patterns: CaptionPatterns | None = None) -> list[str]:
     """The caption plus its per-script halves (Latin-only and Han-only), longest first.
 
     Returns just ``[text]`` for a single-script caption, so monolingual filings are unaffected.
+
+    ``patterns`` carries a declared Han inventory, for the reason ``normalize_label`` gives —
+    and the gate below is ``has_han``, whose range lives in ``services.han`` and is NOT the one
+    declared here. See ``han_ranges``: the two sets differ today, and the gate is the narrower.
     """
+    p = patterns or _CAPTION_PATTERNS
     if not text or not has_han(text):
         return [text]
-    han = " ".join(_HAN_RUN.findall(text)).strip()
-    latin = _HAN_RUN.sub(" ", text)
+    han = " ".join(p.han_run.findall(text)).strip()
+    latin = p.han_run.sub(" ", text)
     latin = re.sub(r"\s+", " ", latin).strip()
     out = [text] + [p for p in (latin, han) if p and p != text]
     return list(dict.fromkeys(out))

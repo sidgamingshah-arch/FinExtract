@@ -168,6 +168,26 @@ class ExtractionSettings(BaseModel):
     # candidates. Set false to force the deterministic ensemble even with an LLM present.
     llm_mapping: bool = True
     llm_candidate_cap: int = 40   # max candidate concepts shown to the LLM per line
+    # The other two REQUEST-PAYLOAD caps, declared next to the candidate cap because they are the
+    # same species: how much of the rulebook fits in one call, which is a context/cost budget the
+    # deployment pays and not a number the vocabulary calibrated. Each caps HOW MANY; the rulebook's
+    # own authoring order decides WHICH survive, so lowering either drops authored content off the
+    # tail rather than choosing better content. Config-file only, like the cap above — a provider
+    # budget is a deployment fact, not an operator's risk appetite, so neither is an admin knob
+    # (see services.settings_state.EXTRACTION_KNOBS).
+    #
+    # Worked examples ride in the SYSTEM message, so every call of a run pays for them. The cap
+    # bites on exactly one shipped rulebook: hkfrs_hk_china authors 8 (the two this drops are 1,023
+    # characters, 16% of that ontology's 6,389-character system prompt) and output_csv_hk authors
+    # none. So 6 is not the authored length of anything — raising it to 8 changes what one rulebook
+    # tells the model, which is why the default is the literal it replaces and not len(examples).
+    llm_worked_examples_cap: int = 6
+    # Example aliases shown per candidate concept, i.e. paid once per candidate per call. Measured
+    # on a balance-sheet payload at the shipped candidate cap: 4 truncates 4 of the 40 candidates'
+    # alias lists and the aliases are 1,774 of the payload's 37,781 characters (5%) — against a
+    # vocabulary whose median concept has 3 aliases and whose longest has 23. It therefore bounds
+    # the long tail and leaves the typical concept's list intact.
+    llm_example_aliases_cap: int = 4
     # Restrict LLM disambiguation to these canonical_keys only; every other row is decided by the
     # deterministic ensemble (rule/alias tiers), never sent to the model. Empty = no restriction
     # (the default: LLM considered for any row the ensemble can't otherwise resolve).
@@ -267,6 +287,32 @@ class ExtractionSettings(BaseModel):
     # in parallel is what turns a run's LLM time from "sum of every call" into "the slowest one",
     # bounded so a large filing does not open dozens of connections to the gateway at once.
     llm_max_concurrency: int = 6
+    # ── ONE BATCH CALL'S TRANSPORT SIZE AND RESPONSE ALLOCATION ─────────────────────────────────
+    #
+    # How many captions travel in one structured request. services.mapping calls it "a transport
+    # chunk, not a semantic boundary" and that is the whole reason it is a deployment number: the
+    # section results are carried into the statement pass either way, so the chunk bounds one
+    # RESPONSE's size and nothing about the vocabulary. What decides it is how many decisions a
+    # given model returns as parseable JSON in one go — a truncated batch is not a partial answer,
+    # the JSON fails to parse and the whole chunk silently falls back to the weaker per-line path.
+    llm_batch_max_items: int = 25
+    # Floor under a batch call's requested completion allocation. services.mapping also DERIVES a
+    # budget from the response envelope (a reserve plus ~80 tokens a decision); that derivation
+    # stays in code because it is measured against THIS vocabulary's longest canonical_key, and the
+    # floor is the half that answers to the gateway instead. At the shipped chunk size the floor is
+    # in fact the only number in play — derived(25) = 2,256 tokens, and the floor wins for every
+    # chunk up to 99 items (crossover at 100) — so this is the batch response budget in practice.
+    # It exists because sending `llm.max_tokens` (a request ceiling shared with every other call in
+    # the app) makes compatible gateways reserve millions of tokens for a small structured reply and
+    # time out before answering. How much headroom a reply needs is a fact about the gateway.
+    llm_batch_response_floor_tokens: int = 8192
+    # …and the same allocation for the per-line call, which answers with one decision. Measured:
+    # an `LlmMappingDecision` carrying the rulebook's longest canonical_key and a 200-char reason
+    # serialises to 371 characters ≈ 124 tokens, so 512 is roughly 4× headroom on the envelope. It
+    # is a deployment number for the reason `llm.reasoning_max_tokens` documents: a model whose
+    # reasoning cannot be disabled spends the completion budget thinking and returns empty content
+    # with finish_reason=length, and how much budget that takes is a property of the model.
+    llm_line_max_tokens: int = 512
     # Mapping granularity. "per_statement" (default, most accurate) batches lines into ONE LLM
     # call so cross-line judgements — parent/child containment, residualisation, "Others"
     # handling — have context. The batch is one SOURCE PAGE in practice, so a statement spanning

@@ -476,7 +476,106 @@
    }
   ],
   "families": [],
-  "section_overrides": {}
+  "section_overrides": {},
+  "caption_characters": {
+   "brackets": [
+    [
+     "(",
+     ")"
+    ],
+    [
+     "（",
+     "）"
+    ]
+   ],
+   "quote_marks": [
+    "\"",
+    "'",
+    "“",
+    "”",
+    "‘",
+    "’",
+    "「",
+    "」",
+    "『",
+    "』",
+    "《",
+    "》"
+   ],
+   "note_word_latin": [
+    "note"
+   ],
+   "note_word_han": [
+    "附註",
+    "附注"
+   ],
+   "colon_marks": [
+    ":",
+    "："
+   ],
+   "digit_ranges": [
+    [
+     "0030",
+     "0039"
+    ],
+    [
+     "FF10",
+     "FF19"
+    ]
+   ],
+   "han_ranges": [
+    [
+     "3400",
+     "4DBF"
+    ],
+    [
+     "4E00",
+     "9FFF"
+    ],
+    [
+     "8C48",
+     "FAFF"
+    ]
+   ],
+   "han_ranges_required": [
+    [
+     "3400",
+     "4DBF"
+    ],
+    [
+     "4E00",
+     "9FFF"
+    ]
+   ],
+   "cas_enumerators": [
+    "一",
+    "二",
+    "三",
+    "四",
+    "五",
+    "六",
+    "七",
+    "八",
+    "九",
+    "十"
+   ],
+   "cas_enumerator_delimiters": [
+    "、",
+    "."
+   ],
+   "cas_arabic_delimiters": [
+    "、"
+   ],
+   "cas_component_markers": [
+    "其中",
+    "加",
+    "减"
+   ],
+   "cas_sign_note_words": [
+    "号",
+    "填列"
+   ]
+  }
  },
  "residual_framework": {
   "note": "One definition governing the 11 output-template subsection residuals. Each uses an existing template line; no template row is added.",
@@ -580,9 +679,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -645,9 +741,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -702,9 +795,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -773,9 +863,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -830,9 +917,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -897,9 +981,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -965,9 +1046,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 80,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1022,9 +1100,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1234,9 +1309,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1289,9 +1361,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1352,9 +1421,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1421,9 +1487,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1476,9 +1539,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1533,9 +1593,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1595,9 +1652,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1654,9 +1708,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 80,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1827,9 +1878,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1887,9 +1935,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -1956,9 +2001,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2011,9 +2053,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2066,9 +2105,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2127,9 +2163,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2188,9 +2221,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2305,9 +2335,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 79,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2365,9 +2392,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2438,9 +2462,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2495,9 +2516,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2556,9 +2574,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2650,9 +2665,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 78,
    "alias_matching": "disabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2712,9 +2724,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2777,9 +2786,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2838,9 +2844,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2893,9 +2896,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -2956,9 +2956,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -3021,9 +3018,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 80,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -3078,9 +3072,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -3139,9 +3130,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -3224,9 +3212,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -3313,9 +3298,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -3383,9 +3365,6 @@
     "plug": false,
     "itemise": true
    },
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -3447,9 +3426,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -3504,9 +3480,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -3565,9 +3538,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -3622,9 +3592,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -3717,9 +3684,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -3772,9 +3736,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -3856,9 +3817,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -3915,9 +3873,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 90,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -4031,9 +3986,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4090,9 +4042,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4153,9 +4102,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4218,9 +4164,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4331,9 +4274,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 90,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4384,9 +4324,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4437,9 +4374,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 90,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4494,9 +4428,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4547,9 +4478,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 90,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4600,9 +4528,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 90,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4661,9 +4586,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4762,9 +4684,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 80,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4824,9 +4743,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4889,9 +4805,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -4950,9 +4863,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -5005,9 +4915,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -5068,9 +4975,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -5132,9 +5036,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 80,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -5187,9 +5088,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -5244,9 +5142,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -5299,9 +5194,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -5380,9 +5272,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -5436,9 +5325,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -5521,9 +5407,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 80,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -5608,9 +5491,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -5669,9 +5549,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -5739,9 +5616,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -5792,9 +5666,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 90,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -5863,9 +5734,6 @@
     "plug": false,
     "itemise": true
    },
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -5920,9 +5788,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -5977,9 +5842,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -6054,9 +5916,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 80,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -6122,9 +5981,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 80,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -6287,9 +6143,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -6344,9 +6197,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -6405,9 +6255,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -6461,9 +6308,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 90,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -6565,9 +6409,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "disabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -6629,9 +6470,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -6695,9 +6533,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 80,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -6771,9 +6606,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 79,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -6976,9 +6808,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -7036,9 +6865,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -7097,9 +6923,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -7150,9 +6973,6 @@
    "sign_convention": "either",
    "match_priority": 90,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -7233,9 +7053,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -7352,9 +7169,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -7411,9 +7225,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -7480,9 +7291,6 @@
     "plug": false,
     "itemise": true
    },
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -7533,9 +7341,6 @@
    "sign_convention": "either",
    "match_priority": 90,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -7664,9 +7469,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -7735,9 +7537,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -7788,9 +7587,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -7841,9 +7637,6 @@
    "sign_convention": "either",
    "match_priority": 90,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -7907,9 +7700,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -7960,9 +7750,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -8032,9 +7819,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -8101,9 +7885,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -8246,9 +8027,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 80,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -8311,9 +8089,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -8374,9 +8149,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -8431,9 +8203,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -8510,9 +8279,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -8567,9 +8333,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -8628,9 +8391,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -8689,9 +8449,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -8742,9 +8499,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -8803,9 +8557,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -8864,9 +8615,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -8925,9 +8673,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -8982,9 +8727,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -9045,9 +8787,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -9106,9 +8845,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -9168,9 +8904,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -9248,9 +8981,6 @@
     "plug": false,
     "itemise": true
    },
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -9307,9 +9037,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -9371,9 +9098,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -9430,9 +9154,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -9495,9 +9216,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -9556,9 +9274,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -9611,9 +9326,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -9674,9 +9386,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -9737,9 +9446,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 80,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -9812,9 +9518,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -9874,9 +9577,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -9931,9 +9631,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -9992,9 +9689,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -10049,9 +9743,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -10117,9 +9808,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -10179,9 +9867,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -10236,9 +9921,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -10293,9 +9975,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -10357,9 +10036,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
@@ -10509,9 +10185,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 80,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -10574,9 +10247,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -10651,9 +10321,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -10708,9 +10375,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -10767,9 +10431,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -10846,9 +10507,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -10913,9 +10571,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -10968,9 +10623,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -11023,9 +10675,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -11081,9 +10730,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -11144,9 +10790,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -11205,9 +10848,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -11260,9 +10900,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -11313,9 +10950,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -11374,9 +11008,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -11435,9 +11066,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -11496,9 +11124,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -11553,9 +11178,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -11614,9 +11236,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -11673,9 +11292,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -11726,9 +11342,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -11788,9 +11401,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -11844,9 +11454,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 90,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -11897,9 +11504,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 90,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -11966,9 +11570,6 @@
     "plug": false,
     "itemise": true
    },
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -12042,9 +11643,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -12106,9 +11704,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -12159,9 +11754,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -12218,9 +11810,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -12283,9 +11872,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -12344,9 +11930,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -12399,9 +11982,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -12462,9 +12042,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -12528,9 +12105,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 80,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -12587,9 +12161,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -12644,9 +12215,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -12704,9 +12272,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -12761,9 +12326,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -12816,9 +12378,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -12877,9 +12436,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -12937,9 +12493,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -12994,9 +12547,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -13069,9 +12619,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -13141,9 +12688,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -13200,9 +12744,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -13257,9 +12798,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -13322,9 +12860,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -13379,9 +12914,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -13436,9 +12968,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -13499,9 +13028,6 @@
    "sign_convention": "positive_expected",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -13765,9 +13291,6 @@
    "sign_convention": "either",
    "match_priority": 14,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13823,9 +13346,6 @@
    "sign_convention": "either",
    "match_priority": 80,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13876,9 +13396,6 @@
    "sign_convention": "either",
    "match_priority": 79,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13933,9 +13450,6 @@
    "sign_convention": "either",
    "match_priority": 78,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -13988,9 +13502,6 @@
    "sign_convention": "either",
    "match_priority": 77,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14056,9 +13567,6 @@
    "sign_convention": "either",
    "match_priority": 15,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14113,9 +13621,6 @@
    "sign_convention": "either",
    "match_priority": 76,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14166,9 +13671,6 @@
    "sign_convention": "either",
    "match_priority": 75,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14219,9 +13721,6 @@
    "sign_convention": "either",
    "match_priority": 74,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14287,9 +13786,6 @@
    "sign_convention": "either",
    "match_priority": 22,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14367,9 +13863,6 @@
    "sign_convention": "either",
    "match_priority": 19,
    "alias_matching": "disabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14575,9 +14068,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14662,9 +14152,6 @@
    "sign_convention": "either",
    "match_priority": 11,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14717,9 +14204,6 @@
    "sign_convention": "either",
    "match_priority": 17,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14772,9 +14256,6 @@
    "sign_convention": "either",
    "match_priority": 16,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14829,9 +14310,6 @@
    "sign_convention": "either",
    "match_priority": 18,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14906,9 +14384,6 @@
    "sign_convention": "either",
    "match_priority": 10,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -14987,9 +14462,6 @@
    "sign_convention": "either",
    "match_priority": 10,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -15066,9 +14538,6 @@
    "sign_convention": "either",
    "match_priority": 72,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -15141,9 +14610,6 @@
    "sign_convention": "either",
    "match_priority": 73,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -15206,9 +14672,6 @@
    "sign_convention": "either",
    "match_priority": 71,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -15270,9 +14733,6 @@
    "sign_convention": "either",
    "match_priority": 10,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -15325,9 +14785,6 @@
    "sign_convention": "either",
    "match_priority": 70,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -15383,9 +14840,6 @@
    "sign_convention": "either",
    "match_priority": 13,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -15456,9 +14910,6 @@
     "plug": false,
     "itemise": true
    },
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -15511,9 +14962,6 @@
    "sign_convention": "either",
    "match_priority": 44,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -15566,9 +15014,6 @@
    "sign_convention": "either",
    "match_priority": 45,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -15627,9 +15072,6 @@
    "sign_convention": "either",
    "match_priority": 69,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -15684,9 +15126,6 @@
    "sign_convention": "either",
    "match_priority": 68,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -15754,9 +15193,6 @@
    "sign_convention": "either",
    "match_priority": 67,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -15821,9 +15257,6 @@
    "sign_convention": "either",
    "match_priority": 66,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -15878,9 +15311,6 @@
    "sign_convention": "either",
    "match_priority": 65,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -15935,9 +15365,6 @@
    "sign_convention": "either",
    "match_priority": 64,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -15992,9 +15419,6 @@
    "sign_convention": "either",
    "match_priority": 63,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -16055,9 +15479,6 @@
    "sign_convention": "either",
    "match_priority": 21,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -16139,9 +15560,6 @@
    "sign_convention": "either",
    "match_priority": 20,
    "alias_matching": "disabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -16295,9 +15713,6 @@
    "sign_convention": "either",
    "match_priority": 24,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -16363,9 +15778,6 @@
    "sign_convention": "either",
    "match_priority": 23,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -16420,9 +15832,6 @@
    "sign_convention": "either",
    "match_priority": 62,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -16473,9 +15882,6 @@
    "sign_convention": "either",
    "match_priority": 61,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -16599,9 +16005,6 @@
    "sign_convention": "either",
    "match_priority": 60,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -16656,9 +16059,6 @@
    "sign_convention": "either",
    "match_priority": 59,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -16713,9 +16113,6 @@
    "sign_convention": "either",
    "match_priority": 58,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -16783,9 +16180,6 @@
    "sign_convention": "either",
    "match_priority": 57,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -16836,9 +16230,6 @@
    "sign_convention": "either",
    "match_priority": 56,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -16916,9 +16307,6 @@
    "sign_convention": "either",
    "match_priority": 47,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -16979,9 +16367,6 @@
    "sign_convention": "either",
    "match_priority": 55,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -17046,9 +16431,6 @@
    "sign_convention": "either",
    "match_priority": 54,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -17101,9 +16483,6 @@
    "sign_convention": "either",
    "match_priority": 53,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -17156,9 +16535,6 @@
    "sign_convention": "either",
    "match_priority": 52,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -17215,9 +16591,6 @@
    "sign_convention": "either",
    "match_priority": 51,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -17272,9 +16645,6 @@
    "sign_convention": "either",
    "match_priority": 50,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -17336,9 +16706,6 @@
    "sign_convention": "either",
    "match_priority": 46,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -17412,9 +16779,6 @@
    "sign_convention": "either",
    "match_priority": 49,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -17465,9 +16829,6 @@
    "sign_convention": "either",
    "match_priority": 48,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -17589,9 +16950,6 @@
    "sign_convention": "either",
    "match_priority": 42,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -17658,9 +17016,6 @@
    "sign_convention": "either",
    "match_priority": 43,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -17713,9 +17068,6 @@
    "sign_convention": "either",
    "match_priority": 41,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -17768,9 +17120,6 @@
    "sign_convention": "either",
    "match_priority": 40,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -17834,9 +17183,6 @@
    "sign_convention": "either",
    "match_priority": 31,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -17887,9 +17233,6 @@
    "sign_convention": "either",
    "match_priority": 39,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -17942,9 +17285,6 @@
    "sign_convention": "either",
    "match_priority": 38,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -18005,9 +17345,6 @@
    "sign_convention": "either",
    "match_priority": 37,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -18060,9 +17397,6 @@
    "sign_convention": "either",
    "match_priority": 36,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -18119,9 +17453,6 @@
    "sign_convention": "either",
    "match_priority": 35,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -18172,9 +17503,6 @@
    "sign_convention": "either",
    "match_priority": 34,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -18229,9 +17557,6 @@
    "sign_convention": "either",
    "match_priority": 33,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -18298,9 +17623,6 @@
    "sign_convention": "either",
    "match_priority": 32,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -18415,9 +17737,6 @@
    "sign_convention": "either",
    "match_priority": 30,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -18474,9 +17793,6 @@
    "sign_convention": "either",
    "match_priority": 29,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -18531,9 +17847,6 @@
    "sign_convention": "either",
    "match_priority": 28,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -18586,9 +17899,6 @@
    "sign_convention": "either",
    "match_priority": 27,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -18643,9 +17953,6 @@
    "sign_convention": "either",
    "match_priority": 26,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -18710,9 +18017,6 @@
    "sign_convention": "either",
    "match_priority": 10,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -18769,9 +18073,6 @@
    "sign_convention": "either",
    "match_priority": 25,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -18824,9 +18125,6 @@
    "sign_convention": "either",
    "match_priority": 10,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -19024,9 +18322,6 @@
    "sign_convention": "either",
    "match_priority": 10,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -19077,9 +18372,6 @@
    "sign_convention": "either",
    "match_priority": 10,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -19130,9 +18422,6 @@
    "sign_convention": "either",
    "match_priority": 10,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -19315,9 +18604,6 @@
    "sign_convention": "either",
    "match_priority": 10,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -19368,9 +18654,6 @@
    "sign_convention": "either",
    "match_priority": 10,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -19445,9 +18728,6 @@
    "sign_convention": "either",
    "match_priority": 90,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -19597,9 +18877,6 @@
    "sign_convention": "either",
    "match_priority": 10,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_oci.",
@@ -19662,9 +18939,6 @@
    "sign_convention": "either",
    "match_priority": 10,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_oci.",
@@ -19731,9 +19005,6 @@
    "sign_convention": "either",
    "match_priority": 10,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_oci.",
@@ -19796,9 +19067,6 @@
    "sign_convention": "either",
    "match_priority": 10,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_oci.",
@@ -19853,9 +19121,6 @@
    "sign_convention": "either",
    "match_priority": 10,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_oci.",
@@ -19920,9 +19185,6 @@
    "sign_convention": "either",
    "match_priority": 10,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_oci.",
@@ -19990,9 +19252,6 @@
     "plug": false,
     "itemise": true
    },
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_oci.",
@@ -20115,9 +19374,6 @@
    "sign_convention": "either",
    "match_priority": 10,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_retained.",
@@ -20188,9 +19444,6 @@
    "sign_convention": "either",
    "match_priority": 10,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_retained.",
@@ -20259,9 +19512,6 @@
    "sign_convention": "either",
    "match_priority": 10,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_retained.",
@@ -20328,9 +19578,6 @@
    "sign_convention": "either",
    "match_priority": 10,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_retained.",
@@ -20391,9 +19638,6 @@
    "sign_convention": "either",
    "match_priority": 10,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_retained.",
@@ -20460,9 +19704,6 @@
    "sign_convention": "either",
    "match_priority": 10,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_retained.",
@@ -20530,9 +19771,6 @@
     "plug": false,
     "itemise": true
    },
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_retained.",
@@ -20610,9 +19848,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -20663,9 +19898,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -20716,9 +19948,6 @@
    "sign_convention": "either",
    "match_priority": 90,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -20781,9 +20010,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -20849,9 +20075,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -20914,9 +20137,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -20969,9 +20189,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -21044,9 +20261,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -21099,9 +20313,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -21162,9 +20373,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -21225,9 +20433,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -21294,9 +20499,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -21353,9 +20555,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -21410,9 +20609,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -21465,9 +20661,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -21520,9 +20713,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -21575,9 +20765,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -21632,9 +20819,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -21689,9 +20873,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -21744,9 +20925,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -21801,9 +20979,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -21868,9 +21043,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -21923,9 +21095,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -21976,9 +21145,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -22031,9 +21197,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -22092,9 +21255,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -22151,9 +21311,6 @@
    "sign_convention": "either",
    "match_priority": 90,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -22217,9 +21374,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -22278,9 +21432,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -22333,9 +21484,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -22400,9 +21548,6 @@
     "plug": false,
     "itemise": true
    },
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
@@ -22524,9 +21669,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_direct.",
@@ -22580,9 +21722,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_direct.",
@@ -22638,9 +21777,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_direct.",
@@ -22694,9 +21830,6 @@
    "sign_convention": "either",
    "match_priority": 90,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_direct.",
@@ -22749,9 +21882,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_direct.",
@@ -22862,9 +21992,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -22919,9 +22046,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -22987,9 +22111,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -23065,9 +22186,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -23127,9 +22245,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -23191,9 +22306,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -23267,9 +22379,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -23343,9 +22452,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -23402,9 +22508,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -23461,9 +22564,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -23528,9 +22628,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -23602,9 +22699,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -23657,9 +22751,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -23714,9 +22805,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -23769,9 +22857,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -23834,9 +22919,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -23910,9 +22992,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -23965,9 +23044,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -24024,9 +23100,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -24088,9 +23161,6 @@
     "plug": false,
     "itemise": true
    },
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
@@ -24212,9 +23282,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -24267,9 +23334,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -24337,9 +23401,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -24400,9 +23461,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -24472,9 +23530,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -24541,9 +23596,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -24603,9 +23655,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -24658,9 +23707,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -24711,9 +23757,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -24768,9 +23811,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -24830,9 +23870,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -24891,9 +23928,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -24960,9 +23994,6 @@
     "plug": false,
     "itemise": true
    },
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -25089,9 +24120,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
@@ -25151,9 +24179,6 @@
    "sign_convention": "either",
    "match_priority": 81,
    "alias_matching": "enabled",
-   "never_sweep": [
-    "True"
-   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",

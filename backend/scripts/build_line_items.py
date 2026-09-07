@@ -33,11 +33,17 @@ warnings.filterwarnings("ignore")
 from app.schemas.loader import load_ontology  # noqa: E402
 from app.services.mapping import (CONCEPT_FAMILIES, EXCLUSIVE_VOCABULARIES,
                                   HEADING_ROW_SECTIONS, SECTION_WORDS,
-                                  _COMPACT_SECTION_TOKENS, _STATEMENT_OF_PREFIX,
+                                  _BUILTIN_CAPTION_INVENTORY, _COMPACT_SECTION_TOKENS,
+                                  _STATEMENT_OF_PREFIX,
                                   _STATEMENT_SPELLINGS)  # noqa: E402
 from app.services.line_items import build  # noqa: E402
 from app.services.ontology_projection import build_definitions  # noqa: E402
-from app.schemas.line_items import load_line_item_set  # noqa: E402
+from app.schemas.line_items import MappingVocabulary, load_line_item_set  # noqa: E402
+
+# The vocabulary block's key for the caption-normalisation character inventories. Named here
+# because two places have to agree on it — this writer and `MappingVocabulary` — and today only
+# one of them declares it (see `report_caption_characters`).
+CAPTION_CHARS_KEY = "caption_characters"
 
 TEMPLATES = pathlib.Path("app/sample/templates")
 ONTOLOGY = TEMPLATES / "output_csv_hk_ontology.json"
@@ -50,6 +56,36 @@ SEED = TEMPLATES / "output_csv_hk_line_items.json"
 SECTION_FIELDS = ("statement", "section_scope", "temporality", "unit_of_account", "note_use",
                   "note_use_rationale", "sign_convention", "match_priority", "face_only",
                   "analyst_bucket")
+
+
+def report_caption_characters(loaded) -> None:
+    """Say out loud whether the emitted inventory SURVIVES the schema, and stay quiet if it does.
+
+    WHY A BUILD SCRIPT PRINTS THIS. `MappingVocabulary` has no `caption_characters` field yet and
+    pydantic ignores unknown keys, so the block below is written to the seed, is diffable and
+    reviewable there, and is dropped on load — which is exactly the failure this whole merge is
+    against: configuration that reads like a control and controls nothing. It is not left silent
+    and it is not left out. `mapping.build_caption_patterns` already consumes a declaration of
+    this shape and falls back to the built-in per entry, so the only missing piece is the field;
+    once it exists this function goes quiet on its own and the `SAME` line becomes the assertion
+    that the seed and the fold agree.
+    """
+    declared = CAPTION_CHARS_KEY in MappingVocabulary.model_fields
+    if not declared:
+        print(f"\n  caption inventory       : {len(_BUILTIN_CAPTION_INVENTORY)} entries written to "
+              f"vocabulary.{CAPTION_CHARS_KEY}, DROPPED ON LOAD")
+        print(f"     `MappingVocabulary` does not declare `{CAPTION_CHARS_KEY}` yet. Needed shape:")
+        print(f"     {CAPTION_CHARS_KEY}: dict[str, list] = Field(default_factory=dict)"
+              f"   # empty -> mapping._BUILTIN_CAPTION_INVENTORY, entry by entry")
+        print(f"     entries: {', '.join(_BUILTIN_CAPTION_INVENTORY)}")
+        return
+    got = getattr(loaded.vocabulary, CAPTION_CHARS_KEY, None) or {}
+    same = {k: [list(x) if isinstance(x, list) else x for x in v]
+            for k, v in (got or {}).items()} == {
+        k: [list(x) if isinstance(x, list) else x for x in v]
+        for k, v in _BUILTIN_CAPTION_INVENTORY.items()}
+    print(f"\n  caption inventory       : {len(got)} entries round-tripped   "
+          f"{'SAME as the built-in fold' if same else 'DIFFERS FROM THE BUILT-IN FOLD'}")
 
 
 def main() -> int:
@@ -161,6 +197,14 @@ def main() -> int:
             # item's own `section_scope`, so the definition declares the section it is gated to
             # instead of a table overriding it from the side.
             "section_overrides": {},
+            # THE CAPTION-NORMALISATION CHARACTER INVENTORIES, which decide what a printed caption
+            # FOLDS TO before any of the vocabularies above are consulted — so they decide the
+            # answers of all of them. Read from `mapping._BUILTIN_CAPTION_INVENTORY` rather than
+            # retyped, for the reason the rest of this block is: a retyped inventory is a second
+            # answer to one question. Measured, this is the largest single lever in the block —
+            # disabling one of its eight consumers (`_ABBREV_GLOSS`) moves 1,050 of 1,993 caption
+            # resolutions and puts 74 on a DIFFERENT concept.
+            CAPTION_CHARS_KEY: {k: list(v) for k, v in _BUILTIN_CAPTION_INVENTORY.items()},
         },
         # One definition governing every exclusive_residual line item. A per-item `residual_policy`
         # overrides a term only where its author wrote that term down, which is why the projection
@@ -176,6 +220,7 @@ def main() -> int:
     print(f"\n  validates               : {reg.ok}   problems: {len(reg.problems)}")
     for p in reg.problems[:10]:
         print(f"     [{p.severity}] {p.key}: {p.message}")
+    report_caption_characters(st)
     gated = sum(1 for d in st.items if d.statement is not None)
     print(f"  gate resolved onto      : {gated}/{len(st.items)}")
     print(f"  in output template      : {sum(1 for d in st.items if d.in_output)}")
