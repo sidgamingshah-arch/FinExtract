@@ -256,6 +256,37 @@ _CAS_LINE_PREFIX = re.compile(
     r")\s*"
 )
 
+# THE CAS SIGN-CONVENTION PARENTHETICAL, which a mainland face caption carries about ITSELF:
+# 三、营业利润（亏损以“－”号填列）, 四、利润总额（亏损总额以“－”号填列）, 资产减值损失（损失以“-”号填列）,
+# 存货的减少（增加以“－”号填列）. It tells the reader that a loss is printed with a minus sign. It is
+# an instruction about presentation and no more part of the concept's name than a note citation is
+# — and unlike a note citation it survived, because it is neither bracketed-numeric nor a quoted
+# abbreviation gloss, so `_BRACKETED_NUMBER` and `_ABBREV_GLOSS` both pass over it.
+#
+# MEASURED, and the size of it is why this is here: on 四创电子 (11077098) TWENTY-THREE captions
+# carry it and it defeated the match on every one. The whole bottom of the income statement was
+# unreachable — 三、营业利润 -253,234,645.30 landed on Other Operating Expenses, while
+# 四、利润总额 -252,374,537.99 and 五、净利润 -245,867,912.27 reached no concept at all — because
+# the punctuation fold turns the parenthetical into word tokens ("营业利润 亏损以 号填列") that no
+# alias in any rulebook carries. 营业利润 / 利润总额 / 净利润 / 资产减值损失 / 公允价值变动收益 are
+# all aliased; none of them could fire.
+#
+# Bounded content and the two bracket widths, so it cannot run across a caption. `号\s*填列`
+# because the filing breaks the line inside it: 递延所得税资产减少（增加以“－” 号填列）.
+_CAS_SIGN_NOTE = re.compile(r"[（(][^（()）]{0,24}号\s*填列\s*[）)]")
+
+# THE ORPHANED TAIL OF THE CAPTION ABOVE, left on the front of this one by a wrap merge:
+# "填列） 三、营业利润（亏损以“－”号填列）" is 资产处置收益's closing fragment glued to 营业利润's head.
+# Stripping the sign note above leaves "填列） 三、营业利润", so the fragment has to go too or the
+# caption still names nothing.
+#
+# RECOGNISED BY BEING IMPOSSIBLE, not by being short: a closing bracket with nothing on the line
+# that opened it cannot be the start of a caption any filing prints. `[^（(]` cannot cross an
+# opening bracket, so a legitimate leading parenthetical — （一）综合收益总额, "Profit/(loss) before
+# tax", "(Loss)/profit" — is never matched. A Han character is required as well, which keeps this
+# off the English path entirely: "b) Trade receivables" is left alone.
+_CAS_ORPHAN_HEAD = re.compile(r"^[^（(]*?[㐀-䶿一-鿿][^（(]{0,10}[）)]\s*")
+
 
 def normalize_label(text: str) -> str:
     """Lowercase, strip accents/punctuation, collapse whitespace (locale-agnostic).
@@ -266,13 +297,22 @@ def normalize_label(text: str) -> str:
 
     A quoted abbreviation gloss is dropped first — see ``_ABBREV_GLOSS`` for why the punctuation
     stripping below does not already do it. A mainland statement's own line numbering and its
-    其中：/加：/减： component markers are dropped too — see ``_CAS_LINE_PREFIX``.
+    其中：/加：/减： component markers are dropped too (``_CAS_LINE_PREFIX``), as is the
+    sign-convention parenthetical it carries about itself (``_CAS_SIGN_NOTE``) and a wrapped
+    caption's orphaned tail left on the front of the next one (``_CAS_ORPHAN_HEAD``).
     """
     text = _ABBREV_GLOSS.sub(" ", text)
     text = _NOTE_CITATION.sub(" ", text)
     text = _TRAILING_NUMERIC_NOTE.sub(" ", text)
     text = _BRACKETED_NUMBER.sub(" ", text)
     text = to_simplified(text)
+    # ORDER MATTERS HERE. The sign note goes first because a caption can carry more than one of
+    # them — 公允价值变动收益（损失以“－”号填列） 信用减值损失（损失以“-”号填列） is two glued captions
+    # with two — and removing them is what exposes the orphaned tail underneath. The tail goes
+    # next, because it sits in FRONT of the enumerator the prefix rule is looking for
+    # ("填列） 三、营业利润" only becomes "三、营业利润" once the fragment is gone).
+    text = _CAS_SIGN_NOTE.sub(" ", text)
+    text = _CAS_ORPHAN_HEAD.sub("", text, count=1)
     # Folded to Simplified first so 減：/其中： in a Traditional filing reach the same rule, and
     # looped because a continuation line can carry both an enumerator and a marker. Bounded, so a
     # pathological caption of nothing but markers cannot spin.

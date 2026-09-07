@@ -32,7 +32,7 @@ def test_normalize_label():
 
 # --- what normalisation drops before the exact tier sees a caption -------------------------------
 #
-# Four things are stripped ahead of the punctuation fold, each because the fold turns the printed
+# Six things are stripped ahead of the punctuation fold, each because the fold turns the printed
 # decoration into a SPACE and leaves what was inside it behind as a WORD — so the caption gains a
 # token no alias carries and the exact tier misses a concept the rulebook already names. They are
 # on the hot path of the entire mapper, which is the reason each has its own case here: the risk
@@ -94,6 +94,34 @@ def test_normalize_label():
     # colon were optional: 资产减值损失 is a concept in its own right.
     ("资产减值损失", "资产减值损失"),
     ("信用减值损失", "信用减值损失"),
+    # THE CAS SIGN-CONVENTION PARENTHETICAL, which the caption carries about ITSELF: it says a
+    # loss is printed with a minus sign. Measured on 四创电子 (11077098), 23 captions carry it and
+    # it defeated the match on every one — the whole bottom of the income statement was
+    # unreachable while 营业利润 / 利润总额 / 净利润 sat in the rulebook already aliased.
+    ("三、营业利润（亏损以“－”号填列）", "营业利润"),
+    ("四、利润总额（亏损总额以“－”号填列）", "利润总额"),
+    ("五、净利润（净亏损以“－”号填列）", "净利润"),
+    ("资产减值损失（损失以“-”号填列）", "资产减值损失"),
+    ("投资收益（损失以“-”号填列）", "投资收益"),
+    ("公允价值变动收益（损失以“－”号填列）", "公允价值变动收益"),
+    ("存货的减少（增加以“－”号填列）", "存货的减少"),
+    # The filing breaks the line INSIDE the parenthetical, so the space is load-bearing.
+    ("递延所得税资产减少（增加以“－” 号填列）", "递延所得税资产减少"),
+    # THE ORPHANED TAIL of the caption above, left on the front of this one by a wrap merge.
+    # A closing bracket with nothing on the line that opened it cannot begin a real caption.
+    ("填列） 三、营业利润（亏损以“－”号填列）", "营业利润"),
+    ("“－”号填列） 其他", "其他"),
+    # ...and the parentheticals that are NOT sign notes, which name the concept and must survive.
+    ("实收资本（或股本）", "实收资本 或股本"),
+    ("所有者权益（或股东权益）合计", "所有者权益 或股东权益 合计"),
+    # A LEADING PARENTHETICAL THAT OPENS PROPERLY IS NOT AN ORPHAN. `[^（(]` cannot cross an
+    # opening bracket, so each of these is left for the rules that do handle it.
+    ("（一）综合收益总额", "综合收益总额"),
+    ("Profit/(loss) before tax", "profit loss before tax"),
+    ("(Loss)/profit for the year", "loss profit for the year"),
+    # A Han character is required in the orphan, which keeps the rule off the English path.
+    ("b) Trade receivables", "b trade receivables"),
+    ("Deprec & Impairment(COS)", "deprec impairment cos"),
 ])
 def test_a_printed_decoration_is_dropped_but_a_meaning_is_not(printed, expected):
     assert normalize_label(printed) == expected
