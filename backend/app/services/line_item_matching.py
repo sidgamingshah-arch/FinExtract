@@ -210,6 +210,50 @@ class LineItemMatch:
     def resolved(self) -> bool:
         return self.key is not None
 
+    def as_mapping_result(self) -> "_AppliedResult":
+        """This result in the shape `stages.map_ontology._apply` reads.
+
+        AN ADAPTER RATHER THAN A SHARED TYPE, deliberately. `_apply` is the one function both
+        engines write rows through, and it reads seven attributes off whatever it is handed —
+        `canonical_key`, `confidence`, `method`, `allocation_status`, `reason`, `rerouted_from`,
+        `needs_review`. Renaming this class's fields to match would couple the ported matcher's
+        vocabulary to the incumbent's; widening `_apply` to accept two shapes would put an
+        isinstance branch in the one place every row passes through. So the translation lives here,
+        where the difference is, and `_apply` stays unaware there are two engines.
+
+        THREE FIELDS ARE HONESTLY EMPTY. `rerouted_from` needs the concept-family re-routing, and
+        this rulebook declares no families at all (all nine lifted from `mapping.CONCEPT_FAMILIES`
+        name keys it does not define). `computed_claim` needs the refusal that stops a caption
+        naming a COMPUTED concept being re-homed onto a neighbour — the `extraction_mode: derive`
+        locks keep such a concept out of every tier here, so no caption reaches it, but the
+        positive claim the incumbent records is not reproduced. `allocation_status` is set only for
+        an exact hit, which is the one case its meaning is unambiguous.
+        """
+        return _AppliedResult(
+            canonical_key=self.key,
+            confidence=self.confidence,
+            method=self.method,
+            needs_review=self.needs_review,
+            reason=self.reason,
+            allocation_status=("direct_exclusive"
+                               if self.method is MappingMethod.EXACT and self.key else None),
+        )
+
+
+@dataclass
+class _AppliedResult:
+    """What `map_ontology._apply` expects. See `LineItemMatch.as_mapping_result`."""
+
+    canonical_key: str | None
+    confidence: float
+    method: object
+    needs_review: bool = False
+    reason: str = ""
+    allocation_status: str | None = None
+    # Not produced by the deterministic port — see the adapter's docstring for why each is empty
+    # rather than fabricated.
+    rerouted_from: str | None = None
+    computed_claim: str | None = None
 
 
 class LineItemMatcher:

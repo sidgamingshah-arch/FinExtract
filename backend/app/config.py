@@ -296,6 +296,27 @@ class ExtractionSettings(BaseModel):
     # given model returns as parseable JSON in one go — a truncated batch is not a partial answer,
     # the JSON fails to parse and the whole chunk silently falls back to the weaker per-line path.
     llm_batch_max_items: int = 25
+    # WHICH REGISTRY DECIDES WHERE A CAPTION LANDS. A FALLBACK, not a migration switch.
+    #
+    #   "ontology"     the incumbent. `services.mapping.OntologyMatcher` over the rulebook, with
+    #                  every tier including the LLM one. This is where the value is and it stays
+    #                  the default.
+    #   "line_items"   the merged configuration, `services.line_item_matching.LineItemMatcher`,
+    #                  DETERMINISTIC ONLY. The semantic tier is not ported: it consumes the same
+    #                  per-item payload (definition, include/exclude criteria, confusable_with),
+    #                  which the merged model carries in full, but pointing it at this registry is
+    #                  separate work.
+    #
+    # SO THIS IS A WEAKER PATH BY CONSTRUCTION, and it is here because a deterministic fallback
+    # that needs no provider is worth having when a gateway is down, a key has expired, or a run
+    # has to be reproducible with nothing leaving the machine. It is not a route to better
+    # extraction: `scripts/parity_line_items.py` shows the two agree on 11,433 of 11,433 rulebook
+    # captions, and that says nothing whatever about the LLM tier this path lacks.
+    #
+    # Making this path good on a particular filing by adding captions it happens to print would be
+    # the exact overfitting the generic framework exists to avoid. Widen the vocabulary, or accept
+    # that the fallback maps less.
+    mapping_engine: Literal["ontology", "line_items"] = "ontology"
     # Floor under a batch call's requested completion allocation. services.mapping also DERIVES a
     # budget from the response envelope (a reserve plus ~80 tokens a decision); that derivation
     # stays in code because it is measured against THIS vocabulary's longest canonical_key, and the

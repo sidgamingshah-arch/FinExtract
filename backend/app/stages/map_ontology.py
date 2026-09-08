@@ -378,6 +378,56 @@ def _sibling_evidence(doc: DocumentModel, ontology, parents: list,
     return ""
 
 
+def _apply_result(li, result) -> bool:
+    """Write one mapping decision onto a row. THE ONE PLACE EITHER ENGINE WRITES A ROW.
+
+    Hoisted out of `run()` unchanged when the deterministic fallback arrived
+    (`extraction.mapping_engine = "line_items"`), because that path decides rows too and a second
+    copy of this is how two engines start flagging differently — one of them forgetting
+    `low_mapping_confidence`, say, so a doubtful row reads as certain on one engine and not the
+    other. It closed over nothing but its two arguments, so the move is mechanical;
+    `LineItemMatch.as_mapping_result` supplies the shape it reads.
+    """
+    # Secur & Other Fincl Assets(CP)/(LTP) used to bind directly here on a bare "Financial
+    # assets at fair value through profit or loss" face caption, at whatever figure was
+    # printed. Both are now extraction_mode "derive" (services.secur_fincl_assets computes
+    # them from note totals less proven deductions), so a face row with that caption is
+    # left unmatched here — same rule "derive" already gives every other computed concept.
+    if result and result.canonical_key:
+        li.canonical_key = result.canonical_key
+        li.confidence.mapping = result.confidence
+        li.confidence.method = result.method.value
+        if result.allocation_status:
+            li.confidence.flags.append(f"alloc:{result.allocation_status}")
+        if result.method is MappingMethod.LLM and result.reason:
+            # The model's own stated justification, surfaced (not just logged) so a reviewer
+            # asking why a caption was mapped — or merged with others under one concept —
+            # sees the reasoning behind the decision, not only its score.
+            li.confidence.flags.append(f"llm_reason:{result.reason}")
+        if result.rerouted_from:
+            # The concept whose caption matched is not the one the row was filed under: the
+            # section banner named a different variant of the same fact. Recorded per row,
+            # because a reviewer looking at the comprehensive-income bottom line needs to
+            # see that the caption on the page said "loss for the year".
+            li.confidence.flags.append(f"section_reroute_from:{result.rerouted_from}")
+        if result.needs_review:
+            li.confidence.flags.append("low_mapping_confidence")
+        return True
+    if result and result.computed_claim:
+        # The caption names a concept the framework COMPUTES (`extraction_mode: derive`), so
+        # the matcher refused to bind the row to anything (services.mapping._computed_claim).
+        # The row must not fall to the residual sweep either: an unclaimed face row with a
+        # value is swept into its section's "Others", which would add a subtotal OF the
+        # section back INTO the section under a different name — the same failure the
+        # containment pass below marks a subtotal to avoid. A row that is a computed subtotal
+        # is marked as one, which the sweep's own eligibility rules already exclude.
+        if li.role is LineRole.LINE:
+            li.role = LineRole.SUBTOTAL
+        li.confidence.flags.append(f"computed_concept_printed:{result.computed_claim}")
+        li.confidence.flags.append("low_mapping_confidence")
+    return False
+
+
 class MapOntologyStage:
     name = "map_ontology"
 
@@ -473,6 +523,12 @@ class MapOntologyStage:
         else:
             unavailable_reason = "stub llm provider configured"
 
+        # THE DETERMINISTIC FALLBACK (extraction.mapping_engine = "line_items"), off by default.
+        # A weaker path by construction — no LLM tier — kept for a run that must complete with an
+        # unreachable gateway, an expired key, or nothing leaving the machine. See the setting.
+        if getattr(ctx.settings.extraction, "mapping_engine", "ontology") == "line_items":
+            return self._map_from_line_items(doc, ctx)
+
         matcher = OntologyMatcher(ontology, locale=doc.locale, settings=ctx.settings,
                                   llm_provider=llm_provider)
         scope = ctx.settings.extraction.mapping_scope
@@ -519,45 +575,7 @@ class MapOntologyStage:
         ctx.log(f"map_ontology:strategy={ctx.mapping_strategy}(intended) scope={scope}"
                 + (f" reason={ctx.mapping_strategy_reason}" if ctx.mapping_strategy_reason else ""))
 
-        def _apply(li, result) -> bool:
-            # Secur & Other Fincl Assets(CP)/(LTP) used to bind directly here on a bare "Financial
-            # assets at fair value through profit or loss" face caption, at whatever figure was
-            # printed. Both are now extraction_mode "derive" (services.secur_fincl_assets computes
-            # them from note totals less proven deductions), so a face row with that caption is
-            # left unmatched here — same rule "derive" already gives every other computed concept.
-            if result and result.canonical_key:
-                li.canonical_key = result.canonical_key
-                li.confidence.mapping = result.confidence
-                li.confidence.method = result.method.value
-                if result.allocation_status:
-                    li.confidence.flags.append(f"alloc:{result.allocation_status}")
-                if result.method is MappingMethod.LLM and result.reason:
-                    # The model's own stated justification, surfaced (not just logged) so a reviewer
-                    # asking why a caption was mapped — or merged with others under one concept —
-                    # sees the reasoning behind the decision, not only its score.
-                    li.confidence.flags.append(f"llm_reason:{result.reason}")
-                if result.rerouted_from:
-                    # The concept whose caption matched is not the one the row was filed under: the
-                    # section banner named a different variant of the same fact. Recorded per row,
-                    # because a reviewer looking at the comprehensive-income bottom line needs to
-                    # see that the caption on the page said "loss for the year".
-                    li.confidence.flags.append(f"section_reroute_from:{result.rerouted_from}")
-                if result.needs_review:
-                    li.confidence.flags.append("low_mapping_confidence")
-                return True
-            if result and result.computed_claim:
-                # The caption names a concept the framework COMPUTES (`extraction_mode: derive`), so
-                # the matcher refused to bind the row to anything (services.mapping._computed_claim).
-                # The row must not fall to the residual sweep either: an unclaimed face row with a
-                # value is swept into its section's "Others", which would add a subtotal OF the
-                # section back INTO the section under a different name — the same failure the
-                # containment pass below marks a subtotal to avoid. A row that is a computed subtotal
-                # is marked as one, which the sweep's own eligibility rules already exclude.
-                if li.role is LineRole.LINE:
-                    li.role = LineRole.SUBTOTAL
-                li.confidence.flags.append(f"computed_concept_printed:{result.computed_claim}")
-                li.confidence.flags.append("low_mapping_confidence")
-            return False
+        _apply = _apply_result
 
         # Page -> statement, from the classifier. Mapping uses it to refuse concepts from a
         # different statement (a P&L caption resolving to a cash-flow key, etc.).
@@ -1466,3 +1484,68 @@ class MapOntologyStage:
                         ctx.log(f"map_ontology:equivalence_conflict {a}={va.value}"
                                 f" {b}={vb.value} column={col}")
         return conflicts
+
+    def _map_from_line_items(self, doc: DocumentModel, ctx: PipelineContext) -> DocumentModel:
+        """Map every row from the merged line-item configuration, deterministically.
+
+        WHAT THIS IS FOR. A fallback, not a better engine. `LineItemMatcher` ports the incumbent's
+        DETERMINISTIC tiers — the statement/section/veto gate, the alias index over every locale,
+        label ownership, `match_priority`, the mutually-confusable refusal, and the regex/keyword
+        rule tier — and `scripts/parity_line_items.py` holds it to 11,433 of 11,433 rulebook
+        captions. It does NOT have the semantic tier, and that tier is where the value is.
+
+        SO A ROW THAT WOULD HAVE BEEN DECIDED BY THE MODEL IS LEFT UNMAPPED HERE, on purpose,
+        rather than guessed at by a weaker tier. An unmapped face row is visible in the review
+        queue; a plausible wrong concept is not.
+
+        Reported, not silent: `mapping_strategy` records that this engine ran, so a run decided
+        without the model can never be mistaken downstream for a full-capability one.
+        """
+        from app.services.line_item_config import load_shipped_set
+        from app.services.line_item_matching import LineItemMatcher
+
+        try:
+            line_items = load_shipped_set()
+        except Exception as exc:  # noqa: BLE001
+            # The fallback failing to load must not take the run down: say so and leave the rows
+            # unmapped, which is what this stage does for a missing ontology too.
+            ctx.log(f"map_ontology:line_items_engine_unavailable:{type(exc).__name__}: {exc}")
+            ctx.mapping_strategy = "unmapped"
+            ctx.mapping_strategy_reason = f"line-item configuration did not load: {exc}"
+            return doc
+
+        matcher = LineItemMatcher(line_items)
+        stmt_by_page = {p.index: p.statement for p in doc.pages if p.statement}
+
+        def statement_of(li) -> str | None:
+            for ev in li.values.values():
+                if ev.provenance is not None:
+                    return stmt_by_page.get(ev.provenance.page_index)
+            return None
+
+        total = len(doc.line_items)
+        ctx.emit_step(0, total, "row")
+        mapped = review = 0
+        for done, li in enumerate(doc.line_items, start=1):
+            got = matcher.match(li.source_label, statement=statement_of(li),
+                                section=li.section_hint)
+            if got.tied:
+                # The rulebook forbids separating mutually-confusable claimants by declaration
+                # order, so the honest answer is neither — recorded with both, for a reviewer.
+                li.confidence.flags.append(f"confusable_tie:{','.join(got.tied)}")
+            if _apply_result(li, got.as_mapping_result()):
+                mapped += 1
+                if got.needs_review:
+                    review += 1
+            if done % 25 == 0 or done == total:
+                ctx.emit_step(done, total, "row")
+
+        ctx.mapping_strategy = "line_items_deterministic"
+        ctx.mapping_strategy_reason = (
+            "extraction.mapping_engine=line_items — the merged configuration's deterministic "
+            "tiers only; the semantic tier is not ported, so rows it would have decided are left "
+            "unmapped rather than guessed")
+        ctx.log(f"map_ontology:line_items_engine mapped={mapped}/{total} "
+                f"needs_review={review} definitions={len(line_items.items)}")
+        return doc
+
