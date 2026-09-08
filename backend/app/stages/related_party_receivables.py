@@ -44,6 +44,21 @@ class RelatedPartyReceivablesStage:
             ctx.log("related_party_receivables:skipped(nothing to search)")
             return doc
 
+        # THE COMPLEX PATH IS SWITCHABLE, as it is in the other four derivation stages. Off, the
+        # rulebook's own reading of these concepts is what publishes — see services.computed_paths.
+        #
+        # THIS ASSIGNMENT WAS MISSING and it crashed a real filing. `_apply` below takes `policy`
+        # as an argument, the import was present, and the four sibling stages all assign it here —
+        # this one did not, so the call raised `NameError: name 'policy' is not defined`. It lay
+        # dormant because the crash is only reachable once a value is actually COMPUTED: every
+        # (basis, period) whose result is None hits the `continue` above it. On the 四创电子 filing
+        # the first two keys reported NOT_COMPUTABLE, a later one computed, and the whole
+        # 210-page extraction died at stage 15 of 21 with no rows at all.
+        policy = policy_from(ctx.settings)
+        if not policy.runs("related_party_receivables"):
+            ctx.log("related_party_receivables:skipped(complex path disabled)")
+            return doc
+
         results = compute(doc)
         next_ordinal = [max((li.ordinal for li in doc.line_items), default=0) + 1]
         applied = 0
