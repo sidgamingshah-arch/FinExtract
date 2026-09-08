@@ -533,7 +533,7 @@
      "9FFF"
     ],
     [
-     "8C48",
+     "F900",
      "FAFF"
     ]
    ],
@@ -665,7 +665,6 @@
     "^Land$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -727,7 +726,6 @@
     "^Buildings$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -781,7 +779,6 @@
     "^Leasehold\\s+Improvements$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -849,7 +846,6 @@
     "^Plant\\s+\\&\\s+Equipment$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -903,7 +899,6 @@
     "^Furniture\\s+\\&\\s+Fixtures$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -967,7 +962,6 @@
     "^Vehicles\\s+\\&\\s+Transport\\s+Equipment$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -1032,7 +1026,6 @@
     "^Other\\s+Fixed\\s+Assets$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -1086,7 +1079,6 @@
     "^Construction\\s+in\\s+Progress$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -1136,7 +1128,6 @@
     "^Gross\\s+Fixed\\s+Assets$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -1192,7 +1183,6 @@
     "^Accum\\s+Deprec\\s+\\&\\s+Impairment\\([\\-–—]?\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -1244,7 +1234,6 @@
     "^Net\\s+Fixed\\s+Assets$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -1295,7 +1284,6 @@
     "^Goodwill$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -1347,7 +1335,6 @@
     "^Accum\\s+Goodwill\\s+Amortized\\([\\-–—]?\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -1407,7 +1394,6 @@
     "^Land\\s+use\\s+rights$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -1473,7 +1459,6 @@
     "\\s+Licenses\\s+\\&\\s+Trdmrks$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -1525,7 +1510,6 @@
     "^Patents$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -1579,7 +1563,6 @@
     "^Start[\\-–—]?Up\\s+Capitalized\\s+Expenses$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -1638,7 +1621,6 @@
     "^R\\&D\\s+Capitalized\\s+Expenses$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -1694,7 +1676,6 @@
     "^Other\\s+Intangible\\s+Assets$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -1744,7 +1725,6 @@
     "^Accum\\s+Intgbl\\s+Assets\\s+Amort\\([\\-–—]?\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -1796,7 +1776,6 @@
     "^Net\\s+Intangibles$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -1864,7 +1843,6 @@
     "^Investment\\s+Property\\(Net\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -1921,7 +1899,6 @@
     "^Investment\\s+in\\s+Subsidiaries$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -1987,7 +1964,6 @@
     "^Investments\\s+in\\s+Associates$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -2039,7 +2015,6 @@
     "^Invest\\s+in\\s+JVs\\s+\\&\\s+Partnerships$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -2091,7 +2066,6 @@
     "^Entrusted\\s+loan\\s+receivables[\\-–—]?\\s+related\\s+parties\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -2149,7 +2123,6 @@
     "^Due\\s+from\\s+directors$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -2207,7 +2180,6 @@
     "^Due\\s+from\\s+subsidiaries$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -2321,7 +2293,6 @@
     "trade\\s+receivable"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -2378,7 +2349,6 @@
     "^Entrusted\\s+loan\\s+receivables[\\-–—]?\\s+shareholders\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -2448,7 +2418,6 @@
     "^Due\\s+from\\s+MI$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -2502,7 +2471,6 @@
     "^Due\\s+from\\s+S'holder\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -2560,7 +2528,6 @@
     "^Wealth\\s+management\\s+products\\(LTP\\)\\s+\\(from\\s+Secur\\&Fincl\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -2651,7 +2618,6 @@
     "^Secur\\s+\\&\\s+Other\\s+Fincl\\s+Assets\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -2710,7 +2676,6 @@
     "^Futures\\(NCA\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -2772,7 +2737,6 @@
     "^Options\\(NCA\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -2830,7 +2794,6 @@
     "^Forwards\\(NCA\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -2882,7 +2845,6 @@
     "^Commodities\\(NCA\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -2942,7 +2904,6 @@
     "^Swaps\\(NCA\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -3004,7 +2965,6 @@
     "^Deriv\\s+\\&\\s+Hedg\\s+Assets\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -3058,7 +3018,6 @@
     "^Rtrmnt\\s+Plan\\s+Actuarial\\s+Surplus$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -3116,7 +3075,6 @@
     "^Wealth\\s+management\\s+products\\(LTP\\)\\s+\\(from\\s+OtherAsset\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -3198,7 +3156,6 @@
     "^Pledged\\s+Deposits\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -3284,7 +3241,6 @@
     "^Pledged\\s+Secur\\s+\\&\\s+Other\\s+Fincl\\s+Assets\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -3342,7 +3298,6 @@
     "^Other\\s+Non[\\-–—]?Current\\s+Assets$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -3412,7 +3367,6 @@
     "^Deferred\\s+Tax\\s+Assets$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -3466,7 +3420,6 @@
     "^Entrusted\\s+loan\\s+receivables[\\-–—]?\\s+third\\s+parties\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -3524,7 +3477,6 @@
     "^Wealth\\s+management\\s+products\\(LTP\\)\\s+\\(from\\s+Receivables\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -3578,7 +3530,6 @@
     "^Reverse\\s+repo\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -3670,7 +3621,6 @@
     "^Other\\s+Receivables\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -3722,7 +3672,6 @@
     "^Prepaid\\s+land\\s+lease\\s+payments\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -3803,7 +3752,6 @@
     "^Prepayments\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -3859,7 +3807,6 @@
     "^Restricted\\s+Cash$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -3916,7 +3863,6 @@
     "^Total\\s+Non[\\-–—]?Current\\s+Assets$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_nca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -3972,7 +3918,6 @@
     "^Operating\\s+Lease\\s+Receivables$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -4028,7 +3973,6 @@
     "^Raw\\s+materials$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -4088,7 +4032,6 @@
     "^WIP$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -4150,7 +4093,6 @@
     "^Finished\\s+goods$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -4204,7 +4146,6 @@
     "^Inventories$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -4260,7 +4201,6 @@
     "^Due\\s+from\\s+JVs\\s+\\&\\s+Partnerships$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -4310,7 +4250,6 @@
     "^Entrusted\\s+loan\\s+receivables[\\-–—]?\\s+related\\s+parties\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -4360,7 +4299,6 @@
     "^Due\\s+from\\s+Related\\s+Parties\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -4414,7 +4352,6 @@
     "^Entrusted\\s+loan\\s+receivables[\\-–—]?\\s+shareholders\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -4464,7 +4401,6 @@
     "^Due\\s+from\\s+S'holder\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -4514,7 +4450,6 @@
     "^Short\\s+Term\\s+Securities$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -4572,7 +4507,6 @@
     "^Wealth\\s+management\\s+products\\(CP\\)\\s+\\(from\\s+Secur\\&Fincl\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -4670,7 +4604,6 @@
     "^Secur\\s+\\&\\s+Other\\s+Fincl\\s+Assets\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -4729,7 +4662,6 @@
     "^Futures\\(CA\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -4791,7 +4723,6 @@
     "^Options\\(CA\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -4849,7 +4780,6 @@
     "^Forwards\\(CA\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -4901,7 +4831,6 @@
     "^Commodities\\(CA\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -4961,7 +4890,6 @@
     "^Swaps\\(CA\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -5022,7 +4950,6 @@
     "^Deriv\\s+\\&\\s+Hedg\\s+Assets\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -5074,7 +5001,6 @@
     "^Assets\\s+Plgd\\s+Under\\s+Securitization$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -5128,7 +5054,6 @@
     "^Current\\s+Tax\\s+Receivables$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -5180,7 +5105,6 @@
     "^Prepaid\\s+land\\s+lease\\s+payments\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -5258,7 +5182,6 @@
     "^Prepayments\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -5311,7 +5234,6 @@
     "^Assets\\s+Related\\s+to\\s+Disc\\s+Ops$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -5393,7 +5315,6 @@
     "^Pledged\\s+Deposits$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -5477,7 +5398,6 @@
     "^Pledged\\s+Secur\\s+\\&\\s+Other\\s+Fincl\\s+Assets\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -5535,7 +5455,6 @@
     "^Wealth\\s+management\\s+products\\(CP\\)\\s+\\(from\\s+OtherAsset\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -5602,7 +5521,6 @@
     "^Segregated\\s+Account\\(CA\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -5652,7 +5570,6 @@
     "^Suspense\\s+Account\\(CA\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -5711,7 +5628,6 @@
     "^Other\\s+Current\\s+Assets$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -5774,7 +5690,6 @@
     "^Trade\\s+receivables[\\-–—]?\\s+related\\s+parties$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -5828,7 +5743,6 @@
     "^Trade\\s+and\\s+other\\s+receivables[\\-–—]?\\s+related\\s+parties$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -5902,7 +5816,6 @@
     "^Trade\\s+and\\s+other\\s+receivables$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -5967,7 +5880,6 @@
     "^Trade\\s+Receivables\\(Gross\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -6025,7 +5937,6 @@
     "^Allow\\s+for\\s+Doubtful\\s+Accounts\\([\\-–—]?\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -6073,7 +5984,6 @@
     "^Net\\s+Trade\\s+Receivables$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -6129,7 +6039,6 @@
     "^Subscribed\\s+Capital[\\-–—]?Called\\s+Not\\s+Paid$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -6183,7 +6092,6 @@
     "^Entrusted\\s+loan\\s+receivables[\\-–—]?\\s+third\\s+parties\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -6241,7 +6149,6 @@
     "^Wealth\\s+management\\s+products\\(CP\\)\\s+\\(from\\s+Receivables\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -6294,7 +6201,6 @@
     "^Reverse\\s+repo\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -6395,7 +6301,6 @@
     "other\\s+receivable[\\s\\S]{0,80}(?:deposits?|prepayments?|prepaid|other\\s+assets)"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -6456,7 +6361,6 @@
     "^Wealth\\s+management\\s+products\\(CP\\)\\s+\\(from\\s+cash\\s+equ\\.\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -6519,7 +6423,6 @@
     "^Cash\\s+Equivalents$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -6592,7 +6495,6 @@
     "^Cash\\s+in\\s+Hand\\s+and\\s+at\\s+Banks$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -6649,7 +6551,6 @@
     "^Total\\s+Current\\s+Assets$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -6715,7 +6616,6 @@
     "^net current (?:assets|liabilities)"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ca",
    "statement": "balance_sheet",
    "section_scope": [
@@ -6794,7 +6694,6 @@
     "^Common\\s+Share\\s+Capital$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
    "section_scope": [
@@ -6851,7 +6750,6 @@
     "^Pref\\s+Share\\s+Capital$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
    "section_scope": [
@@ -6909,7 +6807,6 @@
     "^Share\\s+Premium$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
    "section_scope": [
@@ -6959,7 +6856,6 @@
     "^Special\\s+Items\\s+with\\s+Equity\\s+Character$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
    "section_scope": [
@@ -7039,7 +6935,6 @@
     "^Capital\\s+\\&\\s+Restricted\\s+Reserves$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
    "section_scope": [
@@ -7089,7 +6984,6 @@
     "^Permanent\\s+Equity$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
    "section_scope": [
@@ -7155,7 +7049,6 @@
     "^Revaluation\\s+Reserves$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
    "section_scope": [
@@ -7211,7 +7104,6 @@
     "^Hedging\\s+Reserves$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
    "section_scope": [
@@ -7268,7 +7160,6 @@
     "^Other\\s+Reserves$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
    "section_scope": [
@@ -7327,7 +7218,6 @@
     "^Auditor\\s+adj\\s+on\\s+retained\\s+profits$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
    "section_scope": [
@@ -7395,7 +7285,6 @@
     "^Retained\\s+Profits$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
    "section_scope": [
@@ -7455,7 +7344,6 @@
     "^Treasury\\s+Shares\\([\\-–—]?\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
    "section_scope": [
@@ -7523,7 +7411,6 @@
     "^Forex\\s+Translation\\s+Equity$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
    "section_scope": [
@@ -7573,7 +7460,6 @@
     "^Subordinated\\s+Debt\\s+from\\s+related\\s+parties$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
    "section_scope": [
@@ -7623,7 +7509,6 @@
     "^Subordinated\\s+Debt\\s+Equity$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
    "section_scope": [
@@ -7686,7 +7571,6 @@
     "^Other\\s+Equity$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
    "section_scope": [
@@ -7736,7 +7620,6 @@
     "^Policyholders\\s+Equity$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
    "section_scope": [
@@ -7805,7 +7688,6 @@
     "^Accum\\s+Oth\\s+Eqty\\s+Rsrv\\s+Inc$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
    "section_scope": [
@@ -7871,7 +7753,6 @@
     "^Minority\\s+Interest\\s+Equity$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
    "section_scope": [
@@ -7928,7 +7809,6 @@
     "^Total\\s+Equity\\s+\\&\\s+Reserves$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
    "section_scope": [
@@ -8013,7 +7893,6 @@
     "^LTD\\s+Bank$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -8075,7 +7954,6 @@
     "^Entrusted\\s+loan\\s+payables[\\-–—]?\\s+third\\s+parties\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -8135,7 +8013,6 @@
     "^Perpetual\\s+Bond$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -8189,7 +8066,6 @@
     "^Repo\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -8265,7 +8141,6 @@
     "^LTD\\s+Other$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -8319,7 +8194,6 @@
     "^LTD\\s+Convertible$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -8377,7 +8251,6 @@
     "^LTD\\s+Subordinated$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -8435,7 +8308,6 @@
     "^Finance\\s+Leases\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -8485,7 +8357,6 @@
     "^Entrusted\\s+loan\\s+payables[\\-–—]?\\s+related\\s+parties\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -8543,7 +8414,6 @@
     "^Due\\s+to\\s+directors\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -8601,7 +8471,6 @@
     "^Due\\s+to\\s+subsidiaries\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -8659,7 +8528,6 @@
     "^Due\\s+to\\s+Related\\s+Parties\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -8713,7 +8581,6 @@
     "^Entrusted\\s+loan\\s+payables[\\-–—]?\\s+shareholders\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -8773,7 +8640,6 @@
     "^Due\\s+to\\s+MI\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -8831,7 +8697,6 @@
     "^Due\\s+to\\s+S'holder\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -8890,7 +8755,6 @@
     "^Lease\\s+liabilities\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -8958,7 +8822,6 @@
     "^total assets less current liabilities"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -9023,7 +8886,6 @@
     "^Customer\\s+Advances\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -9084,7 +8946,6 @@
     "^Deferred\\s+Income\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -9140,7 +9001,6 @@
     "^Futures\\(NCL\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -9202,7 +9062,6 @@
     "^Options\\(NCL\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -9260,7 +9119,6 @@
     "^Forwards\\(NCL\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -9312,7 +9170,6 @@
     "^Commodities\\(NCL\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -9372,7 +9229,6 @@
     "^Swaps\\(NCL\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -9432,7 +9288,6 @@
     "^Deriv\\s+\\&\\s+Hedg\\s+Liab\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -9504,7 +9359,6 @@
     "^Trade\\s+and\\s+other\\s+payables\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -9563,7 +9417,6 @@
     "^Trade\\s+Payables\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -9617,7 +9470,6 @@
     "^Soc\\s+Sec\\s+\\&\\s+Other\\s+Taxes\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -9675,7 +9527,6 @@
     "^Decomm\\s+\\&\\s+Envir\\s+Costs\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -9729,7 +9580,6 @@
     "^Share\\s+Option\\s+Costs\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -9794,7 +9644,6 @@
     "^Retirement\\s+Benefits\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -9853,7 +9702,6 @@
     "^Deferred\\s+Tax\\s+Liability$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -9907,7 +9755,6 @@
     "^Restruct\\s+Provision\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -9961,7 +9808,6 @@
     "^Tax\\s+Provision\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -10022,7 +9868,6 @@
     "^Other\\s+Provisions\\(LTP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -10085,7 +9930,6 @@
     "^Total\\s+Non[\\-–—]?Current\\s+Liabilities$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_ncl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -10171,7 +10015,6 @@
     "^CPLTD\\s+Bank$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -10233,7 +10076,6 @@
     "^Entrusted\\s+loan\\s+payables[\\-–—]?\\s+third\\s+parties\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -10307,7 +10149,6 @@
     "^CPLTD\\s+Other$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -10361,7 +10202,6 @@
     "^CPLTD\\s+Convertible$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -10417,7 +10257,6 @@
     "^CPLTD\\s+Subordinated$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -10493,7 +10332,6 @@
     "^Trade\\s+financing$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -10557,7 +10395,6 @@
     "^ST\\s+Bank\\s+Loans\\s+Payable$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -10609,7 +10446,6 @@
     "^IPO\\s+Loans\\s+\\(ST\\s+Bank\\s+Loans\\s+Pay\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -10661,7 +10497,6 @@
     "^IPO\\s+Loans\\s+\\(ST\\s+Other\\s+Loans\\s+Pay\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -10716,7 +10551,6 @@
     "^Repo\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -10776,7 +10610,6 @@
     "^ST\\s+Other\\s+Loans\\s+Payable$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -10834,7 +10667,6 @@
     "^Finance\\s+Leases\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -10886,7 +10718,6 @@
     "^Overdrafts$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -10936,7 +10767,6 @@
     "^Entrusted\\s+loan\\s+payables[\\-–—]?\\s+related\\s+parties\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -10994,7 +10824,6 @@
     "^Due\\s+to\\s+directors\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -11052,7 +10881,6 @@
     "^Due\\s+to\\s+subsidiaries\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -11110,7 +10938,6 @@
     "^Due\\s+to\\s+Related\\s+Parties\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -11164,7 +10991,6 @@
     "^Entrusted\\s+loan\\s+payables[\\-–—]?\\s+shareholders\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -11222,7 +11048,6 @@
     "^Due\\s+to\\s+MI\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -11278,7 +11103,6 @@
     "^Due\\s+to\\s+S'holder\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -11328,7 +11152,6 @@
     "^Liabilities\\s+to\\s+Enterprises$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -11387,7 +11210,6 @@
     "^Lease\\s+liabilities\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -11440,7 +11262,6 @@
     "^Segregated\\s+Account\\(CL\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -11490,7 +11311,6 @@
     "^Suspense\\s+Account\\(CL\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -11547,7 +11367,6 @@
     "^Other\\s+Current\\s+Liabilities$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -11629,7 +11448,6 @@
     "^Customer\\s+Advances\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -11690,7 +11508,6 @@
     "^Deferred\\s+Income\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -11740,7 +11557,6 @@
     "^Billings\\s+in\\s+Excess\\s+of\\s+Costs$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -11796,7 +11612,6 @@
     "^Futures\\(CL\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -11858,7 +11673,6 @@
     "^Options\\(CL\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -11916,7 +11730,6 @@
     "^Forwards\\(CL\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -11968,7 +11781,6 @@
     "^Commodities\\(CL\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -12028,7 +11840,6 @@
     "^Swaps\\(CL\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -12091,7 +11902,6 @@
     "^Deriv\\s+\\&\\s+Hedg\\s+Liab\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -12147,7 +11957,6 @@
     "^Current\\s+Tax\\s+Payable$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -12201,7 +12010,6 @@
     "^Interest\\s+Payable$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -12258,7 +12066,6 @@
     "^Soc\\s+Sec\\s+\\&\\s+Other\\s+Taxes\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -12312,7 +12119,6 @@
     "^Proposed\\s+Dividends$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -12364,7 +12170,6 @@
     "^Dividends\\s+Payable$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -12422,7 +12227,6 @@
     "^Notes\\s+Payable\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -12479,7 +12283,6 @@
     "^Trade\\s+payables[\\-–—]?\\s+related\\s+parties$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -12533,7 +12336,6 @@
     "^Trade\\s+and\\s+other\\s+payables[\\-–—]?\\s+related\\s+parties$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -12605,7 +12407,6 @@
     "^Trade\\s+and\\s+other\\s+payables\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -12674,7 +12475,6 @@
     "^Trade\\s+Payables\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -12730,7 +12530,6 @@
     "^Decomm\\s+\\&\\s+Envir\\s+Costs\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -12784,7 +12583,6 @@
     "^Share\\s+Option\\s+Costs\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -12846,7 +12644,6 @@
     "^Retirement\\s+Benefits\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -12900,7 +12697,6 @@
     "^Restruct\\s+Provision\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -12954,7 +12750,6 @@
     "^Tax\\s+Provision\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -13014,7 +12809,6 @@
     "^Other\\s+Provisions\\(CP\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -13069,7 +12863,6 @@
     "^Total\\s+Current\\s+Liabilities$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -13132,7 +12925,6 @@
     "^net current (?:assets|liabilities)"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -13200,7 +12992,6 @@
     "^net current (?:assets|liabilities)"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_cl",
    "statement": "balance_sheet",
    "section_scope": [
@@ -13277,7 +13068,6 @@
     "^(?:[一二三四五六七八九十]+、|其中：)?\\s*(?:收益|营业额|销售收入|客户合约收益)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -13332,7 +13122,6 @@
     "^Net\\s+Premium\\s+Earned$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -13382,7 +13171,6 @@
     "^Changes\\s+in\\s+Inventories\\s+Incr/\\(Dcr\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -13436,7 +13224,6 @@
     "interest"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -13488,7 +13275,6 @@
     "^Derivatives\\(COS\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -13553,7 +13339,6 @@
     "^Cost\\s+of\\s+Sales$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -13607,7 +13392,6 @@
     "^Net\\s+Claims\\s+and\\s+Benefits$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -13657,7 +13441,6 @@
     "^Goods\\s+\\&\\s+Services$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -13707,7 +13490,6 @@
     "^Material\\s+Expenses$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -13772,7 +13554,6 @@
     "^Amort\\s+\\&\\s+Impairment\\(Intgbl\\)\\(COS\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -13849,7 +13630,6 @@
     "^Depreciation\\s+of\\s+property\\s*,\\s*plant\\s+and\\s+equipment(?:\\W.*)?$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -13929,7 +13709,6 @@
     "^Total\\s+Cost\\s+of\\s+Sales$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -13992,7 +13771,6 @@
     "^Gross\\s+Profit$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -14054,7 +13832,6 @@
     "^Rents\\s+\\&\\s+Royalty\\s+Income$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -14138,7 +13915,6 @@
     "^Other\\s+Operating\\s+Income$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -14190,7 +13966,6 @@
     "^Commission\\s+Income\\s+\\(Other\\s+Operating\\s+Inc\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -14242,7 +14017,6 @@
     "^Commission\\s+Income\\s+\\(Sales\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -14296,7 +14070,6 @@
     "^Grants\\s+\\&\\s+Subsidies$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -14370,7 +14143,6 @@
     "^Selling\\s+\\&\\s+Marketing\\s+Expenses$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -14448,7 +14220,6 @@
     "^General\\s+\\&\\s+Admin\\s+Expenses$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -14524,7 +14295,6 @@
     "^Personnel\\s+\\&\\s+Benefit\\s+Expenses$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -14596,7 +14366,6 @@
     "^Officers\\s+Compensation$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -14658,7 +14427,6 @@
     "^Operating\\s+Lease\\s+\\&\\s+Rent\\s+Expenses$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -14719,7 +14487,6 @@
     "^Research\\s+\\&\\s+Development$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -14771,7 +14538,6 @@
     "^Restructuring\\s+Costs$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -14826,7 +14592,6 @@
     "^Asset\\s+impairment\\s+loss$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -14887,7 +14652,6 @@
     "^Other\\s+Operating\\s+Expenses$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -14948,7 +14712,6 @@
     "^Commission\\s+Expenses\\s+\\(Other\\s+Operating\\s+Exp\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -15000,7 +14763,6 @@
     "^Commission\\s+Expenses\\s+\\(Cost\\s+of\\s+Sales\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -15058,7 +14820,6 @@
     "^Bad\\s+Debt\\s+Expense\\s+\\(Other\\s+Receivables\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -15112,7 +14873,6 @@
     "^Bad\\s+Debt\\s+Expense\\s+\\(Trade\\s+and\\s+Other\\s+Receivables\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -15179,7 +14939,6 @@
     "^Bad\\s+Debt\\s+Expense$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -15243,7 +15002,6 @@
     "^Prov\\s+for\\s+Retirement\\s+Costs$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -15297,7 +15055,6 @@
     "^Share\\s+Option\\s+Costs$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -15351,7 +15108,6 @@
     "^Other\\s+Taxes$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -15405,7 +15161,6 @@
     "^Other\\s+Oper\\s+Exp\\(Provisions\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -15465,7 +15220,6 @@
     "^Impairment\\(Fixed\\s+Assets\\)\\(Oper\\s+Exp\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -15546,7 +15300,6 @@
     "^Depreciation\\s+of\\s+Investment\\s+Property(?:\\W.*)?$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -15699,7 +15452,6 @@
     "^Impairment\\(Intgbl\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -15764,7 +15516,6 @@
     "^Amort\\s+\\&\\s+Impairment\\(Intgbl\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -15818,7 +15569,6 @@
     "^Goodwill\\s+Amortization$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -15868,7 +15618,6 @@
     "^Capitalized\\s+Costs$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -15935,7 +15684,6 @@
     "^Net\\s+Operating\\s+Profit$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -15991,7 +15739,6 @@
     "^Interest\\s+income\\s+from\\s+derivatives$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -16045,7 +15792,6 @@
     "^Interest\\s+income\\s+from\\s+wealth\\s+management\\s+products$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -16099,7 +15845,6 @@
     "^Interest\\s+income\\s+from\\s+Entrusted\\s+loan\\s+receivables$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -16166,7 +15911,6 @@
     "^Interest\\s+Income$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -16216,7 +15960,6 @@
     "^Interest\\s+on\\s+lease\\s+liabilities$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -16293,7 +16036,6 @@
     "^Interest\\s+on\\s+debt\\s+market\\s+instruments$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -16353,7 +16095,6 @@
     "^Interest\\s+on\\s+capital\\s+market\\s+instruments$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -16417,7 +16158,6 @@
     "^Interest\\s+on\\s+trade\\s+finance$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -16469,7 +16209,6 @@
     "^Interest\\s+paid\\s+to\\s+related\\s+parties$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -16521,7 +16260,6 @@
     "^Interest\\s+expense\\s+[\\-–—]?\\s+capitalised$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -16577,7 +16315,6 @@
     "^Finance\\s+cost\\s+on\\s+derivatives$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -16631,7 +16368,6 @@
     "^Bank\\s+charge\\s+and\\s+interest\\s+expense$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -16692,7 +16428,6 @@
     "^Interest\\s+Expense\\([\\-–—]?\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -16765,7 +16500,6 @@
     "^Other\\s+Debt\\s+Service\\s+Expenses\\([\\-–—]?\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -16815,7 +16549,6 @@
     "^Deferred\\s+Interest\\s+Expense\\([\\-–—]?\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -16865,7 +16598,6 @@
     "^Net\\s+Interest\\s+Income\\(Expense\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -16936,7 +16668,6 @@
     "^Income\\(Loss\\)\\s+from\\s+Related\\s+Party$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -17002,7 +16733,6 @@
     "^Income\\(Loss\\)\\s+from\\s+Joint\\s+Ventures$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -17054,7 +16784,6 @@
     "^Fncl\\s+income\\s+from\\s+derivatives$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -17106,7 +16835,6 @@
     "^Fncl\\s+income\\s+from\\s+wealth\\s+management\\s+products$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -17169,7 +16897,6 @@
     "^Other\\s+Fncl\\s+Asset\\s+Income\\(Dvds\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -17219,7 +16946,6 @@
     "^Gain\\(loss\\)\\s+on\\s+derivatives$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -17271,7 +16997,6 @@
     "^Gain\\(loss\\)\\s+on\\s+wealth\\s+management\\s+products$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -17331,7 +17056,6 @@
     "^Gain\\(Loss\\)\\s+on\\s+Fncl\\s+Assets$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -17383,7 +17107,6 @@
     "^Adjsts\\s+to\\s+Scrtzn\\s+Programs$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -17439,7 +17162,6 @@
     "^Rlzd\\s+Forex\\s+Translation\\s+G\\(L\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -17489,7 +17211,6 @@
     "^FMV\\s+adj\\s+on\\s+derivatives$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -17543,7 +17264,6 @@
     "^FMV\\s+adj\\s+on\\s+wealth\\s+management\\s+products$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -17609,7 +17329,6 @@
     "^FMV\\s+Adj\\s+on\\s+Fncl\\s+Assets$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -17659,7 +17378,6 @@
     "^Net\\s+Other\\s+Financial\\s+Inc\\(Exp\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -17723,7 +17441,6 @@
     "^Gain\\(Loss\\)\\s+Disp\\s+of\\s+Fixed\\s+Assets$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -17779,7 +17496,6 @@
     "^Gain\\(Loss\\)\\s+on\\s+Invest\\s+Properties$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -17833,7 +17549,6 @@
     "^Gain\\(Loss\\)\\s+Disp\\s+of\\s+Disc\\s+Ops$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -17885,7 +17600,6 @@
     "^Exchange\\s+Gain\\(Loss\\)\\s+Sale\\s+of\\s+Bus$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -17939,7 +17653,6 @@
     "^Other\\s+Non[\\-–—]?Income\\s+Related\\s+Taxes$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -18003,7 +17716,6 @@
     "^Other\\s+Non[\\-–—]?Operating\\s+Inc\\(Exp\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -18059,7 +17771,6 @@
     "^FMV\\s+adj\\s+on\\s+investment\\s+properties$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -18111,7 +17822,6 @@
     "^Other\\s+Non[\\-–—]?Oper\\s+Inc\\(Exp\\)\\(NC\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -18161,7 +17871,6 @@
     "^Other\\s+Income\\(Expense\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -18238,7 +17947,6 @@
     "^Profit\\(Loss\\)\\s+Before\\s+Tax$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -18308,7 +18016,6 @@
     "^Current\\s+Income\\s+Taxes$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -18358,7 +18065,6 @@
     "^Deferred\\s+Income\\s+Taxes\\(NC\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -18408,7 +18114,6 @@
     "^Prior\\s+Year\\s+Tax\\s+Adj\\([\\-–—]?\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -18478,7 +18183,6 @@
     "^Total\\s+Income\\s+Tax$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -18534,7 +18238,6 @@
     "^Profit\\(Loss\\)\\s+Bef\\s+Extraord\\s+Items$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -18590,7 +18293,6 @@
     "^Extraordinary\\s+Income\\(Exp\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -18640,7 +18342,6 @@
     "^Extraordinary\\s+Income\\(Exp\\)\\(NC\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -18714,7 +18415,6 @@
     "comprehensive income"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -18786,7 +18486,6 @@
     "^Profit\\s+for\\s+the\\s+year$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_pl",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -18863,7 +18562,6 @@
     "^Unreal\\s+Gain\\(Loss\\)\\s+Fixed\\s+Assets$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_oci",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -18925,7 +18623,6 @@
     "^Unreal\\s+Gain\\(Loss\\)\\s+Invest\\s+Prpty$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_oci",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -18991,7 +18688,6 @@
     "^Unreal\\s+Gain\\(Loss\\)\\s+Investments$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_oci",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -19053,7 +18749,6 @@
     "^Deferred\\s+Hedging\\s+Gain\\(Loss\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_oci",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -19107,7 +18802,6 @@
     "^Derivatives\\s+FMV\\s+Adjustment$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_oci",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -19171,7 +18865,6 @@
     "^Minimum\\s+Pension\\s+Liability\\s+Adj$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_oci",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -19229,7 +18922,6 @@
     "^other comprehensive income/loss for the year$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_oci",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -19294,7 +18986,6 @@
     "^Total\\s+Other\\s+Comprehensive\\s+Income$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_oci",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -19360,7 +19051,6 @@
     "^Cash\\s+Div\\s+Pref\\s+Shares\\([\\-–—]?\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_retained",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -19430,7 +19120,6 @@
     "^Proposed\\s+Cash\\s+Dividends$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_retained",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -19498,7 +19187,6 @@
     "^Cash\\s+Div\\s+Common\\s+Shares\\([\\-–—]?\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_retained",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -19564,7 +19252,6 @@
     "^Stock\\s+Dividends\\(NC\\)\\([\\-–—]?\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_retained",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -19624,7 +19311,6 @@
     "^Transfer\\s+to\\s+Reserves\\([\\-–—]?\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_retained",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -19690,7 +19376,6 @@
     "^Prior\\s+Period\\s+Adjustments$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_retained",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -19748,7 +19433,6 @@
     "^Other\\s+Adj\\s+to\\s+Retained\\s+Profits$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "is_retained",
    "statement": "profit_and_loss",
    "section_scope": [
@@ -19834,7 +19518,6 @@
     "^Net\\s+Profit/\\(Loss\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -19884,7 +19567,6 @@
     "^Other\\s+After\\s+Tax\\s+\\(Income\\)/Expense$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -19934,7 +19616,6 @@
     "^Minority\\s+Interests\\(CF\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -19996,7 +19677,6 @@
     "^Income\\s+Tax\\s+Expense$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -20061,7 +19741,6 @@
     "^Depreciation$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -20123,7 +19802,6 @@
     "^Amortization\\s+\\&\\s+Asset\\s+Impairment$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -20175,7 +19853,6 @@
     "^Cash\\s+Flow\\s+from\\s+Hedging\\(Oper\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -20247,7 +19924,6 @@
     "^Assoc\\s+Profit\\s+Share\\(Net\\s+of\\s+Dvds\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -20299,7 +19975,6 @@
     "^Interest\\s+Inc\\s+Received\\(Oper\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -20359,7 +20034,6 @@
     "^Interest\\s+Expense$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -20419,7 +20093,6 @@
     "^Cash\\s+Flow\\s+Disp\\s+Fixed\\s+Assets$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -20485,7 +20158,6 @@
     "^Cash\\s+Flow\\s+Disp\\s+Financial\\s+Assets$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -20541,7 +20213,6 @@
     "^Chg\\s+in\\s+Trade\\s+Receivables$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -20595,7 +20266,6 @@
     "^Chg\\s+in\\s+Other\\s+Receivables$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -20647,7 +20317,6 @@
     "^Chg\\s+in\\s+Inventories$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -20699,7 +20368,6 @@
     "^Chg\\s+in\\s+Prepayments\\s+\\&\\s+Def\\s+Assets$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -20751,7 +20419,6 @@
     "^Chg\\s+in\\s+Fncl\\s+Instruments\\(Trading\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -20805,7 +20472,6 @@
     "^Chg\\s+in\\s+Other\\s+Current\\s+Assets$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -20859,7 +20525,6 @@
     "^Chg\\s+in\\s+Trade\\s+Payables$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -20911,7 +20576,6 @@
     "^Chg\\s+in\\s+Provisions$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -20965,7 +20629,6 @@
     "^Chg\\s+in\\s+Post\\s+Employ\\s+Bnft\\s+Oblig$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -21029,7 +20692,6 @@
     "^Chg\\s+in\\s+Other\\s+Current\\s+Liab$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -21081,7 +20743,6 @@
     "^Chg\\s+in\\s+Other\\s+Wkng\\s+Capital\\s+Items$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -21131,7 +20792,6 @@
     "^Chg\\s+in\\s+Taxes\\s+Payable$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -21183,7 +20843,6 @@
     "^Chg\\s+in\\s+Deferred\\s+Taxes$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -21241,7 +20900,6 @@
     "^Dividends\\s+Received\\(Oper\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -21297,7 +20955,6 @@
     "^Income\\s+Taxes\\s+Paid\\(Indirect\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -21360,7 +21017,6 @@
     "^Interest\\s+Paid\\(Oper\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -21418,7 +21074,6 @@
     "^Dividends\\s+Paid\\(Oper\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -21470,7 +21125,6 @@
     "^Cash\\s+Flow\\s+Extraord\\s+Items\\(Oper\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -21525,7 +21179,6 @@
     "net cash .*operating activities"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -21594,7 +21247,6 @@
     "^Cash\\s+Flows\\s+Oper\\s+Activ\\(Indirect\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_indirect",
    "statement": "cash_flow",
    "section_scope": [
@@ -21655,7 +21307,6 @@
     "^Cash\\s+Receipts\\s+from\\s+Customers$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_direct",
    "statement": "cash_flow",
    "section_scope": [
@@ -21708,7 +21359,6 @@
     "^Cash\\s+Paid\\s+to\\s+Suppliers$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_direct",
    "statement": "cash_flow",
    "section_scope": [
@@ -21763,7 +21413,6 @@
     "^Cash\\s+Paid\\s+to\\s+Employees$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_direct",
    "statement": "cash_flow",
    "section_scope": [
@@ -21816,7 +21465,6 @@
     "^Income\\s+Taxes\\s+Paid\\(Direct\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_direct",
    "statement": "cash_flow",
    "section_scope": [
@@ -21868,7 +21516,6 @@
     "^Borrowing\\s+Costs\\s+Paid$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_direct",
    "statement": "cash_flow",
    "section_scope": [
@@ -21918,7 +21565,6 @@
     "^Cash\\s+Flows\\s+Oper\\s+Activ\\(Direct\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_oper_direct",
    "statement": "cash_flow",
    "section_scope": [
@@ -21978,7 +21624,6 @@
     "^Purchase\\s+Intangible\\s+Assets$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
    "section_scope": [
@@ -22032,7 +21677,6 @@
     "^Proceeds\\s+Sale\\s+Intgbl\\s+Assets$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
    "section_scope": [
@@ -22097,7 +21741,6 @@
     "^Purchase\\s+PPE$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
    "section_scope": [
@@ -22172,7 +21815,6 @@
     "^Proceeds\\s+Sale\\s+PPE$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
    "section_scope": [
@@ -22231,7 +21873,6 @@
     "^Purchase\\s+Investment\\s+Property$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
    "section_scope": [
@@ -22292,7 +21933,6 @@
     "^Proceeds\\s+Sale\\s+Investment\\s+Prop$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
    "section_scope": [
@@ -22365,7 +22005,6 @@
     "^Purchase\\s+Financial\\s+Assets$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
    "section_scope": [
@@ -22438,7 +22077,6 @@
     "^Proceeds\\s+Sale\\s+Fncl\\s+Assets$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
    "section_scope": [
@@ -22494,7 +22132,6 @@
     "^Purchase\\s+Other\\s+Assets$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
    "section_scope": [
@@ -22550,7 +22187,6 @@
     "^Proceeds\\s+Sale\\s+Other\\s+Assets$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
    "section_scope": [
@@ -22614,7 +22250,6 @@
     "^Investment\\s+Assoc\\s+\\&\\s+Affiliates$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
    "section_scope": [
@@ -22685,7 +22320,6 @@
     "^Sale\\s+Assoc\\s+\\&\\s+Affiliates$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
    "section_scope": [
@@ -22737,7 +22371,6 @@
     "^Acq\\s+of\\s+Sub\\(Net\\s+of\\s+Cash\\s+Acqrd\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
    "section_scope": [
@@ -22791,7 +22424,6 @@
     "^Proceeds\\s+Sale\\s+of\\s+Subsidiary$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
    "section_scope": [
@@ -22843,7 +22475,6 @@
     "^Payment\\s+Fin\\s+Lease\\s+Liab$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
    "section_scope": [
@@ -22905,7 +22536,6 @@
     "^Interest\\s+Income\\s+Rcvd\\(Invest\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
    "section_scope": [
@@ -22978,7 +22608,6 @@
     "^Dividends\\s+Received\\(Invest\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
    "section_scope": [
@@ -23030,7 +22659,6 @@
     "^Cash\\s+Flow\\s+Extraord\\s+Items\\(Invest\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
    "section_scope": [
@@ -23086,7 +22714,6 @@
     "^Cash\\s+Flow\\s+Hedging\\(Invest\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
    "section_scope": [
@@ -23138,7 +22765,6 @@
     "^Other\\s+Invest\\s+Cash\\s+Flows$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
    "section_scope": [
@@ -23205,7 +22831,6 @@
     "^Cash\\s+Flows\\s+from\\s+Invest\\s+Activities$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_investing",
    "statement": "cash_flow",
    "section_scope": [
@@ -23268,7 +22893,6 @@
     "^Net\\s+Proceeds\\s+Issuance\\s+of\\s+Capital$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
    "section_scope": [
@@ -23320,7 +22944,6 @@
     "^Purchase\\(Sale\\)\\s+Treasury\\s+Stock$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
    "section_scope": [
@@ -23387,7 +23010,6 @@
     "^Proceeds\\s+Non[\\-–—]?Cur\\s+Borrowings$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
    "section_scope": [
@@ -23447,7 +23069,6 @@
     "^Issue\\s+Costs\\s+Non[\\-–—]?Cur\\s+Borrowings$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
    "section_scope": [
@@ -23516,7 +23137,6 @@
     "^Repayments\\s+Non[\\-–—]?Cur\\s+Borrowings$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
    "section_scope": [
@@ -23582,7 +23202,6 @@
     "^Chg\\s+in\\s+Current\\s+Borrowings$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
    "section_scope": [
@@ -23641,7 +23260,6 @@
     "^Interest\\s+Paid\\(Fin\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
    "section_scope": [
@@ -23693,7 +23311,6 @@
     "^Translation\\s+Adj\\s+Relating\\s+to\\s+Cash$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
    "section_scope": [
@@ -23743,7 +23360,6 @@
     "^Cash\\s+Flow\\s+Extraord\\s+Items\\(Fin\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
    "section_scope": [
@@ -23797,7 +23413,6 @@
     "^Cash\\s+Flow\\s+from\\s+Hedging\\(Fin\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
    "section_scope": [
@@ -23856,7 +23471,6 @@
     "^Dividends\\s+Paid\\(Fin\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
    "section_scope": [
@@ -23914,7 +23528,6 @@
     "^Dvds\\s+Paid\\(Minority\\s+S'holders\\)$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
    "section_scope": [
@@ -23971,7 +23584,6 @@
     "non-pledged and non-restricted (?:cash|time deposits)"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
    "section_scope": [
@@ -24039,7 +23651,6 @@
     "^Cash\\s+Flows\\s+from\\s+Finance\\s+Activities$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
    "section_scope": [
@@ -24106,7 +23717,6 @@
     "^Net\\s+Foreign\\s+Exchange\\s+Difference$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
    "section_scope": [
@@ -24165,7 +23775,6 @@
     "^Beg\\s+of\\s+Period[\\-–—]?Cash\\s+\\&\\s+Cash\\s+Equiv$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
    "section_scope": [
@@ -24224,7 +23833,6 @@
     "^End\\s+of\\s+Period[\\-–—]?Cash\\s+\\&\\s+Cash\\s+Equiv$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
    "section_scope": [
@@ -24280,7 +23888,6 @@
     "^Unexplained\\s+Adjustment\\s+to\\s+Cash$"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "cf_financing",
    "statement": "cash_flow",
    "section_scope": [
@@ -24338,7 +23945,6 @@
     ]
    },
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "bs_equity",
    "statement": "balance_sheet",
    "section_scope": [
@@ -24389,7 +23995,6 @@
     "reporting entity"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
    "section_scope": [
@@ -24435,7 +24040,6 @@
     "combined"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
    "section_scope": [
@@ -24483,7 +24087,6 @@
     "mn"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
    "section_scope": [
@@ -24526,7 +24129,6 @@
     "reporting currency"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
    "section_scope": [
@@ -24567,7 +24169,6 @@
     "spread currency"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
    "section_scope": [
@@ -24614,7 +24215,6 @@
     "reporting date"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
    "section_scope": [
@@ -24658,7 +24258,6 @@
     "period"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
    "section_scope": [
@@ -24697,7 +24296,6 @@
     "assets"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
    "section_scope": [
@@ -24737,7 +24335,6 @@
     "liab"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
    "section_scope": [
@@ -24776,7 +24373,6 @@
     "expenses"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
    "section_scope": [
@@ -24817,7 +24413,6 @@
     "profits"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
    "section_scope": [
@@ -24858,7 +24453,6 @@
     "balance"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
    "section_scope": [
@@ -24903,7 +24497,6 @@
     "disclaimer"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
    "section_scope": [
@@ -24949,7 +24542,6 @@
     "accounting standards"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
    "section_scope": [
@@ -24991,7 +24583,6 @@
     "audit firm"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
    "section_scope": [
@@ -25031,7 +24622,6 @@
     "prepared by"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
    "section_scope": [
@@ -25074,7 +24664,6 @@
     "management accounts"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
    "section_scope": [
@@ -25116,7 +24705,6 @@
     "review"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
    "section_scope": [
@@ -25159,7 +24747,6 @@
     "reconcile"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "statement_setup_controls",
    "statement": "statement_setup",
    "section_scope": [
@@ -25203,7 +24790,6 @@
     "spot rate"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "supplemental_data",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -25248,7 +24834,6 @@
     "issued shares"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "supplemental_data",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -25292,7 +24877,6 @@
     "outstanding"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "supplemental_data",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -25338,7 +24922,6 @@
     "staff"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "supplemental_data",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -25381,7 +24964,6 @@
     "insurance"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "supplemental_data",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -25425,7 +25007,6 @@
     "insurance contract liabilities"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "supplemental_data",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -25468,7 +25049,6 @@
     "assets"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "off_balance_sheet_data",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -25511,7 +25091,6 @@
     "minimum lease payments"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "off_balance_sheet_data",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -25555,7 +25134,6 @@
     "commitments"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "off_balance_sheet_data",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -25598,7 +25176,6 @@
     "exchange rate"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "supplemental_data",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -25640,7 +25217,6 @@
     "gwp"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "supplemental_data",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -25680,7 +25256,6 @@
     "gross written premium - life"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "supplemental_data",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -25720,7 +25295,6 @@
     "general insurance gross written premium"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "supplemental_data",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -25762,7 +25336,6 @@
     "nwp"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "supplemental_data",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -25802,7 +25375,6 @@
     "insurance investment income, net"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "supplemental_data",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -25842,7 +25414,6 @@
     "capital"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -25882,7 +25453,6 @@
     "ratio"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -25922,7 +25492,6 @@
     "ratio"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -25964,7 +25533,6 @@
     "worth"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -26004,7 +25572,6 @@
     "coverage"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -26044,7 +25611,6 @@
     "coverage"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -26085,7 +25651,6 @@
     "coverage"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -26125,7 +25690,6 @@
     "expenditures"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -26167,7 +25731,6 @@
     "leverage"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -26208,7 +25771,6 @@
     "margin"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -26249,7 +25811,6 @@
     "assets"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -26290,7 +25851,6 @@
     "equity"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -26332,7 +25892,6 @@
     "days"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -26372,7 +25931,6 @@
     "days"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -26413,7 +25971,6 @@
     "days"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -26453,7 +26010,6 @@
     "growth"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -26494,7 +26050,6 @@
     "worth"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -26534,7 +26089,6 @@
     "debt"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -26574,7 +26128,6 @@
     "dividends"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -26614,7 +26167,6 @@
     "balance"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "credit_compliance",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -26655,7 +26207,6 @@
     "assets"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "capital_and_lease_commitments",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -26697,7 +26248,6 @@
     "assets"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "capital_and_lease_commitments",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -26738,7 +26288,6 @@
     "assets"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "capital_and_lease_commitments",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -26778,7 +26327,6 @@
     "investments"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "capital_and_lease_commitments",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -26817,7 +26365,6 @@
     "commitments"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "capital_and_lease_commitments",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -26858,7 +26405,6 @@
     "notes"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "capital_and_lease_commitments",
    "statement": "covenants_supplemental",
    "section_scope": [
@@ -26905,7 +26451,6 @@
     "subsidiary"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "notes",
    "statement": "notes",
    "section_scope": [
@@ -26953,7 +26498,6 @@
     "collateral"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "notes",
    "statement": "notes",
    "section_scope": [
@@ -27000,7 +26544,6 @@
     "charge"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "notes",
    "statement": "notes",
    "section_scope": [
@@ -27051,7 +26594,6 @@
     "fair value"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "notes",
    "statement": "notes",
    "section_scope": [
@@ -27132,7 +26674,6 @@
     "已确认预计负债"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "notes",
    "statement": "notes",
    "section_scope": [
@@ -27189,7 +26730,6 @@
     "emphasis"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "notes",
    "statement": "notes",
    "section_scope": [
@@ -27234,7 +26774,6 @@
     "material disclosure"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "notes",
    "statement": "notes",
    "section_scope": [
@@ -27276,7 +26815,6 @@
     "confirmation"
    ],
    "sign_rule": {},
-   "min_confidence_to_auto_accept": 0.85,
    "inherits": "notes",
    "statement": "notes",
    "section_scope": [

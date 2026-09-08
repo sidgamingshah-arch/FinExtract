@@ -362,7 +362,17 @@ class LineItemDef(BaseModel):
     # Whether a cited note may be a SOURCE for this line or only evidence for it.
     note_use: NoteUse | None = None
     face_only: bool | None = None
-    min_confidence_to_auto_accept: float = 0.85
+    # NO PER-LINE-ITEM ACCEPT BAR. There was one — `min_confidence_to_auto_accept: float = 0.85`
+    # — and it was removed on a deliberate decision rather than wired up, because it was read by
+    # NOTHING: not by the ported matcher and not by the incumbent, whose four accept decisions all
+    # compare against the global `settings.extraction.auto_accept_confidence` (default 0.80). It
+    # carried 0.85 on all 462 projected definitions and 0 of 475 overrode it.
+    #
+    # Wiring it instead of removing it would have been a policy nobody authored, and a costly one:
+    # the shipped per-item default was STRICTER than the live global bar, so enforcement would
+    # newly route to review every row scoring between 0.80 and 0.85. A declared control that
+    # nothing consults reads as a control, which is the failure this model keeps finding — so it
+    # is gone, and the global knob is the one bar. Re-add it only alongside the code that reads it.
 
     # ── measurement properties ───────────────────────────────────────────────────────────────
     temporality: Temporality | None = None

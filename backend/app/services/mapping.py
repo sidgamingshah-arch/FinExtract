@@ -203,7 +203,17 @@ _BUILTIN_CAPTION_INVENTORY: dict[str, list] = {
     # four-character edit that `scripts/parity_normalisation.py` would report as a fold change, and
     # that is a decision for whoever measures it, not a side effect of moving the list. Written as
     # codepoints so the question is at least askable in review.
-    "han_ranges": [["3400", "4DBF"], ["4E00", "9FFF"], ["8C48", "FAFF"]],
+        # F900, NOT 8C48. The literal this replaced spelled the third range's low bound `豈`, which is
+    # U+8C48 — the canonical DECOMPOSITION of U+F900, i.e. exactly what an NFC pass over this
+    # source file leaves behind. So an editor or tool silently rewrote a code point and the range
+    # became 8C48-FAFF: it starts in the middle of the main CJK block it already covers and runs
+    # through HANGUL (AC00-D7AF) and the PRIVATE USE AREA (E000-F8FF) to get to FAFF. Measured
+    # before the fix: `_HAN_RUN` matched 한 (U+D55C) and U+E000 as Han.
+    #
+    # `han._CJK` carries U+F900 intact and is the reference — `han.has_han('한')` was already
+    # False while `_HAN_RUN` said True, so the two modules disagreed about what Chinese is. The
+    # range meant is CJK Compatibility Ideographs, F900-FAFF.
+    "han_ranges": [["3400", "4DBF"], ["4E00", "9FFF"], ["F900", "FAFF"]],
     # `_CAS_ORPHAN_HEAD` requires PROOF that the fragment is Han, and asks for two of the three
     # ranges above. Declared separately because the shipped literals were separate: collapsing them
     # into one entry would widen a REFUSAL as a side effect of a migration, which is the one
@@ -562,6 +572,11 @@ def build_caption_patterns(declared: Mapping[str, list] | None = None) -> Captio
     )
 
 
+# The eight field names, derived from the dataclass rather than retyped — a ninth pattern added
+# to `CaptionPatterns` is then compared by `install_caption_inventory` automatically instead of
+# being silently excluded from the changed-check.
+_CAPTION_PATTERN_FIELDS: tuple[str, ...] = tuple(CaptionPatterns.__dataclass_fields__)
+
 _CAPTION_PATTERNS = build_caption_patterns()
 
 # The individual names kept as aliases, because two consumers reach for them by name rather than
@@ -577,6 +592,61 @@ _CAS_SIGN_NOTE = _CAPTION_PATTERNS.cas_sign_note
 _CAS_ORPHAN_HEAD = _CAPTION_PATTERNS.cas_orphan_head
 _CAS_LINE_PREFIX = _CAPTION_PATTERNS.cas_line_prefix
 _HAN_RUN = _CAPTION_PATTERNS.han_run
+
+# What was installed, so a second install can tell "same inventory again" from "a different one".
+_INSTALLED_INVENTORY: dict[str, list] | None = None
+
+
+def _canonical(inventory: Mapping[str, list] | None) -> dict[str, list]:
+    """One comparable shape, so JSON's lists and the built-in's tuples compare equal."""
+    return {k: [list(v) if isinstance(v, (list, tuple)) else v for v in vals]
+            for k, vals in (inventory or {}).items()}
+
+
+def install_caption_inventory(declared: Mapping[str, list] | None,
+                              *, source: str = "") -> bool:
+    """Make a DECLARED character inventory the one this module folds captions with.
+
+    Returns True if the fold changed. Safe to call with the built-in — that is a no-op.
+
+    WHY THIS IS PROCESS-WIDE STATE, which normally deserves suspicion. The fold has to be
+    SYMMETRIC: `normalize_label` is applied to every alias when the index is built and to every
+    caption when one is matched, and an alias folded one way can never meet a caption folded
+    another. Two inventories live in one process means the index and the lookup disagree and the
+    matcher quietly stops finding things. So there is exactly one, and installing it is explicit.
+
+    A CONFLICTING RE-INSTALL IS REFUSED for that reason. Two rulebooks with different inventories
+    in one process cannot both be right, and silently taking the last one would make the answer
+    depend on load order. The first install wins and the second raises.
+    """
+    global _CAPTION_PATTERNS, _INSTALLED_INVENTORY
+    global _ABBREV_GLOSS, _NOTE_CITATION, _TRAILING_NUMERIC_NOTE, _BRACKETED_NUMBER
+    global _CAS_SIGN_NOTE, _CAS_ORPHAN_HEAD, _CAS_LINE_PREFIX, _HAN_RUN
+
+    wanted = _canonical(declared)
+    if _INSTALLED_INVENTORY is not None and _canonical(_INSTALLED_INVENTORY) != wanted:
+        raise ValueError(
+            f"a caption inventory is already installed and this one differs"
+            f"{f' (from {source})' if source else ''}. The fold must be symmetric across the "
+            f"alias index and the captions matched against it, so one process holds exactly one. "
+            f"Differing keys: "
+            f"{sorted(k for k in set(wanted) | set(_canonical(_INSTALLED_INVENTORY)) if _canonical(_INSTALLED_INVENTORY).get(k) != wanted.get(k))}")
+
+    rebuilt = build_caption_patterns(declared)
+    changed = any(getattr(rebuilt, f).pattern != getattr(_CAPTION_PATTERNS, f).pattern
+                  or getattr(rebuilt, f).flags != getattr(_CAPTION_PATTERNS, f).flags
+                  for f in _CAPTION_PATTERN_FIELDS)
+    _CAPTION_PATTERNS = rebuilt
+    _INSTALLED_INVENTORY = dict(wanted)
+    _ABBREV_GLOSS = rebuilt.abbrev_gloss
+    _NOTE_CITATION = rebuilt.note_citation
+    _TRAILING_NUMERIC_NOTE = rebuilt.trailing_numeric_note
+    _BRACKETED_NUMBER = rebuilt.bracketed_number
+    _CAS_SIGN_NOTE = rebuilt.cas_sign_note
+    _CAS_ORPHAN_HEAD = rebuilt.cas_orphan_head
+    _CAS_LINE_PREFIX = rebuilt.cas_line_prefix
+    _HAN_RUN = rebuilt.han_run
+    return changed
 
 
 def normalize_label(text: str, patterns: CaptionPatterns | None = None) -> str:

@@ -24,18 +24,16 @@ pointed at this registry without changing what it is shown. What it cannot be is
 the way the deterministic path can, and the deterministic path is what decides a figure when no
 LLM is configured.
 
-THE PER-CONCEPT ACCEPT BAR IS SURFACED, NOT ENFORCED, and that split is measured rather than
-merely cautious. `LineItemDef.min_confidence_to_auto_accept` defaults to 0.85 and 0 of the 475
-shipped definitions override it. THE INCUMBENT DOES NOT READ IT EITHER: `OntologyMatcher` gates
-acceptance on the GLOBAL knob `settings.extraction.auto_accept_confidence` (0.80) — mapping:1682,
-:1863, :1919, :2219 — which is per-run, not per-concept, and the only other mention of the field
-anywhere in the tree is the passthrough list in `ontology_projection.SAME`, whose own comment
-asserts that every field in it "is read by live code or by the LLM payload". It is not: it reaches
-the resolved definition and stops. So there is no consumer whose behaviour this port could be held
-equivalent to, and authoring one here would move figures on the strength of a guess about what the
-field was meant to mean. `LineItemMatch` therefore carries the declared bar and the comparison
-against it (`clears_auto_accept_bar`) for a caller to apply; nothing in the pipeline applies it
-yet, and `tests/test_min_confidence.py` fails if the field goes back to being read by nothing.
+THERE IS NO PER-CONCEPT ACCEPT BAR, and its removal was a decision rather than an oversight.
+`LineItemDef` used to carry `min_confidence_to_auto_accept: float = 0.85`, and it was read by
+nothing — not here and NOT BY THE INCUMBENT, which gates acceptance on the global knob
+`settings.extraction.auto_accept_confidence` (0.80) at mapping:1682, :1863, :1919 and :2219. It
+carried 0.85 on all 462 projected definitions and 0 of 475 overrode it.
+
+Enforcing it instead of deleting it would have invented a policy nobody authored, and a costly
+one: the per-item default was STRICTER than the live global bar, so switching it on would newly
+route to review every row scoring between 0.80 and 0.85. The global knob is the one bar. Re-add a
+per-item bar only together with the code that reads it and the policy that justifies it.
 
 NORMALISATION IS IMPORTED, NEVER REIMPLEMENTED. `normalize_label`, `label_segments`,
 `section_of_banner` and `normalize_statement` all come from `services.mapping`. Two copies of a
@@ -207,37 +205,11 @@ class LineItemMatch:
     tied: list[str] = field(default_factory=list)
     # Why nothing matched, or why this one did — one short phrase, for the run log.
     reason: str = ""
-    # The matched line item's own DECLARED accept bar, carried out on the result so a caller can
-    # apply it without re-reading the registry. None when nothing matched: an unresolved caption
-    # names no definition and therefore no bar, and reporting the schema default (0.85) for it
-    # would manufacture a threshold no filing and no author ever declared.
-    min_confidence_to_auto_accept: float | None = None
 
     @property
     def resolved(self) -> bool:
         return self.key is not None
 
-    @property
-    def clears_auto_accept_bar(self) -> bool:
-        """Whether this result's confidence reaches the matched line item's declared bar.
-
-        THE NUMBER IS CONFIG, THE COMPARISON IS CODE — which is why the bar rides on the result
-        and the test of it lives here rather than in each caller's own arithmetic, where three
-        callers would eventually spell it three ways.
-
-        DELIBERATELY NOT FOLDED INTO `needs_review`. The deterministic path emits exactly four
-        confidences — 1.0 exact, 0.95 a single rule hit, 0.6 several rule hits, 0.0 unmatched —
-        and against the shipped 0.85 (which 0 of 475 definitions override) this property agrees
-        with `needs_review` on all four, so wiring it in would change no figure today while
-        quietly settling what the field means. The two only diverge for a definition declaring a
-        bar above 0.95, which would demand review of a single-claimant rule hit that the
-        incumbent's global 0.80 accepts. Nobody has authored that policy — see the module
-        docstring on the incumbent reading only the global knob — so it is left to a caller who
-        can state it, rather than invented by the matcher that would then be measured against it.
-        """
-        if self.key is None or self.min_confidence_to_auto_accept is None:
-            return False
-        return self.confidence >= self.min_confidence_to_auto_accept
 
 
 class LineItemMatcher:
@@ -306,15 +278,6 @@ class LineItemMatcher:
         d = self.by_key.get(key)
         return d.match_priority if (d is not None and d.match_priority is not None) else 0
 
-    def _accept_bar_of(self, key: str) -> float | None:
-        """The line item's declared `min_confidence_to_auto_accept`, or None if it has no entry.
-
-        Read through `by_key` rather than off a captured default so a set that overrides the bar on
-        one definition is reported per definition — the field is the only per-concept threshold in
-        the schema, and every other engine in the tree compares against the per-RUN knob instead.
-        """
-        d = self.by_key.get(key)
-        return d.min_confidence_to_auto_accept if d is not None else None
 
     def _vetoed(self, key: str, caption: str) -> bool:
         """Whether this line item's `exclude_hints` rule the caption out.
@@ -505,8 +468,7 @@ class LineItemMatcher:
             hit = self._exact(seg_norm, statement, section, caption)
             if hit:
                 return LineItemMatch(
-                    hit, MappingMethod.EXACT, 1.0, reason="exact alias",
-                    min_confidence_to_auto_accept=self._accept_bar_of(hit))
+                    hit, MappingMethod.EXACT, 1.0, reason="exact alias")
 
         allowed = set(self.mappable_keys(statement, section, caption))
         key, score = self._rule(caption, allowed)
@@ -514,8 +476,7 @@ class LineItemMatcher:
             return LineItemMatch(key, MappingMethod.RULE, score,
                                  needs_review=score < 0.95,
                                  reason="rule hint" if score >= 0.95
-                                        else "several rule hints fired; ambiguous",
-                                 min_confidence_to_auto_accept=self._accept_bar_of(key))
+                                        else "several rule hints fired; ambiguous")
 
         return LineItemMatch(None, MappingMethod.UNMATCHED, 0.0, needs_review=True,
                              reason="no alias and no rule hint the gate allows")

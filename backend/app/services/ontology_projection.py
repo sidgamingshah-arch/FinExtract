@@ -45,11 +45,13 @@ RENAMED: dict[str, str] = {
 # anything reads it.
 #
 # THAT DISTINCTION WAS WORTH THE CORRECTION. This comment used to claim "every one of these is read
-# by live code or by the LLM payload", and it was false. `min_confidence_to_auto_accept` is in the
-# tuple below, carries 0.85 on all 462 concepts, and is read by NOTHING — not by the ported matcher
-# and not by the incumbent, where all four accept decisions compare against the global
-# `settings.extraction.auto_accept_confidence` (default 0.80) instead. Same for
-# `ResidualFramework.alias_matching`, `allow_contra` and `caption_normalization`.
+# by live code or by the LLM payload", and it was false. `min_confidence_to_auto_accept` WAS in the
+# tuple below, carried 0.85 on all 462 concepts, and was read by NOTHING — not by the ported
+# matcher and not by the incumbent, where all four accept decisions compare against the global
+# `settings.extraction.auto_accept_confidence` (default 0.80) instead. It has since been removed
+# from `LineItemDef` outright rather than wired up, so the rulebook's copy no longer lands here.
+# `ResidualFramework.alias_matching`, `allow_contra` and `caption_normalization` are still in that
+# state and still carried.
 #
 # A projection that carries a field faithfully is doing its job. A COMMENT that promises the field
 # is live is the failure this whole exercise keeps finding, and it is worse here than in config,
@@ -58,7 +60,7 @@ RENAMED: dict[str, str] = {
 SAME: tuple[str, ...] = (
     "label", "description", "definition", "confusable_with", "value_scope", "extraction_mode",
     "analyst_bucket", "aliases", "aliases_i18n", "keyword_hints", "regex_hints", "exclude_hints",
-    "sign_rule", "min_confidence_to_auto_accept", "inherits", "statement", "section_scope",
+    "sign_rule", "inherits", "statement", "section_scope",
     "temporality", "face_only", "unit_of_account", "note_use", "note_use_rationale",
     "sign_convention", "match_priority", "alias_matching", "residual_policy",
     "expected_components", "never_sweep",

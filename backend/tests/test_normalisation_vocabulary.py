@@ -69,7 +69,7 @@ SHIPPED = {
                                32),
     "_CAS_ORPHAN_HEAD":       ('^[^（(]*?[㐀-䶿一-鿿][^（(]{0,10}[）)]\\s*',
                                32),
-    "_HAN_RUN":               ('[㐀-䶿一-鿿豈-\ufaff]+(?:\\s*[㐀-䶿一-鿿豈-\ufaff]+)*',
+    "_HAN_RUN":               ('[㐀-䶿一-鿿豈-\ufaff]+(?:\\s*[㐀-䶿一-鿿豈-\ufaff]+)*',
                                32),
 }
 
@@ -241,7 +241,12 @@ def test_a_quote_mark_the_inventory_did_not_carry_put_the_figure_on_another_asse
     wrong = matcher.match(printed, "balance_sheet", "NON-CURRENT ASSETS")
     assert wrong.key == "bs_nca__land"                    # a different asset…
     assert wrong.needs_review                             # …and it does reach a reviewer
-    assert wrong.confidence < wrong.min_confidence_to_auto_accept
+    # The per-item accept bar this used to compare against has been REMOVED: it was read by
+    # nothing, the incumbent included, whose accept decisions all use the global
+    # `extraction.auto_accept_confidence` (0.80). The claim that survives is the one that
+    # matters — the wrong answer arrives below the exact tier's certainty, so it is not accepted
+    # as an identity the way the correctly-folded caption is.
+    assert wrong.confidence < right.confidence
 
     # Declared: the same fold as the ASCII caption, the same concept, and no review.
     assert normalize_label(printed, declared) == normalize_label(ascii_caption)
@@ -368,36 +373,42 @@ def test_passing_the_builtin_patterns_explicitly_is_the_same_as_passing_nothing(
 # WHAT WRITING THE HAN RANGES DOWN MADE VISIBLE
 
 
-def test_the_han_run_range_is_not_the_range_its_author_typed():
-    """Pinned as shipped, and named. `_HAN_RUN`'s third range is 8C48-FAFF; `han._CJK`'s is
-    F900-FAFF.
+def test_the_han_run_range_was_corrected_from_the_range_nfc_left_behind():
+    """The bug this used to PIN, now asserted as fixed — and its own docstring predicted the flip.
 
-    `豈` in the literal reads as U+F900 (CJK COMPATIBILITY IDEOGRAPH-F900) and IS U+8C48 — F900's
-    canonical decomposition, i.e. what an NFC pass over the source file leaves behind. So the two
-    copies of one intended inventory are different SETS, and 8C48-FAFF swallows the Hangul
-    syllables and the private-use area whole.
+    WHAT WAS WRONG. `_HAN_RUN`'s third range read `豈-﫿`. `豈` reads as U+F900 (CJK COMPATIBILITY
+    IDEOGRAPH-F900) and IS U+8C48 — F900's canonical decomposition, i.e. exactly what an NFC pass
+    over the source file leaves behind. So the range was 8C48-FAFF: it began in the middle of the
+    main CJK block it already covered and ran through the HANGUL syllables (AC00-D7AF) and the
+    PRIVATE USE AREA (E000-F8FF) to reach FAFF. Two copies of one intended inventory were
+    different SETS — `han._CJK` carried F900 intact, so `has_han("한")` was False while
+    `_HAN_RUN.search("한")` was True and the two modules disagreed about what Chinese is.
 
-    It is not reachable on today's captions: `label_segments` gates on `has_han`, whose range is
-    the correct one, so a Hangul-only caption never arrives. A caption mixing Hangul with Han does
-    — and loses its per-script split, because the Han run eats the Hangul and leaves no Latin
-    half. Asserted BOTH ways so the record is complete: what shipped, and what the corrected range
-    would give. Correcting it is a four-character edit to one inventory entry, which
-    `scripts/parity_normalisation.py` will report as a fold change for whoever measures it — this
-    test then fails and says so, which is the intended outcome and not a regression.
+    IT COST A REAL SPLIT. A caption mixing Hangul with Han lost its per-script split, because the
+    Han run ate the Hangul and left no other half — the third assertion below is that split
+    working now.
+
+    UNREACHABLE ON THE SHIPPED CORPUS, which is why the fix was safe to take:
+    `scripts/parity_normalisation.py` reports 0 of 24,029 captions changed. The correction is a
+    four-character edit to one inventory entry, and it is now data rather than a literal.
     """
-    assert mapping._HAN_RUN.search("한") is not None      # U+D55C, a Hangul syllable
-    assert mapping._HAN_RUN.search("\ue000") is not None  # private use
-    assert not has_han("한")                              # the gate disagrees with the run
+    assert mapping._HAN_RUN.search("한") is None          # U+D55C, a Hangul syllable
+    assert mapping._HAN_RUN.search("") is None      # private use
+    assert mapping._HAN_RUN.search("豈") is not None   # the compatibility ideograph meant
 
-    assert label_segments("매출 销售成本") == ["매출 销售成本"]
-    corrected = build_caption_patterns({
-        "han_ranges": [["3400", "4DBF"], ["4E00", "9FFF"], ["F900", "FAFF"]]})
-    assert label_segments("매출 销售成本", corrected) == ["매출 销售成本", "매출", "销售成本"]
-    assert corrected.han_run.search("한") is None
+    # The two modules now agree about what Chinese is, which is the point.
+    for ch in ("한", "", "豈", "营", "一"):
+        assert bool(mapping._HAN_RUN.search(ch)) == has_han(ch), f"disagreement on {ch!r}"
 
+    # And the split the bug was eating.
+    assert label_segments("매출 销售成本") == ["매출 销售成本", "매출", "销售成本"]
+
+    assert mapping._BUILTIN_CAPTION_INVENTORY["han_ranges"] == [
+        ["3400", "4DBF"], ["4E00", "9FFF"], ["F900", "FAFF"]]
     # And the narrower inventory the orphan-head refusal asks for is still its own entry.
     assert mapping._BUILTIN_CAPTION_INVENTORY["han_ranges_required"] == [
         ["3400", "4DBF"], ["4E00", "9FFF"]]
+
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -421,7 +432,11 @@ def test_the_emitted_block_survives_json_and_rebuilds_the_shipped_fold():
     for name, field in FIELDS.items():
         assert getattr(built, field).pattern == SHIPPED[name][0]
         assert getattr(built, field).flags == SHIPPED[name][1]
-    assert emitted["han_ranges"] == [["3400", "4DBF"], ["4E00", "9FFF"], ["8C48", "FAFF"]]
+    # F900, since the NFC corruption this comment warns about has now been corrected in the
+    # inventory. The point the assertion makes is unchanged: the block must survive JSON as
+    # CODEPOINT STRINGS, because writing the ranges as the characters they name is how U+F900
+    # became U+8C48 in the first place.
+    assert emitted["han_ranges"] == [["3400", "4DBF"], ["4E00", "9FFF"], ["F900", "FAFF"]]
 
 
 def test_the_seed_carries_the_inventory_once_the_builder_has_been_re_run():

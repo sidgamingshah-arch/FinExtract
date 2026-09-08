@@ -1,0 +1,592 @@
+{
+ "schema_version": 1,
+ "rules_key": "hkfrs_hk_china_rules",
+ "target_template_key": "hkfrs_hk_china_v1",
+ "locale": "en",
+ "metadata": {
+  "name": "",
+  "version": "",
+  "changes": [],
+  "breaking_changes": []
+ },
+ "scope_selection": {
+  "note": "Absent from v1 and a common cause of silent mis-loads on HKEX filings.",
+  "entity_scope": {
+   "default": "consolidated",
+   "rule": "Where a statement prints Group and Company columns side by side, take the Group (consolidated) column. Record entity_scope on every fact. Never mix columns within one statement.",
+   "signals": [
+    "Group",
+    "Consolidated",
+    "本集團",
+    "綜合",
+    "Company",
+    "本公司"
+   ],
+   "company_only_markers": [
+    "Presence of bs_non_current_assets__investments_in_subsidiaries on the face is strong evidence the column is company-only, since consolidation eliminates it."
+   ]
+  },
+  "period_selection": {
+   "default": "current_reporting_period",
+   "rule": "Identify the current period from the column heading date, not from column position; HKEX filings are not consistently current-first. Load comparatives only into the comparative period slot.",
+   "restatement_rule": "Where a comparative column is labelled restated / 重列 / 經重列, load it as the comparative and set restated: true. Do not overwrite a previously loaded original comparative; keep both with a restatement flag."
+  },
+  "units_and_currency": {
+   "rule": "Resolve currency and scale from the statement header, not the cover page, and re-resolve per statement. Persist unit on every fact; never normalise scale silently.",
+   "signals": [
+    "RMB'000",
+    "人民幣千元",
+    "HK$'000",
+    "港幣千元",
+    "RMB million",
+    "人民幣百萬元"
+   ],
+   "conflict": "If header scale and a printed subtotal are inconsistent by a factor of 1,000, trust neither: route the statement to review."
+  },
+  "column_guard": "Every fact carries the resolved (entity_scope, period, currency, unit). Two facts for the same canonical_key that differ on any of these are distinct facts, not duplicates."
+ },
+ "normalisation": {
+  "note": "Applied to every candidate row label and every alias before comparison. Folding is what allows a single Chinese alias to cover both scripts.",
+  "pipeline": [
+   "Unicode NFKC.",
+   "Traditional to Simplified fold (OpenCC t2s) applied to BOTH sides of the comparison, so 銷售成本 and 销售成本 collapse to one key.",
+   "Case fold (English).",
+   "Full-width to half-width punctuation; map ╱ ／ ⁄ to /; map （） to (); map 、 to , .",
+   "Strip footnote and note markers: trailing digits in parentheses, superscripts, '(note 12)', '附註12', '(附注12)'.",
+   "Strip leading numbering and bullets: '1.', '(a)', '一、', '－'.",
+   "Strip trailing colons and dashes used to introduce sub-captions ('Share of profits and losses of:').",
+   "Strip inline unit and currency annotations: \"RMB'000\", '人民幣千元', '(unaudited)', '（未經審核）'.",
+   "Collapse internal whitespace to a single space; strip zero-width characters and soft hyphens.",
+   "Join a wrapped caption to its continuation line before matching, then also retain the bare fragment as a fallback candidate."
+  ],
+  "wrapped_caption_rule": "On a bilingual HKEX statement a caption printed across two physical lines ('TOTAL COMPREHENSIVE' / '年內全面虧損總額' / 'LOSS FOR THE YEAR') must be reassembled from the value row upward before matching. Match the reassembled string first; only if that fails may the bare fragment be used, and then only against concepts whose include criteria explicitly admit the fragment."
+ },
+ "binding": {
+  "note": "Precedence is section-first. A concept can only claim a row printed inside one of its section_scope values.",
+  "order": [
+   "1. Resolve the statement (balance_sheet / profit_and_loss / cash_flow) from the page or table caption.",
+   "2. Resolve the printed section from the nearest preceding section header. If no header is resolvable, the row is unbound: route to review, never guess a section. (A row WITH a resolved section that no concept claims is not unbound — it is swept into that section's residual; see unbound_row_policy.)",
+   "3. Restrict the candidate concept set to concepts whose section_scope contains the resolved section.",
+   "4. Rule tier: exact normalised alias, then regex_hints, in descending match_priority. Any exclude_hints hit is a hard veto, not a score penalty.",
+   "5. Semantic tier over the restricted set only, using definition + include + exclude. Never over the full ontology.",
+   "6. Tie between concepts listed in each other's confusable_with: resolve with section_disambiguation; if still tied, emit both as candidates and route to review. Never pick by declaration order.",
+   "7. Residual sweep (see residual_framework) runs last, over rows no dedicated concept claimed.",
+   "8. Reconcile the section against its reported subtotal."
+  ],
+  "unbound_row_policy": "ADOPTED POLICY: a face VALUE row printed inside a resolved section that no dedicated concept claimed is swept into that section's residual ('Others'), itemised with its original label and sign. This is chosen over emitting an unbound_fact for review because the section subtotal then still ties, and a spread whose subtotal does not tie is harder to review than one carrying a named Others component. The row is never relabelled and never invisible: it appears as a component of the residual with its own label, value and provenance, and the residual's review triggers still fire. The sweep's eligibility rules are NOT relaxed by this. A section subtotal, statement total, section header, attribution caption, per-share figure, narrative sentence or note-reference-only row is still ineligible and is still emitted as an unbound_fact routed to review — putting a narrative sentence into Others would corrupt the subtotal by whatever the sentence happened to contain, which is a defect this project has already fixed once. A row whose SECTION could not be resolved at all is likewise still routed to review: without a section there is no residual to sweep it into, and guessing one is what cross-section rescue forbids.",
+  "match_priority": "Integer 0-99, higher evaluated first. Long specific captions rank above short generic ones so 'Total assets less current liabilities' cannot be pre-empted by 'Total current liabilities' on token overlap. Residuals are 0 and unreachable by matching."
+ },
+ "netting_rules": [
+  {
+   "id": "cogs_inclusive_of_opex",
+   "target_key": "pl_expenses__cost_of_goods_sold",
+   "subtract_keys": [
+    "pl_expenses__selling_and_marketing_expenses",
+    "pl_expenses__general_and_administrative_expenses",
+    "pl_expenses__employee_benefits_expense",
+    "pl_expenses__depreciation_and_amortisation_expense"
+   ],
+   "add_keys": [],
+   "condition": "Apply ONLY where the filing shows cost of sales is presented INCLUSIVE of these operating expenses — a cost-of-sales note itemising staff costs, depreciation or selling and administrative expenses within it, or a by-nature presentation folded into cost of sales. Where the face presents them as separate lines outside cost of sales (the usual by-function HKFRS case), the rule does NOT apply and nothing is netted.",
+   "label": "Cost of sales reported inclusive of operating expenses. Net out only on positive evidence.",
+   "evidence_required": true,
+   "on_apply": "Set allocation_status: calculated_residual and record the subtracted keys and the note reference on the fact.",
+   "decompose_into": []
+  },
+  {
+   "id": "gross_expense_note_split",
+   "target_key": "pl_tax_expense__total_tax_expense",
+   "subtract_keys": [],
+   "add_keys": [],
+   "condition": "Face prints only a single income tax expense line and the tax note reconciles it to current and deferred components.",
+   "label": "",
+   "evidence_required": false,
+   "on_apply": "Populate the two children from the note and retain the face total as the validation target. Set allocation_status: child_component on each child. If the children do not sum to the face total within tolerance, populate neither and route to review.",
+   "decompose_into": [
+    "pl_tax_expense__current_tax",
+    "pl_tax_expense__deferred_tax"
+   ]
+  }
+ ],
+ "decomposition_rules": [],
+ "residual_framework": {
+  "note": "One definition governing all 13 residual concepts. This replaces the v1 others_policy, which stated intent but gave the engine no mechanism.",
+  "applies_to": "every concept with value_scope: exclusive_residual",
+  "alias_matching": "disabled",
+  "population": "sweep_only",
+  "sweep": {
+   "runs": "after all dedicated concepts in the section have been resolved, before section reconciliation",
+   "candidate_set": "every printed value row on the FACE of the statement whose resolved section equals the residual's single section_scope value",
+   "eligibility": [
+    "The row printed a value for the selected entity_scope, period, currency and unit.",
+    "No dedicated concept whose section_scope contains this section claimed the row.",
+    "The row is not a section subtotal, statement total, section header, attribution caption, per-share figure, narrative row or note-reference-only row.",
+    "The row was printed INSIDE this section. A row printed in any other section is ineligible however similar its wording — there is no cross-section rescue.",
+    "The row's sign agrees with the section's sign_convention, where the section states one. A row signed against its section is evidence the SECTION is wrong, not the amount, so it goes to review rather than into the bucket — a cost swept into income moves the income subtotal and every total below it."
+   ],
+   "cross_section": false,
+   "notes_as_source": false,
+   "derivation": "forbidden",
+   "plug_behaviour": "forbidden — the residual is never computed as (reported subtotal − mapped children)",
+   "literal_others_caption": "A row captioned 'Others' / '其他' is simply one unmapped face row and sweeps in as a single component. It gets no privileged treatment and no dedicated concept."
+  },
+  "itemisation": {
+   "required": true,
+   "component_fields": [
+    "source_row_label",
+    "source_row_label_normalised",
+    "source_row_locale",
+    "value",
+    "sign_as_reported",
+    "source_fact_id",
+    "rejected_candidates"
+   ],
+   "aggregation": "sum_of_components",
+   "rule": "The residual's value is the arithmetic sum of its components. Original labels and signs are always retained; a swept row is never relabelled to 'Others'."
+  },
+  "reconciliation": {
+   "identity": "reported_section_subtotal − Σ(dedicated concepts in section) − Σ(residual components) = 0",
+   "tolerance": "one rounding unit per contributing row",
+   "on_failure": "Emit an unallocated_gap fact carrying the difference and route the section to review. Never adjust the residual, and never adjust a dedicated concept, to close the gap.",
+   "sections_without_reported_subtotal": "If the section prints no subtotal, the residual is still itemised but is flagged unreconciled and carries lower confidence."
+  },
+  "review_triggers": [
+   "|residual| exceeds 5% of |reported section subtotal|",
+   "any single component exceeds 2% of |reported section subtotal|",
+   "component count exceeds 6",
+   "a component label scored at or above the semantic threshold against a dedicated concept but was vetoed by exclude_hints",
+   "residual sign is opposite to the section's sign_convention",
+   "the section reconciliation emitted an unallocated_gap"
+  ],
+  "prohibitions": [
+   "Never a balancing plug.",
+   "Never populated by alias, regex or embedding match.",
+   "Never carries a value with no itemised components.",
+   "Never absorbs a row a dedicated concept could have claimed but was not tested for — all dedicated concepts in the section must be evaluated first.",
+   "Never spans sections, statements, periods, entity scopes or units."
+  ]
+ },
+ "global_rules": {
+  "credit_balance_lines": [],
+  "parent_child_allocation": [
+   "Build containment before populating concepts.",
+   "Never load a gross parent and its separately mapped children additively.",
+   "Residual = reported parent minus confirmed included children.",
+   "Subtract only on explicit inclusion wording, hierarchy, reconciliation or arithmetic support.",
+   "If containment is uncertain, retain the parent as evidence and route to review."
+  ],
+  "duplicate_fact_rule": "The same economic fact on the face and in a note is one fact with multiple evidence references, not two additive values. This also applies to two face captions that report the same amount (see equivalence blocks).",
+  "other_income_rule": "",
+  "others_policy": [],
+  "totals_policy": "Compute totals from mutually exclusive concept outputs. Use reported totals only for validation, never as an input to the components.",
+  "no_fabricated_split": "Never invent a decomposition. Where only a combined figure is reported, load the combined concept and leave the children empty. The one exception is a concept declaring sole_component_of: assigning a whole undifferentiated figure to a single child divides nothing, and it is refused as soon as any sibling child is evidenced on the face or in the subtotal's own note.",
+  "source_fact_id": "document_id|entity_scope|period|currency|unit|page|table_or_note|source_row_id",
+  "face_only_default": "Concepts default to face_only: true. Notes are evidence for a face amount, never an independent source of one, unless note_use is decomposition_allowed.",
+  "sign_convention": {
+   "stored_value": "The reported value after paren-to-negative conversion.",
+   "expenses_and_outflows": "Stored NEGATIVE. This is required by the template: pl_gross_profit = sum(revenue, cost_of_goods_sold) and pl_profit_before_exceptional_items_and_tax = sum(total_income, total_operating_cost, total_non_operating_expense) only hold if expense concepts carry a negative sign.",
+   "unsigned_source": "Where a filing prints expenses as unsigned positives in a by-nature list, negate on load and set sign_normalised: true on the fact so the transformation is auditable.",
+   "either": "Subtotals, working-capital movements, fair-value changes, share of results, OCI and net cash flows are sign-indeterminate. Retain the reported sign; never coerce.",
+   "validation": "A concept whose sign_convention is positive_expected or negative_expected but whose loaded value carries the opposite sign is a review trigger, not an auto-correction."
+  },
+  "mutually_exclusive_groups": [
+   {
+    "id": "equity_reserves",
+    "aggregate": "bs_equity__reserves",
+    "components": [
+     "bs_equity__share_premium",
+     "bs_equity__capital_reserve",
+     "bs_equity__general_reserve",
+     "bs_equity__other_comprehensive_income_reserve",
+     "bs_equity__retained_earnings",
+     "bs_equity__treasury_shares",
+     "bs_equity__shares_held_for_share_award_schemes",
+     "bs_equity__others"
+    ],
+    "rule": "Populate the aggregate only when the face prints a single undifferentiated 'Reserves' line. If any component is printed, populate components and leave the aggregate null.",
+    "note": "The template's bs_equity__reserves rollup lists all of these. Loading the aggregate and its components together double-counts, and that rollup is what reports the disagreement when a filing prints both."
+   },
+   {
+    "id": "associate_jv_share",
+    "aggregate": "pl_exceptional_items__share_of_profit_of_associates_and_jvs",
+    "components": [
+     "pl_exceptional_items__share_of_profits_and_losses_of_associates",
+     "pl_exceptional_items__share_of_profits_and_losses_of_joint_ventures"
+    ],
+    "rule": "Combined face line populates the aggregate. Separately printed lines populate the components. Never both.",
+    "note": ""
+   },
+   {
+    "id": "cf_starting_point",
+    "aggregate": "cf_cash_flow_from_operating_activities__profit_before_tax",
+    "components": [
+     "cf_cash_flow_from_operating_activities__profit_for_the_year"
+    ],
+    "rule": "An indirect-method cash flow starts from profit before tax OR from profit for the year. Populate whichever the face prints and leave the other null.",
+    "note": "The template's operating rollup lists both starting lines because exactly one is ever printed, which is how the spec's COALESCE is expressed without a COALESCE operator. A filing populating both would count its profit twice in operating profit before working capital changes."
+   },
+   {
+    "id": "oci_composition",
+    "aggregate": "pl_other_comprehensive_income_for_the_year",
+    "components": [
+     "pl_oci__items_not_reclassified",
+     "pl_oci__items_may_be_reclassified"
+    ],
+    "rule": "Populate the subtotal only when the face prints a single undifferentiated other comprehensive income line. If either category is printed, populate the categories and leave the subtotal null.",
+    "note": "The template's pl_other_comprehensive_income_for_the_year rollup lists both categories. Loading the printed subtotal alongside them double-counts other comprehensive income, and the rollup reports the disagreement when a filing prints both."
+   }
+  ]
+ },
+ "validation": {
+  "schema_version": 1,
+  "validation_key": "hkfrs_hk_china_rules_validation",
+  "target_template_key": "hkfrs_hk_china_v1",
+  "metadata": {},
+  "identities": [
+   {
+    "id": "bs_net_assets_equals_equity",
+    "expr": "bs_net_assets = bs_equity__total_equity",
+    "severity": "blocking",
+    "note": "One economic fact under two captions; see the equivalence blocks."
+   },
+   {
+    "id": "bs_capital_employed",
+    "expr": "bs_total_assets_less_current_liabilities = bs_non_current_assets__total_non_current_assets + bs_net_current_assets_liabilities",
+    "severity": "blocking",
+    "note": ""
+   },
+   {
+    "id": "bs_net_current",
+    "expr": "bs_net_current_assets_liabilities = bs_current_assets__total_current_assets - bs_current_liabilities__total_current_liabilities",
+    "severity": "blocking",
+    "note": ""
+   },
+   {
+    "id": "pl_gross_profit_tie",
+    "expr": "pl_gross_profit = pl_income__revenue_from_operations + pl_expenses__cost_of_goods_sold + pl_expenses__purchases_of_stock_in_trade",
+    "severity": "blocking",
+    "note": "Holds only under the negative-expense sign convention."
+   },
+   {
+    "id": "pl_pbt_tie",
+    "expr": "pl_profit_before_tax = pl_profit_before_exceptional_items_and_tax + pl_exceptional_items__total_exceptional_items",
+    "severity": "warning",
+    "note": ""
+   },
+   {
+    "id": "pl_bottom_line",
+    "expr": "pl_profit_for_the_year = pl_profit_before_tax + pl_tax_expense__total_tax_expense",
+    "severity": "blocking",
+    "note": ""
+   },
+   {
+    "id": "pl_tci_tie",
+    "expr": "pl_total_comprehensive_income_for_the_year = pl_profit_for_the_year + pl_other_comprehensive_income_for_the_year",
+    "severity": "blocking",
+    "note": "The primary guard against the wrapped-caption confusion between the two bottom lines."
+   },
+   {
+    "id": "pl_profit_attribution",
+    "expr": "pl_profit_for_the_year = pl_profit_attributable_to__owners_of_the_parent + pl_profit_attributable_to__non_controlling_interests",
+    "severity": "blocking",
+    "note": ""
+   },
+   {
+    "id": "pl_tci_attribution",
+    "expr": "pl_total_comprehensive_income_for_the_year = pl_total_comprehensive_income_attributable_to__owners_of_the_parent + pl_total_comprehensive_income_attributable_to__non_controlling_interests",
+    "severity": "blocking",
+    "note": ""
+   },
+   {
+    "id": "cf_movement",
+    "expr": "cf_net_increase_decrease_in_cash_and_cash_equivalents = cf_cash_flow_from_operating_activities__net_cash_from_operating_activities + cf_cash_flow_from_investing_activities__net_cash_used_in_investing_activities + cf_cash_flow_from_financing_activities__net_cash_from_financing_activities",
+    "severity": "blocking",
+    "note": "The three terms are the CLOSING subtotal of each activity section, spelled as the template declares them. Earlier revisions wrote them as the shorthand net_operating/net_investing/net_financing, which the template has never declared, so this blocking identity resolved to nothing and stayed skipped on every filing."
+   },
+   {
+    "id": "cf_closing",
+    "expr": "cf_closing_cash_and_cash_equivalents = cf_opening_cash_and_cash_equivalents + cf_net_increase_decrease_in_cash_and_cash_equivalents + cf_effect_of_foreign_exchange_rate_changes",
+    "severity": "blocking",
+    "note": ""
+   },
+   {
+    "id": "cf_to_bs_cash",
+    "expr": "cf_closing_cash_and_cash_equivalents = bs_current_assets__cash_and_cash_equivalents",
+    "severity": "blocking",
+    "note": "A break here is usually restricted cash or pledged deposits wrongly swept into cash and cash equivalents, or an overdraft presented within cash."
+   },
+   {
+    "id": "cf_pbt_agreement",
+    "expr": "cf_cash_flow_from_operating_activities__profit_before_tax = pl_profit_before_tax",
+    "severity": "blocking",
+    "note": ""
+   },
+   {
+    "id": "bs_derived_consistency",
+    "expr": "bs_net_assets = bs_total_assets - bs_current_liabilities__total_current_liabilities - bs_non_current_liabilities__total_non_current_liabilities",
+    "severity": "blocking",
+    "note": "An independent route to net assets: the ladder reaches it through net current assets, this reaches it through total assets, so a figure double-counted between the two sections breaks one and not the other. The equity attribution and the reserves composition are NOT here — the revised rollups on bs_equity__total_equity and bs_equity__reserves already assert exactly those two sums."
+   },
+   {
+    "id": "cf_pfy_agreement",
+    "expr": "cf_cash_flow_from_operating_activities__profit_for_the_year = pl_profit_for_the_year",
+    "severity": "blocking",
+    "note": "The other half of the spec's COALESCE_MATCHED: this pairs with cf_pbt_agreement, and because a cash flow starts from one line or the other, exactly one of the two ever has both operands and runs. Comparing the cash flow's starting profit against the WRONG P&L line would fail by the tax charge on every correct filing."
+   },
+   {
+    "id": "pl_oci_composition",
+    "expr": "pl_other_comprehensive_income_for_the_year = pl_oci__items_not_reclassified + pl_oci__items_may_be_reclassified",
+    "severity": "warning",
+    "note": "Restates the new rollup so the composition carries the spec's severity: a filing whose two IAS 1 categories disagree with the printed subtotal has a classification difference worth a look, not a broken statement. Skips when either side is absent."
+   },
+   {
+    "id": "x_check_tax",
+    "expr": "cf_cash_flow_from_operating_activities__income_tax_expense = -pl_tax_expense__total_tax_expense",
+    "severity": "warning",
+    "note": "The tax charge added back in the cash flow is the tax charge in profit or loss, with the sign reversed because expenses are stored negative. Skips on a cash flow that starts after tax, where there is no add-back to compare."
+   },
+   {
+    "id": "x_check_dep",
+    "expr": "cf_cash_flow_from_operating_activities__depreciation_and_amortisation = -pl_expenses__depreciation_and_amortisation_expense",
+    "severity": "warning",
+    "note": "Depreciation and amortisation added back in the cash flow against the charge in profit or loss. The spec asks for a 0.5% tolerance, which an identity cannot carry, so this runs on the shared tolerance: a small break here is usually depreciation capitalised into inventory or a development asset rather than an extraction error."
+   },
+   {
+    "id": "x_check_interest",
+    "expr": "cf_cash_flow_from_operating_activities__finance_costs = -pl_non_operating_expenses__interest_expense",
+    "severity": "warning",
+    "note": "Finance costs added back in the cash flow against interest expense in profit or loss. The spec marks this advisory with a 2% tolerance; the severity enum has no advisory level and an identity carries no tolerance, so it is a warning — capitalised interest causes a legitimate variance and a break here is a question, not a defect."
+   }
+  ],
+  "cross_concept_guards": [
+   {
+    "rule": "A concept whose sign_convention is positive_expected or negative_expected carrying the opposite sign.",
+    "note": ""
+   },
+   {
+    "rule": "bs_non_current_assets__investments_in_subsidiaries populated on a column resolved as consolidated.",
+    "note": ""
+   },
+   {
+    "rule": "bs_equity__reserves populated together with any of its listed components.",
+    "note": ""
+   },
+   {
+    "rule": "pl_exceptional_items__share_of_profit_of_associates_and_jvs populated together with either separate share line.",
+    "note": ""
+   },
+   {
+    "rule": "pl_profit_for_the_year equal to pl_total_comprehensive_income_for_the_year while pl_other_comprehensive_income_for_the_year is non-zero.",
+    "note": ""
+   },
+   {
+    "rule": "bs_equity__non_controlling_interests equal to pl_profit_attributable_to__non_controlling_interests — almost always the balance-versus-flow confusion.",
+    "note": ""
+   }
+  ],
+  "section_reconciliation": "Every section with a reported subtotal must satisfy the residual_framework reconciliation identity. Failure emits unallocated_gap and blocks auto-approval of that section."
+ },
+ "worked_examples": [
+  {
+   "scenario": "Current assets section prints: Inventories 400; Trade receivables 900; Deposits and prepayments 120; Amounts due from a director 30; Others 15; Cash and cash equivalents 500; TOTAL CURRENT ASSETS 1,965.",
+   "source": {},
+   "output": [
+    {
+     "canonical_key": "bs_current_assets__inventories",
+     "value": 400,
+     "allocation_status": "direct_exclusive"
+    },
+    {
+     "canonical_key": "bs_current_assets__trade_receivables",
+     "value": 900,
+     "allocation_status": "direct_exclusive"
+    },
+    {
+     "canonical_key": "bs_current_assets__prepayments_other_receivables_and_other_assets",
+     "value": 120,
+     "allocation_status": "direct_exclusive"
+    },
+    {
+     "canonical_key": "bs_current_assets__cash_and_cash_equivalents",
+     "value": 500,
+     "allocation_status": "direct_exclusive"
+    },
+    {
+     "canonical_key": "bs_current_assets__others",
+     "value": 45,
+     "allocation_status": "swept_residual",
+     "components": [
+      {
+       "source_row_label": "Amounts due from a director",
+       "value": 30
+      },
+      {
+       "source_row_label": "Others",
+       "value": 15
+      }
+     ]
+    }
+   ],
+   "validation": "",
+   "instruction": "The residual value was computed as the sum of its two components, never as 1,965 minus the mapped lines.",
+   "id": "residual_sweep_current_assets",
+   "resolution": "Dedicated concepts claim inventories, trade receivables, deposits/prepayments (prepayments_other_receivables_and_other_assets) and cash. 'Amounts due from a director' and 'Others' are unmapped face rows in this section, so both sweep.",
+   "reconciliation": "1,965 − (400+900+120+500) − 45 = 0. Residual is 2.3% of the subtotal; below the 5% trigger, and no single component exceeds 2%, so no review is raised."
+  },
+  {
+   "scenario": "Same section, but OCR drops the 'Amounts due from a director' row entirely. Mapped lines total 1,920 and the printed subtotal is 1,965.",
+   "source": {},
+   "output": [
+    {
+     "canonical_key": "bs_current_assets__others",
+     "value": 15,
+     "allocation_status": "swept_residual",
+     "components": [
+      {
+       "source_row_label": "Others",
+       "value": 15
+      }
+     ]
+    },
+    {
+     "unallocated_gap": 30,
+     "section": "bs_s2_current_assets",
+     "review": true
+    }
+   ],
+   "validation": "",
+   "instruction": "The residual stays at 15. The 30 becomes an explicit unallocated_gap. Inflating the residual to 45 to force the subtotal to tie is the exact failure mode this framework exists to prevent.",
+   "id": "residual_must_not_plug",
+   "resolution": "",
+   "reconciliation": ""
+  },
+  {
+   "scenario": "'Deferred tax assets 80' is printed inside the CURRENT assets section by a filing that classifies it there.",
+   "source": {},
+   "output": [
+    {
+     "canonical_key": "bs_current_assets__others",
+     "value": 80,
+     "allocation_status": "swept_residual",
+     "components": [
+      {
+       "source_row_label": "Deferred tax assets",
+       "value": 80
+      }
+     ],
+     "review": true,
+     "review_reason": "component label matched a dedicated concept in a different section"
+    }
+   ],
+   "validation": "",
+   "instruction": "Bind to the printed section and surface the classification difference for review. Never reach across sections to a better-fitting concept.",
+   "id": "no_cross_section_rescue",
+   "resolution": "bs_non_current_assets__deferred_income_tax_assets has section_scope [bs_s1_non_current_assets] and cannot claim a row printed in the current section. No dedicated current-asset concept covers it.",
+   "reconciliation": ""
+  },
+  {
+   "scenario": "Other income 50, of which Interest income 12 disclosed within it.",
+   "source": {},
+   "output": [
+    {
+     "canonical_key": "pl_income__other_income",
+     "value": 38,
+     "allocation_status": "calculated_residual",
+     "calculation": "50-12"
+    },
+    {
+     "canonical_key": "pl_non_operating_expenses__interest_income",
+     "value": 12,
+     "allocation_status": "child_component"
+    }
+   ],
+   "validation": "38 + 12 = 50",
+   "instruction": "",
+   "id": "gross_parent_with_mapped_child",
+   "resolution": "",
+   "reconciliation": ""
+  },
+  {
+   "scenario": "Other income 38 and Interest income 12 printed as separate face lines.",
+   "source": {},
+   "output": [
+    {
+     "canonical_key": "pl_income__other_income",
+     "value": 38,
+     "allocation_status": "direct_exclusive"
+    },
+    {
+     "canonical_key": "pl_non_operating_expenses__interest_income",
+     "value": 12,
+     "allocation_status": "direct_exclusive"
+    }
+   ],
+   "validation": "",
+   "instruction": "Do not subtract again.",
+   "id": "already_exclusive",
+   "resolution": "",
+   "reconciliation": ""
+  },
+  {
+   "scenario": "Statement prints 'LOSS FOR THE YEAR 年內虧損 (1,200)' and further down 'TOTAL COMPREHENSIVE / 年內全面虧損總額 / LOSS FOR THE YEAR (1,350)'.",
+   "source": {},
+   "output": [
+    {
+     "canonical_key": "pl_profit_for_the_year",
+     "value": -1200
+    },
+    {
+     "canonical_key": "pl_total_comprehensive_income_for_the_year",
+     "value": -1350
+    },
+    {
+     "canonical_key": "pl_other_comprehensive_income_for_the_year",
+     "value": -150,
+     "allocation_status": "derived",
+     "calculation": "-1350 - (-1200)"
+    }
+   ],
+   "validation": "",
+   "instruction": "Reassemble the wrapped caption before matching. The bare fragment 'LOSS FOR THE YEAR' on the lower row belongs to the total-comprehensive concept; identity pl_tci_tie confirms the assignment.",
+   "id": "wrapped_bilingual_bottom_line",
+   "resolution": "",
+   "reconciliation": ""
+  },
+  {
+   "scenario": "Balance sheet equity shows 'Non-controlling interests 2,400'. Profit or loss shows 'Non-controlling interests 180' under 'Profit attributable to:'. Total comprehensive section shows 'Non-controlling interests 165'.",
+   "source": {},
+   "output": [
+    {
+     "canonical_key": "bs_equity__non_controlling_interests",
+     "value": 2400,
+     "unit_of_account": "balance"
+    },
+    {
+     "canonical_key": "pl_profit_attributable_to__non_controlling_interests",
+     "value": 180,
+     "unit_of_account": "flow"
+    },
+    {
+     "canonical_key": "pl_total_comprehensive_income_attributable_to__non_controlling_interests",
+     "value": 165,
+     "unit_of_account": "flow"
+    }
+   ],
+   "validation": "",
+   "instruction": "Three concepts, identical caption. Section_scope plus unit_of_account resolves all three without any wording disambiguation.",
+   "id": "nci_balance_versus_flow",
+   "resolution": "",
+   "reconciliation": ""
+  },
+  {
+   "scenario": "Filing prints '銷售成本'. Ontology alias is '销售成本'.",
+   "source": {},
+   "output": [],
+   "validation": "",
+   "instruction": "Both sides fold to 销售成本 in the normalisation pipeline and match exactly. No Traditional variant needs to be enumerated in the alias list.",
+   "id": "script_folding",
+   "resolution": "",
+   "reconciliation": ""
+  }
+ ]
+}
