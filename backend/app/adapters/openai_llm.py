@@ -33,6 +33,44 @@ _RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 _MAX_ATTEMPTS = 3
 
 
+# How long a rate-limited provider says to wait. A 429's own body carries the number and the
+# `Retry-After` header is the standard place for it; ignoring both and backing off blindly is what
+# turned a full-capability run into a deterministic one on a real filing.
+_RETRY_AFTER_IN_BODY = re.compile(r"try again in\s*([\d.]+)\s*s", re.IGNORECASE)
+# A ceiling, because a provider may name a wait longer than anyone wants a stage to block for. At
+# that point failing over to the deterministic path is the better answer than stalling the run.
+_MAX_RETRY_WAIT = 65.0
+
+
+def _retry_delay(resp, attempt: int) -> float:
+    """The provider's own suggested wait, else exponential backoff.
+
+    Prefers `Retry-After` (seconds, per RFC 9110), then the seconds named in the response body,
+    and falls back to `min(2 ** attempt, 8)` — which is the right policy for a 5xx or a transport
+    blip and the wrong one for a token-per-minute limit.
+    """
+    # Case-folded here rather than trusting the caller's mapping to be case-insensitive. httpx's
+    # `Headers` is, a plain dict is not, and this must not silently stop reading the header the
+    # one time it is handed something else — the whole point is that the provider's advice is not
+    # missed.
+    raw = getattr(resp, "headers", None) or {}
+    header = ""
+    for name, value in (raw.items() if hasattr(raw, "items") else ()):
+        if str(name).strip().lower() == "retry-after":
+            header = str(value).strip()
+            break
+    if header:
+        try:
+            return min(max(float(header), 0.0), _MAX_RETRY_WAIT)
+        except ValueError:
+            pass                                  # a date-form Retry-After; fall through
+    said = _RETRY_AFTER_IN_BODY.search(resp.text or "")
+    if said:
+        # A fraction of a second over, so the window has genuinely rolled by the time we ask again.
+        return min(float(said.group(1)) + 0.5, _MAX_RETRY_WAIT)
+    return float(min(2 ** attempt, 8))
+
+
 def _completion_limit_from_error(message: str) -> int | None:
     match = re.search(r"supports at most ([\d,]+) completion tokens", message, re.IGNORECASE)
     return int(match.group(1).replace(",", "")) if match else None
@@ -172,7 +210,18 @@ class OpenAiLlmProvider:
                             else:
                                 break
                         if resp.status_code in _RETRYABLE_STATUS and attempt < _MAX_ATTEMPTS - 1:
-                            time.sleep(min(2 ** attempt, 8))
+                            # HONOUR WHAT THE PROVIDER SAYS TO WAIT. The blind
+                            # `min(2 ** attempt, 8)` below is right for a 5xx or a transport blip,
+                            # and useless for a rate limit: a token-per-minute 429 arrives with the
+                            # exact wait in it ("Please try again in 43.541142857s", and often a
+                            # `Retry-After` header), and three attempts of 1s + 2s exhaust the
+                            # retries in about three seconds against a window that needs forty.
+                            #
+                            # Measured on a real filing: every mapping call failed this way, the
+                            # run fell back to `strategy: "deterministic"` and reported
+                            # `llm_calls: 0` — a full-capability run degraded to the weaker path
+                            # because the retry gave up long before the provider was ready.
+                            time.sleep(_retry_delay(resp, attempt))
                             continue
                         resp.raise_for_status()
                         break
