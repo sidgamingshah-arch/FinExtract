@@ -88,7 +88,9 @@ def _as_utc(stamp: datetime) -> datetime:
 
 
 def _progress_payload(phase: str, pct: float, *, started_at: datetime, stage_count: int,
-                      stage: str = "", stages_done: list[str] | None = None) -> dict:
+                      stage: str = "", stages_done: list[str] | None = None,
+                      step_done: int = 0, step_total: int = 0, step_label: str = "",
+                      llm_calls: int = 0) -> dict:
     """One ``ExtractionProgress`` record (the shape declared in ``frontend/src/types.ts``).
 
     ``_PROGRESS_FIELDS`` is the same shape read back: a record missing any of these keys is not one
@@ -113,6 +115,22 @@ def _progress_payload(phase: str, pct: float, *, started_at: datetime, stage_cou
         "stage_index": len(done),
         "stage_count": stage_count,
         "stages_done": done,
+        # PROGRESS WITHIN THE STAGE IN FLIGHT, which is the whole reason a reader could not tell a
+        # working run from a hung one. `map_ontology` is one stage and by far the longest — it
+        # makes one batched LLM call per (statement, section) subgroup, concurrently — and until
+        # this existed, nothing moved for the whole of it: not the percentage, not the stage
+        # counter, and not the log tail, because the only thing that flushed them was the NEXT
+        # stage starting.
+        #
+        # 0/0 means "this stage reports no sub-steps", which is every stage but one. A screen must
+        # read it as "no detail available", never as "0% of 0 done".
+        "step_done": step_done,
+        "step_total": step_total,
+        "step_label": step_label,        # what a unit IS: "LLM batch", "page", …
+        # Cumulative LLM calls the run has made, live rather than only in the final result. The
+        # question actually being asked mid-run is "how many calls have completed", and the count
+        # was already on the context — it just never left it until the run finished.
+        "llm_calls": llm_calls,
         "started_at": _as_utc(started_at).isoformat(),
         "elapsed_ms": max(0, int((datetime.now(timezone.utc)
                                   - _as_utc(started_at)).total_seconds() * 1000)),
@@ -470,6 +488,10 @@ class _RunProgress:
         self._entered: list[str] = []   # every stage entry the pipeline made, in order
         self._current = ""              # the stage in flight; "" once the pipeline is past them all
         self._ctx = None                # the live context, whose log tail each write flushes
+        # (done, total, label) reported from inside the stage in flight. Reset on every stage
+        # entry: a count left over from the previous stage would read as progress this one has
+        # not made, and 0/0 is how a screen is told there is no sub-step detail.
+        self._step: tuple[int, int, str] = (0, 0, "")
 
     def observe(self, ctx) -> None:
         """Take the live pipeline context as soon as it exists, because its ``logs`` list is what the
@@ -503,6 +525,7 @@ class _RunProgress:
                 self._current = ""
                 return
             self._current = phase
+            self._step = (0, 0, "")
             # Appended on every entry, a repeat included, so the count of stages behind this one is
             # the pipeline's own position and a stage run twice does not report the same index twice.
             self._entered.append(phase)
@@ -537,7 +560,47 @@ class _RunProgress:
     def _payload(self, phase: str, pct: float, done: list[str]) -> dict:
         return _progress_payload(phase, pct, started_at=self.started_at,
                                  stage_count=len(self.stage_names), stage=self._current,
-                                 stages_done=done)
+                                 stages_done=done,
+                                 step_done=self._step[0], step_total=self._step[1],
+                                 step_label=self._step[2],
+                                 llm_calls=int(getattr(self._ctx, "llm_calls", 0) or 0))
+
+    def step(self, done: int, total: int, label: str = "") -> None:
+        """The pipeline's ``step_cb``: a stage reporting progress from inside itself.
+
+        WHAT THIS BUYS. Three things were frozen for the whole of `map_ontology` — the percentage,
+        the stage counter, and the LOG TAIL — because `_write` only ran on a stage transition. One
+        write per completed unit unfreezes all three, and carries a live LLM call count that
+        previously only appeared in the final result.
+
+        THE PERCENTAGE IS INTERPOLATED WITHIN THE STAGE, not replaced. The stage's own share of the
+        pipeline is one slot out of `stage_count`, so a stage that is 3 of 12 units done sits a
+        quarter of the way across its own slot and never overtakes the stage after it. Reporting
+        `done/total` as the run's pct would send the bar backwards the moment the stage finished.
+
+        Guarded exactly as `__call__` is, and for the same reason: this runs inside a stage, so
+        anything escaping here is recorded as a failed extraction — a run that reached its rows
+        reported as broken because a status write did not land. Cancellation is deliberately NOT
+        raised from here; it stays on the stage boundary, so a stage cannot be torn down halfway
+        through assembling a document.
+        """
+        try:
+            if not self._current or total <= 0:
+                return
+            # CLAMPED ONCE, AND THE CLAMP FEEDS THE PERCENTAGE TOO. Clamping only the reported
+            # count while computing the bar from the raw one is worse than not clamping at all: a
+            # caller reporting 99 of 12 (a retry, or a miscounted plan) drove `base + slot * 8.25`
+            # straight through `min(1.0, …)` and parked the bar at 100% while the first stage of
+            # four was still running. Caught by a test, not by a filing.
+            shown = max(0, min(done, total))
+            self._step = (shown, total, label)
+            behind = self._entered[:-1]
+            slot = 1.0 / max(len(self.stage_names), 1)
+            base = len(behind) * slot
+            self._write(self._payload(self._current,
+                                      round(min(1.0, base + slot * (shown / total)), 3), behind))
+        except Exception as exc:  # noqa: BLE001 — reporting must never fail the run
+            self._degraded(exc)
 
     def _write(self, payload: dict) -> bool:
         """Flush one progress record. Returns True only when the row POSITIVELY says ``canceled``.
@@ -1179,7 +1242,8 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
         data = store.get(object_key)
         doc_model, ctx = run_extraction(data, filename=filename, ontology=ontology,
                                         included_pages=included_pages, template=template,
-                                        progress_cb=progress, context_cb=progress.observe)
+                                        progress_cb=progress, context_cb=progress.observe,
+                                        step_cb=progress.step)
         run = session.get(ExtractionRun, run_id)
         if run is None:
             return

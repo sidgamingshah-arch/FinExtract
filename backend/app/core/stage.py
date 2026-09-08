@@ -26,6 +26,8 @@ class PipelineContext:
     included_pages: set[int] | None = None
     logs: list[str] = field(default_factory=list)
     progress_cb: Callable[[str, float], None] | None = None
+    # Reported from inside a stage: (units done, units total, what a unit is). See `emit_step`.
+    step_cb: Callable[[int, int, str], None] | None = None
     # LLM usage accumulated across stages (description-based mapping, …) for the audit log.
     llm_input_tokens: int = 0
     llm_output_tokens: int = 0
@@ -43,6 +45,26 @@ class PipelineContext:
     def emit_progress(self, phase: str, pct: float) -> None:
         if self.progress_cb is not None:
             self.progress_cb(phase, pct)
+
+    def emit_step(self, done: int, total: int, label: str = "") -> None:
+        """Report progress from INSIDE a stage — "3 of 12 LLM calls finished".
+
+        WHY THIS EXISTS. `Pipeline.run` emits once before each stage, so everything a reader sees
+        moves only at stage boundaries. `map_ontology` is one stage and it is by far the longest:
+        it cuts the document into (statement, section) subgroups and makes one batched LLM call per
+        subgroup, concurrently. For the whole of that — minutes on a real filing — the stage name,
+        the percentage, the stage counter AND the log tail all sit frozen, because the only thing
+        that flushes them is the next stage starting. A reader cannot tell a run that is working
+        from one that has hung.
+
+        Deliberately a SEPARATE callback rather than a richer `progress_cb`. Every existing caller
+        passes a two-argument callable, and widening that signature would break each of them for
+        a report that must never be able to fail a run.
+
+        A stage that has no notion of sub-steps simply never calls this, and nothing changes.
+        """
+        if self.step_cb is not None:
+            self.step_cb(done, total, label)
 
 
 class Stage(Protocol):

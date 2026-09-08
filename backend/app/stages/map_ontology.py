@@ -453,6 +453,10 @@ class MapOntologyStage:
         return promoted
 
     def run(self, doc: DocumentModel, ctx: PipelineContext) -> DocumentModel:
+        # The run's LLM call count BEFORE this stage. Captured once so the live figure published
+        # from inside the batch loop and the roll-up at the end are the same assignment, rather
+        # than an assignment followed by an accumulation that counts every call twice.
+        _calls_base = ctx.llm_calls
         ontology = getattr(ctx, "ontology", None)
         if ontology is None or not doc.line_items:
             ctx.log("map_ontology:skipped(no ontology or no line items)")
@@ -666,7 +670,28 @@ class MapOntologyStage:
                     cited_note_text=cited_note_text)
 
             max_workers = max(1, ctx.settings.extraction.llm_max_concurrency)
+            # REPORT BEFORE THE FIRST CALL, so a reader learns how many there will be rather than
+            # watching a still bar and guessing. This stage is the longest in the pipeline and the
+            # only one that makes LLM calls, and until now nothing moved for the whole of it — not
+            # the percentage, not the stage counter, not the log tail — because the only thing
+            # that flushed them was the NEXT stage starting. A run that was working and a run that
+            # had hung looked identical.
+            # The count this stage starts from, so the live figure below can be an ASSIGNMENT.
+            # `matcher.usage["calls"]` is cumulative for the matcher, so adding it each time round
+            # the loop would count every earlier call again.
+            # PLANNED IN PROVIDER CALLS, which is the number actually being asked about. One
+            # task is one (statement, section) subgroup, but `match_batch` CHUNKS a subgroup at
+            # `BATCH_MAX_ITEMS`, so a 60-row subgroup is three calls and not one. Reporting task
+            # count as call count would understate a large filing by a factor of several.
+            chunk = max(1, int(getattr(ctx.settings.extraction, "llm_batch_max_items",
+                                       matcher.BATCH_MAX_ITEMS) or matcher.BATCH_MAX_ITEMS))
+            planned = sum(-(-len(rows) // chunk) for _stmt, rows, _note in tasks)
+            ctx.emit_step(0, planned, "LLM call")
+            ctx.log(f"map_ontology:llm_planned_calls={planned} batches={len(tasks)}"
+                    f" rows={sum(len(t[1]) for t in tasks)} chunk_size={chunk}"
+                    f" concurrency={max_workers}")
             with ThreadPoolExecutor(max_workers=max_workers) as pool:
+                finished = 0
                 for subgroup, results in pool.map(_run_task, tasks):
                     in_group = {str(li.id) for li in subgroup}
                     for iid, res in results.items():
@@ -675,6 +700,24 @@ class MapOntologyStage:
                             continue
                         if _apply(by_id[iid], res):
                             mapped += 1
+                    # `pool.map` yields in the order the tasks were submitted, so this counts
+                    # COMPLETED calls and not merely dispatched ones — the number the reader is
+                    # actually asking about. One progress write per call: seconds apart, and it is
+                    # what flushes the log tail as well.
+                    finished += 1
+                    # LIVE, not at the end of the stage. `ctx.llm_calls` was only rolled up once
+                    # every call had finished, so "how many calls have completed" — the question
+                    # actually being asked mid-run — read 0 for the whole of the longest stage.
+                    made = matcher.usage["calls"]
+                    ctx.llm_calls = _calls_base + made
+                    # The DENOMINATOR grows if the estimate was low. A retry, or a chunk the
+                    # provider forced smaller, means more calls than planned — and a counter that
+                    # sticks at "12 / 12" while calls are still going out is worse than one that
+                    # admits the plan moved.
+                    ctx.emit_step(made, max(planned, made), "LLM call")
+                    ctx.log(f"map_ontology:llm_batch {finished}/{len(tasks)}"
+                            f" calls={made}/{max(planned, made)} rows={len(subgroup)}"
+                            f" mapped_so_far={mapped}")
             # How the document was actually cut up, so "one statement, two pages, one call" is
             # verifiable from the run record instead of asserted in a docstring.
             ctx.log(f"map_ontology:groups={len(groups)} batched_rows={batched}"
@@ -687,10 +730,20 @@ class MapOntologyStage:
                         f" rows_to_llm={focus_llm} rows_deterministic={focus_det}"
                         f" sections_skipped={focus_sections_skipped}")
         else:
-            for li in doc.line_items:
+            # The unbatched path: one match per row, each of which may be its own LLM call. Same
+            # question, so the same report — and the total is known before the first one.
+            total_rows = len(doc.line_items)
+            ctx.emit_step(0, total_rows, "row")
+            ctx.log(f"map_ontology:per_line_rows={total_rows} (unbatched path)")
+            for done, li in enumerate(doc.line_items, start=1):
                 if _apply(li, matcher.match(li.source_label, statement=_statement_of(li),
                                             section=li.section_hint)):
                     mapped += 1
+                ctx.llm_calls = _calls_base + matcher.usage["calls"]
+                # Every 10 rows, not every row: this path can carry hundreds and each report is a
+                # small database write. The batched path reports per call because a call is seconds.
+                if done % 10 == 0 or done == total_rows:
+                    ctx.emit_step(done, total_rows, "row")
 
         # A note's pages do not carry a statement title, but its cited face row does. Map each
         # extracted detail row in that context so a disclosure can contribute a dedicated concept
@@ -751,7 +804,10 @@ class MapOntologyStage:
         # Roll the mapper's LLM usage up onto the context for the audit log.
         ctx.llm_input_tokens += matcher.usage["input_tokens"]
         ctx.llm_output_tokens += matcher.usage["output_tokens"]
-        ctx.llm_calls += matcher.usage["calls"]
+        # ASSIGNED from the base, not accumulated: the batch loop above already published a live
+        # count as each call finished, and `+=` here would add the matcher's cumulative total to a
+        # figure that already contains it.
+        ctx.llm_calls = _calls_base + matcher.usage["calls"]
         if matcher.usage["model"]:
             ctx.llm_model = matcher.usage["model"]
         # Report what ACTUALLY happened: zero successful calls means the deterministic

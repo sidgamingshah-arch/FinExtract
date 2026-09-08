@@ -619,6 +619,19 @@ export interface ExtractionProgress {
   stage_count: number;
   /** The stages already finished, in order, so the screen can tick them off. */
   stages_done: string[];
+  /** Progress WITHIN the stage in flight. `step_total === 0` means this stage reports no
+   *  sub-steps, which is every stage but ontology mapping — read it as "no detail", never as
+   *  "0 of 0 done". `step_label` says what a unit is ("LLM call", "row").
+   *
+   *  Why it exists: mapping is one stage and by far the longest, and it makes every LLM call in
+   *  the run. Without this the percentage, the stage counter and the log tail all sat frozen for
+   *  the whole of it, so a run that was working looked identical to one that had hung. */
+  step_done: number;
+  step_total: number;
+  step_label: string;
+  /** LLM calls the run has COMPLETED so far. Live — it used to appear only in the finished
+   *  result, which is the one moment nobody needs it. */
+  llm_calls: number;
   started_at: string;
   elapsed_ms: number;
 }

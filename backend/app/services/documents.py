@@ -48,10 +48,15 @@ def analyze_document(data: bytes, filename: str = "") -> tuple[DocumentModel, Pi
 
 def run_extraction(data: bytes, filename: str = "", ontology=None,
                    progress_cb=None, included_pages=None,
-                   template=None, context_cb=None) -> tuple[DocumentModel, PipelineContext]:
+                   template=None, context_cb=None,
+                   step_cb=None) -> tuple[DocumentModel, PipelineContext]:
     doc = DocumentModel(filename=filename, content_hash=content_hash(data))
     ctx = _context(data, ontology=ontology, progress_cb=progress_cb,
                    included_pages=included_pages, template=template)
+    # Progress reported from INSIDE a stage. `progress_cb` fires only between stages, and
+    # `map_ontology` is one stage that makes many LLM calls — so without this the percentage, the
+    # stage counter and the log tail all sit frozen for the longest part of a run.
+    ctx.step_cb = step_cb
     # Hand the context over BEFORE the pipeline starts, for a caller that has to read it DURING the
     # run rather than after it: the API worker flushes the tail of ``ctx.logs`` onto the run row at
     # every progress emit, and the tuple returned below only exists once every stage has finished —

@@ -507,6 +507,22 @@ function RunProgress({ progress, stages, logTail, live, canStop, stopping, onSto
     stats.push({ label: t("ex.run.stages"),
                  value: `${progress.stage_index} / ${progress.stage_count}`, mono: true });
   }
+  // WHAT THE STAGE IN FLIGHT IS DOING. Printed only when the run reports a total, because
+  // `step_total === 0` means the stage has no sub-steps rather than none done — and "0 / 0" would
+  // read as a stalled measurement instead of an absent one. Ontology mapping is the only stage
+  // that reports these, and it is the one where a reader could previously not tell a working run
+  // from a hung one: it makes every LLM call in the run, behind a single frozen stage name.
+  if (progress && Number.isFinite(progress.step_total) && progress.step_total > 0) {
+    const unit = progress.step_label || t("ex.run.steps");
+    stats.push({ label: unit, value: `${progress.step_done} / ${progress.step_total}`,
+                 mono: true });
+  }
+  // Cumulative across the run, so it keeps its meaning after mapping has finished and the
+  // per-stage counter above has gone. Shown from the first call rather than from zero: a "0" on a
+  // run with no LLM configured would invite the reader to wait for a number that never comes.
+  if (progress && Number.isFinite(progress.llm_calls) && progress.llm_calls > 0) {
+    stats.push({ label: t("ex.run.llmCalls"), value: String(progress.llm_calls), mono: true });
+  }
   if (elapsed) stats.push({ label: t("ex.run.elapsed"), value: elapsed, mono: true });
 
   return (
