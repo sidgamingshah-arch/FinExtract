@@ -3320,6 +3320,13 @@
     "plug": false,
     "itemise": true
    },
+   "never_sweep": [
+    "bs_nca__total_non_current_assets",
+    "bs_ca__total_assets",
+    "bs_cl__total_liabilities",
+    "bs_cl__total_equity_and_liabilities",
+    "any row printed in the current assets, equity or liabilities sections"
+   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
@@ -5650,6 +5657,13 @@
     "plug": false,
     "itemise": true
    },
+   "never_sweep": [
+    "bs_ca__total_current_assets",
+    "bs_ca__total_assets",
+    "bs_cl__total_liabilities",
+    "bs_cl__total_equity_and_liabilities",
+    "any row printed in the non-current assets, equity or liabilities sections"
+   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
@@ -7182,6 +7196,16 @@
     "plug": false,
     "itemise": true
    },
+   "never_sweep": [
+    "bs_equity__total_equity_and_reserves",
+    "bs_equity__equity_and_reserves",
+    "bs_equity__permanent_equity",
+    "bs_equity__retained_profits",
+    "bs_ca__total_assets",
+    "bs_cl__total_equity_and_liabilities",
+    "any row printed in the assets or liabilities sections",
+    "any movement belonging to the retained-profits reconciliation"
+   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -11389,6 +11413,13 @@
     "plug": false,
     "itemise": true
    },
+   "never_sweep": [
+    "bs_cl__total_current_liabilities",
+    "bs_ca__total_assets",
+    "bs_cl__total_liabilities",
+    "bs_cl__total_equity_and_liabilities",
+    "any row printed in the non-current liabilities, equity or assets sections"
+   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
@@ -14674,6 +14705,15 @@
     "plug": false,
     "itemise": true
    },
+   "never_sweep": [
+    "is_pl__gross_profit",
+    "is_pl__net_operating_profit",
+    "is_pl__profit_loss_before_tax",
+    "is_pl__profit_loss_bef_extraord_items",
+    "is_pl__profit_for_the_year",
+    "any row printed in the other comprehensive income section",
+    "any row printed in the retained-profits reconciliation"
+   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
@@ -19455,6 +19495,13 @@
     "plug": false,
     "itemise": true
    },
+   "never_sweep": [
+    "is_pl__profit_for_the_year",
+    "bs_equity__retained_profits",
+    "bs_equity__total_equity_and_reserves",
+    "any row printed on the face of the income statement",
+    "any row printed in the equity section other than retained profits"
+   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_retained.",
@@ -22787,6 +22834,13 @@
     "plug": false,
     "itemise": true
    },
+   "never_sweep": [
+    "cf_investing__cash_flows_from_invest_activities",
+    "cf_financing__cash_flows_from_finance_activities",
+    "the net cash flow from operating activities subtotal",
+    "any row printed under the operating or financing activities banners",
+    "the net increase or decrease in cash and cash equivalents"
+   ],
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",

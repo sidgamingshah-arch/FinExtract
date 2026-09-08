@@ -167,13 +167,21 @@ def test_the_shipped_seed_carries_no_boolish_never_sweep(raw: dict):
 
 
 def test_the_seed_still_loads_and_builds_its_eleven_residuals(ontology):
-    """The other half of a deletion: removing a key must not remove a residual. All 11 still build,
-    now with an honestly empty veto index rather than an index of one useless sentence."""
+    """The other half of a deletion: removing a key must not remove a residual.
+
+    This test originally also asserted that every veto index was EMPTY afterwards — "honestly
+    empty rather than an index of one useless sentence" — which was the correct state immediately
+    after the strip. Seven of the eleven have since been AUTHORED with real lists naming each
+    section's own subtotal, the statement totals and the cross-section prose, so that assertion is
+    obsolete and lives in `tests/test_residual_protection.py` in its new form. What this still
+    defends is the part that was never about the content: stripping a key must not cost a residual.
+    """
     res = _residuals(ontology, _read_terms(ontology.residual_framework))
 
     assert len(res) == 11
-    assert all(r.never_keys == {} and r.never_prose == () for r in res)
     assert all(r.sweepable and not r.conflicts for r in res)
+    # And the string itself is gone: no residual's prose is the word "True".
+    assert not any("true" in {p.strip().lower() for p in r.never_prose} for r in res)
 
 
 # ── 3. the schema refuses it, so the workbook round-trip cannot bring it back ─────────────────
