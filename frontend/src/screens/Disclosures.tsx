@@ -14,7 +14,7 @@ import { Card } from "../components/ui";
 import { EmptyState } from "../components/EmptyState";
 import { useT } from "../i18n";
 import { useDocumentAnalysis } from "../lib/queries";
-import { useUI } from "../store";
+import { useUI, usePinnedRun } from "../store";
 import { color, font } from "../theme";
 import type { Disclosure } from "../types";
 
@@ -110,7 +110,13 @@ export default function DisclosuresScreen() {
   // `activeDocumentId` is `string | null` in the store while the query takes `string | undefined`,
   // and the query is `enabled: !!documentId` either way — so the null is normalised rather than
   // asserted away.
-  const q = useDocumentAnalysis(id ?? undefined, locale);
+  // THE PINNED RUN, so this screen describes the same extraction as everything beside it.
+  // Opening a past run from the audit trail moves the Workspace, the notes, the export and the
+  // top bar onto it; this screen was reading the LATEST run regardless, so a reader comparing a
+  // contingent-liability disclosure against the balance sheet next to it would have been
+  // comparing two different extractions with nothing on screen saying so.
+  const pinnedRunId = usePinnedRun();
+  const q = useDocumentAnalysis(id ?? undefined, locale, pinnedRunId);
 
   if (!id) return <EmptyState />;
 

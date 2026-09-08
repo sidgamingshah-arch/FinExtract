@@ -8,7 +8,7 @@ import {
 } from "../lib/queries";
 import { EmptyState } from "../components/EmptyState";
 import { useCan } from "../lib/rbac";
-import { useAppLocale, useUI } from "../store";
+import { useAppLocale, usePinnedRun, useUI } from "../store";
 // `fmtTokens` / `fmtDuration` are shared with the deployment-wide trail (screens/Audit):
 // one quantity, one formatter, so "—" cannot become "0" on one of the two screens.
 import { color, fmtDuration, fmtIN, fmtTokens, font, radius } from "../theme";
@@ -313,13 +313,18 @@ export default function CommentaryScreen() {
   const locale = useAppLocale();
   const loaded = useProjectLoaded();
   const activeDocumentId = useUI((s) => s.activeDocumentId);
+  const pinnedRunId = usePinnedRun();
   const usingReal = !!activeDocumentId;
   // A real uploaded document gets commentary computed from its OWN extraction; the demo
   // project uses the seeded statements. Same shape, so the rest of the screen is unchanged.
   const realC = useDocumentCommentary(activeDocumentId ?? undefined, locale);
   const demoC = useCommentary(locale);
   // Credit view (#12) — real documents only; combines extracted ratios with report disclosures.
-  const analysis = useDocumentAnalysis(usingReal ? activeDocumentId ?? undefined : undefined, locale);
+  // Aligned to the pinned run, like the Workspace, the notes and the export: a credit view
+  // computed from the newest extraction beside a spread showing a pinned older one describes two
+  // different filings' worth of figures under one heading.
+  const analysis = useDocumentAnalysis(usingReal ? activeDocumentId ?? undefined : undefined,
+                                       locale, pinnedRunId);
   const credit = analysis.data?.credit;
   const data = usingReal ? realC.data : demoC.data;
   const isPending = usingReal ? realC.isPending : demoC.isPending;

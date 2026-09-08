@@ -2756,14 +2756,29 @@ def get_document_run(document_id: str, run_id: str | None = Query(None),
 
 @router.get("/{document_id}/analysis", dependencies=[Depends(authorized_document)])
 def get_document_analysis(document_id: str, locale: str = Query("en"),
+                          run_id: str | None = Query(None),
                           session: Session = Depends(db)) -> dict:
-    """Derived analysis for a document, from its latest extraction: computed ratios and
-    plain-language notes (recomputed from the current values so edits show) plus the stored
-    disclosure scan. Empty (but valid) until the document has been extracted."""
+    """Derived analysis for a document — ratios, plain-language notes and the disclosure scan.
+
+    Of the LATEST extraction, or of one NAMED historical run when ``run_id`` is given. Empty (but
+    valid) until the document has been extracted.
+
+    WHY ``run_id`` HAD TO BE ADDED. This route was pinned to `_latest_run`, and it is what the
+    Disclosures screen reads — the screen carrying the contingent-liability findings. So opening a
+    past run from the audit trail moved the Workspace, the notes, the export and the top bar onto
+    that run while this screen went on showing the newest one. Two screens side by side, describing
+    different extractions, with nothing saying so: a reader comparing a contingent-liability
+    disclosure against the balance sheet beside it would have been comparing two different runs.
+
+    `_run_for_read` is the convention the sibling routes already use, including its refusal to fall
+    back: a `run_id` that does not resolve is a 404 rather than the latest run, because silently
+    answering with a different extraction than the one asked for is the failure this whole pin
+    exists to prevent.
+    """
     from app.services.derived import (
         build_credit_analysis, build_free_notes, compute_ratios, localize_disclosures)
 
-    run = _latest_run(session, document_id)
+    run = _run_for_read(session, document_id, run_id)
     if run is None or not run.result:
         return {"ratios": [], "disclosures": [], "notes": [],
                 "credit": build_credit_analysis([], [], locale=locale)}

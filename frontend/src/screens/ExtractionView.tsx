@@ -23,7 +23,7 @@ import {
   useReextract, useStopRun, useTemplates,
 } from "../lib/queries";
 import { useCan } from "../lib/rbac";
-import { useUI } from "../store";
+import { useUI, usePinnedRun } from "../store";
 import { SCREENS } from "./config";
 import { color, fmtElapsed, font, radius } from "../theme";
 import type { ExtractionProgress, ExtractionRow, Locale, OntologyRef, RulebookRecord } from "../types";
@@ -141,7 +141,11 @@ const CAT_KEY: Record<string, string> = {
 /** Derived analysis (computed from the extracted values): ratios, qualitative disclosures,
  * and free-form notes — the on-screen twin of the export's Ratios/Disclosures/Notes sheets. */
 function AnalysisSection({ id, locale, t }: { id: string; locale: Locale; t: (k: string) => string }) {
-  const q = useDocumentAnalysis(id, locale);
+  // Aligned to the pinned run. This section is the on-screen twin of the export's
+  // Ratios/Disclosures/Notes sheets, and `Export` already passes the pin — so reading the latest
+  // run here made the screen disagree with the file it produces.
+  const pinnedRunId = usePinnedRun();
+  const q = useDocumentAnalysis(id, locale, pinnedRunId);
   // Reserve the section's footprint with a skeleton while the (separate) analysis query loads,
   // so it fills in place instead of popping in below and pushing the layout.
   if (!q.data) {

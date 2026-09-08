@@ -305,8 +305,13 @@ export const api = {
                                                reason }) },
     ),
   /** Derived analysis for a document: computed ratios, disclosure scan, free-form notes. */
-  documentAnalysis: (documentId: string, locale: Locale = "en") =>
-    req<AnalysisResponse>(`/documents/${documentId}/analysis?locale=${locale}`),
+  /** Derived analysis — ratios, notes and the disclosure scan — of the latest run, or of one
+   *  NAMED historical run when `runId` is given. The Disclosures screen carries the
+   *  contingent-liability findings, so without this it went on showing the newest extraction
+   *  while the Workspace, the notes and the export had all moved onto a pinned past run. */
+  documentAnalysis: (documentId: string, locale: Locale = "en", runId?: string) =>
+    req<AnalysisResponse>(`/documents/${documentId}/analysis?locale=${locale}`
+      + (runId ? `&run_id=${encodeURIComponent(runId)}` : "")),
   /** Real per-document notes index + detail, from line-item note references — of the latest
    *  run, or of one NAMED historical run when `runId` is given, so the notes shown beside a
    *  pinned statement belong to the same extraction as the statement. */

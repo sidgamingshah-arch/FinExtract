@@ -499,10 +499,14 @@ export function useRemapReviewRow(documentId: string | undefined) {
 }
 
 /** Derived analysis (ratios / disclosures / notes) for a document. */
-export const useDocumentAnalysis = (documentId: string | undefined, locale: Locale = "en") =>
+export const useDocumentAnalysis = (documentId: string | undefined, locale: Locale = "en",
+                                    runId?: string) =>
   useQuery({
-    queryKey: ["document-analysis", documentId, locale],
-    queryFn: () => api.documentAnalysis(documentId as string, locale),
+    // `runId` is in the KEY as well as the request. Without it, a cached latest-run analysis
+    // would be served for a pinned past run — the two differ by exactly the thing the reader
+    // pinned the run to look at.
+    queryKey: ["document-analysis", documentId, locale, runId ?? "latest"],
+    queryFn: () => api.documentAnalysis(documentId as string, locale, runId),
     enabled: !!documentId,
     retry: false,
   });
