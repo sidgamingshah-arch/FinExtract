@@ -48,12 +48,16 @@ def main(path: str) -> int:
         doc = up.json()["id"]
         print(f"uploaded {os.path.basename(path)} → {doc}")
 
-        onts = c.get("/api/v1/ontologies").json()
-        ont = next((o for o in onts if o["ontology_key"] == "hkfrs_hk_china_v1"), onts[0])
+        # THE ONE CONFIGURATION STORE. This was `GET /ontologies` plus a named rulebook key; the
+        # second store is deleted, so the run pins a `line_item_version_id` and the set in force is
+        # whatever `/line-items/versions` says it is — no key to prefer, because there is only one
+        # engine to prefer it over.
+        cfgs = c.get("/api/v1/line-items/versions").json()
+        cfg = next((o for o in cfgs if o.get("in_force")), cfgs[0])
         tpls = c.get("/api/v1/templates").json()
-        tpl = next((t for t in tpls if t["template_key"] == ont["target_template_key"]), tpls[0])
+        tpl = next((t for t in tpls if t["template_key"] == cfg["target_template_key"]), tpls[0])
         c.post(f"/api/v1/documents/{doc}/extractions",
-               json={"ontology_version_id": ont["id"], "template_version_id": tpl["id"]})
+               json={"line_item_version_id": cfg["id"], "template_version_id": tpl["id"]})
 
         t0 = time.time()
         for _ in range(3000):

@@ -9,6 +9,7 @@ from copy import deepcopy
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 
+from app.api.deps import output_locale
 from app.config import get_settings
 from app.sample.demo import CONF_PCT, DEMO, localize_label
 from app.sample.i18n_data import tr
@@ -21,6 +22,13 @@ from app.services.page_scope import scope_counts
 # X-Role dev header when enabled). Per-action permissions are enforced with require().
 router = APIRouter(prefix="/projects", tags=["projects"],
                    dependencies=[Depends(current_principal)])
+
+# `locale` is resolved by `output_locale` (api/deps.py) on all eight routes here, for the reason
+# spelled out in api/routes/documents.py: a literal `Query("en")` per route left
+# `[features] default_output_locale` applied by nothing. Resolved in the dependency rather than in
+# the bodies because several handlers below use `locale` in their greenfield early return —
+# `get_review` passes it to `_demo_review_payload` before anything else runs — where a resolution
+# line placed after the `_active()` check would be skipped.
 
 # In-memory edit overrides: {line_item_id: {"value": int, "formula": str}}.
 _OVERRIDES: dict[str, dict] = {}
@@ -43,7 +51,12 @@ _EMPTY_PROJECT = {
     # `progress` is filled in by `get_project` from `_demo_progress`, on both paths, so the
     # greenfield zeros are counted from empty inputs rather than written out as zeros.
     "template": {"key": "", "name": "— none selected —", "line_items": 0},
-    "ontology": {"file": "— none —", "rules": 0, "aliases": 0, "status": "none"},
+    # The configuration card. This was `"ontology": {"file", "rules", "aliases", "status"}` — the
+    # empty-state twin of a second, selectable configuration. Line items are now the SINGLE
+    # configuration engine, so there is one card and it names the line-item set (`items`, not
+    # "rules"); the shape mirrors `demo.PROJECT["line_items"]` key for key, which is what lets the
+    # greenfield shell render the same card with nothing loaded.
+    "line_items": {"file": "— none —", "items": 0, "aliases": 0, "status": "none"},
 }
 
 _STD_SCALE = 0.88
@@ -66,7 +79,8 @@ _VIEWER = {
         "company": "RELIANCE INDUSTRIES LIMITED",
         "subtitle": "Consolidated Statement of Profit and Loss for the year ended 31 March 2025",
         "chips": [{"label": "P&L · p.145", "active": True}],
-        "callout": "↳ Finance costs (Note 25) flagged: extracted as a credit; ontology expects an expense (negative).",
+        # Translated in sample/i18n_data.TR, KEYED ON THIS EXACT STRING — edit the two together.
+        "callout": "↳ Finance costs (Note 25) flagged: extracted as a credit; the line-item sign rule expects an expense (negative).",
     },
     "cash_flow": {
         "company": "RELIANCE INDUSTRIES LIMITED",
@@ -124,7 +138,7 @@ def get_project(project_id: str) -> dict:
 
 
 @router.get("/{project_id}/integrity")
-def get_integrity(project_id: str, locale: str = Query("en")) -> dict:
+def get_integrity(project_id: str, locale: str = Depends(output_locale)) -> dict:
     if not _active():
         return {"score": 0, "grade": "", "summary": "", "stats": [], "issues": []}
     data = deepcopy(DEMO["integrity"])
@@ -143,7 +157,7 @@ def get_integrity(project_id: str, locale: str = Query("en")) -> dict:
 
 
 @router.get("/{project_id}/pages")
-def get_pages(project_id: str, locale: str = Query("en")) -> dict:
+def get_pages(project_id: str, locale: str = Depends(output_locale)) -> dict:
     if not _active():
         return {"pages": [], "filters": [], "focused": 0, "total": 0, "skipped": 0}
     pages = deepcopy(DEMO["pages"])
@@ -172,7 +186,7 @@ def _scale(v, basis: str):
 @router.get("/{project_id}/statements/{statement}")
 def get_statement(project_id: str, statement: str,
                   basis: str = Query("consolidated"),
-                  locale: str = Query("en")) -> dict:
+                  locale: str = Depends(output_locale)) -> dict:
     if not _active():
         return {"statement": statement, "label": "", "basis": basis, "periods": ["", ""],
                 "currency": "", "currency_symbol": "", "units": "", "rows": [],
@@ -247,7 +261,7 @@ def revert_line_item(project_id: str, item_id: str) -> dict:
 
 
 @router.get("/{project_id}/notes")
-def get_notes(project_id: str, locale: str = Query("en")) -> dict:
+def get_notes(project_id: str, locale: str = Depends(output_locale)) -> dict:
     if not _active():
         return {"notes": [], "count": 0, "linked": 0}
     notes = deepcopy(DEMO["notes_index"])
@@ -271,7 +285,7 @@ def _demo_linked_lines(notes: list[dict]) -> int:
 
 
 @router.get("/{project_id}/notes/{note_no}")
-def get_note(project_id: str, note_no: str, locale: str = Query("en")) -> dict:
+def get_note(project_id: str, note_no: str, locale: str = Depends(output_locale)) -> dict:
     # `periods` is read from the SAME list get_statement serves (DEMO["project"]["periods"]), which
     # is what makes the sample Workspace and the sample Notes screen structurally unable to label
     # the same figures differently. A blank pair is the empty-state shape; the client treats blank
@@ -345,7 +359,7 @@ _SAMPLE_JUDGEMENT_FIELDS = {
 
 
 @router.get("/{project_id}/review")
-def get_review(project_id: str, locale: str = Query("en")) -> dict:
+def get_review(project_id: str, locale: str = Depends(output_locale)) -> dict:
     if not _active():
         # Greenfield: no checks and no statements, so every count derives to zero from the empty
         # inputs rather than being written out as five zeros.
@@ -508,7 +522,7 @@ def _demo_review_payload(checks: list[dict], tabs: list[dict], statements: dict 
 
 @router.get("/{project_id}/template",
             dependencies=[Depends(current_principal)])
-def get_template_tree(project_id: str, locale: str = Query("en")) -> dict:
+def get_template_tree(project_id: str, locale: str = Depends(output_locale)) -> dict:
     # Viewing the template structure is reference information any authenticated worker
     # needs (the analyst selects into it). Authoring/editing stays admin-only, enforced
     # on the write endpoints (POST /templates, CONFIG_TEMPLATE).
@@ -536,7 +550,7 @@ def get_export_options(project_id: str) -> dict:
 
 @router.get("/{project_id}/commentary",
             dependencies=[Depends(require(Permission.COMMENTARY_VIEW))])
-def get_commentary(project_id: str, locale: str = Query("en")) -> dict:
+def get_commentary(project_id: str, locale: str = Depends(output_locale)) -> dict:
     if not _active():
         return {"headline": "", "assessment": "", "metrics": [], "trends": [],
                 "strengths": [], "weaknesses": [], "data_quality": "", "basis": ""}

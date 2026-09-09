@@ -1172,12 +1172,20 @@ def test_only_a_reviewer_may_judge_while_an_analyst_keeps_the_edit_they_are_enti
     # "bs_current_assets__inventories", which the route accepted only because `_template_for_run`
     # substituted the newest seeded template for the one the run never named — the edit was being
     # validated against a template the analyst never chose (finding E).
-    ont = next(o for o in anon_client.get("/api/v1/ontologies", headers=auth("analyst")).json()
-               if o["ontology_key"] == "hkfrs_hk_china")
+    # Line items is the single configuration engine: ``GET /ontologies`` and the run's
+    # ``ontology_version_id`` pin are gone with the ontology store. The version list is read as
+    # ADMIN because configuration is an admin surface (``CONFIG_LINE_ITEMS``) — the ontology list
+    # was not gated that way. Nothing under test moves: the analyst still uploads, starts the run
+    # and makes the edit below.
+    from app.sample.reference import shipped_line_items_key
+
+    cfg = next(c for c in anon_client.get("/api/v1/line-items/versions",
+                                          headers=auth("admin")).json()
+               if c["line_items_key"] == shipped_line_items_key())
     tpl = next(t for t in anon_client.get("/api/v1/templates", headers=auth("analyst")).json()
-               if t["template_key"] == ont["target_template_key"])
+               if t["template_key"] == cfg["target_template_key"])
     anon_client.post(f"/api/v1/documents/{doc_id}/extractions",
-                     json={"ontology_version_id": ont["id"], "template_version_id": tpl["id"]},
+                     json={"line_item_version_id": cfg["id"], "template_version_id": tpl["id"]},
                      headers=auth("analyst"))
     for _ in range(200):
         r = anon_client.get(f"/api/v1/documents/{doc_id}/run", headers=auth("analyst"))

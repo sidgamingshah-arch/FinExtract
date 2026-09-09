@@ -753,37 +753,93 @@ def test_coverage_of_a_real_report_is_dominated_by_what_was_not_verified(templat
     assert cov.aggregate.buckets.total == len(report.results)
 
 
-def test_a_real_run_against_the_v2_rulebook_carries_its_declared_relations(client):
-    """End to end through the worker: selecting the v2 rulebook means its identities, guards and
-    section reconciliations are in the run's stored result — and a v1 rulebook, which declares no
-    ``validation`` block at all, is unaffected."""
+def test_a_real_run_against_a_configuration_carries_its_declared_relations(client):
+    """End to end through the worker: a configuration that DECLARES a ``validation`` block means its
+    identities, guards and section reconciliations are in the run's stored result.
+
+    THE CONFIGURATION IS PUBLISHED HERE, and that is the change. This test used to pin the SHIPPED
+    definition, because the shipped ontology declared 19 identities. The one shipped line-item set
+    declares no ``validation`` block at all (measured on ``output_csv_hk_line_items.json``: the
+    top-level keys are metadata / section_defaults / vocabulary / normalisation / binding /
+    global_rules / scope_selection / residual_framework / items), so a run against it produces
+    ``rollup`` rows and nothing else. That is a real COVERAGE LOSS and it is a data gap, not a
+    mechanism gap: ``LineItemSet`` declares ``validation``, ``services.working_view`` carries it into
+    the working view, and ``structural_checks`` reads it. Populating the shipped file is a change to
+    that file; what this test can still guarantee — and the thing that would silently rot if it were
+    retired — is that a configuration declaring the block gets it EVALUATED.
+
+    So the block is published as a new version of the shipped set (latest-stored-wins puts it in
+    force) with one real identity of the configured template, and cleaned up afterwards.
+    """
     import time
+    from pathlib import Path
 
     from tests.fixtures.generate import make_native_pdf
 
-    doc_id = client.post("/api/v1/documents",
-                         files={"file": ("bs.pdf", make_native_pdf(),
-                                         "application/pdf")}).json()["id"]
-    onts = client.get("/api/v1/ontologies").json()
-    ont = next(o for o in onts if o["ontology_key"] == "hkfrs_hk_china")
-    tpls = client.get("/api/v1/templates").json()
-    tpl = next(t for t in tpls if t["template_key"] == ont["target_template_key"])
-    client.post(f"/api/v1/documents/{doc_id}/extractions",
-                json={"ontology_version_id": ont["id"], "template_version_id": tpl["id"]})
-    for _ in range(100):
-        if client.get(f"/api/v1/documents/{doc_id}/run").json().get("status") == "succeeded":
-            break
-        time.sleep(0.05)
+    from app.db.base import SessionLocal
+    from app.db.models import LineItemVersion
 
-    structural = client.get(f"/api/v1/documents/{doc_id}/run").json()["result"]["structural"]
-    kinds = {r["kind"] for r in structural}
-    assert {"ontology_identity", "guard", "section_reconciliation"} <= kinds
-    assert {r["status"] for r in structural} <= {"pass", "fail", "skipped"}
-    # Every row is classifiable, and coverage over the run is recomputable from the stored rows.
-    assert all(r["status"] != "skipped" or r["details"]["reason"] for r in structural)
-    report = coverage(structural)
-    assert report.aggregate.buckets.total == len(structural)
-    assert "coverage_rate=" in report.headline()
+    shipped = json.loads(
+        (_SAMPLES / "output_csv_hk_line_items.json").read_text(encoding="utf-8"))
+    assert "validation" not in shipped, (
+        "the shipped configuration gained a validation block — declare the loss closed and pin the "
+        "shipped set directly instead of publishing one here")
+    # A relation the configured template really declares: total assets and total equity and
+    # liabilities are the two sides of the balance sheet. ``cross_concept_guards`` and
+    # ``section_reconciliation`` are PROSE declarations — the guards and section relations are
+    # generated from them by ``structural_checks`` — so they are stated the way the file states them.
+    probe = {**shipped, "validation": {
+        "identities": [{"id": "bs_balances",
+                        "expr": "bs_ca__total_assets = bs_cl__total_equity_and_liabilities",
+                        "severity": "blocking",
+                        "note": "The balance sheet's two sides are one economic fact."}],
+        "cross_concept_guards": [
+            "A line item whose sign_convention is positive_expected or negative_expected carrying "
+            "the opposite sign."],
+        "section_reconciliation": (
+            "Every section with a reported subtotal must satisfy the residual_framework "
+            "reconciliation identity."),
+    }}
+    created = client.post("/api/v1/line-items", json={"definition": probe})
+    assert created.status_code == 201, created.text
+    try:
+        doc_id = client.post("/api/v1/documents",
+                             files={"file": ("bs.pdf", make_native_pdf(),
+                                             "application/pdf")}).json()["id"]
+        # Was the ``/ontologies`` picker plus an ``ontology_version_id`` pin. Line items is the
+        # single configuration engine; ``/line-items/versions`` is the only store, and a run pins a
+        # row of it.
+        cfgs = client.get("/api/v1/line-items/versions").json()
+        cfg = next(c for c in cfgs if c["id"] == created.json()["id"])
+        tpls = client.get("/api/v1/templates").json()
+        tpl = max((t for t in tpls if t["template_key"] == cfg["target_template_key"]),
+                  key=lambda t: t["version"])
+        client.post(f"/api/v1/documents/{doc_id}/extractions",
+                    json={"line_item_version_id": cfg["id"], "template_version_id": tpl["id"]})
+        for _ in range(100):
+            if client.get(f"/api/v1/documents/{doc_id}/run").json().get("status") == "succeeded":
+                break
+            time.sleep(0.05)
+
+        structural = client.get(f"/api/v1/documents/{doc_id}/run").json()["result"]["structural"]
+        kinds = {r["kind"] for r in structural}
+        # ``ontology_identity`` is the KIND STRING ``services.structural_checks`` emits. It is an
+        # internal wire value on a report row and is not renamed here: the file that writes it is
+        # not this change's to edit, and renaming it in the test alone would make the assertion
+        # false. Recorded so it is a known residual rather than an oversight.
+        assert {"ontology_identity", "guard", "section_reconciliation"} <= kinds
+        assert {r["status"] for r in structural} <= {"pass", "fail", "skipped"}
+        # Every row is classifiable, and coverage over the run is recomputable from the stored rows.
+        assert all(r["status"] != "skipped" or r["details"]["reason"] for r in structural)
+        report = coverage(structural)
+        assert report.aggregate.buckets.total == len(structural)
+        assert "coverage_rate=" in report.headline()
+    finally:
+        # Left stored it would be the set IN FORCE for this template, and every later test that
+        # reads the Template screen or lets a run default would be answered by this probe.
+        with SessionLocal() as s:
+            s.delete(s.get(LineItemVersion, created.json()["id"]))
+            s.commit()
 
 
 def test_a_relation_fed_by_a_gap_closing_value_can_never_pass(template, raw_ontology):

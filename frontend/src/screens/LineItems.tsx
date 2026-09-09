@@ -19,7 +19,9 @@ import { Card } from "../components/ui";
 import { useT } from "../i18n";
 import { useLineItems } from "../lib/queries";
 import { color, font, radius } from "../theme";
-import type { LineItemDef, LineItemTerm, LineItemType, SearchScope } from "../types";
+import type {
+  LineItemDef, LineItemTerm, LineItemType, LineItemVersionRef, SearchScope,
+} from "../types";
 
 const TYPE_TONE: Record<LineItemType, { bg: string; fg: string; label: string }> = {
   extracted: { bg: color.greenBg, fg: color.greenFg, label: "Extracted" },
@@ -168,9 +170,13 @@ function Detail({ item, byKey }: { item: LineItemDef; byKey: Map<string, LineIte
       )}
 
       {/* THE GATE — shown for every type, and first, because it decides whether a figure lands
-          on this line at all. 420 of the rulebook's 1,969 normalised captions are claimed by more
-          than one line item; 96 of those span different statements. Without this panel the most
-          consequential declaration on the screen was the one a reader could not see. */}
+          on this line at all. Several hundred of the configuration's normalised captions are
+          claimed by more than one line item, and some of those claims span different statements,
+          so the gate is what settles which line a caption reaches. Without this panel the most
+          consequential declaration on the screen was the one a reader could not see.
+          (The counts this used to quote were measured against the retired second engine's
+          rulebook file, which no longer exists as a stored, selectable thing — the line-item set
+          is the single configuration, and no fixed count of it belongs in markup.) */}
       <div style={box}>
         <div style={lbl}>Where it may be claimed from</div>
         <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "5px 12px",
@@ -379,6 +385,12 @@ export default function LineItemsScreen() {
   }
 
   const { items, counts, problems, valid, set } = q.data;
+  // WHICH STORED VERSION THIS IS. `GET /line-items` reads a `line_item_versions` row and names it
+  // (`routes/line_items.py::_version_identity`), so the screen can caption the definitions with the
+  // version a run would pin — instead of leaving a reader to assume the screen and the run agree.
+  // Read defensively: a server that does not state it leaves the caption off rather than inventing
+  // one, because a configured-empty identity means nothing, never "assume the latest".
+  const inForce = (q.data as { version?: LineItemVersionRef }).version;
   const flat: LineItemDef[] = [];
   const walk = (xs: LineItemDef[]) => xs.forEach((x) => { flat.push(x); walk(x.children); });
   walk(items);
@@ -422,9 +434,20 @@ export default function LineItemsScreen() {
       <div style={{ marginBottom: 6 }}>
         <h1 style={{ fontSize: 20, fontWeight: 600, margin: "0 0 4px" }}>Line items</h1>
         <p style={{ margin: 0, color: color.sec2, fontSize: 12.5 }}>
-          The eight lines that reach the output template, and the parts each is assembled from.
-          Each line's <b>type</b> decides what it needs.
+          The lines that reach the output template, and the parts each is assembled from. Each
+          line's <b>type</b> decides what it needs. This is the single configuration the pipeline
+          reads.
         </p>
+        {inForce && (
+          <p data-testid="li-in-force" style={{ margin: "5px 0 0", fontSize: 11.5,
+                                                 color: color.muted }}>
+            Showing{" "}
+            <b style={{ fontFamily: font.mono, color: color.sec2 }}>
+              {inForce.line_items_key} v{inForce.version}
+            </b>
+            {" — the stored version in force, the one the next run pins."}
+          </p>
+        )}
       </div>
 
       {/* A configuration that does not load is the one thing this screen must not hide. */}
@@ -455,9 +478,10 @@ rather than declaring it themselves">
         </span>
       </div>
 
-      {/* THE SET-LEVEL FACTS. `target_template_key` is the one the ontology requires at its own
-          door and a bare JSON array had nowhere to put — which is why the ontology's key-gate
-          could not simply be copied across when these two models were merged. */}
+      {/* THE SET-LEVEL FACTS. `target_template_key` is what binds this configuration to ONE
+          template — the key-gate the retired second engine kept in its own file and a bare JSON
+          array had nowhere to put, which is why it had to be declared on the set itself when the
+          two models were merged into the single configuration engine. */}
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", margin: "0 0 16px",
                      fontSize: 11, color: color.muted }}>
         <span>binds to <b style={{ fontFamily: font.mono, color: color.sec2 }}>
@@ -466,7 +490,9 @@ rather than declaring it themselves">
           {Object.keys(set.section_defaults).length}</b> section defaults</span>
         <span>locales <b style={{ fontFamily: font.mono, color: color.sec2 }}>
           {set.supported_locales.join(", ")}</b></span>
-        {set.metadata.version && <span>v{set.metadata.version}</span>}
+        {/* The AUTHORED version string inside the definition — not the stored row's version, which
+            the header states. Labelled since both are on screen now and they need not agree. */}
+        {set.metadata.version && <span>authored v{set.metadata.version}</span>}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(320px, 1fr) minmax(380px, 1fr)",

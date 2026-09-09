@@ -168,15 +168,17 @@ def test_a_pinned_rulebook_decides_its_own_template(client):
     from app.db.base import SessionLocal
     from app.db.models import TemplateVersion
 
-    ont = next(o for o in client.get("/api/v1/ontologies").json()
-               if o["ontology_key"] == "hkfrs_hk_china")
+    # Was the ``/ontologies`` picker. Line items is the single configuration engine, so the pinned
+    # half of the pair is a ``line_item_versions`` row read off ``/line-items/versions``.
+    cfg = next(c for c in client.get("/api/v1/line-items/versions").json()
+               if c["line_items_key"] == "output_csv_hk")
     _publish_template(client, "unrelated_spread")      # newest overall, wrong target
 
     with SessionLocal() as session:
-        tid = resolve_template_id(session, None, ont["id"])
+        tid = resolve_template_id(session, None, cfg["id"])
         row = session.get(TemplateVersion, tid)
 
-    assert row.template_key == ont["target_template_key"]
+    assert row.template_key == cfg["target_template_key"]
     assert row.template_key != "unrelated_spread"
 
 

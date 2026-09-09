@@ -55,7 +55,7 @@ import unicodedata
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from rapidfuzz import fuzz, process
 
 from app.config import Settings, get_settings
@@ -90,6 +90,36 @@ class LlmBatchDecision(BaseModel):
     (parent/child containment, residualisation, 'Others') have full context."""
 
     mappings: list[LlmBatchItem] = Field(default_factory=list)
+
+    @field_validator("mappings", mode="before")
+    @classmethod
+    def _unwrap_schema_envelope(cls, value):
+        """Accept ``{"items": [...]}`` where the schema asks for ``[...]``.
+
+        Structured output here is obtained model-agnostically: the response model's JSON Schema is
+        embedded in the system prompt and the reply is validated with Pydantic. Some models echo
+        the SCHEMA NODE for an array field — ``{"type": "array", "items": [...]}`` or just
+        ``{"items": [...]}`` — instead of the array the node describes. The decisions are all
+        present and correct; only the envelope is wrong.
+
+        MEASURED: one of six mapping calls on the 四创电子 filing came back this way and raised
+
+            ValidationError: mappings — Input should be a valid array [type=list_type]
+
+        which discarded a whole chunk of 6 captions. The chunk then fell back per line, so the
+        cost was silent — the run reported a successful LLM strategy while a sixth of its
+        decisions had been thrown away on a wrapper.
+
+        Narrow on purpose: only a mapping whose payload is a list under a schema-envelope key is
+        unwrapped, and anything else is passed through untouched so the real validation error is
+        still raised. This never invents an entry — an envelope with no list stays invalid.
+        """
+        if isinstance(value, dict):
+            for envelope in ("items", "mappings"):
+                inner = value.get(envelope)
+                if isinstance(inner, list):
+                    return inner
+        return value
 
 
 _LLM_SYSTEM = (
@@ -765,6 +795,47 @@ class MappingResult:
 # Module-level, and free of any ontology: the vocabulary is a property of how statements are
 # printed, and other stages need to read a banner without paying to build a matcher.
 SECTION_WORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    # THE NOTES, and the entry that makes the `notes` SCOPE ENFORCEABLE. `output_csv_hk_ontology`
+    # declares `section_defaults.notes.section_scope = ["notes"]`, which 8 concepts inherit
+    # (notes__related_party_transactions, notes__pledged_assets, notes__secure_borrowings,
+    # notes__derivatives, notes__contingent_liabilities, notes__auditor_s_opinion, notes__notes,
+    # notes__confirmed_with_rm). No entry here named the notes, so `section_token_of_scope("notes")`
+    # returned None, `_scope_tokens` folded the declaration to frozenset() — and an EMPTY scope
+    # means UNCONSTRAINED in `_in_section`. The declaration was therefore inert: measured on the
+    # shipped file, each of the 5 that carries an alias ("Related party transactions", "Pledged
+    # assets", "Contingent liabilities", "Derivatives", "Secured borrowings") matched at confidence
+    # 1.0 under "Current assets", "NON-CURRENT ASSETS", "Operating activities" and "Revenue" alike,
+    # wherever the row carried no statement verdict — the per-line path for an unclassified page,
+    # and the note pass when the citing face rows disagree on their statement, both of which pass
+    # `statement=None`, leaving the section gate the only structural constraint. Two of those
+    # captions are shared aliases the banner is supposed to arbitrate, and the inert scope was
+    # winning them outright: with the token real, "Derivatives" under a current-asset banner now
+    # reaches bs_ca__deriv_and_hedg_assets_cp and "Related party transactions" under a non-current
+    # banner reaches bs_nca__due_from_directors, while both keep the notes concept under a notes
+    # banner. The other 63 concepts on non-notes scopes this vocabulary does not name
+    # (statement_setup_controls, supplemental_data, credit_compliance, off_balance_sheet_data,
+    # capital_and_lease_commitments) are untouched and stay unconstrained — a separate change,
+    # because those five compact ids also have no analyst bucket.
+    #
+    # ONLY THE EXHAUSTED HEADINGS, and deliberately NOT the bare word in either script. English
+    # "notes" is the head of "Notes payable" and "Note receivable", both of which are mapped
+    # concepts; the Han 附注 / 附註 is worse, because it is the note-reference COLUMN HEADER on every
+    # CSRC and HKEX Chinese statement — `row_reconstruct._NOTE_HDR` exists to recognise exactly that
+    # cell, and `_is_banner_line` admits a one-token line when it is Han, so a bare-Han entry would
+    # read a balance sheet's own column header as a banner and refuse every bs_ concept beneath it.
+    # A banner that resolves to nothing constrains nothing; one that resolves WRONG refuses the
+    # correct concept, which is the trade this table makes everywhere else too (see `income`).
+    #
+    # NO `_COMPACT_SECTION_TOKENS` ENTRY IS NEEDED and none is added: the scope id is literally
+    # "notes", so `section_token_of_scope` resolves it through the `endswith` arm below, and no other
+    # scope id in either shipped rulebook ends with "notes". Adding one would also change
+    # `_COMPACT_SECTION_TOKENS` itself, which `services.buckets` imports BY IDENTITY and
+    # `output_csv_hk_line_items.json`'s `vocabulary.scope_tokens` mirrors — a compact id with no
+    # `_SECTION_BUCKETS`/`_OUTSIDE_TAXONOMY` home resolves to ("others", "unknown_section"), so that
+    # pairing has to be made in those files, not here.
+    ("notes", ("notes to the consolidated financial statements",
+               "notes to the financial statements", "notes to financial statements",
+               "财务报表附注")),
     # Longest first: "non current liabilities" must not be read as "current liabilities".
     ("non_current_liabilities", ("non current liabilities", "noncurrent liabilities",
                                 "非流动负债", "长期负债")),
@@ -870,6 +941,32 @@ def known_captions(ontology) -> frozenset[str]:
                 out.add(normalize_label(alias))
     out.discard("")
     return frozenset(out)
+
+
+def _review_cap(settings) -> int:
+    """How many candidates a reviewed row carries — ``extraction.review_candidate_cap``.
+
+    Read through a helper rather than inline so all four former literals (`ranked[:5]` ×3,
+    `primary[:5]`) resolve to ONE number: they are the same shortlist reached by different exits,
+    and a run where the UNMATCHED path showed five candidates and the accepted path showed three
+    would be incoherent to the reviewer comparing two rows.
+
+    A configured 0 means none, not "unbounded" — the `or` fallback is deliberately NOT used here,
+    because a bound whose zero value restores a default is the polarity defect this codebase has
+    already been bitten by twice (see `recon_rel_tolerance`).
+    """
+    cap = getattr(getattr(settings, "extraction", None), "review_candidate_cap", 5)
+    return max(0, int(cap if cap is not None else 5))
+
+
+def _det_cap(settings) -> int:
+    """How many deterministic candidates are named to the model —
+    ``extraction.llm_deterministic_candidate_cap``. Separate from `_review_cap` because one is a
+    UI budget and the other is a request-payload budget; they were both 3-to-5 literals and are
+    not the same decision."""
+    cap = getattr(getattr(settings, "extraction", None),
+                  "llm_deterministic_candidate_cap", 3)
+    return max(0, int(cap if cap is not None else 3))
 
 
 def section_of_banner(text: str | None) -> str | None:
@@ -1124,14 +1221,23 @@ def _names_a_different_class(canonical_key: str, caption: str,
 # These are declared here and not read out of the rulebook, which is a compromise worth naming.
 # The v2 ontology describes every one of these collisions — `section_disambiguation` prose on 18
 # concepts, and `binding.order` step 6 nominating mutual `confusable_with` as the tie set — but
-# neither is usable as the declaration:
-#   * `confusable_with` is a confusion graph, not a family. Its mutual pairs connect into a single
-#     47-concept component in the shipped file (share capital → reserves → NCI → the tax lines →
-#     both bottom lines), so re-routing anywhere inside it would move an answer between concepts
-#     that are different facts — the opposite of conservative.
+# neither is usable as the declaration. EVERY FIGURE IN THAT SENTENCE AND THE FIRST BULLET IS AN
+# `hkfrs_hk_china_ontology.json` MEASUREMENT. The rulebook that drives the output CSV,
+# `output_csv_hk_ontology.json`, measures differently on both, so it is given alongside — a reader
+# who takes the hkfrs shape for "the shipped file" reads this as a protection that exists on the
+# other rulebook too:
+#   * `confusable_with` is a confusion graph, not a family. On hkfrs its 147 mutual pairs connect
+#     into a single 47-concept component (share capital → reserves → NCI → the tax lines → both
+#     bottom lines), so re-routing anywhere inside it would move an answer between concepts that
+#     are different facts — the opposite of conservative. On output_csv_hk the field is declared on
+#     4 of 462 concepts and its 2 mutual pairs are two isolated 2-concept components (buildings ↔
+#     land use rights, trade-and-other receivables ↔ gross trade receivables) — no component to
+#     re-route inside, and nothing a family could be read out of either.
 #   * `section_disambiguation` is free-form prose, and only some of it names the sibling's key at
 #     all. Scraping keys out of it would make a wording edit a behaviour change, and prose cannot
-#     be told apart from "never confuse this with that", which means the opposite.
+#     be told apart from "never confuse this with that", which means the opposite. On output_csv_hk
+#     it is not sparse prose but a per-concept sentence — 395 of 462 concepts, 13 distinct values
+#     ("Bind only to Balance Sheet / bs_ca.") — which scraping would make a bulk re-router.
 # A typed family block on the schema is the right home; see the integrator note. Until it exists,
 # a rulebook that does not contain these keys simply has no families and nothing re-routes.
 CONCEPT_FAMILIES: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -1324,7 +1430,29 @@ class OntologyMatcher:
                       # (`extraction_mode: derive`). Counted because the alternative the engine used
                       # to take — filing the figure on the nearest neighbouring subtotal — left no
                       # trace at all: see `_computed_claim`.
-                      "computed_refused": 0}
+                      "computed_refused": 0,
+                      # OBSERVATION ONLY — nothing branches on these three. They exist because the
+                      # two counters above are STRUCTURALLY PINNED AT 0 on the rulebook that drives
+                      # the output CSV (`output_csv_hk_ontology.json`, 462 concepts), so the run
+                      # record read "no ties, no refusals" on a file where neither could ever be
+                      # reported. Measured:
+                      #
+                      #  * `confusable_ties` needs a mutually-confusable pair, and 0 of that file's
+                      #    462 concepts declare `confusable_with` at all (in
+                      #    `hkfrs_hk_china_ontology.json`, 165 of 183 do — which is why every test
+                      #    of step 6 passes while the shipped output path measures nothing). So
+                      #    `exact_ties_seen` counts the shared-alias ties that actually occur and
+                      #    `equal_priority_no_confusable` the subset that NOTHING in the rulebook
+                      #    resolved — i.e. those settled by declaration order, which `binding.order`
+                      #    step 6 forbids in as many words. See `_exact_tie`.
+                      #  * `computed_refused` needs an entry in `_computed_alias_by_key`, and the
+                      #    `_locked` `continue` in `__init__` runs BEFORE the `_computed_only`
+                      #    branch that fills it, so a concept that is both locked and `derive` is
+                      #    never indexed. 2 of that file's 3 `derive` concepts are also
+                      #    `alias_matching: disabled`, leaving the index 1 entry deep out of 462.
+                      #    `computed_index_skipped_locked` counts exactly that overlap.
+                      "equal_priority_no_confusable": 0, "exact_ties_seen": 0,
+                      "computed_index_skipped_locked": 0}
         # System prompt = the base instruction + the ontology's own extraction policies and
         # worked examples, so the LLM follows one consistent, auditable rulebook.
         self._system = self._build_system()
@@ -1387,6 +1515,19 @@ class OntologyMatcher:
             self._by_key[m.canonical_key] = m
             self._section_scope[m.canonical_key] = self._scope_tokens(m)
             if m.canonical_key in self._locked:
+                # OBSERVATION ONLY. This `continue` precedes the `_computed_only` branch below, so a
+                # concept declared BOTH `alias_matching: disabled` and `extraction_mode: derive`
+                # never reaches `_computed_alias_by_key` — its aliases are indexed nowhere, and
+                # `_computed_claim` therefore cannot refuse a row that names it. Measured on
+                # `output_csv_hk_ontology.json`: 2 of its 3 `derive` concepts carry the lock too
+                # (`is_pl__deprec_and_impairment_oper_exp`,
+                # `bs_nca__secur_and_other_fincl_assets_ltp`), so the index holds one entry and
+                # `usage["computed_refused"]` can never leave 0. COUNTED, not reordered: which of
+                # the two locks wins is a behaviour decision, and this change is measurement only.
+                if m.extraction_mode == "derive":
+                    # No `_usage_lock`: construction is single-threaded, and the matcher is not
+                    # visible to a worker thread until `__init__` returns.
+                    self.usage["computed_index_skipped_locked"] += 1
                 continue         # a swept residual: its caption is never matched, nor weighed below
             # Index EVERY locale's aliases, not just the document's. A bilingual filing prints
             # both scripts on the same line, so restricting the index to the detected locale
@@ -1456,8 +1597,10 @@ class OntologyMatcher:
         When several concepts share the alias, the highest-``match_priority`` claimant that fits
         where the caption was printed wins. The rulebook's binding order runs the alias tier in
         descending priority and says in as many words never to pick by declaration order, which is
-        what taking the first claimant was: 83 aliases in the shipped file are claimed by more than
-        one concept, so for those the answer was decided by where an editor happened to add a row.
+        what taking the first claimant was: 94 aliases in ``hkfrs_hk_china_ontology.json`` and 361
+        in ``output_csv_hk_ontology.json`` are claimed by more than one concept, so for those the
+        answer was decided by where an editor happened to add a row. Both counts are of the alias
+        index this class builds, so they are what this method actually sees.
 
         ``reroute`` is consulted ONLY when every claimant was refused — a caption that is an alias
         of one leaf of a collision family, printed under the banner of another, is answered by the
@@ -1507,11 +1650,20 @@ class OntologyMatcher:
         """Concepts claiming this exact alias that step 6 says may not be separated by priority.
 
         An alias claimed by two concepts is settled by descending ``match_priority`` (step 4) — but
-        38 of the shipped file's 83 shared aliases are claimed by a mutually-confusable pair sitting
-        at the SAME priority (current vs non-current borrowings, notes payable, properties under
-        development). For those, taking the higher priority is taking the first declared, which step
-        6 forbids in as many words. The banner normally separates them and this never fires; when it
-        does not, the honest answer is both, for review.
+        71 of ``hkfrs_hk_china_ontology.json``'s 94 shared aliases are claimed by a mutually-confusable
+        pair sitting at the SAME priority (current vs non-current borrowings, notes payable,
+        properties under development). For those, taking the higher priority is taking the first
+        declared, which step 6 forbids in as many words. The banner normally separates them and this
+        never fires; when it does not, the honest answer is both, for review.
+
+        BOTH FIGURES ABOVE ARE hkfrs MEASUREMENTS, and naming the file matters: the rulebook that
+        drives the output CSV, ``output_csv_hk_ontology.json``, declares ``confusable_with`` on 4 of
+        its 462 concepts. Those 4 are two isolated pairs at equal priority (buildings ↔ land use
+        rights, trade-and-other receivables ↔ gross trade receivables), so on that file step 6
+        catches exactly the 8 shared aliases those pairs claim — and 208 of its 216 remaining
+        equal-priority collisions (of 361 shared aliases) still fall through to :meth:`_exact`,
+        which settles them by declaration order. That is what the two counters below exist to say
+        out loud.
         """
         keys = [k for k in (self._alias_index.get(norm) or []) if allowed(k)]
         if len(keys) < 2:
@@ -1520,10 +1672,34 @@ class OntologyMatcher:
         if len(keys) < 2:
             return []
         top = max(self._priority_of(k) for k in keys)
-        return self._confusable_tie([k for k in keys if self._priority_of(k) == top])
+        contenders = [k for k in keys if self._priority_of(k) == top]
+        if len(contenders) < 2:
+            # `_confusable_tie` of a single key is [] anyway (it needs two that name each other);
+            # returned here so the counters below only fire on a real tie.
+            return []
+        tied = self._confusable_tie(contenders)
+        # OBSERVATION ONLY — no branch reads either counter. `usage["confusable_ties"]` can only
+        # report the ties `confusable_with` DECLARES, and `output_csv_hk_ontology.json` declares it
+        # on 4 of its 462 concepts (two mutual pairs, 8 shared aliases between them). So on that
+        # file all but those 8 of its 216 equal-priority collisions fall through to `_exact`, which
+        # settles them by declaration order (`max(..., key=_priority_of)` over an insertion-ordered
+        # list) — precisely what `binding.order` step 6 forbids — and the run record showed almost
+        # nothing at all.
+        # `exact_ties_seen` is how often two concepts survived to the top priority on one alias;
+        # `equal_priority_no_confusable` is the subset the rulebook gave nothing to separate them by.
+        with self._usage_lock:
+            self.usage["exact_ties_seen"] += 1
+            if not tied:
+                self.usage["equal_priority_no_confusable"] += 1
+        return tied
 
     def _vetoed(self, canonical_key: str, caption: str) -> bool:
-        """Whether the concept's ``exclude_hints`` rule this caption out.
+        r"""Whether the concept's ``exclude_hints`` rules this caption out.
+
+        Raw string, because the body quotes a regex containing ``\S``. As a plain docstring that
+        is an unrecognised escape: Python emits ``SyntaxWarning: invalid escape sequence '\S'`` on
+        every import today and will raise ``SyntaxError`` in a future version.
+
 
         The field is named exclude and the ontology editor presents it as "never map a caption
         like this here", so it has to hold across every tier. Applying it only inside the rule
@@ -1667,7 +1843,8 @@ class OntologyMatcher:
                 best = max(best, score)
         return best
 
-    def _computed_claim(self, norm_segments: list[str]) -> tuple[str, float] | None:
+    def _computed_claim(self, norm_segments: list[str], statement: str | None = None,
+                        section: str | None = None) -> tuple[str, float] | None:
         """The COMPUTED concept this caption is evidence for, and how strong — or None.
 
         ``extraction_mode: derive`` means the framework computes the concept and no printed caption
@@ -1689,10 +1866,40 @@ class OntologyMatcher:
         printed and sometimes left to arithmetic, so a row printed with its caption IS the concept
         and must be matched — those concepts stay fully matchable and claim nothing through here.
         `derive` is the one value that says the face does not print it at all.
+
+        THE CLAIM IS SCOPE-GATED, by the same ``statement`` and ``section_scope`` gates every other
+        tier is subject to, and it has to be: the refusal reads only the WORDING of a caption, so
+        without the gate a computed concept refused a row printed on a statement it does not even
+        appear on. It changes nothing on the file as shipped — ``output_csv_hk_ontology.json``
+        carries `alias_matching: disabled` on two of its three `derive` concepts, so
+        `_computed_alias_by_key` holds exactly ONE entry and every claim comes from it. Measured
+        with those two locks lifted, which is the change this gate exists to make survivable: the
+        cash-flow caption "Depreciation of property, plant and equipment" is a verbatim alias of
+        ``is_pl__deprec_and_impairment_oper_exp`` and so claimed it at 1.0 — beating the 0.54 the
+        row's own concept ``cf_oper_indirect__depreciation`` scored — and seven cash-flow
+        depreciation rows came back None. That concept is scoped to ``income_and_expenses``; the
+        banner over those rows resolves to ``cash_flow_from_operating_activities``, so the section
+        arm is what refuses the refusal. Note it is the SECTION arm carrying it and not the
+        statement one: ``is_pl__…`` declares no ``statement`` and its key prefix is not one the
+        namespace fallback knows, so `_in_statement` waves it through on every statement.
+
+        The gate is ``section_scope`` alone, not :meth:`_in_section`: that method's empty-scope arm
+        narrows a statement-level key to one leaf of a collision FAMILY, which is a decision about
+        which matchable variant a banner names. A computed concept is in no family and no variant of
+        it is matchable, so borrowing that arm could only refuse rows nothing else claims.
         """
         s = self.settings.extraction
+        token = section_of_banner(section)
         best: tuple[str, float] | None = None
         for key, aliases in self._computed_alias_by_key.items():
+            if not self._in_statement(key, statement):
+                continue
+            # Same shape as the batch path's section restriction: no declared scope is
+            # UNCONSTRAINED (a statement-level subtotal may be printed anywhere), and an
+            # unresolvable banner constrains nothing — see `_in_section`.
+            scope = self._sections_of(key)
+            if token and scope and token not in scope:
+                continue
             for alias in aliases:
                 for norm in norm_segments:
                     if not alias or not norm:
@@ -1708,14 +1915,20 @@ class OntologyMatcher:
                         best = (key, score)
         return best
 
-    def _refused_as_computed(self, norm_segments: list[str], rival: float) -> str | None:
+    def _refused_as_computed(self, norm_segments: list[str], rival: float,
+                             statement: str | None = None,
+                             section: str | None = None) -> str | None:
         """The computed concept to refuse this caption to, when nothing matchable claims it better.
 
         ``rival`` is the strength of the best claim a MATCHABLE concept has on the caption. A
         computed concept only takes the row off the table when it explains the caption at least as
         well: a caption another concept genuinely matches better is still that concept's row.
+
+        ``statement`` and ``section`` are WHERE the caption was printed, and they are forwarded
+        rather than dropped because a claim evaluated on wording alone refuses rows that belong to
+        another statement's concept entirely — see :meth:`_computed_claim`.
         """
-        claim = self._computed_claim(norm_segments)
+        claim = self._computed_claim(norm_segments, statement, section)
         if claim is None or claim[1] < rival:
             return None
         with self._usage_lock:
@@ -1742,9 +1955,49 @@ class OntologyMatcher:
             lines += [f"- {p}" for p in policies]
         if self.ontology.worked_examples:
             lines.append("\nWorked examples:")
-            for ex in self.ontology.worked_examples[:6]:
+            # Also the configured cap rather than a literal — `llm_worked_examples_cap` was the
+            # third payload knob declared in config and read by nothing. Its own note records why
+            # the default is the literal it replaces and not `len(examples)`: raising it changes
+            # what the rulebook tells the model, so that is a decision, not a default.
+            for ex in self.ontology.worked_examples[
+                    : max(0, int(getattr(self.settings.extraction,
+                                         "llm_worked_examples_cap", 6) or 0))]:
                 lines.append("- " + json.dumps(ex.model_dump(exclude_defaults=True), ensure_ascii=False))
         return "\n".join(lines)
+
+    def _stratified_fill(self, keys: list[str]) -> list[str]:
+        """``keys`` reordered so that a cut at ANY length keeps every section represented.
+
+        A plain ``_by_priority`` fill is correct on the per-line path, where the shortlist has
+        already been narrowed to the one row's section. It is wrong on the batch path. When a chunk
+        carries an unresolvable banner the section restriction above is deliberately OFF, so the
+        key set spans the whole statement — and ``match_priority`` correlates with statement-level
+        totals, so a priority-ordered cut fills the list with ``bs_total_assets``-shaped concepts
+        and evicts every ordinary leaf. Measured on the shipped balance sheet: a top-40-by-priority
+        cut dropped ``bs_current_assets__inventories`` entirely.
+
+        That would make the cap a second, quieter section restriction — precisely the refusal the
+        unresolvable-banner rule exists to prevent, and it would arrive without the gate ever
+        saying no. A bound on request size must not decide meaning.
+
+        So the cut is spread instead: concepts bucketed by declared section, ordered by priority
+        WITHIN each bucket, taken round-robin. If concepts have to be dropped, dropping them evenly
+        is the honest way to do it.
+        """
+        buckets: dict[frozenset | None, list[str]] = {}
+        for k in self._by_priority(keys):
+            sections = self._sections_of(k)
+            buckets.setdefault(frozenset(sections) if sections else None, []).append(k)
+        # Statement-level concepts (those declaring no section) are taken first in each round: a
+        # subtotal can be printed under any banner, which is the same reason they survive the
+        # section restriction above.
+        order = sorted(buckets, key=lambda b: (b is not None, sorted(b) if b else []))
+        out: list[str] = []
+        while any(buckets[b] for b in order):
+            for b in order:
+                if buckets[b]:
+                    out.append(buckets[b].pop(0))
+        return out
 
     def _concept_payload(self, keys: list[str]) -> list[dict]:
         """Candidate concepts with the criteria the LLM reasons over — definition, include/
@@ -1766,7 +2019,16 @@ class OntologyMatcher:
                 "label": m.label or k.replace("_", " "),
                 "definition": m.meaning(),
                 "value_scope": m.value_scope,
-                "example_aliases": m.aliases_for(self.locale)[:4],
+                # THE CAP IS THE CONFIGURED ONE, not a literal 4. `llm_example_aliases_cap` was
+                # declared with a measured justification ("4 truncates 4 of the 40 candidates'
+                # alias lists … 1,774 of the payload's 37,781 characters") and then read by
+                # nothing, so the number in config governed no request and turning the knob did
+                # nothing at all. The default is the literal it replaces, so shipped behaviour is
+                # unchanged — what changes is that the setting now reaches the payload it
+                # describes. Same liveness defect as the candidate cap in `_match_chunk`.
+                "example_aliases": m.aliases_for(self.locale)[
+                    : max(0, int(getattr(self.settings.extraction,
+                                         "llm_example_aliases_cap", 4) or 0))],
             }
             if m.include:
                 entry["include"] = m.include
@@ -1778,9 +2040,15 @@ class OntologyMatcher:
                 ]
             if m.decomposition_rule:
                 entry["decomposition_rule"] = m.decomposition_rule
-            # The rulebook's own prose about the decisions this tier is here to make. All three are
-            # sparse in the shipped file (18 / 8 / 2 concepts), so this costs input tokens only where
-            # the editor actually wrote something.
+            # The rulebook's own prose about the decisions this tier is here to make. "Sparse" was
+            # an `hkfrs_hk_china_ontology.json` census and belongs to that file only: 18 / 8 / 7 of
+            # its 183 concepts carry `section_disambiguation` / `derivation` / `is_gross_parent`
+            # (the third was recorded as 2 and measures 7). On `output_csv_hk_ontology.json` — the
+            # rulebook that drives the output CSV — the same three census as 395 / 0 / 32 of 462, so
+            # the first is not sparse there at all: 395 concepts across 13 distinct sentences ("Bind
+            # only to Balance Sheet / bs_ca."). Cheap on one file, a sentence per concept on the
+            # other; either way it costs nothing where the editor wrote nothing, which is all the
+            # guards below claim.
             if m.section_disambiguation:
                 # WHICH of two look-alike captions this is. The semantic tier is the only reader
                 # that can act on it: the deterministic tiers compare strings, and step 6 hands a
@@ -1869,7 +2137,13 @@ class OntologyMatcher:
                 system=self._system,
                 messages=[{"role": "user", "content": user}],
                 response_schema=LlmMappingDecision,
-                max_tokens=512,
+                # `extraction.llm_line_max_tokens`, not the 512 literal that stood here: the
+                # setting shipped declared and read by nothing, so the deployment number documented
+                # in config.py (a model whose reasoning cannot be disabled spends the completion
+                # budget thinking and returns empty content with finish_reason=length) could not
+                # actually be moved. Default equals the literal, so this is a no-op until set.
+                max_tokens=int(getattr(self.settings.extraction, "llm_line_max_tokens", 512)
+                               or 512),
             )
         except Exception as exc:  # noqa: BLE001
             # Provider unreachable/misconfigured (commonly a missing API key) → the
@@ -2054,8 +2328,16 @@ class OntologyMatcher:
             )
         with self._usage_lock:
             self.usage["confusable_ties"] += 1
+        # DELIBERATELY NOT CAPPED, unlike the review shortlists on the other exits from `match`
+        # (`extraction.review_candidate_cap`). Those rank candidates by evidence and cut the tail;
+        # here the tied set IS the answer — "it is one of these and the engine will not choose" —
+        # so dropping a member removes the correct concept from the only list the reviewer is
+        # shown, with nothing saying it was cut. Measured on output_csv_hk: the `is_oci__*` clique
+        # ties five concepts sharing seven aliases and segment candidates take the list to eight,
+        # so a cap of five would hide three. A truncated tie is an unfindable answer.
         return MappingResult(None, MappingMethod.UNMATCHED, 0.0,
-                             [Candidate(k, MappingMethod.EXACT, 1.0) for k in tied],
+                             [Candidate(k, MappingMethod.EXACT, 1.0)
+                              for k in self._by_priority(tied)],
                              True, {"exact": 1.0}, allocation_status="unmapped_review")
 
     @staticmethod
@@ -2175,10 +2457,14 @@ class OntologyMatcher:
         #     the deterministic one, because the model is not shown the concept either and answers
         #     the same way. Only when the computed claim is at least as strong as the best claim a
         #     matchable concept has (see `_refused_as_computed`).
+        #     Scoped like every other tier: the refusal is only the computed concept's to make where
+        #     the rulebook puts that concept (see `_computed_claim`), or a cash-flow depreciation row
+        #     is refused to a P&L concept whose alias it happens to share verbatim.
         computed = self._refused_as_computed(norm_segments,
-                                             det_top.score if det_top is not None else 0.0)
+                                             det_top.score if det_top is not None else 0.0,
+                                             statement, section)
         if computed is not None:
-            return MappingResult(None, MappingMethod.UNMATCHED, 0.0, ranked[:5], True, scores,
+            return MappingResult(None, MappingMethod.UNMATCHED, 0.0, ranked[:_review_cap(self.settings)], True, scores,
                                  allocation_status="unmapped_review", computed_claim=computed)
 
         # 4. LLM semantic decision (`binding.order` step 5) — the key driver, shown the
@@ -2239,7 +2525,7 @@ class OntologyMatcher:
                     alloc = "direct_exclusive" if scope == "exclusive_leaf" else None
                 return MappingResult(
                     canonical_key=llm.canonical_key, method=MappingMethod.LLM, confidence=conf,
-                    candidates=[llm] + ranked[:4], needs_review=needs_review, scores=scores,
+                    candidates=[llm] + ranked[:max(0, _review_cap(self.settings) - 1)], needs_review=needs_review, scores=scores,
                     allocation_status=alloc, agreement=["llm", *agreement], reason=llm.reason,
                 )
             # A real provider failure or request error should not wipe out deterministic evidence.
@@ -2251,7 +2537,7 @@ class OntologyMatcher:
                 # Continue into the deterministic fallback below.
                 pass
             else:
-                return MappingResult(None, MappingMethod.UNMATCHED, 0.0, ranked[:5], True, scores,
+                return MappingResult(None, MappingMethod.UNMATCHED, 0.0, ranked[:_review_cap(self.settings)], True, scores,
                                      allocation_status="unmapped_review")
 
         # 5. Deterministic decision when no LLM is configured, or when the configured LLM failed.
@@ -2289,12 +2575,12 @@ class OntologyMatcher:
                       and (top.score - runner) >= s.extraction.mapping_margin)
             return MappingResult(
                 canonical_key=top.canonical_key, method=top.method, confidence=top.score,
-                candidates=primary[:5], needs_review=not accept, scores=scores,
+                candidates=primary[:_review_cap(self.settings)], needs_review=not accept, scores=scores,
                 allocation_status="direct_exclusive" if accept else "unmapped_review",
             )
 
         # Nothing confident — route to review unmapped rather than guessing from the wording.
-        return MappingResult(None, MappingMethod.UNMATCHED, 0.0, ranked[:5], True, scores,
+        return MappingResult(None, MappingMethod.UNMATCHED, 0.0, ranked[:_review_cap(self.settings)], True, scores,
                              allocation_status="unmapped_review")
 
     # One batch call's RESPONSE budget, and the chunk size it implies.
@@ -2331,8 +2617,22 @@ class OntologyMatcher:
         requested completion allocation for a small structured mapping response makes compatible
         gateways reserve millions of tokens and time out before they answer. The batch envelope
         itself determines the only budget this call needs.
+
+        The FLOOR half of that comes from `extraction.llm_batch_response_floor_tokens`, because how
+        much headroom a reply needs is a fact about the gateway and not about this vocabulary (the
+        slope in :meth:`_batch_max_tokens` is the half that is, so it stays in code). It was the
+        literal 8192 here while the setting was read by nothing: with
+        FINEX_EXTRACTION__LLM_BATCH_RESPONSE_FLOOR_TOKENS=1234 the setting reported 1234 and this
+        method still returned 8192 for both 1 and 25 items, so the declared control was inert and
+        the operator had no lever on the documented silent failure (a truncated batch reply does not
+        parse, the chunk falls back to the weaker per-line path, and the run still reports itself as
+        LLM-mapped). ``or 0`` and not ``or 8192``: a configured 0 means "no floor, use the
+        derivation", which is a real answer for a gateway that needs no headroom — restoring the
+        default there would make 0 unsettable.
         """
-        return max(8192, self._batch_max_tokens(n_items))
+        return max(int(getattr(self.settings.extraction, "llm_batch_response_floor_tokens", 8192)
+                       or 0),
+                   self._batch_max_tokens(n_items))
 
     def match_batch(self, items: list[tuple[str, str]],
                     statement: str | None = None,
@@ -2406,10 +2706,65 @@ class OntologyMatcher:
             # One unresolvable banner and the restriction is off for the chunk: that row is
             # unconstrained by the gate (see `_in_section`), so narrowing the list would refuse it a
             # concept the gate would have allowed — a worse error than offering too much.
+            #
+            # GIVING A SCOPE A REAL TOKEN CAN COST IT ITS PLACE HERE, because a concept whose only
+            # token no banner phrase can produce would be narrowed out of every chunk. Measured when
+            # `notes` gained its token (see `SECTION_WORDS`): on a notes chunk the banner resolves to
+            # `notes`, the list goes 445 -> 70 keys and all 8 notes__* concepts survive — including
+            # `notes__contingent_liabilities`, a declared `llm_focus_key`. On the four classifier
+            # statements they were never in `keys` to begin with: they declare `statement: notes`, so
+            # `_in_statement` drops them one line above. No exemption is needed; a NEW token whose
+            # banner phrases are absent from this table would need one.
             keys = [k for k in keys
                     if not self._sections_of(k) or (self._sections_of(k) & tokens)]
         if self._llm_only_keys:
             keys = [k for k in keys if k in self._llm_only_keys]
+
+        fallback = OntologyMatcher(self.ontology, locale=self.locale, settings=self.settings)
+        deterministic = {
+            iid: preliminary.get(iid) or fallback.match(
+                label, statement=statement, section=sec.get(iid))
+            for iid, label in items
+        }
+
+        # …AND BOUND THE LIST, which the per-line path in `match` has always done and this one
+        # never did. `_concept_payload` costs roughly 970 characters per concept, so an uncapped
+        # balance-sheet chunk offers all 202 of that statement's concepts — 196,607 characters,
+        # about 49k tokens — in EVERY call, whatever the chunk is asking about.
+        #
+        # MEASURED ON TWO REAL FILINGS. The provider refused the request outright (413
+        # `request_too_large`) or rate-limited it on tokens-per-minute (429 "Requested 15931"),
+        # every mapping call failed, and both runs completed reporting `strategy: "deterministic"`
+        # with `llm_calls: 0` — a full-capability extraction silently degraded to the weaker path
+        # with nothing in the output saying the model had never been asked.
+        #
+        # The bound already existed. `extraction.llm_candidate_cap` (40) was applied in `match`
+        # alone, so the path that decides essentially every statement row was the one path running
+        # unbounded, and the size of the request scaled with the filing: the bigger the document,
+        # the more certain it was to lose the LLM path entirely.
+        #
+        # SEEDS ARE NEVER EVICTED. A chunk carries up to BATCH_MAX_ITEMS captions, so capping by
+        # priority alone could drop the very concept a row's own deterministic tier proposed —
+        # which would grade the model on a list its answer was excluded from, the same defect the
+        # section restriction above exists to prevent. Every row's suggestion and its top
+        # candidates go in first and the cap bounds only the FILL, so the effective size is a
+        # FLOOR of `llm_candidate_cap` rather than a ceiling on the evidence.
+        cap = int(getattr(self.settings.extraction, "llm_candidate_cap", 0) or 0)
+        if cap > 0 and len(keys) > cap:
+            in_scope = set(keys)
+            seeded = [
+                k for iid, _ in items
+                for k in ([deterministic[iid].canonical_key]
+                          + [c.canonical_key for c in deterministic[iid].candidates[:_det_cap(self.settings)]])
+                if k and k in in_scope
+            ]
+            seeded = list(dict.fromkeys(seeded))
+            # The FILL is spread across sections, not taken in priority order — see
+            # `_stratified_fill` for why priority order would turn the cap into a second, quieter
+            # section restriction. `_by_priority` is applied again below to decide the reading
+            # order, so the cap never chooses what the model may see when evidence points at it.
+            keys = list(dict.fromkeys(
+                seeded + self._stratified_fill(keys)))[:max(cap, len(seeded))]
         # Descending match_priority, for the reason the per-line shortlist is ordered that way: one
         # batch offers a whole statement, so the order the model reads the list in is the only
         # ranking it gets.
@@ -2431,12 +2786,8 @@ class OntologyMatcher:
         def _sec_token(iid: str) -> str | None:
             return section_of_banner(sec.get(iid))
 
-        fallback = OntologyMatcher(self.ontology, locale=self.locale, settings=self.settings)
-        deterministic = {
-            iid: preliminary.get(iid) or fallback.match(
-                label, statement=statement, section=sec.get(iid))
-            for iid, label in items
-        }
+        # `deterministic` is built ABOVE, before the candidate cap: the cap is seeded from each
+        # row's own deterministic evidence, so that evidence has to exist before the list is cut.
 
         payload: dict = {
             "instruction": "Confirm or correct the deterministic evidence for every source_item, "
@@ -2453,7 +2804,7 @@ class OntologyMatcher:
                  **({"deterministic_suggestion": deterministic[iid].canonical_key}
                     if deterministic[iid].canonical_key else {}),
                  "deterministic_candidates": [candidate.canonical_key
-                                              for candidate in deterministic[iid].candidates[:3]]}
+                                              for candidate in deterministic[iid].candidates[:_det_cap(self.settings)]]}
                 for iid, label in items
             ],
             "candidates": candidates,
@@ -2555,8 +2906,14 @@ class OntologyMatcher:
             # claim is weighed against is the caption's own alias evidence for the concept it chose.
             norm_segments = [n for n in (normalize_label(seg)
                                          for seg in label_segments(caption)) if n]
+            # Scoped on this path too, and not only in `match`: the rival here is the caption's own
+            # alias evidence for the concept the model chose, which is WEAKER than a deterministic
+            # hit — measured 0.54 for "Depreciation of property, plant and equipment" against
+            # `cf_oper_indirect__depreciation` — so an out-of-section computed claim at 1.0 wins by
+            # more here than it does per-line. Gating one path and not the other would leave the
+            # batch call, which decides essentially every statement row, refusing them.
             computed = self._refused_as_computed(
-                norm_segments, self._alias_evidence(key, norm_segments))
+                norm_segments, self._alias_evidence(key, norm_segments), statement, banner)
             if computed is not None:
                 out[d.item_id] = MappingResult(
                     None, MappingMethod.UNMATCHED, 0.0, [], True, {"llm": 0.0},

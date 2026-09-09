@@ -84,9 +84,9 @@ cd frontend && pnpm e2e     # boots backend + Vite, drives the UI in Chromium
 
 `frontend/e2e/smoke.spec.ts` covers the greenfield empty state, loading the sample,
 note-reference hyperlinks, uploading a PDF and a spreadsheet as an analyst,
-integrity → extract end to end, role gating on the config surfaces, ontology / netting /
+integrity → extract end to end, role gating on the config surfaces, line-item / netting /
 criteria / threshold edits persisting, publishing an edited template workbook, the
-rulebook-in-force labelling, review filtering, accepting a finding across a reload, and the
+version-in-force labelling, review filtering, accepting a finding across a reload, and the
 coverage band's counts. One test currently fails — it drives the removed "Additional items"
 Workspace tab; see
 [`docs/architecture/06-testing-and-roadmap.md`](docs/architecture/06-testing-and-roadmap.md).
@@ -99,9 +99,10 @@ click-to-source) → **Workspace** (side-by-side source ↔ template, inline edi
 confidence scores, KPIs) → All Notes (note-to-face reconciliation) → Review Queue
 (exactly three things: an unplaced face figure, a failed validation rule, and a subtotal
 that does not match its components — with accept, flip-sign and **re-map** actions) → **Analysis** (one-page financial commentary — ratios,
-**year-on-year trends**, strengths/risks) → Template & Ontology (incl. the note-netting
-rule) → **Settings** (admin) → Export (Excel/JSON). Eleven in all
-(`frontend/src/screens/config.ts`), filtered per role by `GET /me`.
+**year-on-year trends**, strengths/risks) → Template (incl. the note-netting rule) →
+**Line Items** (the single mapping configuration) → **Settings** (admin) → Export
+(Excel/JSON). Fourteen in all (`frontend/src/screens/config.ts`), filtered per role by
+`GET /me`.
 
 Every one of them reads the **active uploaded document's own extraction** when there is one.
 The seeded sample is the fallback for the screens that have one, so the app is explorable
@@ -113,7 +114,7 @@ before anything has been uploaded.
   users. `GET /me` drives the nav and route guards; sign out from the top bar. Identity
   swaps to a real IdP without changing the permission model.
 - **RBAC** — three roles (admin / reviewer / analyst). Configuration (templates,
-  ontology, page scope, export inclusions, settings) is admin-controlled; the analyst
+  line items, page scope, export inclusions, settings) is admin-controlled; the analyst
   gets a simple flow. Server-side enforced (401/403) and reflected in the nav. See
   [`docs/architecture/07-rbac-and-commentary.md`](docs/architecture/07-rbac-and-commentary.md).
 - **Configuration** — `backend/config.toml` (LLM, OCR, embeddings, extraction
@@ -133,14 +134,14 @@ before anything has been uploaded.
 | Locate face / notes pages first (Viterbi decode over page evidence + document order) | `app/stages/classify.py` |
 | Table reconstruction — native text layer and OCR converge on one path | `app/services/row_reconstruct.py`, `app/services/pdf_extract.py`, `app/services/excel_extract.py` (all driven by `app/stages/extract.py`) |
 | OCR behind adapters (Docling / Azure DI / PaddleOCR / stub) | `app/adapters/`, selected by `[ocr].engine` |
-| Ontology-driven mapping — exact, rule, fuzzy and an LLM that decides by meaning | `app/services/mapping.py`, `app/stages/map_ontology.py` |
+| Line-item-driven mapping — exact, rule, fuzzy and an LLM that decides by meaning | `app/services/mapping.py`, `app/stages/map_ontology.py`, fed by `app/services/working_view.py` |
 | Locale-aware number parsing + sign normalization | `app/services/numbers.py`, `app/stages/normalize.py` |
 | A printed face line never disappears (residual sweep, rulebook-governed) | `app/stages/residual.py` |
 | **Note→face subtraction reconciliation** | `app/services/reconcile.py`, `app/stages/reconcile.py` |
 | Declared-arithmetic validation + the coverage contract | `app/services/structural_checks.py`, `app/services/checks.py`, `app/services/coverage.py` |
 | Review queue with persisted human judgements and a re-map action | `GET`/`POST /documents/{id}/review*` in `app/api/routes/documents.py`, `app/services/judgement.py` |
 | Confidence vector, per row **and** per value | `app/core/models/confidence.py` |
-| Template + ontology schemas, versioned; template authored as a workbook | `app/schemas/`, `app/services/template_xlsx.py` |
+| Template + line-item schemas, versioned; template authored as a workbook | `app/schemas/`, `app/services/template_xlsx.py` |
 | Multilingual parity (en/zh/ar/fr) | `app/schemas/languages.py` |
 | Consolidated + standalone in one pass | `app/core/models/line_item.py` (values keyed by basis × period) |
 | Side-by-side hyperlink provenance (normalized bbox / sheet+cell) | `app/core/models/geometry.py`, `GET /documents/{id}/pages/{n}/image`, `GET /documents/{id}/cell-context` |

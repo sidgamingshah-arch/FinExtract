@@ -26,9 +26,13 @@ export const SCREENS: Record<string, ScreenDef> = {
   // live only as a card at the BOTTOM of Extraction, below the rows grid and the source panel —
   // a long scroll past what most readers came for, and not where its name says it is.
   disclosures: { id: "disclosures", path: "/disclosures", label: "Disclosures", icon: "❑" },
-  template: { id: "template", path: "/template", label: "Template & Ontology", icon: "◆" },
-  // The eight output lines and the parts each is assembled from. Its own destination beside
-  // Template & Ontology because it configures a different thing: the template says WHICH lines
+  // Labelled for the ONE configuration engine. This label used to name the retired second engine
+  // (the rulebook a run selected instead of the line-item set); there is only the line-item set
+  // now, so the nav must not offer a word for an engine a user can no longer choose. Kept in step
+  // with `nav.template` in i18n.ts, which is what the rail renders — this is its English fallback.
+  template: { id: "template", path: "/template", label: "Template & Line Items", icon: "◆" },
+  // The line items themselves and the parts each is assembled from. Its own destination beside
+  // Template & Line Items because it configures a different thing: the template says WHICH lines
   // the output has, this says where each one's figure comes from.
   line_items: { id: "line_items", path: "/line-items", label: "Line Items", icon: "≡" },
   settings: { id: "settings", path: "/settings", label: "Settings", icon: "⚙" },

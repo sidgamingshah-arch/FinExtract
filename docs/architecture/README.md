@@ -10,7 +10,8 @@ Design & architecture for the financial-statement extraction platform.
    `default_pipeline()` assembles: ingest → integrity → language_detect → classify →
    extract → map_ontology → residual → normalize → link_notes → reconcile → prune_notes
   → confidence → gap_closing → face_mapping_contract → structural → segment.
-3. [Data model, template & ontology schemas, API](02-data-model-and-schemas.md).
+3. [Data model, template & line-item schemas, API](02-data-model-and-schemas.md) — the
+   `line_item_versions` store and the run's `line_item_version_id` pin.
 4. [Note→face reconciliation](03-reconciliation.md) — the highest-value rule (§20).
 5. [Multilingual parity](04-multilingual.md) — input = output for en/zh/ar/fr.
 6. [Frontend](05-frontend.md) — the routes, the hand-rolled grid and source viewer, the

@@ -105,7 +105,20 @@ def policy_from(settings) -> PathPolicy:
         precedence_default=prec if prec in PRECEDENCE else "complex",
         by_key=dict(getattr(ex, "computed_path_by_key", {}) or {}),
         enabled_services=tuple(getattr(ex, "complex_path_services", ()) or ()),
-        rel_tolerance=float(getattr(ex, "recon_rel_tolerance", 0.01) or 0.01),
+        # NO `or` HERE. This read used to be `float(getattr(..., 0.01) or 0.01)`, and the `or`
+        # made the STRICTEST setting the loosest: 0 is falsy, so a configured 0.0 — which
+        # `recon_rel_tolerance` explicitly permits (settings_state.py, minimum=0.0) — came back
+        # as a 1% band. Measured: with 0.0 configured, `policy.rel_tolerance` was 0.01 and
+        # `_differs(229000, 231000, 0.01)` was False where at 0.0 it is True, so a 0.87%
+        # divergence between the two paths read as agreement and stamped PATHS_AGREE. That also
+        # broke the promise `_differs` makes below — the reconciler (stages/reconcile.py) reads
+        # this same knob by bare attribute access and honours 0 exactly, so the two consumers
+        # disagreed about what "these two paths agree" means.
+        # The fallback belongs in the getattr default alone, and it is the SHIPPED default
+        # (config.py: 0.005), not 0.01 which matched nothing. It stays non-zero so a settings
+        # object predating the field keeps today's behaviour, as this docstring promises —
+        # defaulting to 0.0 would stamp PATH_DISAGREEMENT on rounding noise instead.
+        rel_tolerance=float(getattr(ex, "recon_rel_tolerance", 0.005)),
     )
 
 

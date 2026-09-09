@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 import re
 from collections.abc import Iterable
 from decimal import Decimal, InvalidOperation
@@ -12,7 +13,7 @@ from sqlalchemy import delete as sql_delete, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
-from app.api.deps import db, object_store
+from app.api.deps import db, object_store, output_locale
 from app.ports.object_store import LocalObjectStore
 from app.security import Permission, Principal, Role, current_principal, require
 from app.services.documents import analyze_document, content_hash
@@ -26,6 +27,18 @@ from app.services.periods import (
 from app.services.reconcile import tie_status
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+
+logger = logging.getLogger(__name__)
+
+# EVERY `locale` PARAMETER BELOW COMES FROM `output_locale` (api/deps.py), NOT FROM Query("en").
+# The ten locale-bearing routes in this file each declared their own literal `Query("en")`, so
+# `[features] default_output_locale` — the one setting that names the output language — was read
+# only by the GET /settings echo and applied by nothing: a deployment configured for "zh" served
+# English statements, notes and exports while the Settings screen reported "zh". The dependency
+# resolves `?locale=` first and the configured default second, so an explicit request is
+# unchanged and the handlers below still receive a plain, already-effective locale string. The
+# internal helpers keep their `locale: str = "en"` signatures — they are only ever called with a
+# resolved value from one of these handlers.
 
 _ELEVATED = {Role.ADMIN, Role.REVIEWER}  # roles that work across the whole queue
 
@@ -727,7 +740,7 @@ def _serialize_document_integrity(row, locale: str = "en") -> dict:
 
 
 @router.get("/{document_id}/integrity", dependencies=[Depends(authorized_document)])
-def get_document_integrity(document_id: str, locale: str = Query("en"),
+def get_document_integrity(document_id: str, locale: str = Depends(output_locale),
                            session: Session = Depends(db)) -> dict:
     """Real pre-flight integrity for one uploaded document (drives the Document Integrity
     screen when working a real file, rather than the demo project)."""
@@ -844,16 +857,25 @@ def _run_template_id(run) -> str | None:
     return run.template_version_id or (run.options or {}).get("template_version_id")
 
 
-def _run_ontology_id(run) -> str | None:
-    """Which rulebook a run was launched against — the same two-places problem as the template.
+def _run_line_item_version_id(run) -> str | None:
+    """Which CONFIGURATION a run was launched against — the same two-places problem as the template.
 
-    Written to the ``ontology_version_id`` column AND to ``options["ontology_version_id"]`` when a
-    run is created, and a run built straight from options leaves the column None. Answered here so
+    Line items is the single configuration engine; there is no second, ontology-shaped answer to
+    this question any more. The pin was ``ontology_version_id`` and is now
+    ``line_item_version_id``: written to the column AND to ``options["line_item_version_id"]`` when
+    a run is created, and a run built straight from options leaves the column None. Answered here so
     the idempotency check in ``start_extraction`` compares the same thing a reader of the run would
-    see: a run whose column is empty and whose option names the rulebook is not a run against NO
-    rulebook, and treating it as one would start a duplicate pipeline every time.
+    see: a run whose column is empty and whose option names the configuration is not a run against
+    NO configuration, and treating it as one would start a duplicate pipeline every time.
     """
-    return run.ontology_version_id or (run.options or {}).get("ontology_version_id")
+    return run.line_item_version_id or (run.options or {}).get("line_item_version_id")
+
+
+# TEMPORARY BOOT SHIM. ``routes/extractions.py`` imports this name at module scope, so deleting it
+# here would stop the app importing at all before that route's own swap lands. It is the same
+# function under its old spelling and nothing user-facing reads it — delete the alias with the last
+# ``_run_ontology_id`` reference in ``routes/extractions.py``.
+_run_ontology_id = _run_line_item_version_id
 
 
 def _prov_label(prov: dict | None) -> str:
@@ -1457,7 +1479,7 @@ def _demoted_parent(row: dict) -> list[str] | None:
 
     A filing that prints "Cash and cash equivalents" and, under it, the restricted and pledged
     balances that are part of it, has printed the parent GROSS. Filing both double-counts, so
-    ``map_ontology._enforce_containment`` un-files the parent — clears its ``canonical_key`` and
+    ``map_line_items._enforce_containment`` un-files the parent — clears its ``canonical_key`` and
     demotes it to a subtotal — and records what replaced it in this flag.
 
     THE FLAG IS THE POSITIVE SIGNAL, and a cleared key is not: a row with no key is the shape of a
@@ -1480,7 +1502,7 @@ def _containment_checks(rows: list[dict], locale: str, template_def: dict | None
 
     THE THIRD CATEGORY, on the one shape of it that is not a template rollup. A gross parent whose
     children are also on the face is un-filed to stop the section counting the money twice
-    (``map_ontology._enforce_containment``) — and where the children do not add up to the parent,
+    (``map_line_items._enforce_containment``) — and where the children do not add up to the parent,
     part of the printed figure now appears on NO line at all. The stage's own comment says why that
     has to be reported: "without that, unfiling silently removes the unexplained part of the figure
     from the statement and every remaining check ties."
@@ -2482,7 +2504,7 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
         if not key or off_template or engine_unclassified:
             # A DEMOTED GROSS PARENT IS NOT A MAPPING FAILURE. It mapped — often exactly — and was
             # then un-filed on purpose, because its components are on the face too and filing both
-            # would count the money twice (`map_ontology._enforce_containment`). Its money IS on the
+            # would count the money twice (`map_line_items._enforce_containment`). Its money IS on the
             # face, through those components. Reporting it here told the reader "nothing recognised
             # this caption" about a caption recognised at 1.0, and on the real filing it was 5 of the
             # 12 cards in this category. Where the components do NOT add up to it, that IS a finding
@@ -2755,7 +2777,7 @@ def get_document_run(document_id: str, run_id: str | None = Query(None),
 
 
 @router.get("/{document_id}/analysis", dependencies=[Depends(authorized_document)])
-def get_document_analysis(document_id: str, locale: str = Query("en"),
+def get_document_analysis(document_id: str, locale: str = Depends(output_locale),
                           run_id: str | None = Query(None),
                           session: Session = Depends(db)) -> dict:
     """Derived analysis for a document — ratios, plain-language notes and the disclosure scan.
@@ -2807,7 +2829,7 @@ def get_document_analysis(document_id: str, locale: str = Query("en"),
 
 @router.post("/{document_id}/credit-narrative",
              dependencies=[Depends(require(Permission.ANALYSIS_RUN)), Depends(authorized_document)])
-def run_credit_narrative_endpoint(document_id: str, locale: str = Query("en"),
+def run_credit_narrative_endpoint(document_id: str, locale: str = Depends(output_locale),
                                   session: Session = Depends(db)) -> dict:
     """Generate an LLM credit narrative that rationalises the deterministic credit view.
 
@@ -2901,7 +2923,7 @@ def _localize_commentary(c: dict, locale: str) -> dict:
 
 @router.get("/{document_id}/commentary",
             dependencies=[Depends(require(Permission.COMMENTARY_VIEW)), Depends(authorized_document)])
-def get_document_commentary(document_id: str, locale: str = Query("en"),
+def get_document_commentary(document_id: str, locale: str = Depends(output_locale),
                             basis: str = Query("consolidated"),
                             session: Session = Depends(db)) -> dict:
     """Data-driven financial commentary for a REAL document, computed from its latest
@@ -2994,7 +3016,7 @@ def _inforce_judgements(session: Session, doc) -> list[dict]:
 
 
 @router.get("/{document_id}/review", dependencies=[Depends(authorized_document)])
-def get_document_review(document_id: str, locale: str = Query("en"),
+def get_document_review(document_id: str, locale: str = Depends(output_locale),
                         session: Session = Depends(db)) -> dict:
     """Real review queue for a document, derived from its latest extraction — each finding with
     its human judgement, and the coverage contract for the relations that were never evaluable.
@@ -3037,7 +3059,8 @@ class JudgementBody(BaseModel):
 @router.post("/{document_id}/review/judgements",
              dependencies=[Depends(require(Permission.REVIEW_RESOLVE)),
                            Depends(authorized_document)])
-def accept_review_finding(document_id: str, body: JudgementBody, locale: str = Query("en"),
+def accept_review_finding(document_id: str, body: JudgementBody,
+                          locale: str = Depends(output_locale),
                           session: Session = Depends(db),
                           principal: Principal = Depends(current_principal)) -> dict:
     """Record that a named person examined a finding's figures and judged that they stand.
@@ -3208,7 +3231,7 @@ class RemapBody(BaseModel):
 @router.post("/{document_id}/review/remap",
              dependencies=[Depends(require(Permission.EXTRACTION_EDIT)),
                            Depends(authorized_document)])
-def remap_review_row(document_id: str, body: RemapBody, locale: str = Query("en"),
+def remap_review_row(document_id: str, body: RemapBody, locale: str = Depends(output_locale),
                      session: Session = Depends(db),
                      principal: Principal = Depends(current_principal)) -> dict:
     """Re-file one printed row onto a different template line — resolving a review finding.
@@ -3291,7 +3314,7 @@ def remap_review_row(document_id: str, body: RemapBody, locale: str = Query("en"
     # row carries the tag it is served with, and ``result["buckets"]`` carries the membership the
     # bucket screens read. Nothing else about the segmentation is recomputed — a re-map is one row
     # changing its mind, not a reason to re-run a stage over the document.
-    _retag_row(result, target, key, session, run)
+    unavailable = _retag_row(result, target, key, session, run)
     target["remap"] = {"from": prior, "to": key, "reason": body.reason.strip()[:2000],
                        "by": getattr(principal, "username", "") or "", "at": _now_iso()}
     # On the ROW's flags, not only in the payload: the export and the statement inspector both read
@@ -3315,17 +3338,29 @@ def remap_review_row(document_id: str, body: RemapBody, locale: str = Query("en"
     run.result = result
     flag_modified(run, "result")
     session.commit()
+    # The re-map SUCCEEDED either way — the concept moved and is recorded. What can be missing is
+    # the section tag that follows it, and only because the rulebook this run pinned cannot be read
+    # back. Reported in the coverage-band idiom ({"available": ..., "reason": ...}) so the screen can
+    # say so instead of showing a section-less row under Others with nothing to explain it.
     return {"ok": True, "row_ref": ref, "label": target.get("source_label") or "",
-            "from": prior, "to": key, "remap": target["remap"]}
+            "from": prior, "to": key, "remap": target["remap"],
+            "section": target.get("section"),
+            "rulebook": {"available": not unavailable, "reason": unavailable}}
 
 
-def _retag_row(result: dict, row: dict, key: str, session, run) -> None:
+def _retag_row(result: dict, row: dict, key: str, session, run) -> str:
     """Move one row's analyst-section tag, and its membership in the stored segmentation, to the
-    section its NEW concept belongs to. A row re-mapped to nothing loses its tag with its concept."""
+    section its NEW concept belongs to. A row re-mapped to nothing loses its tag with its concept.
+
+    Returns why the tag could NOT be derived from the concept ("" when it was): with no readable
+    rulebook there is no section for the key, so the row lands section-less under Others — which
+    looks exactly like a concept that genuinely has no section. The caller puts the reason on the
+    response so the screen can say "rulebook unavailable" rather than showing a silent Others.
+    """
     from app.core.models.enums import PrintedIn
     from app.services.buckets import BUCKET_LABELS, bucket_of
 
-    ont = _ontology_for_run(session, run)
+    ont, why = _run_rulebook(session, run)
     section = None
     declared = None
     if key and ont is not None:
@@ -3333,6 +3368,13 @@ def _retag_row(result: dict, row: dict, key: str, session, run) -> None:
         if concept is not None:
             section = (concept.section_scope or [None])[0]
             declared = concept.analyst_bucket
+    # Only a re-map TO a concept can be degraded by an unreadable rulebook. An UNMAP is section-less
+    # by design ("a row re-mapped to nothing loses its tag with its concept"), so reporting a reason
+    # there would name a cause for something that is not an effect.
+    unavailable = why if (key and ont is None) else ""
+    if unavailable:
+        logger.warning("re-map to %s tagged without a rulebook for run %s: %s",
+                       key, getattr(run, "id", ""), unavailable)
     bucket = None
     if key:
         bucket, _why = bucket_of(section, None, declared)
@@ -3342,10 +3384,10 @@ def _retag_row(result: dict, row: dict, key: str, session, run) -> None:
 
     store = result.get("buckets")
     if not isinstance(store, dict):
-        return
+        return unavailable
     row_id = row.get("id")
     if not row_id:
-        return
+        return unavailable
     # THE TAG FOLLOWS THE CONCEPT; THE FACE MEMBERSHIP DOES NOT FOLLOW A NOTE ROW. A row printed
     # inside a note is not a face row whatever concept a reviewer maps it to — the same test
     # ``segment_source`` applies, and for the same reason: a note's lines sum to a figure the face
@@ -3353,7 +3395,7 @@ def _retag_row(result: dict, row: dict, key: str, session, run) -> None:
     # once through the note and once through the row. The queue does offer a re-map on such a row
     # (an unmapped card is raised for any row), so this is reachable and not theoretical.
     if (row.get("printed_in") or "") == PrintedIn.NOTES.value:
-        return
+        return unavailable
     for seg in store.get("segments") or []:
         ids = seg.get("face_item_ids") or []
         if row_id in ids:
@@ -3380,6 +3422,7 @@ def _retag_row(result: dict, row: dict, key: str, session, run) -> None:
         store["unresolved_face_item_ids"] = list(
             store.get("unresolved_face_item_ids") or []) + [row_id]
     result["buckets"] = store
+    return unavailable
 
 
 class LineItemEdit(BaseModel):
@@ -3615,7 +3658,7 @@ def export_document(
     document_id: str,
     fmt: str = Query("excel", pattern="^(excel|json|csv)$"),
     layout: str = Query("statement", pattern="^(statement|flat)$"),
-    locale: str = Query("en"),
+    locale: str = Depends(output_locale),
     include: str | None = Query(None),
     units: str | None = Query(None),
     run_id: str | None = Query(None),
@@ -3991,7 +4034,7 @@ def _cur_prior(r: dict, basis: str = "consolidated") -> tuple[dict | None, dict 
 def _inspector(r: dict, cur: dict | None) -> dict:
     prov = (cur or {}).get("provenance")
     # A figure the pipeline INFERRED must not read as one it matched. The row carrying a subtotal's
-    # sole component (stages.map_ontology) has method "rule", so "Mapped by rule" would tell the
+    # sole component (stages.map_line_items) has method "rule", so "Mapped by rule" would tell the
     # analyst a caption on the page said "Current tax" when no such caption exists — the figure is
     # the total, filed here because nothing evidenced a sibling. Say that instead.
     flags = ((cur or {}).get("confidence") or {}).get("flags") or []
@@ -4005,38 +4048,67 @@ def _inspector(r: dict, cur: dict | None) -> dict:
                      if inferred else f"Mapped by {r.get('mapping_method') or 'ensemble'}")}
 
 
-def _ontology_for_run(session: Session, run):
-    """The RESOLVED rulebook this run was launched against, or None when it named none.
+def _run_rulebook(session: Session, run) -> tuple[object | None, str]:
+    """``(the MATCHER'S WORKING VIEW of the configuration this run used, why there is none)``.
 
-    Resolved, because the section layer a v2 rulebook authors once per section only reaches a
-    concept through the fold — and the section is exactly what a re-map has to read.
+    The configuration is the pinned ``LineItemVersion`` — the one place configuration lives — and
+    the view is built the way the mapper builds it, ``build_working_view(load_line_item_set(...))``,
+    so a re-map reads exactly the concepts and sections the run was mapped against. There is no
+    ontology row to select here any more; the projection is the only route to a working view.
+
+    Resolved, because the section layer the set authors once per section only reaches a concept
+    through the fold — and the section is exactly what a re-map has to read.
+
+    THE REASON IS THE POINT. A stored version can fail to load, and it is not hypothetical: this
+    repository's own database carried 30 of 33 stored runs — 18 of them succeeded — pinning a
+    configuration that raised 358 validation errors when read back. Both callers below must keep
+    going when that happens (a re-map and a statement are not worth failing over a stored
+    configuration that will not load), but "keep going" used to mean answering None and [] with
+    nothing said anywhere, so a reviewer's re-map came back tagged section None under Others and the
+    screen offered no reason. The reason travels with the answer instead.
+
+    Two distinct absences, because they are not the same news: a run that named no configuration is
+    ordinary (the pin is nullable, and a run recorded before it existed has no answer), a
+    configuration that will not load is a defect.
     """
-    from app.db.models import OntologyVersion
-    from app.schemas.loader import load_ontology
+    from app.db.models import LineItemVersion
+    from app.schemas.line_items import load_line_item_set
+    from app.services.working_view import build_working_view
 
-    oid = (run.options or {}).get("ontology_version_id")
-    row = session.get(OntologyVersion, oid) if oid else None
+    lid = _run_line_item_version_id(run)
+    row = session.get(LineItemVersion, lid) if lid else None
     if row is None:
-        return None
+        return None, "no_rulebook" if not lid else "rulebook_missing"
     try:
-        return load_ontology(row.definition, resolve=True)
-    except Exception:  # noqa: BLE001 — a malformed rulebook must not break a re-map
-        return None
+        return build_working_view(load_line_item_set(row.definition)), ""
+    except Exception as exc:  # noqa: BLE001 — a malformed configuration must not break a re-map
+        return None, f"rulebook_unloadable: {type(exc).__name__}"
+
+
+def _line_item_view_for_run(session: Session, run):
+    """The working view of the configuration this run was launched against, or None when it named
+    none.
+
+    The reason-bearing form is :func:`_run_rulebook`; use that where the caller can report it.
+    """
+    return _run_rulebook(session, run)[0]
 
 
 def _netting_rules_for_run(session: Session, run) -> list:
-    """The face-line netting rules from the ontology the run used (empty when none/unavailable)."""
-    from app.db.models import OntologyVersion
-    from app.schemas.loader import load_ontology
+    """The face-line netting rules from the LINE-ITEM SET the run used (empty when none/unavailable).
 
-    oid = (run.options or {}).get("ontology_version_id")
-    row = session.get(OntologyVersion, oid) if oid else None
-    if row is None:
+    Empty stays the answer when the configuration will not load, and here that is not a degradation:
+    the shipped set declares ``netting_rules: 0``, as did all three of the versions the 30 pinning
+    runs named, so [] is what a loadable configuration would have said too. It is logged rather than
+    reported because this feeds an opportunistic cache (``extractions._maybe_cache_netting``) with
+    no response to put it on.
+    """
+    ont, why = _run_rulebook(session, run)
+    if ont is None:
+        if why.startswith("rulebook_unloadable"):
+            logger.warning("netting rules unavailable for run %s: %s", getattr(run, "id", ""), why)
         return []
-    try:
-        return load_ontology(row.definition, resolve=True).netting_rules
-    except Exception:  # noqa: BLE001 — a malformed ontology must not break the statement
-        return []
+    return ont.netting_rules
 
 
 def _template_for_run(session: Session, run) -> dict | None:
@@ -4047,7 +4119,7 @@ def _template_for_run(session: Session, run) -> dict | None:
 
     It used to fall back to the newest seeded ``TemplateVersion`` when the run named none, and the
     template is genuinely optional (``ExtractionOptions.template_version_id`` defaults to None and
-    the upload screen allows it). So a run extracted with only an ontology served a coverage band
+    the upload screen allows it). So a run extracted with only a line-item set served a coverage band
     reading {"available": false, "reason": "no_template"} directly above four
     TEMPLATE-DERIVED findings — two calculated_mismatch and two uncomputed, built from some other
     template's rollup children and node labels. That is the same self-contradiction inside one
@@ -4086,7 +4158,11 @@ def _superseded_template(session: Session, run) -> dict | None:
     ``latest_version`` is the highest version STORED for the key, not the highest ``is_published``
     one: ``routes/templates.py::_publish`` writes each new version with ``is_published`` defaulting
     to False and nothing ever flips it, so filtering on that flag would report a genuinely superseded
-    run as current — the seeded reference template is the only published row in the table.
+    run as current. The flag is written by ONE place, ``sample/reference.py``, which publishes each
+    shipped template as the newest version and clears the flag off the prior ones — so it marks the
+    seeded row of each shipped key, not "the only published row in the table" as this used to say:
+    the repo ships two reference templates, and a database that has not been reseeded since the
+    clearing loop reached the extra pair can hold the flag on many rows of one key besides.
 
     None when the run named no template (nothing to be superseded) or when the pinned row is gone.
     """
@@ -5141,7 +5217,7 @@ def get_document_statement(
     document_id: str,
     statement: str = Query("balance_sheet"),
     basis: str = Query("consolidated"),
-    locale: str = Query("en"),
+    locale: str = Depends(output_locale),
     run_id: str | None = Query(None),
     session: Session = Depends(db),
 ) -> dict:
@@ -5165,7 +5241,7 @@ def get_document_statement(
                               doc_format=run.result.get("format") or doc.fmt or "",
                               page_count=run.result.get("page_count") or doc.page_count or 0,
                               # Apply only the netting the LLM confirmed for this document (cached at
-                              # extraction); the raw ontology policies are candidates, not results.
+                              # extraction); the configured netting policies are candidates, not results.
                               netting_rules=run.result.get("netting") or [])
     # Which template version this spread's SHAPE came from, and whether a newer one exists. Added
     # here rather than inside `_build_statement`, which is a pure function of a definition and has no
@@ -5240,7 +5316,7 @@ def _note_index(details: list[dict]) -> dict[str, dict]:
     THE TABLES ARE NOT MERGED IN THE MODEL, and the distinction is the point. For READING, the note
     number is the unit — an analyst asked for note 22 and a page break is not part of its meaning.
     For ARITHMETIC it is not: a tax note prints the components in one table and the effective-rate
-    RECONCILIATION in another, and ``map_ontology``'s decomposition has to be able to tell them
+    RECONCILIATION in another, and ``map_line_items``'s decomposition has to be able to tell them
     apart or it counts a restated component twice. ``doc.notes`` therefore keeps one entry per
     printed table and this index — the presentation layer — is where they become one note.
     """
@@ -5453,7 +5529,7 @@ def get_document_notes(document_id: str, run_id: str | None = Query(None),
 
 
 @router.get("/{document_id}/notes/{note_no}", dependencies=[Depends(authorized_document)])
-def get_document_note(document_id: str, note_no: str, locale: str = Query("en"),
+def get_document_note(document_id: str, note_no: str, locale: str = Depends(output_locale),
                       run_id: str | None = Query(None),
                       session: Session = Depends(db)) -> dict:
     """One note's detail for a real document: its EXTRACTED breakdown rows (label + period

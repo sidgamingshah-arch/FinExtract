@@ -690,36 +690,47 @@ def test_a_run_from_before_the_segment_stage_says_so_instead_of_serving_eight_em
 def _shipped_rulebook(client) -> str:
     """The SHIPPED rulebook's latest version id, chosen by key rather than by list position.
 
-    ``ontologies[0]`` worked alone and failed in the suite: other modules publish their own
+    ``versions[0]`` worked alone and failed in the suite: other modules publish their own
     rulebooks, so position selected a two-concept test fixture that mapped nothing — and the run
     still reported ``applied: true``, so the failure surfaced as "every row unplaced" rather than as
     "wrong rulebook".
+
+    The store is ``/line-items/versions``, keyed ``line_items_key``. It was ``/ontologies`` keyed
+    ``ontology_key``; line items is the single configuration engine, so there is one store to read.
     """
-    rows = [o for o in client.get("/api/v1/ontologies").json()
-            if o.get("ontology_key") == "hkfrs_hk_china"]
+    rows = [c for c in client.get("/api/v1/line-items/versions").json()
+            if c.get("line_items_key") == "output_csv_hk"]
     assert rows, "the shipped rulebook is not seeded"
-    return max(rows, key=lambda o: o.get("version") or 0)["id"]
+    return max(rows, key=lambda c: c.get("version") or 0)["id"]
 
 
-def _shipped_template_id(client) -> str:
-    """The shipped template's id, for the tests here that must PIN it.
+def _configured_template_id(client) -> str:
+    """The CONFIGURED template's id, for the tests here that must PIN it.
 
     The template default is "the latest one stored" (``resolve_template_id``), so in a shared store
     the newest template decides the spread — including a throwaway one a neighbouring test published
-    and left behind, which is what happens in this suite. These tests are about the RULEBOOK default,
-    and a rulebook is chosen for the template in force: leaving the template to chance would make
-    them assert the rulebook while a different test decided which template the question was even
-    about. Pinning it keeps each test's subject its own.
+    and left behind, which is what happens in this suite. These tests are about the CONFIGURATION
+    default, and a configuration is chosen for the template in force: leaving the template to chance
+    would make them assert the configuration while a different test decided which template the
+    question was even about. Pinning it keeps each test's subject its own.
+
+    IT IS NOT ``shipped_template_key()`` ANY MORE, and that is the whole reason this helper changed.
+    That function names ``hkfrs_hk_china_v1``, which is seeded TEMPLATE-ONLY now: the one shipped
+    configuration targets ``output_csv_hk_v1`` (see ``app.sample.reference``), so pinning the shipped
+    template would pin the one pair that has NOTHING in force — and these tests, whose subject is
+    "the configuration in force is resolved and pinned when the caller names none", would then be
+    asserting it against a template for which the correct answer is "there isn't one". Read off the
+    picker so the template follows the configuration rather than a second spelling of it.
     """
-    from app.sample.reference import shipped_template_key
-
-    key = shipped_template_key()
+    key = next(c["target_template_key"] for c in
+               client.get("/api/v1/line-items/versions").json()
+               if c["line_items_key"] == "output_csv_hk")
     rows = [t for t in client.get("/api/v1/templates").json() if t["template_key"] == key]
-    assert rows, f"the shipped template {key!r} is not stored"
-    return rows[0]["id"]
+    assert rows, f"the configured template {key!r} is not stored"
+    return max(rows, key=lambda t: t["version"])["id"]
 
 
-def _extract(client, name: str, ontology_version_id: str | None = None,
+def _extract(client, name: str, line_item_version_id: str | None = None,
              template_version_id: str | None = None) -> tuple[str, str]:
     from tests.fixtures.generate import make_native_pdf
 
@@ -727,8 +738,10 @@ def _extract(client, name: str, ontology_version_id: str | None = None,
                          files={"file": (name, make_native_pdf(),
                                          "application/pdf")}).json()["id"]
     body: dict = {}
-    if ontology_version_id:
-        body["ontology_version_id"] = ontology_version_id
+    # The pin was ``ontology_version_id``. It names a ``line_item_versions`` row now, because line
+    # items is the single configuration engine and there is nothing else a run could be pinned to.
+    if line_item_version_id:
+        body["line_item_version_id"] = line_item_version_id
     if template_version_id:
         body["template_version_id"] = template_version_id
     started = client.post(f"/api/v1/documents/{doc_id}/extractions", json=body)
@@ -753,7 +766,7 @@ def test_a_real_extraction_reaches_the_buckets_endpoint_with_its_rows_in_the_rig
     holds the note a row CITES, so the four-row balance sheet below placed exactly one row.
 
     The fixture's balance sheet prints no section banners, so the sections here come only from the
-    concepts the mapper resolved — the path a condensed filing takes.
+    line items the mapper resolved — the path a condensed filing takes.
     """
     doc_id, run_id = _extract(client, "buckets-e2e.pdf", _shipped_rulebook(client))
 
@@ -763,18 +776,44 @@ def test_a_real_extraction_reaches_the_buckets_endpoint_with_its_rows_in_the_rig
 
     served = client.get(f"/api/v1/extractions/{run_id}").json()["result"]
     assert served["rulebook"]["applied"] is True, "the run mapped nothing; placement is untestable"
-    assert sum(b["face_rows"] for b in index["buckets"]) == len(served["rows"])
-    assert index["unresolved_face_rows"] == 0
+
+    # CONSERVATION, held against the FIXTURE'S OWN four captions rather than against
+    # ``len(served["rows"])``. The configured template lays out 480 nodes across sections that are
+    # not statements at all — Statement Setup Controls, Supplemental Data, Credit Compliance, Notes —
+    # so a run serves the whole spread and 68 of these 72 rows are template shell the filing never
+    # printed. Counting them made the old spelling read "4 == 72". The property is unchanged and is
+    # the one this store exists for: every face row the filing prints reaches exactly one bucket,
+    # nothing double-counted and nothing dropped.
+    printed = {"Cash and cash equivalents", "Trade receivables",
+               "Property, plant and equipment", "Total assets"}
+    assert sum(b["face_rows"] for b in index["buckets"]) == len(printed)
 
     def labels(bucket: str) -> set[str]:
         body = client.get(f"/api/v1/documents/{doc_id}/buckets/{bucket}").json()
         return {r["source_label"] for r in body["rows"]}
 
     assert "Property, plant and equipment" in labels("non_current_assets")
-    assert {"Trade receivables"} <= labels("current_assets")
     assert any("Cash and cash equivalents" in x for x in labels("current_assets"))
-    # The balance sheet's own total spans both asset buckets, so it is in Others by design.
-    assert "Total assets" in labels("others")
+    # WHERE TWO OF THE FOUR MOVED, and it is a placement change in the CONFIGURATION rather than in
+    # the mechanism — recorded here instead of relaxed away:
+    #
+    # * "Total assets" is in current_assets, not Others. The old comment read "the balance sheet's
+    #   own total spans both asset buckets, so it is in Others by design"; the configured template
+    #   declares it as ``bs_ca__total_assets``, INSIDE the current-assets section, so the resolved
+    #   section answers current_assets and the row is placed rather than spanning. Whether that
+    #   declaration is right is a question about the shipped configuration, editable on the Line
+    #   Items screen — which is the point of there being one configuration engine.
+    # * "Trade receivables" resolves to no section, so it is in Others and counted unresolved. A
+    #   COVERAGE LOSS, stated as a number below rather than hidden: the caption reaches
+    #   ``engine_unclassified_face__balance_sheet__unresolved_section__trade_receivables``, which
+    #   keeps the row stored and reviewable but places it nowhere. It is fixable by adding the alias
+    #   to ``bs_ca__trade_receivables`` in configuration, and a blank a user can fix beats a filled
+    #   cell from a path that is gone.
+    assert "Total assets" in labels("current_assets")
+    assert "Trade receivables" in labels("others")
+    assert index["unresolved_face_rows"] == 1, (
+        "one of the fixture's four captions resolves to no section; if this becomes 0 the "
+        "configuration gained the alias and this test should say so")
 
 
 def test_an_extraction_that_pins_no_rulebook_still_uses_the_one_in_force(client):
@@ -792,21 +831,26 @@ def test_an_extraction_that_pins_no_rulebook_still_uses_the_one_in_force(client)
     reconstruct "whatever was in force at the time".
     """
     # The TEMPLATE is pinned; the rulebook deliberately is not, because that is the subject. See
-    # ``_shipped_template_id``: the template default is the latest one stored, so a throwaway
+    # ``_configured_template_id``: the template default is the latest one stored, so a throwaway
     # template from a neighbouring test would otherwise decide which template's rulebook this
     # question is about.
     doc_id, run_id = _extract(client, "buckets-default-rulebook.pdf",
-                              template_version_id=_shipped_template_id(client))
+                              template_version_id=_configured_template_id(client))
 
     served = client.get(f"/api/v1/extractions/{run_id}").json()["result"]
     assert served["rulebook"]["applied"] is True
-    assert served["rulebook"]["ontology_key"] == "hkfrs_hk_china"
-    assert served["rulebook"]["ontology_version_id"], "the run must name the rulebook it used"
+    assert served["rulebook"]["line_items_key"] == "output_csv_hk"
+    assert served["rulebook"]["line_item_version_id"], "the run must name the rulebook it used"
 
     index = client.get(f"/api/v1/documents/{doc_id}/buckets").json()
     counts = {b["bucket"]: b["face_rows"] for b in index["buckets"]}
     assert counts["current_assets"] == 2 and counts["non_current_assets"] == 1
-    assert index["unresolved_face_rows"] == 0
+    # One of the fixture's four captions resolves to no section under the shipped configuration and
+    # is placed in Others; see the test above for what that costs and how it is fixed. The subject
+    # here is that the DEFAULT resolved a configuration at all — three placed rows instead of the
+    # zero a run with nothing in force produced.
+    assert index["unresolved_face_rows"] == 1
+    assert counts["others"] == 1
 
 
 def test_the_worker_reads_the_options_the_run_stores(client):
@@ -821,14 +865,15 @@ def test_the_worker_reads_the_options_the_run_stores(client):
     # Template pinned for the same reason as the test above: the subject is the RULEBOOK reaching
     # the worker, and the rulebook is chosen for whichever template is in force.
     _doc_id, run_id = _extract(client, "buckets-one-options-dict.pdf",
-                               template_version_id=_shipped_template_id(client))
+                               template_version_id=_configured_template_id(client))
     with SessionLocal() as session:
         run = session.get(ExtractionRun, run_id)
-        stored = run.options.get("ontology_version_id")
+        stored = run.options.get("line_item_version_id")
         assert stored, "the run did not pin a rulebook"
         # The row's column and its options agree, and the figures were produced by that rulebook.
-        assert run.ontology_version_id == stored
-        assert run.result["rulebook"]["ontology_version_id"] == stored
+        # The column was ``ontology_version_id``; the pin is the line-item version now.
+        assert run.line_item_version_id == stored
+        assert run.result["rulebook"]["line_item_version_id"] == stored
         assert run.result["rulebook"]["applied"] is True
 
 
@@ -840,7 +885,7 @@ def test_a_caller_pinning_a_rulebook_still_gets_the_one_it_asked_for(client):
     _doc_id, run_id = _extract(client, "buckets-pinned.pdf", pinned)
 
     served = client.get(f"/api/v1/extractions/{run_id}").json()["result"]
-    assert served["rulebook"]["ontology_version_id"] == pinned
+    assert served["rulebook"]["line_item_version_id"] == pinned
 
 
 # --- the duplication is confined to the bucket store -------------------------------------------

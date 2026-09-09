@@ -93,52 +93,7 @@
   ],
   "no_fabricated_split": "Never invent a decomposition. Where only a combined figure is reported, load the combined concept and leave the children empty. The one exception is a concept declaring sole_component_of: assigning a whole undifferentiated figure to a single child divides nothing, and it is refused as soon as any sibling child is evidenced on the face or in the subtotal's own note.",
   "totals_policy": "Compute totals from mutually exclusive concept outputs. Use reported totals only for validation, never as an input to the components.",
-  "mutually_exclusive_groups": [
-   {
-    "id": "equity_reserves",
-    "note": "The template's bs_equity__reserves rollup lists all of these. Loading the aggregate and its components together double-counts, and that rollup is what reports the disagreement when a filing prints both.",
-    "aggregate": "bs_equity__reserves",
-    "components": [
-     "bs_equity__share_premium",
-     "bs_equity__capital_reserve",
-     "bs_equity__general_reserve",
-     "bs_equity__other_comprehensive_income_reserve",
-     "bs_equity__retained_earnings",
-     "bs_equity__treasury_shares",
-     "bs_equity__shares_held_for_share_award_schemes",
-     "bs_equity__others"
-    ],
-    "rule": "Populate the aggregate only when the face prints a single undifferentiated 'Reserves' line. If any component is printed, populate components and leave the aggregate null."
-   },
-   {
-    "id": "associate_jv_share",
-    "aggregate": "pl_exceptional_items__share_of_profit_of_associates_and_jvs",
-    "components": [
-     "pl_exceptional_items__share_of_profits_and_losses_of_associates",
-     "pl_exceptional_items__share_of_profits_and_losses_of_joint_ventures"
-    ],
-    "rule": "Combined face line populates the aggregate. Separately printed lines populate the components. Never both."
-   },
-   {
-    "id": "cf_starting_point",
-    "note": "The template's operating rollup lists both starting lines because exactly one is ever printed, which is how the spec's COALESCE is expressed without a COALESCE operator. A filing populating both would count its profit twice in operating profit before working capital changes.",
-    "aggregate": "cf_cash_flow_from_operating_activities__profit_before_tax",
-    "components": [
-     "cf_cash_flow_from_operating_activities__profit_for_the_year"
-    ],
-    "rule": "An indirect-method cash flow starts from profit before tax OR from profit for the year. Populate whichever the face prints and leave the other null."
-   },
-   {
-    "id": "oci_composition",
-    "note": "The template's pl_other_comprehensive_income_for_the_year rollup lists both categories. Loading the printed subtotal alongside them double-counts other comprehensive income, and the rollup reports the disagreement when a filing prints both.",
-    "aggregate": "pl_other_comprehensive_income_for_the_year",
-    "components": [
-     "pl_oci__items_not_reclassified",
-     "pl_oci__items_may_be_reclassified"
-    ],
-    "rule": "Populate the subtotal only when the face prints a single undifferentiated other comprehensive income line. If either category is printed, populate the categories and leave the subtotal null."
-   }
-  ]
+  "mutually_exclusive_groups": []
  },
  "residual_framework": {
   "note": "One definition governing the 11 output-template subsection residuals. Each uses an existing template line; no template row is added.",
@@ -643,6 +598,9 @@
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
    ],
+   "confusable_with": [
+    "bs_nca__land_use_rights"
+   ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
    "match_priority": 81,
@@ -964,10 +922,8 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "bs_nca__land | bs_nca__construction_in_progress"
-   ],
-   "expected_components": [
-    "bs_nca__land | bs_nca__construction_in_progress"
+    "bs_nca__land",
+    "bs_nca__construction_in_progress"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -1131,8 +1087,7 @@
    "label": "Land use rights",
    "definition": "Extract the reported value for 'Land use rights' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
-    "Land use rights",
-    "Intangible Assets"
+    "Land use rights"
    ],
    "keyword_hints": [
     "Land use rights"
@@ -1146,6 +1101,9 @@
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
    ],
+   "confusable_with": [
+    "bs_nca__buildings"
+   ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
    "match_priority": 81,
@@ -1158,8 +1116,7 @@
    "template_note": "Exact field from Balance Sheet!A19; value cell B19.",
    "aliases_i18n": {
     "en": [
-     "Land use rights",
-     "Intangible Assets"
+     "Land use rights"
     ],
     "zh": [
      "其他无形资产",
@@ -1443,10 +1400,8 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "bs_nca__goodwill | bs_nca__accum_intgbl_assets_amort"
-   ],
-   "expected_components": [
-    "bs_nca__goodwill | bs_nca__accum_intgbl_assets_amort"
+    "bs_nca__goodwill",
+    "bs_nca__accum_intgbl_assets_amort"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -1685,8 +1640,7 @@
     "Due from directors",
     "Directors current account",
     "Loan to/Loan receivables from/Other receivables from Directors",
-    "Directors' C/A",
-    "Related Party Transactions"
+    "Directors' C/A"
    ],
    "keyword_hints": [
     "Due from directors"
@@ -1715,8 +1669,7 @@
      "Due from directors",
      "Directors current account",
      "Loan to/Loan receivables from/Other receivables from Directors",
-     "Directors' C/A",
-     "Related Party Transactions"
+     "Directors' C/A"
     ]
    }
   },
@@ -1728,8 +1681,7 @@
     "Due from subsidiaries",
     "Subsidiaries current account",
     "Loans to/Loan receivables from/Other receivables from Subsidiaries",
-    "Subsidiaries' C/A",
-    "Related Party Transactions"
+    "Subsidiaries' C/A"
    ],
    "keyword_hints": [
     "Due from subsidiaries"
@@ -1758,8 +1710,7 @@
      "Due from subsidiaries",
      "Subsidiaries current account",
      "Loans to/Loan receivables from/Other receivables from Subsidiaries",
-     "Subsidiaries' C/A",
-     "Related Party Transactions"
+     "Subsidiaries' C/A"
     ]
    }
   },
@@ -1915,8 +1866,7 @@
     "Due from non-controlling interest",
     "current account with Non-controlling interest",
     "Loan to/Loan receivables from/Other receivables from Non-controlling interest",
-    "Non-controlling interest' C/A",
-    "Related Party Transactions"
+    "Non-controlling interest' C/A"
    ],
    "keyword_hints": [
     "Due from MI"
@@ -1951,8 +1901,7 @@
      "Due from non-controlling interest",
      "current account with Non-controlling interest",
      "Loan to/Loan receivables from/Other receivables from Non-controlling interest",
-     "Non-controlling interest' C/A",
-     "Related Party Transactions"
+     "Non-controlling interest' C/A"
     ]
    }
   },
@@ -2072,7 +2021,7 @@
    "value_scope": "exclusive_leaf",
    "extraction_mode": "derive",
    "match_priority": 78,
-   "alias_matching": "disabled",
+   "alias_matching": "enabled",
    "inherits": "bs_nca",
    "face_only": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
@@ -2634,6 +2583,11 @@
     "plug": false,
     "itemise": true
    },
+   "expected_components": [
+    "Club memberships and club debentures",
+    "Contract assets recoverable after more than one year",
+    "Deferred debt issue costs"
+   ],
    "aliases_i18n": {
     "en": [
      "Other Non-Current Assets",
@@ -3069,10 +3023,10 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "bs_nca__net_fixed_assets | bs_nca__net_intangibles | bs_nca__investment_property_net | bs_nca__restricted_cash"
-   ],
-   "expected_components": [
-    "bs_nca__net_fixed_assets | bs_nca__net_intangibles | bs_nca__investment_property_net | bs_nca__restricted_cash"
+    "bs_nca__net_fixed_assets",
+    "bs_nca__net_intangibles",
+    "bs_nca__investment_property_net",
+    "bs_nca__restricted_cash"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -3286,10 +3240,8 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "bs_ca__raw_materials | bs_ca__finished_goods"
-   ],
-   "expected_components": [
-    "bs_ca__raw_materials | bs_ca__finished_goods"
+    "bs_ca__raw_materials",
+    "bs_ca__finished_goods"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -4425,6 +4377,12 @@
     "plug": false,
     "itemise": true
    },
+   "expected_components": [
+    "Contract assets",
+    "Amounts due from customers on construction contracts",
+    "Costs incurred to obtain or fulfil a contract",
+    "Non-current assets maturing within one year that the filing does not itemise"
+   ],
    "aliases_i18n": {
     "en": [
      "Other Current Assets",
@@ -4466,6 +4424,9 @@
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
    ],
+   "confusable_with": [
+    "bs_ca__trade_and_other_receivables_related_parties"
+   ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
    "match_priority": 81,
@@ -4504,6 +4465,9 @@
    ],
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
+   ],
+   "confusable_with": [
+    "bs_ca__trade_receivables_related_parties"
    ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
@@ -4544,6 +4508,9 @@
    ],
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
+   ],
+   "confusable_with": [
+    "bs_ca__trade_receivables_gross"
    ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
@@ -4605,6 +4572,9 @@
    ],
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
+   ],
+   "confusable_with": [
+    "bs_ca__trade_and_other_receivables"
    ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
@@ -4700,10 +4670,8 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "bs_ca__trade_receivables_gross | bs_ca__allow_for_doubtful_accounts"
-   ],
-   "expected_components": [
-    "bs_ca__trade_receivables_gross | bs_ca__allow_for_doubtful_accounts"
+    "bs_ca__trade_receivables_gross",
+    "bs_ca__allow_for_doubtful_accounts"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -5134,10 +5102,13 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "bs_ca__operating_lease_receivables | bs_ca__inventories | bs_ca__due_from_jvs_and_partnerships | bs_ca__trade_and_other_receivables | bs_ca__net_trade_receivables | bs_ca__subscribed_capital_called_not_paid | bs_ca__cash_in_hand_and_at_banks"
-   ],
-   "expected_components": [
-    "bs_ca__operating_lease_receivables | bs_ca__inventories | bs_ca__due_from_jvs_and_partnerships | bs_ca__trade_and_other_receivables | bs_ca__net_trade_receivables | bs_ca__subscribed_capital_called_not_paid | bs_ca__cash_in_hand_and_at_banks"
+    "bs_ca__operating_lease_receivables",
+    "bs_ca__inventories",
+    "bs_ca__due_from_jvs_and_partnerships",
+    "bs_ca__trade_and_other_receivables",
+    "bs_ca__net_trade_receivables",
+    "bs_ca__subscribed_capital_called_not_paid",
+    "bs_ca__cash_in_hand_and_at_banks"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -5183,14 +5154,11 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "bs_nca__total_non_current_assets | bs_ca__total_current_assets"
-   ],
-   "expected_components": [
-    "bs_nca__total_non_current_assets | bs_ca__total_current_assets"
+    "bs_nca__total_non_current_assets",
+    "bs_ca__total_current_assets"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
    "template_note": "Exact field from Balance Sheet!A106; value cell B106.",
    "unit_of_account": "subtotal",
    "aliases_i18n": {
@@ -5482,10 +5450,8 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "bs_equity__common_share_capital | bs_equity__capital_and_restricted_reserves"
-   ],
-   "expected_components": [
-    "bs_equity__common_share_capital | bs_equity__capital_and_restricted_reserves"
+    "bs_equity__common_share_capital",
+    "bs_equity__capital_and_restricted_reserves"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -5565,6 +5531,9 @@
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
    ],
+   "confusable_with": [
+    "bs_equity__accum_oth_eqty_rsrv_inc"
+   ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
    "match_priority": 81,
@@ -5623,6 +5592,11 @@
     "plug": false,
     "itemise": true
    },
+   "expected_components": [
+    "Share option and share-based payment reserve",
+    "Special reserve, including a PRC safety production reserve",
+    "Proposed final dividend presented as a component of equity"
+   ],
    "aliases_i18n": {
     "en": [
      "Other Reserves",
@@ -5640,6 +5614,7 @@
     "bs_equity__permanent_equity",
     "bs_equity__retained_profits",
     "bs_ca__total_assets",
+    "bs_cl__total_liabilities",
     "bs_cl__total_equity_and_liabilities",
     "any row printed in the assets or liabilities sections",
     "any movement belonging to the retained-profits reconciliation"
@@ -5713,10 +5688,15 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "bs_ca__total_assets | bs_ncl__total_non_current_liabilities | bs_cl__total_current_liabilities | bs_equity__minority_interest_equity | bs_equity__permanent_equity | bs_equity__revaluation_reserves | bs_equity__auditor_adj_on_retained_profits | bs_equity__treasury_shares | bs_equity__accum_oth_eqty_rsrv_inc"
-   ],
-   "expected_components": [
-    "bs_ca__total_assets | bs_ncl__total_non_current_liabilities | bs_cl__total_current_liabilities | bs_equity__minority_interest_equity | bs_equity__permanent_equity | bs_equity__revaluation_reserves | bs_equity__auditor_adj_on_retained_profits | bs_equity__treasury_shares | bs_equity__accum_oth_eqty_rsrv_inc"
+    "bs_ca__total_assets",
+    "bs_ncl__total_non_current_liabilities",
+    "bs_cl__total_current_liabilities",
+    "bs_equity__minority_interest_equity",
+    "bs_equity__permanent_equity",
+    "bs_equity__revaluation_reserves",
+    "bs_equity__auditor_adj_on_retained_profits",
+    "bs_equity__treasury_shares",
+    "bs_equity__accum_oth_eqty_rsrv_inc"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -6013,6 +5993,9 @@
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
    ],
+   "confusable_with": [
+    "bs_equity__hedging_reserves"
+   ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
    "match_priority": 81,
@@ -6121,9 +6104,6 @@
    "children_if_decomposed": [
     "bs_equity__minority_interest_equity"
    ],
-   "expected_components": [
-    "bs_equity__minority_interest_equity"
-   ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
@@ -6229,6 +6209,9 @@
    ],
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
+   ],
+   "confusable_with": [
+    "bs_ncl__entrusted_loan_payables_shareholders_ltp"
    ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
@@ -6707,6 +6690,9 @@
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
    ],
+   "confusable_with": [
+    "bs_ncl__entrusted_loan_payables_third_parties_ltp"
+   ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
    "match_priority": 81,
@@ -6877,11 +6863,12 @@
    ],
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children.",
-    "Do not bind calculated balance-sheet subtotals such as net current assets/liabilities or total assets less current liabilities."
+    "Do not bind calculated balance-sheet subtotals such as net current assets/liabilities, total assets less current liabilities, or this section's own closing total Total Non-Current Liabilities."
    ],
    "exclude_hints": [
     "^net current (?:assets|liabilities)",
-    "^total assets less current liabilities"
+    "^total assets less current liabilities",
+    "^total non[\\-–—]?current liabilities"
    ],
    "value_scope": "exclusive_residual",
    "extraction_mode": "extract",
@@ -6902,6 +6889,11 @@
     "plug": false,
     "itemise": true
    },
+   "expected_components": [
+    "Financial guarantee contracts",
+    "Deferred or contingent consideration payable on an acquisition",
+    "Convertible preference shares classified as a liability"
+   ],
    "aliases_i18n": {
     "en": [
      "Other Non-Current Liabilities",
@@ -7288,6 +7280,9 @@
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
    ],
+   "confusable_with": [
+    "bs_ncl__trade_payables_ltp"
+   ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
    "match_priority": 81,
@@ -7343,6 +7338,9 @@
    ],
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
+   ],
+   "confusable_with": [
+    "bs_ncl__trade_and_other_payables_ltp"
    ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
@@ -7733,10 +7731,8 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "bs_ncl__ltd_bank | bs_ncl__other_provisions_ltp"
-   ],
-   "expected_components": [
-    "bs_ncl__ltd_bank | bs_ncl__other_provisions_ltp"
+    "bs_ncl__ltd_bank",
+    "bs_ncl__other_provisions_ltp"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -7849,6 +7845,9 @@
    ],
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
+   ],
+   "confusable_with": [
+    "bs_cl__entrusted_loan_payables_shareholders_cp"
    ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
@@ -8545,6 +8544,9 @@
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
    ],
+   "confusable_with": [
+    "bs_cl__entrusted_loan_payables_third_parties_cp"
+   ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
    "match_priority": 81,
@@ -8837,6 +8839,11 @@
     "plug": false,
     "itemise": true
    },
+   "expected_components": [
+    "Liabilities directly associated with assets classified as held for sale",
+    "Accrued staff salaries, bonuses and welfare payable",
+    "Financial liabilities held for trading that are not derivatives"
+   ],
    "aliases_i18n": {
     "en": [
      "Other Current Liabilities"
@@ -9520,6 +9527,11 @@
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
    ],
+   "confusable_with": [
+    "bs_cl__trade_and_other_payables_cp",
+    "bs_cl__trade_and_other_payables_related_parties",
+    "bs_cl__trade_payables_cp"
+   ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
    "match_priority": 81,
@@ -9561,6 +9573,11 @@
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
    ],
+   "confusable_with": [
+    "bs_cl__trade_and_other_payables_cp",
+    "bs_cl__trade_payables_cp",
+    "bs_cl__trade_payables_related_parties"
+   ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
    "match_priority": 81,
@@ -9601,6 +9618,11 @@
    ],
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
+   ],
+   "confusable_with": [
+    "bs_cl__trade_and_other_payables_related_parties",
+    "bs_cl__trade_payables_cp",
+    "bs_cl__trade_payables_related_parties"
    ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
@@ -9660,6 +9682,11 @@
    ],
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
+   ],
+   "confusable_with": [
+    "bs_cl__trade_and_other_payables_cp",
+    "bs_cl__trade_and_other_payables_related_parties",
+    "bs_cl__trade_payables_related_parties"
    ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
@@ -9967,10 +9994,8 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "bs_cl__cpltd_bank | bs_cl__other_provisions_cp"
-   ],
-   "expected_components": [
-    "bs_cl__cpltd_bank | bs_cl__other_provisions_cp"
+    "bs_cl__cpltd_bank",
+    "bs_cl__other_provisions_cp"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -10015,14 +10040,11 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "bs_ncl__total_non_current_liabilities | bs_cl__total_current_liabilities"
-   ],
-   "expected_components": [
-    "bs_ncl__total_non_current_liabilities | bs_cl__total_current_liabilities"
+    "bs_ncl__total_non_current_liabilities",
+    "bs_cl__total_current_liabilities"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
    "template_note": "Exact field from Balance Sheet!A219; value cell B219.",
    "unit_of_account": "subtotal",
    "aliases_i18n": {
@@ -10068,14 +10090,11 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "bs_equity__total_equity_and_reserves | bs_cl__total_liabilities"
-   ],
-   "expected_components": [
-    "bs_equity__total_equity_and_reserves | bs_cl__total_liabilities"
+    "bs_equity__total_equity_and_reserves",
+    "bs_cl__total_liabilities"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
    "template_note": "Exact field from Balance Sheet!A220; value cell B220.",
    "unit_of_account": "subtotal",
    "aliases_i18n": {
@@ -10502,13 +10521,9 @@
      "Impairment of intangible assets"
     ],
     "zh": [
-     "使用权资产的折旧",
      "其他无形资产",
-     "折旧",
-     "折旧及摊销",
      "无形资产",
-     "无形资产摊销",
-     "物业及设备折旧"
+     "无形资产摊销"
     ]
    }
   },
@@ -10601,10 +10616,8 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "is_pl__derivatives_cos | is_pl__deprec_and_impairment_cos"
-   ],
-   "expected_components": [
-    "is_pl__derivatives_cos | is_pl__deprec_and_impairment_cos"
+    "is_pl__derivatives_cos",
+    "is_pl__deprec_and_impairment_cos"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -10647,10 +10660,9 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "is_pl__sales_revenues | is_pl__expenses_own_work_capitalized | is_pl__total_cost_of_sales"
-   ],
-   "expected_components": [
-    "is_pl__sales_revenues | is_pl__expenses_own_work_capitalized | is_pl__total_cost_of_sales"
+    "is_pl__sales_revenues",
+    "is_pl__expenses_own_work_capitalized",
+    "is_pl__total_cost_of_sales"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -11344,6 +11356,11 @@
     "plug": false,
     "itemise": true
    },
+   "expected_components": [
+    "Listing expenses",
+    "Direct operating expenses of investment properties",
+    "Loss on modification or early termination of a lease"
+   ],
    "aliases_i18n": {
     "en": [
      "Other Operating Expenses",
@@ -11817,7 +11834,7 @@
    "value_scope": "exclusive_leaf",
    "extraction_mode": "derive",
    "match_priority": 20,
-   "alias_matching": "disabled",
+   "alias_matching": "enabled",
    "inherits": "is_pl",
    "face_only": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
@@ -11902,8 +11919,6 @@
    "aliases": [
     "Amort & Impairment(Intgbl)",
     "Amortisation of intangible assets",
-    "Profit/Loss before income tax",
-    "Intangbile assets",
     "Amortization of intangible assets"
    ],
    "keyword_hints": [
@@ -11932,16 +11947,10 @@
     "en": [
      "Amort & Impairment(Intgbl)",
      "Amortisation of intangible assets",
-     "Profit/Loss before income tax",
-     "Intangbile assets",
      "Amortization of intangible assets"
     ],
     "zh": [
-     "使用权资产的折旧",
-     "折旧",
-     "折旧及摊销",
-     "无形资产摊销",
-     "物业及设备折旧"
+     "无形资产摊销"
     ]
    }
   },
@@ -12051,10 +12060,11 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "is_pl__gross_profit | is_pl__rents_and_royalty_income | is_pl__grants_and_subsidies | is_pl__selling_and_marketing_expenses | is_pl__capitalized_costs"
-   ],
-   "expected_components": [
-    "is_pl__gross_profit | is_pl__rents_and_royalty_income | is_pl__grants_and_subsidies | is_pl__selling_and_marketing_expenses | is_pl__capitalized_costs"
+    "is_pl__gross_profit",
+    "is_pl__rents_and_royalty_income",
+    "is_pl__grants_and_subsidies",
+    "is_pl__selling_and_marketing_expenses",
+    "is_pl__capitalized_costs"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -12755,10 +12765,10 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "is_pl__interest_income_from_derivatives | is_pl__interest_income | is_pl__interest_on_lease_liabilities | is_pl__deferred_interest_expense"
-   ],
-   "expected_components": [
-    "is_pl__interest_income_from_derivatives | is_pl__interest_income | is_pl__interest_on_lease_liabilities | is_pl__deferred_interest_expense"
+    "is_pl__interest_income_from_derivatives",
+    "is_pl__interest_income",
+    "is_pl__interest_on_lease_liabilities",
+    "is_pl__deferred_interest_expense"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -13341,10 +13351,8 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "is_pl__income_loss_from_related_party | is_pl__fmv_adj_on_fncl_assets"
-   ],
-   "expected_components": [
-    "is_pl__income_loss_from_related_party | is_pl__fmv_adj_on_fncl_assets"
+    "is_pl__income_loss_from_related_party",
+    "is_pl__fmv_adj_on_fncl_assets"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -13710,10 +13718,8 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "is_pl__gain_loss_disp_of_fixed_assets | is_pl__other_non_oper_inc_exp_nc"
-   ],
-   "expected_components": [
-    "is_pl__gain_loss_disp_of_fixed_assets | is_pl__other_non_oper_inc_exp_nc"
+    "is_pl__gain_loss_disp_of_fixed_assets",
+    "is_pl__other_non_oper_inc_exp_nc"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -13759,10 +13765,10 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "is_pl__net_operating_profit | is_pl__net_interest_income_expense | is_pl__net_other_financial_inc_exp | is_pl__other_income_expense"
-   ],
-   "expected_components": [
-    "is_pl__net_operating_profit | is_pl__net_interest_income_expense | is_pl__net_other_financial_inc_exp | is_pl__other_income_expense"
+    "is_pl__net_operating_profit",
+    "is_pl__net_interest_income_expense",
+    "is_pl__net_other_financial_inc_exp",
+    "is_pl__other_income_expense"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -13941,10 +13947,8 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "is_pl__current_income_taxes | is_pl__prior_year_tax_adj"
-   ],
-   "expected_components": [
-    "is_pl__current_income_taxes | is_pl__prior_year_tax_adj"
+    "is_pl__current_income_taxes",
+    "is_pl__prior_year_tax_adj"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -13999,10 +14003,8 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "is_pl__profit_loss_before_tax | is_pl__total_income_tax"
-   ],
-   "expected_components": [
-    "is_pl__profit_loss_before_tax | is_pl__total_income_tax"
+    "is_pl__profit_loss_before_tax",
+    "is_pl__total_income_tax"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -14174,10 +14176,9 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "is_pl__profit_loss_bef_extraord_items | is_pl__extraordinary_income_exp | is_pl__minority_interests_pl"
-   ],
-   "expected_components": [
-    "is_pl__profit_loss_bef_extraord_items | is_pl__extraordinary_income_exp | is_pl__minority_interests_pl"
+    "is_pl__profit_loss_bef_extraord_items",
+    "is_pl__extraordinary_income_exp",
+    "is_pl__minority_interests_pl"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -14231,6 +14232,12 @@
    ],
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
+   ],
+   "confusable_with": [
+    "is_oci__deferred_hedging_gain_loss",
+    "is_oci__minimum_pension_liability_adj",
+    "is_oci__unreal_gain_loss_invest_prpty",
+    "is_oci__unreal_gain_loss_investments"
    ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
@@ -14286,6 +14293,12 @@
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
    ],
+   "confusable_with": [
+    "is_oci__deferred_hedging_gain_loss",
+    "is_oci__minimum_pension_liability_adj",
+    "is_oci__unreal_gain_loss_fixed_assets",
+    "is_oci__unreal_gain_loss_investments"
+   ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
    "match_priority": 10,
@@ -14335,6 +14348,12 @@
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
    ],
+   "confusable_with": [
+    "is_oci__deferred_hedging_gain_loss",
+    "is_oci__minimum_pension_liability_adj",
+    "is_oci__unreal_gain_loss_fixed_assets",
+    "is_oci__unreal_gain_loss_invest_prpty"
+   ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
    "match_priority": 10,
@@ -14383,6 +14402,12 @@
    ],
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
+   ],
+   "confusable_with": [
+    "is_oci__minimum_pension_liability_adj",
+    "is_oci__unreal_gain_loss_fixed_assets",
+    "is_oci__unreal_gain_loss_invest_prpty",
+    "is_oci__unreal_gain_loss_investments"
    ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
@@ -14471,6 +14496,12 @@
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
    ],
+   "confusable_with": [
+    "is_oci__deferred_hedging_gain_loss",
+    "is_oci__unreal_gain_loss_fixed_assets",
+    "is_oci__unreal_gain_loss_invest_prpty",
+    "is_oci__unreal_gain_loss_investments"
+   ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
    "match_priority": 10,
@@ -14517,12 +14548,13 @@
    ],
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children.",
-    "Do not bind profit/loss for the year or total comprehensive income; those are calculated totals."
+    "Do not bind profit/loss for the year, total comprehensive income, or this section's own closing total Total Other Comprehensive Income; those are calculated totals."
    ],
    "exclude_hints": [
     "^(?:profit|loss) for the year$",
     "total comprehensive (?:income|loss)",
-    "^other comprehensive income/loss for the year$"
+    "^other comprehensive income/loss for the year$",
+    "^total other comprehensive income"
    ],
    "value_scope": "exclusive_residual",
    "extraction_mode": "extract",
@@ -14543,6 +14575,11 @@
     "plug": false,
     "itemise": true
    },
+   "expected_components": [
+    "Exchange differences on translation of foreign operations",
+    "Share of other comprehensive income of associates and joint ventures",
+    "Income tax relating to components of other comprehensive income"
+   ],
    "aliases_i18n": {
     "en": [
      "Other Equity & Reserves Adj",
@@ -14578,10 +14615,8 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "is_oci__unreal_gain_loss_fixed_assets | is_oci__other_equity_and_reserves_adj"
-   ],
-   "expected_components": [
-    "is_oci__unreal_gain_loss_fixed_assets | is_oci__other_equity_and_reserves_adj"
+    "is_oci__unreal_gain_loss_fixed_assets",
+    "is_oci__other_equity_and_reserves_adj"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -14605,7 +14640,6 @@
    "definition": "Extract the reported value for 'Cash Div Pref Shares(-)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
     "Cash Div Pref Shares(-)",
-    "Retained Profits",
     "Undistributed profits"
    ],
    "keyword_hints": [
@@ -14620,6 +14654,13 @@
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
    ],
+   "confusable_with": [
+    "is_retained__cash_div_common_shares",
+    "is_retained__prior_period_adjustments",
+    "is_retained__proposed_cash_dividends",
+    "is_retained__stock_dividends_nc",
+    "is_retained__transfer_to_reserves"
+   ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
    "match_priority": 10,
@@ -14633,7 +14674,6 @@
    "aliases_i18n": {
     "en": [
      "Cash Div Pref Shares(-)",
-     "Retained Profits",
      "Undistributed profits"
     ],
     "zh": [
@@ -14653,7 +14693,6 @@
     "Proposed dividends",
     "declared dividends",
     "Proposed final dividends",
-    "Retained Profits",
     "Undistributed profits",
     "Subsequent events",
     "Event after the reporting period"
@@ -14669,6 +14708,13 @@
    ],
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
+   ],
+   "confusable_with": [
+    "is_retained__cash_div_common_shares",
+    "is_retained__cash_div_pref_shares",
+    "is_retained__prior_period_adjustments",
+    "is_retained__stock_dividends_nc",
+    "is_retained__transfer_to_reserves"
    ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
@@ -14686,7 +14732,6 @@
      "Proposed dividends",
      "declared dividends",
      "Proposed final dividends",
-     "Retained Profits",
      "Undistributed profits",
      "Subsequent events",
      "Event after the reporting period"
@@ -14709,7 +14754,6 @@
     "Dividends",
     "Cash dividends",
     "distribution of cash dividends",
-    "Retained Profits",
     "Undistributed profits"
    ],
    "keyword_hints": [
@@ -14723,6 +14767,13 @@
    ],
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
+   ],
+   "confusable_with": [
+    "is_retained__cash_div_pref_shares",
+    "is_retained__prior_period_adjustments",
+    "is_retained__proposed_cash_dividends",
+    "is_retained__stock_dividends_nc",
+    "is_retained__transfer_to_reserves"
    ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
@@ -14741,7 +14792,6 @@
      "Dividends",
      "Cash dividends",
      "distribution of cash dividends",
-     "Retained Profits",
      "Undistributed profits"
     ],
     "zh": [
@@ -14761,7 +14811,6 @@
     "stock dividends",
     "Bank stock dividends",
     "Other stock dividends",
-    "Retained Profits",
     "Undistributed profits"
    ],
    "keyword_hints": [
@@ -14775,6 +14824,13 @@
    ],
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
+   ],
+   "confusable_with": [
+    "is_retained__cash_div_common_shares",
+    "is_retained__cash_div_pref_shares",
+    "is_retained__prior_period_adjustments",
+    "is_retained__proposed_cash_dividends",
+    "is_retained__transfer_to_reserves"
    ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
@@ -14792,7 +14848,6 @@
      "stock dividends",
      "Bank stock dividends",
      "Other stock dividends",
-     "Retained Profits",
      "Undistributed profits"
     ],
     "zh": [
@@ -14809,7 +14864,6 @@
    "definition": "Extract the reported value for 'Transfer to Reserves(-)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
     "Transfer to Reserves(-)",
-    "Retained Profits",
     "Undistributed profits"
    ],
    "keyword_hints": [
@@ -14824,6 +14878,13 @@
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
    ],
+   "confusable_with": [
+    "is_retained__cash_div_common_shares",
+    "is_retained__cash_div_pref_shares",
+    "is_retained__prior_period_adjustments",
+    "is_retained__proposed_cash_dividends",
+    "is_retained__stock_dividends_nc"
+   ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
    "match_priority": 10,
@@ -14837,7 +14898,6 @@
    "aliases_i18n": {
     "en": [
      "Transfer to Reserves(-)",
-     "Retained Profits",
      "Undistributed profits"
     ],
     "zh": [
@@ -14857,7 +14917,6 @@
     "Prior year adjustments",
     "Opening adjustments",
     "Effect of change in accounting policy",
-    "Retained Profits",
     "Undistributed profits"
    ],
    "keyword_hints": [
@@ -14871,6 +14930,13 @@
    ],
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
+   ],
+   "confusable_with": [
+    "is_retained__cash_div_common_shares",
+    "is_retained__cash_div_pref_shares",
+    "is_retained__proposed_cash_dividends",
+    "is_retained__stock_dividends_nc",
+    "is_retained__transfer_to_reserves"
    ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
@@ -14888,7 +14954,6 @@
      "Prior year adjustments",
      "Opening adjustments",
      "Effect of change in accounting policy",
-     "Retained Profits",
      "Undistributed profits"
     ],
     "zh": [
@@ -14904,8 +14969,7 @@
    "label": "Other Adj to Retained Profits",
    "definition": "Extract the reported value for 'Other Adj to Retained Profits' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
-    "Other Adj to Retained Profits",
-    "Retained Profits"
+    "Other Adj to Retained Profits"
    ],
    "keyword_hints": [
     "Other Adj to Retained Profits"
@@ -14938,10 +15002,14 @@
     "plug": false,
     "itemise": true
    },
+   "expected_components": [
+    "Distributions to holders of perpetual capital securities",
+    "Acquisition of non-controlling interests charged to retained profits",
+    "Deemed disposal or dilution of an interest in a subsidiary"
+   ],
    "aliases_i18n": {
     "en": [
-     "Other Adj to Retained Profits",
-     "Retained Profits"
+     "Other Adj to Retained Profits"
     ],
     "zh": [
      "保留溢利",
@@ -16264,6 +16332,12 @@
     "plug": false,
     "itemise": true
    },
+   "expected_components": [
+    "Equity-settled share-based payment expense",
+    "Unrealised foreign exchange differences",
+    "Gain on bargain purchase or negative goodwill",
+    "Fair value gain or loss on investment properties added back as a non-cash item"
+   ],
    "aliases_i18n": {
     "en": [
      "Other Non-Cash Adjs(Oper)"
@@ -16300,10 +16374,8 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "cf_oper_indirect__net_profit_loss | cf_oper_indirect__other_non_cash_adjs_oper"
-   ],
-   "expected_components": [
-    "cf_oper_indirect__net_profit_loss | cf_oper_indirect__other_non_cash_adjs_oper"
+    "cf_oper_indirect__net_profit_loss",
+    "cf_oper_indirect__other_non_cash_adjs_oper"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -16328,8 +16400,7 @@
    "label": "Cash Receipts from Customers",
    "definition": "Extract the reported value for 'Cash Receipts from Customers' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
-    "Cash Receipts from Customers",
-    "Net cash used in/generated from operating activities(Direct)"
+    "Cash Receipts from Customers"
    ],
    "keyword_hints": [
     "Cash Receipts from Customers"
@@ -16355,8 +16426,7 @@
    "template_note": "Exact field from Cash Flow!A39; value cell B39.",
    "aliases_i18n": {
     "en": [
-     "Cash Receipts from Customers",
-     "Net cash used in/generated from operating activities(Direct)"
+     "Cash Receipts from Customers"
     ],
     "zh": [
      "销售商品、提供劳务收到的现金"
@@ -16406,8 +16476,7 @@
    "label": "Cash Paid to Employees",
    "definition": "Extract the reported value for 'Cash Paid to Employees' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
-    "Cash Paid to Employees",
-    "Net cash used in/generated from operating activities(Direct)"
+    "Cash Paid to Employees"
    ],
    "keyword_hints": [
     "Cash Paid to Employees"
@@ -16433,8 +16502,7 @@
    "template_note": "Exact field from Cash Flow!A41; value cell B41.",
    "aliases_i18n": {
     "en": [
-     "Cash Paid to Employees",
-     "Net cash used in/generated from operating activities(Direct)"
+     "Cash Paid to Employees"
     ],
     "zh": [
      "支付给职工以及为职工支付的现金"
@@ -16543,10 +16611,8 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "cf_oper_direct__cash_receipts_from_customers | cf_oper_direct__borrowing_costs_paid"
-   ],
-   "expected_components": [
-    "cf_oper_direct__cash_receipts_from_customers | cf_oper_direct__borrowing_costs_paid"
+    "cf_oper_direct__cash_receipts_from_customers",
+    "cf_oper_direct__borrowing_costs_paid"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -16811,6 +16877,9 @@
    ],
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
+   ],
+   "confusable_with": [
+    "cf_investing__sale_assoc_and_affiliates"
    ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
@@ -17109,6 +17178,9 @@
    ],
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
+   ],
+   "confusable_with": [
+    "cf_investing__proceeds_sale_investment_prop"
    ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
@@ -17475,6 +17547,12 @@
     "plug": false,
     "itemise": true
    },
+   "expected_components": [
+    "Advances to and repayments from related parties other than associates and joint ventures",
+    "Loans advanced to third parties and repayments received",
+    "Government grants received relating to assets",
+    "Placement and withdrawal of pledged or restricted bank deposits"
+   ],
    "aliases_i18n": {
     "en": [
      "Other Invest Cash Flows",
@@ -17484,7 +17562,7 @@
    "never_sweep": [
     "cf_investing__cash_flows_from_invest_activities",
     "cf_financing__cash_flows_from_finance_activities",
-    "the net cash flow from operating activities subtotal",
+    "cf_oper_indirect__cash_flows_oper_activ_indirect",
     "any row printed under the operating or financing activities banners",
     "the net increase or decrease in cash and cash equivalents"
    ]
@@ -17518,10 +17596,8 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "cf_investing__purchase_intangible_assets | cf_investing__other_invest_cash_flows"
-   ],
-   "expected_components": [
-    "cf_investing__purchase_intangible_assets | cf_investing__other_invest_cash_flows"
+    "cf_investing__purchase_intangible_assets",
+    "cf_investing__other_invest_cash_flows"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -17645,6 +17721,9 @@
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
    ],
+   "confusable_with": [
+    "cf_financing__repayments_non_cur_borrowings"
+   ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
    "match_priority": 81,
@@ -17742,6 +17821,9 @@
    ],
    "exclude": [
     "Do not substitute another section, period, entity scope, currency or unit; do not double count a parent and its children."
+   ],
+   "confusable_with": [
+    "cf_financing__proceeds_non_cur_borrowings"
    ],
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
@@ -18108,6 +18190,12 @@
     "plug": false,
     "itemise": true
    },
+   "expected_components": [
+    "Acquisition of non-controlling interests",
+    "Distributions to holders of perpetual capital securities",
+    "Share issue and listing expenses paid",
+    "Advances from and repayments to related parties"
+   ],
    "aliases_i18n": {
     "en": [
      "Other Financing Cash Flows"
@@ -18143,10 +18231,8 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "cf_financing__net_proceeds_issuance_of_capital | cf_financing__other_financing_cash_flows"
-   ],
-   "expected_components": [
-    "cf_financing__net_proceeds_issuance_of_capital | cf_financing__other_financing_cash_flows"
+    "cf_financing__net_proceeds_issuance_of_capital",
+    "cf_financing__other_financing_cash_flows"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -18285,10 +18371,11 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "cf_financing__beg_of_period_cash_and_cash_equiv | cf_oper_indirect__cash_flows_oper_activ_indirect | cf_investing__cash_flows_from_invest_activities | cf_financing__cash_flows_from_finance_activities | cf_financing__net_foreign_exchange_difference"
-   ],
-   "expected_components": [
-    "cf_financing__beg_of_period_cash_and_cash_equiv | cf_oper_indirect__cash_flows_oper_activ_indirect | cf_investing__cash_flows_from_invest_activities | cf_financing__cash_flows_from_finance_activities | cf_financing__net_foreign_exchange_difference"
+    "cf_financing__beg_of_period_cash_and_cash_equiv",
+    "cf_oper_indirect__cash_flows_oper_activ_indirect",
+    "cf_investing__cash_flows_from_invest_activities",
+    "cf_financing__cash_flows_from_finance_activities",
+    "cf_financing__net_foreign_exchange_difference"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",
@@ -18335,10 +18422,12 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "cf_financing__end_of_period_cash_and_cash_equiv | cf_financing__beg_of_period_cash_and_cash_equiv | cf_oper_indirect__cash_flows_oper_activ_indirect | cf_investing__cash_flows_from_invest_activities | cf_financing__cash_flows_from_finance_activities | cf_financing__net_foreign_exchange_difference"
-   ],
-   "expected_components": [
-    "cf_financing__end_of_period_cash_and_cash_equiv | cf_financing__beg_of_period_cash_and_cash_equiv | cf_oper_indirect__cash_flows_oper_activ_indirect | cf_investing__cash_flows_from_invest_activities | cf_financing__cash_flows_from_finance_activities | cf_financing__net_foreign_exchange_difference"
+    "cf_financing__end_of_period_cash_and_cash_equiv",
+    "cf_financing__beg_of_period_cash_and_cash_equiv",
+    "cf_oper_indirect__cash_flows_oper_activ_indirect",
+    "cf_investing__cash_flows_from_invest_activities",
+    "cf_financing__cash_flows_from_finance_activities",
+    "cf_financing__net_foreign_exchange_difference"
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "aggregation_note": "Calculate only after every dependency is populated and validated.",

@@ -56,8 +56,18 @@ class TemplateNode(BaseModel):
     label_i18n: dict[str, str] = Field(default_factory=dict)  # {"en": .., "zh": .., "ar": .., "fr": ..}
     role: LineRole = LineRole.LINE
     sign: SignConvention = SignConvention.NATURAL
+    # ``expects_note`` stays: it is a live note-reference hint, read on the extraction path.
     expects_note: bool = False
-    required: bool = False
+    # ``required`` used to sit here and is deliberately gone. NOTHING EVER READ IT — there is no
+    # post-run completeness check anywhere in ``app/``, so declaring a line required set a field no
+    # code consults and the Template screen and the editable workbook were both offering an author a
+    # gate that did not exist. Removed rather than wired up because the two shipped templates ticked
+    # it on 0 of their 682 nodes (480 + 202), so no authored template loses a rule, and a field that
+    # reads like a guard and is not is worse than no field: an author who marks the tax line required
+    # is told nothing when a filing omits it. The removal had to land AFTER the workbook writer and
+    # importer dropped the column (``services.template_xlsx.COLUMNS``): while the sheet still emitted
+    # the key, ``schemas.loader.unknown_keys`` would have refused a workbook-authored template here
+    # with a 422 naming a column the Read me sheet told the analyst to fill in.
     children: list["TemplateNode"] = Field(default_factory=list)
     rollup: Rollup | None = None
 

@@ -6,8 +6,17 @@ out of the Extraction Logic workbook's free-text formula column (`_quoted(logic_
 column describes the arithmetic, so the phrases it quotes include the components a formula
 SUBTRACTS and the notes it merely reads — registering those as aliases points the caption mapper
 at exactly the concepts the spec says to deduct or exclude. These tests pin the vocabulary rules
-each docs/*_Extraction_Logic*.md states in words, so a regenerated ontology that reintroduces the
+each docs/*_Extraction_Logic*.md states in words, so a regeneration that reintroduces the
 contamination fails here instead of silently producing a wrong figure.
+
+WHICH FILE GOVERNS, now that there is one configuration engine. A run maps against a
+``line_item_versions`` row seeded from ``output_csv_hk_line_items.json`` (`LINE_ITEMS` below);
+``output_csv_hk_ontology.json`` (`ONTOLOGY`) is the GENERATOR INPUT that set is projected from
+(``scripts/build_line_items.py``) and is no longer a stored, selectable or user-visible rulebook —
+``extraction.mapping_engine`` is deleted, so nothing chooses between the two any more. The curation
+assertions that decide what a run may match are therefore made against the configuration; the
+remaining `mappings` assertions guard the source those definitions are generated FROM, which is
+where a contaminated alias would come back in.
 """
 from __future__ import annotations
 
@@ -19,6 +28,8 @@ import pytest
 from app.services.mapping import normalize_label
 
 ONTOLOGY = Path(__file__).resolve().parents[1] / "app/sample/templates/output_csv_hk_ontology.json"
+LINE_ITEMS = (Path(__file__).resolve().parents[1]
+              / "app/sample/templates/output_csv_hk_line_items.json")
 
 OPER_EXP = "is_pl__deprec_and_impairment_oper_exp"
 COS = "is_pl__deprec_and_impairment_cos"
@@ -31,6 +42,28 @@ SALES = "is_pl__sales_revenues"
 
 SPEC_GOVERNED = (OPER_EXP, COS, SECUR_CP, SECUR_LTP, CONTINGENT, DUE_FROM_RP, OTHER_RECV_CP, SALES)
 
+AMORT_INTGBL = "is_pl__amort_and_impairment_intgbl"
+AMORT_INTGBL_COS = "is_pl__amort_and_impairment_intgbl_cos"
+CF_DEPRECIATION = "cf_oper_indirect__depreciation"
+
+LAND_USE_RIGHTS = "bs_nca__land_use_rights"
+OTHER_INTANGIBLES = "bs_nca__other_intangible_assets"
+NET_INTANGIBLES = "bs_nca__net_intangibles"
+DUE_FROM_DIRECTORS = "bs_nca__due_from_directors"
+DUE_FROM_SUBSIDIARIES = "bs_nca__due_from_subsidiaries"
+DUE_FROM_MI = "bs_nca__due_from_mi"
+RP_NOTE = "notes__related_party_transactions"
+EQUITY_RETAINED = "bs_equity__retained_profits"
+RETAINED_MOVEMENTS = (
+    "is_retained__cash_div_pref_shares",
+    "is_retained__proposed_cash_dividends",
+    "is_retained__cash_div_common_shares",
+    "is_retained__stock_dividends_nc",
+    "is_retained__transfer_to_reserves",
+    "is_retained__prior_period_adjustments",
+    "is_retained__other_adj_to_retained_profits",
+)
+
 
 @pytest.fixture(scope="module")
 def mappings() -> dict[str, dict]:
@@ -38,8 +71,27 @@ def mappings() -> dict[str, dict]:
     return {m["canonical_key"]: m for m in raw["mappings"]}
 
 
+@pytest.fixture(scope="module")
+def line_items() -> dict[str, dict]:
+    raw = json.loads(LINE_ITEMS.read_text(encoding="utf-8"))
+    return {i["key"]: i for i in raw["items"]}
+
+
 def _aliases(mapping: dict) -> list[str]:
-    """Every string the caption mapper will match against, from all three containers."""
+    """Every alias string the concept DECLARES: `aliases` plus each `aliases_i18n` locale list.
+
+    Declared, not indexed. It used to say "every string the caption mapper will match against",
+    which is false for a locked concept: `OntologyMatcher.__init__` puts every concept carrying
+    `alias_matching: disabled` into `_locked`/`_unmatchable` and indexes its aliases nowhere
+    (mapping.py:1454-1469), so on four of the eight spec-governed concepts the mapper matches
+    against NONE of these 95 strings. See `test_every_curated_concept_is_matchable` for the pin
+    that keeps that set of exceptions declared rather than discovered.
+
+    The list is also not a set: `aliases_i18n["en"]` repeats `aliases` verbatim in the generated
+    artefact, so a caption present in both is returned twice. Harmless here — every caller
+    funnels through `_normalized`, which is a set — but it is why a length taken off this helper
+    over-counts.
+    """
     out = list(mapping.get("aliases") or [])
     for per_locale in (mapping.get("aliases_i18n") or {}).values():
         out += per_locale
@@ -58,6 +110,120 @@ def _assert_absent(mapping: dict, forbidden: list[str], why: str) -> None:
 def test_every_spec_governed_concept_exists(mappings):
     missing = [k for k in SPEC_GOVERNED if k not in mappings]
     assert missing == []
+
+
+# ── the curated concepts must be reachable by matching at all ─────────────────────────────────
+# Every test below asserts something about an alias LIST. None of them asserts that the concept
+# holding the list is reachable, and four of the eight spec-governed concepts are not: they ship
+# `alias_matching: disabled` in output_csv_hk_ontology.json, so `OntologyMatcher.__init__` puts
+# them in `_locked`/`_unmatchable` and indexes their aliases nowhere. Measured on the shipped
+# file: 21 + 17 + 28 + 29 = 95 declared alias strings across the four (`aliases` + the `zh`
+# locale; the `en` locale duplicates `aliases`) that no tier reads, and the two load-bearing
+# depreciation `regex_hints` — "^Depreciation\s+of\s+Investment\s+Property..." and
+# "^Depreciation\s+of\s+property\s*,\s*plant\s+and\s+equipment..." — never run either, because
+# `_rule_claim` skips `_unmatchable` at mapping.py:1720 BEFORE it evaluates hints at :1727.
+#
+# So a denial list on a locked concept filters a list nothing reads. That is not a reason to drop
+# the denial (the lock can be lifted, and then the contamination is back), but it IS a reason to
+# force the exception to be DECLARED: `spec_alias_curation` and the rulebook are two files that
+# describe one thing, and nothing here compared them — a grep of this module for `alias_matching`
+# returned nothing before this test.
+#
+# MATCHABLE is the negation of `mapping.OntologyMatcher._unmatchable`, which is
+# `_locked | _computed_only` — BOTH halves, not just the lock. The audit that asked for this test
+# named only `alias_matching != "disabled"`; asserting that alone would let a future unlock of
+# `is_pl__deprec_and_impairment_oper_exp` or `bs_nca__secur_and_other_fincl_assets_ltp` delete an
+# allowlist entry while the concept stayed unreachable through `extraction_mode: derive`.
+_UNMATCHABLE_BY_DESIGN: dict[str, str] = {
+    # `derive` AND locked. Unlocking `alias_matching` here before statement/section is threaded
+    # into `mapping._computed_claim` regresses 8 correct mappings to None (7 cash-flow
+    # "Depreciation of ..." rows and 1 balance-sheet CIP row), so the lock is load-bearing until
+    # that lands. Note the second lock: `extraction_mode: derive` keeps the concept in
+    # `_computed_only`, so lifting `alias_matching` alone does NOT make it matchable.
+    OPER_EXP: "alias_matching=disabled and extraction_mode=derive; see mapping.py:1482-1491",
+    # Locked only, and `extract_or_derive` — the spec reports COS_P1 as DIRECTLY_EXTRACTED
+    # (test_cos_depreciation_stays_extractable), so this lock is the one with no second reason
+    # behind it and the one an unlock reaches first.
+    COS: "alias_matching=disabled; extraction_mode is extract_or_derive, so the lock is the only "
+         "thing keeping its 17 aliases and its PPE depreciation regex_hint out of the index",
+    # Same pairing as OPER_EXP: `derive` plus the lock, same 8-mapping regression on an unlock.
+    SECUR_LTP: "alias_matching=disabled and extraction_mode=derive; see mapping.py:1482-1491",
+    OTHER_RECV_CP: "alias_matching=disabled; its value is assembled by a service stage, but the "
+                   "mode is extract_or_derive, so only the lock keeps its 29 aliases unread",
+    # Permanent, and the one entry here that is not a defect: this is a section residual bucket,
+    # populated by the sweep off the template rather than by any caption. `spec_alias_curation`
+    # denies it a borrowed alias anyway — see the comment on `_BORROWED_CAPTION_DENIALS`.
+    "is_retained__other_adj_to_retained_profits":
+        "a locked residual bucket by design — the sweep reads face rows, never captions",
+}
+
+
+def _curated_keys() -> set[str]:
+    """Every canonical_key this module or `spec_alias_curation` makes an assertion about.
+
+    The three denial tables plus the two required-vocabulary tuples in this file plus the
+    redirect targets: a REFUSE-AND-REDIRECT fix is only a fix if the concept the caption is
+    redirected TO can still be matched, so those belong in the same pin.
+    """
+    from app.services.spec_alias_curation import (
+        ALIAS_DENIALS, _BORROWED_CAPTION_DENIALS, _FOREIGN_CAPTION_DENIALS,
+    )
+    return (set(ALIAS_DENIALS) | set(_FOREIGN_CAPTION_DENIALS) | set(_BORROWED_CAPTION_DENIALS)
+            | set(SPEC_GOVERNED) | set(RETAINED_MOVEMENTS)
+            | {CF_DEPRECIATION, OTHER_INTANGIBLES, RP_NOTE, EQUITY_RETAINED})
+
+
+def test_every_curated_concept_exists_in_the_generated_rulebook(mappings):
+    # A denial keyed on a concept the generated file does not declare filters nothing at all, and
+    # `_curated_keys` would silently shrink rather than fail.
+    missing = sorted(k for k in _curated_keys() if k not in mappings)
+    assert missing == []
+
+
+def test_every_curated_concept_is_matchable(mappings):
+    """A curation rule on an unmatchable concept curates a list no tier reads — declare it here.
+
+    `alias_matching: disabled` is not visible from any alias assertion in this file, so the module
+    and the rulebook could drift apart in either direction without a test noticing. This makes the
+    drift explicit in both: a new lock in a regenerated ontology fails here, and an unlock leaves a
+    stale allowlist entry that the companion assertion below fails on.
+    """
+    unmatchable = {}
+    for key in sorted(_curated_keys()):
+        m = mappings[key]
+        reasons = []
+        # Both halves of `OntologyMatcher._unmatchable` (mapping.py:1454-1469).
+        if m.get("alias_matching") == "disabled":
+            reasons.append("alias_matching=disabled")
+        if m.get("extraction_mode") == "derive":
+            reasons.append("extraction_mode=derive")
+        if reasons:
+            unmatchable[key] = ", ".join(reasons)
+
+    undeclared = {k: v for k, v in unmatchable.items() if k not in _UNMATCHABLE_BY_DESIGN}
+    assert undeclared == {}, (
+        "spec_alias_curation curates these concepts but the caption mapper can never reach them, "
+        f"so their denial lists filter nothing: {undeclared}. Either the lock is wrong or the "
+        "exception belongs in _UNMATCHABLE_BY_DESIGN with a written reason.")
+
+
+def test_no_stale_matchability_exception_is_left_behind(mappings):
+    # The other direction, and what makes the allowlist self-cleaning: once a concept is unlocked
+    # its entry must GO, or the next lock on it lands inside a standing waiver and this file stops
+    # reporting it.
+    stale = sorted(k for k in _UNMATCHABLE_BY_DESIGN
+                   if mappings[k].get("alias_matching") != "disabled"
+                   and mappings[k].get("extraction_mode") != "derive")
+    assert stale == [], (
+        f"{stale} is matchable now — drop the _UNMATCHABLE_BY_DESIGN entry so a future relock is "
+        "reported instead of waived")
+
+
+def test_every_matchability_exception_carries_a_reason():
+    # A bare set of keys is a waiver nobody can review; the reason is the reviewable part.
+    assert set(_UNMATCHABLE_BY_DESIGN) <= _curated_keys()
+    thin = sorted(k for k, why in _UNMATCHABLE_BY_DESIGN.items() if len(why.strip()) < 20)
+    assert thin == []
 
 
 # ── depreciation: opening note — depreciation and the listed lease amortisation only ──────────
@@ -81,6 +247,147 @@ def test_depreciation_is_not_aliased_to_a_bare_asset_name(mappings, key):
          "Property,plant and equipments / fixed assets", "固定资产", "在建工程", "在建资产",
          "投资性房地产", "投资物业", "物业、厂房及设备", "物业及设备"],
         "a bare asset name is the carrying amount, not the depreciation charge")
+
+
+# ── amortisation is not depreciation: the Chinese list must not outclaim the English one ──────
+@pytest.mark.parametrize("key", [AMORT_INTGBL, AMORT_INTGBL_COS])
+def test_intangible_amortisation_does_not_alias_the_depreciation_captions(mappings, key):
+    """The harvested `aliases_zh` asserted an equivalence the concept's own English list refuses.
+
+    These concepts are amortisation of INTANGIBLE assets; 折旧 is depreciation, the charge on
+    TANGIBLE assets. Measured on the shipped matcher before the denial:
+    match("折旧", statement="profit_and_loss") -> is_pl__amort_and_impairment_intgbl, confidence
+    1.0, EXACT, needs_review=False, where English "Depreciation" on the same statement returned
+    UNMATCHED with review=True. Neither key is in extraction.llm_focus_keys and
+    extraction.llm_focus_only = true, so the row is never forwarded to the model and the
+    deterministic mis-map ships uncorrected.
+    """
+    _assert_absent(
+        mappings[key],
+        ["折旧", "折旧及摊销", "使用权资产的折旧", "物业及设备折旧"],
+        "折旧 is depreciation on tangible assets, a different concept — it belongs to "
+        f"{CF_DEPRECIATION}, and this concept's English aliases never claimed it")
+
+
+@pytest.mark.parametrize("key", [AMORT_INTGBL, AMORT_INTGBL_COS])
+def test_intangible_amortisation_keeps_its_own_chinese_vocabulary(mappings, key):
+    # Refuse-and-redirect, not a blanket strip: the concept must still answer to its own caption.
+    assert "无形资产摊销" in _normalized(mappings[key])
+
+
+def test_the_depreciation_captions_stay_on_the_cash_flow_concept(mappings):
+    # Where the redirect lands. This concept legitimately owns the whole family — its English
+    # list is headed by "Depreciation" — so the P&L refusal must not have cost the cash-flow
+    # reconciliation its binding.
+    have = _normalized(mappings[CF_DEPRECIATION])
+    missing = sorted(c for c in ("折旧", "折旧及摊销", "使用权资产的折旧", "物业及设备折旧",
+                                 "Depreciation") if normalize_label(c) not in have)
+    assert missing == [], f"{CF_DEPRECIATION} lost {missing}: the redirect has nowhere to land"
+
+
+# ── borrowed English captions: another concept's line, or a heading that is no line at all ────
+# The mirror image of the layer above, on the English side. `aliases_en` was harvested the same
+# way `aliases_zh` was, so it picked up captions naming a DIFFERENT concept and captions that are
+# a section or note HEADING. Measured on the shipped matcher loaded the way a caller that intends
+# to MATCH loads it (`resolve=True`, which folds the section layer in so statement scoping runs),
+# every one below was confidence 1.0, EXACT, needs_review=False — a confident wrong NUMBER:
+#     "Profit/Loss before income tax" / P&L      -> is_pl__amort_and_impairment_intgbl
+#     "Intangbile assets"            / P&L       -> is_pl__amort_and_impairment_intgbl
+#     "Intangible assets"            / bs_nca    -> bs_nca__land_use_rights   (81 beats 80)
+#     "Related Party Transactions"   / bs_nca    -> bs_nca__due_from_directors (1st of three 81s)
+#     "Retained Profits"             / P&L       -> is_retained__cash_div_pref_shares (1st of six)
+# `_prefer_label_owners` already answered the last two correctly with NO statement in hand; the
+# defect only appears once statement scoping removes the label owner from the candidate set. None
+# of these keys is in extraction.llm_focus_keys and extraction.llm_focus_only = true, so the row
+# is never forwarded to the model and the deterministic mis-map ships uncorrected.
+# See app/services/spec_alias_curation._BORROWED_CAPTION_DENIALS for the generator-side rules.
+
+def test_intangible_amortisation_does_not_alias_a_pre_tax_profit_figure(mappings):
+    _assert_absent(
+        mappings[AMORT_INTGBL], ["Profit/Loss before income tax"],
+        "a pre-tax profit figure is the P&L bottom line, not the period's amortisation charge — "
+        "this alias filed the whole profit on one expense concept")
+
+
+def test_intangible_amortisation_does_not_alias_the_harvested_typo(mappings):
+    # "Intangbile assets" is a typo for the ASSET's own name, which is a balance-sheet carrying
+    # amount rather than a charge — wrong twice over, and no filing prints it.
+    _assert_absent(mappings[AMORT_INTGBL], ["Intangbile assets"],
+                   "a misspelled asset name is not this concept's caption")
+
+
+def test_land_use_rights_does_not_claim_the_bare_intangibles_caption(mappings):
+    # Land use rights ARE an intangible, but they are one NAMED intangible sitting at priority 81,
+    # so the borrowed claim outranked the sibling leaf that owns the bare caption at 80.
+    _assert_absent(
+        mappings[LAND_USE_RIGHTS], ["Intangible Assets"],
+        f"the bare caption belongs to {OTHER_INTANGIBLES}, and 81 over 80 took it")
+
+
+def test_the_bare_intangibles_caption_still_has_its_leaf_to_land_on(mappings):
+    # Where the redirect goes. NOT NET_INTANGIBLES: that is the rollup PARENT of both leaves, so a
+    # leaf caption bound there would double count against its own children.
+    assert "intangible assets" in _normalized(mappings[OTHER_INTANGIBLES])
+    assert "intangible assets" not in _normalized(mappings[NET_INTANGIBLES]), (
+        f"{NET_INTANGIBLES} is the rollup parent of {LAND_USE_RIGHTS} and {OTHER_INTANGIBLES}")
+
+
+@pytest.mark.parametrize("key", [DUE_FROM_DIRECTORS, DUE_FROM_SUBSIDIARIES, DUE_FROM_MI])
+def test_a_due_from_concept_does_not_claim_the_related_party_note_heading(mappings, key):
+    _assert_absent(
+        mappings[key], ["Related Party Transactions"],
+        f"the caption is a NOTE heading owned by {RP_NOTE}; three concepts claimed it at "
+        "priority 81 and declaration order picked the winner")
+
+
+def test_the_related_party_note_keeps_its_own_heading(mappings):
+    # Refuse-and-redirect: the heading must still reach the note concept whose LABEL it is.
+    assert "related party transactions" in _normalized(mappings[RP_NOTE])
+
+
+@pytest.mark.parametrize("key", list(RETAINED_MOVEMENTS))
+def test_a_retained_movement_line_does_not_claim_the_section_name(mappings, key):
+    _assert_absent(
+        mappings[key], ["Retained Profits"],
+        f"the caption names the is_retained SECTION and is {EQUITY_RETAINED}' own label, not a "
+        "movement inside it; seven concepts claimed it, six of them tied at priority 10")
+
+
+def test_the_equity_concept_keeps_its_own_label_as_an_alias(mappings):
+    # Not touched: "Retained Profits" IS this concept's label, and it is the redirect target for a
+    # caption printed on the balance sheet.
+    assert "retained profits" in _normalized(mappings[EQUITY_RETAINED])
+
+
+def test_every_denied_borrowed_caption_is_gone_from_the_configuration(line_items):
+    """The curation has to hold on the file a RUN reads, and there is now exactly one of those.
+
+    THIS TEST USED TO CHECK BOTH SHIPPED FILES, on the grounds that `extraction.mapping_engine`
+    decided which of the two answered — so a deletion in one only was "two different wrong answers
+    depending on the engine". That switch is gone: line items is the single configuration engine, a
+    run maps against a `line_item_versions` row built from
+    `app/sample/templates/output_csv_hk_line_items.json`, and the rulebook JSON beside it is a
+    GENERATOR INPUT (`scripts/build_line_items.py` projects it into the set) rather than something a
+    run, a user or an operator can select. So the assertion moved to the one file that governs; the
+    contaminated alias this pins is exactly as wrong there as it ever was, and a caption left behind
+    in the generator source now costs nothing until the set is regenerated — at which point THIS
+    test is the one that fires.
+    """
+    from app.services.spec_alias_curation import denied_aliases
+
+    def _all(entry: dict) -> list[str]:
+        out = list(entry.get("aliases") or [])
+        for per_locale in (entry.get("aliases_i18n") or {}).values():
+            out += per_locale
+        return out
+
+    offending: dict[str, list[str]] = {}
+    for key in (AMORT_INTGBL, LAND_USE_RIGHTS, DUE_FROM_DIRECTORS, DUE_FROM_SUBSIDIARIES,
+                DUE_FROM_MI, *RETAINED_MOVEMENTS):
+        removed = denied_aliases(key, _all(line_items[key]))
+        if removed:
+            offending[key] = removed
+    assert offending == {}
 
 
 def test_cos_depreciation_stays_extractable(mappings):

@@ -13,6 +13,17 @@ set (`vocabulary.caption_characters`), and the fold must be SYMMETRIC — the sa
 every alias when the index is built and to every caption matched against it. An alias folded one
 way can never meet a caption folded another. So it is process-wide, installed once, and a
 conflicting second install raises rather than silently taking the last one.
+
+WHAT NO LONGER HAPPENS AT LOAD, so nobody reinstates it. This module used to hold the shipped
+rulebook's path (`ONTOLOGY = output_csv_hk_ontology.json`) and refuse the set —
+`ResidualFrameworkDrift` — when the set's carried `residual_framework` diverged from the
+rulebook's. That check existed because the set's copy governed NOTHING: every real read was
+`getattr(ontology, "residual_framework")` on a stored rulebook, so the honest guarantee available
+then was only "the two cannot silently disagree". Line items is now the single configuration
+engine: the sweep reads the set's block, through `services.working_view`, and there is no second
+copy left to check it against. A comparison against a JSON file nothing else reads would be
+pinning the set to an artefact a user cannot see or edit, which is the opposite of the point — so
+it is gone, and this was the last read of an ontology JSON in app code.
 """
 from __future__ import annotations
 

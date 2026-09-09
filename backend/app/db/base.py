@@ -1,8 +1,9 @@
 """SQLAlchemy base + session factory.
 
 SQLite by default (zero-setup); swap ``FINEX_DATABASE_URL`` for Postgres in prod.
-JSON columns hold the versioned template/ontology/integrity payloads. Alembic would
-own DDL in prod; here ``init_db`` uses ``create_all`` to stay runnable out of the box.
+JSON columns hold the versioned template/line-item/integrity payloads. Alembic would
+own DDL in prod; here ``init_db`` uses ``create_all`` to stay runnable out of the box,
+with ``_reconcile_schema`` doing the small forward-migrations ``create_all`` cannot.
 """
 from __future__ import annotations
 
@@ -30,11 +31,70 @@ def _reconcile_schema(eng: Engine) -> None:
 
     This app uses ``create_all`` (no Alembic), which never ALTERs a table that already
     exists — so a database created before a column/constraint was added would keep the old
-    shape and break. Rather than force a manual DB reset, bring an existing ``documents``
-    table up to the current model: add the ``owner`` column, and widen the dedup unique
-    constraint to ``(tenant_id, owner, content_hash)`` so two owners can hold the same file.
-    A brand-new database skips all of this (``create_all`` makes it current).
+    shape and break. Rather than force a manual DB reset, four steps run in order:
+
+    (a) the ``documents`` special case — add the ``owner`` column and widen the dedup unique
+        constraint to ``(tenant_id, owner, content_hash)`` so two owners can hold the same
+        file. This one needs a table rebuild on SQLite, so it stays hand-written.
+    (b) EVERY other table already in the DB gains, nullable, any column its model has and
+        it lacks. This is how an existing ``extraction_runs`` picks up
+        ``line_item_version_id`` — the pin that makes a run reproducible.
+    (c) ``DROP TABLE IF EXISTS ontology_versions``. INTENTIONAL, DOCUMENTED DATA LOSS: the
+        ontology is no longer a configuration engine, line items is the only one, and the
+        instruction was drop rather than convert (41 of the 44 stored rows no longer load
+        against their own schema, so there is nothing worth converting). Anyone holding a
+        hand-edited rulebook row loses it here; that was the stated trade.
+    (d) best-effort drop of the orphaned ``extraction_runs.ontology_version_id``. Needs
+        SQLite >= 3.35, so it is wrapped: on an older build the column is simply left
+        behind, unreferenced by any model and read by nothing.
+
+    A brand-new database skips (a) and (b) entirely (``create_all`` makes it current) and
+    finds nothing to drop in (c)/(d).
     """
+    from app.db import models  # noqa: F401  — register every table on Base.metadata
+
+    _reconcile_documents(eng)      # (a)
+    _backfill_missing_columns(eng)  # (b)
+
+    with eng.begin() as conn:
+        existing = set(inspect(conn).get_table_names())
+        # (c) The ontology store. Gone, not migrated — see the docstring.
+        conn.execute(text("DROP TABLE IF EXISTS ontology_versions"))
+        # (d) The pin it used to be selected by.
+        if "extraction_runs" in existing:
+            cols = {c["name"] for c in inspect(conn).get_columns("extraction_runs")}
+            if "ontology_version_id" in cols:
+                try:
+                    conn.execute(
+                        text("ALTER TABLE extraction_runs DROP COLUMN ontology_version_id"))
+                except Exception:  # pragma: no cover — sqlite3 < 3.35 has no DROP COLUMN
+                    pass  # left orphaned rather than risking the boot; nothing reads it
+
+
+def _backfill_missing_columns(eng: Engine) -> None:
+    """(b) ADD COLUMN, nullable, for any model column an already-existing table lacks.
+
+    ``documents`` is excluded because ``_reconcile_documents`` owns it (its ``owner``
+    column is special-cased NOT NULL, and it may rebuild the table wholesale).
+    """
+    insp = inspect(eng)
+    existing = set(insp.get_table_names())
+
+    with eng.begin() as conn:
+        for table in Base.metadata.sorted_tables:
+            if table.name == "documents" or table.name not in existing:
+                continue
+            have = {c["name"] for c in inspect(conn).get_columns(table.name)}
+            for col in table.columns:
+                if col.name in have:
+                    continue
+                ddl_type = col.type.compile(dialect=eng.dialect)
+                conn.execute(
+                    text(f"ALTER TABLE {table.name} ADD COLUMN {col.name} {ddl_type}"))
+
+
+def _reconcile_documents(eng: Engine) -> None:
+    """(a) The ``documents`` owner column + widened dedup constraint. Unchanged."""
     from app.db.models import Document
 
     insp = inspect(eng)

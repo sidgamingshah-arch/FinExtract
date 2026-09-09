@@ -10,16 +10,16 @@ convention.
 
 - **Language detection** (`stages/language.py::LanguageDetectStage`, stage name
   `language_detect`) sets the document `locale`, which drives OCR pack selection, number
-  parsing, and ontology alias selection. It is a dependency-free script/keyword heuristic
+  parsing, and line-item alias selection. It is a dependency-free script/keyword heuristic
   (`detect_locale`) covering the seed set; the `fasttext` extra exists so a statistical
   detector *can* be plugged in, and nothing imports it today.
 - **Locale-aware number parsing** (`services/numbers.py`) — decimal/thousands
   separators and grouping differ by locale (`1,234.56` US · `1.234,56` FR ·
-  `1,23,456` Indian). Driven by the ontology's per-locale `NumberFormat`
+  `1,23,456` Indian). Driven by the line-item set's per-locale `NumberFormat`
   (`number_format_by_locale`), which is also the **only** place parentheses-as-negative is
   decided — the duplicate global switch was removed because it could not be honoured after
   extraction, when only the signed magnitude survives.
-- **Per-locale ontology aliases** — `OntologyMapping.aliases_i18n` is locale-scoped;
+- **Per-locale line-item aliases** — a line item's `aliases_i18n` is locale-scoped;
   the matcher pulls the active locale's aliases plus the English set as a cross-lingual
   anchor. Traditional/Simplified Han is folded by `services/han.py` (with the `cjk` extra,
   falling back to a built-in table of financial-statement variant pairs), and the classifier's
@@ -46,17 +46,18 @@ convention.
 `schemas/languages.py` — a language is `supported` **only when all five** parity
 artifacts exist for it:
 
-1. OCR pack, 2. locale number-format rules, 3. ontology aliases for the active
+1. OCR pack, 2. locale number-format rules, 3. line-item aliases for the active
 template, 4. template `label_i18n`, 5. UI translation bundle.
 
-`evaluate_parity(template, ontology)` computes this per locale; the `/languages` API
+`evaluate_parity` computes this per locale from the template and the line-item
+configuration; the `/languages` API
 surfaces `supported` + `missing`. The UI offers only fully-supported languages for
 both input and output, so the two sets are identical **by construction**. Adding a
 language = supplying those five artifacts (data/assets), not an engineering change.
 
 Verified by `tests/test_schemas.py::test_language_parity_full_for_seed_set` and
 `tests/test_api.py` (all four seed languages report `supported` given a fully
-localized template + ontology; Arabic reports `rtl=True`).
+localized template + line-item set; Arabic reports `rtl=True`).
 
 ## Localization scope — data by default, whole UI by admin choice
 

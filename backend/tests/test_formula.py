@@ -47,12 +47,18 @@ def test_edit_with_formula_computes_value(client):
 
     doc_id = client.post("/api/v1/documents",
                          files={"file": ("rich.pdf", make_rich_pdf(), "application/pdf")}).json()["id"]
-    onts = client.get("/api/v1/ontologies").json()
-    ont = next((o for o in onts if o["ontology_key"] == "hkfrs_hk_china"), onts[0])
+    # Line items is the single configuration engine: ``GET /ontologies`` and the run's
+    # ``ontology_version_id`` pin are gone with the ontology store, so the shipped
+    # configuration is read from ``/line-items/versions`` and pinned as a
+    # ``line_item_version_id``.
+    from app.sample.reference import shipped_line_items_key
+
+    cfgs = client.get("/api/v1/line-items/versions").json()
+    cfg = next((c for c in cfgs if c["line_items_key"] == shipped_line_items_key()), cfgs[0])
     tpls = client.get("/api/v1/templates").json()
-    tpl = next((t for t in tpls if t["template_key"] == ont["target_template_key"]), tpls[0])
+    tpl = next((t for t in tpls if t["template_key"] == cfg["target_template_key"]), tpls[0])
     client.post(f"/api/v1/documents/{doc_id}/extractions",
-                json={"ontology_version_id": ont["id"], "template_version_id": tpl["id"]})
+                json={"line_item_version_id": cfg["id"], "template_version_id": tpl["id"]})
     for _ in range(100):
         if client.get(f"/api/v1/documents/{doc_id}/run").json().get("status") == "succeeded":
             break
@@ -60,16 +66,21 @@ def test_edit_with_formula_computes_value(client):
 
     rows = client.get(f"/api/v1/documents/{doc_id}/run").json()["result"]["rows"]
     keys = {r["canonical_key"] for r in rows if r.get("canonical_key")}
-    inv, tr = "bs_current_assets__inventories", "bs_current_assets__trade_receivables"
-    assert inv in keys and tr in keys
+    # The two keys are the shipped CONFIGURATION's, because the configuration is what decides which
+    # canonical keys a run produces and there is only one of them now. They were
+    # ``bs_current_assets__inventories`` / ``bs_current_assets__trade_receivables`` — the
+    # hkfrs_hk_china_v1 spread, which the retired ontology pair targeted. The mechanism under test
+    # (a formula edit referencing another extracted concept) is unchanged.
+    inv, ref = "bs_ca__inventories", "bs_ca__cash_in_hand_and_at_banks"
+    assert inv in keys and ref in keys
 
-    # Edit inventories to a formula referencing trade receivables → value computed.
-    tr_val = next(float(v["value"]) for r in rows if r["canonical_key"] == tr
-                  for v in r["values"] if v["period_label"] == "current")
+    # Edit inventories to a formula referencing another extracted concept → value computed.
+    ref_val = next(float(v["value"]) for r in rows if r["canonical_key"] == ref
+                   for v in r["values"] if v["period_label"] == "current")
     r = client.patch(f"/api/v1/documents/{doc_id}/line-items/{inv}",
-                     json={"formula": f"={tr} + 100"})
+                     json={"formula": f"={ref} + 100"})
     assert r.status_code == 200, r.text
-    assert float(r.json()["value"]) == tr_val + 100
+    assert float(r.json()["value"]) == ref_val + 100
 
     # A bad formula is rejected, not silently applied.
     bad = client.patch(f"/api/v1/documents/{doc_id}/line-items/{inv}", json={"formula": "=nope + 1"})

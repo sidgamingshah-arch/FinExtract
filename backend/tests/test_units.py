@@ -93,12 +93,15 @@ def test_export_applies_unit_conversion(client):
 
     doc_id = client.post("/api/v1/documents",
                          files={"file": ("u.pdf", _units_pdf(), "application/pdf")}).json()["id"]
-    onts = client.get("/api/v1/ontologies").json()
-    ont = next((o for o in onts if o["ontology_key"] == "hkfrs_hk_china"), onts[0])
+    # THE CONFIGURATION PICKER IS ``/line-items/versions``. It was ``/ontologies``, keyed
+    # ``ontology_key``, and the pin below was ``ontology_version_id``: line items is the single
+    # configuration engine now, so there is one store to pick from and one field to pin it with.
+    cfgs = client.get("/api/v1/line-items/versions").json()
+    cfg = next((c for c in cfgs if c["line_items_key"] == "output_csv_hk"), cfgs[0])
     tpls = client.get("/api/v1/templates").json()
-    tpl = next((t for t in tpls if t["template_key"] == ont["target_template_key"]), tpls[0])
+    tpl = next((t for t in tpls if t["template_key"] == cfg["target_template_key"]), tpls[0])
     client.post(f"/api/v1/documents/{doc_id}/extractions",
-                json={"ontology_version_id": ont["id"], "template_version_id": tpl["id"]})
+                json={"line_item_version_id": cfg["id"], "template_version_id": tpl["id"]})
     _await(client, doc_id)
 
     run = client.get(f"/api/v1/documents/{doc_id}/run").json()["result"]
@@ -118,12 +121,12 @@ def test_free_notes_localized(client):
 
     doc_id = client.post("/api/v1/documents",
                          files={"file": ("rich.pdf", make_rich_pdf(), "application/pdf")}).json()["id"]
-    onts = client.get("/api/v1/ontologies").json()
-    ont = next((o for o in onts if o["ontology_key"] == "hkfrs_hk_china"), onts[0])
+    cfgs = client.get("/api/v1/line-items/versions").json()
+    cfg = next((c for c in cfgs if c["line_items_key"] == "output_csv_hk"), cfgs[0])
     tpls = client.get("/api/v1/templates").json()
-    tpl = next((t for t in tpls if t["template_key"] == ont["target_template_key"]), tpls[0])
+    tpl = next((t for t in tpls if t["template_key"] == cfg["target_template_key"]), tpls[0])
     client.post(f"/api/v1/documents/{doc_id}/extractions",
-                json={"ontology_version_id": ont["id"], "template_version_id": tpl["id"]})
+                json={"line_item_version_id": cfg["id"], "template_version_id": tpl["id"]})
     _await(client, doc_id)
 
     fr = client.get(f"/api/v1/documents/{doc_id}/analysis", params={"locale": "fr"}).json()

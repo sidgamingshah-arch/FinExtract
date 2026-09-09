@@ -67,8 +67,11 @@ def test_the_llm_configuration_survives_a_restart(client):
     llm = get_settings().llm
     assert llm.provider == "anthropic"
     assert llm.model == "claude-sonnet-5"
-    assert llm.temperature == 0.3
     assert llm.max_tokens == 2048
+    # `temperature` is still SENT above on purpose: it was an editable, persisted knob that no
+    # provider call ever read, so it was deleted. An older client that keeps sending it must not
+    # break the fields around it — the key is ignored, not stored, and not a field any more.
+    assert not hasattr(llm, "temperature")
 
 
 def test_the_feature_flags_survive_a_restart(client):

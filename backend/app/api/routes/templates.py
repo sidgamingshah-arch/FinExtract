@@ -174,10 +174,16 @@ def list_templates(session: Session = Depends(db)) -> list[dict]:
     selecting v2 selected nothing: it stored the key it already held and the list re-answered v1.
 
     ``is_latest`` is the SERVER'S answer to "which version is current for this key", so the client
-    reads it rather than ranking versions itself — the same rule as ``in_force`` on the ontology list,
-    and for the same reason: one implementation cannot disagree with itself. The ordering is here too,
-    because a list whose order carries meaning must not depend on how rows happened to be inserted.
+    reads it rather than ranking versions itself — the same rule as ``in_force`` on the LINE-ITEM
+    list — which is where configuration versions are ranked, line items being the single
+    configuration engine — and for the same reason: one implementation cannot disagree with itself.
+    The ordering is here too, because a list whose order carries meaning must not depend on how
+    rows happened to be inserted.
     """
+    # This paragraph used to name the second configuration list this pointed at before the single
+    # engine landed. The name is kept out of the DOCSTRING deliberately: a docstring on a route is
+    # served in the OpenAPI schema and rendered on /docs, so it is user-visible surface, and the
+    # retired engine must not appear there. The history belongs in a comment like this one.
     from app.db.models import TemplateVersion
 
     rows = list(session.execute(
@@ -209,10 +215,12 @@ _SIGN_UI = {"natural": "as_reported", "as_reported": "as_reported",
             "contra": "expense_contra", "expense_contra": "expense_contra",
             "expense_negative": "expense_contra"}
 
-# A stored SignConvention → the three-way choice the Template screen shows. The ontology is
-# the extraction rulebook, so its sign_rule wins over the template's static hint — otherwise an
-# edit saved to the ontology would appear to do nothing on screen.
-_ONT_SIGN_UI = {
+# A configured SignConvention → the three-way choice the Template screen shows. THE CONFIGURATION
+# IS THE EXTRACTION RULEBOOK — the line-item set is what the run maps against — so its sign_rule
+# wins over the template's static hint. Without that precedence an edit saved to the configuration
+# appears to do nothing on screen, which is the exact failure this whole merge is about: a control
+# that reads like a control and controls nothing.
+_CONFIG_SIGN_UI = {
     "natural": "as_reported", "natural_positive": "as_reported", "debit_positive": "as_reported",
     "natural_negative": "expense_contra", "credit_positive": "expense_contra",
     "context": "auto",
@@ -226,10 +234,24 @@ def _loc(node: dict, locale: str) -> str:
 @router.get("/{template_id}/detail")
 def get_template_detail(template_id: str, locale: str = "en",
                         session: Session = Depends(db)) -> dict:
-    """Render a REAL configured template into the tree + per-node config the Template &
-    Ontology screen shows — so an admin sees the seeded/authored template instead of an
-    empty screen (the demo-bound view only ever showed demo data). Aliases, sign convention
-    and any note-decomposition rule are pulled from the ontology that targets this template."""
+    """Render a REAL configured template into the tree + per-node config the Template screen
+    shows — so an admin sees the seeded/authored template instead of an empty screen (the
+    demo-bound view only ever showed demo data). Aliases, sign convention and any
+    note-decomposition rule are pulled from the LINE-ITEM SET that targets this template, read
+    through the matcher's working view of it, so the screen describes the configuration the next
+    run will actually map against and not a second copy of it.
+
+    THE SERVED ``line_items`` BLOCK IS THE EDIT TARGET. Its ``id`` names the ``LineItemVersion``
+    the Template screen's inline editor PATCHes, and ``locale`` says which alias list it is
+    editing. It is the only configuration block this endpoint serves, because line items is the
+    single configuration engine — see the comment below for what it replaced.
+
+    ``netting_rules`` COMES BACK EMPTY, and that is the configuration speaking rather than a hole:
+    the shipped set declares no containment-netting policy, and an absent block is a real, empty
+    declaration the set owns — never "fall back to a built-in framework". The screen's netting
+    section is being removed for that reason (F5); the mapping below stays because a set that DOES
+    declare policies must still be able to show them.
+    """
     from app.db.models import TemplateVersion
 
     row = session.get(TemplateVersion, template_id)
@@ -237,43 +259,60 @@ def get_template_detail(template_id: str, locale: str = "en",
         raise HTTPException(status_code=404, detail="Template not found")
     tdef = row.definition or {}
 
-    # The ontology that targets this template (latest version) supplies aliases/sign/netting.
-    from app.schemas.loader import load_ontology
+    # The LINE-ITEM SET that targets this template (the latest one stored) supplies
+    # aliases/sign/netting.
+    #
+    # WHAT STOOD HERE, so nobody reinstates it: `ontology_select.select_for_template` picked a row
+    # out of `ontology_versions` and `loader.load_ontology` read it. There is no ontology to select
+    # — line items is the single configuration engine — so the set comes from `line_item_versions`
+    # (`services.config_select`) and the object the rules are read off is BUILT from that set by
+    # `services.working_view`, the same adapter the pipeline's matcher is fed through. That is what
+    # makes this screen describe the configuration a run uses rather than a parallel artefact: one
+    # source, one answer.
+    from app.schemas.line_items import load_line_item_set
 
-    from app.services.ontology_select import select_for_template
+    from app.services.config_select import select_for_template
+    from app.services.working_view import build_working_view
 
-    ont_row = select_for_template(session, row.template_key)
+    cfg_row = select_for_template(session, row.template_key)
     by_key = {}
     netting_rules: list[dict] = []
-    # The concepts the rulebook DECLARES, read off the stored definition rather than off the loaded
-    # object below, because that is the list the editor's writes are checked against: every one of
-    # them looks the key up in `definition["mappings"]` (ontologies.edit_ontology_mapping, its
-    # `confusable_with` guard, edit_netting_rule) with no resolve step. Taken from `by_key` instead,
-    # a definition that VALIDATES but cannot be resolved — one `inherits` naming a section that is
-    # not there — would empty this set through the `except` below and have the screen tell the reader
-    # the rulebook declares no concept for any of its lines, while the server went on accepting the
-    # very edits the screen had disabled.
+    # The line items the configuration DECLARES, read off the stored definition rather than off the
+    # loaded set below, because that is the list the inline editor's writes are checked against:
+    # every one of them looks the key up in the stored `definition["items"]` with no resolve step.
+    # Taken from `by_key` instead, a definition that VALIDATES but cannot be resolved — one
+    # `inherits` naming a section that is not there — would empty this set through the `except`
+    # below and have the screen tell the reader the configuration declares no line item for any of
+    # its lines, while the server went on accepting the very edits the screen had disabled.
+    #
+    # `namespace == "template"` is the filter `working_view` applies too, and for the same reason:
+    # the off-template `sub__*` entries are parts OF a line, never template lines, so they are not
+    # keys this screen can be asked about. Absent means "template", as on `LineItemDef`.
     declared: set[str] = set()
-    if ont_row:
-        declared = {m.get("canonical_key")
-                    for m in ((ont_row.definition or {}).get("mappings") or [])
-                    if isinstance(m, dict)}
+    if cfg_row:
+        declared = {i.get("key")
+                    for i in ((cfg_row.definition or {}).get("items") or [])
+                    if isinstance(i, dict) and i.get("namespace", "template") == "template"}
         try:
-            ont = load_ontology(ont_row.definition, resolve=True)
-            for m in ont.mappings:
+            # `resolve=True` on both loads: the section layer is what carries the gate and the
+            # note-use rationale, and `working_view` measures that the fold is idempotent on
+            # everything else (see its hazard 1).
+            view = build_working_view(load_line_item_set(cfg_row.definition, resolve=True))
+            for m in view.mappings:
                 by_key[m.canonical_key] = m
             # Generic containment-netting policies (LLM-gated) — surfaced for the admin to review.
+            # Empty for the shipped set, which declares none; see the docstring.
             def _lbl(k: str) -> str:
                 mm = by_key.get(k)
                 return (mm.label if mm and mm.label else k.replace("_", " "))
-            for nr in ont.netting_rules:
+            for nr in view.netting_rules:
                 netting_rules.append({
                     "id": nr.id, "target_key": nr.target_key, "target_label": _lbl(nr.target_key),
                     "subtract": [{"key": k, "label": _lbl(k)} for k in nr.subtract_keys],
                     "add": [{"key": k, "label": _lbl(k)} for k in nr.add_keys],
                     "condition": nr.condition, "label": nr.label,
                 })
-        except Exception:  # noqa: BLE001 — a malformed ontology shouldn't blank the screen
+        except Exception:  # noqa: BLE001 — a malformed configuration shouldn't blank the screen
             by_key = {}
 
     tree: list[dict] = []
@@ -302,8 +341,8 @@ def get_template_detail(template_id: str, locale: str = "en",
         sign convention to.
 
         Children are walked BELOW A LINE as well as below a heading, which ``_emit_nodes`` does not
-        do — every node that carries a figure is a concept the rulebook may map (see ``mapped``
-        below), and a concept that reaches no ``node_config`` entry is a concept the screen cannot
+        do — every node that carries a figure is a line the configuration may declare (see
+        ``mapped`` below), and a line that reaches no ``node_config`` entry is one the screen cannot
         answer about. It also keeps ``leaves`` equal to every keyed line for any template, not just
         for one nested no deeper than the shipped file. (An export that skips such a node is an
         export bug, not a reason for this screen to hide it.)
@@ -350,19 +389,20 @@ def get_template_detail(template_id: str, locale: str = "en",
                 "breadcrumb": " / ".join([stmt_label, *trail]),
                 "label": label,
                 "canonical_key": key,
-                # Does the RULEBOOK IN FORCE map this line? A template node no mapping mentions has
-                # nothing for the editor to write to: the concept PATCH answers 404 "not in this
-                # ontology", and offering the key in the confusable-with or netting pickers gets a
-                # 422 for naming an unknown concept. The screen reads this to render such a node
-                # read-only and say why, instead of an editor whose Save is always refused. The
-                # shipped template has two — `bs_liabilities__total_liabilities` and
-                # `bs_equity__equity_attributable_to_owners` — and making the calculated totals
-                # selectable at all is what put the first of them in front of an analyst.
+                # Does the CONFIGURATION IN FORCE declare this line? A template node the line-item
+                # set does not declare has nothing for the editor to write to: the item PATCH
+                # answers 404 "not in this configuration", and offering the key in the
+                # confusable-with or netting pickers gets a 422 for naming an unknown line item.
+                # The screen reads this to render such a node read-only and say why, instead of an
+                # editor whose Save is always refused. Making the calculated totals selectable at
+                # all is what first put such a key in front of an analyst
+                # (`bs_liabilities__total_liabilities`, beside the older
+                # `bs_equity__equity_attributable_to_owners`).
                 "mapped": key in declared,
                 "aliases_locale": aliases_locale,
                 "aliases": (m.aliases_for(locale) if m else [])[:12],
                 "sign": (
-                    _ONT_SIGN_UI.get(str(m.sign_rule.convention.value), "as_reported")
+                    _CONFIG_SIGN_UI.get(str(m.sign_rule.convention.value), "as_reported")
                     if m is not None and (m.sign_rule.convention.value or "") != "natural"
                     else _SIGN_UI.get(str(node.get("sign", "natural")), "auto")
                 ),
@@ -389,10 +429,12 @@ def get_template_detail(template_id: str, locale: str = "en",
         emit(stmt.get("sections") or [], 1, [], stmt_label)
 
     return {"tree": tree, "node_config": node_config, "netting_rules": netting_rules,
-            # Which ontology version supplied the aliases/sign above — the editor PATCHes this
-            # id, and `locale` tells it which alias list it is editing.
-            "ontology": ({"id": ont_row.id, "ontology_key": ont_row.ontology_key,
-                          "version": ont_row.version, "locale": locale} if ont_row else None),
+            # Which LINE-ITEM VERSION supplied the aliases/sign above — the editor PATCHes this
+            # id, and `locale` tells it which alias list it is editing. This was `"ontology"`
+            # naming an `ontology_versions` row; the id must name a `LineItemVersion`, because that
+            # is the only configuration a run pins and the only one an edit can be written to.
+            "line_items": ({"id": cfg_row.id, "line_items_key": cfg_row.line_items_key,
+                            "version": cfg_row.version, "locale": locale} if cfg_row else None),
             # `line_items` is every keyed non-heading node, which is the count `_publish` reports on
             # upload — one quantity, one spelling. It disagreed before this walk was fixed: the
             # seventeen lines printed at statement level were counted as headings here and as line

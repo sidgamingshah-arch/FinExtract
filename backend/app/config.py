@@ -18,10 +18,12 @@ read at call time from the environment variable named by ``llm.api_key_env``.
 """
 from __future__ import annotations
 
+import logging
 import os
+from collections.abc import Mapping
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 from pydantic_settings import (
@@ -31,6 +33,8 @@ from pydantic_settings import (
     SettingsConfigDict,
     TomlConfigSettingsSource,
 )
+
+_LOG = logging.getLogger(__name__)
 
 # config.toml lives at the backend root (two levels up from this file: app/config.py).
 _CONFIG_TOML = Path(__file__).resolve().parent.parent / "config.toml"
@@ -80,8 +84,24 @@ class LlmSettings(BaseModel):
 
     provider: str = "openai_compatible"  # azure_openai | anthropic | bedrock_gateway | openai | openai_compatible | stub
     model: str = "azure-openai/gpt5.4-mini"
-    temperature: float = 0.0
-    max_tokens: int = 4096000
+    # NO `temperature` here, deliberately. It used to be a field, admin-editable, persisted and
+    # echoed back by GET /settings — and passed to NOTHING: none of the nine `complete_structured`
+    # call sites forwarded it, so `ports.llm.LlmProvider.complete_structured`'s own
+    # `temperature: float = 0.0` won on every call and the Settings screen confirmed a change that
+    # no provider request ever carried. Sampling temperature is fixed at that port default for
+    # determinism: this is structured financial extraction against a Pydantic schema, and two
+    # adapters discard the parameter outright (anthropic_llm.py, bedrock_gateway_llm.py) while
+    # azure_openai_llm.py drops it adaptively when the deployment rejects it. Wiring it up would
+    # have made a non-zero value reachable, which no use case here wants; the knob is gone instead.
+    # Per-call completion ceiling for the FREE-FORM calls (gap routing, contingent-liabilities
+    # narrative, commentary/analysis, netting): each of those passes this through as the requested
+    # allocation, so it replaces the callee's own default. Mapping ignores it and derives its own
+    # budget — see `llm_batch_response_floor_tokens` below for why sending a shared ceiling to a
+    # gateway is the wrong number. This was 4096000, which is that same failure with the numbers
+    # filled in: the gateway replied "max_tokens is too large: 4096000. This model supports at most
+    # 128000 completion tokens". 32768 is above every callee default (largest: run_analysis's 4096)
+    # and below any advertised completion ceiling, so no reply is truncated and none is rejected.
+    max_tokens: int = 32768
     timeout_seconds: int = 600
     base_url: str = "https://llmgateway.crisil.local/api/openai"
     api_key_env: str = "AZURE_OPENAI_API_KEY"  # env var the key is read from (not the key)
@@ -128,10 +148,17 @@ class OcrSettings(BaseModel):
 class ExtractionSettings(BaseModel):
     """Pipeline tuning: native/scanned detection, the mapping ensemble, reconciliation."""
 
-    # Native-vs-scanned page detection (see stages/ingest.py).
+    # Native-vs-scanned page detection (ingest.py:106). A page is NATIVE/MIXED when it clears BOTH
+    # floors below — extracted character count and extracted-text area coverage. That is the whole
+    # of the configurable rule: page DPI is deliberately NOT part of it. A `low_dpi_threshold: int
+    # = 150` used to sit here under a comment naming ingest.py, which made these two read as a
+    # third of a rule, but nothing anywhere read it (repo-wide grep: exactly one hit, its own
+    # declaration) and it could not have worked — PageSource.dpi (core/models/document.py:27) is
+    # never assigned, since ingest.py:114-123 constructs PageSource without it. Reviving it would
+    # mean deriving a per-page DPI first, and would reclassify currently-NATIVE pages as SCANNED
+    # into an OCR engine that defaults to "stub". Deleted instead.
     native_min_chars: int = 100
     native_min_text_coverage: float = 0.02
-    low_dpi_threshold: int = 150
     # Mapping ensemble thresholds (see services/mapping.py).
     #
     # THERE IS NO STRING-SIMILARITY TIER: nothing maps a row on wording alone (the rulebook's own
@@ -168,6 +195,28 @@ class ExtractionSettings(BaseModel):
     # candidates. Set false to force the deterministic ensemble even with an LLM present.
     llm_mapping: bool = True
     llm_candidate_cap: int = 40   # max candidate concepts shown to the LLM per line
+    # How many candidate concepts a REVIEWED row carries, and how many of them are named to the
+    # model as the deterministic tiers' own reading.
+    #
+    # THESE WERE HARDCODED SLICES (`ranked[:5]`, `ranked[:4]`, `primary[:5]`,
+    # `candidates[:3]`) and the reason given for leaving them in code was measured and correct at
+    # the time: with no string-similarity tier the deterministic pool held at most ONE candidate,
+    # so every slice was the whole list and exposing them would have advertised four knobs that
+    # could not change an answer. `test_threshold_homes.py` pinned exactly that, and said what to
+    # do when it stopped being true — "it starts failing the day a tier is added that can propose
+    # a third candidate, at which point the slice becomes a real decision and needs a real home".
+    #
+    # THAT DAY ARRIVED when `confusable_with` was authored on output_csv_hk (40 mutual pairs over
+    # the measured equal-priority collisions, including a 5-concept `is_oci__*` clique). A refused
+    # confusable tie returns every tied concept as a candidate, so the pool now reaches 8 and the
+    # slices truncate: `review_candidate_cap` decides what a reviewer sees, and
+    # `llm_deterministic_candidate_cap` decides how much of the deterministic reading the model is
+    # shown — at 3 of 8 it was dropping five of the very concepts the tie is about, on the one
+    # call that could have resolved it.
+    #
+    # Defaults are the literals they replace, so shipped behaviour is unchanged.
+    review_candidate_cap: int = 5
+    llm_deterministic_candidate_cap: int = 3
     # The other two REQUEST-PAYLOAD caps, declared next to the candidate cap because they are the
     # same species: how much of the rulebook fits in one call, which is a context/cost budget the
     # deployment pays and not a number the vocabulary calibrated. Each caps HOW MANY; the rulebook's
@@ -192,7 +241,7 @@ class ExtractionSettings(BaseModel):
     # deterministic ensemble (rule/alias tiers), never sent to the model. Empty = no restriction
     # (the default: LLM considered for any row the ensemble can't otherwise resolve).
     llm_only_keys: list[str] = Field(default_factory=list)
-    # TEMPORARY (focus-run routing) — remove with the block it drives in stages/map_ontology.py.
+    # TEMPORARY (focus-run routing) — remove with the block it drives in stages/map_line_items.py.
     #
     # Restrict the LLM to the ROWS that could be one of these concepts, instead of restricting the
     # CANDIDATE LIST the way ``llm_only_keys`` does. That distinction is the whole point:
@@ -207,14 +256,28 @@ class ExtractionSettings(BaseModel):
     # questions and belong to different people. WHICH concepts are in focus is a deployment
     # decision (a list, so it cannot travel through the admin Settings patch, which carries only
     # float/bool/str); WHETHER to restrict this run to them is an operational one an admin flips
-    # from the Settings screen. Keeping the switch OFF by default is also what lets the key list
-    # be checked in: present but inert, so it cannot silently reconfigure the test suite the way an
-    # always-on list did.
+    # from the Settings screen.
+    #
+    # THE FALSE BELOW IS NOT WHAT SHIPS. config.toml sets `llm_focus_only = true` next to the 8
+    # `llm_focus_keys` (config.toml:152-183), and config.toml is read for every `Settings()`
+    # (`settings_customise_sources`, from the absolute `_CONFIG_TOML` path), so a fresh clone — and
+    # the test suite — runs focus-routed unless something overrides it. It is on there so that it
+    # TRAVELS: the switch an admin flips is stored in `setting_overrides` in the database, the
+    # database is deliberately not in git, so a second machine used to start with routing off and
+    # spend the whole provider budget on its first run. This built-in False is therefore the value
+    # for a deployment with NO config.toml, not the value the product ships.
+    #
+    # It was previously argued here that keeping the switch off by default is what lets the key
+    # list be checked in — "present but inert, so it cannot silently reconfigure the test suite".
+    # Shipping the switch ON falsified that inference. The one test that leaned on the old default
+    # now pins the precondition itself (tests/test_binding_order.py:501-506), which is where a
+    # test's precondition belongs: a test about UNFOCUSED routing should say so rather than
+    # inherit whichever way a deployment happens to point.
     llm_focus_only: bool = False
 
     # Refuse to ask the model about a note row whose caption is PROSE rather than a line-item name.
     #
-    # map_ontology's per-line pass runs over every LINE row of every extracted note, and on a real
+    # map_line_items' per-line pass runs over every LINE row of every extracted note, and on a real
     # filing that means sentences: measured on a 367-page HKEX filing, 587 of 627 note rows reached
     # no concept and the longest run to 419 characters ("HK$237,892,000 and HK$222,784,000,
     # respectively, mainly represented sales proceeds rec…"). Each becomes its own paid call asking
@@ -235,7 +298,7 @@ class ExtractionSettings(BaseModel):
     # THE THIRD IS THE PRICE, and it is recorded here so it is not rediscovered as a mystery:
     # bs_nca__goodwill bound to "Goodwill of HK$229,119,000 (2024: HK$215,950,000) arising from the
     # acquisition…" is plausibly CORRECT, and with this on, that row reaches no concept. It is
-    # reported in the run log (map_ontology:prose_captions_skipped names the rows and the reason),
+    # reported in the run log (map_line_items:prose_captions_skipped names the rows and the reason),
     # so the loss is visible rather than silent. Set to false to restore it.
     skip_prose_captions: bool = True
     # ── TWO PATHS TO A FIGURE ────────────────────────────────────────────────────────────────
@@ -282,41 +345,38 @@ class ExtractionSettings(BaseModel):
     # Publish only notes a face row cites (see stages/prune_notes.py). False publishes every
     # extracted note table regardless of whether any face figure references it.
     prune_unreferenced_notes: bool = True
-    # Concurrent LLM batch calls during map_ontology's per-statement pass (see stages/map_ontology
+    # Concurrent LLM batch calls during map_line_items' per-statement pass (see stages/map_line_items
     # + services.mapping._match_chunk). Each chunk is an independent provider call; running several
     # in parallel is what turns a run's LLM time from "sum of every call" into "the slowest one",
     # bounded so a large filing does not open dozens of connections to the gateway at once.
     llm_max_concurrency: int = 6
-    # ── ONE BATCH CALL'S TRANSPORT SIZE AND RESPONSE ALLOCATION ─────────────────────────────────
+    # ── ONE BATCH CALL'S SIZE: ITS RESPONSE ALLOCATION *AND* ITS VOCABULARY ─────────────────────
     #
-    # How many captions travel in one structured request. services.mapping calls it "a transport
-    # chunk, not a semantic boundary" and that is the whole reason it is a deployment number: the
-    # section results are carried into the statement pass either way, so the chunk bounds one
-    # RESPONSE's size and nothing about the vocabulary. What decides it is how many decisions a
-    # given model returns as parseable JSON in one go — a truncated batch is not a partial answer,
-    # the JSON fails to parse and the whole chunk silently falls back to the weaker per-line path.
+    # How many captions travel in one structured request. What decides the number from the
+    # gateway's side is how many decisions a given model returns as parseable JSON in one go — a
+    # truncated batch is not a partial answer, the JSON fails to parse and the whole chunk silently
+    # falls back to the weaker per-line path, on a run that still reports itself LLM-mapped.
+    #
+    # BUT IT IS NOT A PURE TRANSPORT NUMBER, and the comment that used to stand here said it was
+    # ("the chunk bounds one RESPONSE's size and nothing about the vocabulary"). That is false.
+    # `services.mapping._match_chunk` derives the section tokens from the rows IN THIS CHUNK and
+    # narrows the offered candidate list by them, and it seeds the never-evicted keys from this
+    # chunk's own rows before `llm_candidate_cap` bounds the fill. So the chunk boundary decides
+    # WHICH concepts the model may choose from on each call: a smaller chunk carries fewer banners,
+    # which is a narrower vocabulary — and it is also where cross-line context (a subtotal and the
+    # lines it is made of, a section and its residual) is cut.
+    #
+    # Lowering this is therefore a mapping change, not a plumbing change. Re-baseline the
+    # deployment that lowers it rather than assuming the same answers at a smaller size.
     llm_batch_max_items: int = 25
-    # WHICH REGISTRY DECIDES WHERE A CAPTION LANDS. A FALLBACK, not a migration switch.
-    #
-    #   "ontology"     the incumbent. `services.mapping.OntologyMatcher` over the rulebook, with
-    #                  every tier including the LLM one. This is where the value is and it stays
-    #                  the default.
-    #   "line_items"   the merged configuration, `services.line_item_matching.LineItemMatcher`,
-    #                  DETERMINISTIC ONLY. The semantic tier is not ported: it consumes the same
-    #                  per-item payload (definition, include/exclude criteria, confusable_with),
-    #                  which the merged model carries in full, but pointing it at this registry is
-    #                  separate work.
-    #
-    # SO THIS IS A WEAKER PATH BY CONSTRUCTION, and it is here because a deterministic fallback
-    # that needs no provider is worth having when a gateway is down, a key has expired, or a run
-    # has to be reproducible with nothing leaving the machine. It is not a route to better
-    # extraction: `scripts/parity_line_items.py` shows the two agree on 11,433 of 11,433 rulebook
-    # captions, and that says nothing whatever about the LLM tier this path lacks.
-    #
-    # Making this path good on a particular filing by adding captions it happens to print would be
-    # the exact overfitting the generic framework exists to avoid. Widen the vocabulary, or accept
-    # that the fallback maps less.
-    mapping_engine: Literal["ontology", "line_items"] = "ontology"
+    # THERE IS NO REGISTRY SWITCH HERE ANY MORE. `mapping_engine` used to stand at this spot,
+    # a Literal["ontology", "line_items"] defaulting to "ontology", and it selected between two
+    # registries: the ontology rulebook and the merged line-item configuration. The line-item set
+    # is now the SINGLE configuration engine — there is no second registry to point at, so there
+    # is nothing to select and the setting is gone rather than pinned. Do not reinstate it: a
+    # switch is what let the merged configuration ship inert, with what a user configured on the
+    # Line Items screen affecting nothing.
+
     # Floor under a batch call's requested completion allocation. services.mapping also DERIVES a
     # budget from the response envelope (a reserve plus ~80 tokens a decision); that derivation
     # stays in code because it is measured against THIS vocabulary's longest canonical_key, and the
@@ -326,14 +386,21 @@ class ExtractionSettings(BaseModel):
     # It exists because sending `llm.max_tokens` (a request ceiling shared with every other call in
     # the app) makes compatible gateways reserve millions of tokens for a small structured reply and
     # time out before answering. How much headroom a reply needs is a fact about the gateway.
-    llm_batch_response_floor_tokens: int = 8192
+    # Bounded here and not in `services.settings_state`: this is not an EXTRACTION_KNOBS entry, so
+    # `set_extraction_config`'s min/max refusal never sees it and a negative value would be sent
+    # straight to the provider as the requested allocation. 0 is admitted deliberately — it means
+    # "no floor, use the envelope derivation" (see services.mapping._effective_batch_max_tokens).
+    llm_batch_response_floor_tokens: int = Field(8192, ge=0)
     # …and the same allocation for the per-line call, which answers with one decision. Measured:
     # an `LlmMappingDecision` carrying the rulebook's longest canonical_key and a 200-char reason
     # serialises to 371 characters ≈ 124 tokens, so 512 is roughly 4× headroom on the envelope. It
     # is a deployment number for the reason `llm.reasoning_max_tokens` documents: a model whose
     # reasoning cannot be disabled spends the completion budget thinking and returns empty content
     # with finish_reason=length, and how much budget that takes is a property of the model.
-    llm_line_max_tokens: int = 512
+    # `ge=1` for the reason the floor above is bounded — no EXTRACTION_KNOBS entry, so nothing else
+    # refuses a range — and 1 rather than 0 because this is the whole allocation and not a floor:
+    # 0 asks the provider for a zero-token completion, which is not a configuration anyone wants.
+    llm_line_max_tokens: int = Field(512, ge=1)
     # Mapping granularity. "per_statement" (default, most accurate) batches lines into ONE LLM
     # call so cross-line judgements — parent/child containment, residualisation, "Others"
     # handling — have context. The batch is one SOURCE PAGE in practice, so a statement spanning
@@ -341,10 +408,21 @@ class ExtractionSettings(BaseModel):
     # services.mapping.match_batch). "per_line" maps each line independently (cheaper, less
     # context-aware).
     mapping_scope: Literal["per_statement", "per_line"] = "per_statement"
-    # Multi-column notes are structured by the configured LLM before they can enter ontology
-    # mapping. A failed or unavailable model call drops the unsupported matrix rather than
-    # publishing fragmented rows.
-    llm_note_structuring: bool = False
+    # `llm_note_structuring` STOOD HERE AND WAS DELETED. It declared that "multi-column notes are
+    # structured by the configured LLM before they can enter ontology mapping", it shipped `true`
+    # in config.toml, and it had ZERO readers — no stage among the 21 in app/stages, no service, no
+    # test. The capability it advertised lived in app/services/note_structure_llm.py, which had no
+    # importer either and was deleted with it. Worse than dead, it CONTRADICTED the code it named:
+    # `services.notes_extract.extract_note_tables` documents that note tables "are reconstructed
+    # exclusively from positioned source tokens" and that its `llm_provider`/`ai_required`
+    # parameters survive only for caller compatibility.
+    #
+    # Deleted rather than wired, because wiring it would have shipped two defects: the module's
+    # `structure_note_matrix` set `period_label`/`period_display` to CATEGORY headers ("Buildings",
+    # "Total") instead of periods — a different semantic from what link_notes and reconcile read —
+    # and its `provider.complete_structured` call had no try/except, so it could not honour this
+    # declaration's own promise that a failed call "drops the unsupported matrix".
+    #
     # Gap closing. When a section subtotal computed from the template's lines differs from the
     # one the document printed, offer the model the extracted lines that reached no statement and
     # ask which belong in that section's "Others". Arithmetic bounds the choice — an option must
@@ -357,6 +435,85 @@ class ExtractionSettings(BaseModel):
     # the summary paragraph and each unclassified item's short statement in clearer English; off,
     # or with no provider configured, the deterministic prose is what is shown.
     llm_contingent_liabilities: bool = True
+
+
+def _unbound_toml_keys(values: Mapping[str, Any], model: type[BaseModel]) -> list[str]:
+    """Dotted paths of every ``config.toml`` key that binds to no field on ``model``.
+
+    Recurses into a key whose field is itself a ``BaseModel`` (``[auth]``, ``[llm]``, …), so a
+    misspelt key INSIDE a real table is reported as ``llm.temprature`` rather than the table
+    being reported as fine. Names are compared lowercased because pydantic-settings matches
+    fields case-insensitively by default, and a report must not accuse a key that does bind.
+
+    Pure and separate from the logging so it can be asserted on directly.
+    """
+    fields = model.model_fields
+    lowered = {name.lower(): field for name, field in fields.items()}
+    unbound: list[str] = []
+    for key, value in values.items():
+        field = lowered.get(str(key).lower())
+        if field is None:
+            unbound.append(str(key))
+            continue
+        annotation = field.annotation
+        if (isinstance(annotation, type) and issubclass(annotation, BaseModel)
+                and isinstance(value, Mapping)):
+            unbound.extend(f"{key}.{sub}" for sub in _unbound_toml_keys(value, annotation))
+    return unbound
+
+
+_TOML_KEYS_REPORTED = False
+
+
+def _report_unbound_toml_keys(
+    source: TomlConfigSettingsSource, settings_cls: type[BaseSettings]
+) -> None:
+    """One WARNING naming every ``config.toml`` key that was loaded and then thrown away.
+
+    WHY THIS EXISTS. ``config.toml``'s own header says "It is read at startup by
+    app/config.py", and a reader reasonably assumes that means every key in it. It does not:
+    ``Settings`` sets ``extra="ignore"``, so a key that matches no field is discarded in
+    silence. That is exactly what happened to the shipped ``[app]`` table — `Settings` has no
+    ``app`` field (``app_name`` and ``api_prefix`` are top-level), so
+    ``TomlConfigSettingsSource(Settings)()`` handed back an ``app`` key and BOTH values under it
+    were dropped. It went unnoticed for as long as it did only because the two shipped values
+    equalled the built-in defaults; a deployment setting ``api_prefix = "/api/v2"`` got a server
+    still mounted at /api/v1 and no indication why. Both keys are now bare top-level keys and
+    bind — and this reports the next one that does not.
+
+    ``extra="forbid"`` would be the tempting fix and is the wrong one: ``extra`` governs the
+    whole ``Settings`` model, which is fed by the environment and ``.env`` as well as this file,
+    so any stray ``FINEX_*`` variable in a deployment's shell would become a hard startup crash.
+    A WARNING is the right severity for "you wrote a knob that does nothing" — and WARNING is
+    also the floor that actually reaches stderr, since this app configures no logging and only
+    WARNING and above gets through ``logging.lastResort``.
+
+    Called from ``settings_customise_sources`` (rather than from ``get_settings``) so it fires
+    for any ``Settings()`` — scripts and tests construct one directly — but guarded to fire ONCE
+    per process, because ``Settings()`` is constructed many times over a run and the file cannot
+    change underneath it.
+    """
+    global _TOML_KEYS_REPORTED
+    if _TOML_KEYS_REPORTED:
+        return
+    _TOML_KEYS_REPORTED = True
+    try:
+        values = source()
+    except Exception as exc:  # noqa: BLE001 - a bad/missing config.toml is the loader's error to raise
+        _LOG.warning("config.toml could not be re-read to check for unbound keys: %s", exc)
+        return
+    if not isinstance(values, Mapping):
+        return
+    unbound = sorted(_unbound_toml_keys(values, settings_cls))
+    if unbound:
+        # Name the file the SOURCE read, not `_CONFIG_TOML`: a subclass or a test can point
+        # `toml_file` elsewhere, and a warning that names the wrong file sends the reader to a
+        # file whose keys are all fine.
+        _LOG.warning(
+            "%s: %d key(s) bind to no setting and are IGNORED: %s. Check the name and the "
+            "nesting against Settings in app/config.py — a whole table listed here means the "
+            "table itself is not a settings group, and every key under it was dropped.",
+            getattr(source, "toml_file_path", _CONFIG_TOML), len(unbound), ", ".join(unbound))
 
 
 class Settings(BaseSettings):
@@ -395,11 +552,16 @@ class Settings(BaseSettings):
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
         # Precedence (first wins): init args > env > .env > config.toml > file secrets.
+        toml_settings = TomlConfigSettingsSource(settings_cls)
+        # …and say so when a key in that file binds to nothing. See _report_unbound_toml_keys:
+        # extra="ignore" drops an unknown key without a word, which is how the shipped `[app]`
+        # table was read and discarded on every boot.
+        _report_unbound_toml_keys(toml_settings, settings_cls)
         return (
             init_settings,
             env_settings,
             dotenv_settings,
-            TomlConfigSettingsSource(settings_cls),
+            toml_settings,
             file_secret_settings,
         )
 

@@ -48,7 +48,7 @@ the whole pipeline (`POST /documents/{id}/extractions` again, which the UI expos
 | 2 | Face **and** notes | `stages/classify.py` + `NotesTable`/`NoteItem` + `stages/link_notes.py` + `stages/reconcile.py` |
 | 3 | Output into predefined template | `schemas/template.py` + `LineItem.canonical_key`; the grid is built from the template alone (`documents.py::_build_statement`) |
 | 4 | Template addable from frontend | Excel round-trip: `GET /templates/{id}/xlsx` + `POST /templates/xlsx` (`services/template_xlsx.py`), published as the next `TemplateVersion`. No drag-and-drop tree editor was built. |
-| 5 | Ontology drives description-based extraction | `schemas/ontology.py` + `services/mapping.py` + `stages/map_ontology.py` |
+| 5 | Configuration drives description-based extraction | `schemas/line_items.py` (the one configuration schema) → `services/working_view.py` → `services/mapping.py` + `stages/map_ontology.py` |
 | 6 | Hyperlinked side-by-side view | `Provenance` (normalized bbox / sheet+cell) → `GET /documents/{id}/pages/{n}/image` + `GET /documents/{id}/cell-context`, rendered by `frontend/src/components/SourceViewer.tsx` |
 | 7 | Edit output in UI | `PATCH`/`DELETE /documents/{id}/line-items/{key}` — the overlay is persisted onto the latest run (`edited_slots`, machine values snapshotted for an exact revert). The `EditEvent` table is designed, **not built**; the run/LLM ledger is `services/audit.py` (process-local). |
 | 8 | Export Excel / JSON | `services/export.py` (openpyxl, server-side; formulas travel as a text column + cell notes, not live `=` cells) |
@@ -76,5 +76,9 @@ the whole pipeline (`POST /documents/{id}/extractions` again, which the UI expos
 - **Deterministic first, LLM last** — the numbers and their locations are read
   deterministically; the LLM decides semantics and never emits a value.
 - **Versioned & reproducible** — each extraction run pins document hash + template
-  version + ontology version + engine id, and records *which rulebook* produced its
-  figures rather than letting a reader re-derive it.
+  version + **line-item version** (`extraction_runs.line_item_version_id`) + engine id, and
+  records *which configuration* produced its figures rather than letting a reader re-derive
+  it.
+- **One configuration engine** — the line-item set is both the output shape and the matching
+  rulebook. There is no second configuration store, no second configuration API and no
+  switch between them.

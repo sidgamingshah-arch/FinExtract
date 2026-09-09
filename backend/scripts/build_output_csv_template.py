@@ -122,6 +122,22 @@ def _split_pipe(val) -> list[str]:
 def _split_comma(val) -> list[str]:
     return [s.strip() for s in str(val or "").split(",") if s.strip()]
 
+# Spreadsheet checkboxes arrive as the STRINGS "True"/"False" (openpyxl renders the cell value,
+# and `_cv` stringifies it), so a column that is a tick on some rows and a list on others yields a
+# mix of booleans and real entries. Dropping the booleans is not cosmetic: a field whose entries
+# must name something refuses a boolean, and one such column stopped the whole generator.
+_BOOLEAN_TOKENS = frozenset({"true", "false", "yes", "no", "y", "n", "x", "✓", "✔", "1", "0"})
+
+
+def _drop_boolean_tokens(values: list[str]) -> list[str]:
+    """Entries that name something, with tick-box artefacts removed.
+
+    Deliberately conservative: it drops only tokens that are ENTIRELY a boolean marker, so a real
+    caption or canonical key is never touched — including one that merely starts with "No"
+    ("Non-controlling interests") or contains a digit.
+    """
+    return [v for v in values if v.strip().lower() not in _BOOLEAN_TOKENS]
+
 # ── 1. Read ontology xlsx ─────────────────────────────────────────────────────
 
 ont_wb = _load_ontology_workbook(ONTOLOGY_ZIP)
@@ -159,6 +175,11 @@ for r in _rows(ont_wb["Concepts"]):
         "exclude_hints":       _split_comma(_cv(r, "Exclude hints")),
         "include_text":        str(_cv(r, "Include (belongs here)") or ""),
         "exclude_text":        str(_cv(r, "Exclude (does NOT belong here)") or ""),
+        # EMPTY ON 0 OF 461 ROWS in the committed workbook, which is why the generated ontology
+        # declared `confusable_with` on 0 of its 462 concepts and `binding.order` step 6 could
+        # never fire on the file that drives the output CSV. Anything authored in the JSON by hand
+        # is dropped by the next build unless it is also entered in this column — or listed in
+        # `CONFUSABLE_EDGES` at section 3c, which is where the authored edges live until it is.
         "confusable_with":     _split_comma(_cv(r, "Confusable with")),
         "sign_convention":     str(_cv(r, "Sign convention") or "as_reported"),
         "value_scope":         str(_cv(r, "Value scope") or "exclusive_leaf"),
@@ -170,14 +191,52 @@ for r in _rows(ont_wb["Concepts"]):
         "note_use":            _cv(r, "Note use"),
         "face_only":           _cv(r, "Face only"),
         "is_gross_parent":     _cv(r, "Is gross parent"),
-        "children_decomposed": _split_comma(_cv(r, "Children if decomposed")),
+        # "Children if decomposed" is PIPE-separated in the workbook, exactly like the dependency
+        # column at the "Formula Dependencies" read below. Split on commas, 30 of the 31 carriers
+        # came out as ONE element holding every child ("bs_nca__land | bs_nca__construction_in_progress"),
+        # which names no canonical_key: ``map_ontology._pairs_to_keep_apart`` hands that string to
+        # ``_enforce_containment``/``_same_section_decompositions``, whose `c in printed` test can
+        # never match it, so the whole rulebook produced ONE same-section decomposition instead of
+        # 25 — and ``services.mapping`` shipped the joined string verbatim into the LLM's concept
+        # payload as a child key. ``app.schemas.loader`` now refuses a non-key entry, so a
+        # regeneration that splits on the wrong character fails its own load gate instead of
+        # shipping a containment nothing enforces.
+        "children_decomposed": _split_pipe(_cv(r, "Children if decomposed")),
         "derivation":          _cv(r, "Derivation"),
         "decomposition_rule":  _cv(r, "Decomposition rule"),
         "aggregation_note":    _cv(r, "Aggregation note"),
         "section_disambig":    _cv(r, "Section disambiguation"),
         "sole_component_of":   _cv(r, "Sole component of"),
-        "never_sweep":         _split_comma(_cv(r, "Never sweep")),
-        "expected_components": _split_comma(_cv(r, "Expected components")),
+        # A TICKED BOX IS NOT A LIST OF KEYS. The workbook's "Never sweep" column is a checkbox on
+        # most rows, so `_cv` returns the string "True" and `_split_comma` faithfully turns it into
+        # ["True"] — which `OntologyMapping.never_sweep` refuses, because a boolean names no concept
+        # and therefore vetoes nothing:
+        #
+        #     never_sweep entries must name a canonical_key or state a sentence; ['True'] is a
+        #     boolean, which names nothing and so refuses nothing.
+        #
+        # MEASURED: this emitted ["True"] on 358 of 462 concepts, and once the validator was added
+        # the generator could no longer complete AT ALL — it raised ValidationError on all 358 and
+        # wrote nothing, so the rulebook could not be rebuilt from its own spreadsheet. The seeds
+        # on disk were repaired by hand and the generator was never taught to stop producing the
+        # thing that had been repaired.
+        #
+        # A tick means "this concept is protected from the sweep", which is ALREADY
+        # residual_framework prohibition 4 ("never absorbs a row a dedicated concept could have
+        # claimed") and needs no per-concept declaration. So a boolean token is dropped rather than
+        # translated: `never_sweep` exists to name WHAT a residual must not absorb, and a tick
+        # names nothing. Real entries — canonical keys or caption sentences — pass through.
+        "never_sweep":         _drop_boolean_tokens(_split_comma(_cv(r, "Never sweep"))),
+        # "Expected components" is deliberately NOT harvested. `expected_components` has exactly one
+        # consumer, ``services.mapping._residual_expectations``, which iterates the LOCKED residual
+        # buckets and publishes the field as the payload's "captions_with_no_dedicated_concept" —
+        # i.e. human caption PROSE for a residual ("Bank overdrafts", "Club memberships"). The
+        # workbook column holds pipe-delimited canonical KEYS for gross parents instead, so
+        # `_split_comma` produced one element like "bs_nca__land | bs_nca__construction_in_progress"
+        # and shipped it on 31 concepts — every one of them is_gross_parent, none locked, none
+        # exclusive_residual, so the consumer skipped all 31 and returned [] for every statement and
+        # section while ``_batch_system`` still described `residual_expectations` to the model. The
+        # gross-parent children are already carried, correctly split, by "children_if_decomposed".
         "template_note":       _cv(r, "Template note"),
         "notes_src_rationale": _cv(r, "Notes-as-source rationale"),
         "residual_policy_json": str(_cv(r, "Residual policy (JSON)") or ""),
@@ -216,7 +275,7 @@ CONCEPTS.append({
     "exclude_hints": [], "include_text": "", "exclude_text": "", "confusable_with": [],
     "extraction_mode": "derive", "value_scope": "exclusive_parent",
     "children_decomposed": [], "derivation": None, "sole_component_of": None,
-    "never_sweep": [], "expected_components": [], "residual_policy_json": "",
+    "never_sweep": [], "residual_policy_json": "",
     "equivalence_json": "", "template_note": "Computed Field Logic Equity_022.",
 })
 AUDIT_ORDER["bs_equity__equity_and_reserves"] = 107
@@ -656,6 +715,15 @@ ARITHMETIC_RULE_EXCLUSIONS = {
     "Notes_013": "note-only target absent from the output template",
     "NCA_023": "balance-sheet accumulated intangible amortisation; extracted, not computed",
     "CA_038": "balance-sheet doubtful accounts allowance; extracted, not computed",
+    # P&L_014's workbook rule is a PRIORITY CASCADE, not a parent-minus-children residual: its
+    # 2nd rung is "depreciation in the PBT note − Deprec & Impairment(Oper Exp)", and
+    # services.deprec_impairment implements exactly that as COS_P1/COS_P2, writing the result onto
+    # the line. Harvesting it as COMPUTE_RESIDUAL compiled it to
+    # `reported(cos) − oper_exp − impairment_fixed_assets`, so on any filing where both children
+    # are present (the only case rollups.py `requires_complete` computes) the operating share
+    # COS_P2 had already netted out was subtracted a SECOND time.
+    "P&L_014": "COS depreciation is the COS_P1/COS_P2 cascade in services.deprec_impairment; "
+               "a template residual re-subtracts what COS_P2 already netted",
 }
 # Curated nodes that must stay plain extracted lines even if an older base carried a rollup.
 EXTRACTED_NOT_COMPUTED_KEYS = {
@@ -672,22 +740,131 @@ FIELD_ID_CANONICAL_OVERRIDES = {
     "Cash Flow_039": "cf_oper_direct__income_taxes_paid_direct",
 }
 
+# Both label maps below key on the CASE-FOLDED LABEL, so two rows carrying the same caption
+# collapse onto one entry. They were dict comprehensions, which made the collapse SILENT — the
+# last row won, nothing was printed — and every arithmetic rule naming a loser then compiled
+# against the wrong target. Measured on the current workbook: 1 concept-label collision, and
+# (after discounting the per-field overrides above) 1 field-label collision. Neither is
+# hypothetical:
+#   * "Total Assets" is carried by general__total_assets (Statement Setup B12) and
+#     bs_ca__total_assets (Balance Sheet B106). CA_049 — a COMPUTE_TOTAL, "NCA_057; CA_048" — is
+#     the only field id reading that label, and that sum does belong on the balance-sheet line,
+#     so the surviving winner is right. It is right by workbook row ORDER alone:
+#     general__total_assets is not a node in this template, so had the comprehension kept the
+#     FIRST claimant the rollup would have tripped the "Conditional rollup target(s) missing from
+#     template" check below instead of shipping. A silent winner is one workbook re-sort away
+#     from being the wrong one.
+#   * "Reverse repo(LTP)" is carried by NCA_052 ("BS - Non-current assets") and CA_043
+#     ("BS - Current assets"), both pointing at Balance Sheet row 54. CA_043 therefore resolves to
+#     the NON-current bs_nca__reverse_repo_ltp, and the CA_033 residual it feeds deducts that
+#     non-current key from bs_ca__other_current_assets in the shipped template. The workbook's own
+#     Formula Dependencies sheet gives the current-asset line its own concept,
+#     bs_ca__reverse_repo_cp; retargeting CA_043 there changes a shipped rollup, so it is the spec
+#     owner's call (open question 3) and the collision is WAIVED below, not resolved.
+# A waiver lists every claimant known to share the label, OWNER FIRST — not a bare owner id —
+# because a bare owner cannot tell a documented two-way collision from a workbook revision that
+# has just added a third claimant, which is precisely the silence being removed here.
+# FIELD_ID_CANONICAL_OVERRIDES above is the per-FIELD escape hatch and the real fix: an
+# overridden field id never consults the label map at all, which is why "Income Taxes Paid"
+# (Cash Flow_030 / Cash Flow_039) and "Minority Interests" (Cash Flow_006 / P&L_094) need no
+# waiver here, and why the field-label waiver can be deleted once CA_043 carries an override.
+CONCEPT_LABEL_COLLISION_WAIVERS: dict[str, tuple[str, ...]] = {
+    "total assets": ("bs_ca__total_assets", "general__total_assets"),
+}
+LABEL_COLLISION_WAIVERS: dict[str, tuple[str, ...]] = {
+    "reverse repo(ltp)": ("NCA_052", "CA_043"),
+}
+
+
+def _label_owner(kind: str, label: str, claims: list[tuple[str, str]],
+                 waivers: dict[str, tuple[str, ...]], waiver_name: str,
+                 remedy: str = "") -> str | None:
+    """The value owning `label`, refusing any collision no waiver accounts for.
+
+    `claims` is the (claimant id, resolved value) pairs for one case-folded label, in workbook
+    order; the comprehensions this replaces returned `claims[-1][1]` unconditionally. A waiver
+    must list EVERY claimant, owner first — see the note above CONCEPT_LABEL_COLLISION_WAIVERS.
+    """
+    if len(claims) == 1:
+        return claims[0][1]
+    by_owner = dict(claims)
+    waived = waivers.get(label, ())
+    if not waived or waived[0] not in by_owner or set(waived) != set(by_owner):
+        detail = ", ".join(f"{owner} -> {value!r}" if value != owner else owner
+                           for owner, value in claims)
+        raise RuntimeError(
+            f"{kind} label {label!r} is claimed {len(claims)} times ({detail}); one of them would "
+            f"silently win and any arithmetic rule naming the others would compile against it. "
+            f"{remedy}Record the collision in {waiver_name} as "
+            f"{label!r}: (owner, ...every other claimant...).")
+    return by_owner[waived[0]]
+
+
 logic_wb = openpyxl.load_workbook(COMPUTED_XLSX, data_only=True, read_only=True)
 field_rows = _rows(logic_wb["Field Ontology"], skip=3)
 field_labels = {str(row[0]): str(row[4]).strip() for row in field_rows if row[0] and row[4]}
-canonical_by_label = {c["label"].strip().casefold(): c["canonical_key"] for c in CONCEPTS}
+_concept_claims: dict[str, list[tuple[str, str]]] = defaultdict(list)
+for c in CONCEPTS:
+    _concept_claims[c["label"].strip().casefold()].append((c["canonical_key"], c["canonical_key"]))
+canonical_by_label = {
+    label: _label_owner("Concept", label, claims, CONCEPT_LABEL_COLLISION_WAIVERS,
+                        "CONCEPT_LABEL_COLLISION_WAIVERS")
+    for label, claims in _concept_claims.items()
+}
+# The field-label guard cannot pick a better target on its own — every claimant on a label reads
+# the SAME concept out of `canonical_by_label`, so the collapse costs no information here. What it
+# hides is two distinct workbook lines being funnelled onto one output concept, so the guard runs
+# over the field ids that still consult the label map and refuses the funnel.
+_field_claims: dict[str, list[tuple[str, str]]] = defaultdict(list)
+for field_id, label in field_labels.items():
+    if field_id not in FIELD_ID_CANONICAL_OVERRIDES:
+        _field_claims[label.casefold()].append(
+            (field_id, canonical_by_label.get(label.casefold())))
+for _label, _claims in _field_claims.items():
+    _label_owner("Field", _label, _claims, LABEL_COLLISION_WAIVERS, "LABEL_COLLISION_WAIVERS",
+                 remedy="A losing field id can instead take a FIELD_ID_CANONICAL_OVERRIDES entry, "
+                        "which resolves on its own and never consults the label map. ")
 canonical_by_field = {
     field_id: FIELD_ID_CANONICAL_OVERRIDES.get(
         field_id, canonical_by_label.get(label.casefold()))
     for field_id, label in field_labels.items()
 }
 field_id_pattern = re.compile(r"(?:NCA|CA|Equity|NCL|CL|P&L|Cash Flow|Others|Notes)_\d{3}")
+# The formula column is free text, so a field id appearing in it is not automatically a
+# dependency. Two clauses name a field for reference rather than arithmetic:
+#   "definition in NCA_032" / "definition in cell NCA_032" — a pointer to where the line is
+#       specified, and
+#   "except CA_033" — the exclusion marker that opens a residual rule.
+# Harvesting them flattened the distinction: CA_033 (Other Current Assets) literally reads
+# "except CA_033; definition in NCA_032; CA_004; …", so NCA_032 — Due from Related Parties(LTP),
+# a NON-current asset — became the first of 37 children deducted from the current-asset residual,
+# the direction the workbook's own Execution_Steps 4 forbids. CA_033 is the only rule the strip
+# changes arithmetically (37 children → 36). Of the three other definitional references:
+# NCA_048 enumerates NCA_032 legitimately too — a non-current residual excluding a non-current
+# line — so the strip only moves it from child 0 to child 9; NCA_057 dedupes to the same list;
+# and CA_048 is a COMPUTE_TOTAL whose target already has FORMULA_DEPS, so its harvest is
+# discarded below regardless.
+_DEFINITIONAL_CLAUSE = re.compile(
+    rf"\b(?:definition\s+in(?:\s+cell)?|except)\s+({field_id_pattern.pattern})",
+    re.IGNORECASE)
+
+
+def _strip_definitional_refs(text: str, field_id: str) -> str:
+    """Formula text with definitional cross-references removed, logging each pair dropped."""
+    def _drop(match: re.Match) -> str:
+        print(f"  {field_id}: stripped definitional reference {match.group(0)!r} "
+              f"→ {match.group(1)}")
+        return " "
+    return _DEFINITIONAL_CLAUSE.sub(_drop, text)
+
+
 arithmetic_ids: set[str] = set()
 compiled_ids: set[str] = set()
 for row in _rows(logic_wb["Computed Field Logic"], skip=3):
     field_id = str(_v(row, 0) or "")
     computation_type = str(_v(row, 4) or "")
-    dependency_ids = list(dict.fromkeys(field_id_pattern.findall(str(_v(row, 6) or ""))))
+    formula_text = _strip_definitional_refs(str(_v(row, 6) or ""), field_id)
+    dependency_ids = list(dict.fromkeys(field_id_pattern.findall(formula_text)))
     dependency_ids = [dependency_id for dependency_id in dependency_ids
                       if dependency_id != field_id]
     is_arithmetic = computation_type == "COMPUTE_TOTAL" or (
@@ -756,6 +933,86 @@ for c in CONCEPTS:
                   f"specification-excluded alias(es): {removed}")
 if _denied_total:
     print(f"  specification alias curation removed {_denied_total} alias(es) in total")
+
+# ── 3c. Confusable-with authoring ─────────────────────────────────────────────
+# WHAT WENT WRONG. `binding.order` step 6 ships verbatim in the generated ontology — "Tie between
+# concepts listed in each other's confusable_with … Never pick by declaration order" — and the
+# "Confusable with" column harvested at the `_cv(r, "Confusable with")` read above is EMPTY on 0 of
+# 461 workbook rows, so the generated file declared the field on 0 of its 462 concepts. The gate in
+# `services.mapping._mutually_confusable` needs MUTUAL naming, which means `_confusable_tie` always
+# returned [], `_answer_confusable_tie` was unreachable, and `usage["confusable_ties"]` was pinned
+# at 0 — on the very file that drives the output CSV. (`hkfrs_hk_china_ontology.json` declares it on
+# 165 of 183, which is why every unit test of step 6 passes while the shipped output path measures
+# nothing. Always name the file.)
+#
+# Measured on the generated file with the real matcher: 1,886 distinct normalised matchable aliases,
+# 361 claimed by more than one concept, 211 whose claimants all sit at ONE `match_priority`, and 51
+# (alias, section) sets over 42 distinct aliases where two or more top-priority claimants survive
+# `exclude_hints`, `_names_a_different_class` and `_prefer_label_owners`. Every one of those 51 was
+# resolved at confidence 1.0 with needs_review=False by whichever concept `_mapping` happened to
+# emit first — i.e. by workbook row order, which step 6 forbids in as many words.
+#
+# WHY THE EDGES LIVE HERE AND NOT ONLY IN THE JSON. The two output artefacts are machine-generated
+# from the workbook; an edge authored only in `output_csv_hk_ontology.json` is silently dropped by
+# the next regeneration. Until the workbook column is filled in, this is where the authored edges
+# have a home, and the assertions below make a broken edge fail the BUILD rather than ship a field
+# the gate cannot fire on. Fill the column and this table empties out on its own.
+#
+# WHY ONLY TWO PAIRS. An edge asserts "a filing that prints this caption may genuinely mean either
+# concept". That is true of a gross parent against the child it contains and false of most of the
+# other 51 sets, and asserting it falsely is worse than the status quo: it routes a legitimate
+# caption to review forever AND ships the falsehood into the LLM payload, which reads
+# `confusable_with` as disambiguation evidence (`mapping._concept_payload`). The measured sets that
+# must NOT get edges want the offending ALIAS deleted instead — "proceeds cash recepit from finance
+# lease" claimed by both `cf_financing__proceeds_non_cur_borrowings` and
+# `cf_financing__repayments_non_cur_borrowings` (opposite signs), "presented in" claimed by
+# `statement_setup_controls__rounding` and `__source_currency` (a prose fragment, not a caption),
+# and "principal activity business engagement" claimed by four payables concepts. Deleting a
+# harvested alias durably belongs in `app/services/spec_alias_curation`, not in a second table here.
+#
+# The hkfrs file's 165 edges are deliberately NOT ported: only 2 of its 183 keys overlap these
+# namespaces, and its mutual pairs chain into a single 47-concept component (share capital →
+# reserves → NCI → the tax lines → both bottom lines), so importing them would tie concepts that
+# are different facts.
+CONFUSABLE_EDGES: dict[str, tuple[str, ...]] = {
+    # "Trade receivables" / 应收账款 / 应收账款及票据 / 贸易应收款项及票据 — four aliases claimed by
+    # both, both `match_priority` 80, both inheriting `bs_ca`. The caption appears in nearly every
+    # HK/PRC filing and the two concepts differ by whether the loss allowance is netted, which no
+    # deterministic tier can read off the caption.
+    "bs_ca__trade_and_other_receivables": ("bs_ca__trade_receivables_gross",),
+    "bs_ca__trade_receivables_gross": ("bs_ca__trade_and_other_receivables",),
+    # 土地使用权 / 租赁土地 / 预付土地出让金 / 预付土地租赁款项 — four aliases claimed by both, both
+    # `match_priority` 81, both inheriting `bs_nca`. A PRC filing prints land use rights inside
+    # "Land and buildings" as often as it prints them on their own line.
+    "bs_nca__buildings": ("bs_nca__land_use_rights",),
+    "bs_nca__land_use_rights": ("bs_nca__buildings",),
+}
+
+_by_ckey = {c["canonical_key"]: c for c in CONCEPTS}
+for _a, _targets in CONFUSABLE_EDGES.items():
+    if _a not in _by_ckey:
+        raise RuntimeError(f"CONFUSABLE_EDGES names an unknown concept: {_a}")
+    for _b in _targets:
+        if _b not in _by_ckey:
+            raise RuntimeError(f"CONFUSABLE_EDGES[{_a}] names an unknown concept: {_b}")
+        # MUTUALITY IS THE GATE, not a tidiness rule: `_mutually_confusable` requires both
+        # directions, so a one-way entry here would ship a field that changes nothing at all —
+        # exactly the class of inert configuration this build keeps finding.
+        if _a not in CONFUSABLE_EDGES.get(_b, ()):
+            raise RuntimeError(
+                f"CONFUSABLE_EDGES is one-way: {_a} names {_b} but not the reverse. "
+                "services.mapping._mutually_confusable ignores one-way edges.")
+for _c in CONCEPTS:
+    _authored = CONFUSABLE_EDGES.get(_c["canonical_key"])
+    if not _authored:
+        continue
+    # Union with the harvest, so filling the workbook column later ADDS to these rather than
+    # racing them, and so re-running the build is idempotent.
+    _c["confusable_with"] = list(dict.fromkeys(list(_c.get("confusable_with") or [])
+                                               + list(_authored)))
+print(f"  confusable_with authored : {len(CONFUSABLE_EDGES)} concepts "
+      f"({sum(len(v) for v in CONFUSABLE_EDGES.values())} edges); "
+      f"workbook column filled on 0 of {len(CONCEPTS) - 1} harvested rows")
 
 # ── 4. Build ontology JSON ────────────────────────────────────────────────────
 
@@ -848,8 +1105,9 @@ def _mapping(c: dict) -> dict | None:
         m["children_if_decomposed"] = c["children_decomposed"]
     if c.get("sole_component_of"):
         m["sole_component_of"] = str(c["sole_component_of"])
-    if c.get("expected_components"):
-        m["expected_components"] = c["expected_components"]
+    # No `expected_components` emission: see the harvest site above. The field is residual caption
+    # prose read only for LOCKED buckets, so filling it from a gross parent's component keys wrote
+    # 31 entries that no consumer ever read.
     if c.get("never_sweep"):
         m["never_sweep"] = c["never_sweep"]
     if c.get("decomposition_rule"):
@@ -891,6 +1149,46 @@ def _mapping(c: dict) -> dict | None:
 mappings = [m for c in CONCEPTS if (m := _mapping(c)) is not None]
 
 shipped = json.loads(SHIPPED_ONT.read_text(encoding="utf-8"))
+
+
+def _global_rules_in_our_key_space(block: dict, keys: set[str]) -> dict:
+    """`global_rules` borrowed from the sibling rulebook, minus the rules it cannot address here.
+
+    Everything else in `global_rules` is PROSE — sign convention, the parent/child policy, the
+    duplicate-fact rule — and prose transfers between key spaces because it names no concept.
+    `mutually_exclusive_groups` is the one entry that does, and copying the block verbatim shipped
+    all four of the sibling's groups (equity_reserves, associate_jv_share, cf_starting_point,
+    oci_composition) written in the `hkfrs_hk_china` key space: measured, 0 of 4 aggregates and
+    only 2 of 13 components existed among this ontology's canonical keys, and no key here carries
+    a `pl_` prefix at all. Both readers resolve a group by key, so every one of them was inert —
+    `map_ontology._enforce_containment` finds no row filed on an aggregate that is not a concept
+    and skips the group, and `_same_section_decompositions` finds no `section_scope` for it — while
+    `equity_reserves` resolved 2 of its 9 members and so read on screen like live configuration.
+
+    Dropped rather than rewritten: there is no `output_csv_hk` equivalent of `oci_composition` or
+    `cf_starting_point`, and the reserves group's nearest local aggregates are either skipped by
+    `_enforce_containment` as validation totals or (bs_equity__other_reserves) would start unfiling
+    real face rows. `schemas.loader.validate_ontology_against_template` refuses a foreign-key-space
+    group at the upload gate, so a reinstated copy fails the seed instead of shipping as decoration.
+    """
+    out = dict(block)
+    kept: list[dict] = []
+    dropped = 0
+    for group in block.get("mutually_exclusive_groups") or []:
+        named = [group.get("aggregate", "")] + list(group.get("components") or [])
+        missing = [k for k in named if k and k not in keys]
+        if not missing:
+            kept.append(group)
+            continue
+        dropped += 1
+        print(f"  dropped mutually_exclusive_group {group.get('id', '?')!r}: "
+              f"{len(missing)}/{len([k for k in named if k])} key(s) are not {ONTOLOGY_KEY} "
+              f"canonical keys — {', '.join(missing[:4])}{' ...' if len(missing) > 4 else ''}")
+    out["mutually_exclusive_groups"] = kept
+    print(f"  mutually_exclusive_groups: kept {len(kept)}, dropped {dropped}")
+    return out
+
+
 ontology_json: dict = {
     "schema_version": 2,
     "ontology_key": ONTOLOGY_KEY,
@@ -900,7 +1198,8 @@ ontology_json: dict = {
     "normalisation":      shipped.get("normalisation", {}),
     "binding":            shipped.get("binding", {}),
     "scope_selection":    shipped.get("scope_selection", {}),
-    "global_rules":       shipped.get("global_rules", {}),
+    "global_rules":       _global_rules_in_our_key_space(
+        shipped.get("global_rules", {}), {m["canonical_key"] for m in mappings}),
     "residual_framework": shipped.get("residual_framework", {}),
     "section_defaults":   section_defaults,
     "mappings":           mappings,

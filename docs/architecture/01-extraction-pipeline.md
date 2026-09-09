@@ -13,7 +13,7 @@ reads the list off it rather than keeping a copy, and the run row records the li
 queued with. Do not add a third copy — the list below names each stage and its file, and
 its order is `default_pipeline()`'s:
 
-`ingest · integrity · language_detect · classify · extract · map_ontology · residual ·
+`ingest · integrity · language_detect · classify · extract · map_line_items · residual ·
 normalize · link_notes · deprec_impairment · secur_fincl_assets ·
 related_party_receivables · sales_revenues · contingent_liabilities · reconcile ·
 prune_notes · confidence · gap_closing · face_mapping_contract · structural · segment`
@@ -31,7 +31,7 @@ The face and its cited notes are processed in this order:
 1. Reconstruction identifies the printed statement subsection and stores face rows in that
    subsection.
 2. Cited notes stay linked to their face row and subsection.
-3. Dedicated ontology concepts are matched inside that subsection, ordered by `match_priority`.
+3. Dedicated line items are matched inside that subsection, ordered by `match_priority`.
 4. A reconciled cited note may populate dedicated template concepts first. Unmatched detail from
    the same reconciled note retains the original face concept; a concept already present on the
    face is never loaded again from the note.
@@ -55,7 +55,7 @@ The face and its cited notes are processed in this order:
    returning a misleading empty success.
 3. **Language detect** (stage name `language_detect`;
    `stages/language.py::LanguageDetectStage`) — sets the document `locale` (drives OCR
-   pack, number parsing, ontology aliases). A
+   pack, number parsing, line-item aliases). A
    dependency-free script/keyword heuristic (`detect_locale`) covers the seed set; a
    statistical detector (`fasttext`, the `lang` extra) is **not wired in** — the extra
    exists so one can be, nothing imports it today.
@@ -99,8 +99,21 @@ The face and its cited notes are processed in this order:
    which is the current period, what scale the figures are in) come from the rulebook the
    *run* was pinned to — `reconstruction_rules(ctx)`, not whichever rulebook is currently
    in force.
-6. **Map (ontology)** (`stages/map_ontology.py` + `services/mapping.py`) — the
-   multi-strategy matcher (below).
+6. **Map** (`map_line_items` — `stages/map_ontology.py` + `services/mapping.py`) — the stage
+   NAME and its module name differ, and deliberately: the name is what a run record, the progress
+   API and every log line report, and it says line items because that is the only configuration
+   there is; the module keeps its filename so the swap cost no import churn. The multi-strategy matcher
+   (below). **Its input is the line-item set.** The matcher's questions are still asked of
+   an `OntologyDefinition`, but that object is now *built from* the run's `LineItemSet` by
+   `services/working_view.py::build_working_view` on the way in — it is a derived,
+   in-memory view, never stored, never served and never authored. Line items is the single
+   configuration engine; the working view is the adapter that made rewriting three thousand
+   lines of proven matcher unnecessary. It is the exact inverse of
+   `services/ontology_projection.py` (which had gone the other way, turning 462 rulebook
+   concepts into line-item definitions so the set could *be* the rulebook) and it imports
+   that module's field lists rather than restating them, because a projection and its
+   inverse that each keep their own copy drift silently — a drift moves which line item a
+   caption resolves to while every subtotal still ties.
 7. **Residual** (`stages/residual.py`) — a printed face line that matched no specific
    concept goes to its own section's residual bucket ("Others") instead of vanishing from
    the statement. Section placement is decided by structure, strongest signal first: the
@@ -111,7 +124,7 @@ The face and its cited notes are processed in this order:
    section must then satisfy, the conditions that send a section to review), overridable
    per concept by `residual_policy` / `never_sweep`.
 8. **Normalize** (`stages/normalize.py`) — sign detection and unit-context resolution:
-   `Less:`/`Add:` label cues, the ontology's `sign_rule.flip_if_label_matches`, and the
+   `Less:`/`Add:` label cues, the line item's `sign_rule.flip_if_label_matches`, and the
    printed-sign tier (parentheses / trailing minus) already decoded by `services/numbers.py`
    at extraction. It also *checks* the rulebook's `sign_convention`
    (`positive_expected` / `negative_expected` / `either`), which is an **expectation, not a
@@ -198,13 +211,13 @@ The face and its cited notes are processed in this order:
     honest outcome. Confirmed routings are kept on `DocumentModel.gap_routings` so the
     decision is inspectable rather than an unexplained change of mapping.
 19. **Face mapping contract** (`stages/face_mapping_contract.py`) — the final mapping
-   invariant for a run carrying an ontology. Every face row with a value must either have a
-   canonical concept or be a verified non-additive aggregate replaced by mapped components.
-   Anything else receives a unique `engine_unclassified_face` key outside every ontology and
+   invariant for a run carrying a line-item set. Every face row with a value must either have
+   a canonical key or be a verified non-additive aggregate replaced by mapped components.
+   Anything else receives a unique `engine_unclassified_face` key outside every line-item and
    template namespace, so it remains stored and appears in the remapping queue without entering
-   any calculation. It is never assigned a neighbouring real concept merely to make the unmapped
-   count zero. Extraction-only runs that carry no ontology skip this gate because they are not
-   mapping runs.
+   any calculation. It is never assigned a neighbouring real line item merely to make the
+   unmapped count zero. Extraction-only runs that carry no line-item set skip this gate because
+   they are not mapping runs.
 20. **Structural** (`stages/structural.py` + `services/structural_checks.py`) — runs the
     arithmetic the template and the rulebook *declare*: template `rollup`s and statement
     `identities`, the rulebook's `validation.identities`, its
@@ -221,7 +234,7 @@ The face and its cited notes are processed in this order:
     (operating, investing, financing), and the statement of changes in equity.
     **Last by necessity, not by convention**: a balance sheet prints five of these on a
     single page, so page classification can never separate them — only a row's resolved
-    `section_scope` can, which does not exist until `map_ontology` and `residual` have run.
+    `section_scope` can, which does not exist until `map_line_items` and `residual` have run.
     **Section first, statement second.** Only `equity_changes` still resolves from the
     statement (a reserve's movement through the year is that statement's content, not the
     balance sheet's closing position); P&L and cash flow are split BY section, so a row of
@@ -262,11 +275,11 @@ method contributes and they corroborate one another:
 
 1. **Exact / normalized lexical** — identity alias match; short-circuits (free, no tokens).
 2. **Rule / fuzzy** — every method runs and contributes candidate evidence (and
-   pre-shortlists concepts for the LLM when the ontology exceeds
+   pre-shortlists candidates for the LLM when the line-item set exceeds
    `extraction.llm_candidate_cap`, default 40).
 3. **LLM semantic decision** (`extraction.llm_mapping`, default on) — the driver: shown
    the caption plus candidate concepts *with their criteria* (definition, include /
-   exclude, confusable-with, value_scope) and the ontology's global policies + worked
+   exclude, confusable-with, value_scope) and the set's global policies + worked
    examples, it chooses by **meaning**. So "Amounts due from customers" → `trade_receivables`
    with no matching alias, and repeated "Others" captions disambiguate by section context.
 **Two tiers that used to be here are gone, and the removals are the contract getting shorter
@@ -355,8 +368,8 @@ provenance is a click-to-source chip, and the shared source panel
   and renders a mini spreadsheet grid with the exact origin cell highlighted — the
   spreadsheet analogue of the PDF overlay, so click-to-source is uniform across formats.
 
-The run is mapped against the seeded reference ontology (`app/sample/reference.py` holds
-the stored HKFRS template + rulebook equal to the shipped files on every startup), so the
+The run is mapped against the seeded reference configuration (`app/sample/reference.py`
+holds the stored template + line-item set equal to the shipped files on every startup), so the
 "mapped to" column populates — via the LLM when reachable, else the deterministic alias
 tier offline.
 

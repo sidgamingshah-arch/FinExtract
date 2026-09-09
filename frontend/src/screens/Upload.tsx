@@ -1,5 +1,8 @@
 /** Screen 1 — Documents & Template. Source docs dropzone + list, output template,
- * and ontology. Mirrors wireframe scrUpload verbatim. */
+ * and the line-item configuration. Mirrors wireframe scrUpload verbatim.
+ *
+ * Step 3 used to be "Ontology" — the second configuration engine a run could be pointed at.
+ * There is one engine now, the line-item set, so this screen names it and nothing else. */
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -8,11 +11,11 @@ import { color, font, radius } from "../theme";
 import type { ExtractMode, SourceDoc, TemplateRef } from "../types";
 import {
   activeTemplate,
-  ontologyInForce,
+  configurationInForce,
   useDeleteDocument,
   useDocumentIntegrity,
   useDocuments,
-  useOntologies,
+  useLineItemVersions,
   useProject,
   useTemplates,
   useUploadDocument,
@@ -217,7 +220,8 @@ function ModeOption({
 
 /** Output-template card: shows the active template and lets the analyst switch to another
  * existing one (real templates from the API). Authoring a new template is admin-only and
- * routes to the Template & Ontology screen. */
+ * routes to the Template & Line Items screen (`SCREENS.template`, relabelled with the engine it
+ * actually configures). */
 function TemplateCard({
   canTemplate,
   canSelectTemplate,
@@ -343,41 +347,55 @@ function TemplateCard({
   );
 }
 
-/** Rulebook card: the ontology a run started from this screen will actually read the filing
- * against — named, sized, and with its standing said plainly.
+/** Line-items card: the configuration a run started from this screen will actually read the
+ * filing against — named, sized, and with its standing said plainly.
+ *
+ * This was `OntologyCard`, and step 3 of this screen was where an analyst was shown WHICH RULEBOOK
+ * a run would map against — the second configuration engine. That engine is gone: line items is
+ * the single one, so there is one store to describe and nothing to choose an engine between. The
+ * card reads `/line-items/versions` and asks the same question, the same way
+ * (`configurationInForce`), that the extraction view's default resolves — so the description on
+ * this screen and the configuration the run records cannot drift apart. Do not reinstate a second
+ * card for a rulebook; there is no rulebook to name.
  *
  * It used to print the sample project's ontology FILENAME over a fixed "1,240 rules · 380
- * aliases" and a green "Valid" badge: three claims about no rulebook this product has ever held,
- * sitting on the screen where the analyst decides whether the run is configured correctly. Every
- * one of them now comes off the rulebook in force for the selected template, which is the same
- * question, asked the same way (`ontologyInForce`), that the extraction view's picker defaults to
- * — so the description on this screen and the rulebook the run records cannot drift apart. */
-function OntologyCard({ canOntology, onManage }: { canOntology: boolean; onManage: () => void }) {
+ * aliases" and a green "Valid" badge: three claims about no configuration this product has ever
+ * held, sitting on the screen where the analyst decides whether the run is configured correctly.
+ * Every one of them now comes off the version in force for the selected template. */
+function LineItemsCard({ canLineItems, onManage }:
+                       { canLineItems: boolean; onManage: () => void }) {
   const t = useT();
   const locale = useAppLocale();
-  const { data: rows, isPending } = useOntologies();
+  const { data: rows, isPending } = useLineItemVersions();
   const { data: templates } = useTemplates();
   const selectedId = useUI((s) => s.selectedTemplateId);
   const list: TemplateRef[] = templates ?? [];
   // The same "which template version is active" rule the card above uses — one function, not a
-  // second copy of it (`activeTemplate`). A rulebook targets ONE template KEY, so that is what is
-  // taken from the version; the rulebook in force overall would describe a different extraction.
+  // second copy of it (`activeTemplate`). A configuration targets ONE template KEY, so that is what
+  // is taken from the version; the configuration in force overall would describe a different
+  // extraction.
   const activeKey = activeTemplate(list, selectedId)?.template_key;
-  const ont = ontologyInForce(rows, (o) => !activeKey || o.target_template_key === activeKey);
+  const cfg = configurationInForce(rows, (c) => !activeKey || c.target_template_key === activeKey);
   const num = (n: number) => n.toLocaleString(locale);
   // Absent counts are left out rather than shown as 0 — an older server that does not serve them
-  // would otherwise have this card reporting an empty rulebook.
+  // would otherwise have this card reporting an empty configuration. (`u.ontConcepts`/`u.ontAliases`
+  // are the i18n catalogue's own key names for the two count nouns; only their VALUES reach the
+  // user, and those name the counted things, not an engine.)
   const size = [
-    ont?.concept_count == null ? null : `${num(ont.concept_count)} ${t("u.ontConcepts")}`,
-    ont?.alias_count == null ? null : `${num(ont.alias_count)} ${t("u.ontAliases")}`,
+    cfg?.items == null ? null : `${num(cfg.items)} ${t("u.ontConcepts")}`,
+    cfg?.aliases == null ? null : `${num(cfg.aliases)} ${t("u.ontAliases")}`,
   ].filter(Boolean).join(" · ");
-  const standing = ont?.superseded ? t("u.ontReplaced") : t("u.ontInForce");
+  // There is one standing left to report. `configurationInForce` only ever answers with the row the
+  // server flags `in_force`, and `LineItemVersionRef` carries no `superseded`: selection is
+  // latest-stored-wins, so "something has replaced this" is not a claim the server makes any more
+  // and this card must not invent it. The amber "Replaced" branch went with it.
+  const standing = t("u.ontInForce");
 
   return (
     <Card>
-      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 5 }}>{t("u.ontology")}</div>
+      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 5 }}>{t("u.lineItems")}</div>
       <p style={{ margin: "0 0 11px", fontSize: 11.5, color: color.sec2, lineHeight: 1.5 }}>
-        {t("u.ontologyExplainer")}
+        {t("u.lineItemsExplainer")}
       </p>
       <div
         style={{
@@ -395,8 +413,8 @@ function OntologyCard({ canOntology, onManage }: { canOntology: boolean; onManag
             width: 30,
             height: 30,
             borderRadius: 7,
-            background: ont?.superseded ? color.amberBg : color.greenBg2,
-            color: ont?.superseded ? color.amberFg : color.greenFg,
+            background: color.greenBg2,
+            color: color.greenFg,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -407,34 +425,36 @@ function OntologyCard({ canOntology, onManage }: { canOntology: boolean; onManag
           ◆
         </span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div data-testid="u-rulebook" data-rulebook-id={ont?.id}
+          {/* The testids stay as they are: a test hook is not a surface a user or an operator
+              meets, and renaming them would only break the assertions that read them. */}
+          <div data-testid="u-rulebook" data-rulebook-id={cfg?.id}
                style={{ fontSize: 12.5, fontWeight: 600 }}>
-            {ont ? ont.ontology_key : isPending ? t("u.ontLoading") : t("u.ontNone")}
+            {cfg ? cfg.line_items_key : isPending ? t("u.liLoading") : t("u.liNone")}
           </div>
           <div data-testid="u-rulebook-meta" style={{ fontSize: 11, color: color.muted }}>
-            {/* While the list is in flight this line says NOTHING. "This template has no ontology
-                yet" is a fact, and it is not one that is known until the rulebooks arrive — it read
-                that way under "Loading rulebooks…", asserting an absence it had not established. */}
-            {ont ? [`v${ont.version}`, size].filter(Boolean).join(" · ")
-                 : isPending ? "" : t("u.ontNoneHint")}
+            {/* While the list is in flight this line says NOTHING. "This template has no line items
+                configured yet" is a fact, and it is not one that is known until the versions arrive
+                — it read that way under "Loading…", asserting an absence it had not established. */}
+            {cfg ? [`v${cfg.version}`, size].filter(Boolean).join(" · ")
+                 : isPending ? "" : t("u.liNoneHint")}
           </div>
         </div>
-        {ont && (
+        {cfg && (
           <span
             style={{
               fontSize: 10.5,
               fontWeight: 600,
               padding: "3px 8px",
               borderRadius: radius.pill,
-              background: ont.superseded ? color.amberBg : color.greenBg2,
-              color: ont.superseded ? color.amberFg : color.greenFg,
+              background: color.greenBg2,
+              color: color.greenFg,
             }}
           >
             {standing}
           </span>
         )}
       </div>
-      {canOntology && (
+      {canLineItems && (
         <button
           onClick={onManage}
           style={{
@@ -450,7 +470,7 @@ function OntologyCard({ canOntology, onManage }: { canOntology: boolean; onManag
             fontFamily: font.sans,
           }}
         >
-          {t("u.replaceOntology")}
+          {t("u.replaceLineItems")}
         </button>
       )}
     </Card>
@@ -462,7 +482,10 @@ export default function UploadScreen() {
   const t = useT();
   const canTemplate = useCan("config:template"); // author/edit templates (admin)
   const canSelectTemplate = useCan("template:select"); // choose an existing one (analyst)
-  const canOntology = useCan("config:ontology");
+  // One configuration engine, one permission: `config:ontology` gated the retired engine and is
+  // not granted to anyone any more, so reading it here would hide the card's manage control from
+  // every admin.
+  const canLineItems = useCan("config:line_items");
   const canUpload = useCan("documents:manage");
   const locale = useAppLocale();
   const extractMode = useUI((s) => s.extractMode);
@@ -588,7 +611,7 @@ export default function UploadScreen() {
           ))}
         </Card>
 
-        {/* RIGHT — Template + Ontology */}
+        {/* RIGHT — Template + Line items */}
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           <TemplateCard
             canTemplate={canTemplate}
@@ -596,8 +619,10 @@ export default function UploadScreen() {
             onAuthor={() => navigate(SCREENS.template.path)}
           />
 
-          <OntologyCard
-            canOntology={canOntology}
+          {/* Step 3. Was `OntologyCard`; the manage control still routes to Template & Line Items
+              because that is where a configuration is uploaded (`tp.auth.uploadLineItems`). */}
+          <LineItemsCard
+            canLineItems={canLineItems}
             onManage={() => navigate(SCREENS.template.path)}
           />
         </div>

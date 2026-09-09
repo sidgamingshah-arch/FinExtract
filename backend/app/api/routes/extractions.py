@@ -38,13 +38,13 @@ from app.api.deps import db, settings as get_settings_dep
 from app.api.routes.documents import (
     _can_access,
     _latest_run,
-    _run_ontology_id,
+    _run_line_item_version_id,
     _run_template_id,
     authorized_document,
 )
 from app.config import Settings
 from app.ports.object_store import LocalObjectStore
-from app.schemas.loader import load_ontology, load_template
+from app.schemas.loader import load_template
 from app.security import Permission, Principal, current_principal, require
 from app.services import audit as audit_svc
 from app.services.documents import run_extraction
@@ -116,7 +116,7 @@ def _progress_payload(phase: str, pct: float, *, started_at: datetime, stage_cou
         "stage_count": stage_count,
         "stages_done": done,
         # PROGRESS WITHIN THE STAGE IN FLIGHT, which is the whole reason a reader could not tell a
-        # working run from a hung one. `map_ontology` is one stage and by far the longest — it
+        # working run from a hung one. `map_line_items` is one stage and by far the longest — it
         # makes one batched LLM call per (statement, section) subgroup, concurrently — and until
         # this existed, nothing moved for the whole of it: not the percentage, not the stage
         # counter, and not the log tail, because the only thing that flushed them was the NEXT
@@ -568,7 +568,7 @@ class _RunProgress:
     def step(self, done: int, total: int, label: str = "") -> None:
         """The pipeline's ``step_cb``: a stage reporting progress from inside itself.
 
-        WHAT THIS BUYS. Three things were frozen for the whole of `map_ontology` — the percentage,
+        WHAT THIS BUYS. Three things were frozen for the whole of `map_line_items` — the percentage,
         the stage counter, and the LOG TAIL — because `_write` only ran on a stage transition. One
         write per completed unit unfreezes all three, and carries a live LLM call count that
         previously only appeared in the final result.
@@ -683,10 +683,11 @@ def _maybe_cache_credit_narrative(session: Session, run, locale: str, entity: st
 
 
 def _maybe_cache_netting(session: Session, run, locale: str) -> None:
-    """Evaluate the ontology's generic containment-netting policies against THIS extraction once,
-    via the LLM, and cache the confirmed (resolved) rules on the run. The statement/export then
-    apply the deterministic math from the cached decision — so a policy nets only where the model
-    confirmed the containment, and per-request rendering stays fast. Best-effort and guarded."""
+    """Evaluate the LINE-ITEM SET's generic containment-netting policies against THIS extraction
+    once, via the LLM, and cache the confirmed (resolved) rules on the run. The statement/export
+    then apply the deterministic math from the cached decision — so a policy nets only where the
+    model confirmed the containment, and per-request rendering stays fast. Best-effort and
+    guarded."""
     try:
         from app.config import get_settings
 
@@ -724,7 +725,7 @@ def _folio_lookup(doc_model):
     return folios.get
 
 
-def _serialize_rows(doc_model, ontology=None) -> list[dict]:
+def _serialize_rows(doc_model, working_view=None) -> list[dict]:
     """Extracted line items in a view-friendly shape, each value with its provenance
     (sheet+cell for Excel, page+bbox for PDF) so the UI can show click-to-source.
 
@@ -736,7 +737,7 @@ def _serialize_rows(doc_model, ontology=None) -> list[dict]:
       together double-counts the filing.
     * ``bucket`` / ``bucket_label`` / ``section`` — which of the analyst sections the row belongs to
       (``services.buckets``). The segmentation already decided it; this joins the answer to the row
-      instead of making every consumer re-derive it from the ontology.
+      instead of making every consumer re-derive it from the configuration.
     * ``derivation`` — for the eight concepts assembled from note datasets rather than read off a
       caption, the rule that produced the figure and the note lines it consumed. Computed by the
       services, and previously discarded here: only the first evidence item's page reference
@@ -746,6 +747,13 @@ def _serialize_rows(doc_model, ontology=None) -> list[dict]:
       resolved through the ``FaceNoteLink``s the link-notes stage built. A number the filing prints
       with no note behind it is not in the list, so the linkage cannot promise detail that is not
       there.
+
+    ``working_view`` is the MATCHER'S VIEW of the line-item set this run mapped with (built by
+    ``services.working_view.build_working_view``). Nothing here reads it — every field above is
+    read off the model the pipeline already annotated — and it stays in the signature so a caller
+    hands over the configuration it mapped with without having to know which serializer consults
+    it. It was called ``ontology`` while the ontology was a stored, selectable object; line items
+    is now the single configuration engine and the only thing there is to hand over.
     """
     seg_of, label_of = _bucket_index(doc_model)
     notes_of = _linked_notes(doc_model)
@@ -966,7 +974,15 @@ def _serialize_notes(doc_model) -> list[dict]:
 
 class ExtractionOptions(BaseModel):
     template_version_id: str | None = None
-    ontology_version_id: str | None = None
+    # THE CONFIGURATION THIS RUN IS PINNED TO — a ``line_item_versions`` row, and the only kind of
+    # configuration there is. This field was ``ontology_version_id``; the ontology is no longer a
+    # stored, selectable or user-visible thing, so there is nothing else a caller could name.
+    # Breaking on purpose, and the break is not silent: the old key names no field, so a caller
+    # still sending it has pinned nothing, and the run then resolves the set IN FORCE for its
+    # template (:func:`resolve_configuration_id`), PINS it, and reports it by key and version in
+    # the ``rulebook`` block of every response. A caller that meant an older version can see from
+    # that block that it did not get one, which is what the block is for.
+    line_item_version_id: str | None = None
     basis: list[str] = []
     target_currency: str | None = None
     target_units: int | None = None
@@ -984,8 +1000,9 @@ class ExtractionOptions(BaseModel):
     entity: str | None = None
     # RUN IT AGAIN even though this document already has a run on these same pins.
     #
-    # Without this, POSTing an extraction is IDEMPOTENT per (document, template, rulebook) — see
-    # ``start_extraction`` — which is what a screen that fires the POST on arrival needs it to mean.
+    # Without this, POSTing an extraction is IDEMPOTENT per (document, template, configuration) —
+    # see ``start_extraction`` — which is what a screen that fires the POST on arrival needs it to
+    # mean.
     # Re-extracting is the one case where the caller means "another run of the same thing", and it
     # has to be able to say so, or the two intentions are indistinguishable at the endpoint.
     force: bool = False
@@ -1013,7 +1030,8 @@ def _satisfies(existing, body) -> bool:
     opts = existing.options or {}
     if body.template_version_id and body.template_version_id != _run_template_id(existing):
         return False
-    if body.ontology_version_id and body.ontology_version_id != _run_ontology_id(existing):
+    if body.line_item_version_id \
+            and body.line_item_version_id != _run_line_item_version_id(existing):
         return False
     if body.confirm_scope is not None \
             and bool(body.confirm_scope) != bool(opts.get("confirm_scope")):
@@ -1028,15 +1046,15 @@ def _satisfies(existing, body) -> bool:
 
 
 def resolve_template_id(session: Session, pinned_template_id: str | None,
-                        pinned_ontology_id: str | None = None) -> str | None:
+                        pinned_line_item_id: str | None = None) -> str | None:
     """Which template lays out this run's spread: the caller's pin, else THE LATEST ONE STORED.
 
     THE DEFAULT USED TO BE THE SHIPPED TEMPLATE, and that is the whole reason this function exists.
-    A run that pinned nothing resolved its rulebook against ``shipped_template_key()``, so an
+    A run that pinned nothing resolved its configuration against ``shipped_template_key()``, so an
     uploaded template never became the default: it had to be pinned on every single run, and any
     run where that was forgotten mapped the filing against the shipped HKFRS spread instead —
     succeeding, and quietly laying the figures out on a grid nobody chose. Reported by the person
-    it happened to: a template and a 400-concept rulebook uploaded and tested against for days,
+    it happened to: a template and a 400-item configuration uploaded and tested against for days,
     while runs that omitted the pin were reading neither.
 
     "Latest" is the newest VERSION OF ANY TEMPLATE, not the newest key to appear: re-uploading a
@@ -1044,28 +1062,30 @@ def resolve_template_id(session: Session, pinned_template_id: str | None,
     editing a spread means by publishing it. Ordered on ``created_at`` with ``version`` and ``id``
     behind it, because two versions published inside one clock tick would otherwise resolve on
     whatever order the database felt like returning — the same insertion-order dependence
-    ``services.ontology_select`` was written to remove from the rulebook half.
+    ``services.config_select`` was written to remove from the configuration half.
 
-    A PINNED RULEBOOK STILL DECIDES ITS OWN TEMPLATE. If the caller pinned a rulebook but no
-    template, the answer is the newest version of the template that rulebook is WRITTEN for, not
-    the newest template overall — otherwise defaulting the template would manufacture the very
-    mismatch ``start_extraction`` refuses, out of a request that named only one of the two. The
-    pair agrees by construction, and ``pin_mismatch`` goes on meaning what it says: a
-    contradiction the CALLER stated, not one this resolver introduced.
+    A PINNED CONFIGURATION STILL DECIDES ITS OWN TEMPLATE. If the caller pinned a line-item set but
+    no template, the answer is the newest version of the template that set is WRITTEN for, not the
+    newest template overall — otherwise defaulting the template would manufacture the very mismatch
+    ``start_extraction`` refuses, out of a request that named only one of the two. The pair agrees
+    by construction, and ``pin_mismatch`` goes on meaning what it says: a contradiction the CALLER
+    stated, not one this resolver introduced.
 
     Returns None only when nothing is stored at all, which is a legitimate state — the template is
     optional, and ``_template_for_run`` deliberately has no read-time fallback, so a run with no
     template serves no template-derived findings rather than findings from a substituted one.
     """
-    from app.db.models import OntologyVersion, TemplateVersion
+    from app.db.models import LineItemVersion, TemplateVersion
 
     if pinned_template_id:
         return pinned_template_id
 
     q = select(TemplateVersion)
-    if pinned_ontology_id:
-        ont = session.get(OntologyVersion, pinned_ontology_id)
-        target = (ont.target_template_key or "") if ont is not None else ""
+    if pinned_line_item_id:
+        # ``line_item_versions``, the ONE configuration store — the ``ontology_versions`` row this
+        # used to read is gone, and with it the second engine a run could be pinned to.
+        cfg = session.get(LineItemVersion, pinned_line_item_id)
+        target = (cfg.target_template_key or "") if cfg is not None else ""
         if target:
             q = q.where(TemplateVersion.template_key == target)
     row = session.execute(
@@ -1075,34 +1095,40 @@ def resolve_template_id(session: Session, pinned_template_id: str | None,
     return row.id if row is not None else None
 
 
-def resolve_rulebook_id(session: Session, pinned_ontology_id: str | None,
-                        pinned_template_id: str | None) -> str | None:
-    """Which rulebook this run reads the filing against, when the caller pinned none.
+def resolve_configuration_id(session: Session, pinned_line_item_id: str | None,
+                             pinned_template_id: str | None) -> str | None:
+    """Which LINE-ITEM SET this run reads the filing against, when the caller pinned none.
 
-    A run that names no rulebook used to map against NOTHING: ``_run_extraction_task`` left
-    ``ontology = None``, so no caption resolved to a concept, no concept carried a section, and the
-    spread came back as unmapped rows — while the comment beside the pin said "a run naming no
-    rulebook is read by the shipped default". It was not. Every plain extraction — which is what the
-    upload screen sends — produced a filing with nothing recognised in it.
+    ONE ENGINE, so there is one question left to ask here: which stored VERSION of the
+    configuration. The ontology this used to resolve is not a stored, selectable thing any more —
+    ``line_item_versions`` is the whole of it — and nothing here should grow a second store to
+    choose from again.
 
-    So the rulebook IN FORCE is resolved here and PINNED ON THE RUN, which is the part that makes
-    this a defensible default rather than the substitution this codebase removed elsewhere: nothing
-    is guessed at read time. ``_template_for_run`` deliberately has no fallback because findings
+    A run that names no configuration used to map against NOTHING: ``_run_extraction_task`` left
+    the matcher's view ``None``, so no caption resolved to a line item, no line item carried a
+    section, and the spread came back as unmapped rows — while the comment beside the pin said "a
+    run naming none is read by the shipped default". It was not. Every plain extraction — which is
+    what the upload screen sends — produced a filing with nothing recognised in it.
+
+    So the set IN FORCE is resolved here and PINNED ON THE RUN, which is the part that makes this a
+    defensible default rather than the substitution this codebase removed elsewhere: nothing is
+    guessed at read time. ``_template_for_run`` deliberately has no fallback because findings
     attributed to a template the analyst never chose are worse than absent ones — nothing on the
-    screen says where they came from. Here the run stores the id, ``rulebook_record`` reports the key
-    and version, and the Workspace names it, so the analyst can see exactly which rulebook produced
-    the figures and pin a different one.
+    screen says where they came from. Here the run stores the id, :func:`configuration_record`
+    reports the key and version, and the Workspace names it, so the analyst can see exactly which
+    configuration produced the figures and pin a different one.
 
     A caller's own pin always wins, including the legitimate case of reproducing an earlier spread
-    with a superseded rulebook. Only the absence of a pin is filled in.
+    with a configuration that has since been superseded by a newer one. Only the absence of a pin
+    is filled in.
     """
     from app.db.models import TemplateVersion
     from app.sample.reference import shipped_template_key
 
-    if pinned_ontology_id:
-        return pinned_ontology_id
-    # The template the run is laid out on decides which rulebook is in force for it, so the pair
-    # cannot disagree — the ``pin_mismatch`` check below then holds by construction.
+    if pinned_line_item_id:
+        return pinned_line_item_id
+    # The template the run is laid out on decides which configuration is in force for it, so the
+    # pair cannot disagree — the ``pin_mismatch`` check below then holds by construction.
     template_key = ""
     if pinned_template_id:
         tpl = session.get(TemplateVersion, pinned_template_id)
@@ -1114,78 +1140,126 @@ def resolve_rulebook_id(session: Session, pinned_ontology_id: str | None,
 
 
 def _in_force_for_template(session: Session, template_key: str):
-    """The rulebook in force for a template — the extractor's own choice, never a second copy
-    of that rule (see ``services.ontology_select``)."""
-    from app.services.ontology_select import select_for_template
+    """The line-item set in force for a template — the extractor's own choice, never a second copy
+    of that rule (see ``services.config_select``, which replaced ``services.ontology_select``)."""
+    from app.services.config_select import select_for_template
 
     return select_for_template(session, template_key) if template_key else None
 
 
-def rulebook_record(session: Session, ontology_version_id: str | None) -> dict:
-    """WHICH rulebook this run reads the filing against, decided once, when the run starts.
+def configuration_record(session: Session, line_item_version_id: str | None) -> dict:
+    """WHICH CONFIGURATION this run reads the filing against, decided once, when the run starts.
 
     Recorded on the run because the alternative — a reader re-deriving it later — is what made
-    reloading the extraction view an audit failure: the client asked for the rulebook IT thought
-    was in force, ran the filing against a superseded one, and labelled the result as the rulebook
-    in force. Which rulebook produced a figure is part of the figure. A run states it, and every
-    view reports the stated value instead of guessing again.
+    reloading the extraction view an audit failure: the client asked for the configuration IT
+    thought was in force, ran the filing against an older one, and labelled the result as the
+    configuration in force. Which configuration produced a figure is part of the figure. A run
+    states it, and every view reports the stated value instead of guessing again.
 
-    ``status`` is the whole claim in one word: ``in_force`` (this WAS the rulebook in force for its
-    template when the run started), ``superseded`` (a stored rulebook declares it replaced — a
-    legitimate thing to pin, never a thing to call current), ``pinned`` (live, but not the one in
-    force), ``engine_default`` (the run named no rulebook, so it maps against none and its pages
-    are read by the shipped default) or ``missing`` (the id named no stored rulebook).
+    ``status`` is the whole claim in one word: ``in_force`` (this WAS the set in force for its
+    template when the run started), ``pinned`` (a stored set, but not the one in force —
+    reproducing an earlier spread), ``engine_default`` (the run named no configuration, so nothing
+    in the filing was recognised) or ``missing`` (the id named no stored set).
+
+    ``superseded`` IS GONE, with the sibling lookup that computed it. It answered "has some other
+    stored definition, or the repo's retirement list, DECLARED this key replaced" — metadata
+    labelling that explicitly did not decide what runs, sourced from ``metadata.supersedes`` on the
+    ontology and consumed only by the ontology API field and a frontend badge, both of which go
+    with the ontology surface. Selection is "the latest stored set wins"
+    (``config_select.select_for_template``), so the two could BOTH be true of one row and the
+    record then contradicted itself — "this run used X, which has been replaced; the set in force
+    is X". What a reader needs is ``in_force`` and the key/version of whatever IS in force, which
+    are both still here. Do not reinstate a second, declarative answer to "is this current".
+
+    WHY THE WIRE KEY IS STILL ``rulebook``. This dict is stored as ``options["rulebook"]`` and
+    served as ``result["rulebook"]``, and ``routes.documents``, ``scripts/run_filing.py`` and the
+    frontend all read it under that name. "Rulebook" says nothing about an ontology — it is the
+    configuration a run was read against — so renaming the key would be churn across three
+    consumers for no gain to anybody who can see it.
     """
-    from app.db.models import OntologyVersion
-    from app.services.ontology_select import rulebooks_for_template, superseded_keys
+    from app.db.models import LineItemVersion
 
     record = {
-        "ontology_version_id": ontology_version_id or "",
-        "ontology_key": "", "version": 0, "target_template_key": "",
-        "status": "engine_default" if not ontology_version_id else "missing",
+        "line_item_version_id": line_item_version_id or "",
+        "line_items_key": "", "version": 0, "target_template_key": "",
+        "status": "engine_default" if not line_item_version_id else "missing",
         "in_force": False,
-        "in_force_ontology_key": "", "in_force_version": 0,
+        "in_force_line_items_key": "", "in_force_version": 0,
     }
-    if not ontology_version_id:
+    if not line_item_version_id:
         return record
-    row = session.get(OntologyVersion, ontology_version_id)
+    row = session.get(LineItemVersion, line_item_version_id)
     if row is None:
         return record
 
-    siblings = rulebooks_for_template(session, row.target_template_key)
-    superseded = row.ontology_key in superseded_keys(siblings)
     chosen = _in_force_for_template(session, row.target_template_key)
-    # BEING IN FORCE WINS OVER THE REPLACEMENT LABEL, because the two describe different things and
-    # only one of them decides what runs.
-    #
-    # Selection is now "the latest stored rulebook wins" (``ontology_select.select_for_template``),
-    # while ``superseded`` still answers "has some stored rulebook, or the repo's retirement list,
-    # declared this key replaced". Those can BOTH be true of one row: an admin re-uploads a rulebook
-    # under a key that another stored rulebook says it supersedes, or under one the repo retired, and
-    # that upload is now the newest thing stored — so it is what the next run maps against, whatever
-    # an older declaration says about the name.
-    #
-    # Reporting `superseded` in that state produced a sentence that contradicted itself: "this run
-    # used X, which has since been replaced — the rulebook in force is X". Naming one rulebook as
-    # both the replaced one and the current one tells a reviewer nothing and discredits the rest of
-    # the record. The rulebook that RUNS is in force; that is what "in force" means. A declared
-    # replacement is only worth reporting about a rulebook that is NOT the one running, which is
-    # exactly the case it was added for — a run pinned to an older rulebook someone has replaced.
-    #
-    # The flag is still served beside the status, because "in force, and its key was retired" is a
-    # true and mildly interesting thing to be able to say (the picker already says it —
-    # `tp.rb.inForceSuperseded`); it is just not the run's status.
     in_force = chosen is not None and chosen.id == row.id
     record.update({
-        "ontology_key": row.ontology_key, "version": row.version,
+        "line_items_key": row.line_items_key, "version": row.version,
         "target_template_key": row.target_template_key,
-        "status": "in_force" if in_force else ("superseded" if superseded else "pinned"),
+        "status": "in_force" if in_force else "pinned",
         "in_force": in_force,
-        "superseded": superseded,
-        "in_force_ontology_key": chosen.ontology_key if chosen is not None else "",
+        "in_force_line_items_key": chosen.line_items_key if chosen is not None else "",
         "in_force_version": chosen.version if chosen is not None else 0,
     })
     return record
+
+
+# ``(row id, created_at) -> the first reason it will not load, or None``. Keyed on the stamp as well
+# as the id so a row rewritten in place re-probes instead of answering from a stale entry.
+_LOADABILITY: dict[tuple, str | None] = {}
+
+
+def _first_load_error(exc: Exception) -> str:
+    """One line naming WHERE and WHAT, out of a pydantic error set that can run to hundreds.
+
+    ``str(exc)`` on a set this size is ~1,400 lines, which is not a log line and not something to
+    put on the wire. The first error plus a count is enough to recognise the fault and go looking.
+
+    Moved here from the deleted ``routes.ontologies``: the refusal below is the last reader that
+    needs it, and it was not worth a module of its own.
+    """
+    errors = getattr(exc, "errors", None)
+    found = []
+    if callable(errors):
+        try:
+            found = list(errors())
+        except Exception:  # noqa: BLE001 — not a pydantic error after all; fall through to str()
+            found = []
+    if found:
+        first = found[0]
+        where = ".".join(str(p) for p in (first.get("loc") or ()))
+        more = f" (and {len(found) - 1} more)" if len(found) > 1 else ""
+        return f"{where}: {first.get('msg', '')}{more}".lstrip(": ")
+    return str(exc).strip().splitlines()[0]
+
+
+def probe_configuration_load(row) -> str | None:
+    """``None`` when this stored line-item set still loads, else the first reason it does not.
+
+    THE ONE PROBE. It answered ``loads`` on the ontology picker, the boot-time warning and the
+    refusal below from a single function in ``routes.ontologies``, precisely so a screen, a log and
+    a refusal could never name different rows as broken. That module is gone and line items is the
+    single configuration engine, so the function lives here with the refusal that most needs it and
+    the ``/line-items`` reader imports it — one answer, three readers, as before.
+
+    ``resolve=True`` because the question is "would a RUN be able to map with this row", and the
+    extraction path folds the section layer in (``_run_extraction_task``): a set whose ``inherits``
+    no longer names anything is just as unusable as one the schema refuses.
+
+    Cached per row, so polling an endpoint that consults it pays the load once rather than per
+    request. A test that rewrites a stored definition in place clears ``_LOADABILITY``.
+    """
+    from app.schemas.line_items import load_line_item_set
+
+    key = (row.id, getattr(row, "created_at", None))
+    if key not in _LOADABILITY:
+        try:
+            load_line_item_set(row.definition or {}, resolve=True)
+            _LOADABILITY[key] = None
+        except Exception as exc:  # noqa: BLE001 — any failure to load is the answer, whatever it is
+            _LOADABILITY[key] = _first_load_error(exc)
+    return _LOADABILITY[key]
 
 
 def _run_extraction_task(run_id: str, object_key: str, filename: str, options: dict,
@@ -1203,7 +1277,9 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
     """
     from app.config import get_settings
     from app.db.base import SessionLocal
-    from app.db.models import ExtractionRun, OntologyVersion, TemplateVersion
+    from app.db.models import ExtractionRun, LineItemVersion, TemplateVersion
+    from app.schemas.line_items import load_line_item_set
+    from app.services.working_view import build_working_view
 
     began = datetime.fromisoformat(started_at) if started_at else datetime.now(timezone.utc)
     progress: _RunProgress | None = None
@@ -1215,18 +1291,32 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
         progress = _RunProgress(run_id, began)
         settings = get_settings()
         store = LocalObjectStore(settings.object_store_root)
-        ontology = None
-        oid = options.get("ontology_version_id")
-        if oid:
-            ont_row = session.get(OntologyVersion, oid)
-            if ont_row is not None:
-                # RESOLVED, because this is the one call site whose result actually maps a filing.
-                # A v2 rulebook declares statement / section_scope / temporality / face_only ONLY on
-                # its section_defaults entries — zero concepts carry them — so loading it
-                # unresolved gives every concept those fields as None and the whole section layer
-                # is absent rather than degraded. A v1 definition has no section layer to fold and
-                # comes back untouched, so this is safe for both.
-                ontology = load_ontology(ont_row.definition, resolve=True)
+        # THE CONFIGURATION THIS RUN WAS PINNED TO, read from the ONE store there is. This used to
+        # load an ``ontology_versions`` row through ``loader.load_ontology``; the ontology is no
+        # longer stored, selectable or user-visible, so the run reads its ``LineItemVersion`` and
+        # ``working_view.build_working_view`` derives the view the matcher asks its questions of.
+        # The matching MECHANISM is unchanged and still takes an ``OntologyDefinition`` (hence
+        # ``run_extraction(ontology=...)``, an internal parameter name), but its INPUT is now the
+        # line-item set — see ``services.working_view`` for the parity measurements.
+        working_view = None
+        lid = options.get("line_item_version_id")
+        if lid:
+            cfg_row = session.get(LineItemVersion, lid)
+            if cfg_row is not None:
+                # RESOLVED, because this is the one call site whose result actually maps a filing,
+                # and ``services.working_view`` measured what the fold is worth: `resolve=True`
+                # differs from `resolve=False` on exactly one field, `note_use_rationale`, on 394 of
+                # 462 items, where unresolved loses it and resolved agrees with what the reviewer
+                # workbook publishes. Everything else is identical because the items carry their
+                # resolved values already. ``load_line_item_set`` resolves by default; stated
+                # explicitly here because this is the call site where it matters.
+                #
+                # UNGUARDED, deliberately, and ``start_extraction`` is what makes that safe: a set
+                # that will not load is refused at the door (see the refusal there), so a failure
+                # here is a run created outside the route and belongs in `failed` with the reason
+                # in its logs rather than silently mapping the filing against nothing.
+                st = load_line_item_set(cfg_row.definition, resolve=True)
+                working_view = build_working_view(st)
         # The template is the run's target definition; the structural stage validates the
         # extraction against the rollups and identities it declares.
         template = None
@@ -1240,7 +1330,11 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
                     template = None
 
         data = store.get(object_key)
-        doc_model, ctx = run_extraction(data, filename=filename, ontology=ontology,
+        # ``ontology=`` is ``services.documents.run_extraction``'s own parameter name for the
+        # matcher's working view. Internal and left alone on purpose: what it is HANDED is the view
+        # built from the line-item set above, and renaming three thousand lines of matcher was
+        # never the point.
+        doc_model, ctx = run_extraction(data, filename=filename, ontology=working_view,
                                         included_pages=included_pages, template=template,
                                         progress_cb=progress, context_cb=progress.observe,
                                         step_cb=progress.step)
@@ -1273,17 +1367,29 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
 
         recon = doc_model.reconciliation
         structural = doc_model.structural
-        # The rulebook decision recorded when the run was created, carried onto the result with
-        # whether that rulebook actually LOADED. A pinned rulebook whose stored definition will not
-        # load governs nothing, and a result that claimed it did would be the same lie in a
-        # different place.
+        # The configuration decision recorded when the run was created, carried onto the result
+        # with whether a line-item set was actually READ for it.
+        #
+        # WHAT `applied` DISTINGUISHES, precisely, because the comment here used to claim more than
+        # the field can carry: it said "whether that definition actually LOADED", and one that does
+        # NOT load cannot reach this line at all. The load at the top of this function is
+        # deliberately unguarded, so a definition today's schema refuses raises there and control
+        # goes to `except BaseException` below with the run written `failed` — no result, no
+        # `applied` — and ``start_extraction`` now refuses such a pin at the door before any run is
+        # minted, so it is not even reached. So False means ONE thing: this run had no configuration
+        # to read — it named none (`status: engine_default`), or the id it named matches no stored
+        # row (`status: missing`). Both of those mean nothing was recognised in the filing, which is
+        # the claim worth carrying onto the result.
         rulebook = dict((run.options or {}).get("rulebook") or {})
         if not rulebook:
             # A run created outside the route (a re-run script, a seed) still has to say which
-            # rulebook produced its figures, so the record is made here rather than left blank.
-            rulebook = rulebook_record(session, oid)
-        rulebook["applied"] = ontology is not None
-        base_rows = _serialize_rows(doc_model, ontology)
+            # configuration produced its figures, so the record is made here rather than left blank.
+            rulebook = configuration_record(session, lid)
+        # `working_view is not None` and nothing more: the set was found and read. It is not a
+        # verdict on the configuration's quality, and — see above — it can no longer be a report of
+        # a load failure, because a load failure has no result to report on.
+        rulebook["applied"] = working_view is not None
+        base_rows = _serialize_rows(doc_model, working_view)
         template_def = template.model_dump(mode="json") if template is not None else None
         supplemental_rows = _build_supplemental_rows(
             template_def=template_def,
@@ -1297,8 +1403,8 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
 
         run.result = {
             "locale": doc_model.locale,
-            # Which rulebook produced these figures — stated by the run, never re-derived by a
-            # reader (see :func:`rulebook_record`).
+            # Which configuration produced these figures — stated by the run, never re-derived by a
+            # reader (see :func:`configuration_record`).
             "rulebook": rulebook,
             "format": doc_model.fmt.value,
             "filename": filename,
@@ -1465,44 +1571,44 @@ def start_extraction(
     run; the frontend polls GET /extractions/{run_id} (or /documents/{id}/run) until it
     reaches 'succeeded'/'failed'. Keeps the API responsive on large files without a
     separate worker/broker."""
-    from app.db.models import Document, ExtractionRun, TemplateVersion
+    from app.db.models import Document, ExtractionRun, LineItemVersion, TemplateVersion
 
     doc = session.get(Document, document_id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Document not found")
 
     # Settle BOTH of this run's pins BEFORE it starts, and keep them on the run. The caller may
-    # legitimately pin a superseded rulebook (reproducing an earlier spread), and the run says so
+    # legitimately pin an older line-item set (reproducing an earlier spread), and the run says so
     # rather than letting the screen decide afterwards what it must have used.
     #
-    # THE TEMPLATE FIRST, because it is what the rulebook is scoped to. Defaulting it to the latest
-    # stored template (``resolve_template_id``) is what makes an uploaded template the one a run
-    # actually uses: the default was the SHIPPED template, so a run that pinned nothing laid the
+    # THE TEMPLATE FIRST, because it is what the configuration is scoped to. Defaulting it to the
+    # latest stored template (``resolve_template_id``) is what makes an uploaded template the one a
+    # run actually uses: the default was the SHIPPED template, so a run that pinned nothing laid the
     # spread out on the shipped grid however many templates had been uploaded since.
     template_version_id = resolve_template_id(session, body.template_version_id,
-                                              body.ontology_version_id)
-    ontology_version_id = resolve_rulebook_id(session, body.ontology_version_id,
-                                              template_version_id)
-    rulebook = rulebook_record(session, ontology_version_id)
+                                              body.line_item_version_id)
+    line_item_version_id = resolve_configuration_id(session, body.line_item_version_id,
+                                                    template_version_id)
+    rulebook = configuration_record(session, line_item_version_id)
 
-    # A pinned rulebook and a pinned template have to be about the SAME template, and nothing
-    # downstream would ever notice that they were not: the rulebook decides which concept each
-    # printed caption maps to and the template decides the grid those concepts are laid out in, so
-    # this pair maps every caption with a rulebook validated against a template the spread never
+    # A pinned configuration and a pinned template have to be about the SAME template, and nothing
+    # downstream would ever notice that they were not: the line-item set decides which line each
+    # printed caption maps to and the template decides the grid those lines are laid out in, so this
+    # pair maps every caption with a configuration validated against a template the spread never
     # uses. That is the established mechanism behind a cost-of-sales line turning up inside other
     # income — the run succeeds, and the spread is wrong with full confidence.
     #
-    # Read off the rulebook record above rather than fetching the ontology row a second time, so
-    # "which template is this rulebook for" has one spelling. Refused before the integrity gate
+    # Read off the configuration record above rather than fetching the row a second time, so "which
+    # template is this configuration for" has one spelling. Refused before the integrity gate
     # because nothing about the DOCUMENT can make this pair valid; it is a contradiction in the
     # request. Pinning one of the two, or neither, stays legal — both fields are optional, a run
-    # naming no rulebook is read by the shipped default, and an id naming no stored row leaves
+    # naming no configuration recognises nothing, and an id naming no stored row leaves
     # ``target_template_key`` empty, which is a missing pin rather than a conflicting one.
     # BOTH PINS MUST BE THE CALLER'S for this to be a contradiction in the request. The template is
     # now defaulted when the caller names none, and ``resolve_template_id`` derives that default
-    # from a pinned rulebook's own target — so a resolved-vs-pinned pair agrees by construction and
-    # can never reach here. Testing the RESOLVED id instead would turn a request naming one of the
-    # two into a 422 about a template the caller never chose.
+    # from a pinned set's own target — so a resolved-vs-pinned pair agrees by construction and can
+    # never reach here. Testing the RESOLVED id instead would turn a request naming one of the two
+    # into a 422 about a template the caller never chose.
     target_key = rulebook["target_template_key"]
     if body.template_version_id and target_key:
         tpl_row = session.get(TemplateVersion, body.template_version_id)
@@ -1510,11 +1616,14 @@ def start_extraction(
             raise HTTPException(status_code=422, detail={
                 "error": "pin_mismatch",
                 "message": (
-                    f"Rulebook {rulebook['ontology_key']!r} is written for template "
+                    f"Configuration {rulebook['line_items_key']!r} is written for template "
                     f"{target_key!r}, but this run pins template {tpl_row.template_key!r}. A run "
-                    f"must map with the rulebook written for the template that shapes its spread."),
+                    f"must map with the configuration written for the template that shapes its "
+                    f"spread."),
                 "template_key": tpl_row.template_key,
-                "ontology_target_template_key": target_key,
+                # The key was ``ontology_target_template_key``; nothing a reader meets says
+                # ontology any more, and there is only one configuration this can be about.
+                "configuration_target_template_key": target_key,
             })
 
     # Enforce the integrity gate at the API boundary: a document with BLOCKER findings
@@ -1540,9 +1649,9 @@ def start_extraction(
     # two-tab case it never covered at all.
     #
     # So the endpoint answers for itself. POSTing an extraction is IDEMPOTENT per (document,
-    # resolved template, resolved rulebook): asked for a run that already exists on the same pins,
-    # it hands back THAT run rather than starting another. Re-extracting stays possible and stays
-    # EXPLICIT — `force` is how a caller says "another run of the same thing", which is a different
+    # resolved template, resolved configuration): asked for a run that already exists on the same
+    # pins, it hands back THAT run rather than starting another. Re-extracting stays possible and
+    # stays EXPLICIT — `force` is how a caller says "another run of the same thing", a different
     # intention from "make sure this filing has been extracted" and could not be told apart before.
     #
     # Resolved ids, not the request's: two callers naming the pins differently — one pinning
@@ -1579,6 +1688,71 @@ def start_extraction(
                     "progress_url": f"/api/v1/extractions/{existing.id}",
                     "adopted": True}
 
+    # --- A CONFIGURATION THAT WILL NOT LOAD IS REFUSED AT THE DOOR ------------------------------
+    # THE DEFECT THIS CLOSES. ``_run_extraction_task`` reads the run's configuration resolved and
+    # UNGUARDED — deliberately, see the comment at that call — so a stored definition today's schema
+    # refuses raises there, lands in the task's ``except BaseException``, and the run is written
+    # `failed` after the recorder has been assembled and the file fetched. The caller got a 202 and
+    # a run id, and the only account of what went wrong is a pydantic error in ``run.logs``.
+    # MEASURED on the workspace database when this was written: 40 of the 42 stored configuration
+    # rows failed to load with the same 358 validation errors, and the picker served all 42 — so
+    # pinning one is an ordinary click, not a contrived request.
+    #
+    # REFUSED, never degraded to "map against nothing" the way the template load beside it is. The
+    # two are not comparable: a template that will not load costs the run its structural checks,
+    # while no configuration means no caption resolves to a line item at all (see
+    # :func:`resolve_configuration_id`) — a completed 21-stage run that recognised NOTHING,
+    # explained by one amber sentence. THIS IS A LIVE INVARIANT and it survived the merge of the
+    # ontology into line items unchanged: the store it probes moved from ``ontology_versions`` to
+    # ``line_item_versions``, the reason it exists did not. Refusing an unusable configuration where
+    # there is a caller to tell is this codebase's own doctrine (the ``/line-items`` publish gate
+    # refuses a set that recognises nothing; ``services.config_select.select_for_template``).
+    #
+    # PLACED AFTER THE ADOPT BLOCK, and not beside the ``pin_mismatch`` check above, which is the
+    # part that makes this safe. 18 of the 19 succeeded runs in the workspace database are pinned to
+    # a configuration that no longer loads; re-opening one of those spreads is a mount POST on the
+    # same pins, and refusing it would make a past extraction unreadable to punish a definition that
+    # nothing is about to load. This gate is about the run that is ABOUT TO START, so it sits
+    # exactly where that run is about to be minted — an adopted run is never refused, a new one
+    # never begins doomed.
+    #
+    # Probed through :func:`probe_configuration_load`, the ONE probe — the same function the
+    # ``/line-items`` reader and the boot-time warning answer from — so the picker, the log and this
+    # refusal can never disagree about which rows are broken. Cached per row, so a poll of this
+    # endpoint pays the load once, not per request.
+    #
+    # The RESOLVED id, because that is the one the worker will read: a run whose configuration was
+    # defaulted fails just as completely as one whose configuration was pinned. The message says
+    # which of the two it is, so a caller that pinned nothing is not told to unpin something.
+    if line_item_version_id:
+        cfg_row = session.get(LineItemVersion, line_item_version_id)
+        # A missing row is a DIFFERENT fault and is not this gate's business: `configuration_record`
+        # already reports it as `missing`, and the run reads no configuration rather than failing.
+        load_error = probe_configuration_load(cfg_row) if cfg_row is not None else None
+        if load_error is not None:
+            pinned = bool(body.line_item_version_id)
+            named = f"{rulebook['line_items_key']!r} v{rulebook['version']}"
+            raise HTTPException(status_code=422, detail={
+                # The error CODE is unchanged: ``routes.documents`` reports the same fault under
+                # this string and the frontend keys its message on it. "Rulebook" says nothing about
+                # an ontology, so there is nothing here for a user to stop seeing.
+                "error": "rulebook_unloadable",
+                "message": (
+                    (f"Configuration {named} cannot be loaded, so it would govern nothing in this "
+                     f"run: {load_error}. Pin a configuration that loads, or republish this one."
+                     if pinned else
+                     f"The configuration in force for this template, {named}, cannot be loaded, "
+                     f"so a run would recognise nothing in this filing: {load_error}. Republish "
+                     f"it, or pin a configuration that loads.")),
+                "line_item_version_id": line_item_version_id,
+                "line_items_key": rulebook["line_items_key"],
+                "version": rulebook["version"],
+                # Whether the CALLER chose this configuration or it was defaulted for them — the two
+                # need different actions from whoever reads the message.
+                "pinned": pinned,
+                "reason": load_error,
+            })
+
     entity = body.entity or Path(doc.filename or "").stem or "document"
     run_id = audit_svc.make_run_id(entity)
     # A run has ONE start time. Stamped here and written to `created_at` as well as to the progress
@@ -1588,9 +1762,9 @@ def start_extraction(
     started_at = datetime.now(timezone.utc)
     # ONE options dict, stored on the run AND handed to the worker. The worker used to be given
     # ``body.model_dump()`` while the row stored something else, so anything settled here — the
-    # rulebook resolved above, above all — was recorded on the run and then not used to produce its
-    # figures. A run that says which rulebook it read the filing against and did not read it is
-    # worse than one that says nothing.
+    # configuration resolved above, above all — was recorded on the run and then not used to produce
+    # its figures. A run that says which configuration it read the filing against and did not read
+    # it is worse than one that says nothing.
     run_options = {**body.model_dump(),
                    # A CONCRETE BOOL. The field is tri-state on the way in so that "not stated" can
                    # be told from "stated False" by the idempotency test above; a run's stored
@@ -1598,21 +1772,26 @@ def start_extraction(
                    # reader want the effective value.
                    "confirm_scope": bool(body.confirm_scope),
                    # THE RESOLVED IDS, not the request's, and for the same reason in both cases: a
-                   # run must be able to say which template shaped its spread and which rulebook
-                   # produced its figures. ``_run_template_id`` reads the column OR this key, so
-                   # leaving the request's None here would have one of them answering "no template"
-                   # while the other named one.
+                   # run must be able to say which template shaped its spread and which
+                   # configuration produced its figures. ``_run_template_id`` and
+                   # ``_run_line_item_version_id`` read the column OR this key, so leaving the
+                   # request's None here would have one of them answering "no template" while the
+                   # other named one.
                    "template_version_id": template_version_id,
-                   "ontology_version_id": ontology_version_id,
+                   "line_item_version_id": line_item_version_id,
+                   # Under the key ``rulebook`` still — see :func:`configuration_record` for why
+                   # that name stays while the ontology behind it is gone.
                    "rulebook": rulebook,
                    "stages": pipeline_stage_names()}
     run = ExtractionRun(
         id=run_id, document_id=doc.id,
         template_version_id=template_version_id,
-        # The RESOLVED id, not the request's: a run must be able to say which rulebook produced
-        # its figures, and "whatever was in force at the time" is not an answer a later reader can
-        # reconstruct — the rulebook in force changes every time one is published.
-        ontology_version_id=ontology_version_id,
+        # THE PIN THAT MAKES THIS RUN REPRODUCIBLE, and the RESOLVED id rather than the request's:
+        # a run must be able to say which configuration produced its figures, and "whatever was in
+        # force at the time" is not an answer a later reader can reconstruct — the set in force
+        # changes every time one is published. Was ``ontology_version_id``, against a store that no
+        # longer exists; ``line_item_versions`` is the one place configuration lives.
+        line_item_version_id=line_item_version_id,
         # The stage list THIS run will walk, recorded at the moment it is queued. Serving the
         # live pipeline's list instead would make an old run disagree with itself the next time
         # a stage is added: its frozen `stage_count`/`stages_done` would be measured against a
@@ -1653,8 +1832,9 @@ def get_run(run_id: str, session: Session = Depends(db),
     and it now serves the pipeline's log tail as well as the result — so an unauthenticated caller
     could read a filing's extracted figures and the pipeline's own commentary on them, given a run
     id, and run ids are composed from the entity slug and a timestamp
-    (``rulebook_record``/``start_extraction``) rather than being unguessable. Every other read of a
-    document's data is behind ``authorized_document``; the run is the same data by another route.
+    (``audit.make_run_id``/``start_extraction``) rather than being unguessable. Every other read
+    of a document's data is behind ``authorized_document``; the run is the same data by another
+    route.
 
     A run the caller may not see answers 404 rather than 403, for the reason
     ``authorized_document`` gives: existence must not leak across tenants.

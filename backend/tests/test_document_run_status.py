@@ -51,9 +51,9 @@ def _progress_record(**over) -> dict:
     literal here would pass whatever ``_served_progress`` happened to require on the day."""
     from app.api.routes.extractions import _progress_payload
 
-    record = _progress_payload("map_ontology", 0.35,
+    record = _progress_payload("map_line_items", 0.35,
                                started_at=datetime.now(timezone.utc), stage_count=14,
-                               stage="map_ontology", stages_done=["ingest", "classify"])
+                               stage="map_line_items", stages_done=["ingest", "classify"])
     record.update(over)
     return record
 

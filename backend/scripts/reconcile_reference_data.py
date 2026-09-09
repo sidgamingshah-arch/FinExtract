@@ -16,37 +16,38 @@ development database showed it in every one of its rows:
   builder emits the template's own order faithfully; that order was what it was given. "Gross Profit
   and the other calculated totals still render at the END of the template" was a true report about a
   template four revisions stale.
-* the stored rulebook was still the 173-concept ``hkfrs_hk_china_v2`` — the tax sweep bucket still
-  there, no "Direct costs" alias, no ``sole_component_of`` — while the shipped file is 185 concepts
-  keyed ``hkfrs_hk_china``. The one-rulebook consolidation had never reached the product.
-* 16 of the 18 stored ontology versions were Playwright junk. The e2e suite runs uvicorn with
-  ``cwd: ../backend``, so its three ontology-editing probes published their ``E2E alias <epoch>`` /
-  ``E2E includes <epoch>`` / ``E2E netting <epoch>`` edits straight into the development database
-  (frontend/e2e/smoke.spec.ts:300, :329, :366).
+* the stored configuration was four revisions behind the shipped file, so a fix an author had
+  published never reached the product.
+* 16 of the 18 stored configuration versions were Playwright junk. The e2e suite runs uvicorn with
+  ``cwd: ../backend``, so its three configuration-editing probes published their
+  ``E2E alias <epoch>`` / ``E2E includes <epoch>`` / ``E2E netting <epoch>`` edits straight into the
+  development database (frontend/e2e/smoke.spec.ts:423, :452, :489).
 
 ``ensure_reference_data`` now refreshes on every boot, so the drift closes by itself. This script is
-for the part a startup path must NOT do: deleting. It removes
+for the part a startup path must NOT do: deleting. It removes every stored configuration version
+carrying an e2e probe marker, whatever key it is under — the suite edits the SHIPPED key, so that is
+the rule which keeps working after any one-off cleanup — and then refreshes the template and the
+configuration from the files.
 
-* every version of an ontology key the shipped set no longer names
-  (``sample/reference.RETIRED_ONTOLOGY_KEYS``). They are already retired — the selector will not put
-  one in force — but a retired rulebook still sits in ``GET /ontologies`` and still costs the screen
-  a quarter-megabyte deserialization per row.
-* every remaining ontology version carrying an e2e probe marker, whatever key it is under. The suite
-  now edits the SHIPPED key, so this is the rule that keeps working after this one-off cleanup.
-
-and then refreshes the template and the ontology from the files.
+WHAT WAS HERE AND IS GONE, so nobody reinstates it. This script used to read ``ontology_versions``
+and sweep every version of a key listed in ``sample/reference.RETIRED_ONTOLOGY_KEYS``. Both are
+deleted with the second configuration store: line items is the single configuration engine, its rows
+live in ``line_item_versions``, ``db.base`` drops the old table on the way past, and one engine has
+no rival key to retire. What it reports on instead is ``line_item_versions`` — and, per version, how
+many extraction runs PIN it through ``extraction_runs.line_item_version_id``, which is the fact that
+decides whether deleting a row costs a stored run its configuration record.
 
 WHAT IT DELIBERATELY DOES NOT TOUCH, stated because leaving it unsaid would read as an oversight:
-older versions of the SHIPPED template key. None of them carries an e2e marker, one of them is
-pinned by a stored extraction run, and the newest version is what every reader gets
-(``sortTemplates`` on the Template screen, and a run names the version id it read). An unreferenced
-older version is history, not clutter — the same rule ``scripts/prune_ontology_versions.py``
-applies. What it prints instead is how many of them there are, so the operator can prune
-deliberately.
+older versions of the SHIPPED template and configuration keys. None of them carries an e2e marker,
+some are pinned by stored extraction runs, and the newest version is what every reader gets
+(``sortTemplates`` on the Template screen, ``config_select.select_for_template`` for a run, and a run
+names the version id it read). An unreferenced older version is history, not clutter. What it prints
+instead is how many of them there are, and which are pinned, so the operator can prune deliberately.
 
-A run that pinned a rulebook version this deletes is reported BEFORE anything is written: its
-rulebook record changes from "superseded" to "missing" (api/routes/extractions.rulebook_record).
-That is the price of deleting the junk, and the plan states it rather than discovering it later.
+A run that pinned a configuration version this deletes is reported BEFORE anything is written: its
+configuration record changes from "pinned" to "missing"
+(api/routes/extractions.configuration_record). That is the price of deleting the junk, and the plan
+states it rather than discovering it later.
 
     cd backend
     python scripts/reconcile_reference_data.py                       # report only
@@ -65,8 +66,8 @@ import re
 import sys
 from pathlib import Path
 
-# The three ontology-editing e2e probes build their strings as `E2E alias ${Date.now()}` and so on
-# (frontend/e2e/smoke.spec.ts:300, :329, :366), which is why an epoch is part of the pattern: it
+# The three configuration-editing e2e probes build their strings as `E2E alias ${Date.now()}` and so
+# on (frontend/e2e/smoke.spec.ts:423, :452, :489), which is why an epoch is part of the pattern: it
 # cannot match an alias a human authored, and it cannot match the shipped files — the suite asserts
 # on these exact strings, so the day one is renamed the rename lands in one place.
 _E2E_PROBE = re.compile(r"E2E (?:alias|includes|netting) \d{10,}")
@@ -79,8 +80,9 @@ _E2E_PROBE = re.compile(r"E2E (?:alias|includes|netting) \d{10,}")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-def _concepts(definition: dict | None) -> int:
-    return len((definition or {}).get("mappings") or [])
+def _items(definition: dict | None) -> int:
+    """How many line items a stored configuration defines — the size of what is being compared."""
+    return len((definition or {}).get("items") or [])
 
 
 def _pl_order(definition: dict | None) -> list[str]:
@@ -99,15 +101,34 @@ def _e2e_markers(definition: dict | None) -> list[str]:
     return sorted(set(_E2E_PROBE.findall(json.dumps(definition or {}, ensure_ascii=False))))
 
 
+def _pins(session) -> dict[str, int]:
+    """``line_item_version_id`` -> how many stored runs pin it.
+
+    The whole reason this script can report what a deletion costs. A run records the configuration
+    it read the filing against, and that pin is what makes the run reproducible — so "which stored
+    versions are load-bearing" is a question about ``extraction_runs``, not about which row is
+    newest.
+    """
+    from sqlalchemy import func, select
+
+    from app.db.models import ExtractionRun
+
+    return {str(vid): int(n) for vid, n in session.execute(
+        select(ExtractionRun.line_item_version_id, func.count())
+        .where(ExtractionRun.line_item_version_id.is_not(None))
+        .group_by(ExtractionRun.line_item_version_id)) if vid}
+
+
 def _summary(session, label: str) -> None:
     """What the database says right now, in the facts the drift showed up in."""
     from sqlalchemy import select
 
-    from app.db.models import OntologyVersion, TemplateVersion
-    from app.sample.reference import shipped_ontology_key, shipped_template_key
-    from app.services.ontology_select import select_for_template
+    from app.db.models import LineItemVersion, TemplateVersion
+    from app.sample.reference import shipped_line_items_key, shipped_template_key
+    from app.services.config_select import select_for_template
 
-    tpl_key, ont_key = shipped_template_key(), shipped_ontology_key()
+    tpl_key, cfg_key = shipped_template_key(), shipped_line_items_key()
+    pinned = _pins(session)
     print(f"\n{label}")
     templates = list(session.execute(
         select(TemplateVersion).where(TemplateVersion.template_key == tpl_key)
@@ -122,27 +143,38 @@ def _summary(session, label: str) -> None:
         print(f"    P&L top-level order: {order or 'none'}")
 
     rows = list(session.execute(
-        select(OntologyVersion).order_by(OntologyVersion.ontology_key, OntologyVersion.version)
+        select(LineItemVersion).order_by(LineItemVersion.line_items_key, LineItemVersion.version)
     ).scalars().all())
-    in_force = select_for_template(session, tpl_key) if tpl_key else None
     by_key: dict[str, list] = {}
     for r in rows:
-        by_key.setdefault(r.ontology_key, []).append(r)
+        by_key.setdefault(r.line_items_key, []).append(r)
+    # In force is asked PER TEMPLATE, because that is the question the selector answers: a stored
+    # set targeting some other template is not competing with this one and must not be labelled as
+    # though it lost.
+    chosen = (select_for_template(session, key)
+              for key in {r.target_template_key for r in rows if r.target_template_key})
+    in_force = {c.id for c in chosen if c is not None}
     for key, versions in sorted(by_key.items()):
-        mark = " [IN FORCE]" if in_force is not None and in_force.ontology_key == key else ""
+        mark = " [IN FORCE]" if any(r.id in in_force for r in versions) else ""
         junk = sum(1 for r in versions if _e2e_markers(r.definition))
-        print(f"  ontology {key}: {len(versions)} version(s) v{versions[0].version}-"
-              f"v{versions[-1].version}, {_concepts(versions[-1].definition)} concepts"
-              f"{', ' + str(junk) + ' carrying e2e probe edits' if junk else ''}{mark}")
-    if ont_key not in by_key:
-        print(f"  ontology {ont_key}: NOT STORED — the shipped rulebook is not in this database")
-    if in_force is None:
-        print(f"  in force for {tpl_key}: nothing")
+        runs = sum(pinned.get(r.id, 0) for r in versions)
+        print(f"  configuration {key}: {len(versions)} version(s) v{versions[0].version}-"
+              f"v{versions[-1].version}, {_items(versions[-1].definition)} line items"
+              f"{', ' + str(junk) + ' carrying e2e probe edits' if junk else ''}"
+              f"{', ' + str(runs) + ' run(s) pin one' if runs else ''}{mark}")
+        for r in versions:
+            if n := pinned.get(r.id, 0):
+                print(f"    v{r.version} pinned by {n} extraction run(s)  (id {r.id})")
+    if cfg_key and cfg_key not in by_key:
+        print(f"  configuration {cfg_key}: NOT STORED — the shipped set is not in this database")
+    if rows and not in_force:
+        print("  in force: nothing")
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description="Reconcile a database's reference template + ontology to the shipped files.")
+        description="Reconcile a database's reference template + line-item set to the shipped "
+                    "files.")
     ap.add_argument("--apply", action="store_true",
                     help="actually delete and publish (default is a report)")
     ap.add_argument("--db", default="",
@@ -163,8 +195,8 @@ def main() -> int:
     from sqlalchemy import select
 
     from app.db.base import SessionLocal, engine, init_db
-    from app.db.models import ExtractionRun, OntologyVersion
-    from app.sample.reference import RETIRED_ONTOLOGY_KEYS, ensure_reference_data
+    from app.db.models import LineItemVersion
+    from app.sample.reference import ensure_reference_data
 
     init_db()
     print(f"database: {engine.url}")
@@ -172,43 +204,39 @@ def main() -> int:
         _summary(session, "BEFORE")
 
         rows = list(session.execute(
-            select(OntologyVersion).order_by(OntologyVersion.ontology_key, OntologyVersion.version)
+            select(LineItemVersion)
+            .order_by(LineItemVersion.line_items_key, LineItemVersion.version)
         ).scalars().all())
-        doomed: list[tuple[object, str]] = []
-        for r in rows:
-            if r.ontology_key in RETIRED_ONTOLOGY_KEYS:
-                doomed.append((r, "retired key: the shipped set no longer names it"))
-            elif markers := _e2e_markers(r.definition):
-                doomed.append((r, f"e2e probe edit ({markers[0]})"))
+        # ONE deletion rule, where there used to be two. The retired-key sweep went with the second
+        # configuration store — there is one engine now, so no key can be "the one we no longer
+        # name". A probe marker is a fact about the CONTENT of a row and stays true whatever the
+        # key is called.
+        doomed = [(r, f"e2e probe edit ({markers[0]})")
+                  for r in rows if (markers := _e2e_markers(r.definition))]
 
-        # Reported before the plan is acted on: a run pins the ontology_version_id it read the
-        # filing against, and deleting it leaves the run's rulebook record reading "missing".
-        referenced = {
-            oid for (oid,) in session.execute(
-                select(ExtractionRun.ontology_version_id)
-                .where(ExtractionRun.ontology_version_id.is_not(None)).distinct())}
-        orphaned = [r for r, _ in doomed if r.id in referenced]
+        # Reported before the plan is acted on: a run pins the line_item_version_id it read the
+        # filing against, and deleting it leaves the run's configuration record reading "missing".
+        pinned = _pins(session)
+        orphaned = [(r, pinned[r.id]) for r, _ in doomed if r.id in pinned]
 
         print("\nPLAN — what --apply would do, in this order")
         for r, why in doomed:
-            print(f"  delete   ontology {r.ontology_key:22} v{r.version:<4} {why}")
+            print(f"  delete   configuration {r.line_items_key:22} v{r.version:<4} {why}")
         if not doomed:
-            print("  delete   nothing — no retired key and no e2e probe edit is stored")
+            print("  delete   nothing — no stored configuration carries an e2e probe edit")
         # Staged inside the transaction and flushed, so the refresh is planned against the database
         # the deletions leave behind rather than the one they started from — otherwise the plan
-        # reports a retired key as "stored but retired" one line under its own deletion, and would
-        # miss a republish that only becomes necessary once a polluted newest version is gone.
+        # would miss a republish that only becomes necessary once a polluted newest version is gone.
         for r, _ in doomed:
             session.delete(r)
         session.flush()
-        # Printed verbatim: a note is either an action ("published v5 from …") or a finding ("stored
-        # but retired"), and prefixing both with one verb of this script's own choosing labelled the
-        # findings as work.
+        # Printed verbatim: a note is either an action ("published v5 from …") or a finding, and
+        # prefixing both with one verb of this script's own choosing labelled the findings as work.
         for note in ensure_reference_data(session, dry_run=True):
             print(f"  {note}")
-        if orphaned:
-            print(f"  NOTE     {len(orphaned)} extraction run(s) pin a rulebook version this "
-                  f"deletes; their rulebook record becomes \"missing\"")
+        for r, n in orphaned:
+            print(f"  NOTE     {n} extraction run(s) pin {r.line_items_key} v{r.version}, which "
+                  f"this deletes; their configuration record becomes \"missing\"")
 
         if not args.apply:
             session.rollback()          # the staged deletions, undone: this run wrote nothing

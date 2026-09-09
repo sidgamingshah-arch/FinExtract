@@ -7,6 +7,8 @@
 """
 from __future__ import annotations
 
+import json
+import pathlib
 import time
 
 import pytest
@@ -107,18 +109,75 @@ pytest.importorskip("fitz")
 from tests.fixtures.generate import make_multipage_pdf, make_rich_pdf  # noqa: E402
 
 
+_SAMPLES = pathlib.Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
+
+
+def _hkfrs_pins(client) -> tuple[dict, dict]:
+    """Publish the HKFRS spread's configuration as a LINE-ITEM SET; return it and its template.
+
+    WHY, in one paragraph. These tests pinned ``ontology_version_id`` at the seeded
+    ``hkfrs_hk_china`` rulebook and assert the ``hkfrs_hk_china_v1`` spread it produces. There is
+    one configuration engine now and the ONE shipped set targets ``output_csv_hk_v1``, so
+    ``hkfrs_hk_china_v1`` is seeded TEMPLATE-ONLY and maps nothing until somebody publishes a set
+    that targets it (``app/sample/reference.py`` states that as the instructed consequence).
+    Pinning the shipped set instead would silently move every assertion onto a different spread.
+    So the test publishes what a configurator would: the same rulebook content, through the proven
+    ``services.ontology_projection``, as a ``LineItemSet`` on the ``/line-items`` publish gate.
+    Nothing here is an ontology the product stores or serves — the file is repo DATA read off
+    disk and what reaches the database is a line-item version like any other.
+
+    ``section_defaults`` is carried but FILTERED to the fields the line-item schema declares (the
+    rulebook's has four more, which the stray-key gate refuses). It cannot be dropped: every
+    projected concept keeps its ``inherits``, and a set with no sections fails its resolved load.
+    """
+    from app.schemas.line_items import SectionDefaults
+    from app.schemas.loader import load_ontology
+    from app.services.ontology_projection import build_definitions
+    from app.services.working_view import _jsonable
+
+    raw = json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8"))
+    ont = load_ontology(raw, resolve=True)
+    items, _census = build_definitions(list(ont.mappings), [])
+    declared = set(SectionDefaults.model_fields)
+    definition = {
+        "line_items_key": "hkfrs_hk_china",
+        "target_template_key": ont.target_template_key,
+        "section_defaults": {name: {k: v for k, v in _jsonable(sec).items() if k in declared}
+                             for name, sec in (raw.get("section_defaults") or {}).items()},
+        "locale": ont.locale,
+        "supported_locales": list(ont.supported_locales),
+        "number_format_by_locale": _jsonable(ont.number_format_by_locale),
+        "residual_framework": _jsonable(ont.residual_framework),
+        "normalisation": _jsonable(ont.normalisation),
+        "binding": _jsonable(ont.binding),
+        "global_rules": _jsonable(ont.global_rules),
+        "scope_selection": _jsonable(ont.scope_selection),
+        "decomposition_rules": _jsonable(ont.decomposition_rules),
+        "netting_rules": _jsonable(ont.netting_rules),
+        "worked_examples": _jsonable(ont.worked_examples),
+        "validation": _jsonable(ont.validation),
+        "items": items,
+    }
+    # Configuration is an admin surface (``CONFIG_LINE_ITEMS``); the runs below are still started
+    # by the fixture's default caller.
+    r = client.post("/api/v1/line-items", json={"definition": definition},
+                    headers={"X-Role": "admin"})
+    assert r.status_code == 201, r.text
+    cfg = r.json()
+    tpl = next(t for t in client.get("/api/v1/templates").json()
+               if t["template_key"] == cfg["target_template_key"])
+    return cfg, tpl
+
+
 def _upload(client, data, filename):
     return client.post("/api/v1/documents",
                        files={"file": (filename, data, "application/pdf")}).json()["id"]
 
 
 def _extract_and_wait(client, doc_id):
-    onts = client.get("/api/v1/ontologies").json()
-    ont = next((o for o in onts if o["ontology_key"] == "hkfrs_hk_china"), onts[0])
-    tpls = client.get("/api/v1/templates").json()
-    tpl = next((t for t in tpls if t["template_key"] == ont["target_template_key"]), tpls[0])
+    cfg, tpl = _hkfrs_pins(client)
     client.post(f"/api/v1/documents/{doc_id}/extractions",
-                json={"ontology_version_id": ont["id"], "template_version_id": tpl["id"]})
+                json={"line_item_version_id": cfg["id"], "template_version_id": tpl["id"]})
     for _ in range(100):
         r = client.get(f"/api/v1/documents/{doc_id}/run")
         if r.status_code == 200 and r.json().get("status") == "succeeded":

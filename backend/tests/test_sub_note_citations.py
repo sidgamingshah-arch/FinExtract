@@ -153,12 +153,14 @@ def test_the_notes_screen_names_the_face_row_that_cites_a_sub_note(client):
 
     doc_id = client.post("/api/v1/documents", files={
         "file": ("subnote.pdf", make_sub_note_pdf(), "application/pdf")}).json()["id"]
-    onts = client.get("/api/v1/ontologies").json()
-    ont = next(o for o in onts if o["ontology_key"] == "hkfrs_hk_china")
+    # Was the ``/ontologies`` picker plus an ``ontology_version_id`` pin. Line items is the single
+    # configuration engine; ``/line-items/versions`` is the only store, and the run pins a row of it.
+    cfgs = client.get("/api/v1/line-items/versions").json()
+    cfg = next(c for c in cfgs if c["line_items_key"] == "output_csv_hk")
     tpls = client.get("/api/v1/templates").json()
-    tpl = next(t for t in tpls if t["template_key"] == ont["target_template_key"])
+    tpl = next(t for t in tpls if t["template_key"] == cfg["target_template_key"])
     client.post(f"/api/v1/documents/{doc_id}/extractions",
-                json={"ontology_version_id": ont["id"], "template_version_id": tpl["id"]})
+                json={"line_item_version_id": cfg["id"], "template_version_id": tpl["id"]})
     for _ in range(200):
         r = client.get(f"/api/v1/documents/{doc_id}/run")
         if r.status_code == 200 and r.json().get("status") == "succeeded":
@@ -171,7 +173,19 @@ def test_the_notes_screen_names_the_face_row_that_cites_a_sub_note(client):
             client.get(f"/api/v1/documents/{doc_id}/notes").json()["notes"]] == ["16"]
     detail = client.get(f"/api/v1/documents/{doc_id}/notes/16").json()
     assert detail["linked_label"] == "Trade receivables"
-    assert detail["linked_line"] == "bs_current_assets__trade_receivables"
+
+    # ``linked_line`` IS ASKED OF THE RUN, not transcribed. It used to be the literal
+    # ``bs_current_assets__trade_receivables`` — a key of the retired ontology. The claim this test
+    # exists for is that the notes screen names the SAME line the run mapped the citing row to, and
+    # reading the expected key off the run's own rows keeps that exact while leaving which key the
+    # configuration resolves the caption to where it belongs: in configuration. (On the shipped set
+    # today this caption resolves to no section and the row carries an
+    # ``engine_unclassified_face__…`` key, so a transcribed constant would only pin the coverage
+    # gap.)
+    rows = client.get(f"/api/v1/documents/{doc_id}/run").json()["result"]["rows"]
+    citing = next(r for r in rows if r["source_label"] == "Trade receivables")
+    assert detail["linked_line"] == citing["canonical_key"]
+    assert detail["linked_line"], "the note names no line at all; the citation reached nothing"
 
 
 def test_a_note_the_filing_numbers_with_a_sub_part_is_served_not_dropped(client):

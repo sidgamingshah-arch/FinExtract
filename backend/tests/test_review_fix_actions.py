@@ -187,12 +187,18 @@ def test_the_flip_the_server_prescribes_is_an_ordinary_edit_and_is_revertible(cl
     doc_id = client.post("/api/v1/documents",
                          files={"file": ("flip.pdf", make_native_pdf(),
                                          "application/pdf")}).json()["id"]
-    onts = client.get("/api/v1/ontologies").json()
-    ont = next(o for o in onts if o["ontology_key"] == "hkfrs_hk_china")
+    # Line items is the single configuration engine: ``GET /ontologies`` and the run's
+    # ``ontology_version_id`` pin are gone with the ontology store, so the shipped
+    # configuration is read from ``/line-items/versions`` and pinned as a
+    # ``line_item_version_id``.
+    from app.sample.reference import shipped_line_items_key
+
+    cfgs = client.get("/api/v1/line-items/versions").json()
+    cfg = next(c for c in cfgs if c["line_items_key"] == shipped_line_items_key())
     tpl = next(t for t in client.get("/api/v1/templates").json()
-               if t["template_key"] == ont["target_template_key"])
+               if t["template_key"] == cfg["target_template_key"])
     client.post(f"/api/v1/documents/{doc_id}/extractions",
-                json={"ontology_version_id": ont["id"], "template_version_id": tpl["id"]})
+                json={"line_item_version_id": cfg["id"], "template_version_id": tpl["id"]})
     for _ in range(200):
         r = client.get(f"/api/v1/documents/{doc_id}/run")
         if r.status_code == 200 and r.json().get("status") == "succeeded":

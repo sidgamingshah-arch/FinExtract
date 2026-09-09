@@ -27,7 +27,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.core.models.enums import MappingMethod
 from app.schemas.loader import load_ontology
 from app.schemas.ontology import OntologyDefinition, OntologyMapping
@@ -100,7 +100,15 @@ def _matcher(ontology, provider=None, locale="zh") -> OntologyMatcher:
 def test_the_batch_offers_only_the_sections_the_chunk_was_printed_under(v2):
     """Measured: a current-liabilities chunk used to be offered all 72 mappable balance-sheet
     concepts. It is now offered 17 — the 12 scoped to that section plus the 5 statement-level totals,
-    which belong to no section and must stay reachable for a subtotal printed anywhere."""
+    which belong to no section and must stay reachable for a subtotal printed anywhere.
+
+    THE COUNT IS NOW `min(17, llm_candidate_cap)`, because `_match_chunk` gained the request-size
+    bound it had always been missing (`extraction.llm_candidate_cap`, previously applied on the
+    per-line path only). A bare `== 17` made this test depend on ambient configuration without
+    saying so: it passed at the shipped cap of 40 and failed at 16, which is a legitimate value to
+    run at and which is what a constrained provider needs. The property under test is which
+    SECTIONS may be offered, and that is asserted below independently of how many survive the cap.
+    """
     spy = Spy(items=[])
     m = _matcher(v2, spy)
     m.match_batch([("a", "Trade and bills payables"), ("b", "Contract liabilities")],
@@ -110,7 +118,11 @@ def test_the_batch_offers_only_the_sections_the_chunk_was_printed_under(v2):
 
     offered = spy.offered()
     whole_statement = [k for k in m._mappable_keys() if m._in_statement(k, "balance_sheet")]
-    assert len(whole_statement) == 73 and len(offered) == 17, (len(whole_statement), len(offered))
+    cap = get_settings().extraction.llm_candidate_cap
+    assert len(whole_statement) == 73, len(whole_statement)
+    assert len(offered) == min(17, cap), (len(offered), cap)
+    # The restriction itself, which no cap may widen: every offered concept is either scoped to the
+    # section the chunk was printed under, or scoped to no section at all.
     for k in offered:
         scope = m._sections_of(k)
         assert not scope or "current_liabilities" in scope, k
@@ -118,7 +130,22 @@ def test_the_batch_offers_only_the_sections_the_chunk_was_printed_under(v2):
 
 def test_one_unresolvable_banner_turns_the_restriction_off_for_that_chunk(v2):
     """A row whose banner names no section we recognise is unconstrained by the gate, so narrowing
-    the list would refuse it a concept the gate would have allowed — the more expensive mistake."""
+    the list would refuse it a concept the gate would have allowed — the more expensive mistake.
+
+    REWRITTEN when `_match_chunk` gained the request-size cap it had always been missing
+    (`extraction.llm_candidate_cap`, applied on the per-line path only — an uncapped balance-sheet
+    chunk shipped all 202 shipped-rulebook concepts, ~49k tokens, and two real filings came back
+    413/429 with `llm_calls: 0`). The property this test defends is unchanged and still checked:
+    with one banner unresolvable the offered list must still SPAN THE WHOLE STATEMENT'S SECTIONS,
+    where a resolvable chunk is held to its own.
+
+    What changed is the probe. It asserted that `bs_current_assets__inventories` specifically was
+    offered — and that concept ranks 58th of 73 by `match_priority`, the bottom fifth of its own
+    section, so no size bound of any kind can keep it and the assertion had become a test that no
+    cap exists rather than a test that the restriction is off. Asserting the reachable SECTIONS
+    says what the docstring says, and it is the stronger claim: it fails if the cap starts
+    correlating with section, which a single-concept probe cannot detect.
+    """
     spy = Spy(items=[])
     m = _matcher(v2, spy)
     m.match_batch([("a", "Trade and bills payables"), ("b", "Some heading we do not know")],
@@ -126,8 +153,16 @@ def test_one_unresolvable_banner_turns_the_restriction_off_for_that_chunk(v2):
                   sections={"a": "CURRENT LIABILITIES 流動負債", "b": "ADJUSTMENTS FOR:"})
 
     offered = spy.offered()
-    assert "bs_current_assets__inventories" in offered
     assert "bs_current_liabilities__current_trade_payables" in offered
+
+    reachable = {frozenset(m._sections_of(k)) or None for k in offered}
+    every_section = {frozenset(m._sections_of(k)) or None
+                     for k in m._mappable_keys() if m._in_statement(k, "balance_sheet")}
+    assert reachable == every_section, (
+        f"the restriction did not come off: {sorted(str(s) for s in every_section - reachable)} "
+        f"unreachable for a chunk carrying an unresolvable banner")
+    # And specifically the section the resolvable banner does NOT name, which is the whole point.
+    assert any("current_assets" in (m._sections_of(k) or ()) for k in offered)
 
 
 def test_the_deterministic_tiers_score_only_the_restricted_set():
@@ -513,9 +548,15 @@ def test_the_response_budget_is_measured_from_the_response_envelope(v2):
 
     # ~3 characters per token for JSON of UUIDs and long snake_case identifiers.
     assert len(envelope) / 3 <= OntologyMatcher._batch_max_tokens(OntologyMatcher.BATCH_MAX_ITEMS)
-    matcher = _matcher(v2, Spy(items=[]))
-    assert matcher._effective_batch_max_tokens(25) == 8192
-    assert matcher._effective_batch_max_tokens(15) == 8192
+    # The floor is `extraction.llm_batch_response_floor_tokens` now, so this reads it off a FRESH
+    # `Settings()` and not `get_settings()`: the admin settings screen mutates the cached object in
+    # place (services.settings_state), and a value another test left on it would read here as a
+    # change to the shipped allocation.
+    floor = Settings().extraction.llm_batch_response_floor_tokens
+    matcher = OntologyMatcher(v2, locale="zh", settings=Settings(), llm_provider=Spy(items=[]))
+    assert floor == 8192, "the shipped batch response floor moved"
+    assert matcher._effective_batch_max_tokens(25) == floor
+    assert matcher._effective_batch_max_tokens(15) == floor
     assert matcher._effective_batch_max_tokens(80) < get_settings().llm.max_tokens
     # And the per-item slope is what was measured, not a round number someone liked.
     assert (OntologyMatcher._batch_max_tokens(2)
@@ -523,7 +564,8 @@ def test_the_response_budget_is_measured_from_the_response_envelope(v2):
 
 
 def test_small_batch_budget_is_measured_from_the_response_not_the_global_cap(v2):
-    m = _matcher(v2, Spy(items=[]))
+    # Fresh `Settings()` for the reason above: the floor is a setting, and get_settings() is mutable.
+    m = OntologyMatcher(v2, locale="zh", settings=Settings(), llm_provider=Spy(items=[]))
     assert m._effective_batch_max_tokens(15) == 8192
     assert m._effective_batch_max_tokens(15) < get_settings().llm.max_tokens
 

@@ -12,16 +12,42 @@ Non-secret, deployment-tunable settings live in `backend/config.toml` and are lo
 4. Built-in defaults in `app/config.py`.
 
 `settings_customise_sources` inserts a `TomlConfigSettingsSource` between dotenv and the
-defaults, so env always wins over the file. Settings are grouped into nested models:
+defaults, so env always wins over the file. Most settings are grouped into nested models, one
+model per table; a few sit at the top level and take no table at all:
 
 | Section | Keys |
 |---|---|
-| `[app]` | `name`, `api_prefix` |
+| *(no table — bare top-level keys, before the first `[section]`)* | `app_name`, `api_prefix`, `database_url`, `object_store_backend`, `object_store_root` |
 | `[auth]` | `allow_role_header`, `demo_mode`, `session_ttl_minutes` |
 | `[features]` | `ui_localization`, `review_required`, `seed_demo`, `default_output_locale`, `supported_locales` |
 | `[llm]` | `provider`, `model`, `temperature`, `max_tokens`, `timeout_seconds`, `base_url`, `api_key_env`, plus the Azure address: `azure_endpoint`, `azure_api_version`, `azure_deployment` |
 | `[ocr]` | `engine`, `languages`, `dpi`, plus the Azure Document Intelligence address: `azure_endpoint`, `azure_model`, `azure_api_version`, `azure_api_key_env` |
 | `[extraction]` | native/scanned thresholds, the mapping thresholds (`evidence_floor` and `alias_coverage_floor` — how nearly a caption must BE an authored alias for the two guards that read it; `mapping_margin`, `auto_accept_confidence`), reconciliation tolerances (`recon_*`), and the LLM-mapping knobs (`llm_mapping`, `llm_candidate_cap`, `mapping_scope`, `llm_gap_routing`) |
+
+**There is no mapping-engine selector.** `[extraction]` briefly carried a `mapping_engine`
+key that chose between an ontology path and a line-items path. Line items is now the single
+configuration engine, so there is nothing to select: the key and the branch it fed are gone,
+and a `mapping_engine` left in a local `config.toml` binds to nothing and is reported by the
+unbound-key warning below. Do not reinstate it — a second mapping path is what made a
+configured line item able to affect nothing.
+
+The first row is ungrouped **on purpose**. `app_name` and `api_prefix` are top-level fields on
+`Settings`, so they must be written as bare keys; the file used to declare them as
+`[app] name` + `[app] api_prefix`, which matched no field and — because `Settings` sets
+`extra="ignore"` — was loaded and then discarded in silence. It went unnoticed because both
+shipped values equal the built-in defaults, so `api_prefix = "/api/v2"` produced a server still
+mounted at `/api/v1` and said nothing. They are not moved under an `AppSettings` submodel
+because that would rename the env contract from `FINEX_API_PREFIX` to `FINEX_APP__API_PREFIX`.
+Note that changing the prefix also needs a frontend change: `frontend/src/lib/api.ts` hardcodes
+`/api/v1`.
+
+**Unbound keys are reported.** `settings_customise_sources` compares the TOML payload's keys
+(and each table's keys, against that table's submodel) with `Settings`' fields and logs one
+**WARNING** naming every key that binds to nothing — once per process, at startup. `extra` stays
+`"ignore"` rather than `"forbid"` deliberately: `extra` governs the whole `Settings` model, which
+the environment and `.env` also feed, so forbidding extras would turn any stray `FINEX_*`
+variable into a hard startup crash. `app/main.py` also prints the effective `app_name` and
+`api_prefix` at startup.
 
 **Secrets are never stored here.** The LLM key is read at call time from the environment
 variable named by `llm.api_key_env` (shipped default **`AZURE_OPENAI_API_KEY`**, matching

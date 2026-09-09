@@ -266,14 +266,22 @@ def _note_permitted_decompositions(ontology, template) -> list[tuple[str, list[s
       alternative, inferring the parent/child relation from which captions happen to appear in a
       note, is how a movement schedule gets mistaken for a decomposition.
     * WHETHER A NOTE MAY BE THE SOURCE is the RULEBOOK's ``note_use``. It fires by default and the
-      rulebook overrides it: the shipped one states the policy as a section default —
-      "Concepts default to face_only: true. Notes are evidence for a face amount, never an
+      rulebook overrides it: ``hkfrs_hk_china_ontology.json`` states the policy as a section default
+      — "Concepts default to face_only: true. Notes are evidence for a face amount, never an
       independent source of one, unless note_use is decomposition_allowed" — and then names its one
       exception on the tax section, with the reason: "HKEX filings routinely print only 'Income tax
       expense' on the face and split current/deferred in the tax note. Decomposition from that note
-      is permitted because the split is a reconciliation of the face." So on the shipped rulebook
-      this admits the tax aggregate and nothing else, which is the author's stated intent rather
-      than a limitation of this function.
+      is permitted because the split is a reconciliation of the face."
+
+      WHICH RULEBOOK, MEASURED, because "the shipped rulebook" reads as one file and is two.
+      Against ``hkfrs_hk_china_ontology.json`` + ``hkfrs_hk_china_template.json`` this returns
+      exactly 1 pair — the tax aggregate over current/deferred tax — which is that author's stated
+      intent rather than a limitation of this function. Against the pair that drives the output CSV,
+      ``output_csv_hk_ontology.json`` + ``output_csv_hk_v1_template.json``, it returns 52, because
+      there ``note_use: decomposition_allowed`` is the SECTION DEFAULT on 394 of 462 concepts rather
+      than one named exception. So the "one exception" reading is an hkfrs property, not a property
+      of this function, and the gates listed at the bottom of this docstring — not the rarity of the
+      opt-in — are what keep the arm safe on the output_csv pair.
 
     WHY ``note_use`` AND NOT A NEW FIELD. ``stages.residual`` already reads it for the neighbouring
     question — may a residual sweep invent a face row sourced from a note — with the same meaning
@@ -379,14 +387,14 @@ def _sibling_evidence(doc: DocumentModel, ontology, parents: list,
 
 
 def _apply_result(li, result) -> bool:
-    """Write one mapping decision onto a row. THE ONE PLACE EITHER ENGINE WRITES A ROW.
+    """Write one mapping decision onto a row. THE ONE PLACE A ROW IS WRITTEN.
 
-    Hoisted out of `run()` unchanged when the deterministic fallback arrived
-    (`extraction.mapping_engine = "line_items"`), because that path decides rows too and a second
-    copy of this is how two engines start flagging differently — one of them forgetting
+    Hoisted out of `run()` unchanged when there were briefly two engines to choose between, so
+    that neither could start flagging differently — one of them forgetting
     `low_mapping_confidence`, say, so a doubtful row reads as certain on one engine and not the
-    other. It closed over nothing but its two arguments, so the move is mechanical;
-    `LineItemMatch.as_mapping_result` supplies the shape it reads.
+    other. There is now a single configuration engine (the line-item set), so the second caller
+    is gone; the function stays hoisted and stays the only writer, which is the property that
+    was worth having. It closes over nothing but its two arguments.
     """
     # Secur & Other Fincl Assets(CP)/(LTP) used to bind directly here on a bare "Financial
     # assets at fair value through profit or loss" face caption, at whatever figure was
@@ -428,8 +436,67 @@ def _apply_result(li, result) -> bool:
     return False
 
 
+def _focus_answerability(matcher, focus_keys: set[str]) -> str:
+    """The focus keys the loaded rulebook CANNOT return, as log fields. Observation only.
+
+    A key in ``matcher._unmatchable`` — a locked residual (``alias_matching: disabled``) or a
+    computed concept (``extraction_mode: derive``) — is unreachable by every deterministic tier AND
+    absent from the LLM candidate payload (``_candidate_specs`` skips the same set). It still passes
+    the section gate in `run`, so its rows are forwarded to the provider and paid for, and the answer
+    the focus run was configured to get can never come back.
+
+    That was invisible: the focus log reported ``keys=8`` and nothing else. Measured against the
+    shipped ``output_csv_hk_ontology.json`` and the eight keys in ``config.toml``, four of them are
+    unmatchable, so a run advertising eight focus concepts could return four.
+
+    ``_unmatchable`` is read directly (a private attribute) rather than reimplemented from the
+    definition, so this reports what the MATCHER actually excluded and cannot drift from it.
+    """
+    unmatchable = sorted(k for k in focus_keys if k in matcher._unmatchable)
+    return (f"focus_keys_unmatchable={unmatchable}"
+            f" focus_keys_answerable={len(focus_keys) - len(unmatchable)}")
+
+
+def _alias_locale_coverage(matcher, locale: str | None) -> tuple[int, int, int]:
+    """``(matchable, with_alias, llm_only)`` concepts for the document's locale. Observation only.
+
+    HOW MANY OF THE RULEBOOK'S CONCEPTS CAN BE REACHED DETERMINISTICALLY IN THE SCRIPT THIS
+    FILING IS PRINTED IN. A concept with no alias in the document's locale is not unreachable —
+    the LLM tier still sees it in the candidate payload — but nothing about it is DECIDED by
+    string evidence, so every row that should land on it depends on the model. That is a
+    materially different quality level from a row an exact alias settled at 1.0, and until now
+    the run record said nothing about it either way.
+
+    Measured on the shipped ``output_csv_hk_ontology.json`` (462 concepts, 445 matchable): 287 of
+    the 445 carry no ``aliases_i18n["zh"]`` at all (286 of those are Han-free outright), against
+    ``hkfrs_hk_china_ontology.json``'s 169 of 169 bilingual. On a Chinese-only HK/PRC face
+    statement that is the majority of the rulebook resting on the model alone.
+
+    Counted over the MATCHABLE concepts only — ``matcher._unmatchable``, read directly for the
+    same reason ``_focus_answerability`` does: a locked residual and a ``derive`` concept are
+    indexed by no tier, so an alias on one of them describes nothing the run can use, and
+    including them would report coverage the matcher does not have.
+
+    ``en`` (and an undetected locale) additionally counts the locale-neutral ``aliases`` list,
+    which is English by construction — see ``OntologyMapping.aliases_for``. No other locale gets
+    that fallback, which is exactly what makes the figure for ``zh`` worth printing.
+
+    The locale is used as an ``aliases_i18n`` key unnormalised, which is safe because
+    ``stages.language.detect_locale`` only ever returns a bare ``en``/``zh``/``ar``/``fr`` — the
+    same key space the rulebooks author. A region subtag would need folding first.
+    """
+    keys = [k for k in matcher._by_key if k not in matcher._unmatchable]
+    neutral = locale in (None, "", "en")
+    with_alias = 0
+    for k in keys:
+        m = matcher._by_key[k]
+        if m.aliases_i18n.get(locale or "en") or (neutral and m.aliases):
+            with_alias += 1
+    return len(keys), with_alias, len(keys) - with_alias
+
+
 class MapOntologyStage:
-    name = "map_ontology"
+    name = "map_line_items"
 
     @staticmethod
     def _promote_reconciled_matrix_closings(doc: DocumentModel, matcher: OntologyMatcher,
@@ -509,7 +576,7 @@ class MapOntologyStage:
         _calls_base = ctx.llm_calls
         ontology = getattr(ctx, "ontology", None)
         if ontology is None or not doc.line_items:
-            ctx.log("map_ontology:skipped(no ontology or no line items)")
+            ctx.log("map_line_items:skipped(no ontology or no line items)")
             return doc
 
         llm_provider = None
@@ -523,14 +590,25 @@ class MapOntologyStage:
         else:
             unavailable_reason = "stub llm provider configured"
 
-        # THE DETERMINISTIC FALLBACK (extraction.mapping_engine = "line_items"), off by default.
-        # A weaker path by construction — no LLM tier — kept for a run that must complete with an
-        # unreachable gateway, an expired key, or nothing leaving the machine. See the setting.
-        if getattr(ctx.settings.extraction, "mapping_engine", "ontology") == "line_items":
-            return self._map_from_line_items(doc, ctx)
-
+        # A second engine used to be selectable here (`extraction.mapping_engine`), branching to a
+        # deterministic-only `_map_from_line_items`. Both the setting and that method are gone: the
+        # line-item set is now the ONE configuration engine, so there is nothing to select between
+        # and this stage always runs the full tier stack below. Do not reinstate the branch — a
+        # second path is how two engines start deciding the same row differently.
         matcher = OntologyMatcher(ontology, locale=doc.locale, settings=ctx.settings,
                                   llm_provider=llm_provider)
+        # Report the rulebook's per-locale alias coverage BEFORE any row is mapped, because it is a
+        # property of the loaded file and the detected script, not of the outcome — it says up front
+        # how much of this run can be settled deterministically. Carried onto the matcher's usage
+        # counters too, so it sits beside the other roll-ups a reader of the run record already
+        # consults rather than only in a log line. Observation only: nothing branches on it.
+        _cov_matchable, _cov_with_alias, _cov_llm_only = _alias_locale_coverage(matcher, doc.locale)
+        matcher.usage["alias_locale_matchable"] = _cov_matchable
+        matcher.usage["alias_locale_with_alias"] = _cov_with_alias
+        matcher.usage["alias_locale_llm_only"] = _cov_llm_only
+        ctx.log(f"map_line_items:alias_locale_coverage locale={doc.locale or 'unknown'}"
+                f" matchable={_cov_matchable} with_alias={_cov_with_alias}"
+                f" llm_only={_cov_llm_only}")
         scope = ctx.settings.extraction.mapping_scope
         # TEMPORARY (focus-run routing) — see settings.extraction.llm_focus_keys, and remove both
         # together. When set, only rows that could be one of those concepts are forwarded to the
@@ -542,7 +620,20 @@ class MapOntologyStage:
         if getattr(ctx.settings.extraction, "llm_focus_only", False) and not focus_keys:
             # Asked to restrict and given nothing to restrict TO. Left unreported this would read
             # as a normal full run, so say it rather than silently ignoring the switch.
-            ctx.log("map_ontology:focus_only_requested_but_no_focus_keys_configured")
+            ctx.log("map_line_items:focus_only_requested_but_no_focus_keys_configured")
+        elif focus_keys:
+            # OBSERVATION ONLY. A focus key naming a concept in `matcher._unmatchable` (a swept
+            # residual or a `derive` concept) is a key the run CANNOT ANSWER: it is out of every
+            # deterministic tier AND out of the LLM candidate payload (`_candidate_specs` skips
+            # `_unmatchable`), yet it still passes the section gate below, so its rows are forwarded
+            # and paid for and the concept can never come back. Measured against the shipped
+            # `output_csv_hk_ontology.json` and the 8 keys in config.toml, 4 are in that state
+            # (is_pl__deprec_and_impairment_oper_exp, is_pl__deprec_and_impairment_cos,
+            # bs_nca__secur_and_other_fincl_assets_ltp, bs_ca__other_receivables_cp) — a focus run
+            # that reported "keys=8" was reporting twice the concepts it could return. Logged HERE
+            # as well as in the focus_routing line, because that line is on the BATCHED path only
+            # and the per-line path below would otherwise say nothing about focus at all.
+            ctx.log(f"map_line_items:focus_answerability {_focus_answerability(matcher, focus_keys)}")
         det_matcher = (OntologyMatcher(ontology, locale=doc.locale, settings=ctx.settings)
                        if focus_keys else None)
         focus_det = focus_llm = focus_sections_skipped = 0
@@ -569,10 +660,25 @@ class MapOntologyStage:
         # Provisional: confirmed after the run, because a provider can resolve (the adapter
         # constructs fine) and still fail every call — e.g. no API key. Claiming
         # "llm_description" on a run that made zero successful calls would overstate it.
+        #
+        # THE LABEL DESCRIBES THE PROVIDER, NOT THE ROUTING — and under focus routing those are
+        # not the same run. config.toml ships `llm_focus_only = true` with 8 focus keys
+        # (config.toml:152-183) against the 462 concepts of output_csv_hk_ontology.json, so all
+        # but a handful of rows are settled by the deterministic tiers and never reach the model;
+        # `matcher.llm_enabled` knows nothing about that, so "llm_description" on its own
+        # reported a mostly-deterministic run as an LLM-mapped one.
+        #
+        # NOT RENAMED HERE, ON PURPOSE. frontend/src/screens/ExtractionView.tsx:1063 switches on
+        # the LITERAL "llm_description" to decide whether to warn "No language model was
+        # configured for this run" — so a new label shipped without the paired case there would
+        # put that falsehood on screen for every default-configured run, which is a worse untruth
+        # than the one being fixed. The correction rides in the REASON instead: it is the only
+        # other mapping field the API serialises (routes/extractions.py:1358-1363), and it is
+        # filled in with the measured row split at the focus_routing report below.
         ctx.mapping_strategy = "llm_description" if matcher.llm_enabled else "deterministic"
         ctx.mapping_strategy_reason = "" if matcher.llm_enabled else (
             unavailable_reason or "no llm provider resolved")
-        ctx.log(f"map_ontology:strategy={ctx.mapping_strategy}(intended) scope={scope}"
+        ctx.log(f"map_line_items:strategy={ctx.mapping_strategy}(intended) scope={scope}"
                 + (f" reason={ctx.mapping_strategy_reason}" if ctx.mapping_strategy_reason else ""))
 
         _apply = _apply_result
@@ -678,6 +784,28 @@ class MapOntologyStage:
                         tasks.append((statement, llm_rows, cited_note_text))
                         focus_llm += len(llm_rows)
 
+            # ONE CHUNK'S SIZE, read once and threaded into BOTH things it decides: the size
+            # `match_batch` actually cuts a subgroup into, and the call-count denominator below.
+            # Hoisted above `_run_task` because it is now an ARGUMENT to the call and not merely a
+            # number to report.
+            #
+            # IT USED TO BE REPORT-ONLY. `match_batch` was called with no `chunk_size`, so
+            # `size = chunk_size or self.BATCH_MAX_ITEMS` (services/mapping.py) fell through to the
+            # class constant 25 on every run, and this was the single place the setting was read.
+            # `llm_batch_max_items = 10`, set for a gateway that truncates a 25-decision reply,
+            # therefore bought a log line claiming `chunk_size=10` and a progress bar planned for
+            # 10 while the provider went on receiving 25 and went on truncating — and a truncated
+            # batch is not a partial answer: the JSON fails to parse and the whole chunk drops to
+            # the weaker per-line path, on a run that still calls itself LLM-mapped.
+            #
+            # SO IT IS A SEMANTIC KNOB, not a transport one, and lowering it re-baselines a
+            # deployment: `_match_chunk` derives its section tokens from the rows in THIS chunk and
+            # narrows the candidate list by them, and seeds the never-evicted keys from this chunk's
+            # own deterministic answers. A smaller chunk is a narrower vocabulary per call. See the
+            # setting's declaration in config.py, which says the same thing to whoever sets it.
+            chunk = max(1, int(getattr(ctx.settings.extraction, "llm_batch_max_items",
+                                       matcher.BATCH_MAX_ITEMS) or matcher.BATCH_MAX_ITEMS))
+
             def _run_task(task: tuple) -> tuple[list, dict]:
                 statement, subgroup, cited_note_text = task
                 return subgroup, matcher.match_batch(
@@ -685,6 +813,7 @@ class MapOntologyStage:
                     statement=statement,
                     # A statement spans several section banners, so the banner is per row.
                     sections={str(li.id): li.section_hint for li in subgroup},
+                    chunk_size=chunk,
                     cited_note_text=cited_note_text)
 
             max_workers = max(1, ctx.settings.extraction.llm_max_concurrency)
@@ -699,13 +828,13 @@ class MapOntologyStage:
             # the loop would count every earlier call again.
             # PLANNED IN PROVIDER CALLS, which is the number actually being asked about. One
             # task is one (statement, section) subgroup, but `match_batch` CHUNKS a subgroup at
-            # `BATCH_MAX_ITEMS`, so a 60-row subgroup is three calls and not one. Reporting task
-            # count as call count would understate a large filing by a factor of several.
-            chunk = max(1, int(getattr(ctx.settings.extraction, "llm_batch_max_items",
-                                       matcher.BATCH_MAX_ITEMS) or matcher.BATCH_MAX_ITEMS))
+            # `chunk` (above), so a 60-row subgroup is three calls at the shipped 25 and not one.
+            # Reporting task count as call count would understate a large filing by a factor of
+            # several. `chunk` is the value the calls are actually made with, so the plan and the
+            # calls can no longer disagree.
             planned = sum(-(-len(rows) // chunk) for _stmt, rows, _note in tasks)
             ctx.emit_step(0, planned, "LLM call")
-            ctx.log(f"map_ontology:llm_planned_calls={planned} batches={len(tasks)}"
+            ctx.log(f"map_line_items:llm_planned_calls={planned} batches={len(tasks)}"
                     f" rows={sum(len(t[1]) for t in tasks)} chunk_size={chunk}"
                     f" concurrency={max_workers}")
             with ThreadPoolExecutor(max_workers=max_workers) as pool:
@@ -714,7 +843,7 @@ class MapOntologyStage:
                     in_group = {str(li.id) for li in subgroup}
                     for iid, res in results.items():
                         if iid not in in_group:
-                            ctx.log(f"map_ontology:foreign_item_id_ignored({iid})")
+                            ctx.log(f"map_line_items:foreign_item_id_ignored({iid})")
                             continue
                         if _apply(by_id[iid], res):
                             mapped += 1
@@ -733,18 +862,36 @@ class MapOntologyStage:
                     # sticks at "12 / 12" while calls are still going out is worse than one that
                     # admits the plan moved.
                     ctx.emit_step(made, max(planned, made), "LLM call")
-                    ctx.log(f"map_ontology:llm_batch {finished}/{len(tasks)}"
+                    ctx.log(f"map_line_items:llm_batch {finished}/{len(tasks)}"
                             f" calls={made}/{max(planned, made)} rows={len(subgroup)}"
                             f" mapped_so_far={mapped}")
             # How the document was actually cut up, so "one statement, two pages, one call" is
             # verifiable from the run record instead of asserted in a docstring.
-            ctx.log(f"map_ontology:groups={len(groups)} batched_rows={batched}"
+            ctx.log(f"map_line_items:groups={len(groups)} batched_rows={batched}"
                     f" per_line_rows={unstated} chunks={matcher.usage['batch_chunks']}"
                     f" max_chunk={matcher.usage['batch_max_items']}")
             if focus_keys:
                 # TEMPORARY (focus-run routing). Reported rather than silent: a run that decided
                 # most of its rows deterministically must not read as a full LLM mapping.
-                ctx.log(f"map_ontology:focus_routing keys={len(focus_keys)}"
+                # `keys=` counts what was CONFIGURED; the answerability fields say how many of those
+                # the rulebook can actually return (see `_focus_answerability`). Without them the
+                # line overstated the run's reach — 8 configured, 4 reachable, on the shipped pair.
+                ctx.log(f"map_line_items:focus_routing keys={len(focus_keys)}"
+                        f" {_focus_answerability(matcher, focus_keys)}"
+                        f" rows_to_llm={focus_llm} rows_deterministic={focus_det}"
+                        f" sections_skipped={focus_sections_skipped}")
+                # …AND ONTO THE RUN RECORD, not only into the log. `mapping_strategy` says a
+                # provider was configured; this row split is what makes that claim CHECKABLE,
+                # and it is the entire difference between a focus run and a full LLM mapping —
+                # 8 focus keys out of 462 concepts means the deterministic tiers answered nearly
+                # everything. Written to `reason` rather than to a new field because `reason` is
+                # already serialised beside the label (routes/extractions.py:1358-1363); see the
+                # strategy assignment above for why the label itself is left as it is.
+                # Overwritten below if the provider then made zero successful calls — that is a
+                # degraded run, which outranks this.
+                if matcher.llm_enabled:
+                    ctx.mapping_strategy_reason = (
+                        f"focus routing: keys={len(focus_keys)}"
                         f" rows_to_llm={focus_llm} rows_deterministic={focus_det}"
                         f" sections_skipped={focus_sections_skipped}")
         else:
@@ -752,7 +899,7 @@ class MapOntologyStage:
             # question, so the same report — and the total is known before the first one.
             total_rows = len(doc.line_items)
             ctx.emit_step(0, total_rows, "row")
-            ctx.log(f"map_ontology:per_line_rows={total_rows} (unbatched path)")
+            ctx.log(f"map_line_items:per_line_rows={total_rows} (unbatched path)")
             for done, li in enumerate(doc.line_items, start=1):
                 if _apply(li, matcher.match(li.source_label, statement=_statement_of(li),
                                             section=li.section_hint)):
@@ -799,13 +946,13 @@ class MapOntologyStage:
             # reviewer has to be able to see which rows and why.
             sample = "; ".join(f"{lab[:44]!r}({'+'.join(why)})"
                                for lab, why in prose_skipped[:3])
-            ctx.log(f"map_ontology:prose_captions_skipped={len(prose_skipped)} {sample}")
+            ctx.log(f"map_line_items:prose_captions_skipped={len(prose_skipped)} {sample}")
         if mapped_notes:
-            ctx.log(f"map_ontology:note_items_mapped={mapped_notes}")
+            ctx.log(f"map_line_items:note_items_mapped={mapped_notes}")
 
         matrix_facts = self._promote_reconciled_matrix_closings(doc, line_matcher, _statement_of, ctx)
         if matrix_facts:
-            ctx.log(f"map_ontology:note_matrix_facts={matrix_facts}")
+            ctx.log(f"map_line_items:note_matrix_facts={matrix_facts}")
 
         # Whole-document rules, which need every row to have a concept first.
         mapped -= self._enforce_containment(doc, ontology, ctx)
@@ -835,23 +982,23 @@ class MapOntologyStage:
             ctx.mapping_strategy_reason = (
                 matcher.usage.get("last_error")
                 or "llm provider resolved but made no successful calls")
-        ctx.log(f"map_ontology:mapped={mapped}/{len(doc.line_items)} llm_calls={matcher.usage['calls']}")
+        ctx.log(f"map_line_items:mapped={mapped}/{len(doc.line_items)} llm_calls={matcher.usage['calls']}")
         # Named routes, not just a count: "the banner corrected 4 answers" is not reviewable, while
         # "pl_profit_for_the_year -> pl_total_comprehensive_income_for_the_year" is the one line of
         # the run record that says which figure moved and why.
         if matcher.usage["family_resolved"]:
-            ctx.log(f"map_ontology:section_reroutes={matcher.usage['family_resolved']}"
+            ctx.log(f"map_line_items:section_reroutes={matcher.usage['family_resolved']}"
                     f" routes={','.join(matcher.usage['family_routes'])}")
         if matcher.usage["computed_refused"]:
             # Rows whose caption named a concept the framework computes. Logged because the
             # alternative the mapper used to take — filing the figure on the nearest neighbouring
             # subtotal — showed up nowhere at all, and the statement still tied.
-            ctx.log(f"map_ontology:computed_concept_rows={matcher.usage['computed_refused']}")
+            ctx.log(f"map_line_items:computed_concept_rows={matcher.usage['computed_refused']}")
         if matcher.usage["confusable_ties"]:
             # `binding.order` step 6: answered with both candidates and a review flag rather than a
             # pick. Counted here because "the mapper declined N rows on purpose" reads very
             # differently from "the mapper failed on N rows".
-            ctx.log(f"map_ontology:confusable_ties={matcher.usage['confusable_ties']}")
+            ctx.log(f"map_line_items:confusable_ties={matcher.usage['confusable_ties']}")
         return doc
 
     @staticmethod
@@ -972,7 +1119,7 @@ class MapOntologyStage:
                         f"containment_unexplained:{aggregate}:{len(gaps)}")
                     if "low_mapping_confidence" not in li.confidence.flags:
                         li.confidence.flags.append("low_mapping_confidence")
-                    ctx.log(f"map_ontology:containment_unexplained({why}):{aggregate}"
+                    ctx.log(f"map_line_items:containment_unexplained({why}):{aggregate}"
                             f" columns={len(gaps)} components={','.join(present)}")
                 unfiled += 1
             child_flag = f"alloc:{AllocationStatus.CHILD_COMPONENT.value}"
@@ -982,7 +1129,7 @@ class MapOntologyStage:
                 # empty. Once each — a concept can be a component of more than one declared group.
                 if li.canonical_key in present and child_flag not in li.confidence.flags:
                     li.confidence.flags.append(child_flag)
-            ctx.log(f"map_ontology:containment({why}):{aggregate}"
+            ctx.log(f"map_line_items:containment({why}):{aggregate}"
                     f" unfiled_rows={len(filed)} components={','.join(present)}")
         return unfiled
 
@@ -1065,6 +1212,14 @@ class MapOntologyStage:
         # (`note_use: decomposition_allowed`), and the arithmetic/cross-section/duplicate gates
         # below are identical to the declared aggregate path. Candidate children are every
         # dedicated leaf in the same subsection; only captions the note actually prints are used.
+        #
+        # "EXPLICIT" IS NOT "RARE", and which rulebook is loaded decides which: the gate here is
+        # `note_use == decomposition_allowed` plus a single-entry `section_scope`, and that admits
+        # 2 concepts of `hkfrs_hk_china_ontology.json` but 329 of `output_csv_hk_ontology.json`,
+        # where `decomposition_allowed` is the section default rather than a named exception. On the
+        # output_csv pair this arm is the normal case, so the gates below (one filed parent, a cited
+        # note that prints at least two children, same section, arithmetic accounted in every
+        # column) are the whole of the protection — do not read the opt-in as a second one.
         dynamic: set[str] = set()
         by_key = {m.canonical_key: m for m in ontology.mappings}
         for parent in doc.line_items:
@@ -1100,14 +1255,14 @@ class MapOntologyStage:
                 # children were on the face — nothing to do either way. More than one is a mapping
                 # problem reported elsewhere, and decomposing an ambiguous total would compound it.
                 if len(parents) > 1:
-                    ctx.log(f"map_ontology:split_declined({aggregate}):"
+                    ctx.log(f"map_line_items:split_declined({aggregate}):"
                             f" {len(parents)} rows carry it")
                 continue
             parent = parents[0]
             if aggregate not in dynamic and any(
                     li.canonical_key in children for li in doc.line_items):
                 if aggregate in calculated_residuals:
-                    ctx.log(f"map_ontology:split_declined({aggregate}): component already filed")
+                    ctx.log(f"map_line_items:split_declined({aggregate}): component already filed")
                 continue                  # a component is already filed; containment owns this case
             cited = _cited_notes([parent])
             tables = [t for t in doc.notes if str(t.note_number) in cited]
@@ -1231,7 +1386,7 @@ class MapOntologyStage:
                 [c for c in candidates if len(c[0]) > 1])
             if not qualified:
                 if not candidates:
-                    ctx.log(f"map_ontology:split_declined({aggregate}):"
+                    ctx.log(f"map_line_items:split_declined({aggregate}):"
                             " cited note detail does not account for the face amount")
                     continue
                 foreign = [entry for _g, _found, _residual, entries in candidates
@@ -1239,22 +1394,22 @@ class MapOntologyStage:
                 itemised = max((len(found) for _g, found, _r, _f in candidates), default=0)
                 if foreign:
                     named = ",".join(sorted({key for _item, key in foreign}))
-                    ctx.log(f"map_ontology:split_declined({aggregate}):"
+                    ctx.log(f"map_line_items:split_declined({aggregate}):"
                             f" note contains concepts outside {section}: {named}")
                 elif itemised < 1:
-                    ctx.log(f"map_ontology:split_declined({aggregate}):"
+                    ctx.log(f"map_line_items:split_declined({aggregate}):"
                             f" the disclosure itemises {itemised} of this section's concepts")
                 else:
                     best = max(candidates, key=lambda c: len(c[1]))
                     accounted = {**best[1], **({aggregate: best[2]} if best[2] else {})}
                     _o, short = _orientation_accounting_for(parent, accounted, tol)
-                    ctx.log(f"map_ontology:split_declined({aggregate}):"
+                    ctx.log(f"map_line_items:split_declined({aggregate}):"
                             f" components do not account for it in {','.join(short)}")
                 continue
             if len(qualified) > 1:
                 # Two tables of the same note each account for the aggregate. One of them is a
                 # restatement of the other and this stage cannot tell which, so it reads neither.
-                ctx.log(f"map_ontology:split_declined({aggregate}):"
+                ctx.log(f"map_line_items:split_declined({aggregate}):"
                         f" {len(qualified)} tables in the cited note each account for it")
                 continue
             tables, hits, residual_items, orientation = qualified[0]
@@ -1324,7 +1479,7 @@ class MapOntologyStage:
                 parent.confidence.flags.append(f"note_decomposed_from:{aggregate}")
                 parent.confidence.flags.append(
                     f"decomposed_into:{','.join(sorted(assignments))}")
-            ctx.log(f"map_ontology:split({aggregate}) into {len(hits)} concepts"
+            ctx.log(f"map_line_items:split({aggregate}) into {len(hits)} concepts"
                     f" plus {len(residual_items)} residual note rows"
                     f" from note {','.join(sorted({str(t.note_number) for t in tables}))}"
                     f"{' (signs flipped to the face convention)' if orientation < 0 else ''}")
@@ -1374,7 +1529,7 @@ class MapOntologyStage:
             li.role = role
             promoted += 1
         if promoted:
-            ctx.log(f"map_ontology:template_roles_adopted={promoted}")
+            ctx.log(f"map_line_items:template_roles_adopted={promoted}")
         return promoted
 
     @staticmethod
@@ -1413,18 +1568,18 @@ class MapOntologyStage:
                 continue
             if any(li.canonical_key in (concept.canonical_key, *siblings)
                    for li in doc.line_items):
-                ctx.log(f"map_ontology:sole_component_declined({concept.canonical_key}):"
+                ctx.log(f"map_line_items:sole_component_declined({concept.canonical_key}):"
                         " a child of the subtotal is already filed")
                 continue
             evidence = _sibling_evidence(doc, ontology, parents, siblings)
             if evidence:
-                ctx.log(f"map_ontology:sole_component_declined({concept.canonical_key}):"
+                ctx.log(f"map_line_items:sole_component_declined({concept.canonical_key}):"
                         f" {evidence}")
                 continue
             if len(parents) > 1:
                 # Two rows filed on one subtotal is a mapping problem of its own, reported
                 # elsewhere; inferring a child from an ambiguous total would compound it.
-                ctx.log(f"map_ontology:sole_component_declined({concept.canonical_key}):"
+                ctx.log(f"map_line_items:sole_component_declined({concept.canonical_key}):"
                         f" {len(parents)} rows carry {aggregate}")
                 continue
             parent = parents[0]
@@ -1439,7 +1594,7 @@ class MapOntologyStage:
             row.confidence.flags.append(f"inferred_sole_component:{aggregate}")
             doc.line_items.append(row)
             added += 1
-            ctx.log(f"map_ontology:sole_component({concept.canonical_key}) from {aggregate}"
+            ctx.log(f"map_line_items:sole_component({concept.canonical_key}) from {aggregate}"
                     f" columns={len(row.values)}")
         return added
 
@@ -1481,71 +1636,6 @@ class MapOntologyStage:
                                 li.confidence.flags.append(flag)
                                 li.confidence.flags.append("low_mapping_confidence")
                         conflicts += 1
-                        ctx.log(f"map_ontology:equivalence_conflict {a}={va.value}"
+                        ctx.log(f"map_line_items:equivalence_conflict {a}={va.value}"
                                 f" {b}={vb.value} column={col}")
         return conflicts
-
-    def _map_from_line_items(self, doc: DocumentModel, ctx: PipelineContext) -> DocumentModel:
-        """Map every row from the merged line-item configuration, deterministically.
-
-        WHAT THIS IS FOR. A fallback, not a better engine. `LineItemMatcher` ports the incumbent's
-        DETERMINISTIC tiers — the statement/section/veto gate, the alias index over every locale,
-        label ownership, `match_priority`, the mutually-confusable refusal, and the regex/keyword
-        rule tier — and `scripts/parity_line_items.py` holds it to 11,433 of 11,433 rulebook
-        captions. It does NOT have the semantic tier, and that tier is where the value is.
-
-        SO A ROW THAT WOULD HAVE BEEN DECIDED BY THE MODEL IS LEFT UNMAPPED HERE, on purpose,
-        rather than guessed at by a weaker tier. An unmapped face row is visible in the review
-        queue; a plausible wrong concept is not.
-
-        Reported, not silent: `mapping_strategy` records that this engine ran, so a run decided
-        without the model can never be mistaken downstream for a full-capability one.
-        """
-        from app.services.line_item_config import load_shipped_set
-        from app.services.line_item_matching import LineItemMatcher
-
-        try:
-            line_items = load_shipped_set()
-        except Exception as exc:  # noqa: BLE001
-            # The fallback failing to load must not take the run down: say so and leave the rows
-            # unmapped, which is what this stage does for a missing ontology too.
-            ctx.log(f"map_ontology:line_items_engine_unavailable:{type(exc).__name__}: {exc}")
-            ctx.mapping_strategy = "unmapped"
-            ctx.mapping_strategy_reason = f"line-item configuration did not load: {exc}"
-            return doc
-
-        matcher = LineItemMatcher(line_items)
-        stmt_by_page = {p.index: p.statement for p in doc.pages if p.statement}
-
-        def statement_of(li) -> str | None:
-            for ev in li.values.values():
-                if ev.provenance is not None:
-                    return stmt_by_page.get(ev.provenance.page_index)
-            return None
-
-        total = len(doc.line_items)
-        ctx.emit_step(0, total, "row")
-        mapped = review = 0
-        for done, li in enumerate(doc.line_items, start=1):
-            got = matcher.match(li.source_label, statement=statement_of(li),
-                                section=li.section_hint)
-            if got.tied:
-                # The rulebook forbids separating mutually-confusable claimants by declaration
-                # order, so the honest answer is neither — recorded with both, for a reviewer.
-                li.confidence.flags.append(f"confusable_tie:{','.join(got.tied)}")
-            if _apply_result(li, got.as_mapping_result()):
-                mapped += 1
-                if got.needs_review:
-                    review += 1
-            if done % 25 == 0 or done == total:
-                ctx.emit_step(done, total, "row")
-
-        ctx.mapping_strategy = "line_items_deterministic"
-        ctx.mapping_strategy_reason = (
-            "extraction.mapping_engine=line_items — the merged configuration's deterministic "
-            "tiers only; the semantic tier is not ported, so rows it would have decided are left "
-            "unmapped rather than guessed")
-        ctx.log(f"map_ontology:line_items_engine mapped={mapped}/{total} "
-                f"needs_review={review} definitions={len(line_items.items)}")
-        return doc
-

@@ -24,8 +24,14 @@ concept's own captions, and keeps an entry it cannot resolve as prose. So a mist
 fail — it silently becomes a prose veto that matches no caption, which is the inert-configuration
 failure this codebase keeps finding. Two keys that would have been natural to write are absent
 from this rulebook entirely and are therefore NOT written: there is no `net_assets` and no
-`total_assets_less_current_liabilities`, and the cash-flow statement has no operating-activities
-subtotal key at all (its prose entry covers that instead).
+`total_assets_less_current_liabilities`.
+
+CORRECTED. This said a third key was missing too — "the cash-flow statement has no
+operating-activities subtotal key at all (its prose entry covers that instead)" — and it does have
+one, `cf_oper_indirect__cash_flows_oper_activ_indirect`. The prose written in its place refused 0
+of the 1,991 captions the rulebook knows, so `cf_investing__other_invest_cash_flows` was the one
+bucket where the sentence was genuinely lossy rather than merely redundant. The key is written now;
+see the comment on that PLAN entry.
 
 Run from ``backend``:
     ../.venv/Scripts/python.exe scripts/author_never_sweep.py          # report only
@@ -66,9 +72,19 @@ PLAN: dict[str, tuple[list[str], list[str]]] = {
     "bs_equity__other_reserves": (
         # Four, because this section states its total more than one way and a sweep would take
         # whichever the filing happened to print.
+        #
+        # THE STATEMENT TOTALS WERE SPELLED BY HAND HERE AND ONE WAS MISSED. This entry listed
+        # `bs_ca__total_assets` and `bs_cl__total_equity_and_liabilities` literally instead of
+        # splatting BS_TOTALS the way the other three balance-sheet residuals do, and so omitted
+        # `bs_cl__total_liabilities` — the third `bs_top_level` total, constrained by no banner,
+        # which is the whole reason a balance-sheet residual can meet one. An unmapped "Total
+        # liabilities" / 负债合计 row resolved to the equity section would have been swept into
+        # other reserves and the section would still have tied. Splatting the constant takes this
+        # bucket from 35 expanded caption vetoes to 37 (+"total liabilities", +"负债合计") and
+        # leaves nothing to keep in step by hand. The splat goes last so `[*keys, *prose]`
+        # reproduces the shipped order.
         ["bs_equity__total_equity_and_reserves", "bs_equity__equity_and_reserves",
-         "bs_equity__permanent_equity", "bs_equity__retained_profits",
-         "bs_ca__total_assets", "bs_cl__total_equity_and_liabilities"],
+         "bs_equity__permanent_equity", "bs_equity__retained_profits", *BS_TOTALS],
         ["any row printed in the assets or liabilities sections",
          "any movement belonging to the retained-profits reconciliation"],
     ),
@@ -94,11 +110,20 @@ PLAN: dict[str, tuple[list[str], list[str]]] = {
          "any row printed in the equity section other than retained profits"],
     ),
     "cf_investing__other_invest_cash_flows": (
+        # THE OPERATING SUBTOTAL WAS WRITTEN AS PROSE AND THE PROSE VETOED NOTHING. This entry read
+        # "the net cash flow from operating activities subtotal" on the belief that the cash-flow
+        # statement had no key for it. It does: `cf_oper_indirect__cash_flows_oper_activ_indirect`,
+        # the =SUM(net_profit_loss:other_non_cash_adjs_oper) subtotal at Cash Flow!A37. Prose is
+        # substring-matched against the candidate caption, and that concept's own captions are
+        # plural — "Net cash flows from operating activities" is not a substring of a sentence
+        # saying "cash flow" — so the sentence refused 0 of the 1,991 captions this rulebook knows,
+        # including all six of the ones it was written to name. Naming the key expands to those six
+        # in every locale (4 en + 2 zh), taking this bucket from 11 expanded caption vetoes to 17.
+        # Written third, after the two other keys, so `[*keys, *prose]` reproduces the shipped order.
         ["cf_investing__cash_flows_from_invest_activities",
-         "cf_financing__cash_flows_from_finance_activities"],
-        # No operating-activities subtotal key exists in this rulebook, so it is named in prose.
-        ["the net cash flow from operating activities subtotal",
-         "any row printed under the operating or financing activities banners",
+         "cf_financing__cash_flows_from_finance_activities",
+         "cf_oper_indirect__cash_flows_oper_activ_indirect"],
+        ["any row printed under the operating or financing activities banners",
          "the net increase or decrease in cash and cash equivalents"],
     ),
 }

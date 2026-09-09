@@ -345,9 +345,15 @@ def test_the_refusal_is_logged_with_its_reason(refused):
 # The pass above splits a combined caption whose containment the RULEBOOK declares
 # (``is_gross_parent``/``mutually_exclusive_groups``). §20 is the other authority for the same act:
 # the TEMPLATE declares a total's components, and the rulebook's ``note_use`` says whether they may
-# be read out of the note. It fires automatically and the rulebook overrides it — the shipped
-# rulebook's section default is ``evidence_only`` ("Notes are evidence for a face amount, never an
-# independent source of one"), with the tax section named as its one exception and the reason given.
+# be read out of the note. It fires automatically and the rulebook overrides it — and the rulebook
+# every test in this module loads is ``hkfrs_hk_china_ontology.json`` (see the ``rulebook``
+# fixture), whose section default is ``evidence_only`` ("Notes are evidence for a face amount, never
+# an independent source of one"), with the tax section named as its one exception and the reason
+# given. That default is NOT a property of the stage: on ``output_csv_hk_ontology.json``, the file
+# that drives the output CSV, ``decomposition_allowed`` is the section default on 394 of 462
+# concepts. So read every COUNT in this section as an hkfrs count — the ``rulebook`` fixture is the
+# only rulebook the §20 tests below load (one later test builds its own output_csv matcher, and it
+# asserts nothing about note_use).
 
 @pytest.fixture(scope="module")
 def tax_split(rulebook, template):
@@ -357,12 +363,18 @@ def tax_split(rulebook, template):
 
 
 def test_the_note_permitted_arm_admits_only_what_both_definitions_authorise(rulebook, template):
-    """Neither half is inferred, and on the shipped pair that admits exactly one aggregate.
+    """Neither half is inferred, and on the hkfrs pair that admits exactly one aggregate.
 
     A candidate needs BOTH: a template ``rollup`` naming its components, and a concept whose
-    ``note_use`` permits a note to be the source. The shipped rulebook permits it on the tax section
-    alone — its author's stated intent, not a limitation here — so this is also the assertion that
-    the default really is a refusal.
+    ``note_use`` permits a note to be the source. ``hkfrs_hk_china_ontology.json`` permits it on the
+    tax section alone — its author's stated intent, not a limitation here — so this is also the
+    assertion that the default really is a refusal.
+
+    THE "EXACTLY ONE" IS THE FILE'S, NOT THE FUNCTION'S. This asserts one admitted pair because the
+    fixture loads hkfrs with ``hkfrs_hk_china_template.json``; the same call on
+    ``output_csv_hk_ontology.json`` + ``output_csv_hk_v1_template.json`` admits 52. So a change that
+    made this function permissive on the output_csv pair would not move this assertion — it is a
+    test of the hkfrs data as much as of the code.
     """
     from app.stages.map_ontology import _note_permitted_decompositions
 
@@ -371,8 +383,8 @@ def test_the_note_permitted_arm_admits_only_what_both_definitions_authorise(rule
                          ["pl_tax_expense__current_tax", "pl_tax_expense__deferred_tax"],
                          "pl_s5_tax_expense")]
 
-    # THE OVERRIDE, asserted rather than assumed: 180 of the 183 shipped concepts say
-    # ``evidence_only`` and are therefore refused, whatever the template declares about them.
+    # THE OVERRIDE, asserted rather than assumed: 180 of hkfrs's 183 concepts say ``evidence_only``
+    # and are therefore refused, whatever the template declares about them.
     permitted = {m.canonical_key for m in rulebook.mappings
                  if m.note_use == "decomposition_allowed"}
     assert len(permitted) == 3, permitted
@@ -536,7 +548,7 @@ def test_the_split_says_it_flipped_the_signs(awkward_tax):
     """The log is where an analyst finds out why the note and the statement disagree on sign."""
     _doc, ctx = awkward_tax
     fired = [line for line in ctx.logs
-             if line.startswith("map_ontology:split(pl_tax_expense__total_tax_expense)")]
+             if line.startswith("map_line_items:split(pl_tax_expense__total_tax_expense)")]
     assert len(fired) == 1, ctx.logs
     assert "signs flipped to the face convention" in fired[0]
 

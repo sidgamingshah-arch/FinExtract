@@ -37,8 +37,20 @@ path feed. The models are kept because the intent (one shape whatever the source
 ## Persistence (SQLAlchemy)
 
 `app/db/models.py` — what actually exists: `Document`, versioned `TemplateVersion` /
-`OntologyVersion`, `ExtractionRun`, `FxRate`, `ReviewJudgement`, `SettingOverride`
+`LineItemVersion`, `ExtractionRun`, `FxRate`, `ReviewJudgement`, `SettingOverride`
 (SQLite by default; Postgres via `FINEX_DATABASE_URL`).
+
+**`LineItemVersion` (`line_item_versions`) is the single versioned configuration store.**
+There is no second one: the `ontology_versions` table stood here, held a separately
+authored, separately selected rulebook, and is **gone** — line items is the one
+configuration engine, so there is one table to version, one thing to publish and one
+thing a run can pin. A row is `(line_items_key, version)` unique, carries the whole set as
+`definition` JSON, and names the template it targets (`target_template_key`).
+
+**`ExtractionRun.line_item_version_id` is the run's pin** — the exact configuration the
+mapper read, so re-reading the row tells you precisely what a spread was mapped against
+and the run is reproducible. It replaced `ontology_version_id`; nullable only because a
+run recorded before the pin existed genuinely has no answer.
 
 An extraction's **rows live inside `ExtractionRun.result`** as one JSON payload, not in
 relational tables, and every manual edit is an overlay written back onto that payload
@@ -77,7 +89,7 @@ properties are what it is designed *for*. **None of it is implemented** — the 
 above describes what exists instead:
 
 - **Reproducibility** — done, on `ExtractionRun` (document hash + template version +
-  ontology version + engine version + the recorded rulebook).
+  **line-item version** + engine version + the recorded rulebook).
 - **Concurrency** — *not built*: no `row_version`, no `If-Match`, no `409` on a stale
   edit. An edit is last-write-wins onto the run payload. The append-only `EditEvent` log
   is likewise unbuilt; `services/audit.py` keeps a **process-local** run/LLM ledger
@@ -88,9 +100,12 @@ above describes what exists instead:
   column. The statement-level `units` multiplier is real (`UnitContext`).
 - **Migrations** — *no Alembic*. `app/db/base.py::init_db` uses `create_all` plus a
   narrow, idempotent `_reconcile_schema` that adds missing `documents` columns and widens
-  the dedup constraint, so an existing SQLite file keeps working. Template and ontology
+  the dedup constraint, so an existing SQLite file keeps working. Template and line-item
   definitions carry a `schema_version` (and `schemas/loader.py` folds a v2 rulebook's
   section layer on load), but there is no lazy payload-migrator for stored run results.
+  Dropping `ontology_versions` deliberately did **not** convert its rows: 41 of the 44
+  stored there no longer loaded against their own schema, so a migration that drops them
+  is the honest one.
 
 ## Template schema (`app/schemas/template.py`)
 
@@ -149,81 +164,100 @@ year or a validated total stops being the total on screen. Both answers live her
   correcting the consolidated current column does not restate the standalone or the
   prior one.
 
-## Ontology schema (`app/schemas/ontology.py`)
+## Line-item schema (`app/schemas/line_items.py`)
 
-Per canonical key: `aliases` + `aliases_i18n`, `keyword_hints`, `regex_hints`,
-`exclude_hints`, `sign_rule`, `note_ref_hint`, `min_confidence_to_auto_accept`. Top-level:
-`decomposition_rules` (the face↔note tie + residual-as-"other"),
+**The one configuration schema.** A `LineItemSet` is both the output shape *and* the
+matching rulebook — the merge that removed the separate ontology. It is *data, not code* —
+versioned and hot-swappable per job.
+
+Per item (`LineItemDef`, keyed on `key`): the output side — `label`, `in_output`, `parent`,
+`rollup`, `order`, `namespace`; and the matching side — `aliases` + `aliases_i18n`,
+`keyword_hints`, `regex_hints`, `exclude_hints`, `include_criteria` /`exclude_criteria`,
+`pattern`, `sign_rule`, `confusable_with`, `match_priority`, `alias_matching`,
+`extraction_mode`, `value_scope`, `residual_policy`, `note_source` / `note_use`, and the
+derived-line pair `cascade` / `implemented_by`.
+
+Top-level: `section_defaults` + per-item `inherits` (the section layer — the shipped set
+declares `statement` on no item at all and inherits the whole gate from 18 entries),
+`vocabulary` (a `MappingVocabulary`: `section_banners`, `umbrella_banners`, `scope_tokens`,
+`statement_prefixes`, `statement_spellings`, `exclusive_vocabularies`, `families`,
+`section_overrides`, `caption_transforms`, `caption_characters`), `residual_framework`
+(which governs the residual sweep in `stages/residual.py`), `decomposition_rules` (the
+face↔note tie + residual-as-"other"), `netting_rules`, `scope_selection` / `normalisation`
+(which decide how a filing's COLUMNS are read), `validation` (`identities`,
+`cross_concept_guards`, `section_reconciliation`), `worked_examples`,
 `number_format_by_locale` (per-locale `NumberFormat`, which is what the value parser reads)
-and `global_rules`. A `schema_version: 2` rulebook adds the layers the shipped rulebook is
-authored in:
-`section_defaults` + per-concept `inherits`, `residual_framework` (which governs the
-residual sweep in `stages/residual.py`), `netting_rules`, `scope_selection` /
-`normalisation` (which decide how a filing's COLUMNS are read), `validation`
-(`identities`, `cross_concept_guards`, `section_reconciliation`), `worked_examples` and
-`global_rules`. The ontology is *data, not code* — versioned and hot-swappable per job.
+and `global_rules`.
 
-**Cross-check on upload** (`schemas/loader.py`): every ontology `canonical_key` and
+**Cross-check on upload** (`schemas/loader.py`): every item `key` and
 `decomposition.face_key` must resolve against the template; rollups/identities must
 reference existing node ids; `unknown_keys` reports any key the schema does not declare
 rather than dropping it in silence. Failures return `422` with the offending keys.
 
-### Which rulebook is in force
+A configured **empty** value means empty — it is a declaration, never a cue to fall back to
+a built-in default.
 
-More than one rulebook can target one template, so the choice is a resolver rather than a
-convention. **The resolver is
-`app/services/ontology_select.select_for_template(session, template_key)`, and it is the
-authority** — read it rather than any prose about it, here or elsewhere. Whichever way it
-ranks, a run may still **pin** a rulebook to reproduce an earlier spread; the run records
-which, and `rulebook_record` labels it `in_force` / `pinned` / `superseded` /
-`engine_default` / `missing`.
+### Which line-item version is in force
+
+More than one line-item version can target one template, so the choice is a resolver rather
+than a convention. **The resolver is `select_for_template(session, template_key)` in
+`app/services/ontology_select.py`** — the module keeps its old file name (an internal
+symbol, renaming it buys nothing), but what it ranks is rows of `line_item_versions` —
+**and it is the authority**: read it rather than any prose about it, here or elsewhere.
+Whichever way it ranks, a run may still **pin** a version to reproduce an earlier spread —
+that pin is `ExtractionRun.line_item_version_id` — and `rulebook_record` labels it
+`in_force` / `pinned` / `superseded` / `engine_default` / `missing`.
 
 *Where this is going, stated as a plan and not as behaviour:* the ranking is being
-**simplified to "the latest rulebook wins"** — one test instead of five, so that publishing a
-newer rulebook for a template is all it takes for that rulebook to govern. **That is not what
+**simplified to "the latest version wins"** — one test instead of five, so that publishing a
+newer set for a template is all it takes for that set to govern. **That is not what
 the code does today.** `select_for_template` currently applies five tests in order (drop
-declared/retired supersessions → the *shipped* key wins → a rulebook that declares a
+declared/retired supersessions → the *shipped* key wins → a set that declares a
 supersession beats one that declares none → the *incumbent* wins a tie → then version, then
 key), which deliberately means an upload does **not** take over merely by arriving. Until the
-simplification lands, a newly uploaded rulebook governs only if it declares what it
-supersedes.
+simplification lands, a newly uploaded set governs only if it declares what it supersedes.
 
-Two other things a reader should not be misled about:
+One thing a reader should not be misled about: the shipped-key test is what lets a revision
+of the repo's own set reach a reader at all — see the retired-key list in
+`app/sample/reference.py` for why a retired key cannot declare its own retirement.
 
-* the client keeps its own answer to this question in
-  `frontend/src/lib/queries.ts::ontologyInForce`, and it is **not** the same ranking: it
-  tests `supersedes`, then `version`, then key — it has no shipped-key test and no
-  incumbency test. Its comment claims to mirror the server (and points at an
-  `ontology_select.pick` that does not exist), so the two can disagree, and a run started
-  from the client's pick is then stamped `pinned` rather than `in_force`. Treat the server as
-  the answer.
-* the shipped-key test is what lets a revision of the repo's own rulebook reach a reader at
-  all; see `app/sample/reference.py::RETIRED_ONTOLOGY_KEYS` for why the retired keys cannot
-  declare their own retirement.
+The client keeps **no** competing answer to this question. It used to
+(`queries.ts::ontologyInForce` ranked stored rulebooks itself, on a *different* test order
+from the server, so the two could disagree and a run started from the client's pick was
+stamped `pinned` rather than `in_force`). The picker and its ranking are gone with the
+rest of the ontology surface: the server resolves, the client asks.
 
 ### The shipped reference data
 
-One template and one rulebook ship, in `app/sample/templates/`:
+One template and one line-item set ship, in `app/sample/templates/`:
 
 | | key | contents |
 |---|---|---|
-| template | `hkfrs_hk_china_v1` | HKFRS / IFRS standard spread — Hong Kong / China |
-| rulebook | `hkfrs_hk_china` (targets the template above) | **185 concepts**, 19 `section_defaults`, **13 residual buckets** (`value_scope: exclusive_residual`) |
+| template | `output_csv_hk_v1` | the fixed output CSV spread — Hong Kong / China |
+| line-item set | `output_csv_hk` (targets the template above) | **475 items** (462 `namespace: template` + 13 note-level `internal`), 18 `section_defaults`, **11 residual buckets** (`value_scope: exclusive_residual`), and the `vocabulary` block |
 
-The 13 buckets are the four balance-sheet sections plus equity, four P&L sections plus OCI,
-and the three cash-flow sections. The **tax charge deliberately has none** — a sweep bucket
-there would absorb a line that belongs on a named tax concept.
+The residual buckets cover the balance-sheet sections plus equity, the P&L sections plus
+OCI, and the cash-flow sections. The **tax charge deliberately has none** — a sweep bucket
+there would absorb a line that belongs on a named tax item.
+
+The 13 `internal` items are the note-level `sub__*` parts. They are parts *of* a line rather
+than lines, so they are off-template by design; `475 - 13 = 462` is exactly what the
+matcher's working view is built from (see
+[01-extraction-pipeline](01-extraction-pipeline.md)).
 
 `app/sample/reference.py::ensure_reference_data` **refreshes both into the database on
 every startup**, publishing a new version whenever the shipped file differs from the newest
 stored one (compared on canonical content, so identical content writes nothing). It is not
 a one-time seed: it used to write v1 only when no version existed and then never look at
 the files again, so four revisions of the shipped template never reached a running app. Two
-consequences worth knowing: an edit made through the ontology editor **on a shipped key**
+consequences worth knowing: a version published **on a shipped key**
 does not survive a restart (it is logged at WARNING when replaced — put lasting edits in
 the repo's files or under a key of your own), and every shipped file is put through the
-same gates `POST /templates` / `POST /ontologies` apply *before* anything is written, so a
+same gates `POST /templates` / `POST /line-items` apply *before* anything is written, so a
 broken shipped file fails startup with its path named instead of poisoning a read path.
+That last gate is why any new schema field must ship with data that satisfies it:
+`reference.py` raises `ReferenceSeedError` at startup rather than boot with a seed that
+does not validate.
 
 ## Validation engine (feeds the review queue)
 
@@ -317,8 +351,11 @@ resolved to the first match).
 
 **Configuration & identity**
 `templates` (incl. `GET /{id}/xlsx`, `POST /xlsx`, `GET /xlsx/columns`, `GET /{id}/detail`)
-and `ontologies` (incl. `GET /schema`, `GET /skeleton`, `PATCH /{id}/mappings`,
-`PATCH /{id}/netting-rules`) CRUD with validation; `GET`/`PATCH /settings`;
+and `line-items` (incl. `GET /schema`, `GET /skeleton`, `PATCH /{id}/mappings`,
+`PATCH /{id}/netting-rules`) CRUD with validation. **There is no `/ontologies` router** —
+it was the second configuration API and it is gone; everything a client needs about the
+mapping configuration comes from `/line-items`, and an endpoint that took an
+`ontology_version_id` takes a `line_item_version_id`. `GET`/`PATCH /settings`;
 `POST /auth/login`, `POST /auth/logout`, `GET /auth/demo-users`, `GET /me`;
 `GET /languages` (parity); the FX master (`GET /fx-rates`, `GET /fx-rates/resolve`,
 `POST`, `PUT /{id}`, `DELETE /{id}`); and the seeded-sample `projects` router

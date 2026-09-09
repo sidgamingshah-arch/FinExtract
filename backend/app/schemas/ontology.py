@@ -33,6 +33,14 @@ from app.core.models.enums import SignConvention, StatementType
 # the sheet was written.
 _BOOLISH_NEVER_SWEEP = frozenset({"true", "false"})
 
+# The two marks that tell a canonical_key from a caption in an ``expected_components`` entry. Every
+# canonical_key in this key space carries the double underscore that separates its section prefix
+# from its name (``bs_nca__land``), and a PIPE is how the ontology workbook's canonical-key column
+# joins several of them into one cell — so either character in an entry means a key arrived where
+# caption prose belongs. No caption contains them: measured across the 37 phrases shipped on
+# ``output_csv_hk_ontology.json`` and the 62 on ``hkfrs_hk_china_ontology.json``, 0 carry either.
+_KEY_SHAPED_MARKS = ("__", "|")
+
 
 class NumberFormat(BaseModel):
     decimal: str = "."
@@ -193,6 +201,10 @@ class OntologyMapping(BaseModel):
     # Residual concepts: the sweep terms, what the residual is expected to pick up (prose, for
     # the LLM), and the keys it must never absorb however similar the wording.
     residual_policy: ResidualPolicy | None = None
+    # CAPTION PROSE, never a canonical_key: the entries are published verbatim to the model as
+    # ``captions_with_no_dedicated_concept``, so a key here both fails to describe the caption it
+    # was meant to license and tells the model a key it must not be told —
+    # see :meth:`_refuse_key_shaped_expected_components`.
     expected_components: list[str] = Field(default_factory=list)
     # Every entry NAMES SOMETHING: a ``canonical_key``, which ``residual._residuals`` expands to
     # that concept's captions in every locale, or a sentence, kept as prose and matched against a
@@ -242,6 +254,56 @@ class OntologyMapping(BaseModel):
                 f"was 'this concept is never swept', that is already prohibition 4 "
                 f"(residual_framework.prohibitions, 'never absorbs a row a dedicated concept "
                 f"could have claimed'); if it was 'this residual must not absorb X', list X."
+            )
+        return value
+
+    @field_validator("expected_components", mode="before")
+    @classmethod
+    def _refuse_key_shaped_expected_components(cls, value):
+        """Refuse a canonical_key — or a pipe-joined list of them — where a CAPTION belongs.
+
+        ``expected_components`` holds residual CAPTION PROSE: the wording a section's sweep bucket
+        is expected to absorb ("Club memberships and club debentures", "Bank overdrafts"). Its one
+        consumer is :meth:`app.services.mapping.OntologyMatcher._residual_expectations`, which
+        publishes each list VERBATIM as the payload field ``captions_with_no_dedicated_concept`` —
+        the only thing that licenses the model to answer "none of these" and let a row fall to the
+        sweep. A canonical_key in there breaks that twice over: it does not read as the caption the
+        model is being asked to recognise, and it hands the model a key the whole mechanism exists
+        to withhold (the bucket is locked out of the candidate list precisely so its key is never
+        offered).
+
+        MEASURED on the last published ``output_csv_hk`` rulebook to carry the defect (stored
+        version 41): 31 concepts declared ``expected_components``, all 31 of them key-shaped, 30
+        pipe-joined ("bs_nca__land | bs_nca__construction_in_progress"), and 0 of the 31 were
+        residual buckets — so the consumer, which iterates only the locked buckets, emitted an empty
+        list for every statement and the payload block never appeared at all. The keys came from a
+        generator: ``scripts/build_output_csv_template.py`` harvested a pipe-delimited canonical-key
+        column and split it on commas, shipping one joined string per concept.
+
+        A LOAD-TIME REFUSAL and not a silent filter, for the reason the sibling validator gives: an
+        entry that licenses nothing looks exactly like one that licenses something, and there is
+        nowhere to look for the reason. Both routes back in are still open — a reviewer-workbook
+        round trip (``services.ontology_xlsx``, "Expected components") and a regeneration — so the
+        door is where this has to be checked. Deliberately shipped only AFTER the 31 stored entries
+        were replaced with prose on disk: added before that, the shipped rulebook fails its own seed
+        gate and ``app.sample.reference._load_ontology`` raises ``ReferenceSeedError`` at startup.
+        Run ``mode="before"`` so the message names the field and the fix rather than pydantic's
+        positional report on a value the author can still see in their workbook cell.
+        """
+        if not isinstance(value, (list, tuple)):
+            return value
+        bad = [entry for entry in value
+               if isinstance(entry, str) and any(m in entry for m in _KEY_SHAPED_MARKS)]
+        if bad:
+            raise ValueError(
+                f"expected_components holds residual CAPTION PROSE — the wording a section's sweep "
+                f"bucket is expected to absorb — and its only consumer, "
+                f"mapping._residual_expectations, publishes it verbatim to the model as "
+                f"'captions_with_no_dedicated_concept'; {bad!r} is a canonical_key (or a "
+                f"pipe-joined list of them), which is the one thing the model must not be handed "
+                f"there. Write the caption as it is printed on the face; if the intent was to name "
+                f"the concepts a parent decomposes into, that is children_if_decomposed, one "
+                f"canonical_key per entry."
             )
         return value
 

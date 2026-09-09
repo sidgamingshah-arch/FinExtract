@@ -1,9 +1,12 @@
 /** React Query hooks — the data layer each screen consumes. */
+import { useEffect } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import type { Basis, FxRateInput, Locale, OntologyRef, SettingsPatch, StatementKey, TemplateRef } from "../types";
+import type {
+  Basis, FxRateInput, LineItemVersionRef, Locale, SettingsPatch, StatementKey, TemplateRef,
+} from "../types";
 import { useUI } from "../store";
-import { api, downloadOntologySkeleton } from "./api";
+import { api } from "./api";
 
 // --- auth / identity ---
 /** Current principal — enabled only once a session token exists; no retry so a 401
@@ -41,9 +44,28 @@ export function useLogout() {
 }
 
 // --- settings ---
+/** The settings snapshot, plus the two things in it that are APP state rather than screen data.
+ *
+ * `features.default_output_locale` is the deployment's configured output language. Every screen
+ * sends an explicit `locale=` from the store on every request (Export.tsx, ExtractionView.tsx,
+ * Notes.tsx), so the backend default alone is invisible to this client — the store has to adopt
+ * it, or a deployment configured for "zh" still shows English because the browser asked for
+ * English. Hydrated here, beside the `ui_localization` sync, since this is the one place the
+ * snapshot is fetched. A value outside `supported_locales` is ignored rather than trusted: the
+ * field is a free-form string in config.toml and there is no UI for a locale the app has no
+ * translations for.
+ */
 export const useSettings = () => {
   const token = useUI((s) => s.token);
-  return useQuery({ queryKey: ["settings"], queryFn: api.settings, enabled: !!token });
+  const hydrateDefaultLocale = useUI((s) => s.hydrateDefaultLocale);
+  const q = useQuery({ queryKey: ["settings"], queryFn: api.settings, enabled: !!token });
+  const configured = q.data?.features.default_output_locale;
+  const supported = q.data?.features.supported_locales;
+  useEffect(() => {
+    if (!configured || !supported?.includes(configured)) return;
+    hydrateDefaultLocale(configured as Locale);
+  }, [configured, supported, hydrateDefaultLocale]);
+  return q;
 };
 
 export function usePatchSettings() {
@@ -171,7 +193,10 @@ export const useProject = (enabled = true) =>
 export const useProjectLoaded = () => useProject().data?.loaded ?? false;
 export const useDocuments = () => useQuery({ queryKey: ["documents"], queryFn: api.documents });
 
-export const useOntologies = () => useQuery({ queryKey: ["ontologies"], queryFn: api.ontologies });
+/** Every stored version of THE configuration (the line-item sets) — the picker's list. Was
+ *  `useOntologies` under the key `["ontologies"]`; one configuration engine, one store, one key. */
+export const useLineItemVersions = () =>
+  useQuery({ queryKey: ["line-item-versions"], queryFn: api.lineItemVersions });
 export const useTemplates = () => useQuery({ queryKey: ["templates"], queryFn: api.templates });
 
 /** The template VERSION in play: the one selected, else the LATEST the server names.
@@ -201,50 +226,54 @@ export function activeTemplate(
     ?? rows[0];
 }
 
-/** The rulebook IN FORCE among the rows matching `pred` — READ from the server, never ranked here.
+/** The configuration IN FORCE among the rows matching `pred` — READ from the server, never ranked
+ * here.
  *
- * It lives in the data layer because two screens ask the question (the index, to name the rulebook
- * a template row is described by; the extraction view, to decide which one a run defaults to) and
- * they were answering it differently: each had its own `version >` comparison, which is a third and
- * fourth spelling of a rule the server already owns.
+ * It lives in the data layer because two screens ask the question (the index, to name the
+ * configuration a template row is described by; the extraction view, to decide which one a run
+ * defaults to) and they were answering it differently: each had its own `version >` comparison,
+ * which is a third and fourth spelling of a rule the server already owns.
  *
  * THE DEFECT THIS CLOSES. Collapsing those two into one was right; the one was still wrong. It
- * ranked `[declares a supersession, version, ontology_key]` under a comment claiming it mirrored the
+ * ranked `[declares a supersession, version, key]` under a comment claiming it mirrored the
  * server's picker — a function that did not exist under that name, and whose actual rule is
- * "whatever was stored last wins" (`app/services/ontology_select.select_for_template`). That rule
- * turns on `created_at`, which this payload does not carry, so the client could not have applied it
- * even in principle. The two sides therefore named DIFFERENT rulebooks: the run mapped against the
- * one in force and the screen captioned it as pinned to an older one, telling an analyst their
- * extraction had used something it had not.
+ * "whatever was stored last wins" (`app/services/config_select.select_for_template`). That rule
+ * turns on `created_at`, which the client must not re-apply even now that the payload carries it:
+ * the two sides would then have two implementations of one rule. Before the flag existed they named
+ * DIFFERENT configurations — the run mapped against the one in force and the screen captioned it as
+ * pinned to an older one, telling an analyst their extraction had used something it had not.
  *
- * So the server states it: `OntologyRef.in_force`, computed by asking `select_for_template` itself.
- * One implementation of the rule means there is nothing left to drift. Do not add a fallback
- * ranking here — a guess that disagrees with the extractor is exactly the defect above, and a row
- * whose payload predates the flag is better reported as "unknown" than named wrongly.
+ * So the server states it: `LineItemVersionRef.in_force`, computed by asking `select_for_template`
+ * itself. One implementation of the rule means there is nothing left to drift. Do not add a
+ * fallback ranking here — a guess that disagrees with the extractor is exactly the defect above,
+ * and a row whose payload predates the flag is better reported as "unknown" than named wrongly.
  *
  * `pred` narrows the candidates, normally to one target template, and the flag picks among them.
  * Where a caller cannot name a template — the extraction view and the Workspace both fall back to
  * an unfiltered call when no template is selected yet — several rows carry the flag, one per
- * template, and this returns the first in list order (the server orders by `ontology_key`, so it is
- * at least deterministic). That fallback names a rulebook for SOME template rather than the one
- * being read, which is the pre-existing weakness of asking without a template; it is not made worse
- * by reading the flag, and both callers use it only to have something to show before a template
+ * template, and this returns the first in list order (server-ordered, so it is at least
+ * deterministic). That fallback names a configuration for SOME template rather than the one being
+ * read, which is the pre-existing weakness of asking without a template; it is not made worse by
+ * reading the flag, and both callers use it only to have something to show before a template
  * is chosen.
+ *
+ * Was `ontologyInForce` over `OntologyRef`. Line items is the single configuration engine, so there
+ * is one kind of version to be in force and nothing to select an engine between.
  */
-export function ontologyInForce(
-  rows: OntologyRef[] | undefined,
-  pred: (o: OntologyRef) => boolean = () => true,
-): OntologyRef | undefined {
-  return (rows ?? []).filter(pred).find((o) => o.in_force);
+export function configurationInForce(
+  rows: LineItemVersionRef[] | undefined,
+  pred: (c: LineItemVersionRef) => boolean = () => true,
+): LineItemVersionRef | undefined {
+  return (rows ?? []).filter(pred).find((c) => c.in_force);
 }
 
 /** Run (and fetch) the extraction for one uploaded document — its real line items with
- * provenance, mapped against the given ontology/template. Extraction is a background job:
- * this POSTs once per (doc, ontology/template) to start it, then polls the run until it
- * reaches succeeded/failed. `enabled` gates the start until the ontology list has settled. */
+ * provenance, mapped against the given configuration/template. Extraction is a background job:
+ * this POSTs once per (doc, line-item version/template) to start it, then polls the run until it
+ * reaches succeeded/failed. `enabled` gates the start until the version list has settled. */
 export function useExtraction(
   documentId: string | undefined,
-  ontologyId?: string,
+  lineItemVersionId?: string,
   templateId?: string,
   enabled = true,
   /** A run this caller did NOT start, polled as if it had: the run `useDocumentRunStatus` found
@@ -257,9 +286,12 @@ export function useExtraction(
   adoptRunId?: string,
 ) {
   const start = useQuery({
-    queryKey: ["extraction-start", documentId, ontologyId ?? null, templateId ?? null],
+    // The configuration segment of this key must be spelled the SAME WAY in `useReextract`'s
+    // `setQueryData` below, or a started run and its poll land on different cache entries and the
+    // mounted start query (`staleTime: Infinity`) launches a second pipeline.
+    queryKey: ["extraction-start", documentId, lineItemVersionId ?? null, templateId ?? null],
     queryFn: () => api.runExtraction(documentId as string, {
-      ontology_version_id: ontologyId, template_version_id: templateId,
+      line_item_version_id: lineItemVersionId, template_version_id: templateId,
     }),
     enabled: !!documentId && enabled,
     staleTime: Infinity,
@@ -325,12 +357,12 @@ export function useStopRun(documentId: string | undefined) {
 
 /** Start a FRESH extraction for a document that already has one.
  *
- *  Not a variant of `useExtraction`: that hook's start query is keyed on
- *  (document, ontology, template) with `staleTime: Infinity`, so asking it again hands back the
- *  cached run rather than launching a new one — which is correct for a screen mount and useless for
- *  "re-extract this against the revised template". A run is PINNED to the template version it was
- *  launched against, so re-running is the only way a template revision reaches a document that was
- *  extracted before it.
+ *  Not a variant of `useExtraction`: that hook's start query is keyed on (document, line-item
+ *  version, template) with `staleTime: Infinity`, so asking it again hands back the cached run
+ *  rather than launching a new one — which is correct for a screen mount and useless for
+ *  "re-extract this against the revised template". A run is PINNED to the template version AND the
+ *  line-item version it was launched against, so re-running is the only way a revision of either
+ *  reaches a document that was extracted before it.
  *
  *  THE NEW RUN IS WRITTEN INTO THE START QUERY'S CACHE, never removed from it. `removeQueries` on
  *  that key looks like the obvious way to make the screen pick up the new run, and it starts a
@@ -346,9 +378,9 @@ export function useStopRun(documentId: string | undefined) {
 export function useReextract(documentId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { ontologyId?: string; templateId?: string } = {}) =>
+    mutationFn: (vars: { lineItemVersionId?: string; templateId?: string } = {}) =>
       api.runExtraction(documentId as string, {
-        ontology_version_id: vars.ontologyId, template_version_id: vars.templateId,
+        line_item_version_id: vars.lineItemVersionId, template_version_id: vars.templateId,
         // FORCED, because this is the one caller that means "run it again". POSTing an extraction
         // is idempotent per (document, options) so that a screen mounting cannot restart the
         // filing; without this flag the re-extract control would hit that same rule and hand back
@@ -356,10 +388,12 @@ export function useReextract(documentId: string | undefined) {
         force: true,
       }),
     onSuccess: (started, vars) => {
-      // The same key `useExtraction` builds, so the mounted start query adopts this run rather
-      // than launching another one of its own.
+      // The same key `useExtraction` builds — segment for segment, including the line-item
+      // version — so the mounted start query adopts this run rather than launching another one of
+      // its own. A key that disagreed by one segment would leave that query with no data and it
+      // would refetch, and its `queryFn` is the POST that starts a pipeline.
       qc.setQueryData(
-        ["extraction-start", documentId, vars?.ontologyId ?? null, vars?.templateId ?? null],
+        ["extraction-start", documentId, vars?.lineItemVersionId ?? null, vars?.templateId ?? null],
         started,
       );
       // `document-run-status` included because it is what every screen now asks "is a run in
@@ -590,44 +624,38 @@ export function useUploadTemplateXlsx() {
   });
 }
 
-/** Upload an ontology (the extraction rulebook) against a template. */
-export function useUploadOntology() {
+/** Publish a line-item set as a new version of the configuration, against a template. Refreshes
+ *  the version list AND the template detail, because the newly published version is what the
+ *  Template screen's per-node rules are then read from. Was `useUploadOntology`. */
+export function usePublishLineItems() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (vars: { definition: unknown; targetTemplateKey?: string }) =>
-      api.createOntology(vars.definition, vars.targetTemplateKey),
+      api.publishLineItems(vars.definition, vars.targetTemplateKey),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["ontologies"] });
+      qc.invalidateQueries({ queryKey: ["line-item-versions"] });
       qc.invalidateQueries({ queryKey: ["template-detail"] });
     },
   });
 }
 
-/** The shape an authored ontology must have (JSON Schema + the per-field index).
+/** The shape an authored configuration must have (JSON Schema + the per-field index).
  *
- * `enabled` exists because the endpoint is admin-only: called without `config:ontology` it 403s,
+ * `enabled` exists because the endpoint is admin-only: called without `config:line_items` it 403s,
  * so the screen must gate it on the permission rather than let every viewer fire a doomed request.
  * Generated from the models, so it cannot change between requests — fetched once and kept. */
-export const useOntologySchema = (enabled = true) =>
+export const useLineItemSchema = (enabled = true) =>
   useQuery({
-    queryKey: ["ontology-schema"],
-    queryFn: api.ontologySchema,
+    queryKey: ["line-item-schema"],
+    queryFn: api.lineItemSchema,
     enabled,
     staleTime: Infinity,
     retry: false,
   });
 
-/** Download a ready-to-edit ontology skeleton for a template.
- *
- * A mutation, not a query: it writes a file to the user's disk, so it must run when the button is
- * pressed and never be replayed from cache — and its failure has to reach the screen, because a
- * download that silently did nothing is indistinguishable from one the browser blocked. */
-export function useDownloadOntologySkeleton() {
-  return useMutation({
-    mutationFn: (vars: { templateId: string; fallbackName: string }) =>
-      downloadOntologySkeleton(vars.templateId, vars.fallbackName),
-  });
-}
+// THE SKELETON DOWNLOAD HOOK IS GONE (`useDownloadOntologySkeleton`), with the route and the
+// generator behind it. Authoring now starts from the configuration in force rather than from a
+// file of empty stubs — see the note beside the deleted `downloadOntologySkeleton` in `./api`.
 
 /** What the template workbook's columns mean — read from the reader that enforces them, so the
  *  screen can never describe a contract the API doesn't hold to. */
@@ -698,7 +726,8 @@ export const useNote = (no: string, locale: Locale = "en", enabled = true) =>
   useQuery({ queryKey: ["note", no, locale], queryFn: () => api.note(no, locale), enabled });
 export const useTemplate = (locale: Locale = "en") =>
   useQuery({ queryKey: ["template", locale], queryFn: () => api.template(locale) });
-/** A real configured template's structure (Template & Ontology screen, admin).
+/** A real configured template's structure (the Template screen, admin) — its tree plus the
+ *  per-node rules read from the line-item version that targets it.
  *
  * Keeps the previous template's detail on screen while a newly selected one loads. Without it the
  * screen blanks to "Loading…" on every selection change — which also unmounted the authoring
@@ -773,11 +802,13 @@ export const useDocumentStatement = (
     retry: false,
   });
 
+/** Edit one FIGURE of the seeded sample project's spread (not a configuration edit — that is
+ *  `api.editLineItem`, which publishes a new line-item version). */
 export function useEditLineItem() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (vars: { id: string; value: number | null; formula: string }) =>
-      api.editLineItem(vars.id, vars.value, vars.formula),
+      api.editProjectLineItem(vars.id, vars.value, vars.formula),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["statement"] }),
   });
 }

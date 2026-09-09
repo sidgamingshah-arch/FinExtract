@@ -1,8 +1,8 @@
 """Progress reported from INSIDE a stage — how many LLM calls are needed, and how many are done.
 
 THE DEFECT THIS CLOSES. `Pipeline.run` emits once before each stage, so everything a reader sees
-moves only at stage boundaries. `map_ontology` is ONE stage and by far the longest: it makes every
-LLM call in the run, one batched call per (statement, section) subgroup, concurrently. For the
+moves only at stage boundaries. `map_line_items` is ONE stage and by far the longest: it makes
+every LLM call in the run, one batched call per (statement, section) subgroup, concurrently. For the
 whole of that the stage name, the percentage, the stage counter AND the log tail sat frozen —
 because the only thing that flushed them was the next stage starting. A run that was working and a
 run that had hung looked identical, which is exactly what was reported from the field.
@@ -26,8 +26,8 @@ STARTED = datetime(2026, 1, 1, tzinfo=timezone.utc)
 # ── the record carries the new fields, and the contract knows about them ─────────────────────────
 
 def test_the_payload_carries_the_step_and_call_fields():
-    got = _progress_payload("map_ontology", 0.5, started_at=STARTED, stage_count=14,
-                            stage="map_ontology", step_done=3, step_total=12,
+    got = _progress_payload("map_line_items", 0.5, started_at=STARTED, stage_count=14,
+                            stage="map_line_items", step_done=3, step_total=12,
                             step_label="LLM call", llm_calls=3)
 
     assert got["step_done"] == 3
@@ -43,7 +43,7 @@ def test_the_field_contract_includes_them_so_a_record_is_not_rejected():
     for field in ("step_done", "step_total", "step_label", "llm_calls"):
         assert field in _PROGRESS_FIELDS
 
-    served = _served_progress(_progress_payload("map_ontology", 0.5, started_at=STARTED,
+    served = _served_progress(_progress_payload("map_line_items", 0.5, started_at=STARTED,
                                                 stage_count=14, step_total=12, step_done=3))
     assert served is not None
     assert served["step_total"] == 12

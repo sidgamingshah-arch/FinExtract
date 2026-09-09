@@ -1,7 +1,9 @@
 """SQLAlchemy ORM models (persistence projection of the domain model).
 
 Kept intentionally compact for this foundation: the entities the API needs now
-(Document, versioned Template/Ontology, ExtractionRun). The full relational model
+(Document, versioned Template/LineItemSet, ExtractionRun). There is exactly ONE
+configuration store here — the line-item set; the ``ontology_versions`` table that
+used to sit beside it is gone (see ``LineItemVersion`` and ``db.base``). The full relational model
 (Statement, LineItem, NotesTable, FaceNoteLink, ReviewItem, EditEvent, RuleResult,
 Export) is documented in docs/architecture/02-data-model-and-schemas.md and lands
 with the extraction persistence phase.
@@ -79,12 +81,28 @@ class TemplateVersion(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
 
-class OntologyVersion(Base):
-    __tablename__ = "ontology_versions"
-    __table_args__ = (UniqueConstraint("ontology_key", "version", name="uq_ont_ver"),)
+class LineItemVersion(Base):
+    """One immutable version of the LINE-ITEM SET — the single configuration engine.
+
+    This replaces ``OntologyVersion`` (``ontology_versions``), which stood here and is
+    deleted: the ontology is no longer a stored, selectable or user-visible thing, so
+    there is nothing for a second configuration table to hold. ``db.base`` drops the old
+    table on the way past; that drop only sticks because the model is gone from
+    ``Base.metadata`` and ``create_all`` can no longer recreate it. Do not reinstate it —
+    line items is the one place configuration lives.
+
+    Deliberately the same SHAPE the ontology row had, so the version/pin machinery around
+    it needed no rethink, MINUS ``is_published``: nothing ever SELECTed on that flag, and
+    ``sample.reference._clear_prior_published`` records it had gone wrong on 19 rows at
+    once. A flag no reader consults and no writer keeps true is not state, it is a lie
+    with a column.
+    """
+
+    __tablename__ = "line_item_versions"
+    __table_args__ = (UniqueConstraint("line_items_key", "version", name="uq_li_ver"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    ontology_key: Mapped[str] = mapped_column(String(128), index=True)
+    line_items_key: Mapped[str] = mapped_column(String(128), index=True)
     target_template_key: Mapped[str] = mapped_column(String(128))
     version: Mapped[int] = mapped_column(Integer, default=1)
     definition: Mapped[dict] = mapped_column(JSON)
@@ -132,7 +150,12 @@ class ExtractionRun(Base):
     id: Mapped[str] = mapped_column(String(96), primary_key=True, default=_uuid)
     document_id: Mapped[str] = mapped_column(ForeignKey("documents.id"))
     template_version_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
-    ontology_version_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    # THE PIN that makes a run reproducible: the exact line-item version the mapper read.
+    # Was ``ontology_version_id`` — the configuration a run used is now only ever a
+    # line-item set, so re-reading this row tells you precisely what it was mapped against.
+    # Nullable because a run recorded before the pin existed genuinely has no answer, and
+    # inventing one would be worse than admitting it.
+    line_item_version_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     run_number: Mapped[int] = mapped_column(Integer, default=1)
     engine_version: Mapped[str] = mapped_column(String(32), default="0.1.0")
     status: Mapped[str] = mapped_column(String(16), default="running")

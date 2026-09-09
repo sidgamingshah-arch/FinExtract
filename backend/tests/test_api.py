@@ -44,7 +44,7 @@ def test_documents_upload_gated_and_listed(anon_client, auth):
     assert anon_client.get("/api/v1/documents").status_code == 401
 
 
-def test_template_and_ontology_create_and_language_parity(client):
+def test_template_and_line_items_create_and_language_parity(client):
     template = {
         "template_key": "api_tpl",
         "name": "API Template",
@@ -61,28 +61,42 @@ def test_template_and_ontology_create_and_language_parity(client):
     assert r.status_code == 201, r.text
     tpl_id = r.json()["id"]
 
-    ontology = {
-        "ontology_key": "api_ont",
+    # Line items IS the configuration engine — there is no second one to publish against. This
+    # block posted an ``ontology`` to ``/api/v1/ontologies`` and scoped the parity call with an
+    # ``ontology_version_id``; both are gone with the ontology store, so the same parity question
+    # is asked of a published LINE-ITEM SET. The alias half of parity is measured over the
+    # matcher's working view of this set, so declaring the four locales on one item that the
+    # matcher indexes is what makes the four fully supported.
+    line_items = {
+        "line_items_key": "api_items",
         "target_template_key": "api_tpl",
         "number_format_by_locale": {loc: {} for loc in ("en", "zh", "ar", "fr")},
-        "mappings": [{
-            "canonical_key": "cash",
+        "items": [{
+            "key": "cash",
+            "label": "Cash",
             "aliases_i18n": {"en": ["Cash"], "zh": ["现金"], "ar": ["النقد"], "fr": ["Trésorerie"]},
         }],
     }
-    r = client.post("/api/v1/ontologies", json={"definition": ontology}, headers=admin)
+    r = client.post("/api/v1/line-items", json={"definition": line_items}, headers=admin)
     assert r.status_code == 201, r.text
-    ont_id = r.json()["id"]
+    li_id = r.json()["id"]
 
-    r = client.get(f"/api/v1/languages?template_version_id={tpl_id}&ontology_version_id={ont_id}")
+    r = client.get(f"/api/v1/languages?template_version_id={tpl_id}&line_item_version_id={li_id}")
     assert r.status_code == 200
     body = r.json()
     assert set(body["fully_supported"]) == {"en", "zh", "ar", "fr"}
 
 
-def test_ontology_rejects_unknown_template(client):
-    ontology = {"ontology_key": "orphan", "target_template_key": "nope", "mappings": []}
-    r = client.post("/api/v1/ontologies", json={"definition": ontology}, headers={"X-Role": "admin"})
+def test_line_item_set_rejects_unknown_template(client):
+    """A configuration that names no stored template cannot be validated, so it cannot publish.
+
+    Was ``test_ontology_rejects_unknown_template``. The item carries an alias so the request gets
+    PAST the recognises-nothing door and is refused for the reason under test — the target template.
+    """
+    line_items = {"line_items_key": "orphan", "target_template_key": "nope",
+                  "items": [{"key": "cash", "aliases": ["Cash"]}]}
+    r = client.post("/api/v1/line-items", json={"definition": line_items},
+                    headers={"X-Role": "admin"})
     assert r.status_code == 422
 
 

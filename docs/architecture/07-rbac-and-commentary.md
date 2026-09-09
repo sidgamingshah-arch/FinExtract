@@ -12,7 +12,7 @@ The screen lists are `SCREENS_BY_ROLE` in that file, and they are the same 11 id
 |---|---|---|
 | **analyst** | Upload a document, **choose** an output template, run the pipeline end to end (integrity → scope → **extraction** → QA in the Review Queue), then **submit the final output for review**. | upload, integrity, scope, **extraction**, workspace, notes, **review (QA)**, commentary, export — 9 |
 | **reviewer** | **Review & finalize** the analyst's output, then deliver it. | integrity, **extraction**, workspace, notes, review, commentary, export — 7 |
-| **admin** | Configuration (templates, ontology, **LLM config**, extraction thresholds, feature flags, the review toggle, the sample project), users, and the **audit log**. | all 11 screens incl. Template & Ontology and **Settings** |
+| **admin** | Configuration (templates, the **line-item set**, **LLM config**, extraction thresholds, feature flags, the review toggle, the sample project), users, and the **audit log**. | all 14 screens incl. Template, **Line Items** and **Settings** |
 
 A reviewer holds the **extraction** screen to READ the latest run and cannot start one:
 `pipeline:run` belongs to the analyst and the admin, and the screen's re-extract control is
@@ -27,7 +27,17 @@ is a defect in the endpoint (or in the comment), not a documented feature.
 Representative permissions: `documents:manage`, `template:select` (analyst *chooses* a
 template) vs `config:template` (admin *authors* one), `pipeline:run`, `extraction:edit`,
 `review:submit` (analyst hand-off) vs `review:finalize` (reviewer), `export:run`,
-`config:settings`, `audit:view`.
+`config:line_items` (admin authors the mapping configuration), `config:settings`,
+`audit:view`.
+
+The mapping-configuration permission is **`config:line_items`**. It was `config:ontology`,
+which guarded a separate ontology surface that no longer exists; there is one configuration
+engine, so there is one permission for it. `Permission.CONFIG_ONTOLOGY` survives in
+`app/security/rbac.py` only as a **transitional alias member** holding the same
+`config:line_items` string: it is absent from `set(Permission)` and from every permission
+list served to the client, `Permission("config:ontology")` no longer resolves, and it exists
+purely so the last call sites keep importing. It goes with them — nothing grants it, and no
+client ever sees the word.
 
 ### Reviewer sign-off toggle (`review_required`)
 
@@ -48,7 +58,8 @@ modes — the flag only changes who performs the final sign-off/hand-off. Implem
 visibility is unaffected by the flag.
 
 **Enforcement** — `require(permission)` is a FastAPI dependency on every config/mutating
-endpoint (create template/ontology, edit/revert line item, template config data, export,
+endpoint (create template, publish a line-item version, edit/revert line item, template
+config data, export,
 settings PATCH, …) returning **403** when the role lacks the permission. The whole
 `/projects` router additionally requires an authenticated principal (401 otherwise).
 `GET /me` returns the caller's user, role, permissions, and the screens the role may see.
@@ -68,8 +79,8 @@ change the matrix.
 drives everything after. The nav rail filters to `me.screens`; routes are guarded
 (`RequireScreen` redirects a role away from a screen it can't see); a top-bar user menu
 shows the signed-in user and a sign-out button; and gated controls are hidden/disabled via
-`useCan(permission)` — template/ontology authoring and the extraction thresholds
-(`config:template` / `config:ontology` / `config:settings`), export "Include" options,
+`useCan(permission)` — template and line-item authoring and the extraction thresholds
+(`config:template` / **`config:line_items`** / `config:settings`), export "Include" options,
 page-scope toggles, the Extraction screen's re-extract button (`pipeline:run`), the review
 queue's accept/withdraw (`review:resolve`) and its flip-sign and **re-map** actions
 (`extraction:edit`). The server still enforces regardless of the UI.

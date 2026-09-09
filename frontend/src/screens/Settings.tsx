@@ -97,7 +97,13 @@ function Field({
   );
 }
 
-const PROVIDERS = ["anthropic", "openai", "openai_compatible", "local", "stub"];
+// The llm adapter ids actually registered in backend adapters/__init__.py, in the order the
+// config.toml [llm] menu documents them. This list was wrong in BOTH directions: it offered
+// "local" (an object_store id, no llm adapter — the backend now refuses it outright) and omitted
+// azure_openai, the documented DEFAULT provider, so the one option an operator most needs was the
+// one option the dropdown could not select. "azure" is a registered alias of azure_openai and is
+// deliberately not listed; the canonical id belongs in a menu.
+const PROVIDERS = ["azure_openai", "anthropic", "bedrock_gateway", "openai", "openai_compatible", "stub"];
 
 /** Editable LLM configuration (admin). The API key stays in the environment — only its
  * env-var name is editable; we surface whether the key is currently populated. */
@@ -109,10 +115,10 @@ function LlmConfigCard({ s, canEdit }: { s: AppSettings; canEdit: boolean }) {
   useEffect(() => {
     setForm({
       provider: s.llm.provider, model: s.llm.model, base_url: s.llm.base_url,
-      temperature: s.llm.temperature, max_tokens: s.llm.max_tokens,
+      max_tokens: s.llm.max_tokens,
       timeout_seconds: s.llm.timeout_seconds, api_key_env: s.llm.api_key_env,
     });
-  }, [s.llm.provider, s.llm.model, s.llm.base_url, s.llm.temperature, s.llm.max_tokens, s.llm.timeout_seconds, s.llm.api_key_env]);
+  }, [s.llm.provider, s.llm.model, s.llm.base_url, s.llm.max_tokens, s.llm.timeout_seconds, s.llm.api_key_env]);
 
   const set = (k: keyof LlmConfigPatch, v: string | number) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -121,7 +127,6 @@ function LlmConfigCard({ s, canEdit }: { s: AppSettings; canEdit: boolean }) {
       <SectionCard title={t("st.llm")} note={t("st.readOnly")}>
         <Row label={t("st.provider")} value={s.llm.provider} />
         <Row label={t("st.model")} value={s.llm.model} />
-        <Row label={t("st.temperature")} value={s.llm.temperature} />
         <Row label={t("st.maxTokens")} value={s.llm.max_tokens} />
         <Row label={t("st.timeout")} value={s.llm.timeout_seconds} />
         <Row label={t("st.baseUrl")} value={s.llm.base_url || "(provider default)"} />
@@ -148,10 +153,10 @@ function LlmConfigCard({ s, canEdit }: { s: AppSettings; canEdit: boolean }) {
         <Field label={t("st.apiKeyEnv")}>
           <input value={form.api_key_env ?? ""} onChange={(e) => set("api_key_env", e.target.value)} style={inputStyle} />
         </Field>
-        <Field label={t("st.temperature")}>
-          <input type="number" step="0.1" value={form.temperature ?? 0}
-                 onChange={(e) => set("temperature", Number(e.target.value))} style={inputStyle} />
-        </Field>
+        {/* No temperature input. It was an editable number that the backend accepted, stored and
+            echoed back while no provider call ever carried it — the screen confirmed a change that
+            did not exist. Temperature is fixed at 0.0 in code for deterministic structured
+            extraction, so there is nothing here to edit. */}
         <Field label={t("st.maxTokens")}>
           <input type="number" value={form.max_tokens ?? 0}
                  onChange={(e) => set("max_tokens", Number(e.target.value))} style={inputStyle} />

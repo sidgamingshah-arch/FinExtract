@@ -113,7 +113,7 @@ def test_a_pin_the_default_resolves_to_is_the_same_request(client):
     with SessionLocal() as session:
         run = session.get(ExtractionRun, first["run_id"])
         resolved = {"template_version_id": run.template_version_id,
-                    "ontology_version_id": run.ontology_version_id}
+                    "line_item_version_id": run.line_item_version_id}
 
     again = client.post(f"/api/v1/documents/{doc_id}/extractions", json=resolved).json()
     assert again["run_id"] == first["run_id"], "an explicitly-pinned repeat started a new run"
@@ -247,26 +247,26 @@ def test_a_request_that_states_nothing_is_answered_by_any_run():
 
     class _Run:
         options = {"template_version_id": "an-older-template",
-                   "ontology_version_id": "an-older-rulebook", "confirm_scope": True}
+                   "line_item_version_id": "an-older-configuration", "confirm_scope": True}
         template_version_id = "an-older-template"
-        ontology_version_id = "an-older-rulebook"
+        line_item_version_id = "an-older-configuration"
 
     assert _satisfies(_Run(), ExtractionOptions())
 
 
 def test_a_stated_pin_must_match():
     """The other half. Naming a template IS asking for that template, so a run on another one does
-    not answer it — this is what keeps the rulebook-pin flow working."""
+    not answer it — this is what keeps the configuration-pin flow working."""
     from app.api.routes.extractions import ExtractionOptions, _satisfies
 
     class _Run:
-        options = {"template_version_id": "t1", "ontology_version_id": "o1"}
+        options = {"template_version_id": "t1", "line_item_version_id": "l1"}
         template_version_id = "t1"
-        ontology_version_id = "o1"
+        line_item_version_id = "l1"
 
     assert _satisfies(_Run(), ExtractionOptions(template_version_id="t1"))
     assert not _satisfies(_Run(), ExtractionOptions(template_version_id="t2"))
-    assert not _satisfies(_Run(), ExtractionOptions(ontology_version_id="o2"))
+    assert not _satisfies(_Run(), ExtractionOptions(line_item_version_id="l2"))
 
 
 def test_the_entity_name_does_not_make_it_a_different_run():
@@ -277,7 +277,7 @@ def test_the_entity_name_does_not_make_it_a_different_run():
     class _Run:
         options = {"confirm_scope": False}
         template_version_id = None
-        ontology_version_id = None
+        line_item_version_id = None
 
     assert _satisfies(_Run(), ExtractionOptions(entity="Acme Ltd"))
     assert _satisfies(_Run(), ExtractionOptions(entity="ACME"))

@@ -109,8 +109,8 @@ rendered only on the run path, so the read-only reader sees no stage table — s
 [07-rbac-and-commentary](07-rbac-and-commentary.md#role-based-access-control), where that gap
 is called out.
 
-**Progress is polled, not pushed.** `useExtraction` POSTs once per (document, ontology,
-template) and then polls `GET /extractions/{run_id}` at 1s while `status === "running"`.
+**Progress is polled, not pushed.** `useExtraction` POSTs once per (document, line-item
+version, template) and then polls `GET /extractions/{run_id}` at 1s while `status === "running"`.
 There is no WebSocket anywhere in the product.
 
 Once the run succeeds the screen lists the real line items with per-value confidence and
@@ -268,17 +268,32 @@ suggested fix, and up to three controls:
   belongs to no template concept. The accounting findings carry no offer — a relation
   between several concepts gives no answer to which one to re-map.
 
-## Template & ontology authoring (admin)
+## Configuration authoring (admin)
 
-Two pages. **The index** (`src/screens/TemplateList.tsx`) lists the template versions and
-carries the authoring desk: download a template as a workbook, upload the edited workbook
-back as a new version, upload a rulebook (JSON) **against the template on screen** — which
-is the one it is validated against, so a rule for a line the template does not define comes
-back naming the key. The workbook's column contract is read from the endpoint that enforces
-it (`GET /templates/xlsx/columns`), so the screen cannot describe columns the API would
-reject. **The detail page** (`src/screens/Template.tsx`) is raised over the index and shows
-one version's structure tree, per-node config, the netting policies and inline ontology
-editing.
+There is **no Template & Ontology screen** — no ontology picker, no ontology editor, no
+ontology type and no ontology label anywhere in `frontend/`. A user configures the mapping
+on the **Line Items** screen, because line items is the single configuration engine; a
+second configuration surface is exactly what let a user configure line items and change
+nothing.
+
+**Template authoring** is two pages. **The index** (`src/screens/TemplateList.tsx`) lists
+the template versions and carries the authoring desk: download a template as a workbook,
+upload the edited workbook back as a new version, and upload a **line-item set** (JSON)
+**against the template on screen** — which is the one it is validated against, so a rule for
+a line the template does not define comes back naming the key. The workbook's column
+contract is read from the endpoint that enforces it (`GET /templates/xlsx/columns`), so the
+screen cannot describe columns the API would reject. **The detail page**
+(`src/screens/Template.tsx`) is raised over the index and shows one version's structure
+tree, per-node config and the netting policies.
+
+**The Line Items screen** (`src/screens/LineItems.tsx`, route `/line-items`, gated on the
+`line_items` screen permission) is the surface on which the configuration behind each output
+line and its sub-line items can be READ — the parts each output line is assembled from, the
+aliases and criteria that claim a caption, and the derivation cascade where a line is
+derived. It reads `GET /line-items`. It is deliberately read-only for now, and says so on
+screen: the definitions describe derivations that several services still compute
+(`implemented_by` names which), so showing them before they drive everything is what lets
+the configuration be checked against what the pipeline does.
 
 ## Extraction mode — auto vs. confirm page scope
 

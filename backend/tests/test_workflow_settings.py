@@ -60,7 +60,12 @@ def test_admin_edits_llm_config_key_never_accepted(client):
         assert llm["provider"] == "openai"
         assert llm["model"] == "moonshotai/kimi-k3-free"
         assert llm["base_url"] == "https://api.tokenrouter.com/v1"
-        assert llm["temperature"] == 0.3
+        # `temperature` is sent above with the ignored `api_key`, and for the same reason: it is a
+        # key this endpoint no longer knows. It was editable, persisted and echoed while reaching
+        # no provider call, so it was deleted rather than wired — the body must not echo it, and
+        # its presence in the request must not disturb the fields that ARE honoured (asserted
+        # above). Sampling temperature is fixed at 0.0 for deterministic structured extraction.
+        assert "temperature" not in llm
         # Applied onto the live settings so the provider registry picks it up.
         assert get_settings().llm.provider == "openai"
         # The key was NOT stored anywhere on the LLM settings.

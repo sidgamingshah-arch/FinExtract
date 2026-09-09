@@ -9,7 +9,7 @@ import { color, font } from "../theme";
 import type { DemoUser } from "../types";
 
 const ROLE_BLURB: Record<string, string> = {
-  admin: "Full access — configuration, template & ontology, settings.",
+  admin: "Full access — configuration, template & line items, settings.",
   reviewer: "Extraction, review queue, notes, analysis and export.",
   analyst: "The simple flow — workspace, notes, analysis, export.",
 };

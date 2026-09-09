@@ -16,12 +16,18 @@ def test_login_issues_token_and_scopes_analyst(anon_client):
     me = anon_client.get("/api/v1/me", headers={"Authorization": f"Bearer {tok}"}).json()
     assert me["authenticated"] is True and me["role"] == "analyst" and me["via"] == "session"
     assert "workspace" in me["screens"] and "commentary" in me["screens"]
-    # Configuration screens (Template & Ontology authoring, Settings) are admin-only. The
+    # Configuration screens (Template & Line Items authoring, Settings) are admin-only. The
     # analyst still selects a template on the Upload screen (template:select), but the
     # authoring/config screen is hidden from their nav.
+    #
+    # ``config:line_items`` is the mapping-configuration permission. It was ``config:ontology``
+    # while the ontology was a second, selectable configuration surface; the line-item set is the
+    # single configuration engine now, so the permission names it and the old string is not served
+    # to any role (see tests/test_retired_ontology_path.py).
     assert "template" not in me["screens"] and "settings" not in me["screens"]
     assert "template:select" in me["permissions"]
     assert "config:template" not in me["permissions"]
+    assert "config:line_items" not in me["permissions"]
 
 
 def test_login_rejects_bad_password(anon_client):
@@ -43,6 +49,8 @@ def test_me_admin_sees_config(auth, anon_client):
     assert me["role"] == "admin"
     assert "template" in me["screens"] and "settings" in me["screens"]
     assert "config:template" in me["permissions"] and "config:settings" in me["permissions"]
+    # The mapping configuration, under its only name. Authoring the line-item set is admin work.
+    assert "config:line_items" in me["permissions"]
 
 
 def test_reviewer_finalizes_but_does_not_configure(auth, anon_client):
@@ -53,6 +61,7 @@ def test_reviewer_finalizes_but_does_not_configure(auth, anon_client):
     assert "review:finalize" in me["permissions"]
     assert "export:run" in me["permissions"]
     assert "config:template" not in me["permissions"]
+    assert "config:line_items" not in me["permissions"]
     assert "config:scope" not in me["permissions"]
     assert "documents:manage" not in me["permissions"]
 

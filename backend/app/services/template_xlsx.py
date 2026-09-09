@@ -24,6 +24,14 @@ import re
 from app.services.statements import TITLES as STATEMENT_TITLES
 
 # Column order of the Template sheet. Kept as data so the reader and the writer cannot drift.
+#
+# 'REQUIRED' USED TO BE THE LAST COLUMN AND IS GONE. Nothing in ``app/`` ever read
+# ``TemplateNode.required`` — there is no post-run completeness check anywhere — so ticking the
+# box set a field no code consults, and the sheet was offering an author a gate that did not
+# exist. 0 of the 682 shipped nodes (480 + 202) ticked it, so no template loses anything by the
+# removal. An analyst's saved copy of an older workbook still re-imports cleanly: :func:`_cells`
+# matches on HEADER TEXT, so the leftover column is ignored rather than shifting every value one
+# to the left — it simply stops being able to set the key.
 COLUMNS = [
     ("statement", "Statement"),
     ("section", "Section"),
@@ -39,9 +47,8 @@ COLUMNS = [
     ("children", "Calculated from"),
     ("sign", "Sign"),
     ("expects_note", "Expects note"),
-    ("required", "Required"),
 ]
-_WIDTHS = [20, 34, 40, 44, 40, 26, 26, 30, 11, 12, 12, 60, 14, 13, 10]
+_WIDTHS = [20, 34, 40, 44, 40, 26, 26, 30, 11, 12, 12, 60, 14, 13]
 
 KIND_EXTRACTED = "extracted"
 KIND_CALCULATED = "calculated"
@@ -117,7 +124,6 @@ def build_template_xlsx(definition: dict, *, filename_hint: str = "template") ->
             "children": "\n".join(rollup.get("children") or []),
             "sign": node.get("sign") or "natural",
             "expects_note": _yes(node.get("expects_note")),
-            "required": _yes(node.get("required")),
         }
         for loc in _LOCALES:
             row[f"label_{loc}"] = i18n.get(loc, "")
@@ -202,8 +208,16 @@ def build_template_xlsx(definition: dict, *, filename_hint: str = "template") ->
                             "the extracted figure, which is what makes a mis-mapping show up as a "
                             "failed check instead of a wrong number."),
         ("Sign", "natural (as reported) or contra (an expense/outflow shown positive)."),
-        ("Expects note / Required", "'yes' to flag the line as normally note-referenced, or as "
-                                    "one whose absence should be raised."),
+        # This entry used to promise that 'yes' flagged a line "whose absence should be raised".
+        # Nothing raises it: there is no post-run completeness check anywhere in app/. 'Required'
+        # was the worse half of that promise — read by no code at all — and its column is now
+        # gone; only 'Expects note', which really does feed the ontology skeleton, is still
+        # authorable. The wording claims only what the remaining tick actually does.
+        ("Expects note", "A note ABOUT the line rather than a gate on it. 'yes' is recorded on "
+                         "the template node, comes back out in this workbook and in the JSON "
+                         "export, and pre-fills the note_ref_hint of a generated ontology "
+                         "skeleton. It is not checked after a run: a line left blank is not "
+                         "reported as missing."),
         ("", ""),
         ("Shading", "Grey rows are section headings. Amber rows are calculated lines."),
         ("Identities sheet", "Statement-level equalities (e.g. total assets = total equity and "
@@ -361,8 +375,8 @@ def parse_template_xlsx(data: bytes, *, template_key: str, name: str) -> dict:
         }
         if _truthy(r.get("expects_note")):
             node["expects_note"] = True
-        if _truthy(r.get("required")):
-            node["required"] = True
+        # No ``required`` branch: the column is gone (see COLUMNS), so a workbook — including an
+        # older one that still carries the header — can no longer put the key on a node.
         if kind == KIND_CALCULATED:
             node["rollup"] = {"op": op, "children": children}
 

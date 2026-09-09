@@ -1,7 +1,7 @@
 """Role-based access control.
 
 Three roles with a permission matrix. Configuration actions (editing the template,
-uploading an ontology, changing page scope, changing export inclusions, managing
+publishing the line-item set, changing page scope, changing export inclusions, managing
 documents) are **admin-controlled**; the analyst gets a deliberately simple flow
 (view/edit values, notes, commentary, export). Reviewers sit in between.
 
@@ -30,8 +30,18 @@ class Role(str, Enum):
 class Permission(str, Enum):
     # configuration & oversight — admin-controlled
     CONFIG_TEMPLATE = "config:template"     # author/edit templates
-    CONFIG_ONTOLOGY = "config:ontology"
+    # The single configuration engine. Was ``config:ontology`` when the ontology was a
+    # separate, selectable configuration surface; line items is now the only one, so the
+    # permission names it. The string is served to the client and checked with ``useCan``.
+    CONFIG_LINE_ITEMS = "config:line_items"  # author/edit the line-item set (mapping config)
     CONFIG_SCOPE = "config:scope"
+    # TRANSITIONAL ALIAS — delete with the last reference (B5: routes/ontologies.py is
+    # removed, routes/line_items.py moves to CONFIG_LINE_ITEMS). It shares the
+    # ``config:line_items`` value, so it is an *alias* member: it is absent from
+    # ``set(Permission)`` and from every permission list served to the client, and
+    # ``Permission("config:ontology")`` no longer resolves. It exists only so the two
+    # call sites in files this change may not touch keep importing.
+    CONFIG_ONTOLOGY = "config:line_items"
     CONFIG_EXPORT = "config:export"
     CONFIG_SETTINGS = "config:settings"     # LLM config / feature flags / interface / review toggle
     DOCUMENTS_MANAGE = "documents:manage"   # upload source documents
@@ -58,7 +68,7 @@ _ALL = set(Permission)
 # Base role→permission map. The three roles model a linear workflow:
 #   Analyst  — upload, pick a template, run the pipeline end to end, submit for review.
 #   Reviewer — review, correct and finalize the output, then deliver it.
-#   Admin    — configuration (templates/ontology/LLM/settings), users and audit logs.
+#   Admin    — configuration (templates/line items/LLM/settings), users and audit logs.
 # EXPORT_RUN vs REVIEW_SUBMIT for the analyst is resolved at runtime by the
 # ``review_required`` flag (see ``effective_permissions``).
 PERMISSIONS: dict[Role, set[Permission]] = {
@@ -102,7 +112,7 @@ SCREENS_BY_ROLE: dict[Role, list[str]] = {
     # the permission, so a reviewer is never shown a button that would 403.
     Role.REVIEWER: ["integrity", "extraction", "workspace", "notes", "review", "commentary", "disclosures",
                     "export"],
-    # Analysts run the operational pipeline; configuration surfaces (Template & Ontology
+    # Analysts run the operational pipeline; configuration surfaces (Template & Line Items
     # authoring, Settings) are admin-only. Analysts still pick a template on the Upload
     # screen (TEMPLATE_SELECT), they just don't get the authoring/config screen.
     # "extraction" is the screen that RUNS the pipeline and reports its progress. Every role that

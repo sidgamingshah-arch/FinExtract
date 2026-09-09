@@ -360,12 +360,14 @@ def test_run_carries_the_structural_report_end_to_end(client):
     doc_id = client.post("/api/v1/documents",
                          files={"file": ("bs.pdf", make_native_pdf(),
                                          "application/pdf")}).json()["id"]
-    onts = client.get("/api/v1/ontologies").json()
-    ont = next((o for o in onts if o["ontology_key"] == "hkfrs_hk_china"), onts[0])
+    # Was the ``/ontologies`` picker plus an ``ontology_version_id`` pin. Line items is the single
+    # configuration engine; ``/line-items/versions`` is the only store, and the run pins a row of it.
+    cfgs = client.get("/api/v1/line-items/versions").json()
+    cfg = next((c for c in cfgs if c["line_items_key"] == "output_csv_hk"), cfgs[0])
     tpls = client.get("/api/v1/templates").json()
-    tpl = next((t for t in tpls if t["template_key"] == ont["target_template_key"]), tpls[0])
+    tpl = next((t for t in tpls if t["template_key"] == cfg["target_template_key"]), tpls[0])
     client.post(f"/api/v1/documents/{doc_id}/extractions",
-                json={"ontology_version_id": ont["id"], "template_version_id": tpl["id"]})
+                json={"line_item_version_id": cfg["id"], "template_version_id": tpl["id"]})
     for _ in range(100):
         if client.get(f"/api/v1/documents/{doc_id}/run").json().get("status") == "succeeded":
             break

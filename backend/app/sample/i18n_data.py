@@ -69,10 +69,14 @@ TR: dict[str, dict[str, str]] = {
         "ar": "بند قروض مكرر (الإيضاح 7) محتسب ضمن المتداول وغير المتداول معًا. أعد تخصيص 1,240 كرور إلى المتداول وفقًا لمرجع الإيضاح.",
         "fr": "Une ligne Prêts dupliquée (Note 7) est comptée en courant et non courant. Réaffectez les 1 240 cr au courant selon la référence de note.",
     },
-    "Ontology sign rule for Finance costs is expense = negative. Flip sign to −18,400 to match statement convention.": {
-        "zh": "本体中财务费用的符号规则为 费用 = 负值。请将符号改为 −18,400 以符合报表惯例。",
-        "ar": "قاعدة الإشارة في الأنطولوجيا لتكاليف التمويل هي مصروف = سالب. اقلب الإشارة إلى −18,400 لمطابقة عرف القائمة.",
-        "fr": "La règle de signe de l'ontologie pour les charges financières est charge = négatif. Inversez le signe en −18 400 pour respecter la convention.",
+    # KEYED ON THE ENGLISH SOURCE STRING, so this entry and demo.REVIEW's `fix` change together or
+    # the card falls back to English mid-sentence in three languages. The word "ontology" is gone
+    # from the localized text too, not just the key: line items are the single configuration engine
+    # and there is no ontology for a reader in any language to be shown.
+    "Line-item sign rule for Finance costs is expense = negative. Flip sign to −18,400 to match statement convention.": {
+        "zh": "财务费用行项目的符号规则为 费用 = 负值。请将符号改为 −18,400 以符合报表惯例。",
+        "ar": "قاعدة إشارة البند لتكاليف التمويل هي مصروف = سالب. اقلب الإشارة إلى −18,400 لمطابقة عرف القائمة.",
+        "fr": "La règle de signe du poste pour les charges financières est charge = négatif. Inversez le signe en −18 400 pour respecter la convention.",
     },
     "The rulebook placed this caption on a concept this template puts on no statement, so the figure appears on no line. Pick the correct template line item, or confirm the template needs the concept added.": {
         "zh": "规则手册将该标签映射到本模板未在任何报表中列示的概念，因此该数字未出现在任何行上。请选择正确的模板行项目，或确认模板需要新增该概念。",
@@ -88,7 +92,7 @@ TR: dict[str, dict[str, str]] = {
     "Extracted value": {"zh": "提取值", "ar": "القيمة المستخرجة", "fr": "Valeur extraite"},
     "Expected sign (expense)": {"zh": "预期符号（费用）", "ar": "الإشارة المتوقعة (مصروف)", "fr": "Signe attendu (charge)"},
     "negative": {"zh": "负值", "ar": "سالب", "fr": "négatif"},
-    "Ontology rule": {"zh": "本体规则", "ar": "قاعدة الأنطولوجيا", "fr": "Règle d'ontologie"},
+    "Line-item rule": {"zh": "行项目规则", "ar": "قاعدة البند", "fr": "Règle de poste"},
     "debit / negative": {"zh": "借方 / 负值", "ar": "مدين / سالب", "fr": "débit / négatif"},
     "Source label": {"zh": "原始标签", "ar": "التسمية الأصلية", "fr": "Libellé source"},
     "Mapped to": {"zh": "映射到", "ar": "مطابق إلى", "fr": "Rattaché à"},
@@ -171,10 +175,11 @@ TR: dict[str, dict[str, str]] = {
         "ar": "↳ مرتبط بالإيضاح 12 — الذمم المدينة التجارية (ص.171). القيمة الظاهرة صافية من ₹12,400 كرور ذمم أطراف ذات علاقة أُعيد تصنيفها ضمن الإيضاح 12.3.",
         "fr": "↳ Lié à la Note 12 — Créances clients (p.171). Valeur au bilan nette de 12 400 cr de créances de parties liées reclassées en Note 12.3.",
     },
-    "↳ Finance costs (Note 25) flagged: extracted as a credit; ontology expects an expense (negative).": {
-        "zh": "↳ 财务费用（附注 25）已标记：提取为贷方；本体预期为费用（负值）。",
-        "ar": "↳ تكاليف التمويل (الإيضاح 25) موسومة: مُستخرجة كدائن؛ تتوقع الأنطولوجيا مصروفًا (سالبًا).",
-        "fr": "↳ Charges financières (Note 25) signalées : extraites en crédit ; l'ontologie attend une charge (négatif).",
+    # Keyed on the English callout in api/routes/projects.py::_VIEWER — changed there in lockstep.
+    "↳ Finance costs (Note 25) flagged: extracted as a credit; the line-item sign rule expects an expense (negative).": {
+        "zh": "↳ 财务费用（附注 25）已标记：提取为贷方；行项目符号规则预期为费用（负值）。",
+        "ar": "↳ تكاليف التمويل (الإيضاح 25) موسومة: مُستخرجة كدائن؛ قاعدة إشارة البند تتوقع مصروفًا (سالبًا).",
+        "fr": "↳ Charges financières (Note 25) signalées : extraites en crédit ; la règle de signe du poste attend une charge (négatif).",
     },
     "↳ Closing cash ties to Note 13 (Cash & bank balances) and the face of the Balance Sheet.": {
         "zh": "↳ 期末现金与附注 13（现金及银行存款）以及资产负债表表面相衔接。",

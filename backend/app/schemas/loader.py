@@ -17,12 +17,15 @@ it cannot be a model validator.
 from __future__ import annotations
 
 import copy
+import logging
 from typing import Any
 
 from pydantic import BaseModel
 
 from app.schemas.ontology import OntologyDefinition
 from app.schemas.template import TemplateDefinition
+
+_LOG = logging.getLogger(__name__)
 
 
 class ValidationError(BaseModel):
@@ -52,7 +55,71 @@ def load_ontology(data: dict, *, resolve: bool = False) -> OntologyDefinition:
         data = resolve_inherits(data)
     definition = OntologyDefinition.model_validate(data)
     _refuse_self_vetoing_concepts(definition)
+    _warn_derive_and_disabled(definition)
     return definition
+
+
+def _warn_derive_and_disabled(definition: OntologyDefinition) -> None:
+    """Report a concept declaring BOTH ``extraction_mode: derive`` and ``alias_matching: disabled``.
+
+    Each lock alone has a meaning and a mechanism. ``alias_matching: disabled`` says the concept is a
+    swept residual and keeps its aliases out of the match index. ``extraction_mode: derive`` says the
+    framework computes the concept, and it does TWO things: it keeps the concept out of every tier and
+    payload, and — this is the part that gets lost — it files the concept's aliases in
+    ``_computed_alias_by_key`` so that a printed caption naming it is REFUSED rather than handed to the
+    nearest neighbouring subtotal (``services.mapping._computed_claim``).
+
+    Declared together, the second half is silently gone. ``OntologyMatcher.__init__`` tests
+    ``_locked`` first and ``continue``s, so the ``_computed_only`` branch that would have indexed the
+    aliases never runs: the concept is hidden, the refusal is not armed, and a face row printing its
+    caption falls through to whatever the fuzzy tier likes next — with the statement still tying,
+    because the neighbour it lands on differs from the real concept by exactly the missing lines.
+
+    THE BEHAVIOUR DECISION HAS NOW BEEN MADE, and ``derive`` wins: the two concepts that carried
+    both locks on ``output_csv_hk_ontology.json`` — ``is_pl__deprec_and_impairment_oper_exp`` and
+    ``bs_nca__secur_and_other_fincl_assets_ltp`` — are now ``alias_matching: enabled``. The lock was
+    always redundant on them (``extraction_mode: derive`` alone keeps a concept out of every tier and
+    every payload — ``services.mapping`` puts both values into ``_unmatchable``, and
+    ``services.line_item_matching`` reads the two as an OR), so the ONLY thing it did was suppress the
+    refusal. Before: ``_computed_alias_by_key`` held 1 entry out of 462 concepts and
+    ``usage["computed_refused"]`` was structurally pinned at 0. After: 3 of 3 ``derive`` concepts are
+    indexed and the refusal can fire. Both are also ``extraction.llm_focus_keys``, so with the LLM on
+    theirs are exactly the captions being forwarded — and the model is not shown the concept either,
+    which is why the refusal sits above the semantic tier as well as the deterministic one.
+
+    The order mattered and is worth recording: unlocking them is only survivable because
+    ``_computed_claim`` is scope-gated on ``statement`` and ``section_scope``. Unlocked without that
+    gate, ``is_pl__deprec_and_impairment_oper_exp`` claims the verbatim cash-flow caption
+    "Depreciation of property, plant and equipment" at 1.0, beating the 0.54 the row's own concept
+    scores, and 8 correct mappings (7 cash-flow depreciation rows, 1 balance-sheet CIP row) come back
+    None.
+
+    So this reports the conjunction at ERROR and still does not raise. Two reasons, both unchanged
+    from when it was a warning. This loader runs on every read of every stored definition — listing
+    rulebooks, rendering the editor, the extraction worker — and callers there do not all expect
+    failure (see :func:`unknown_keys` for the same argument in full); a stored rulebook that has the
+    conjunction is precisely the one an editor needs to be able to OPEN. And the shipped file is
+    machine-generated: ``alias_matching`` is read straight off the "Alias matching" column of
+    ``_exports/*.xlsx`` by ``scripts/build_output_csv_template.py``, so the next regeneration can
+    reinstate "disabled" from the workbook. A load gate would then turn that regeneration into a
+    startup failure in ``sample.reference`` (``ReferenceSeedError``, i.e. the app does not boot) —
+    strictly worse than a named, greppable diagnostic on a file that still loads. Whoever hits this
+    message fixes the workbook column, not the JSON.
+    """
+    both = [m.canonical_key for m in definition.mappings
+            if m.extraction_mode == "derive" and m.alias_matching == "disabled"]
+    if both:
+        _LOG.error(
+            "ontology %s: %d concept(s) declare extraction_mode 'derive' AND alias_matching "
+            "'disabled'; the residual lock is tested first, so their aliases are never indexed for "
+            "the computed-claim refusal and a printed caption naming one is filed on a neighbouring "
+            "concept instead of being refused (usage['computed_refused'] cannot leave 0 for them): "
+            "%s. The lock is REDUNDANT on a 'derive' concept — that mode already excludes it from "
+            "every tier and payload — so drop the 'disabled' and leave 'derive' in place. On the "
+            "shipped file that means the \"Alias matching\" column of _exports/*.xlsx, which "
+            "scripts/build_output_csv_template.py copies verbatim; a JSON-only edit is reinstated on "
+            "the next regeneration",
+            definition.ontology_key or "?", len(both), ", ".join(both))
 
 
 def _refuse_self_vetoing_concepts(definition: OntologyDefinition) -> None:
@@ -310,6 +377,61 @@ def validate_ontology_against_template(
                 message=(f"analyst_bucket {m.analyst_bucket!r} is not an analyst section; "
                          f"expected one of {', '.join(BUCKET_KEYS)}"),
             ))
+    # ``children_if_decomposed`` must name CONCEPTS OF THIS OWN RULEBOOK, because every reader
+    # compares an entry against a key that was mapped: ``map_ontology._pairs_to_keep_apart`` feeds it
+    # to ``_enforce_containment`` (`present = [c for c in components if c in printed]`) and to
+    # ``_same_section_decompositions`` (which looks the child's ``section_scope`` up by key), and
+    # ``services.mapping`` ships the list to the model as the concept's child keys. An entry that is
+    # not a key therefore matches nothing, and the containment it declares is silently unenforced —
+    # which is exactly how the GENERATED output_csv_hk rulebook shipped: 30 of its 31 carriers
+    # packed every child into one pipe-joined string ("bs_nca__land | bs_nca__construction_in_progress"),
+    # because scripts/build_output_csv_template.py split a pipe-separated workbook column on commas,
+    # so the whole file produced ONE same-section decomposition instead of 25 and the LLM payload
+    # carried the joined string verbatim. Refused on upload because nothing downstream can tell a
+    # child key that does not exist from a component the filing simply did not print, and both read
+    # as a total that ties. The pipe case is named separately: it is a splitting mistake in whatever
+    # produced the file, not a typo in one concept name, and saying so is what points at the fix.
+    ontology_keys = {m.canonical_key for m in ontology.mappings}
+    for m in ontology.mappings:
+        for child in m.children_if_decomposed:
+            if "|" in child:
+                errors.append(ValidationError(
+                    location=f"mapping:{m.canonical_key}",
+                    message=(f"children_if_decomposed entry {child!r} contains '|', so it names no "
+                             f"canonical_key — list each child separately"),
+                ))
+            elif child not in ontology_keys:
+                errors.append(ValidationError(
+                    location=f"mapping:{m.canonical_key}",
+                    message=(f"children_if_decomposed names {child!r}, which is not a canonical_key "
+                             f"in this ontology, so the containment it declares is unenforceable"),
+                ))
+    # ``global_rules.mutually_exclusive_groups`` is the SAME requirement one level up, and it shipped
+    # broken for the same reason. The group is the global half of the containment
+    # ``children_if_decomposed`` states per concept — ``map_ontology._pairs_to_keep_apart`` reads
+    # both into one list — so both halves are resolved by key and both are silently inert when a key
+    # is not one. The generated output_csv_hk rulebook carried all four of the sibling rulebook's
+    # groups verbatim in the WRONG KEY SPACE: measured, 0 of 4 aggregates and only 2 of 13 components
+    # existed among its 462 canonical keys, all 17 existed among the sibling's 183, and no
+    # output_csv_hk key carries a ``pl_`` prefix at all. ``_enforce_containment`` finds no row filed
+    # on an aggregate that is not a concept and skips the whole group, so nothing double-counted and
+    # nothing complained; ``equity_reserves`` resolved 2 of its 9 members, which is worse than
+    # resolving none — on a screen or a diff it reads like working configuration.
+    #
+    # Refused rather than tolerated because a group is a PROHIBITION ("never load both"), and a
+    # prohibition that addresses nothing cannot be told apart from a filing that never triggered it.
+    # Every member is checked, not just the aggregate: a group missing one component permits exactly
+    # the double count it was written to prevent, for that component alone.
+    for group in ontology.global_rules.mutually_exclusive_groups:
+        gid = group.id or "mutually_exclusive_group"
+        for role, key in ([("aggregate", group.aggregate)]
+                          + [("component", c) for c in group.components]):
+            if key and key not in ontology_keys:
+                errors.append(ValidationError(
+                    location=f"mutually_exclusive_group:{gid}",
+                    message=(f"{role} {key!r} is not a canonical_key in this ontology, so the "
+                             f"exclusivity it declares can never be enforced"),
+                ))
     for rule in ontology.decomposition_rules:
         if rule.face_key not in template_keys:
             errors.append(ValidationError(

@@ -14,7 +14,7 @@ import statistics
 from app.core.models.enums import Basis, LineRole
 from app.core.models.line_item import NoteItem, NotesTable
 from app.services.row_reconstruct import (
-    GRID_FLAG, ColumnGrid, Word, _group_rows, _num, _scan_row, build_line_items, row_tolerance)
+    GRID_FLAG, ColumnGrid, Word, _group_rows, _scan_row, build_line_items, row_tolerance)
 
 # "Note 15: Trade receivables", "Note 15 Trade receivables", "15. Trade receivables"
 _HEADING = re.compile(r"^(?:note[s]?\.?\s+)?(?P<no>\d{1,3})\s*[:.\)\-]?\s*(?P<title>.*)$",
@@ -315,26 +315,6 @@ def _is_heading(row: list[Word]) -> tuple[str, str] | None:
     return no, title
 
 
-def _has_at_most_two_value_columns(words: list[Word], source_kind: str) -> bool:
-    """Whether a note fits the label-plus-two-period detail-table contract."""
-    # Count before `_scan_row` applies its face-statement note-reference heuristic. In a
-    # roll-forward caption such as "At 1 August 2023", that heuristic can mistake the day
-    # number for a note reference and conceal the third matrix column.
-    by_baseline: dict[int, list[float]] = {}
-    for word in words:
-        if _num(word.text) is not None:
-            by_baseline.setdefault(round(word.bbox.y0 / 0.01), []).append(
-                (word.bbox.x0 + word.bbox.x1) / 2)
-    for centres in by_baseline.values():
-        bands: list[float] = []
-        for centre in sorted(centres):
-            if not bands or centre - bands[-1] > 0.04:
-                bands.append(centre)
-        if len(bands) > 2:
-            return False
-    return True
-
-
 # ── A NOTE'S FIRST COLUMN CAN BE A MERGED CATEGORY CELL ──────────────────────────────────────
 #
 # The CSRC related-party note is captioned in TWO label columns, not one:
@@ -456,7 +436,12 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
     different columns.
 
     ``llm_provider`` and ``ai_required`` remain accepted only for caller compatibility. Note
-    tables are reconstructed exclusively from positioned source tokens.
+    tables are reconstructed exclusively from positioned source tokens. There is NO AI fallback
+    for a matrix this reconstructor cannot fit, and that absence is deliberate rather than an
+    oversight: the `extraction.llm_note_structuring` flag and the `note_structure_llm` service
+    that advertised one were deleted, never having had a reader or a caller in any tree. A
+    wider note is handled here or nowhere — see ``carry_grid`` for the two-level column grid and
+    ``_category_for`` for a merged category cell.
 
     ``carry_note`` is the (number, title) of the note still open when the PREVIOUS page ended,
     for the caller to pass through page by page. Some filings print a note's own footnote legend

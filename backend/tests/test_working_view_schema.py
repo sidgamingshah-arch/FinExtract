@@ -1,11 +1,29 @@
-"""The v2.1 rulebook: it must load with NOTHING dropped, and its section layer must resolve.
+"""THE WORKING VIEW: ``OntologyDefinition`` must load with NOTHING dropped, and its section layer
+must resolve.
+
+WHAT THIS FILE IS NOW, because its name changed with the merge (it was ``test_ontology_v2.py``).
+``OntologyDefinition`` is no longer a stored, selectable or user-visible thing — there is no
+ontology store, no ontology route and no ontology picker. It survived the merge as the MATCHER'S
+WORKING VIEW: the object ``services.working_view.build_working_view`` derives from the line-item set
+a run pins, so the proven matcher can be fed the single configuration engine's data without
+rewriting 3,000 lines. Its schema and its section layer are therefore still live, and this file is
+where they are pinned; every test that POSTED an ontology, listed ontologies or asked
+``ontology_select`` which one was in force is repointed onto ``/line-items`` and
+``services.config_select``, or retired where the behaviour itself is gone (see the retirement notes
+at the foot of this module).
 
 Two failure modes are covered here. The first is the one ``unknown_keys`` exists for: a block the
-schema does not declare is ignored by pydantic, so the rulebook publishes and simply is not the
-rulebook that was authored. The second is subtler and cannot be seen from the file at all —
+schema does not declare is ignored by pydantic, so the definition loads and simply is not the
+definition that was authored. The second is subtler and cannot be seen from the file at all —
 ``section_scope``, ``statement``, ``temporality`` and ``face_only`` are authored on ZERO concepts,
 only in ``section_defaults``, so without the ``inherits`` fold every concept loads with no section
-at all and the section-first binding order the rulebook specifies has nothing to bind against.
+at all and the section-first binding order has nothing to bind against.
+
+THE FIXTURE FILE. The schema and section-layer tests below read
+``app/sample/templates/hkfrs_hk_china_ontology.json``. It is a FIXTURE, not a shipped
+configuration: nothing seeds it, no run reads it, and the one shipped configuration is
+``output_csv_hk_line_items.json``. It is kept as the widest realistic input for the working view's
+schema — 183 concepts, 19 sections and every optional block populated.
 """
 from __future__ import annotations
 
@@ -335,146 +353,137 @@ def test_a_bad_value_in_a_section_default_is_refused_on_both_paths():
 
 def test_the_extraction_path_resolves_the_section_layer():
     """A resolver whose only callers are tests and the seeder does not describe production. The
-    extraction route is the one call site whose ontology maps a filing, so it is the one that has
-    to resolve: unresolved, every concept's statement / section_scope / temporality / face_only is
-    None and the section layer is absent, not degraded."""
+    extraction route is the one call site whose configuration maps a filing, so it is the one that
+    has to resolve: unresolved, every item's statement / section_scope / temporality / face_only is
+    None and the section layer is absent, not degraded.
+
+    THE CALL IT PROBES MOVED WITH THE ENGINE. It was
+    ``load_ontology(ont_row.definition, resolve=True)`` against an ``ontology_versions`` row. There
+    is no ontology row to load: the run resolves a ``line_item_versions`` row and hands the folded
+    set to ``build_working_view``, which is what builds the OntologyDefinition this file is about.
+    The resolve is on the LINE-ITEM load now, and that is the one that has to be there.
+    """
     import inspect
 
     from app.api.routes import extractions
 
     src = inspect.getsource(extractions)
-    assert "load_ontology(ont_row.definition, resolve=True)" in src
+    assert "load_line_item_set(cfg_row.definition, resolve=True)" in src
+    assert "build_working_view(st)" in src
 
 
 def test_upload_refuses_an_inherits_naming_a_section_that_does_not_exist(client):
-    """Paired with the above: because the extraction path now resolves and raises, a stored
-    rulebook must not be able to carry a bad `inherits`. Unrefused, the fold silently contributes
-    nothing and the rulebook still reports itself as published."""
+    """Paired with the above: because the extraction path resolves and raises, a stored
+    configuration must not be able to carry a bad `inherits`. Unrefused, the fold silently
+    contributes nothing and the configuration still reports itself as published.
+
+    The door is ``POST /line-items``; it was ``POST /ontologies``. Same gate, same 422, same
+    requirement that the message name the offender.
+    """
     import copy
     import json
     from pathlib import Path
 
     d = Path(__file__).resolve().parents[1] / "app" / "sample" / "templates"
-    bad = copy.deepcopy(json.loads((d / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8")))
-    bad["ontology_key"] = "inherits_probe"
-    bad["mappings"][0]["inherits"] = "bs_s1_non_current_assetz"      # one transposed letter
+    bad = copy.deepcopy(json.loads(
+        (d / "output_csv_hk_line_items.json").read_text(encoding="utf-8")))
+    bad["line_items_key"] = "inherits_probe"
+    section = bad["items"][0]["inherits"]
+    bad["items"][0]["inherits"] = f"{section}_zz"                    # names no section_defaults key
 
-    r = client.post("/api/v1/ontologies", json={"definition": bad})
+    r = client.post("/api/v1/line-items", json={"definition": bad})
     assert r.status_code == 422
     body = json.dumps(r.json())
-    assert "bs_s1_non_current_assetz" in body           # names the offender, not just "invalid"
-    assert bad["mappings"][0]["canonical_key"] in body
+    assert f"{section}_zz" in body                      # names the offender, not just "invalid"
+    assert bad["items"][0]["key"] in body
 
 
-def test_the_shipped_v2_rulebook_still_uploads(client):
-    """The guard must not accuse the file it was built for.
+def test_the_shipped_configuration_still_uploads(client):
+    """The guard must not accuse the file the product itself ships.
 
-    Cleans up after itself. The probe is a copy of v2, so it inherits v2's
-    ``metadata.supersedes`` and becomes a SECOND rulebook replacing v1 — leaving it stored makes
-    "which rulebook is in force" genuinely ambiguous, and every later test that reads the Template
-    screen or picks a rulebook then depends on how two probe keys happen to sort.
+    Cleans up after itself: leaving a second set stored for this template would make it the one IN
+    FORCE (latest-stored-wins), and every later test that reads the Template screen or picks a
+    configuration would then be answered by a probe.
     """
     import json
     from pathlib import Path
 
     d = Path(__file__).resolve().parents[1] / "app" / "sample" / "templates"
-    v2 = json.loads((d / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8"))
-    v2 = {**v2, "ontology_key": "v2_upload_probe"}
-    r = client.post("/api/v1/ontologies", json={"definition": v2})
+    shipped = json.loads((d / "output_csv_hk_line_items.json").read_text(encoding="utf-8"))
+    shipped = {**shipped, "line_items_key": "shipped_upload_probe"}
+    r = client.post("/api/v1/line-items", json={"definition": shipped})
     assert r.status_code == 201, r.text
 
     from app.db.base import SessionLocal
-    from app.db.models import OntologyVersion
+    from app.db.models import LineItemVersion
 
     with SessionLocal() as s:
-        row = s.get(OntologyVersion, r.json()["id"])
+        row = s.get(LineItemVersion, r.json()["id"])
         s.delete(row)
         s.commit()
 
 
-# --- v2 is the rulebook IN FORCE ----------------------------------------------------------------
+# --- the shipped configuration is the one IN FORCE ----------------------------------------------
 
-def test_the_shipped_rulebook_is_the_one_in_force(client):
-    """One rulebook ships, and with nothing stored after it, it is the one a run gets.
+_SHIPPED_CFG_KEY = "output_csv_hk"
+_SHIPPED_CFG_TEMPLATE = "output_csv_hk_v1"
 
-    The reason it wins is now the only reason anything wins: it is the LATEST rulebook stored for
-    this template. That is a weaker claim than this test used to make — the shipped rulebook no
-    longer outranks anything — and it is the honest one. Store a rulebook after it and that one runs
-    (``test_the_latest_rulebook_stored_is_the_one_that_runs``), which is what an admin uploading or
-    correcting one is asking for.
+
+def _shipped_set() -> dict:
+    """The one shipped CONFIGURATION — the thing a run actually maps against.
+
+    Not ``_v2()``: that is the working-view fixture (see the module docstring). These selection
+    tests are about which stored ``line_item_versions`` row is in force, so they publish copies of
+    the real shipped file against the real shipped template.
+    """
+    return json.loads((SAMPLES / "output_csv_hk_line_items.json").read_text(encoding="utf-8"))
+
+
+def test_the_shipped_configuration_is_the_one_in_force(client):
+    """One configuration ships, and with nothing stored after it, it is the one a run gets.
+
+    The reason it wins is the only reason anything wins: it is the LATEST set stored for this
+    template. Store one after it and that one runs
+    (``test_the_latest_configuration_stored_is_the_one_that_runs``), which is what an admin
+    uploading or correcting one is asking for.
+
+    ``services.config_select`` replaced ``services.ontology_select``, and the row it returns is a
+    ``line_item_versions`` row keyed ``line_items_key``.
     """
     from app.db.base import SessionLocal
-    from app.services.ontology_select import select_for_template
+    from app.services.config_select import select_for_template
 
     with SessionLocal() as s:
-        row = select_for_template(s, "hkfrs_hk_china_v1")
-        assert row is not None and row.ontology_key == "hkfrs_hk_china"
+        row = select_for_template(s, _SHIPPED_CFG_TEMPLATE)
+        assert row is not None and row.line_items_key == _SHIPPED_CFG_KEY
 
 
-def test_an_uploaded_replacement_supersedes_the_shipped_rulebook(client):
-    """Which rulebook maps a filing must not be a property of insertion order — ``version`` counts
-    edits to ONE key, so two rulebooks both at version 1 were a tie and the run used whichever row
-    came back first. Adoption is declared by the author, in ``metadata.supersedes``.
-
-    Exercised by UPLOADING a replacement, which is the route that exists now that one rulebook ships.
-    It used to read the seeded pair, and that made the test a statement about what happened to be
-    seeded rather than about the mechanism. The supersession is computed once, server-side, and
-    travels with the row: two sides re-deriving it differently is how they come to disagree.
-
-    Cleans up after itself — leaving a second rulebook stored makes "which one is in force"
-    genuinely ambiguous for every later test that picks one.
-    """
-    from app.db.base import SessionLocal
-    from app.db.models import OntologyVersion
-    from app.services.ontology_select import select_for_template
-
-    shipped = _v2()
-    replacement = {**shipped, "ontology_key": "hkfrs_hk_china_next",
-                   "metadata": {**shipped["metadata"], "supersedes": "hkfrs_hk_china"}}
-    created = client.post("/api/v1/ontologies", json={"definition": replacement})
-    assert created.status_code == 201, created.text
-    try:
-        by_key = {r["ontology_key"]: r for r in client.get("/api/v1/ontologies").json()}
-        assert by_key["hkfrs_hk_china"]["superseded"] is True
-        assert by_key["hkfrs_hk_china_next"]["superseded"] is False
-        assert by_key["hkfrs_hk_china_next"]["supersedes"] == "hkfrs_hk_china"
-        assert by_key["hkfrs_hk_china_next"]["schema_version"] == 2
-        with SessionLocal() as s:
-            assert select_for_template(s, "hkfrs_hk_china_v1").ontology_key == \
-                "hkfrs_hk_china_next"
-    finally:
-        with SessionLocal() as s:
-            s.delete(s.get(OntologyVersion, created.json()["id"]))
-            s.commit()
-
-
-def test_the_list_says_which_rulebook_is_in_force_and_it_is_the_pickers_answer(client):
-    """``GET /ontologies`` DECLARES the rulebook in force; the client no longer works it out.
+def test_the_list_says_which_configuration_is_in_force_and_it_is_the_pickers_answer(client):
+    """``GET /line-items/versions`` DECLARES the set in force; the client no longer works it out.
 
     THE DEFECT THIS CLOSES. The Template screen ranked the served list itself, on
-    ``[declares a supersession, version, ontology_key]``, under a comment claiming it mirrored the
-    server's picker. It did not. The rule is latest-stored-wins, which needs ``created_at`` — a
-    field this payload has never carried, so the client could not have replicated it even in
-    principle. The two sides therefore named DIFFERENT rulebooks: the run mapped against the one in
-    force, and the screen captioned it "pinned to an older rulebook", telling an analyst their
-    extraction had used something it had not.
+    ``[declares a supersession, version, key]``, under a comment claiming it mirrored the server's
+    picker. It did not. The rule is latest-stored-wins, which needs ``created_at`` — a field that
+    payload never carried, so the client could not have replicated it even in principle. The two
+    sides therefore named DIFFERENT configurations: the run mapped against the one in force, and the
+    screen captioned it "pinned to an older rulebook", telling an analyst their extraction had used
+    something it had not.
 
     So the assertion here is not "the flag equals my expectations" — it is "the flag equals
     ``select_for_template``". Anything weaker would let the two drift apart again.
 
-    Uploaded under a key that sorts EARLIER and declares no supersession, so the row that must be
-    flagged is exactly the row the OLD client ranking would have ranked LAST.
+    Uploaded under a key that sorts EARLIER than the shipped one, so the row that must be flagged is
+    exactly the row a key-ordered client ranking would have ranked LAST.
     """
     from app.db.base import SessionLocal
-    from app.db.models import OntologyVersion
-    from app.services.ontology_select import select_for_template
+    from app.db.models import LineItemVersion
+    from app.services.config_select import select_for_template
 
-    later = {**_v2(), "ontology_key": "aaa_in_force_probe"}
-    later["metadata"] = {k: v for k, v in later["metadata"].items() if k != "supersedes"}
-    created = client.post("/api/v1/ontologies", json={"definition": later})
+    later = {**_shipped_set(), "line_items_key": "aaa_in_force_probe"}
+    created = client.post("/api/v1/line-items", json={"definition": later})
     assert created.status_code == 201, created.text
     try:
-        rows = client.get("/api/v1/ontologies").json()
+        rows = client.get("/api/v1/line-items/versions").json()
         flagged = {r["id"] for r in rows if r["in_force"]}
         with SessionLocal() as s:
             picked = {
@@ -483,51 +492,60 @@ def test_the_list_says_which_rulebook_is_in_force_and_it_is_the_pickers_answer(c
                 if (row := select_for_template(s, key)) is not None
             }
         assert flagged == picked
-        # …and concretely, for this template that is the newcomer — the row a
-        # [supersedes, version, key] ranking would have placed last of the two.
+        # …and concretely, for this template that is the newcomer.
         by_id = {r["id"]: r for r in rows}
         mine = created.json()["id"]
         assert by_id[mine]["in_force"] is True
-        assert by_id[mine]["supersedes"] is None
-        shipped = next(r for r in rows if r["ontology_key"] == "hkfrs_hk_china")
+        shipped = next(r for r in rows if r["line_items_key"] == _SHIPPED_CFG_KEY)
         assert shipped["in_force"] is False
-        # Exactly one rulebook per template is in force — the flag is a choice, not a label that
-        # several rows can wear.
+        # Exactly one configuration per template is in force — the flag is a choice, not a label
+        # that several rows can wear.
         assert len([r for r in rows
                     if r["target_template_key"] == by_id[mine]["target_template_key"]
                     and r["in_force"]]) == 1
     finally:
         with SessionLocal() as s:
-            s.delete(s.get(OntologyVersion, created.json()["id"]))
+            s.delete(s.get(LineItemVersion, created.json()["id"]))
             s.commit()
 
 
-def test_supersession_only_counts_when_the_replacement_is_actually_stored():
-    """A rulebook naming one that was never loaded must not exclude anything, and a v1 does not
-    become unusable because some v2 exists elsewhere."""
-    from app.services.ontology_select import superseded_keys
+# RETIRED: test_an_uploaded_replacement_supersedes_the_shipped_rulebook.
+# RETIRED: test_supersession_only_counts_when_the_replacement_is_actually_stored.
+#
+# Both pinned SUPERSESSION, which is deliberately removed. The first uploaded a replacement
+# declaring ``metadata.supersedes`` and asserted the served list flagged the predecessor
+# ``superseded: True``; the second unit-tested ``ontology_select.superseded_keys`` — that a
+# declaration naming a key which is not stored excludes nothing, and that a self-reference is not
+# supersession.
+#
+# ``services.ontology_select`` is gone, replaced by ``services.config_select``, and with it went
+# ``metadata.supersedes`` as a selection input, ``superseded_keys`` and the ``superseded`` /
+# ``supersedes`` fields on the served rows (see ``config_select``'s docstring and
+# ``extractions.rulebook_record``). There is ONE selection rule now — the latest set stored for the
+# template wins — so a declaration about a key cannot decide what runs, and a second, declarative
+# answer to "is this current" could only ever contradict the first. Nothing is left to assert.
+#
+# The mechanism these two were really guarding, "which configuration maps a filing must not be a
+# property of insertion order", is asserted by
+# ``test_the_latest_configuration_stored_is_the_one_that_runs`` below, which orders on ``created_at``
+# and proves it with a key that sorts the other way. Do not reinstate supersession without the
+# selection code that would read it.
 
-    class R:
-        def __init__(self, key, sup=None):
-            self.ontology_key = key
-            self.definition = {"metadata": {"supersedes": sup}} if sup else {}
 
-    assert superseded_keys([R("v1"), R("v2", "v1")]) == {"v1"}
-    assert superseded_keys([R("v2", "v1")]) == set()          # the v1 it replaces is absent
-    assert superseded_keys([R("v1"), R("v2")]) == set()        # nothing claims a replacement
-    assert superseded_keys([R("v1", "v1")]) == set()           # a self-reference is not supersession
-
-
-def test_the_adopted_unbound_row_policy_is_stated_in_the_rulebook():
+def test_the_adopted_unbound_row_policy_is_stated_in_the_working_view_fixture():
     """The decision was to sweep an unclaimed in-section row into Others rather than surface it for
-    review. The shipped rulebook has to SAY that: as authored it said the opposite, and an ontology
-    documenting a policy the engine deliberately does not follow is worse than one saying nothing —
-    it is the only place a reviewer can look up what the pipeline is meant to do."""
-    import json
-    from pathlib import Path
+    review. A definition documenting a policy the engine deliberately does not follow is worse than
+    one saying nothing — it is the only place a reviewer can look up what the pipeline is meant to
+    do, and as authored this file said the opposite.
 
-    d = Path(__file__).resolve().parents[1] / "app" / "sample" / "templates"
-    v2 = json.loads((d / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8"))
+    ASKED OF THE WORKING-VIEW FIXTURE, not of the shipped configuration. The shipped set carries its
+    own ``binding.unbound_row_policy`` in different words ("Route an unclaimed face value only to
+    the residual for its resolved printed section…"), so repointing this test at it would assert
+    prose that file does not contain. What is pinned here is that the block SURVIVES the load and
+    still says the adopted thing; holding the shipped configuration's own wording to the same three
+    exclusions is a data change, not a test repoint, and is left for whoever owns that file.
+    """
+    v2 = _v2()
     policy = v2["binding"]["unbound_row_policy"]
 
     assert "swept into that section's residual" in policy
@@ -538,40 +556,39 @@ def test_the_adopted_unbound_row_policy_is_stated_in_the_rulebook():
     assert "still routed to review" in policy
 
 
-def test_the_latest_rulebook_stored_is_the_one_that_runs(client):
+def test_the_latest_configuration_stored_is_the_one_that_runs(client):
     """THE RULE, in one test: whatever was stored last for this template is what the next run maps
-    against — uploaded by an admin, or published by correcting a concept from the Template screen.
+    against — uploaded by an admin, or published by correcting an item from the Template screen.
 
-    THE DEFECT THIS CLOSES, and this file previously asserted its opposite. ``select_for_template``
-    had grown five ranking tests: drop declared supersessions, prefer the shipped key, prefer a
-    rulebook that declares a supersession, prefer the incumbent key, then highest version. Each was
-    added to work around the one before it, and together they meant a rulebook stored AFTER the
-    shipped one did not take over — so publishing a corrected 185-concept rulebook beside an obsolete
-    173-concept one changed nothing, and the product went on mapping filings with a rulebook whose
-    tax bucket the specification had removed. This test used to REQUIRE that, under the name "does
-    not displace the incumbent".
+    THE DEFECT THIS CLOSES, and this file previously asserted its opposite. Selection had grown five
+    ranking tests: drop declared supersessions, prefer the shipped key, prefer a definition that
+    declares a supersession, prefer the incumbent key, then highest version. Each was added to work
+    around the one before it, and together they meant a definition stored AFTER the shipped one did
+    not take over — so publishing a corrected set beside an obsolete one changed nothing, and the
+    product went on mapping filings with a definition whose tax bucket the specification had removed.
+    This test used to REQUIRE that, under the name "does not displace the incumbent".
 
     Uploaded under a key that sorts EARLIER than the shipped one, so no sort order can be mistaken
     for the mechanism: it wins on recency alone.
     """
     from app.db.base import SessionLocal
-    from app.db.models import OntologyVersion
-    from app.services.ontology_select import select_for_template
+    from app.db.models import LineItemVersion
+    from app.services.config_select import select_for_template
 
-    later = {**_v2(), "ontology_key": "aaa_uploaded_later"}
-    later["metadata"] = {k: v for k, v in later["metadata"].items() if k != "supersedes"}
-    created = client.post("/api/v1/ontologies", json={"definition": later})
+    later = {**_shipped_set(), "line_items_key": "aaa_uploaded_later"}
+    created = client.post("/api/v1/line-items", json={"definition": later})
     assert created.status_code == 201, created.text
     try:
-        assert "aaa_uploaded_later" < "hkfrs_hk_china"     # sorts first; recency is what decides
+        assert "aaa_uploaded_later" < _SHIPPED_CFG_KEY     # sorts first; recency is what decides
         with SessionLocal() as s:
-            assert select_for_template(s, "hkfrs_hk_china_v1").ontology_key == "aaa_uploaded_later"
+            assert select_for_template(
+                s, _SHIPPED_CFG_TEMPLATE).line_items_key == "aaa_uploaded_later"
     finally:
         with SessionLocal() as s:
-            s.delete(s.get(OntologyVersion, created.json()["id"]))
+            s.delete(s.get(LineItemVersion, created.json()["id"]))
             s.commit()
 
-    # …and with it gone the shipped rulebook is the latest again. Nothing is sticky: "in force" is a
-    # question about what is stored now, not a title something keeps once it has held it.
+    # …and with it gone the shipped configuration is the latest again. Nothing is sticky: "in force"
+    # is a question about what is stored now, not a title something keeps once it has held it.
     with SessionLocal() as s:
-        assert select_for_template(s, "hkfrs_hk_china_v1").ontology_key == "hkfrs_hk_china"
+        assert select_for_template(s, _SHIPPED_CFG_TEMPLATE).line_items_key == _SHIPPED_CFG_KEY

@@ -29,6 +29,11 @@ TEMPLATE = {
     }],
 }
 
+# THE WORKING VIEW, not a stored definition. ``OntologyDefinition`` survived the merge as the
+# matcher's internal view of a line-item set (built by ``services.ontology_projection``), so the
+# loader assertions below still guard a live model. It is no longer a thing a user can store, pick
+# or upload: the store is ``line_item_versions``, the door is ``POST /line-items``, and the
+# publish-gate test at the foot of this module goes through that door with ``LINE_ITEM_SET``.
 ONTOLOGY = {
     "ontology_key": "ifrs_min_multi",
     "target_template_key": "ifrs_min",
@@ -41,6 +46,28 @@ ONTOLOGY = {
     },
     "mappings": [{
         "canonical_key": "assets.current.cash",
+        "aliases": ["Cash"],
+        "aliases_i18n": {"en": ["Cash"], "zh": ["现金"], "ar": ["النقد"], "fr": ["Trésorerie"]},
+    }],
+}
+
+# The same minimal configuration as a LINE-ITEM SET — the only shape that can be published. The
+# publish gate holds every key against the target template exactly as the retired ontology door
+# did, so the strictness test below asserts the same invariant through the surviving surface.
+LINE_ITEM_SET = {
+    "schema_version": 1,
+    "line_items_key": "ifrs_min_multi",
+    "target_template_key": "ifrs_min",
+    "supported_locales": ["en", "zh", "ar", "fr"],
+    "number_format_by_locale": {
+        "en": {"decimal": ".", "thousands": ","},
+        "fr": {"decimal": ",", "thousands": " "},
+        "zh": {"decimal": ".", "thousands": ","},
+        "ar": {"decimal": ".", "thousands": ","},
+    },
+    "items": [{
+        "key": "assets.current.cash",
+        "label": "Cash",
         "aliases": ["Cash"],
         "aliases_i18n": {"en": ["Cash"], "zh": ["现金"], "ar": ["النقد"], "fr": ["Trésorerie"]},
     }],
@@ -109,8 +136,18 @@ def test_unknown_keys_finds_undeclared_fields_at_every_depth():
     assert "statements[0].sections[0].canonical_keys" in found
 
 
-def test_unknown_keys_is_silent_on_the_shipped_definitions():
-    """The guard must not accuse what the product itself ships."""
+def test_unknown_keys_is_silent_on_the_shipped_template_and_the_working_view_fixture():
+    """The guard must not accuse what the product itself ships, nor the widest input the working
+    view is exercised with.
+
+    ``hkfrs_hk_china_ontology.json`` is a FIXTURE, not a shipped configuration: nothing seeds it and
+    no run reads it. It is kept as the fullest realistic input for the ``OntologyDefinition`` model
+    that survived the merge as the matcher's working view — see
+    tests/test_working_view_schema.py (renamed from test_ontology_v2.py) for its section layer. The
+    one shipped CONFIGURATION is ``output_csv_hk_line_items.json``, and the same guard is held
+    against it through its own door — ``POST /line-items`` runs ``unknown_keys`` on upload, and
+    ``test_the_shipped_configuration_still_uploads`` posts the shipped file through it.
+    """
     import json
     from pathlib import Path
 
@@ -118,13 +155,9 @@ def test_unknown_keys_is_silent_on_the_shipped_definitions():
 
     d = Path(__file__).resolve().parents[1] / "app" / "sample" / "templates"
     tpl = json.loads((d / "hkfrs_hk_china_template.json").read_text(encoding="utf-8"))
-    ont = json.loads((d / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8"))
+    view = json.loads((d / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8"))
     assert unknown_keys(tpl, load_template(tpl)) == []
-    assert unknown_keys(ont, load_ontology(ont)) == []
-    # The v2.1 rulebook ships alongside them and goes through the same door (see
-    # tests/test_ontology_v2.py for its section layer).
-    v2 = json.loads((d / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8"))
-    assert unknown_keys(v2, load_ontology(v2)) == []
+    assert unknown_keys(view, load_ontology(view)) == []
 
 
 def test_upload_refuses_a_template_with_an_undeclared_key(client):
@@ -138,26 +171,33 @@ def test_upload_refuses_a_template_with_an_undeclared_key(client):
     assert any(e["location"] == "inherits" for e in r.json()["detail"]["errors"])
 
 
-def test_upload_refuses_an_ontology_with_an_undeclared_key(client):
-    """The same door, on the rulebook side — this is the shape the `inherits` question was about:
-    a partial ontology relying on inheritance would otherwise publish with the inherited concepts
-    simply absent, and pass the key cross-check because it only checks the keys that WERE sent."""
+def test_upload_refuses_a_configuration_with_an_undeclared_key(client):
+    """The same door, on the CONFIGURATION side — this is the shape the `inherits` question was
+    about: a partial definition relying on inheritance would otherwise publish with the inherited
+    items simply absent, and pass the key cross-check because it only checks the keys that WERE
+    sent.
+
+    The door is ``POST /line-items``. It was ``POST /ontologies`` against a `mappings` list; line
+    items is the single configuration engine, so there is one store and one door into it, and the
+    stray key is reported on an ``items[i]`` path rather than a ``mappings[i]`` one. Same 422, same
+    ``detail.errors``/``location`` shape, ported to the surviving surface with the route.
+    """
     import copy
 
     r = client.post("/api/v1/templates",
                     json={"definition": {**copy.deepcopy(TEMPLATE),
-                                         "template_key": "strictness_probe_ont"}})
+                                         "template_key": "strictness_probe_cfg"}})
     assert r.status_code == 201
 
-    bad = copy.deepcopy(ONTOLOGY)
-    bad["target_template_key"] = "strictness_probe_ont"
+    bad = copy.deepcopy(LINE_ITEM_SET)
+    bad["target_template_key"] = "strictness_probe_cfg"
     bad["inherits"] = "base_v1"
-    bad["mappings"][0]["aliasses"] = ["mistyped field name"]
-    r = client.post("/api/v1/ontologies", json={"definition": bad})
+    bad["items"][0]["aliasses"] = ["mistyped field name"]
+    r = client.post("/api/v1/line-items", json={"definition": bad})
     assert r.status_code == 422
     locs = {e["location"] for e in r.json()["detail"]["errors"]}
     assert "inherits" in locs
-    assert "mappings[0].aliasses" in locs
+    assert "items[0].aliasses" in locs
 
 
 def test_reading_a_stored_definition_still_tolerates_an_undeclared_key():

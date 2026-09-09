@@ -33,14 +33,15 @@ reverse proxy that forwards `/api` to the backend.
 
 | Route | File | Purpose |
 |---|---|---|
-| `/upload` | `Upload.tsx` | Source docs + template + ontology setup |
+| `/upload` | `Upload.tsx` | Source docs + template setup |
 | `/integrity` | `Integrity.tsx` | Pre-flight document-integrity report |
 | `/scope` | `Scope.tsx` | Statement-page detection / scoping |
 | `/workspace` | `Workspace.tsx` | Side-by-side source ↔ template, edit + formulas |
 | `/review` | `Review.tsx` | Checks-and-balances review queue |
 | `/notes` | `Notes.tsx` | All extracted notes + note-to-face reconciliation |
 | `/commentary` | `Commentary.tsx` | One-page financial analysis (ratios, YoY trends, strengths/risks) |
-| `/template` | `Template.tsx` | Template tree + ontology rules (incl. netting rule) |
+| `/template` | `Template.tsx` | Template tree + per-node config (incl. netting rule) |
+| `/line-items` | `LineItems.tsx` | The single mapping configuration — output lines, their sub-line items, aliases, criteria and derivations |
 | `/settings` | `Settings.tsx` | Admin: config (LLM/OCR/extraction) + interface-localization toggle |
 | `/export` | `Export.tsx` | Excel / JSON export with live preview |
 

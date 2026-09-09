@@ -36,8 +36,8 @@
 - **Frontend regression** (Playwright, `frontend/e2e/smoke.spec.ts`) — well past a smoke
   test in scope: the greenfield empty state, loading the sample, note-reference hyperlinks,
   uploading a PDF and a spreadsheet as an analyst, integrity → extract end to end,
-  role gating on the template/ontology/threshold surfaces, ontology + netting + criteria
-  edits persisting, template workbook publish, rulebook-in-force labelling, review
+  role gating on the template/line-item/threshold surfaces, line-item + netting + criteria
+  edits persisting, template workbook publish, version-in-force labelling, review
   filtering, accepting a finding across a reload, and the coverage band's counts.
   **Known broken:** the test named "real extraction: prior-year links, an edit that sticks,
   KPIs and Additional items" still clicks `seg-additional_items`, a Workspace tab that was
@@ -52,7 +52,7 @@ Run: `cd backend && pip install -e ".[dev]" && pytest -q`; `cd frontend && pnpm 
 1. ✅ Skeleton + contracts (models, pipeline, registry, ports, FastAPI app).
 2. ✅ Native ingest + per-page routing; integrity report; page classification (Viterbi
    decode over per-page evidence and document order).
-3. ✅ Ontology mapping ensemble; locale number parsing; reconciliation arithmetic.
+3. ✅ Line-item mapping ensemble; locale number parsing; reconciliation arithmetic.
 4. ✅ Row/value extraction with provenance + the two-level basis header — **inside the
    `extract` stage** via `services/row_reconstruct.py` (native text layer) and
    `services/excel_extract.py`, not a separate reconstruct stage. The `Table` / `Cell`
@@ -82,7 +82,8 @@ Run: `cd backend && pip install -e ".[dev]" && pytest -q`; `cd frontend && pnpm 
 ✅ Foundations → viewer core (server-rasterized pages + normalized-bbox overlay) → grid
 core → grid→viewer linkage → editing + server-side formulas → review queue with judgements
 and re-map → notes tab → consolidated/standalone → integrity gate → template workbook
-authoring + ontology editing → export → the Extraction screen at `/extraction` with live
+authoring + the Line Items configuration screen → export → the Extraction screen at
+`/extraction` with live
 stage/log reporting. Outstanding: bidirectional viewer↔grid focus, and route-level code
 splitting (neither needed while the bundle is five dependencies).
 

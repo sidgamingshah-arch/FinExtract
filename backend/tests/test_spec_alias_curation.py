@@ -13,10 +13,14 @@ import pytest
 
 from app.services.spec_alias_curation import (
     ALIAS_DENIALS, CONTINGENT, COS, DUE_FROM_RP, OPER_EXP, OTHER_RECV_CP, OTHER_RECV_LTP, SALES,
-    SECUR_CP, SECUR_LTP, curate_aliases, denied_aliases,
+    SECUR_CP, SECUR_LTP, _FOREIGN_CAPTION_DENIALS, curate_aliases, denied_aliases,
 )
 
 ONTOLOGY = Path(__file__).resolve().parents[1] / "app/sample/templates/output_csv_hk_ontology.json"
+
+AMORT_INTGBL = "is_pl__amort_and_impairment_intgbl"
+AMORT_INTGBL_COS = "is_pl__amort_and_impairment_intgbl_cos"
+CF_DEPRECIATION = "cf_oper_indirect__depreciation"
 
 
 @pytest.mark.parametrize("key,alias", [
@@ -53,6 +57,20 @@ ONTOLOGY = Path(__file__).resolve().parents[1] / "app/sample/templates/output_cs
     (SALES, "营业收入"),
     (SALES, "营业总收入"),
     (SALES, "销售收入"),
+    # The foreign-caption layer: 折旧 is DEPRECIATION, a charge on tangible assets, and the two
+    # intangible-AMORTISATION concepts' own English lists never claim it. Their harvested
+    # `aliases_zh` did, so match("折旧", statement="profit_and_loss") returned
+    # is_pl__amort_and_impairment_intgbl EXACT at confidence 1.0 with needs_review=False while
+    # English "Depreciation" on the same statement returned UNMATCHED with review — a confident
+    # wrong answer for a Chinese filing where an English one got an honest refusal.
+    (AMORT_INTGBL, "折旧"),
+    (AMORT_INTGBL, "折旧及摊销"),
+    (AMORT_INTGBL, "使用权资产的折旧"),
+    (AMORT_INTGBL, "物业及设备折旧"),
+    (AMORT_INTGBL_COS, "折旧"),
+    (AMORT_INTGBL_COS, "折旧及摊销"),
+    (AMORT_INTGBL_COS, "使用权资产的折旧"),
+    (AMORT_INTGBL_COS, "物业及设备折旧"),
 ])
 def test_a_forbidden_alias_is_denied(key, alias):
     assert curate_aliases(key, [alias]) == []
@@ -84,6 +102,21 @@ def test_a_forbidden_alias_is_denied(key, alias):
     (SALES, "Turnover"),                 # §4's ban is on the Chinese pair, not English captions
     (SALES, "Revenue"),
     (CONTINGENT, "或有负债"),            # nothing is denied to this concept
+    # The amortisation concepts keep their OWN vocabulary — the denial is anchored to the bare
+    # depreciation captions, not to any string containing 折旧 or 摊销.
+    (AMORT_INTGBL, "无形资产摊销"),
+    (AMORT_INTGBL, "Amortisation of intangible assets"),
+    (AMORT_INTGBL, "Impairment of intangible assets"),
+    (AMORT_INTGBL_COS, "无形资产摊销"),
+    (AMORT_INTGBL_COS, "无形资产"),
+    (AMORT_INTGBL_COS, "其他无形资产"),
+    # REFUSE-AND-REDIRECT: the whole 折旧 family stays where it belongs. Nothing is denied to the
+    # cash-flow depreciation concept, which legitimately owns these captions.
+    (CF_DEPRECIATION, "折旧"),
+    (CF_DEPRECIATION, "折旧及摊销"),
+    (CF_DEPRECIATION, "使用权资产的折旧"),
+    (CF_DEPRECIATION, "物业及设备折旧"),
+    (CF_DEPRECIATION, "Depreciation"),
 ])
 def test_a_permitted_alias_survives(key, alias):
     assert curate_aliases(key, [alias]) == [alias]
@@ -100,6 +133,25 @@ def test_a_concept_with_no_denials_is_returned_untouched():
     assert curate_aliases("bs_ca__total_assets", aliases) == aliases
 
 
+def test_the_foreign_caption_layer_filters_in_place_like_the_spec_layer():
+    """One filter over both tables, so the generator's alias ranking survives either denial."""
+    aliases = ["Amort & Impairment(Intgbl)(COS)", "使用权资产的折旧", "其他无形资产", "折旧",
+               "折旧及摊销", "无形资产", "无形资产摊销", "物业及设备折旧"]
+    assert curate_aliases(AMORT_INTGBL_COS, aliases) == [
+        "Amort & Impairment(Intgbl)(COS)", "其他无形资产", "无形资产", "无形资产摊销"]
+    assert denied_aliases(AMORT_INTGBL_COS, aliases) == [
+        "使用权资产的折旧", "折旧", "折旧及摊销", "物业及设备折旧"]
+
+
+def test_the_foreign_caption_layer_is_disjoint_from_the_spec_layer():
+    """Neither amortisation concept is one of ALIAS_DENIALS' nine, which is why it needed its own
+    table: the generator's single filter reaches both, but the spec-derived rules do not.
+    """
+    assert set(_FOREIGN_CAPTION_DENIALS) & set(ALIAS_DENIALS) == set()
+    assert set(_FOREIGN_CAPTION_DENIALS) == {AMORT_INTGBL, AMORT_INTGBL_COS}
+    assert CF_DEPRECIATION not in _FOREIGN_CAPTION_DENIALS
+
+
 def test_the_committed_ontology_already_satisfies_every_denial():
     """The artefact and the rule set agree, so a rebuild applying these denials is a no-op here.
 
@@ -107,10 +159,11 @@ def test_the_committed_ontology_already_satisfies_every_denial():
     the generator applies, this fails whichever side moved.
     """
     raw = json.loads(ONTOLOGY.read_text(encoding="utf-8"))
+    governed = {**ALIAS_DENIALS, **_FOREIGN_CAPTION_DENIALS}
     offending: dict[str, list[str]] = {}
     for mapping in raw["mappings"]:
         key = mapping["canonical_key"]
-        if key not in ALIAS_DENIALS:
+        if key not in governed:
             continue
         present = list(mapping.get("aliases") or [])
         for per_locale in (mapping.get("aliases_i18n") or {}).values():

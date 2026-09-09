@@ -24,14 +24,17 @@ import unicodedata
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from functools import lru_cache
-from pathlib import Path
 
 from app.core.models.confidence import ConfidenceVector
 from app.core.models.enums import Basis, LineRole, ValueSource
 from app.core.models.geometry import BBox, Provenance
 from app.core.models.line_item import ExtractedValue, LineItem, NoteRef, UnitContext
+# The two block MODELS. They live under `schemas.ontology` only because that is where the module
+# still is; they are the very classes `LineItemSet.scope_selection` / `.normalisation` are typed
+# with, so this is the line-item set's own declaration being validated, not an ontology's.
 from app.schemas.ontology import Normalisation, ScopeSelection
 from app.services.han import to_simplified
+from app.services.line_item_config import SEED as _LINE_ITEM_SEED
 # The section vocabulary is a property of how statements are PRINTED, not of any ontology, so
 # reading a banner here uses the same function mapping does rather than a second copy of it.
 from app.services.mapping import (
@@ -1063,34 +1066,49 @@ def _wrap_adjacent(cur: BBox, nxt: BBox, nxt_label: list[Word]) -> bool:
     return abs(cur.x0 - label_x0) <= 0.06                # left-aligned in the label column
 
 
-# ── The rulebook's scope_selection / normalisation blocks ────────────────────────────────────
+# ── The line-item set's scope_selection / normalisation blocks ───────────────────────────────
 #
-# WHY reconstruction reads the rulebook at all. ``scope_selection`` is a statement about how a
+# WHY reconstruction reads the configuration at all. ``scope_selection`` is a statement about how a
 # printed PAGE is read — which column is the Group's, which column is the current period, what
-# scale the figures are in — and every one of those decisions is taken here, before mapping has
-# an ontology in hand. Left to the engine's own regexes the declared block was decoration: a
+# scale the figures are in — and every one of those decisions is taken here, before mapping has a
+# configuration in hand. Left to the engine's own regexes the declared block was decoration: a
 # filing headed "Group | Company" (the HKEX house style) got NO basis bands at all, so every
 # Company figure was filed as consolidated and quietly added to the Group's.
 #
-# The blocks are read from the rulebook shipped as the one in force, because ``stages.extract``
-# runs before an ontology is attached to the run. A caller that does hold the run's pinned
-# rulebook passes it instead (``build_line_items(scope=…, normalisation=…)``).
-_RULEBOOK_IN_FORCE = (Path(__file__).resolve().parents[1] / "sample" / "templates"
-                      / "hkfrs_hk_china_ontology.json")
+# The blocks are read from the SHIPPED LINE-ITEM SET, because ``stages.extract`` runs before the
+# run's configuration version is attached to it. A caller that does hold the version the run is
+# pinned to passes the blocks instead (``build_line_items(scope=…, normalisation=…)``).
+#
+# WHAT WAS HERE BEFORE, so nobody reinstates it: this named
+# ``sample/templates/hkfrs_hk_china_ontology.json`` and read the two blocks off an ONTOLOGY file.
+# Line items is now the single configuration engine, so the path is ``line_item_config.SEED`` — the
+# one place that knows the set's location — and no page read touches an ontology file. THE REPOINT
+# CHANGES NO PAGE'S READING, measured: ``scope_selection`` and ``normalisation`` are deep-equal
+# across ``output_csv_hk_line_items.json``, ``output_csv_hk_ontology.json`` and
+# ``hkfrs_hk_china_ontology.json`` — which is why the projection could carry them over verbatim.
+#
+# Only the two blocks are validated, off the raw JSON, rather than through
+# ``line_item_config.load_shipped_set()``: this is consulted for every page, the set's 475 items and
+# its ``residual_framework`` say nothing about how a page is read, and a ``ResidualFrameworkDrift``
+# raised out of the full loader would take every page's rules down over a block none of them reads.
+#
+# The name is kept because it is the file-in-force HOOK: ``tests/test_scope_selection.py`` pins a
+# different file here to prove that the shipped file really is what the default reads.
+_RULEBOOK_IN_FORCE = _LINE_ITEM_SEED
 
 
-class MissingRulebookError(RuntimeError):
-    """The shipped rulebook this module reads its page rules from is not on disk."""
+class MissingConfigurationError(RuntimeError):
+    """The shipped line-item set this module reads its page rules from is not on disk."""
 
 
 @lru_cache(maxsize=1)
 def in_force_rules() -> tuple[ScopeSelection | None, Normalisation | None]:
-    """``(scope_selection, normalisation)`` of the rulebook in force, or ``(None, None)``.
+    """``(scope_selection, normalisation)`` of the configuration in force, or ``(None, None)``.
 
-    Only those two blocks are validated, not the whole rulebook: this is consulted for every page,
-    and nothing else in the definition says anything about how a page is read. A block that will not
-    VALIDATE governs nothing rather than stopping the extraction — the run still produces figures,
-    and the log records which rules were applied.
+    Only those two blocks are validated, not the whole set: this is consulted for every page,
+    and nothing else in the configuration says anything about how a page is read. A block that will
+    not VALIDATE governs nothing rather than stopping the extraction — the run still produces
+    figures, and the log records which rules were applied.
 
     A MISSING FILE is a different thing and is now raised. It used to return ``(None, None)`` beside
     the invalid-block case, which is how consolidating the two rulebook generations into one file
@@ -1099,12 +1117,13 @@ def in_force_rules() -> tuple[ScopeSelection | None, Normalisation | None]:
     engine defaults. Extraction went on succeeding — every Company figure filed as consolidated and
     added into the Group's. Thirteen tests caught it, and each one reported a wrong basis rather than
     a missing rulebook, so the cause took finding. An absent shipped file is a packaging defect, and
-    ``sample/reference.py`` already treats one as a startup failure for the same reason.
+    ``sample/reference.py`` already treats one as a startup failure for the same reason. The file
+    the rules come from is now the line-item SET; the defect it guards against is the same one.
     """
     if not _RULEBOOK_IN_FORCE.exists():
-        raise MissingRulebookError(
-            f"the shipped rulebook {_RULEBOOK_IN_FORCE} is missing, so the scope_selection and "
-            f"normalisation rules every page is read under would silently not apply")
+        raise MissingConfigurationError(
+            f"the shipped line-item set {_RULEBOOK_IN_FORCE} is missing, so the scope_selection "
+            f"and normalisation rules every page is read under would silently not apply")
     try:
         raw = json.loads(_RULEBOOK_IN_FORCE.read_text(encoding="utf-8"))
     except ValueError:

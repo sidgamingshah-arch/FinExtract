@@ -80,12 +80,20 @@ def _run_to_completion(client, doc_id: str, body: dict | None = None) -> str:
 
 
 def _shipped_pins(client) -> tuple[dict, dict]:
-    """The shipped rulebook and the template it is written for, as the UI pins them."""
-    onts = client.get("/api/v1/ontologies").json()
-    ont = next(o for o in onts if o["ontology_key"] == "hkfrs_hk_china")
+    """The shipped configuration and the template it is written for, as the UI pins them.
+
+    Read from ``/line-items/versions``. It was ``GET /ontologies`` keyed on ``ontology_key`` —
+    both are gone with the ontology store; line items is the single configuration engine, so the
+    version rows carry ``line_items_key`` and a run pins a ``line_item_version_id``. The key comes
+    from ``shipped_line_items_key()`` so "which configuration is ours" keeps one spelling.
+    """
+    from app.sample.reference import shipped_line_items_key
+
+    sets = client.get("/api/v1/line-items/versions").json()
+    cfg = next(s for s in sets if s["line_items_key"] == shipped_line_items_key())
     tpls = client.get("/api/v1/templates").json()
-    tpl = next(t for t in tpls if t["template_key"] == ont["target_template_key"])
-    return ont, tpl
+    tpl = next(t for t in tpls if t["template_key"] == cfg["target_template_key"])
+    return cfg, tpl
 
 
 def test_progress_moves_through_the_named_stages_of_the_real_pipeline(client):
@@ -313,12 +321,12 @@ def test_a_run_recorded_before_this_contract_serves_no_progress_rather_than_half
             s.commit()
 
 
-def test_a_run_that_pins_a_template_its_rulebook_was_not_written_for_is_refused(client):
-    """A rulebook declares the template it targets. Pinning it against a DIFFERENT template maps
-    every caption with a rulebook validated against a template the spread never uses — the
-    mechanism behind a cost-of-sales line turning up inside other income. The run succeeds and the
-    spread is quietly wrong, so the pair is refused at the door instead."""
-    ont, tpl = _shipped_pins(client)
+def test_a_run_that_pins_a_template_its_configuration_was_not_written_for_is_refused(client):
+    """A configuration declares the template it targets. Pinning it against a DIFFERENT template
+    maps every caption with a configuration validated against a template the spread never uses —
+    the mechanism behind a cost-of-sales line turning up inside other income. The run succeeds and
+    the spread is quietly wrong, so the pair is refused at the door instead."""
+    cfg, tpl = _shipped_pins(client)
     other = client.post("/api/v1/templates", json={"definition": {
         "template_key": "u1_unrelated_tpl", "name": "Unrelated", "statements": [],
     }})
@@ -326,14 +334,15 @@ def test_a_run_that_pins_a_template_its_rulebook_was_not_written_for_is_refused(
 
     doc_id = _upload(client)
     refused = client.post(f"/api/v1/documents/{doc_id}/extractions", json={
-        "ontology_version_id": ont["id"], "template_version_id": other.json()["id"]})
+        "line_item_version_id": cfg["id"], "template_version_id": other.json()["id"]})
     assert refused.status_code == 422, refused.text
     detail = refused.json()["detail"]
     # Both keys named, because "mismatch" alone does not tell the caller which of the two to change.
     assert "u1_unrelated_tpl" in detail["message"]
-    assert ont["target_template_key"] in detail["message"]
+    assert cfg["target_template_key"] in detail["message"]
     assert detail["template_key"] == "u1_unrelated_tpl"
-    assert detail["ontology_target_template_key"] == ont["target_template_key"]
+    # Was ``ontology_target_template_key``; nothing an API consumer reads says ontology any more.
+    assert detail["configuration_target_template_key"] == cfg["target_template_key"]
 
     # No run was created for the refused pair — a 422 that still queued a run would extract with
     # the very pairing it just rejected.
@@ -343,18 +352,18 @@ def test_a_run_that_pins_a_template_its_rulebook_was_not_written_for_is_refused(
     with SessionLocal() as s:
         assert s.query(ExtractionRun).filter_by(document_id=doc_id).count() == 0
 
-    # The coherent pin — the shipped template and its own rulebook — is still accepted.
+    # The coherent pin — the shipped template and its own configuration — is still accepted.
     ok = client.post(f"/api/v1/documents/{doc_id}/extractions", json={
-        "ontology_version_id": ont["id"], "template_version_id": tpl["id"]})
+        "line_item_version_id": cfg["id"], "template_version_id": tpl["id"]})
     assert ok.status_code == 202, ok.text
 
 
 def test_pinning_only_one_of_the_two_stays_legal(client):
     """Both fields are optional and a run may name just one. The cross-check must refuse a
     CONTRADICTION, not a run that made only half the choice."""
-    ont, tpl = _shipped_pins(client)
+    cfg, tpl = _shipped_pins(client)
     doc_id = _upload(client)
-    for body in ({"ontology_version_id": ont["id"]}, {"template_version_id": tpl["id"]}, {}):
+    for body in ({"line_item_version_id": cfg["id"]}, {"template_version_id": tpl["id"]}, {}):
         r = client.post(f"/api/v1/documents/{doc_id}/extractions", json=body)
         assert r.status_code == 202, (body, r.text)
 
@@ -488,10 +497,10 @@ def test_a_failed_run_keeps_the_stage_trail_and_not_just_the_exception(client):
     tail = served["log_tail"]
     # The exception, AND the trail that leads to it.
     assert "RuntimeError: structural stage exploded" in tail
-    for stage in ("stage:ingest:done", "stage:map_ontology:done", "stage:structural:start"):
+    for stage in ("stage:ingest:done", "stage:map_line_items:done", "stage:structural:start"):
         assert stage in tail, f"{stage} missing from the failed run's log:\n{tail}"
     # …and the stage it died in is the last thing the pipeline said, not buried mid-trail.
-    assert tail.index("stage:structural:start") > tail.index("stage:map_ontology:done")
+    assert tail.index("stage:structural:start") > tail.index("stage:map_line_items:done")
 
 
 def test_reading_a_run_requires_a_session(anon_client, auth):
@@ -585,7 +594,7 @@ def test_elapsed_advances_between_stages_while_the_run_is_in_flight():
 
     began = datetime.now(timezone.utc) - timedelta(seconds=30)
     stored = _progress_payload("mapping", 0.4, started_at=began, stage_count=14,
-                               stage="map_ontology", stages_done=["ingest", "classify"])
+                               stage="map_line_items", stages_done=["ingest", "classify"])
     first = _served_progress(stored, "running")["elapsed_ms"]
     time.sleep(0.05)
     second = _served_progress(stored, "running")["elapsed_ms"]
@@ -624,7 +633,7 @@ def test_the_stored_record_is_never_mutated_by_being_read():
 
     stored = _progress_payload("mapping", 0.4,
                                started_at=datetime.now(timezone.utc) - timedelta(seconds=20),
-                               stage_count=14, stage="map_ontology")
+                               stage_count=14, stage="map_line_items")
     before = dict(stored)
     time.sleep(0.05)                      # so a fresh figure is DISTINGUISHABLE from the stored one
     served = _served_progress(stored, "running")
@@ -639,12 +648,12 @@ def test_an_unreadable_start_stamp_still_serves_the_rest_of_the_record():
     from app.api.routes.extractions import _progress_payload, _served_progress
 
     stored = _progress_payload("mapping", 0.4, started_at=datetime.now(timezone.utc),
-                              stage_count=14, stage="map_ontology")
+                              stage_count=14, stage="map_line_items")
     stored["started_at"] = "not a timestamp"
     stored["elapsed_ms"] = 1234
     served = _served_progress(stored, "running")
     assert served is not None and served["elapsed_ms"] == 1234
-    assert served["stage"] == "map_ontology"
+    assert served["stage"] == "map_line_items"
 
 
 def test_a_run_still_going_reports_a_clock_through_the_route(client):
@@ -661,7 +670,7 @@ def test_a_run_still_going_reports_a_clock_through_the_route(client):
         session.add(ExtractionRun(
             id=run_id, document_id=doc_id, status="running", options={}, result={},
             progress=_progress_payload("mapping", 0.4, started_at=began, stage_count=14,
-                                       stage="map_ontology", stages_done=["ingest"])))
+                                       stage="map_line_items", stages_done=["ingest"])))
         session.commit()
 
     first = client.get(f"/api/v1/extractions/{run_id}").json()["progress"]["elapsed_ms"]

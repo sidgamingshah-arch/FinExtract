@@ -22,7 +22,7 @@ export const audit: Record<Locale, Record<string, string>> = {
     "ad.unavailable": "The run trail could not be loaded.",
     "ad.scopeGone": "— document deleted —",
     "ad.footnote":
-      "A run with no token count used no language model: its filing was mapped from the rulebook alone. Failed runs are listed too — they consume tokens as readily as successful ones.",
+      "A run with no token count used no language model: its filing was mapped from the line-item configuration alone. Failed runs are listed too — they consume tokens as readily as successful ones.",
     "ad.stat.runs": "RUNS",
     "ad.stat.llmRuns": "USED THE MODEL",
     "ad.stat.failed": "FAILED",
@@ -51,7 +51,7 @@ export const audit: Record<Locale, Record<string, string>> = {
     "ad.unavailable": "无法加载运行记录。",
     "ad.scopeGone": "— 文档已删除 —",
     "ad.footnote":
-      "没有词元计数的运行未使用语言模型：其报表仅凭规则库映射完成。失败的运行同样列出——它们与成功运行一样会消耗词元。",
+      "没有词元计数的运行未使用语言模型：其报表仅凭行项目配置映射完成。失败的运行同样列出——它们与成功运行一样会消耗词元。",
     "ad.stat.runs": "运行次数",
     "ad.stat.llmRuns": "使用了模型",
     "ad.stat.failed": "失败",
@@ -81,7 +81,7 @@ export const audit: Record<Locale, Record<string, string>> = {
     "ad.unavailable": "تعذّر تحميل سجل التشغيل.",
     "ad.scopeGone": "— حُذف المستند —",
     "ad.footnote":
-      "التشغيل الذي لا يحمل عدد رموز لم يستخدم نموذجاً لغوياً: فقد تمّت مطابقة ملفه من دفتر القواعد وحده. التشغيلات الفاشلة مدرجة أيضاً — فهي تستهلك الرموز كما تستهلكها الناجحة.",
+      "التشغيل الذي لا يحمل عدد رموز لم يستخدم نموذجاً لغوياً: فقد تمّت مطابقة ملفه من إعداد البنود وحده. التشغيلات الفاشلة مدرجة أيضاً — فهي تستهلك الرموز كما تستهلكها الناجحة.",
     "ad.stat.runs": "التشغيلات",
     "ad.stat.llmRuns": "استخدمت النموذج",
     "ad.stat.failed": "فاشلة",
@@ -112,7 +112,7 @@ export const audit: Record<Locale, Record<string, string>> = {
     "ad.unavailable": "Le journal des exécutions n'a pu être chargé.",
     "ad.scopeGone": "— document supprimé —",
     "ad.footnote":
-      "Une exécution sans compte de jetons n'a pas utilisé de modèle de langage : son dépôt a été mappé à partir du seul référentiel de règles. Les exécutions en échec sont listées aussi — elles consomment des jetons autant que les réussies.",
+      "Une exécution sans compte de jetons n'a pas utilisé de modèle de langage : son dépôt a été mappé à partir de la seule configuration des postes. Les exécutions en échec sont listées aussi — elles consomment des jetons autant que les réussies.",
     "ad.stat.runs": "EXÉCUTIONS",
     "ad.stat.llmRuns": "ONT UTILISÉ LE MODÈLE",
     "ad.stat.failed": "EN ÉCHEC",

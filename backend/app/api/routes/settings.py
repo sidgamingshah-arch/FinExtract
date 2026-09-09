@@ -20,8 +20,9 @@ from __future__ import annotations
 import os
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from app.api.deps import default_locale
 from app.config import get_settings
 from app.security import Permission, current_principal, require
 from app.services.settings_state import (
@@ -48,13 +49,22 @@ def _snapshot() -> dict:
             "ui_localization": get_ui_localization(),
             "review_required": get_review_required(),
             "seed_demo": get_seed_demo(),
-            "default_output_locale": s.features.default_output_locale,
+            # Read through `deps.default_locale` — the SAME resolver the locale-bearing routes
+            # now take their default from (api/deps.py:output_locale) — so this row reports the
+            # locale requests will actually be answered in, blank config value normalised to
+            # "en" included. It used to echo the raw field while all 18 of those routes carried
+            # their own `Query("en")`, which is how the screen came to report "zh" as a default
+            # nothing applied.
+            "default_output_locale": default_locale(),
             "supported_locales": s.features.supported_locales,
         },
         "llm": {
             "provider": s.llm.provider,
             "model": s.llm.model,
-            "temperature": s.llm.temperature,
+            # No "temperature". It was echoed here, and this echo was the ONLY read of
+            # ``s.llm.temperature`` anywhere in app/ — nothing forwarded it to a provider call, so
+            # the screen reported a setting the requests did not carry. Temperature is fixed at
+            # ports.llm's default 0.0; see config.LlmSettings.
             "max_tokens": s.llm.max_tokens,
             "timeout_seconds": s.llm.timeout_seconds,
             "base_url": s.llm.base_url,
@@ -90,12 +100,24 @@ def get_settings_snapshot() -> dict:
 class LlmConfigPatch(BaseModel):
     # Non-secret LLM configuration. The API key is NEVER accepted here — only the name
     # of the env var it is read from (api_key_env). Any extra fields are ignored.
+    #
+    # The numeric bounds mirror ``settings_state.LLM_NUMERIC_BOUNDS`` so the request is refused
+    # here, with pydantic's field-level 422, before the state layer has to raise. They are not the
+    # definition — that stays in settings_state, which every other caller (startup reload
+    # included) also goes through; this is the API's copy of the same fact, and the reason the
+    # bound exists at all is that `max_tokens` shipped as 4,096,000, a completion allocation the
+    # gateway itself rejected as "too large … supports at most 128000".
     provider: str | None = None
     model: str | None = None
     base_url: str | None = None
-    temperature: float | None = None
-    max_tokens: int | None = None
-    timeout_seconds: int | None = None
+    # No `temperature` field. It was accepted (and bounded 0.0..2.0) but reached no provider call,
+    # so it is gone from LlmSettings entirely. This model ignores extra keys, so an older client
+    # that still sends `llm.temperature` keeps getting 200 — the value is dropped rather than
+    # applied, and the response body no longer echoes the key back. Already-persisted
+    # `setting_overrides` rows for it are inert (settings_state.LLM_EDITABLE filters them out on
+    # load) and are intentionally left in place rather than migrated away.
+    max_tokens: int | None = Field(default=None, ge=256, le=262144)
+    timeout_seconds: int | None = Field(default=None, ge=1, le=3600)
     api_key_env: str | None = None
     # Azure OpenAI address. Not secret: the resource host, the api-version and the deployment name.
     azure_endpoint: str | None = None
@@ -132,7 +154,13 @@ def update_settings(body: SettingsPatch) -> dict:
     if body.reset_llm:
         reset_llm_config()
     if body.llm is not None:
-        set_llm_config(**body.llm.model_dump(exclude_none=True))
+        try:
+            set_llm_config(**body.llm.model_dump(exclude_none=True))
+        except ValueError as exc:
+            # Defence in depth: the field constraints above already refuse an out-of-range
+            # number, so reaching here means the two copies of the bounds have drifted. Answer
+            # 422 naming the field rather than a 500, the same as the extraction path.
+            raise HTTPException(422, str(exc)) from exc
     if body.reset_extraction:
         reset_extraction_config()
     if body.extraction is not None:

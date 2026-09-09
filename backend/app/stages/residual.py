@@ -563,12 +563,25 @@ def _every_caption(concept) -> list[str]:
 def _vetoed_by_never_sweep(res: _Residual, label: str) -> str | None:
     """The ``never_sweep`` entry that rules this caption out, if any.
 
-    Two kinds of entry, both enforced. An entry naming a CONCEPT vetoes that concept's own
-    captions: an unmapped row printed "Total current liabilities" would otherwise be swept into
-    current liabilities' Others and double-count the entire section — the mapper normally claims it,
-    and this is what happens on the run where it did not. An entry written as PROSE ("the tax rate
-    reconciliation in the tax note, which is a rate analysis and not a charge") vetoes a caption the
-    sentence names, which is the strongest reading available without asking a model.
+    Two kinds of entry. An entry naming a CONCEPT vetoes that concept's own captions: an unmapped
+    row printed "Total current liabilities" would otherwise be swept into current liabilities'
+    Others and double-count the entire section — the mapper normally claims it, and this is what
+    happens on the run where it did not. That path carries the protection: 186 expanded caption
+    vetoes across ``output_csv_hk_ontology.json``'s 11 residuals.
+
+    An entry the loader could not resolve to a key is kept as PROSE and matched as a substring of
+    the sentence, which is the strongest reading available without asking a model — but nothing in
+    the shipped rulebook is shaped for it. All 12 prose entries on those 11 residuals are
+    "printed in another section / another statement" sentences ("any row printed in the assets or
+    liabilities sections", "any row printed on the face of the income statement"), and not one of
+    them can fire on the face sweep, because it is only ever asked about the residual of the row's
+    OWN resolved section: `_sweep` picks ``target`` by that section, ``cross_section`` is false on
+    all 11, and eligibility 4 parses to ``inside_section_only == True``, so a row printed elsewhere
+    is refused at that gate before it reaches here. (The note-sourcing pass asks the same question
+    of a NOTE row, which has no resolved section — but a note caption is not a fragment of an
+    English sentence about sections either.) The same holds for 13 of the 18 prose entries in
+    ``hkfrs_hk_china_ontology.json``. So the prose branch is a fallback that must not misfire, not a
+    load-bearing veto — which is why its gate is narrow.
     """
     norm = normalize_label(label)
     if not norm:
@@ -579,10 +592,25 @@ def _vetoed_by_never_sweep(res: _Residual, label: str) -> str | None:
     if norm in res.never_keys:
         return res.never_keys[norm]
     # Two tokens minimum, so a one-word caption cannot collide with any sentence containing it.
-    if len(norm.split()) >= 2 or len(norm) >= 4:
+    #
+    # THE GATE DID NOT SAY THAT. It read ``>= 2 or len(norm) >= 4``, and the ``or`` admitted exactly
+    # the one-word captions the sentence above excludes — any word of four characters printed inside
+    # one of those section sentences. Measured on this rulebook's 12 prose entries: a bare "Cash"
+    # row resolved to the investing section was vetoed by "the net cash flow from operating
+    # activities subtotal", and "Total", "Equity", "Assets", "Other" and "Income" collided the same
+    # way, 14 collisions in all, plus 1 of the 503 single-token captions the ontology itself knows.
+    # A sentence that names a SECTION cannot be what refuses a one-word row, and a wrong veto is not
+    # cheap: the row is flagged ineligible instead of swept, so its figure leaves the section and the
+    # subtotal stops tying. Both clauses must hold.
+    if len(norm.split()) >= 2 and len(norm) >= 4:
         for prose in res.never_prose:
             if norm in prose:
                 return prose
+    elif norm in res.never_prose:
+        # A caption that IS the whole entry is not a collision — there is no sentence containing it.
+        # This is the exact match the ``never_keys`` path makes when an entry resolves to a concept,
+        # so a one-word entry still refuses its own one word and nothing else.
+        return norm
     return None
 
 
@@ -592,11 +620,22 @@ _Captions = dict[str, dict[str, tuple[str, tuple[str, ...]]]]
 def _dedicated_captions(ontology, members: dict) -> _Captions:
     """Per section, the exact captions its DEDICATED concepts answer to — prohibition 4's index.
 
-    Exact normalised captions only, and only the section's ``dedicated`` concepts (not its
-    subtotals, which the eligibility list and ``never_sweep`` already refuse). A caption that IS a
-    dedicated concept's label or alias is a row that concept would have claimed had it been asked,
+    Exact normalised captions only, and only the section's ``dedicated`` concepts. A caption that IS
+    a dedicated concept's label or alias is a row that concept would have claimed had it been asked,
     so absorbing it means the sweep ran on a row nobody tested. Anything looser would refuse rows on
     a resemblance, which is the mapper's job and not a prohibition's.
+
+    THE SUBTOTALS ARE NOT COVERED, HERE OR ANYWHERE BY CAPTION. This said they were — "not its
+    subtotals, which the eligibility list and ``never_sweep`` already refuse" — and neither half
+    holds. The eligibility list refuses a subtotal by ROLE (``_EXCLUSIONS``: ``row.role is
+    LineRole.SUBTOTAL``), which is the classifier's verdict, so it says nothing about the run where
+    the classifier missed it — the only run any of this matters on. And ``never_sweep`` names
+    subtotals one at a time: measured on ``output_csv_hk_ontology.json``, 56 of the 169 deduped
+    subtotal captions carry no caption-level guard of any kind (41 of the 154 in the 11 sections
+    that actually have a residual bucket). Widening the index to subtotals is NOT the fix — a
+    subtotal caption in the index would refuse the row prohibition 4 exists to send to review, and
+    the sweep would lose the residual's own "Total other ..." captions with it. The gap is real and
+    it belongs to ``never_sweep`` authoring, so it is recorded here rather than papered over.
     """
     by_key = {m.canonical_key: m for m in ontology.mappings}
     out: _Captions = {}

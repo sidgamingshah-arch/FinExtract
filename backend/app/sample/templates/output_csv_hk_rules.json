@@ -158,53 +158,7 @@
    "either": "Subtotals, working-capital movements, fair-value changes, share of results, OCI and net cash flows are sign-indeterminate. Retain the reported sign; never coerce.",
    "validation": "A concept whose sign_convention is positive_expected or negative_expected but whose loaded value carries the opposite sign is a review trigger, not an auto-correction."
   },
-  "mutually_exclusive_groups": [
-   {
-    "id": "equity_reserves",
-    "aggregate": "bs_equity__reserves",
-    "components": [
-     "bs_equity__share_premium",
-     "bs_equity__capital_reserve",
-     "bs_equity__general_reserve",
-     "bs_equity__other_comprehensive_income_reserve",
-     "bs_equity__retained_earnings",
-     "bs_equity__treasury_shares",
-     "bs_equity__shares_held_for_share_award_schemes",
-     "bs_equity__others"
-    ],
-    "rule": "Populate the aggregate only when the face prints a single undifferentiated 'Reserves' line. If any component is printed, populate components and leave the aggregate null.",
-    "note": "The template's bs_equity__reserves rollup lists all of these. Loading the aggregate and its components together double-counts, and that rollup is what reports the disagreement when a filing prints both."
-   },
-   {
-    "id": "associate_jv_share",
-    "aggregate": "pl_exceptional_items__share_of_profit_of_associates_and_jvs",
-    "components": [
-     "pl_exceptional_items__share_of_profits_and_losses_of_associates",
-     "pl_exceptional_items__share_of_profits_and_losses_of_joint_ventures"
-    ],
-    "rule": "Combined face line populates the aggregate. Separately printed lines populate the components. Never both.",
-    "note": ""
-   },
-   {
-    "id": "cf_starting_point",
-    "aggregate": "cf_cash_flow_from_operating_activities__profit_before_tax",
-    "components": [
-     "cf_cash_flow_from_operating_activities__profit_for_the_year"
-    ],
-    "rule": "An indirect-method cash flow starts from profit before tax OR from profit for the year. Populate whichever the face prints and leave the other null.",
-    "note": "The template's operating rollup lists both starting lines because exactly one is ever printed, which is how the spec's COALESCE is expressed without a COALESCE operator. A filing populating both would count its profit twice in operating profit before working capital changes."
-   },
-   {
-    "id": "oci_composition",
-    "aggregate": "pl_other_comprehensive_income_for_the_year",
-    "components": [
-     "pl_oci__items_not_reclassified",
-     "pl_oci__items_may_be_reclassified"
-    ],
-    "rule": "Populate the subtotal only when the face prints a single undifferentiated other comprehensive income line. If either category is printed, populate the categories and leave the subtotal null.",
-    "note": "The template's pl_other_comprehensive_income_for_the_year rollup lists both categories. Loading the printed subtotal alongside them double-counts other comprehensive income, and the rollup reports the disagreement when a filing prints both."
-   }
-  ]
+  "mutually_exclusive_groups": []
  },
  "validation": {
   "schema_version": 1,

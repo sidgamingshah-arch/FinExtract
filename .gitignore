@@ -61,3 +61,9 @@ playwright-report/
 # Generated on demand by backend/scripts/template_output_structure.py for template review — a
 # snapshot of one run's output shape, not source.
 /template_output_structure.xlsx
+
+# Session scratch: audit output, run artefacts, filing PDFs. Never committed.
+_audit/
+_run8/
+_run9/
+_scratch/

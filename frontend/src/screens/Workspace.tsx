@@ -17,7 +17,7 @@ import { color, confStyle, font, layout, radius, shadow, fmtIN, fmtPlain, parseA
 import { DERIVED_STATEMENTS } from "../types";
 import type { Basis, FxRateResolution, StatementColumn, StatementKey, StatementResponse, StatementRow, SupersededTemplate } from "../types";
 import { ApiError, refusalText } from "../lib/api";
-import { activeTemplate, ontologyInForce, useDocumentRun, useDocumentRunStatus, useDocumentRuns, useDocumentStatement, useEditDocumentLineItem, useFxRateResolution, useOntologies, useReextract, useRevertDocumentLineItem, useStatement, useEditLineItem, useProjectLoaded, useTemplates } from "../lib/queries";
+import { activeTemplate, configurationInForce, useDocumentRun, useDocumentRunStatus, useDocumentRuns, useDocumentStatement, useEditDocumentLineItem, useFxRateResolution, useLineItemVersions, useReextract, useRevertDocumentLineItem, useStatement, useEditLineItem, useProjectLoaded, useTemplates } from "../lib/queries";
 import { useCan } from "../lib/rbac";
 import { useUI } from "../store";
 import { useT } from "../i18n";
@@ -783,29 +783,36 @@ function InspectorEditor({
   );
 }
 
-/** The rulebook and template a fresh run defaults to: the one in force for the template selected on
- *  the Upload screen, and failing that the one in force among everything stored — decided by the ONE
- *  shared rule (`ontologyInForce`), never by a version comparison of this screen's own.
+/** The configuration and template a fresh run defaults to: the one in force for the template
+ *  selected on the Upload screen, and failing that the one in force among everything stored —
+ *  decided by the ONE shared rule (`configurationInForce`), never by a version comparison of this
+ *  screen's own.
  *
- *  Launching a run needs the pair because a POST that names neither records `engine_default` and maps
- *  against no rulebook at all — a spread offered as "rebuilt against the current template" would come
- *  back with nothing mapped to it. */
+ *  This read was `useOntologies` + `ontologyInForce`. Line items is the single configuration engine
+ *  now — there is one store of versions to default from and no engine to select between — so the
+ *  pair is a `line_item_versions` row and a template version, and the run pins them both.
+ *
+ *  Launching a run needs the PAIR because a POST that names neither records `engine_default` and
+ *  maps against no configuration at all — a spread offered as "rebuilt against the current template"
+ *  would come back with nothing mapped to it. That is why the button below is gated on both being
+ *  present rather than firing with whichever half arrived first. */
 function useRunDefaults() {
-  const ontQ = useOntologies();
+  const cfgQ = useLineItemVersions();
   const tplQ = useTemplates();
   const selectedTemplateId = useUI((s) => s.selectedTemplateId);
   const selectedKey = activeTemplate(tplQ.data, selectedTemplateId)?.template_key ?? null;
-  const ont = ontologyInForce(ontQ.data, (o) => o.target_template_key === selectedKey)
-    ?? ontologyInForce(ontQ.data);
-  // The version a RE-EXTRACT should use: the analyst's selection when it belongs to this rulebook's
-  // template, else the latest. The comment here used to say the list "serves the CURRENT version per
-  // key" — it does not, it serves every version, and `find` by key took the first, i.e. the oldest.
-  // So the one action whose entire purpose is "rebuild against the current template" was rebuilding
-  // against v1. `activeTemplate` is the same rule the Upload and extraction screens use.
-  const tpl = ont
-    ? activeTemplate(tplQ.data, selectedTemplateId, ont.target_template_key)
+  const cfg = configurationInForce(cfgQ.data, (c) => c.target_template_key === selectedKey)
+    ?? configurationInForce(cfgQ.data);
+  // The version a RE-EXTRACT should use: the analyst's selection when it belongs to this
+  // configuration's template, else the latest. The comment here used to say the list "serves the
+  // CURRENT version per key" — it does not, it serves every version, and `find` by key took the
+  // first, i.e. the oldest. So the one action whose entire purpose is "rebuild against the current
+  // template" was rebuilding against v1. `activeTemplate` is the same rule the Upload and extraction
+  // screens use.
+  const tpl = cfg
+    ? activeTemplate(tplQ.data, selectedTemplateId, cfg.target_template_key)
     : undefined;
-  return { ont, tpl };
+  return { cfg, tpl };
 }
 
 /* ---- a document that is uploaded but has no spread to show yet ----
@@ -943,10 +950,10 @@ function SupersededBanner({ info, documentId, t }: {
 }) {
   const canRun = useCan("pipeline:run");
   const reextract = useReextract(documentId);
-  // A run needs a rulebook and a template to be worth starting, and both are read from lists that
-  // load asynchronously. No pair, no button: pressing it before they arrive would start a run that
-  // maps against nothing, which is worse than the stale spread the banner is complaining about.
-  const { ont, tpl } = useRunDefaults();
+  // A run needs a configuration and a template to be worth starting, and both are read from lists
+  // that load asynchronously. No pair, no button: pressing it before they arrive would start a run
+  // that maps against nothing, which is worse than the stale spread the banner is complaining about.
+  const { cfg, tpl } = useRunDefaults();
   return (
     <div
       data-testid="ws-superseded"
@@ -966,11 +973,11 @@ function SupersededBanner({ info, documentId, t }: {
       </span>
       {/* One statement at a time: once a new run has started, the offer to start one is gone —
           pressing it again would queue a second run for the same revision. */}
-      {canRun && ont && tpl && !reextract.isSuccess && (
+      {canRun && cfg && tpl && !reextract.isSuccess && (
         <button
           data-testid="ws-reextract"
           disabled={reextract.isPending}
-          onClick={() => reextract.mutate({ ontologyId: ont.id, templateId: tpl.id })}
+          onClick={() => reextract.mutate({ lineItemVersionId: cfg.id, templateId: tpl.id })}
           style={{ fontSize: 11.5, fontWeight: 600, color: color.amberFg, background: "#fff",
                    border: `1px solid ${color.amberFg}55`, borderRadius: radius.controlSm,
                    padding: "4px 10px", cursor: reextract.isPending ? "default" : "pointer" }}

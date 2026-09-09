@@ -11,8 +11,27 @@
 # NEVER put secrets (API keys, DB passwords) here. Keys are read from environment
 # variables named by *_api_key_env below, so this file can live safely in git.
 
-[app]
-name = "FinExtract Extraction API"
+# ---------------------------------------------------------------------------
+# Application identity and mount point
+#
+# BARE TOP-LEVEL KEYS, NOT AN `[app]` TABLE — that is the fix, not a style choice. These two
+# used to be written as `[app] name` + `[app] api_prefix`, and bound to NOTHING: `Settings`
+# has no `app` field (the fields are `app_name` and `api_prefix`, declared at the top level in
+# app/config.py), and `Settings` sets extra="ignore", so pydantic-settings saw the whole table
+# as one unknown key and dropped it. Measured through the loader itself —
+# `TomlConfigSettingsSource(Settings)()` returns an `app` key and `'app' in
+# Settings.model_fields` is False. Nobody noticed because both shipped values happen to equal
+# the built-in defaults, so a deployment that set `api_prefix = "/api/v2"` got a server still
+# mounted at /api/v1 with no warning. app/config.py now logs one WARNING naming every key in
+# this file that binds to nothing, so the next such typo says so at startup.
+#
+# Deliberately NOT re-homed under an `AppSettings` submodel: that would rename the environment
+# contract from FINEX_API_PREFIX to FINEX_APP__API_PREFIX and silently break any deployment
+# using the env override (both forms bind today, verified).
+#
+# Changing `api_prefix` still needs a frontend change too — frontend/src/lib/api.ts:2
+# hardcodes "/api/v1".
+app_name = "FinExtract Extraction API"
 api_prefix = "/api/v1"
 
 # ---------------------------------------------------------------------------
@@ -53,9 +72,34 @@ review_required = true
 # (empty); an admin can load or clear the sample at runtime from the Settings screen.
 seed_demo = false
 
-# Default output language for extracted financial data, and the set of languages the
-# app offers. Adding a language is a data/asset change, not a code change.
+# Default output language for extracted financial data, and the set of languages the app
+# offers.
+#
+# `supported_locales` NARROWS the offered set; it does not define it. The candidates come from
+# code — `SEED_LANGUAGES` + `UI_BUNDLES` in app/schemas/languages.py — and each one is then
+# gated per template + rulebook on real alias/label parity by `evaluate_parity`, which is what
+# GET /languages reports and what the language switcher offers. This list is intersected with
+# that registry (api/routes/languages.py), so removing an entry here takes the locale off the
+# menu, while adding one that code does not know about does nothing. An empty or absent list
+# means "no narrowing", not "no languages".
+#
+# So ADDING a language is NOT purely a data/asset change, which is what this comment used to
+# claim. Beyond the OCR pack, the rulebook `aliases_i18n`, the template `label_i18n` and the
+# number-format rules, it needs code on both sides: `SEED_LANGUAGES`/`UI_BUNDLES` above,
+# frontend/src/types.ts:4 (the `Locale` union) and frontend/src/i18n.ts:23 (`NATIVE_NAME`) —
+# the switcher filters on that last one, so a locale missing from it is dropped even after the
+# backend reports it fully supported.
+#
+# WHERE THIS ONE IS APPLIED. `default_output_locale` names the deployment's output language and
+# is resolved into the route defaults by `api/deps.py:32` (`output_locale`), so a HK/PRC
+# deployment setting it to "zh" gets Chinese output without every caller passing ?locale=zh. It
+# used to be read in exactly one place — the GET /settings echo — while the endpoints that
+# actually serve extracted output defaulted to a hardcoded `Query("en")`, so setting it changed
+# nothing an analyst could see. An empty or absent value falls back to "en".
 default_output_locale = "en"
+# …whereas THIS one is not admin-flippable: it is a list, so it does not travel through the
+# PATCH /settings contract. It narrows the language menu as described above, and is intersected
+# with the parity registry rather than trusted on its own.
 supported_locales = ["en", "zh", "ar", "fr"]
 
 # ---------------------------------------------------------------------------
@@ -71,7 +115,12 @@ supported_locales = ["en", "zh", "ar", "fr"]
 # bedrock_gateway    → Internal Bedrock Anthropic invoke gateway; set base_url + deployment model
 # openai / openai_compatible → OpenAI Chat Completions wire format (OpenAI, TokenRouter,
 #                      OpenRouter, vLLM, …); set base_url + a vendor/model id below
-# local | stub       → offline / no-op
+# stub               → offline / no-op
+# There is no `local` llm adapter — `local` is an OBJECT_STORE id (adapters/__init__.py), and this
+# menu used to list it. Selecting it reached no registry entry: HTTP 400 on two paths, a logged
+# no-op on gap_closing and contingent_liabilities, and a deterministic-only mapping run. It is not
+# aliased to `stub` either — map_ontology.py fast-paths the literal "stub" only, so an alias would
+# resolve and stamp mapping_strategy="llm_description" on a run that made zero model calls.
 #
 # Every value here is editable at run time from the Settings screen and persisted, so this file is
 # the starting point rather than the commitment: changing model, deployment, region or provider is
@@ -79,8 +128,25 @@ supported_locales = ["en", "zh", "ar", "fr"]
 # read from, so it cannot reach the database or a settings export.
 provider = "openai_compatible"
 model = "azure-openai/gpt5.4-mini"  # gateway model id: "<vendor>/<deployment name>"
-temperature = 0.0               # deterministic output for structured extraction
-max_tokens = 4096000
+# `temperature` was here and is GONE: it reached no provider call (the port default of 0.0 won
+# everywhere), so it is fixed at 0.0 in code and is not configuration. See app/config.py's
+# LlmSettings for the full note. A leftover value in a local copy of this file is still ignored
+# (Settings uses extra="ignore") rather than an error — but it is now NAMED in the startup
+# WARNING that lists every key here binding to nothing, so it is visible instead of silent.
+# Per-call completion ceiling, shared by every FREE-FORM call — it is passed through verbatim as
+# the requested allocation by the gap-routing, contingent-liabilities, commentary/analysis and
+# netting paths, so it overrides each callee's own default rather than capping it. Mapping does NOT
+# use it: services/mapping.py `_effective_batch_max_tokens` derives a budget from the batch
+# envelope instead, for the reason config.py's `llm_batch_response_floor_tokens` comment records —
+# sending a request ceiling of millions makes compatible gateways reserve millions of tokens for a
+# small structured reply and time out before answering.
+# This shipped as 4096000, which is exactly that failure: the gateway's own answer was
+# "max_tokens is too large: 4096000. This model supports at most 128000 completion tokens"
+# (recorded in tests/test_llm_audit.py). The adapter's adaptive 400 loop recovered it at the cost
+# of a wasted round-trip per call, and a gateway that STALLS instead of rejecting was retried three
+# times with the same 4,096,000. 32768 clears every callee's own default — the largest is
+# run_analysis's 4096 (services/analysis_llm.py) — so nothing is truncated by the change.
+max_tokens = 32768
 timeout_seconds = 600
 base_url = "https://llmgateway.crisil.local/api/openai"
 api_key_env = "AZURE_OPENAI_API_KEY" # env var the key is read from (the key itself is NOT stored here)
@@ -119,7 +185,6 @@ azure_api_key_env = "AZURE_DI_KEY"
 # Extraction / reconciliation tuning
 # ---------------------------------------------------------------------------
 [extraction]
-llm_note_structuring = true
 evidence_floor = 0.55           # how nearly a caption must BE an authored alias to count as one
 alias_coverage_floor = 0.45     # …and how much of that alias the caption must explain
 mapping_margin = 0.08           # winner must beat the runner-up by this margin, else review

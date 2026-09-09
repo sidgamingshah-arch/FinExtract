@@ -147,6 +147,7 @@ import type {
   Basis,
   CellContext,
   Commentary,
+  ConfigurationRecord,
   DemoUser,
   DocSearchResult,
   DocumentRunStatus,
@@ -158,20 +159,18 @@ import type {
   FxRateInput,
   FxRateResolution,
   IntegrityResponse,
+  LineItemEditResult,
+  LineItemSchema,
+  LineItemVersionRef,
   Locale,
   LoginResponse,
   MappingEdit,
   Me,
-  NettingRuleEdit,
   NoteDetail,
   NotesResponse,
-  OntologyEditResult,
-  OntologyRef,
-  OntologySchema,
   PagesResponse,
   ProjectResponse,
   ReviewResponse,
-  RulebookRecord,
   SettingsPatch,
   SourceDoc,
   LineItemsResponse,
@@ -237,7 +236,10 @@ export const api = {
     req<{ entry: AuditEntry; result: unknown }>(`/projects/${PROJECT}/analysis`, { method: "POST" }),
   project: () => req<ProjectResponse>(`/projects/${PROJECT}`),
   documents: () => req<{ documents: SourceDoc[] }>(`/documents`),
-  ontologies: () => req<OntologyRef[]>(`/ontologies`),
+  /** Every stored version of THE configuration — the line-item sets, newest edit of each key
+   *  first. This was `ontologies()` on `/ontologies`; line items is the single configuration
+   *  engine, so there is one store of versions to list and no engine to pick between. */
+  lineItemVersions: () => req<LineItemVersionRef[]>(`/line-items/versions`),
   templates: () => req<TemplateRef[]>(`/templates`),
   /** Start a run. The 202 carries the rulebook the run was CREATED with, so the screen can name
    *  what governs the figures from the moment the run exists rather than waiting for a result — or
@@ -252,10 +254,14 @@ export const api = {
   runExtraction: (
     documentId: string,
     body: {
-      ontology_version_id?: string; template_version_id?: string; force?: boolean;
+      // WHICH CONFIGURATION the run maps against — a `line_item_versions` row. The field was
+      // `ontology_version_id`; there is one configuration engine now, so a run pins a line-item
+      // version and nothing else.
+      line_item_version_id?: string; template_version_id?: string; force?: boolean;
     } = {},
   ) =>
-    req<{ run_id: string; status: string; rulebook?: RulebookRecord | null; adopted?: boolean }>(
+    req<{ run_id: string; status: string; rulebook?: ConfigurationRecord | null;
+          adopted?: boolean }>(
       `/documents/${documentId}/extractions`, {
         method: "POST",
         body: JSON.stringify(body),
@@ -430,12 +436,16 @@ export const api = {
     req<PagesResponse>(`/projects/${PROJECT}/pages?locale=${locale}`),
   statement: (statement: StatementKey, basis: Basis, locale: Locale = "en") =>
     req<StatementResponse>(`/projects/${PROJECT}/statements/${statement}?basis=${basis}&locale=${locale}`),
-  editLineItem: (id: string, value: number | null, formula: string) =>
+  /** Edit / revert one FIGURE of the seeded sample project. Named `editProjectLineItem` because
+   *  `editLineItem` below is the CONFIGURATION edit (a line item's matching rules): the two are
+   *  different things on different routes, and one name for both is how a figure edit and a
+   *  configuration publish come to look interchangeable. */
+  editProjectLineItem: (id: string, value: number | null, formula: string) =>
     req<{ id: string; value: number | null; formula: string }>(
       `/projects/${PROJECT}/line-items/${id}`,
       { method: "PATCH", body: JSON.stringify({ value, formula }) },
     ),
-  revertLineItem: (id: string) =>
+  revertProjectLineItem: (id: string) =>
     req<{ id: string }>(`/projects/${PROJECT}/line-items/${id}`, { method: "DELETE" }),
   notes: (locale: Locale = "en") => req<NotesResponse>(`/projects/${PROJECT}/notes?locale=${locale}`),
   note: (no: string, locale: Locale = "en") =>
@@ -444,8 +454,8 @@ export const api = {
   template: (locale: Locale = "en") => req<TemplateResponse>(`/projects/${PROJECT}/template?locale=${locale}`),
   exportOptions: () => req<{ options: ExportOption[] }>(`/projects/${PROJECT}/export-options`),
   exportUrl: () => `${BASE}/projects/${PROJECT}/export`,
-  /** A real configured template rendered into the tree + per-node config the Template &
-   *  Ontology screen shows (aliases/sign/netting from the paired ontology). */
+  /** A real configured template rendered into the tree + the per-node config the Template screen
+   *  shows (aliases/sign/netting, read from the line-item version that targets it). */
   templateDetail: (id: string, locale: Locale = "en") =>
     req<TemplateResponse>(`/templates/${id}/detail?locale=${locale}`),
   languages: () =>
@@ -457,24 +467,28 @@ export const api = {
   createTemplate: (definition: unknown) =>
     req<{ id: string; template_key: string; version: number }>(
       `/templates`, { method: "POST", body: JSON.stringify({ definition }) }),
-  /** Upload an ontology (the extraction rulebook) FOR a template. `targetTemplateKey` re-points
-   *  a rulebook written against another template; it still has to validate against the one named,
-   *  so a key the template doesn't define comes back as a 422 listing it. */
-  createOntology: (definition: unknown, targetTemplateKey?: string) =>
-    req<{ id: string; ontology_key: string; target_template_key: string; version: number;
-          mappings: number }>(
-      `/ontologies`, {
+  /** Publish a line-item set as a NEW VERSION of the configuration, FOR a template. This was
+   *  `createOntology` on `/ontologies`; the store it wrote to is gone and `POST /line-items` is
+   *  the only door into the one that replaced it. `targetTemplateKey` re-points a set authored
+   *  against another template; it still has to validate against the one named, so a key the
+   *  template doesn't define comes back as a 422 listing it. */
+  publishLineItems: (definition: unknown, targetTemplateKey?: string) =>
+    req<{ id: string; line_items_key: string; target_template_key: string; version: number;
+          items: number }>(
+      `/line-items`, {
         method: "POST",
         body: JSON.stringify({ definition, target_template_key: targetTemplateKey ?? null }),
       }),
-  /** The shape an authored ontology must have, generated from the model the upload gate
+  /** The shape an authored configuration must have, generated from the model the upload gate
    *  validates with: the JSON Schema plus a flat, per-field index to read it by. Admin-only,
-   *  like every other ontology configuration call — gate the control on `config:ontology`. */
-  ontologySchema: () => req<OntologySchema>(`/ontologies/schema`),
-  /** A stored ontology's full definition — for "download, edit, upload back". */
-  ontologyDetail: (id: string) =>
-    req<{ id: string; ontology_key: string; target_template_key: string; version: number;
-          definition: unknown }>(`/ontologies/${id}`),
+   *  like every other configuration call — gate the control on `config:line_items`. */
+  lineItemSchema: () => req<LineItemSchema>(`/line-items/schema`),
+  /** One stored version's full definition — for "download, edit, upload back". `loads` is the
+   *  server's own verdict on whether today's schema can still read the row. */
+  lineItemVersionDetail: (id: string) =>
+    req<{ id: string; line_items_key: string; target_template_key: string; version: number;
+          created_at?: string | null; definition: unknown; loads?: boolean }>(
+      `/line-items/versions/${id}`),
   /** What the template workbook's columns mean, straight from the reader that enforces them. */
   templateXlsxColumns: () =>
     req<{ columns: { key: string; header: string }[];
@@ -500,19 +514,22 @@ export const api = {
     }
     return res.json();
   },
-  /** Edit ONE concept's rules inline — aliases, sign, and the mapping criteria the model
-   *  reasons over. The server validates the result and publishes a NEW ontology version (so a
-   *  past extraction still explains itself against the version it actually used); the
-   *  response carries that new version's id/number. */
-  editOntologyMapping: (ontologyId: string, edit: MappingEdit) =>
-    req<OntologyEditResult & { canonical_key: string }>(
-      `/ontologies/${ontologyId}/mappings`,
-      { method: "PATCH", body: JSON.stringify(edit) }),
-  /** Upsert or delete ONE netting rule. Netting restates a reported figure, so it goes
-   *  through the same versioned publish + validation as a concept edit. */
-  editNettingRule: (ontologyId: string, edit: NettingRuleEdit) =>
-    req<OntologyEditResult>(
-      `/ontologies/${ontologyId}/netting-rules`,
+  /** Edit ONE line item's rules inline — aliases, sign, the section gate and the matching
+   *  criteria the model reasons over. The server validates the result and publishes a NEW
+   *  line-item version (so a past extraction still explains itself against the version it
+   *  actually used); the response carries that new version's id/number.
+   *
+   *  Was `editOntologyMapping` on `/ontologies/{id}/mappings`. The endpoint's own body names the
+   *  item `key` — the ontology's `canonical_key` named a concept space that no longer exists —
+   *  and the edit object handed in here is passed through unchanged.
+   *
+   *  THE NETTING-RULE EDIT THAT SAT BESIDE THIS IS GONE with the route that served it
+   *  (`PATCH /ontologies/{id}/netting-rules`). Netting is part of the line-item set, so it is
+   *  published like any other part of it — through the one configuration engine, not through a
+   *  second ontology-shaped door. */
+  editLineItem: (lineItemVersionId: string, edit: MappingEdit) =>
+    req<LineItemEditResult & { key: string }>(
+      `/line-items/versions/${lineItemVersionId}/items`,
       { method: "PATCH", body: JSON.stringify(edit) }),
   /** The deployment-wide run trail (admin only — `audit:view`). */
   adminAudit: (limit = 500) => req<AdminAuditResponse>(`/audit?limit=${limit}`),
@@ -546,8 +563,9 @@ export async function downloadExport(body: {
 }
 
 /** Save an authenticated download to disk, preferring the name the SERVER chose.
- *  Shared by the authoring downloads: both put the source version in the filename, so the file
- *  the user edits says which version it was generated from — a detail a client-side name loses. */
+ *  The server puts the source version in the filename, so the file the user edits says which
+ *  version it was generated from — a detail a client-side name loses. (It had a second caller,
+ *  the ontology skeleton download; that is gone, and this stays generic for the next one.) */
 async function saveAsFile(res: Response, fallbackName: string): Promise<void> {
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -574,19 +592,13 @@ export async function downloadTemplateXlsx(templateId: string, fallbackName: str
   );
 }
 
-/** Download a ready-to-edit ontology for one template: every canonical_key already a stub inside
- *  the section it is printed under. It is a COMPLETE, valid rulebook — it can be uploaded back
- *  unmodified — so authoring means filling in aliases and criteria instead of discovering the
- *  expected shape from a sequence of 422s. Admin-only (`config:ontology`). */
-export async function downloadOntologySkeleton(
-  templateId: string, fallbackName: string,
-): Promise<void> {
-  await saveAsFile(
-    await fetch(`${BASE}/ontologies/skeleton?template_id=${encodeURIComponent(templateId)}`,
-                { headers: { ...authHeader() } }),
-    `${fallbackName}_ontology_skeleton.json`,
-  );
-}
+// THE SKELETON DOWNLOAD IS GONE. It fetched `/ontologies/skeleton?template_id=…` — a
+// ready-to-edit ontology of empty stubs, one per canonical_key — and both the route and the
+// generator behind it went with the ontology store. Authoring starts from the configuration
+// already in force: `api.lineItemVersionDetail` serves a stored version's full definition to edit
+// and `api.publishLineItems` publishes it back, and `api.lineItemSchema` states the shape. A set
+// of stubs that recognises nothing is refused by that gate anyway (422 `recognises_nothing`), so
+// there is nothing left for a skeleton to be the start of.
 
 /** GET a REAL document's export (built from its latest extraction) and download it. Excel
  * uses the formatted, template-driven statement layout, localized to `locale`. CSV is the

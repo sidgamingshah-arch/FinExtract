@@ -667,7 +667,6 @@
               "rollup": {
                 "op": "sum",
                 "children": [
-                  "bs_nca__due_from_related_parties_ltp",
                   "bs_nca__net_fixed_assets",
                   "bs_nca__net_intangibles",
                   "bs_nca__investment_property_net",
@@ -677,6 +676,7 @@
                   "bs_nca__entrusted_loan_receivables_related_parties_ltp",
                   "bs_nca__due_from_directors",
                   "bs_nca__due_from_subsidiaries",
+                  "bs_nca__due_from_related_parties_ltp",
                   "bs_nca__entrusted_loan_receivables_shareholders_ltp",
                   "bs_nca__due_from_mi",
                   "bs_nca__due_from_sholder_ltp",
@@ -1138,7 +1138,6 @@
               "rollup": {
                 "op": "sum",
                 "children": [
-                  "bs_nca__due_from_related_parties_ltp",
                   "bs_ca__operating_lease_receivables",
                   "bs_ca__raw_materials",
                   "bs_ca__wip",
@@ -2934,16 +2933,7 @@
               "label_i18n": {
                 "en": "Deprec & Impairment(COS)"
               },
-              "role": "line",
-              "rollup": {
-                "op": "sum",
-                "children": [
-                  "is_pl__deprec_and_impairment_oper_exp",
-                  "is_pl__impairment_fixed_assets_oper_exp"
-                ],
-                "reported_total_key": "is_pl__deprec_and_impairment_cos",
-                "reported_total_op": "diff"
-              }
+              "role": "line"
             },
             {
               "node_id": "is_pl__total_cost_of_sales",

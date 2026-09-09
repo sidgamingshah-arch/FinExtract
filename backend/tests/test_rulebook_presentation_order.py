@@ -24,7 +24,6 @@ import pathlib
 
 import pytest
 
-from app.services.ontology_xlsx import build_ontology_xlsx
 
 _SAMPLES = pathlib.Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
 ONTOLOGY = _SAMPLES / "hkfrs_hk_china_ontology.json"
@@ -101,16 +100,20 @@ def test_the_file_counts_its_own_concepts_correctly(ontology):
     assert ontology["metadata"]["concept_count"] == len(ontology["mappings"])
 
 
-def test_the_workbook_a_reviewer_reads_is_in_the_same_order(ontology):
-    """The point of all of the above: the Concepts sheet is the artefact the ordering is FOR. If the
-    builder ever sorted or grouped rows on its own, the array could be in statement order and the
-    sheet still would not be."""
-    from openpyxl import load_workbook
-    import io
-
-    wb = load_workbook(io.BytesIO(build_ontology_xlsx(ontology)))
-    ws = wb["Concepts"]
-    header = [c.value for c in next(ws.iter_rows(min_row=1, max_row=1))]
-    col = header.index("Canonical key") + 1
-    sheet_keys = [ws.cell(row=r, column=col).value for r in range(2, ws.max_row + 1)]
-    assert sheet_keys == [c["canonical_key"] for c in ontology["mappings"]]
+# THE WORKBOOK ASSERTION THAT STOOD HERE IS RETIRED, with the artefact it was for.
+#
+# `test_the_workbook_a_reviewer_reads_is_in_the_same_order` loaded the Concepts sheet from
+# `app.services.ontology_xlsx.build_ontology_xlsx` and checked the sheet's key column against the
+# `mappings` array, on the argument that "the Concepts sheet is the artefact the ordering is FOR".
+#
+# That download is gone. Line items is the single configuration engine now, and the reviewer
+# workbook, the starter-file skeleton and the xlsx upload went with the ontology store and its
+# route — an accepted coverage loss, recorded in that change rather than smuggled in here. The
+# module the import named no longer exists, which is why this file stopped COLLECTING rather than
+# merely failing: one dead import took all five tests in it out of the run.
+#
+# The four tests above are kept deliberately and are NOT about the workbook. They hold that the
+# `mappings` array reads in the template's statement order, that every concept is presented
+# somewhere, and that the declared concept_count matches the array — and, as the module docstring
+# says, that the order stays MEANINGLESS to the engine, so re-ordering presentation can never move
+# a figure. That invariant outlived the artefact that motivated it.

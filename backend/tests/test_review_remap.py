@@ -32,6 +32,21 @@ from tests.fixtures.generate import make_unmapped_row_pdf
 API = "/api/v1"
 _SAMPLES = Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
 
+# RE-MAP TARGETS FOR THE END-TO-END TESTS, which run against the CONFIGURED pair.
+#
+# These were HKFRS keys — ``bs_current_assets__inventories`` and
+# ``bs_non_current_assets__property_plant_and_equipment`` — read against
+# ``hkfrs_hk_china_v1``. That template is seeded template-only now: the one shipped configuration
+# targets ``output_csv_hk_v1``, so a run resolves that spread and the endpoint refuses a key it
+# does not offer ("is not a line this run's template offers as a re-map target").
+#
+# Both are plain ``line`` nodes, deliberately: the endpoint excludes calculated subtotals and
+# section headers, and ``bs_ca__inventories`` — the obvious rename of the old current-asset target —
+# is declared ``role: subtotal`` on this template, so it is not offerable. One in each asset
+# section, because ``test_a_re_map_moves_the_rows_analyst_section_with_it`` needs the tag to move.
+_CURRENT_ASSET_TARGET = "bs_ca__prepayments_cp"
+_NON_CURRENT_ASSET_TARGET = "bs_nca__plant_and_equipment"
+
 
 @pytest.fixture(scope="module")
 def template() -> dict:
@@ -133,16 +148,18 @@ def test_the_row_handle_does_not_move_when_the_figure_does(template):
 # --- the endpoint -------------------------------------------------------------------------------
 
 def _extracted(client) -> str:
-    """One filing through the worker with the shipped template and rulebook attached."""
+    """One filing through the worker with the shipped template and configuration attached."""
     doc_id = client.post(f"{API}/documents",
                          files={"file": ("bs.pdf", make_unmapped_row_pdf(),
                                          "application/pdf")}).json()["id"]
-    ont = next(o for o in client.get(f"{API}/ontologies").json()
-               if o["ontology_key"] == "hkfrs_hk_china")
+    # Was the ``/ontologies`` picker plus an ``ontology_version_id`` pin. Line items is the single
+    # configuration engine; ``/line-items/versions`` is the only store, and the run pins a row of it.
+    cfg = next(c for c in client.get(f"{API}/line-items/versions").json()
+               if c["line_items_key"] == "output_csv_hk")
     tpl = next(t for t in client.get(f"{API}/templates").json()
-               if t["template_key"] == ont["target_template_key"])
+               if t["template_key"] == cfg["target_template_key"])
     client.post(f"{API}/documents/{doc_id}/extractions",
-                json={"template_version_id": tpl["id"], "ontology_version_id": ont["id"]})
+                json={"template_version_id": tpl["id"], "line_item_version_id": cfg["id"]})
     for _ in range(200):
         if client.get(f"{API}/documents/{doc_id}/run").json().get("status") == "succeeded":
             break
@@ -257,8 +274,11 @@ def test_re_mapping_a_weakly_mapped_row_clears_the_flag_that_marked_it(client):
     in place, a row a human placed by hand reads as a guess forever.
     """
     doc_id = _extracted(client)
-    row = _lowconf("Sundry receivables",
-                   "bs_current_assets__prepayments_other_receivables_and_other_assets", 25, y=0.71)
+    # Weakly mapped onto a key the run's template DOES declare — the old key
+    # (``bs_current_assets__prepayments_other_receivables_and_other_assets``) names no line of
+    # the configured spread, so the row would be raised as ``unmapped`` and the "raises NO card"
+    # assertion below would be about the wrong thing.
+    row = _lowconf("Sundry receivables", "bs_ca__other_receivables_cp", 25, y=0.71)
     _inject([row])
     ref = _row_ref(row)
 
@@ -268,13 +288,13 @@ def test_re_mapping_a_weakly_mapped_row_clears_the_flag_that_marked_it(client):
     assert not [c for c in review["checks"] if (c.get("remap") or {}).get("row_ref") == ref]
 
     r = client.post(f"{API}/documents/{doc_id}/review/remap",
-                    json={"row_ref": ref, "canonical_key": "bs_current_assets__inventories",
+                    json={"row_ref": ref, "canonical_key": _CURRENT_ASSET_TARGET,
                           "reason": "it is stock, not a receivable"})
     assert r.status_code == 200, r.text
 
     moved = next(x for x in client.get(f"{API}/documents/{doc_id}/run").json()["result"]["rows"]
                  if _row_ref(x) == ref)
-    assert moved["canonical_key"] == "bs_current_assets__inventories"
+    assert moved["canonical_key"] == _CURRENT_ASSET_TARGET
     assert "low_mapping_confidence" not in moved["flags"]
     assert moved["mapping_confidence"] == 1.0
     # …and on the VALUE too, which is what the grid colours each figure from.
@@ -305,7 +325,7 @@ def test_an_unknown_row_reference_is_a_404_not_a_silent_no_op(client):
     doc_id = _extracted(client)
     r = client.post(f"{API}/documents/{doc_id}/review/remap",
                     json={"row_ref": "0" * 64,
-                          "canonical_key": "bs_current_assets__inventories"})
+                          "canonical_key": _CURRENT_ASSET_TARGET})
     assert r.status_code == 404 and "matches" in r.json()["detail"]
 
 
@@ -343,7 +363,7 @@ def test_an_ambiguous_row_reference_is_refused_rather_than_resolved_to_the_first
 
     ref = _row_ref(twin)
     r = client.post(f"{API}/documents/{doc_id}/review/remap",
-                    json={"row_ref": ref, "canonical_key": "bs_current_assets__inventories"})
+                    json={"row_ref": ref, "canonical_key": _CURRENT_ASSET_TARGET})
     assert r.status_code == 409
     assert "share that reference" in r.json()["detail"]
     rows = client.get(f"{API}/documents/{doc_id}/run").json()["result"]["rows"]
@@ -358,12 +378,15 @@ def test_the_analyst_who_owns_the_extraction_may_re_map_it_and_anonymous_may_not
     doc_id = anon_client.post(f"{API}/documents",
                               files={"file": ("rm.pdf", make_unmapped_row_pdf(), "application/pdf")},
                               headers=auth("analyst")).json()["id"]
-    ont = next(o for o in anon_client.get(f"{API}/ontologies", headers=auth("analyst")).json()
-               if o["ontology_key"] == "hkfrs_hk_china")
-    tpl = next(t for t in anon_client.get(f"{API}/templates", headers=auth("analyst")).json()
-               if t["template_key"] == ont["target_template_key"])
+    # THE CONFIGURATION IS NOT PINNED HERE, and it cannot be: ``/line-items/versions`` is gated on
+    # ``config:line_items``, which an analyst does not hold — reading it as this role returns a
+    # refusal, not a list. It also is not the subject: the run resolves the set IN FORCE for its
+    # template and pins that, which is the request the upload screen actually sends. Only the
+    # TEMPLATE is pinned, so a throwaway one from a neighbouring test cannot decide the spread.
+    tpl = max((t for t in anon_client.get(f"{API}/templates", headers=auth("analyst")).json()
+               if t["template_key"] == "output_csv_hk_v1"), key=lambda t: t["version"])
     anon_client.post(f"{API}/documents/{doc_id}/extractions",
-                     json={"ontology_version_id": ont["id"], "template_version_id": tpl["id"]},
+                     json={"template_version_id": tpl["id"]},
                      headers=auth("analyst"))
     for _ in range(200):
         r = anon_client.get(f"{API}/documents/{doc_id}/run", headers=auth("analyst"))
@@ -408,7 +431,7 @@ def test_a_re_map_moves_the_rows_analyst_section_with_it(client):
     doc_id = _extracted(client)
     _review, card = _offer(client, doc_id)
     ref = card["remap"]["row_ref"]
-    target = "bs_non_current_assets__property_plant_and_equipment"
+    target = _NON_CURRENT_ASSET_TARGET
 
     before = next(x for x in client.get(f"{API}/documents/{doc_id}/run").json()["result"]["rows"]
                   if _row_ref(x) == ref)
@@ -420,7 +443,11 @@ def test_a_re_map_moves_the_rows_analyst_section_with_it(client):
     moved = next(x for x in result["rows"] if _row_ref(x) == ref)
     assert moved["bucket"] == "non_current_assets"
     assert moved["bucket_label"] == "Non-current assets"
-    assert moved["section"] == "bs_s1_non_current_assets"
+    # The configured template's non-current asset section token. It was ``bs_s1_non_current_assets``
+    # on the HKFRS spread; the BUCKET this maps to is unchanged (``services.buckets.bucket_of``
+    # resolves both tokens to ``non_current_assets``), which is why the assertion above still reads
+    # the same and only the token below moved.
+    assert moved["section"] == "bs_nca"
     assert moved["bucket"] != before.get("bucket")
 
     # …and the stored segmentation the section screens read moved with it, so the row is not in two
@@ -442,7 +469,7 @@ def test_un_mapping_a_row_takes_its_section_away_and_reports_it_unplaced(client)
     _review, card = _offer(client, doc_id)
     ref = card["remap"]["row_ref"]
     client.post(f"{API}/documents/{doc_id}/review/remap",
-                json={"row_ref": ref, "canonical_key": "bs_current_assets__inventories",
+                json={"row_ref": ref, "canonical_key": _CURRENT_ASSET_TARGET,
                       "reason": "first, map it"})
     client.post(f"{API}/documents/{doc_id}/review/remap",
                 json={"row_ref": ref, "canonical_key": "", "reason": "on reflection, nothing"})
@@ -488,7 +515,7 @@ def test_re_mapping_a_row_printed_in_a_note_does_not_make_it_a_face_row(client):
 
     client.post(f"{API}/documents/{doc_id}/review/remap",
                 json={"row_ref": _row_ref(row),
-                      "canonical_key": "bs_non_current_assets__property_plant_and_equipment",
+                      "canonical_key": _NON_CURRENT_ASSET_TARGET,
                       "reason": "it details the PPE note"})
 
     after = client.get(f"{API}/documents/{doc_id}/run").json()["result"]
@@ -523,12 +550,20 @@ def test_placing_a_row_by_hand_stops_it_being_counted_as_unplaced(client):
         "the un-map must put the row in the coverage list, or this test proves nothing")
 
     client.post(f"{API}/documents/{doc_id}/review/remap",
-                json={"row_ref": ref, "canonical_key": "bs_current_assets__inventories",
+                json={"row_ref": ref, "canonical_key": _CURRENT_ASSET_TARGET,
                       "reason": "traced to p.1: inventory"})
     after = client.get(f"{API}/documents/{doc_id}/run").json()["result"]
     assert row_id not in after["buckets"]["unresolved_face_item_ids"]
 
     index = client.get(f"{API}/documents/{doc_id}/buckets").json()
-    assert index["unresolved_face_rows"] == 0
+    # ONE STILL UNRESOLVED, AND IT IS NOT THIS ROW. The count was 0 here when the run mapped against
+    # the HKFRS pair; the configured configuration does not recognise the fixture's "Trade
+    # receivables" caption, so that row stays unplaced (see test_source_buckets for what that costs
+    # and how it is fixed in configuration). The claim this test makes is about the row the ANALYST
+    # placed, which is why the id-level assertions above and below are the load-bearing ones — the
+    # count is asserted exactly rather than relaxed to `<=` so a NEW row falling out of coverage
+    # still fails here.
+    assert index["unresolved_face_rows"] == 1
+    assert row_id not in after["buckets"]["unresolved_face_item_ids"]
     detail = client.get(f"{API}/documents/{doc_id}/buckets/current_assets").json()
     assert [r["unresolved"] for r in detail["rows"] if r["id"] == row_id] == [False]

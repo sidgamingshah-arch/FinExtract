@@ -7,9 +7,11 @@
  *
  * Once the run succeeds: real line items with click-to-source provenance. Clicking a PDF value
  * opens a Source panel that renders that page and highlights the value's bounding box. Mapping runs
- * against the rulebook in force for the selected template, or whichever one the reader pins here
- * instead — and the rulebook the run RECORDED is named above the rows, from the run's own record
- * (see RulebookPicker). Distinct from the demo-driven workspace: this reads a live extraction run. */
+ * against the LINE-ITEM configuration in force for the selected template, or whichever version the
+ * reader pins here instead — and the configuration the run RECORDED is named above the rows, from
+ * the run's own record (see ConfigurationPicker). Line items is the single configuration engine:
+ * there used to be a second, selectable kind of configuration here and there is no longer one to
+ * choose between. Distinct from the demo-driven workspace: this reads a live extraction run. */
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
@@ -19,14 +21,16 @@ import { ExcelSourcePanel, PagedSource, toPicked, type Picked } from "../compone
 import { useT } from "../i18n";
 import { refusalText } from "../lib/api";
 import {
-  activeTemplate, ontologyInForce, useDocumentAnalysis, useDocumentRunStatus, useExtraction, useOntologies,
-  useReextract, useStopRun, useTemplates,
+  activeTemplate, configurationInForce, useDocumentAnalysis, useDocumentRunStatus, useExtraction,
+  useLineItemVersions, useReextract, useStopRun, useTemplates,
 } from "../lib/queries";
 import { useCan } from "../lib/rbac";
 import { useUI, usePinnedRun } from "../store";
 import { SCREENS } from "./config";
 import { color, fmtElapsed, font, radius } from "../theme";
-import type { ExtractionProgress, ExtractionRow, Locale, OntologyRef, RulebookRecord } from "../types";
+import type {
+  ConfigurationRecord, ExtractionProgress, ExtractionRow, LineItemVersionRef, Locale,
+} from "../types";
 
 const GRID = "1.8fr 56px 1.3fr 1.1fr";
 /** Stage table: marker / stage / status — the Integrity screen's issue-row shape. */
@@ -54,9 +58,9 @@ function RowLine({ row, t, onPick, loc }: {
   row: ExtractionRow; t: (k: string) => string; onPick: (p: Picked) => void; loc: string;
 }) {
   const flagged = row.flags?.includes("low_mapping_confidence");
-  // The model's own stated justification for an LLM-decided row (see
-  // stages/map_ontology.py::_apply), carried as a row flag so it reaches here without a schema
-  // change. Shown as a small "why" marker rather than inline text — a rationale sentence would
+  // The model's own stated justification for an LLM-decided row (set by the line-item mapping
+  // stage, `map_line_items::_apply_result`), carried as a row flag so it reaches here without a
+  // schema change. Shown as a small "why" marker rather than inline text — a rationale sentence would
   // otherwise crowd out the figures on every LLM-mapped row.
   const llmReason = row.flags?.find((f) => f.startsWith("llm_reason:"))?.slice("llm_reason:".length);
   return (
@@ -264,23 +268,31 @@ function AnalysisSection({ id, locale, t }: { id: string; locale: Locale; t: (k:
   );
 }
 
-/** What the RUN says about the rulebook it read the filing against.
+/** What the RUN says about the LINE-ITEM configuration it read the filing against.
  *
- *  Every word here comes out of the run's own record (see `RulebookRecord`). The screen used to
- *  write this sentence itself, from the ontology list and its own idea of which rulebook was in
- *  force — and a reload after a newer rulebook was published then described a run that had used a
- *  replaced rulebook as governed by the current one. Which rulebook produced a figure is part of
- *  the figure, so it is reported, never recomputed: a run that used a superseded rulebook says
- *  "replaced" even when every list on the client insists otherwise.
+ *  Every word here comes out of the run's own record (see `ConfigurationRecord`). The screen used to
+ *  write this sentence itself, from the version list and its own idea of which configuration was in
+ *  force — and a reload after a newer version was published then described a run that had used a
+ *  replaced one as governed by the current one. Which configuration produced a figure is part of the
+ *  figure, so it is reported, never recomputed: a run that used an older version says so even when
+ *  every list on the client insists otherwise.
+ *
+ *  There is no `superseded` branch any more, because the record no longer carries that status: it
+ *  answered "has some other stored definition DECLARED this key replaced", which decided nothing
+ *  about what runs (selection is latest-stored-wins) and could be true of the very version in
+ *  force. `in_force` plus the in-force key/version below are the whole answer; do not reinstate a
+ *  second, declarative one.
  */
-function describeRun(r: RulebookRecord, t: (k: string) => string): { text: string; warn: boolean } {
+function describeRun(r: ConfigurationRecord, t: (k: string) => string): {
+  text: string; warn: boolean;
+} {
   const named = (s: string) =>
-    s.replace("{key}", r.ontology_key).replace("{v}", String(r.version));
+    s.replace("{key}", r.line_items_key).replace("{v}", String(r.version));
   if (r.status === "engine_default") return { text: t("tp.rb.usedEngineDefault"), warn: true };
   if (r.status === "missing") {
-    return { text: t("tp.rb.usedMissing").replace("{id}", r.ontology_version_id), warn: true };
+    return { text: t("tp.rb.usedMissing").replace("{id}", r.line_item_version_id), warn: true };
   }
-  // A rulebook whose stored definition would not load governed nothing, however firmly the run
+  // A configuration whose stored definition would not load governed nothing, however firmly the run
   // names it — so the sentence that names it also says that.
   const dead = r.applied === false ? ` ${t("tp.rb.notApplied")}` : "";
   if (r.status === "in_force") {
@@ -290,47 +302,56 @@ function describeRun(r: RulebookRecord, t: (k: string) => string): { text: strin
     };
   }
   // Departing from what is in force is worth naming what was departed from — except when the
-  // record's successor IS this rulebook, which happens when every stored rulebook for the template
-  // has been replaced and there is nothing current to point at.
-  const successor = r.in_force_ontology_key && r.in_force_ontology_key !== r.ontology_key
-    ? ` ${t("tp.rb.inForceIs").replace("{key}", r.in_force_ontology_key)
+  // record's in-force key IS this one, which happens when the server can name no other current
+  // version for the template to point at.
+  const successor = r.in_force_line_items_key && r.in_force_line_items_key !== r.line_items_key
+    ? ` ${t("tp.rb.inForceIs").replace("{key}", r.in_force_line_items_key)
           .replace("{v}", String(r.in_force_version))}`
     : "";
-  const text = named(t(r.status === "superseded" ? "tp.rb.usedSuperseded" : "tp.rb.usedPinned"));
-  return { text: text + successor + dead, warn: true };
+  return { text: named(t("tp.rb.usedPinned")) + successor + dead, warn: true };
 }
 
-/** Which rulebook a run reads the filing against, and what the run then recorded.
+/** WHICH CONFIGURATION a run reads the filing against, and what the run then recorded.
  *
- *  Until this existed the answer was a property of the configuration: whichever rulebook declared
+ *  ONE ENGINE. This was the rulebook picker, and it offered the OTHER kind of configuration — the
+ *  ontology — as the thing a run mapped against. That path is gone: line items is the single
+ *  configuration engine, so what is listed here are the stored versions of the line-item set
+ *  (`GET /line-items/versions`) and there is no engine left to choose between. Do not reinstate a
+ *  second list here; a screen that can name two kinds of configuration is a screen on which a run's
+ *  figures cannot be traced to one.
+ *
+ *  Until this existed the answer was a property of the configuration: whichever version declared
  *  itself the successor won, and nobody could pin an older one, or read one filing against two of
- *  them to see what changed. The default is still the rulebook in force — computed by the ONE
- *  shared rule (see `ontologyInForce`), not a local copy of it.
+ *  them to see what changed. The default is still the version in force — computed by the ONE shared
+ *  rule (see `configurationInForce`), not a local copy of it.
  *
- *  Choosing is not cosmetic: `ontology_version_id` travels with the POST that starts the run, so
- *  the pick decides the rules the mapper reasons with. Each choice is its own cached run, which is
- *  what makes comparing two of them on one filing a matter of switching back and forth.
+ *  Choosing is not cosmetic: `line_item_version_id` travels with the POST that starts the run, so
+ *  the pick decides the configuration the mapper reasons with — and the run PINS it, so the id on
+ *  the option a reader selects is the id the run is reproducible against. Each choice is its own
+ *  cached run, which is what makes comparing two of them on one filing a matter of switching back
+ *  and forth.
  *
  *  The select is the CHOICE — a statement about the configuration, so its annotations come from the
- *  ontology list. The sentence under it is the RUN, so it comes from `record` and from nothing
+ *  version list. The sentence under it is the RUN, so it comes from `record` and from nothing
  *  else. Until the run reports one there is no run to describe, and the line says what is being
  *  started instead of making a claim about figures that are not on screen yet.
  *
  *  Choosing only means something to a reader who can START a run: the pick travels with the POST, so
  *  for a reader who cannot (no `pipeline:run`) the select is dropped entirely — and with it any
- *  client-derived name for the rulebook. What is left is the RUN's own sentence, which is the only
- *  answer that is true about the figures on screen: naming the rulebook in force above a sentence
- *  saying the run used a superseded one is the contradiction this component exists to prevent.
+ *  client-derived name for the configuration. What is left is the RUN's own sentence, which is the
+ *  only answer that is true about the figures on screen: naming the version in force above a
+ *  sentence saying the run used an older one is the contradiction this component exists to prevent.
  */
-function RulebookPicker({ rows, inForce, chosen, record, onChoose, canChoose, templateKey, t }: {
-  rows: OntologyRef[]; inForce: OntologyRef | undefined; chosen: OntologyRef | undefined;
-  record: RulebookRecord | undefined; onChoose: (id: string) => void; canChoose: boolean;
+function ConfigurationPicker({ rows, inForce, chosen, record, onChoose, canChoose, templateKey, t }: {
+  rows: LineItemVersionRef[]; inForce: LineItemVersionRef | undefined;
+  chosen: LineItemVersionRef | undefined;
+  record: ConfigurationRecord | undefined; onChoose: (id: string) => void; canChoose: boolean;
   templateKey: string | undefined; t: (k: string) => string;
 }) {
   // Newest-looking first, and stable: same key together, highest version on top.
-  const sorted = [...rows].sort((a, b) => (a.ontology_key === b.ontology_key
+  const sorted = [...rows].sort((a, b) => (a.line_items_key === b.line_items_key
     ? b.version - a.version
-    : a.ontology_key.localeCompare(b.ontology_key)));
+    : a.line_items_key.localeCompare(b.line_items_key)));
   const used = record ? describeRun(record, t) : undefined;
 
   return (
@@ -349,17 +370,34 @@ function RulebookPicker({ rows, inForce, chosen, record, onChoose, canChoose, te
         >
           {!chosen && <option value="">{t("tp.rb.none")}</option>}
           {sorted.map((o) => (
-            <option key={o.id} value={o.id}>
-              {`${o.ontology_key} · v${o.version}`}
-              {/* Exclusive, because the two read as a contradiction together. `ontologyInForce`
-                  prefers a live row, so a superseded rulebook is only ever in force when EVERY
-                  rulebook for the template has been superseded — which is exactly the state a
-                  reader most needs described plainly rather than as "— in force — superseded". */}
-              {o.id === inForce?.id
-                ? ` — ${t(o.superseded ? "tp.rb.inForceSuperseded" : "tp.rb.inForce")}`
-                : o.superseded ? ` — ${t("tp.rb.superseded")}` : ""}
+            /* A configuration whose STORED definition no longer loads cannot be chosen. The server
+               probes each row (`loads`, routes/line_items.py::probe_line_item_load) rather than
+               assuming a row it holds is usable — the predecessor engine's store ended up with the
+               overwhelming majority of its stored versions unreadable, the seed having been repaired
+               and republished while the rows already stored were never migrated. Every one of them
+               used to render here as a bare, selectable `key · vN`, and a run pinned to one maps
+               nothing at all.
+               `=== false` and not `!o.loads`: an older server omits the field, and "did not say"
+               must not read as "broken".
+               Never disabled for the row that is CURRENTLY chosen — a <select> whose selected
+               <option> is disabled shows something other than the selection, and misreporting
+               which configuration a run is about to use is worse than offering a bad one. */
+            <option key={o.id} value={o.id}
+                    disabled={o.loads === false && o.id !== chosen?.id}>
+              {`${o.line_items_key} · v${o.version}`}
+              {/* Just "in force", and nothing paired with it: the declarative "superseded" label
+                  is gone from the payload with the ontology it came from. It answered "has some
+                  other stored definition declared this key replaced", which decided nothing about
+                  what runs — selection is latest-stored-wins — and could be true of the very row in
+                  force, printing "— in force — superseded". `in_force` is the whole answer. */}
+              {o.id === inForce?.id ? ` — ${t("tp.rb.inForce")}` : ""}
               {templateKey && o.target_template_key !== templateKey
                 ? ` — ${t("tp.rb.otherTemplate").replace("{tpl}", o.target_template_key)}` : ""}
+              {/* Written out rather than translated: the `tp.rb.*` vocabulary lives in
+                  i18n/screens/template.ts, which this change does not reach, and a key the
+                  dictionary does not hold prints as the key itself (`translate` falls through to
+                  it). Same compromise as STMT_LABELS below. */}
+              {o.loads === false ? " — will not load" : ""}
             </option>
           ))}
         </select>
@@ -369,7 +407,7 @@ function RulebookPicker({ rows, inForce, chosen, record, onChoose, canChoose, te
         // The id and the status are on the element that prints them so that what the run recorded
         // can be checked against what was chosen, rather than inferred from the wording.
         <span data-testid="ex-rulebook-used"
-              data-rulebook-id={record?.ontology_version_id}
+              data-line-items-id={record?.line_item_version_id}
               data-rulebook-status={record?.status}
               style={{ fontSize: 11, color: used.warn ? color.amberFg : color.muted2,
                        lineHeight: 1.5 }}>
@@ -379,7 +417,7 @@ function RulebookPicker({ rows, inForce, chosen, record, onChoose, canChoose, te
         <span data-testid="ex-rulebook-pending"
               style={{ fontSize: 11, color: color.muted2, lineHeight: 1.5 }}>
           {chosen
-            ? t("tp.rb.starting").replace("{key}", chosen.ontology_key)
+            ? t("tp.rb.starting").replace("{key}", chosen.line_items_key)
                 .replace("{v}", String(chosen.version))
             : t("tp.rb.none")}
         </span>
@@ -513,9 +551,10 @@ function RunProgress({ progress, stages, logTail, live, canStop, stopping, onSto
   }
   // WHAT THE STAGE IN FLIGHT IS DOING. Printed only when the run reports a total, because
   // `step_total === 0` means the stage has no sub-steps rather than none done — and "0 / 0" would
-  // read as a stalled measurement instead of an absent one. Ontology mapping is the only stage
-  // that reports these, and it is the one where a reader could previously not tell a working run
-  // from a hung one: it makes every LLM call in the run, behind a single frozen stage name.
+  // read as a stalled measurement instead of an absent one. Line-item mapping (`map_line_items`) is
+  // the only stage that reports these, and it is the one where a reader could previously not tell a
+  // working run from a hung one: it makes every LLM call in the run, behind a single frozen stage
+  // name.
   if (progress && Number.isFinite(progress.step_total) && progress.step_total > 0) {
     const unit = progress.step_label || t("ex.run.steps");
     stats.push({ label: unit, value: `${progress.step_done} / ${progress.step_total}`,
@@ -677,35 +716,39 @@ export default function ExtractionView() {
   const [picked, setPicked] = useState<Picked | null>(null);
   const [stmt, setStmt] = useState<string>("all");   // statement filter (by canonical prefix)
 
-  const ontQ = useOntologies();
+  // THE ONE CONFIGURATION LIST. Was `useOntologies`; there is no second engine to list, so this is
+  // the stored versions of the line-item set and nothing else.
+  const cfgQ = useLineItemVersions();
   const tplQ = useTemplates();
   const selectedTemplateId = useUI((s) => s.selectedTemplateId);
-  // The KEY of the selected version — what a rulebook targets. Derived from the one selection rather
-  // than stored beside it, so the two cannot drift out of step.
+  // The KEY of the selected version — what a line-item set targets. Derived from the one selection
+  // rather than stored beside it, so the two cannot drift out of step.
   const selectedKey = activeTemplate(tplQ.data, selectedTemplateId)?.template_key ?? null;
-  const ready = ontQ.isFetched && tplQ.isFetched;   // don't POST until the lists settle
-  // The rulebook a run DEFAULTS to: the one in force for the template the analyst selected on the
-  // Upload screen, and failing that the one in force among everything stored. "In force" is one
-  // shared rule (see ontologyInForce) — the copy that used to live here compared versions, which
-  // cannot rank two different rulebooks that target the same template.
+  const ready = cfgQ.isFetched && tplQ.isFetched;   // don't POST until the lists settle
+  // The configuration a run DEFAULTS to: the version in force for the template the analyst selected
+  // on the Upload screen, and failing that the one in force among everything stored. "In force" is
+  // one shared rule (see configurationInForce) — the copy that used to live here compared versions,
+  // which cannot rank two different sets that target the same template.
   //
   // There used to be a middle fallback naming `hkfrs_hk_china_v1` by hand, and a reader who had not
   // picked a template on the Upload screen — a fresh browser, so the common case — fell into it and
-  // had the filing read against exactly that: a rulebook the adopted v2 declares it replaces. The
-  // run's own record is what exposed it, reporting `superseded` while this screen was still calling
+  // had the filing read against exactly that: a version the adopted one replaces. The run's own
+  // record is what exposed it, reporting a pinned older version while this screen was still calling
   // it in force. A named key cannot follow an adoption; the shared rule can, so it decides.
   const inForce =
-    ontologyInForce(ontQ.data, (o) => o.target_template_key === selectedKey) ||
-    ontologyInForce(ontQ.data);
+    configurationInForce(cfgQ.data, (o) => o.target_template_key === selectedKey) ||
+    configurationInForce(cfgQ.data);
   // …and the one the reader PINNED, which outranks it. Empty means "follow whatever is in force",
-  // so publishing a new rulebook moves an unpinned reader forward rather than freezing them.
+  // so publishing a new version moves an unpinned reader forward rather than freezing them.
   //
   // Held in the URL, not in component state. As state it did not survive a reload: the reader was
-  // silently moved back to the rulebook in force while still looking at figures the run had produced
+  // silently moved back to the version in force while still looking at figures the run had produced
   // under the pinned one — the same class of mismatch as the reload blocker, arriving by a different
-  // door. The URL also makes the pin shareable, which is what someone comparing two rulebooks on one
-  // filing actually needs: `?rulebook=<id>` IS the comparison, and it is the same mechanism
-  // `?template=` uses on the Template screen. Deliberately not localStorage — a pin belongs to the
+  // door. The URL also makes the pin shareable, which is what someone comparing two configurations
+  // on one filing actually needs: `?rulebook=<id>` IS the comparison, and it is the same mechanism
+  // `?template=` uses on the Template screen. The query key stays `rulebook` deliberately — it
+  // names the configuration a run was read against, says nothing about an engine, and re-spelling
+  // it would break every link already shared. Deliberately not localStorage — a pin belongs to the
   // thing being read, not to the person reading, and a sticky pin would silently govern the NEXT
   // filing too.
   const [params, setParams] = useSearchParams();
@@ -716,32 +759,34 @@ export default function ExtractionView() {
       if (next) p.set("rulebook", next);
       else p.delete("rulebook");
       return p;
-      // `replace` so choosing a rulebook does not stack a history entry per click — Back should
+      // `replace` so choosing a configuration does not stack a history entry per click — Back should
       // leave the screen, not walk the reader through every pick they tried.
     }, { replace: true });
   }, [setParams]);
-  // A pin naming a rulebook that is no longer served (deleted, or a stale shared link) must not
+  // A pin naming a version that is no longer served (deleted, or a stale shared link) must not
   // leave the screen blank: fall through to what is in force, which is also what the picker shows.
-  const ont = (pinnedId ? ontQ.data?.find((o) => o.id === pinnedId) : undefined) ?? inForce;
+  const cfg = (pinnedId ? cfgQ.data?.find((o) => o.id === pinnedId) : undefined) ?? inForce;
   // THE VERSION THE RUN IS LAUNCHED AGAINST, and the reason a re-extraction could not pick up a
   // revised template. `find(tt => tt.template_key === ...)` matched a KEY over a list carrying every
   // version of it and took the first row — v1 on an unordered payload — so the pipeline validated and
   // shaped output against the OLDEST template no matter what had been published or chosen since.
-  // Now: the analyst's selection when it belongs to this rulebook's template, else the latest for it
-  // (`activeTemplate`, the same rule the Upload screen shows).
-  const tpl = ont
-    ? activeTemplate(tplQ.data, selectedTemplateId, ont.target_template_key)
+  // Now: the analyst's selection when it belongs to this configuration's template, else the latest
+  // for it (`activeTemplate`, the same rule the Upload screen shows).
+  const tpl = cfg
+    ? activeTemplate(tplQ.data, selectedTemplateId, cfg.target_template_key)
     : undefined;
-  // `rulebook` is what THIS run recorded — keyed on this document and this choice, so switching the
-  // pick cannot leave the previous run's rulebook labelling the new one. `progress`, `stages` and
-  // `logTail` come back BESIDE `data` because `data` stays undefined until the run succeeds, which
-  // is exactly what used to throw away everything the poll knew about a run in flight.
+  // `rulebook` is the wire name for what THIS run recorded about its CONFIGURATION — keyed on this
+  // document and this choice, so switching the pick cannot leave the previous run's configuration
+  // labelling the new one. `progress`, `stages` and `logTail` come back BESIDE `data` because `data`
+  // stays undefined until the run succeeds, which is exactly what used to throw away everything the
+  // poll knew about a run in flight.
   //
   // WHICH RUN THE SCREEN IS SHOWING, AND HOW IT GOT IT. An analyst comes here TO run the extraction,
-  // so `useExtraction` POSTs once per (document, rulebook, template) and polls it. A reviewer holds
-  // `extraction:view` and NOT `pipeline:run` — that POST is a 403 for them — and this screen is in
-  // all three working roles' nav, so a role that cannot start a run watches whatever run the
-  // per-document read names. A screen that 403s on arrival is not a screen its reader was given.
+  // so `useExtraction` POSTs once per (document, line-item version, template) and polls it. A
+  // reviewer holds `extraction:view` and NOT `pipeline:run` — that POST is a 403 for them — and this
+  // screen is in all three working roles' nav, so a role that cannot start a run watches whatever
+  // run the per-document read names. A screen that 403s on arrival is not a screen its reader was
+  // given.
   const canRun = useCan("pipeline:run");
   // DOES THIS DOCUMENT ALREADY HAVE A RUN IN FLIGHT? A hard reload arrives with an empty query
   // cache, so the start query had nothing and POSTed — a SECOND pipeline over the one already
@@ -773,15 +818,19 @@ export default function ExtractionView() {
   // whatever state it is in — which is how they see a run at all before it has a result.
   const watching = mine?.runId ?? (canRun ? undefined : latestRunId);
   // WHY THE POST IS HELD, kept separate from WHICH RUN IS WATCHED, because pinning changes one and
-  // must not change the other. Choosing another rulebook is the reader asking for this filing read
-  // against different rules — a run this screen may start — so the block lifts; the adopted run
-  // merely FINISHING is not, so it does not. The screen goes on reporting the run it adopted
-  // throughout, and the new pick's run starts when that one ends rather than racing it (`!inFlight`).
+  // must not change the other. Choosing another configuration is the reader asking for this filing
+  // read against a different line-item set — a run this screen may start — so the block lifts; the
+  // adopted run merely FINISHING is not, so it does not. The screen goes on reporting the run it
+  // adopted throughout, and the new pick's run starts when that one ends rather than racing it
+  // (`!inFlight`).
   const startBlocked = !!mine && mine.pin === pinnedId;
   // NO ANSWER, NO RUN. A read that has not landed — or that failed — cannot say whether a pipeline
   // is already working on this document, and starting one on that basis is the duplicate above.
   const starting = ready && canRun && answered && !inFlight && !startBlocked;
-  const extr = useExtraction(id, ont?.id, tpl?.id, starting, watching);
+  // `cfg.id` IS the pin the run records: it travels as `line_item_version_id` on the POST, and the
+  // sentence under the picker reads the id back off the run. The two must be the same id or the
+  // screen names one configuration while the run reads another.
+  const extr = useExtraction(id, cfg?.id, tpl?.id, starting, watching);
   const data = extr.data;
   const rulebook = extr.rulebook;
   const progress = extr.progress;
@@ -834,15 +883,15 @@ export default function ExtractionView() {
         {t("ex.back")}
       </button>
 
-      {/* Above the results, and present while one is still running: which rulebook governs this
-          run is a decision, so it belongs where the run is, not only in a file on the server —
-          and what the run RECORDED belongs next to the figures it produced. For a reader who
-          cannot start a run there is no decision to show, so it appears only once there is a run
-          to describe — the alternative is "starting <rulebook>" printed at someone who is starting
-          nothing. */}
-      {ontQ.data && ontQ.data.length > 0 && (canRun || rulebook) && (
-        <RulebookPicker
-          rows={ontQ.data} inForce={inForce} chosen={ont} record={rulebook}
+      {/* Above the results, and present while one is still running: which line-item configuration
+          governs this run is a decision, so it belongs where the run is, not only in a file on the
+          server — and what the run RECORDED belongs next to the figures it produced. For a reader
+          who cannot start a run there is no decision to show, so it appears only once there is a run
+          to describe — the alternative is "starting <configuration>" printed at someone who is
+          starting nothing. */}
+      {cfgQ.data && cfgQ.data.length > 0 && (canRun || rulebook) && (
+        <ConfigurationPicker
+          rows={cfgQ.data} inForce={inForce} chosen={cfg} record={rulebook}
           onChoose={setPinnedId} canChoose={canRun}
           templateKey={selectedKey ?? tpl?.template_key} t={t}
         />
@@ -920,7 +969,7 @@ export default function ExtractionView() {
             <div style={{ marginTop: 10 }}>
               <Button variant="primary" testid="ex-rerun-stopped"
                       disabled={reextract.isPending}
-                      onClick={() => reextract.mutate({ ontologyId: ont?.id, templateId: tpl?.id })}>
+                      onClick={() => reextract.mutate({ lineItemVersionId: cfg?.id, templateId: tpl?.id })}>
                 {reextract.isPending ? t("ex.run.retryPending") : t("ex.run.retry")}
               </Button>
             </div>
@@ -954,7 +1003,7 @@ export default function ExtractionView() {
               <Button
                 testid="ex-retry"
                 disabled={reextract.isPending}
-                onClick={() => reextract.mutate({ ontologyId: ont?.id, templateId: tpl?.id })}
+                onClick={() => reextract.mutate({ lineItemVersionId: cfg?.id, templateId: tpl?.id })}
                 style={{ fontSize: 12, padding: "7px 14px" }}
               >
                 {reextract.isPending ? t("ex.run.retryPending") : t("ex.run.retry")}
@@ -1023,7 +1072,7 @@ export default function ExtractionView() {
                   testid="ex-reextract"
                   variant="ghost"
                   disabled={reextract.isPending}
-                  onClick={() => reextract.mutate({ ontologyId: ont?.id, templateId: tpl?.id })}
+                  onClick={() => reextract.mutate({ lineItemVersionId: cfg?.id, templateId: tpl?.id })}
                   style={{ fontSize: 12, padding: "6px 12px" }}
                 >
                   {reextract.isPending ? t("ex.run.retryPending") : t("ex.run.reextract")}
@@ -1041,8 +1090,17 @@ export default function ExtractionView() {
           </div>
 
           {/* How mapping ran. A deterministic-only run (no LLM configured) is materially
-              weaker at resolving captions by meaning, so it is stated rather than implied. */}
-          {res.mapping && res.mapping.strategy !== "llm_description" && (
+              weaker at resolving captions by meaning, so it is stated rather than implied.
+
+              TESTS FOR THE CONDITION IT WARNS ABOUT, not for the absence of one label. This
+              read `strategy !== "llm_description"`, which made every strategy name except that
+              one literal mean "no language model was configured" — so the backend could not
+              introduce a more truthful label (a focus-routed run is mostly deterministic and
+              "llm_description" overstates it) without this banner asserting a falsehood on every
+              default-configured run. That coupling is why the rename was held back rather than
+              shipped half-done. Naming the deterministic case directly decouples the two: a new
+              label is now additive here, and an unrecognised one no longer reads as a failure. */}
+          {res.mapping && res.mapping.strategy === "deterministic" && (
             <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap",
                           background: color.amberBg, border: `1px solid ${color.amberFg}33`,
                           borderRadius: 8, padding: "8px 11px", marginBottom: 12 }}>

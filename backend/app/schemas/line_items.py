@@ -62,15 +62,24 @@ from pydantic import BaseModel, Field, model_validator
 from app.core.models.enums import StatementType
 from app.schemas.ontology import (
     AliasMatching,
+    Binding,
+    DecompositionRule,
     ExtractionMode,
+    GlobalRules,
+    NettingRule,
+    Normalisation,
     NoteUse,
+    NumberFormat,
     ResidualFramework,
     ResidualPolicy,
+    ScopeSelection,
     SignExpectation,
     SignRule,
     Temporality,
     UnitOfAccount,
+    ValidationRules,
     ValueScope,
+    WorkedExample,
 )
 
 LineItemType = Literal["extracted", "calculated", "intermediate", "derived"]
@@ -509,6 +518,15 @@ class LineItemSetMetadata(BaseModel):
     supersedes: str | None = None
     changes: list[str] = Field(default_factory=list)
     breaking_changes: list[str] = Field(default_factory=list)
+    # What is true of this set's `vocabulary` block that its own contents cannot say: which engine
+    # consults it. Declared as a FIELD rather than left as a JSON key because pydantic ignores
+    # unknown keys here, and a note the loader drops would never reach the payload the Line Items
+    # screen serves — the same failure `scripts/build_line_items.py:report_caption_characters`
+    # exists to shout about.
+    #
+    # MUST BE PAIRED WITH THE GENERATOR. `build_line_items.py` writes this file's `metadata` block
+    # literally, so a note added only to the JSON is reinstated away on the next regeneration.
+    vocabulary_note: str = ""
 
 
 class SectionBanner(BaseModel):
@@ -985,9 +1003,37 @@ class TransformOrderCheck(BaseModel):
 class MappingVocabulary(BaseModel):
     """The vocabularies the MATCHER runs on, which used to be Python constants.
 
-    Every field here decides which line item a caption resolves to, or whether it resolves at all.
-    None of it was reachable to anyone configuring the system, which is the whole objection: a
-    reviewer could read all 475 definitions and still not know why a row landed where it did.
+    These decide which line item a caption resolves to, or whether it resolves at all — on the
+    engine that reads them. None of it was reachable to anyone configuring the system, which is the
+    whole objection: a reviewer could read all 475 definitions and still not know why a row landed
+    where it did.
+
+    WHICH ENGINE READS THEM. The six SCOPING blocks below — `section_banners`,
+    `umbrella_banners`, `scope_tokens`, `statement_prefixes`, `statement_spellings`,
+    `exclusive_vocabularies`, 37 declarations in the shipped set — are read by
+    `services.line_item_matching.Vocabulary`, constructed from `LineItemMatcher.__init__`. That
+    is THE matcher: line items is the single configuration engine, so these six decide the
+    answers, and what a reviewer reads here is what the run did.
+
+    WHAT THE PARAGRAPH HERE USED TO SAY, so nobody reinstates it: it said these six decided
+    NOTHING, because `LineItemMatcher` was reached only from `stages/map_ontology.py` under
+    `extraction.mapping_engine == "line_items"` while `config.py` shipped `"ontology"` — the
+    answers came instead from `services.mapping`'s module constants (`SECTION_WORDS`,
+    `_COMPACT_SECTION_TOKENS`, `_STATEMENT_OF_PREFIX`, `_STATEMENT_SPELLINGS`,
+    `EXCLUSIVE_VOCABULARIES`, and the umbrella rule inside `section_of_banner`), which many call
+    sites read with no set in hand. That made this block a MIRROR of live code. The engine switch
+    is being removed, so the mirror becomes the original; those module constants are the copy with
+    no configured source, and `tests/test_buckets_vocabulary.py` pins 16 of the 37 (`scope_tokens`
+    12, `statement_prefixes` 4) equal to them precisely so a third spelling arriving through a
+    stale seed cannot hide behind the fall-back-to-code behaviour below.
+
+    TWO EXCEPTIONS. The first is not a scoping read: `section_banners` IS walked on every load, by
+    `refuse_shadowed_banners` (below, 1264-1285), which refuses a set whose longer heading is
+    declared after one containing it — self-consistency, so the declaration order is checked even
+    where nothing consults the declaration. The second is real and is not one of the six:
+    `caption_characters` is installed into `mapping` at startup by `services.line_item_config`, so
+    it is live on BOTH engines. `caption_transforms` is read by nothing yet and says so at its own
+    field.
 
     EMPTY MEANS "USE THE BUILT-IN", not "no vocabulary". A set that declares none of this must
     behave exactly as it did before these fields existed — otherwise adding the block to the
@@ -1279,10 +1325,60 @@ class LineItemSet(BaseModel):
     # them claiming the same characters. Populated at load, never authored, same reason as above:
     # this is order-dependence that is real, is not a defect, and is invisible to everything else.
     order_sensitive_probes: list[str] = Field(default_factory=list, exclude=True)
-    # One definition governing every `exclusive_residual` line item: what may be swept, how it is
-    # itemised, how the section must reconcile, and what is forbidden outright. A per-item
-    # `residual_policy` overrides a term ONLY where its author wrote that term down — which is why
-    # the projection dumps a policy with `exclude_unset`, and why this block governs the rest.
+    # --- THE FRAMEWORK LAYER ------------------------------------------------------------------
+    # Everything from here to `items` is true of the SET, not of one definition, and is what the
+    # pipeline reads through the working view built off this set. These blocks used to live only
+    # on the ontology JSON, which is why the comments below used to say they governed nothing: a
+    # set carried them for projection fidelity while `extraction.mapping_engine` shipped
+    # `"ontology"` and every run went through the rulebook object instead. That switch is what is
+    # being removed — line items is the single configuration engine, so a block declared HERE is
+    # the one the run uses, and there is no second copy to prefer.
+    #
+    # ABSENT OR EMPTY DECLARES NOTHING. None of these fall back to a built-in framework: an
+    # omitted `binding` says no binding rules were stated, not "use the ones compiled into the
+    # code". This is the same rule as the gate fields at the top of this module and it is the
+    # reason a user can turn a behaviour OFF from configuration at all.
+
+    # Caption/figure normalisation — the folds applied before a caption is looked up at all.
+    normalisation: Normalisation | None = None
+    # How a resolved figure binds to a column/period/entity.
+    binding: Binding | None = None
+    # Set-wide rules that are not per-item: the only one of the four with a non-None default,
+    # because `GlobalRules`' own field defaults ARE the declaration when the block is absent.
+    global_rules: GlobalRules = Field(default_factory=GlobalRules)
+    # Which pages/statements the run is allowed to search in the first place.
+    scope_selection: ScopeSelection | None = None
+
+    # The rest of the framework layer, carried so the working view is COMPLETE even though the
+    # shipped set declares none of them — an undeclared block must be a real, empty declaration
+    # the set owns, not a hole the working view has to go somewhere else to fill.
+    decomposition_rules: list[DecompositionRule] = Field(default_factory=list)
+    # Face-line containment netting (e.g. cost of sales stated inclusive of admin / S&M).
+    netting_rules: list[NettingRule] = Field(default_factory=list)
+    worked_examples: list[WorkedExample] = Field(default_factory=list)
+    validation: ValidationRules | None = None
+    # Per-locale digit/sign/bracket conventions. `{"en": NumberFormat()}` is not a fallback: it is
+    # the declaration that the one supported locale uses the plain convention, matching the
+    # default `supported_locales` above.
+    number_format_by_locale: dict[str, NumberFormat] = Field(
+        default_factory=lambda: {"en": NumberFormat()}
+    )
+
+    # The one definition of every `exclusive_residual` line item — what may be swept, how it is
+    # itemised, how the section must reconcile, what is forbidden outright. Authored, not derived,
+    # and read off THIS set: with line items as the single configuration engine the residual sweep
+    # takes its framework from here, so this is the artefact `residual_policy` on an item is a
+    # per-item override OF. (The comment this replaces said the block governed nothing and named
+    # `stages/residual.py`, `structural_checks.py` and `rulebook_rules.py` reading
+    # `ctx.ontology.residual_framework` instead — that second copy is what is going away, and the
+    # copy here is the survivor, not the mirror.)
+    #
+    # NOT `exclude=True` like the two inert fields above, because this one is not populated at
+    # load — it is authored, `residual_policy` is in `ontology_projection.SAME`, and a per-item
+    # policy dumped with `exclude_unset` only means anything against a framework that survives the
+    # round trip. Dropping it is not an option either: this model declares no `model_config`, so
+    # pydantic's default `extra="ignore"` would swallow the block silently on the next load — the
+    # same reason every block above is declared here explicitly rather than left to `extra`.
     residual_framework: ResidualFramework | None = None
     items: list[LineItemDef] = Field(default_factory=list)
 

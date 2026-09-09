@@ -46,7 +46,7 @@ def _isolate(scratch: Path) -> None:
     """A database and object store of this script's own.
 
     Never the developer's `backend/finex.db`: a triage run would otherwise publish rows into a
-    workspace someone else is reading, and — worse for the answer — inherit whatever rulebook
+    workspace someone else is reading, and — worse for the answer — inherit whatever configuration
     versions previous runs left in force. Set before anything imports `app.config`, because
     settings are read once at import.
     """
@@ -89,24 +89,26 @@ def main() -> int:
     with TestClient(app) as anon:
         token = anon.post("/api/v1/auth/login", json={"username": "admin"}).json()["token"]
     with TestClient(app, headers={"Authorization": f"Bearer {token}"}) as c:
-        # THE RULEBOOK IN FORCE FOR THE TEMPLATE, chosen the way the upload screen chooses it, so
-        # the run maps against the same rules a real upload would. Named explicitly rather than
-        # left to the server's default: "which rulebook answered" is the first thing a triage
-        # report has to be able to state.
+        # THE CONFIGURATION IN FORCE FOR THE TEMPLATE, chosen the way the upload screen chooses it,
+        # so the run maps against the same line items a real upload would. Named explicitly rather
+        # than left to the server's default: "which configuration answered" is the first thing a
+        # triage report has to be able to state.
         templates = c.get("/api/v1/templates").json()
         tpl = next((t for t in templates if t["template_key"] == args.template_key), None)
         if tpl is None:
             print(f"no template named {args.template_key}; stored: "
                   f"{sorted({t['template_key'] for t in templates})}", file=sys.stderr)
             return 2
-        ontologies = [o for o in c.get("/api/v1/ontologies").json()
-                      if o["target_template_key"] == args.template_key]
-        ont = next((o for o in ontologies if o.get("in_force")), ontologies[0] if ontologies
-                   else None)
+        # `GET /line-items/versions` — the ONE configuration store. This read was
+        # `GET /ontologies` against a second store that is deleted; a run pins a
+        # `line_item_version_id` and nothing else, so there is no other engine to name here.
+        configs = [o for o in c.get("/api/v1/line-items/versions").json()
+                   if o["target_template_key"] == args.template_key]
+        ont = next((o for o in configs if o.get("in_force")), configs[0] if configs else None)
 
         print(f"template {tpl['template_key']} v{tpl.get('version')}")
         if ont is not None:
-            print(f"rulebook {ont['ontology_key']} v{ont.get('version')}  (id {ont['id']})")
+            print(f"configuration {ont['line_items_key']} v{ont.get('version')}  (id {ont['id']})")
 
         with args.pdf.open("rb") as fh:
             up = c.post("/api/v1/documents",
@@ -119,7 +121,7 @@ def main() -> int:
 
         options = {"template_version_id": tpl["id"]}
         if ont is not None:
-            options["ontology_version_id"] = ont["id"]
+            options["line_item_version_id"] = ont["id"]
         if args.locale:
             options["locale"] = args.locale
         started = c.post(f"/api/v1/documents/{doc_id}/extractions", json=options)
@@ -204,8 +206,11 @@ def _summarise(result: dict, rows: list[dict], tpl: dict, ont: dict | None,
         "template": {"key": tpl["template_key"], "version": tpl.get("version")},
         # WHAT THE RUN RECORDED, not what this script asked for. The two agreeing is the normal
         # case; them differing is the single most useful thing a triage report can say, because a
-        # rulebook fix that is not in force explains a wrong figure on its own.
-        "rulebook_requested": ({"key": ont["ontology_key"], "version": ont.get("version")}
+        # configuration fix that is not in force explains a wrong figure on its own. The wire key
+        # stays `rulebook` — that is what `configuration_record` is stored and served under
+        # (api/routes/extractions.configuration_record says why) — and its contents are the
+        # line-item set's, which is the only configuration there is.
+        "rulebook_requested": ({"key": ont["line_items_key"], "version": ont.get("version")}
                                if ont else None),
         "rulebook_recorded": recorded_rulebook,
         "mapping": result.get("mapping"),

@@ -124,7 +124,8 @@ export interface LlmConfigPatch {
   provider?: string;
   model?: string;
   base_url?: string;
-  temperature?: number;
+  /* No `temperature`: the backend dropped the knob (it reached no provider call), and sending it
+     would now be an ignored extra key. Temperature is fixed at 0.0 server-side. */
   max_tokens?: number;
   timeout_seconds?: number;
   api_key_env?: string;
@@ -168,7 +169,7 @@ export interface AppSettings {
   llm: {
     provider: string;
     model: string;
-    temperature: number;
+    /* `temperature` is no longer in the GET /settings body — see LlmConfigPatch above. */
     max_tokens: number;
     timeout_seconds: number;
     base_url: string;
@@ -479,7 +480,12 @@ export interface Project {
    *  absent rather than served as a figure derived from nothing. */
   progress: { line_items: number; in_review: number };
   template: { key: string; name: string; line_items: number };
-  ontology: { file: string; rules: number; aliases: number; status: string };
+  /** The CONFIGURATION card — the line-item set this project's filing is read against. It was
+   *  `ontology: { file, rules, aliases, status }`; there is one configuration engine now, so the
+   *  block names the same thing the Line Items screen configures and `rules` became `items`,
+   *  because a line item is what is stored. Mirrors `routes/projects.py`'s own empty-project
+   *  block key for key, so the sample and the real path cannot describe different shapes. */
+  line_items: { file: string; items: number; aliases: number; status: string };
 }
 
 export interface SourceDoc {
@@ -549,37 +555,48 @@ export interface SourceUnits {
   scale_factor: number;
   units_label: string | null;
 }
-/** WHICH rulebook a run read the filing against — as the RUN recorded it when it started, not as
- *  a reader works out afterwards which one "must" have been in force.
+/** WHICH CONFIGURATION a run read the filing against — as the RUN recorded it when it started, not
+ *  as a reader works out afterwards which one "must" have been in force. One engine: the record
+ *  names a stored line-item version, and there is no second kind of configuration to select.
  *
- *  The distinction is the whole point. The client asks for a rulebook by id; between that request
- *  and someone reading the result, a new rulebook can be published, so a screen that re-derives
- *  "in force" from the ontology list labels a run with a rulebook it never used — which is how a
- *  reload came to describe a superseded run as the current one. `status` is the server's own claim
- *  about the rulebook the run used: `in_force` (it WAS the one in force for its template when the
- *  run started), `superseded` (a stored rulebook declares it replaced — legitimate to pin, never
- *  current), `pinned` (live, but not the one in force), `engine_default` (the run named no
- *  rulebook) or `missing` (the id named nothing stored). See
- *  backend/app/api/routes/extractions.py::rulebook_record. */
-export interface RulebookRecord {
-  ontology_version_id: string;
-  ontology_key: string;
+ *  The distinction is the whole point. The client asks for a configuration by id; between that
+ *  request and someone reading the result, a new version can be published, so a screen that
+ *  re-derives "in force" from the version list labels a run with a configuration it never used —
+ *  which is how a reload came to describe a superseded run as the current one. `status` is the
+ *  server's own claim about the set the run used: `in_force` (it WAS the one in force for its
+ *  template when the run started), `pinned` (a stored set, but not the one in force — reproducing
+ *  an earlier spread), `engine_default` (the run named no configuration, so nothing in the filing
+ *  was recognised) or `missing` (the id named nothing stored). See
+ *  backend/app/api/routes/extractions.py::configuration_record.
+ *
+ *  `superseded` IS GONE from that union, with the sibling lookup that computed it. It answered "has
+ *  some other stored definition DECLARED this key replaced" — labelling that decided nothing about
+ *  what runs, since selection is latest-stored-wins, and could be true of the very row in force, so
+ *  the record contradicted itself. `in_force` plus the in-force key/version below are the answer to
+ *  "is this current"; do not reinstate a second, declarative one.
+ *
+ *  The WIRE KEY is still `rulebook` (see the server function above). It says nothing about an
+ *  ontology — it is the configuration a run was read against — and renaming a key three consumers
+ *  already read would be churn no reader can see. */
+export interface ConfigurationRecord {
+  line_item_version_id: string;
+  line_items_key: string;
   version: number;
   target_template_key: string;
-  status: "in_force" | "superseded" | "pinned" | "engine_default" | "missing";
+  status: "in_force" | "pinned" | "engine_default" | "missing";
   in_force: boolean;
-  /** The rulebook that WAS in force for the template when the run started, so a run that used
+  /** The configuration that WAS in force for the template when the run started, so a run that used
    *  another one can name what it departed from. */
-  in_force_ontology_key: string;
+  in_force_line_items_key: string;
   in_force_version: number;
-  /** False when the recorded rulebook's stored definition would not load: it governed nothing,
+  /** False when the recorded version's stored definition would not load: it governed nothing,
    *  however firmly the run names it. Present on the finished result, not on the start response. */
   applied?: boolean;
 }
 export interface ExtractionResult {
   locale: string;
-  /** The rulebook this run read the filing against (see RulebookRecord). */
-  rulebook?: RulebookRecord | null;
+  /** The configuration this run read the filing against (see ConfigurationRecord). */
+  rulebook?: ConfigurationRecord | null;
   format: string;
   filename: string;
   entity?: string | null;
@@ -597,7 +614,7 @@ export interface ExtractionResult {
   notes: number;
   rows: ExtractionRow[];
   units?: SourceUnits | null;
-  /** How ontology mapping actually ran. "deterministic" means the LLM was unavailable and the
+  /** How line-item mapping actually ran. "deterministic" means the LLM was unavailable and the
    *  weaker rule/alias ensemble decided — surfaced so a degraded run is visible, not implied. */
   mapping?: { strategy: string; reason: string; llm_calls: number; model: string } | null;
 }
@@ -607,9 +624,11 @@ export interface ExtractionResult {
  *  columns: `init_db` uses `create_all`, which never adds a column to an existing SQLite file, so
  *  new columns would break every database already on disk.
  *
- *  `stage` is the pipeline stage's own name (`"map_ontology"`, `"residual"`, …) — served, never
+ *  `stage` is the pipeline stage's own name (`"map_line_items"`, `"residual"`, …) — served, never
  *  guessed client-side, because the stage list is assembled in `core/pipeline.py` and the docs have
- *  already been wrong about it once. Empty/absent while a run is still queued. */
+ *  already been wrong about it once. It read `"map_ontology"` here, which is the module the stage
+ *  still lives in and has not been the served name since line items became the single
+ *  configuration engine. Empty/absent while a run is still queued. */
 export interface ExtractionProgress {
   /** "queued" | a stage name | "done" | "failed". */
   phase: string;
@@ -620,7 +639,7 @@ export interface ExtractionProgress {
   /** The stages already finished, in order, so the screen can tick them off. */
   stages_done: string[];
   /** Progress WITHIN the stage in flight. `step_total === 0` means this stage reports no
-   *  sub-steps, which is every stage but ontology mapping — read it as "no detail", never as
+   *  sub-steps, which is every stage but line-item mapping — read it as "no detail", never as
    *  "0 of 0 done". `step_label` says what a unit is ("LLM call", "row").
    *
    *  Why it exists: mapping is one stage and by far the longest, and it makes every LLM call in
@@ -647,9 +666,9 @@ export interface TemplateStatement {
 export interface ExtractionRunResponse {
   run_id: string;
   status: string;
-  /** Alongside the result rather than inside it, so the rulebook can be named from the first poll
-   *  — while the run is still running, and even when it fails without producing a result. */
-  rulebook?: RulebookRecord | null;
+  /** Alongside the result rather than inside it, so the configuration can be named from the first
+   *  poll — while the run is still running, and even when it fails without producing a result. */
+  rulebook?: ConfigurationRecord | null;
   /** Declared, and now populated. The field was always served by `GET /extractions/{run_id}` and
    *  never declared here, so no component could reach it without widening this interface first —
    *  which is one of the three reasons extraction progress reached no screen. */
@@ -678,7 +697,7 @@ export interface DocumentRunSummary {
   run_number: number;
   status: string;
   created_at: string;
-  rulebook?: RulebookRecord | null;
+  rulebook?: ConfigurationRecord | null;
 }
 
 /** Whether a document has an extraction IN FLIGHT, and how far it has got.
@@ -827,32 +846,41 @@ export interface CellContext {
   row_numbers: number[];
   grid: CellContextCell[][];
 }
-export interface OntologyRef {
+/** One stored version of THE configuration, as the picker lists it (`GET /line-items/versions`).
+ *
+ *  This replaced `OntologyRef`. Line items is the single configuration engine, so there is one kind
+ *  of version to choose from and no engine to choose between — and `schema_version`, `supersedes`
+ *  and `superseded` are gone with it: the server no longer computes a declarative "has something
+ *  replaced this", because selection is latest-stored-wins and `in_force` is the whole answer. */
+export interface LineItemVersionRef {
   id: string;
-  ontology_key: string;
+  line_items_key: string;
   target_template_key: string;
-  /** Edits to THIS rulebook. It counts revisions of one key, so it cannot rank two different
-   *  rulebooks that target the same template — which is what `superseded` is for. */
+  /** Edits to THIS set. It counts revisions of one key, so it cannot rank two different sets that
+   *  target the same template — which is what `in_force` is for. */
   version: number;
-  schema_version?: number;
-  /** The ontology_key this one replaces, as its own author declared. */
-  supersedes?: string | null;
-  /** True when another rulebook that is actually present declares it replaces this one. */
-  superseded?: boolean;
-  /** True for the ONE rulebook per target template that the next run will map against.
+  /** When the version was stored. Null on a row that recorded no stamp. This is what the server's
+   *  "whatever was stored last wins" rule ranks on, served so a picker can show the list in the
+   *  order it is being ranked in — never so the client can re-run the rule (see `in_force`). */
+  created_at?: string | null;
+  /** True for the ONE version per target template that the next run will map against.
    *
-   *  Served by the server, never re-derived here. The rule is "whatever was stored last wins", which
-   *  needs `created_at` — a field this payload does not carry and should not, because then two
-   *  implementations of the rule would exist and could disagree. The client used to rank the list
-   *  itself on `[supersedes, version, ontology_key]` under a comment claiming it mirrored the
-   *  server's picker; it did not, so the screen could name a different rulebook than the one a run
-   *  actually used. Read this flag; do not sort. */
+   *  Served by the server, never re-derived here. The client used to rank the list itself under a
+   *  comment claiming it mirrored the server's picker; it did not, so the screen could name a
+   *  different configuration than the one a run actually used. Read this flag; do not sort. */
   in_force?: boolean;
-  /** How big the rulebook is: concepts it declares, and aliases across every locale. Counted by
-   *  the server off the stored definition, so a screen describing a rulebook's size never has to
-   *  invent one. */
-  concept_count?: number;
-  alias_count?: number;
+  /** False when the STORED definition can no longer be read as a configuration by today's schema —
+   *  the server tries to load it (`routes/line_items.py::probe_line_item_load`) rather than
+   *  assuming a row it holds is usable, and drops such a row out of selection. It must not be
+   *  offered as a choice either: a run pinned to it recognises nothing in the filing. Absent on an
+   *  older server — read `loads === false`, never `!loads`, so an unstated answer is not read as
+   *  "broken". */
+  loads?: boolean;
+  /** How big the configuration is: line items it declares, and aliases across every locale (the
+   *  base list plus every `aliases_i18n` entry). Counted by the server off the stored definition,
+   *  so a screen describing a version's size never has to invent one. */
+  items?: number;
+  aliases?: number;
 }
 export interface TemplateRef {
   /** The TEMPLATE VERSION's id. This is what identifies a template to a run
@@ -864,8 +892,8 @@ export interface TemplateRef {
   version: number;
   is_published: boolean;
   /** True for the newest version of this key. Served by the server (`routes/templates.py`) so the
-   *  client never ranks versions itself — the same contract as `OntologyRef.in_force`. Read it to
-   *  default a selection; do not sort. */
+   *  client never ranks versions itself — the same contract as `LineItemVersionRef.in_force`. Read
+   *  it to default a selection; do not sort. */
   is_latest?: boolean;
 }
 
@@ -1283,12 +1311,12 @@ export interface TemplateNode {
 export interface NodeConfig {
   breadcrumb: string;
   label: string;
-  /** The concept this node maps to — the key an ontology edit targets. */
+  /** The line item this node maps to — the key an inline configuration edit targets. */
   canonical_key?: string;
-  /** Whether the RULEBOOK IN FORCE actually maps this template line.
+  /** Whether the CONFIGURATION IN FORCE actually maps this template line.
    *
-   *  A template node the rulebook does not mention has no ontology entry to edit, so every write
-   *  the editor offers for it is refused — the mapping PATCH answers 404 "not in this ontology", and
+   *  A template node no line item declares has nothing to edit, so every write the editor offers
+   *  for it is refused — the item PATCH answers 404 for a key the set does not declare, and
    *  offering the key in the confusable-with or netting pickers gets a 422. Absent means an older
    *  payload that never said; treat that as mapped, since that is what those payloads described. */
   mapped?: boolean;
@@ -1335,9 +1363,11 @@ export interface TemplateResponse {
   node_config: Record<string, NodeConfig>;
   template: { key: string; name: string; line_items: number };
   netting_rules?: NettingRuleView[];
-  /** The ontology version whose rules this view shows — the target of inline edits.
-   *  Null when no ontology targets this template (nothing to edit). */
-  ontology?: { id: string; ontology_key: string; version: number; locale: string } | null;
+  /** The line-item version whose rules this view shows — the target of inline edits, and `locale`
+   *  says which alias list is being edited. Null when no stored configuration targets this template
+   *  (nothing to edit). Served under this name by `routes/templates.py`; it was `ontology`, and
+   *  there is one configuration engine now. */
+  line_items?: { id: string; line_items_key: string; version: number; locale: string } | null;
 }
 
 /** An inline edit to ONE concept's mapping rules; only the fields present are changed.
@@ -1368,27 +1398,29 @@ export interface NettingRuleEdit {
   condition?: string;
   label?: string;
 }
-/** Every ontology edit publishes a new version — this is the version it published. */
-export interface OntologyEditResult {
+/** Every inline configuration edit publishes a NEW version — this is the version it published. It
+ *  is never an in-place write: a run pins the exact version it used, so mutating a stored
+ *  definition would retroactively change how a past run is explained. */
+export interface LineItemEditResult {
   id: string;
-  ontology_key: string;
+  line_items_key: string;
   version: number;
 }
 
-/** One field of the ontology schema, as the authoring index lists it. `path` is the dotted
- *  location in the JSON (`mappings[].value_scope`), and `help` states the accepted values in
+/** One field of the line-item schema, as the authoring index lists it. `path` is the dotted
+ *  location in the JSON (`items[].value_scope`), and `help` states the accepted values in
  *  JSON spelling — the upload gate refuses undeclared keys, so a guess costs a 422. */
-export interface OntologyFieldHelp {
+export interface LineItemFieldHelp {
   path: string;
   required: boolean;
   help: string;
 }
-/** The shape an uploaded ontology must have. Generated from the same model the upload gate
+/** The shape an uploaded configuration must have. Generated from the same model the upload gate
  *  validates with, so it can never describe a rule the API has stopped enforcing. */
-export interface OntologySchema {
+export interface LineItemSchema {
   schema_version: number;
   json_schema: Record<string, unknown>;
-  field_help: OntologyFieldHelp[];
+  field_help: LineItemFieldHelp[];
 }
 
 export interface ExportOption {
@@ -1549,7 +1581,8 @@ export interface LineItemProblem {
   severity: string;
 }
 /** What is true of the SET rather than of an item. A bare JSON array had nowhere to say which
- *  template these keys bind to, which is why the ontology's key-gate could not simply be copied. */
+ *  template these keys bind to — which is the whole reason the set carries a header: the publish
+ *  gate holds every key in the set against `target_template_key`. */
 export interface LineItemSetInfo {
   schema_version: number;
   line_items_key: string;

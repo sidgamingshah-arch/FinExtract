@@ -11,32 +11,24 @@ What this changes, and why each matters:
   an HKEX filing presents a balance sheet. The previous order put both liability sections after equity
   and left the ladder totals stranded at the bottom.
 
-* SECTION IDS FOLLOW THE NEW ORDER, and the rulebook's section layer is renamed with them. The ids
-  are positional (``bs_s3_…`` is the third section), so leaving current liabilities called
-  ``bs_s5_current_liabilities`` in third place would make the name lie about the position.
+* SECTION IDS FOLLOW THE NEW ORDER. The ids are positional (``bs_s3_…`` is the third section), so
+  leaving current liabilities called ``bs_s5_current_liabilities`` in third place would make the
+  name lie about the position.
 
   To be accurate about what this does and does not matter for: the matching gate does NOT compare
   these ids to the template's. ``mapping.section_token_of_scope`` reads the section name off the END
   of a scope id (``bs_s3_current_liabilities`` and ``bs_s5_current_liabilities`` both resolve to the
-  token ``current_liabilities``), so the number is decorative to the gate and the rename is safe
-  rather than required. What it IS required to be is internally consistent: the rulebook's
-  ``section_defaults`` is keyed by section id, each of its concepts names one through
-  ``inherits``, two residuals name one again under ``residual_policy.section_scope``, and
-  ``services/ontology_skeleton.py`` writes ``inherits`` from the template's node_ids.
-  ``rename_sections`` moves every one of them together, through a temporary name because equity and
-  current liabilities SWAP ids.
-
-* TWO CANONICAL-KEY TYPOS FIXED: ``cuurent_notes_payable`` and ``current_potion_of_long_term_debt``.
-  These are the identifiers the ontology maps captions onto, and they were referenced from more than
-  the ``canonical_key`` field they name — five ``confusable_with`` entries, the notes-payable family
-  in ``services/mapping.py``, and the total-debt term list in ``services/derived.py``. See
-  ``revise_keys`` for what the rename covers and what it costs a stored run.
+  token ``current_liabilities``), so the number is decorative to the gate. What it IS required to be
+  is internally consistent with the CONFIGURATION that gates onto it: the line-item set's
+  ``section_defaults`` is keyed by section id and each item names one through ``inherits``. That
+  side is authored in the set and rebuilt by ``scripts/build_line_items.py`` — this script writes
+  the template and stops there.
 
 * THE BALANCE CHECK BECOMES A REAL TEST. ``bs_net_assets`` was ``SUM(bs_equity__total_equity)`` — net
   assets defined as equity, so the one relation that proves a balance sheet balances was an identity
   with itself and could never fail. It is now the asset-side ladder
   (total assets less current liabilities − total non-current liabilities), which is what makes the
-  rulebook's existing ``bs_net_assets_equals_equity`` a relation that can break. A tautology that
+  net-assets-equals-equity relation one that can actually break. A tautology that
   reads as a passing check is worse than no check: it consumes a slot in the coverage report and
   reports success.
 
@@ -45,29 +37,17 @@ What this changes, and why each matters:
   node between reserves and total equity. Total equity is therefore reached in two steps
   (owners' + NCI) rather than one flat sum, which is what lets a break in the attribution be seen.
 
-* ONE NEW CONCEPT, ``bs_current_assets__contract_assets``, seeded by ``seed_contract_assets``: a
-  template line no rulebook recognises is a line that can never be filled.
-
-* ONE NEW CHECK, not the three the spec lists, because the revised structure already enforces the
-  other two. ``bs_check_equity_attribution`` (owners' + NCI = total equity) and
-  ``bs_check_reserves_composition`` (the eight parts sum to reserves) are letter-for-letter the
-  arithmetic of the new ``bs_equity__total_equity`` and ``bs_equity__reserves`` ROLLUPS — the
-  restructure is what made them checkable, and declaring them again as rulebook identities would put
-  each fact in the coverage denominator twice and raise two review cards for one break. So only
-  ``bs_check_derived_consistency`` is added: it reaches net assets through total assets while the
-  ladder reaches it through net current assets, which no rollup asserts.
-
-  One consequence to be explicit about: the spec asks for reserves composition at ``severity:warn``
-  and a rollup is always blocking (``structural_checks.Relation.severity`` defaults to it, and there
-  is no per-rollup severity field). It behaves as the spec's ``skip_if_either_side_absent`` intends —
-  a filing printing only a reserves total leaves the components unextracted and the relation is
-  SKIPPED, not failed — but where both are printed and disagree, the card is blocking rather than a
-  warning. Making that tunable means a severity field on ``Rollup``, which is a schema change beyond
-  this revision.
-
-* ONE CHECK DELETED: the rulebook's ``bs_balance`` was the template's ``bs_balances`` in different
-  words — the same footing equation declared in both the template and the rulebook, counted twice
-  in coverage. See ``DROP_IDENTITIES``.
+WHAT THIS USED TO DO AS WELL, and no longer does — stated so nobody reinstates it. Four of the
+revision's items were edits to ``hkfrs_hk_china_ontology.json``, a second declaration of this same
+balance sheet: the section-id rename, the two misspelt canonical keys
+(``cuurent_notes_payable`` / ``current_potion_of_long_term_debt``), the new
+``bs_current_assets__contract_assets`` concept, and the validation identities the restructure made
+checkable (``bs_derived_consistency`` added, ``bs_balance`` dropped as the template's own
+``bs_balances`` in different words). That file is seeded by nothing and loaded by nothing now that
+line items is the single configuration engine, so those edits held a second answer in step with
+the template and the second answer is gone. Anything the configuration has to say about this
+balance sheet is authored in the line-item set (``app/sample/templates/output_csv_hk_*``) and
+rebuilt by ``scripts/build_line_items.py``.
 
 WHAT THE SPEC ASKED FOR AND THIS DOES NOT ENCODE — one item, stated rather than quietly dropped:
 ``COALESCE( bs_equity__reserves , SUM( … ) )`` on rows 79 and 80. There is no coalesce op and none is
@@ -84,21 +64,9 @@ import pathlib
 import sys
 
 TPL = pathlib.Path("app/sample/templates/hkfrs_hk_china_template.json")
-ONTOLOGY = pathlib.Path("app/sample/templates/hkfrs_hk_china_ontology.json")
 
-# The two misspelt canonical keys, and what they become.
-KEY_FIXES = {
-    "bs_current_liabilities__cuurent_notes_payable":
-        "bs_current_liabilities__current_notes_payable",
-    "bs_current_liabilities__current_potion_of_long_term_debt":
-        "bs_current_liabilities__current_portion_of_long_term_debt",
-}
-
-# Section ids, old -> new. Equity and current liabilities swap, which is why the rename is staged.
-SECTION_RENAMES = {
-    "bs_s3_equity": "bs_s5_equity",
-    "bs_s5_current_liabilities": "bs_s3_current_liabilities",
-}
+# The template file, and nothing else. ``ONTOLOGY``, ``KEY_FIXES`` and ``SECTION_RENAMES`` stood
+# here for the concept-file half this script no longer has — see the comment above ``main``.
 
 # (canonical_key suffix, English label, zh label). Order is the order on screen.
 NCA = [
@@ -285,308 +253,24 @@ def build_balance_sheet() -> dict:
         total_liabilities, total_assets, total_eq_liab,
     ]
 
-    # The footing, and only the footing. The other balance-sheet relations are the rulebook's, where
-    # each carries a severity — see ``revise_validation`` and the module docstring.
+    # The footing, and only the footing. The other balance-sheet relations are the configuration's,
+    # where each carries a severity — see the module docstring.
     identities = [{"id": "bs_balances", "lhs": "bs_total_assets",
                    "rhs": {"op": "sum", "children": [total_eq_liab["canonical_key"]]}}]
     return {"type": "balance_sheet", "sections": sections, "identities": identities}
 
 
-# --- the rulebooks -----------------------------------------------------------------------------
-
-def _mapping_index(data: dict) -> dict[str, int]:
-    return {m.get("canonical_key"): i for i, m in enumerate(data.get("mappings") or [])}
-
-
-def _contract_assets() -> dict:
-    """The new concept.
-
-    This used to take a ``v2`` flag and write two different shapes, because two rulebook generations
-    shipped: the thin file stated ``description``/``value_scope``/``extraction_mode``/``include`` on
-    every concept and ``match_priority`` on none, the rich one the reverse, and a concept written in
-    the other file's shape failed the invariants the suite holds. One rulebook ships now, so there is
-    one shape and no way to pick the wrong one.
-    """
-    aliases = ["Contract assets", "Contract asset",
-               "Amounts due from customers for contract work",
-               "Gross amounts due from customers for contract works",
-               "Unbilled receivables", "Accrued revenue"]
-    shared = {
-        "canonical_key": "bs_current_assets__contract_assets",
-        "label": "Contract assets",
-        "definition": ("HKFRS 15 right to consideration for work performed but not yet billed — "
-                       "recognised revenue that has not become an unconditional receivable."),
-    }
-    tail = {
-        "aliases": aliases,
-        "aliases_i18n": {"en": aliases,
-                         "zh": ["合同资产", "合約資產", "应收客户合同工程款", "未开票应收款"]},
-        "confusable_with": ["bs_current_assets__trade_receivables",
-                            "bs_current_liabilities__contract_liabilities"],
-        "exclude_hints": ["liabilit", "负债", "負債", "payable", "应付"],
-    }
-    exclude = [
-        "Trade receivables, which are unconditional rights to consideration and have their own "
-        "concept.",
-        "Contract costs capitalised as an asset under HKFRS 15.95, which are not contract assets.",
-        "Contract liabilities, which are the mirror balance on the liability side.",
-    ]
-    return {**shared, "inherits": "bs_s2_current_assets", "match_priority": 64,
-            "exclude": exclude, **tail}
-
-
-def seed_contract_assets(data: dict) -> str | None:
-    """Insert (or replace) the new concept directly after trade receivables."""
-    entry = _contract_assets()
-    mappings = data.setdefault("mappings", [])
-    idx = _mapping_index(data)
-    at = idx.get(entry["canonical_key"])
-    if at is not None:
-        if mappings[at] == entry:
-            return None
-        mappings[at] = entry
-        return "contract assets rewritten to this file's shape"
-    after = idx.get("bs_current_assets__trade_receivables")
-    mappings.insert(len(mappings) if after is None else after + 1, entry)
-    return "contract assets seeded"
-
-
-def revise_keys(data: dict) -> int:
-    """Rename the two misspelt keys.
-
-    The first version of this also appended the old spelling to ``aliases``, meaning to keep a
-    stored run's figure resolvable. That was wrong twice over. An ``aliases`` entry is a printed
-    CAPTION the mapper matches a row's label against — no filing prints
-    "bs_current_liabilities__cuurent_notes_payable", so the entry could never fire for its stated
-    purpose, and it did change behaviour where it had no business to: it put a key-shaped string
-    into the alias index, which shifted the notes-payable collision family and stopped a batch the
-    suite expects to be REFUSED from being refused.
-
-    There is no key-alias mechanism to use instead — the rulebook's own metadata notes say as much
-    ("Rename with a key-alias table in v3"). So the honest consequence, stated rather than papered
-    over: a run stored against the misspelt key resolves to no template node and its row reads as
-    unmapped until the document is re-extracted. That loses a figure's PLACEMENT, never substitutes
-    a wrong one, and re-extraction restores it.
-
-    Renamed across the WHOLE document, for the same reason the section ids are: renaming only the
-    ``canonical_key`` field left five ``confusable_with`` entries naming the misspelt keys, and
-    ``confusable_with`` is what builds the collision families — so the notes-payable family lost its
-    current-liabilities leaf and the current/non-current reroute the family exists for stopped
-    firing, with the caption still landing on the right concept by another route. A relation that
-    silently stops being exercised while the answer stays right is the hardest kind to notice.
-
-    Prose that DOCUMENTS the two typos is deleted rather than renamed — the ``retained_defects``
-    entry and one concept's definition both say the misspellings are kept deliberately, which after
-    this is a claim the file contradicts. Renaming the key inside those sentences would leave a note
-    reporting a typo in a key that no longer has one.
-    """
-    stale = [n for n in (data.get("metadata") or {}).get("retained_defects") or []
-             if any(old.rsplit("__", 1)[1] in n for old in KEY_FIXES)]
-    for note in stale:
-        data["metadata"]["retained_defects"].remove(note)
-    for m in data.get("mappings") or []:
-        if (defn := m.get("definition")) and "legacy 'cuurent' typo" in defn:
-            m["definition"] = defn.split(" Note: the canonical_key retains")[0]
-    renamed, count = rename_outside_metadata(data, KEY_FIXES)
-    data.clear()
-    data.update(renamed)
-    return count
-
-
-def rename_outside_metadata(data: dict, mapping: dict[str, str]) -> tuple[dict, int]:
-    """``_rename_everywhere``, with ``metadata`` held back — and the count of what moved.
-
-    ``metadata.breaking_changes`` records renames by naming BOTH spellings ("X renamed to Y"), which
-    is the whole value of the entry. Renaming inside it turns that into "Y renamed to Y" on the
-    second run of the script, and the emptied sentence then differs from the one the script wants to
-    append, so it appends a second copy: the file grows a corrupted note and a duplicate every time,
-    and the script stops being idempotent. Held back rather than special-cased inside the walk,
-    because the walk is deliberately blind to WHERE it is.
-    """
-    meta = data.pop("metadata", None)
-    before = json.dumps(data, ensure_ascii=False)
-    out = _rename_everywhere(data, mapping)
-    if meta is not None:
-        data["metadata"] = meta
-        out["metadata"] = meta
-    return out, sum(before.count(old) for old in mapping)
-
-
-def sync_declared_count(data: dict) -> str | None:
-    """Hold ``metadata.concept_count`` to the number of concepts actually declared.
-
-    Seeding a concept without this leaves the rulebook stating its own size wrongly — the count is
-    served on the ontology screen and in the download, so it is a printed number not derived from
-    what it sits above.
-    """
-    meta = data.get("metadata")
-    if not isinstance(meta, dict) or "concept_count" not in meta:
-        return None
-    actual = len(data.get("mappings") or [])
-    if meta["concept_count"] == actual:
-        return None
-    was, meta["concept_count"] = meta["concept_count"], actual
-    return f"metadata.concept_count {was} -> {actual}"
-
-
-def _rename_everywhere(node, mapping: dict[str, str]):
-    """Every dict KEY and every occurrence inside any string VALUE, renamed.
-
-    Deliberately a whole-document walk rather than a list of the places a section id is allowed to
-    appear. The first attempt renamed ``section_defaults`` keys, their ``section_scope`` and each
-    concept's ``inherits`` — and missed ``residual_policy.section_scope``, two occurrences, which
-    silently un-swept both residuals: ``stages/residual`` unions the concept's inherited scope with
-    its policy's, and a residual scoped to two sections has no candidate set (prohibition 5,
-    "never spans sections"), so every unclaimed current-liabilities row came back
-    ``residual_ineligible`` instead. Enumerating the legal paths is a list that goes stale; walking
-    the whole document cannot miss one.
-
-    SUBSTRING, not exact match, because one ``section_disambiguation`` cites the id inside a
-    sentence ("Section_scope (bs_s3_equity vs pl_s6 vs pl_s7) …"). Exact matching left that note
-    naming a section that no longer exists — prose a reader would trust and which no schema check
-    can catch. Safe as a substring: no id here is a prefix of another.
-    """
-    if isinstance(node, dict):
-        return {mapping.get(k, k): _rename_everywhere(v, mapping) for k, v in node.items()}
-    if isinstance(node, list):
-        return [_rename_everywhere(v, mapping) for v in node]
-    if isinstance(node, str):
-        for old, new in mapping.items():
-            node = node.replace(old, new)
-    return node
-
-
-def rename_sections(data: dict) -> tuple[dict, int]:
-    """Follow the template's section-id renumbering through the whole rulebook.
-
-    Staged through a temporary name because two ids SWAP: renaming ``bs_s3_equity`` to
-    ``bs_s5_equity`` in one pass would collide with the ``bs_s5_current_liabilities`` still waiting
-    to become ``bs_s3_current_liabilities``, and the second pass would then move both.
-    """
-    if not any(old in json.dumps(data) for old in SECTION_RENAMES):
-        return data, 0
-    staged = {old: f"__renaming__{old}" for old in SECTION_RENAMES}
-    data = _rename_everywhere(data, staged)
-    data = _rename_everywhere(data, {tmp: SECTION_RENAMES[old] for old, tmp in staged.items()})
-    new_ids = set(SECTION_RENAMES.values())
-    return data, sum(1 for m in data.get("mappings") or [] if m.get("inherits") in new_ids)
-
-
-def sync_reserves_group(data: dict) -> str | None:
-    """Hold the ``equity_reserves`` exclusivity group to the reserves rollup the template declares.
-
-    Its components are DERIVED from ``EQ_RESERVE_PARTS`` rather than restated, because the group and
-    the rollup are one list written twice: after the revision reserves absorbs share premium,
-    treasury shares and shares held for award schemes, and a group still naming four of the eight
-    would let three components be loaded ALONGSIDE the aggregate — the exact double-count it exists
-    to prevent, silently, on the three it had stopped covering.
-    """
-    groups = ((data.get("global_rules") or {}).get("mutually_exclusive_groups")) or []
-    group = next((g for g in groups if g.get("id") == "equity_reserves"), None)
-    if group is None:
-        return None
-    want = [f"bs_equity__{k}" for k, *_ in EQ_RESERVE_PARTS]
-    # Names the rollup, because the rollup is what enforces it. An earlier version of this note said
-    # "the rulebook's bs_reserves_composition identity reports the disagreement" — an identity this
-    # pass deliberately did NOT add, precisely because the rollup already asserts that sum. A note
-    # citing a check that does not exist is the defect class the pass was closing.
-    note = ("The template's bs_equity__reserves rollup lists all of these. Loading the aggregate and "
-            "its components together double-counts, and that rollup is what reports the "
-            "disagreement when a filing prints both.")
-    if group.get("components") == want and group.get("note") == note:
-        return None
-    # Says which of the two moved. "components 8 -> 8" was the message when only the note changed,
-    # which reads as work the run did not do.
-    moved = ([f"components {len(group.get('components') or [])} -> {len(want)}"]
-             if group.get("components") != want else []) + \
-            (["note"] if group.get("note") != note else [])
-    group["components"], group["note"] = want, note
-    return f"equity_reserves group: {', '.join(moved)}"
-
-
-
-
-
-# The relations the revised balance sheet makes checkable, as the rulebook spells them. Each is
-# authored HERE and nowhere else: the template declares only the footing, so no fact enters the
-# coverage denominator twice.
-NEW_IDENTITIES = [
-    {"id": "bs_derived_consistency",
-     "expr": ("bs_net_assets = bs_total_assets "
-              "- bs_current_liabilities__total_current_liabilities "
-              "- bs_non_current_liabilities__total_non_current_liabilities"),
-     "severity": "blocking",
-     "note": ("An independent route to net assets: the ladder reaches it through net current "
-              "assets, this reaches it through total assets, so a figure double-counted between "
-              "the two sections breaks one and not the other. The equity attribution and the "
-              "reserves composition are NOT here — the revised rollups on bs_equity__total_equity "
-              "and bs_equity__reserves already assert exactly those two sums.")},
-]
-
-# Rulebook identities the revision DELETES, with the reason. ``bs_balance`` asserts
-# ``bs_total_assets = bs_total_equity_and_liabilities`` — which is exactly the template's own
-# ``bs_balances`` identity, so the footing was declared twice and counted twice in coverage. The
-# template's copy is the one that survives: it holds under EVERY rulebook, including v1, which
-# declares no validation block at all, and a template identity is blocking by default
-# (``structural_checks.Relation.severity``), so nothing is lost by dropping the rulebook's.
-DROP_IDENTITIES = {"bs_balance"}
-
-# Relations already authored in the rulebook whose severity the revision changes, with the reason.
-SEVERITY_CHANGES = {
-    # The ladder is now the ROUTE to net assets, not a commentary on it: a break here means the
-    # figure the balance check is run against was reached wrongly, which is not a "worth a look".
-    "bs_capital_employed": "blocking",
-}
-
-
-def revise_validation(data: dict) -> list[str]:
-    rules = data.get("validation")
-    if not isinstance(rules, dict) or "identities" not in rules:
-        return []                        # v1 declares no validation block; that is its shape
-    idents = rules["identities"]
-    notes = []
-    for dropped in [i for i in idents if i.get("id") in DROP_IDENTITIES]:
-        idents.remove(dropped)
-        notes.append(f"identity {dropped['id']} dropped (the template declares this one)")
-    at = {i.get("id"): n for n, i in enumerate(idents)}
-    for ident in NEW_IDENTITIES:
-        if ident["id"] in at:
-            if idents[at[ident["id"]]] != ident:
-                idents[at[ident["id"]]] = ident
-                notes.append(f"identity {ident['id']} updated")
-        else:
-            idents.append(ident)
-            notes.append(f"identity {ident['id']} added")
-    for rid, severity in SEVERITY_CHANGES.items():
-        if rid in at and idents[at[rid]].get("severity") != severity:
-            idents[at[rid]]["severity"] = severity
-            notes.append(f"identity {rid} raised to {severity}")
-    return notes
-
-
-def revise_ontologies() -> list[str]:
-    out: list[str] = []
-    for path in (ONTOLOGY,):
-        if not path.exists():
-            continue
-        data = json.loads(path.read_text())
-        notes: list[str] = []
-        if renamed := revise_keys(data):
-            notes.append(f"{renamed} misspelt key(s) renamed")
-        data, moved = rename_sections(data)
-        if moved:
-            notes.append(f"{moved} concept(s) follow the renumbered section ids")
-        if seeded := seed_contract_assets(data):
-            notes.append(seeded)
-        if counted := sync_declared_count(data):
-            notes.append(counted)
-        if grouped := sync_reserves_group(data):
-            notes.append(grouped)
-        notes += revise_validation(data)
-        if notes:
-            path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
-            out += [f"{path.name}: {n}" for n in notes]
-    return out
+# WHAT WAS HERE AND IS GONE, so nobody reinstates it: ~290 lines of surgery on
+# ``app/sample/templates/hkfrs_hk_china_ontology.json`` — ``revise_ontologies`` and the eleven
+# helpers only it called (``seed_contract_assets``, ``revise_keys``, ``rename_sections``,
+# ``sync_declared_count``, ``sync_reserves_group``, ``revise_validation`` and their key/section
+# rename tables). They kept a SECOND declaration of the same balance sheet in step with the
+# template above: the concept file's section layer, its two misspelt canonical keys, its new
+# concept and its validation identities. Line items is the single configuration engine now — the
+# concept file is seeded by nothing, loaded by nothing and selectable nowhere, so keeping it in
+# step kept nothing in step. What this script still owns is the template's balance sheet; the
+# configuration that maps captions onto it is authored in the line-item set and rebuilt by
+# ``scripts/build_line_items.py``.
 
 
 def main() -> int:
@@ -604,8 +288,6 @@ def main() -> int:
     rows = sum(1 + len(s.get("children") or []) if s.get("children") else 1
                for s in bs["sections"])
     print(f"balance sheet rewritten: {len(bs['sections'])} top-level nodes, {rows} screen rows")
-    for note in revise_ontologies():
-        print(f"  {note}")
     return 0
 
 

@@ -1,8 +1,14 @@
-"""A calculated total is a real, selectable node on the Template & Ontology screen — and a rulebook
-that cannot be validated is refused.
+"""A calculated total is a real, selectable node on the Template screen — and a configuration that
+cannot be validated is refused.
 
 Defects of one family are pinned here: a surface that answers confidently about the wrong thing, and
 a gate that degrades to silence instead of failing.
+
+"RULEBOOK" HERE IS A LINE-ITEM SET. The detail serves it as the ``line_items`` block (it was
+``ontology``, naming an ``ontology_versions`` row), the store is ``line_item_versions``, the door is
+``POST /line-items`` and the inline edit is ``PATCH /line-items/versions/{id}/items`` keyed ``key``
+(it was ``canonical_key``). Line items is the single configuration engine; there is no second
+configuration surface for a screen to describe.
 
 THE TREE WALK. ``get_template_detail`` used to treat every entry in a statement's ``sections[]`` as
 a heading and look for line items only among that entry's ``children``. The shipped template
@@ -13,16 +19,14 @@ click to whichever concept its fallback chain reached. An analyst could then edi
 Equipment's aliases under a heading reading "Gross profit". The walk now branches on ``role``, the
 way ``services.export._emit_nodes`` does.
 
-THE ONTOLOGY GATE. ``_publish_new_version`` validated an edit against the target template only ``if
-tpl_row is not None``, so an ontology whose ``target_template_key`` matched no stored template
-published unvalidated and became the rulebook in force while mapping onto keys no template declares.
+THE PUBLISH GATE. ``_publish_new_version`` validated an edit against the target template only ``if
+tpl_row is not None``, so a configuration whose ``target_template_key`` matched no stored template
+published unvalidated and became the one in force while mapping onto keys no template declares.
 
-WHAT THE RULEBOOK DOES NOT MAP. Serving the calculated totals as selectable lines widened the class
-of node the editor opens by one key the rulebook in force has no concept for
-(``bs_liabilities__total_liabilities``, beside the older ``bs_equity__equity_attributable_to_owners``).
-The editor opened fully enabled on it and Save came back 404, and the key was offered in the
-confusable-with and netting pickers, which answer 422. ``node_config`` now carries ``mapped``, and
-these tests hold that flag to the refusals themselves rather than to a transcribed list of keys.
+WHETHER A LINE IS MAPPED. Serving the calculated totals as selectable lines widened the class of
+node the editor opens, including onto keys the configuration in force has no line item for: the
+editor opened fully enabled and Save came back 404. ``node_config`` carries ``mapped``, and the test
+below holds the flag to the configuration itself rather than to a transcribed list of keys.
 
 A SPACER IS NOT A LINE. ``LineRole.SPACER`` is a presentational gap. The detail walk and
 ``export._emit_nodes`` both tested ``role == "header"`` exactly, so a spacer fell through to the
@@ -42,6 +46,11 @@ import pytest
 
 API = "/api/v1"
 SEEDED_TEMPLATE = "hkfrs_hk_china_v1"
+# The template the ONE shipped configuration targets. ``hkfrs_hk_china_v1`` above is seeded
+# TEMPLATE-ONLY now (see ``app.sample.reference``): there is a single configuration and it targets
+# this key, so any test whose subject is the set IN FORCE has to ask about this pair. The tree/order
+# tests keep asking about the HKFRS template, which is what ``TEMPLATE`` below is loaded from.
+CONFIGURED_TEMPLATE = "output_csv_hk_v1"
 
 _DIR = Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
 TEMPLATE = json.loads((_DIR / "hkfrs_hk_china_template.json").read_text(encoding="utf-8"))
@@ -83,12 +92,17 @@ def _template_line_items() -> int:
                 if n.role.value not in ("header", "spacer")])
 
 
-def _detail(client, locale: str = "en") -> dict:
-    tpl = next(r for r in client.get(f"{API}/templates").json()
-               if r["template_key"] == SEEDED_TEMPLATE)
+def _detail(client, locale: str = "en", template_key: str = SEEDED_TEMPLATE) -> dict:
+    tpl = max((r for r in client.get(f"{API}/templates").json()
+               if r["template_key"] == template_key), key=lambda r: r["version"])
     r = client.get(f"{API}/templates/{tpl['id']}/detail?locale={locale}")
     assert r.status_code == 200, r.text
     return r.json()
+
+
+def _configured_detail(client) -> dict:
+    """The detail for the pair that HAS a configuration in force."""
+    return _detail(client, template_key=CONFIGURED_TEMPLATE)
 
 
 def _statement_rows(tree: list[dict], stype: str) -> list[dict]:
@@ -175,7 +189,7 @@ def test_a_genuine_heading_is_still_a_heading_over_its_children(client):
     at = next(i for i, n in enumerate(tree) if n["id"] == "sec:pl_s1_income")
     assert tree[at]["head"] is True and tree[at]["lvl"] == 1
     assert tree[at]["id"] not in detail["node_config"], (
-        "a heading carries no figure and no ontology rules, so it must not be selectable")
+        "a heading carries no figure and no matching rules, so it must not be selectable")
 
     section = next(s for s in _statement("profit_and_loss")["sections"]
                    if s["node_id"] == "pl_s1_income")
@@ -198,173 +212,220 @@ def test_the_line_item_count_is_the_templates_real_one(client):
     assert len(lines) == expected
 
 
-# --- what the rulebook in force does NOT map -------------------------------------------------
+# --- what the configuration in force maps ----------------------------------------------------
 
-def _rulebook_concepts(client, detail: dict) -> set[str]:
-    """The canonical keys the rulebook IN FORCE declares, read from that rulebook.
+def _declared_keys(client, detail: dict) -> set[str]:
+    """The keys the configuration IN FORCE declares, read from that configuration.
 
     Read back through the API rather than off the shipped file: ``mapped`` is a claim about whichever
-    rulebook ``ontology_select.select_for_template`` chose for THIS database, so a test transcribing
-    the file would keep agreeing with itself while the screen described another rulebook's concepts.
+    set ``config_select.select_for_template`` chose for THIS database, so a test transcribing the
+    file would keep agreeing with itself while the screen described another set's items.
+
+    The block is ``detail["line_items"]`` and the download is ``GET /line-items/versions/{id}``;
+    both were the ``ontology`` block and ``GET /ontologies/{id}``, and the keys were under
+    ``definition["mappings"][*]["canonical_key"]`` rather than ``definition["items"][*]["key"]``.
     """
-    ont = detail["ontology"]
-    assert ont, "the reference template should have a rulebook in force"
-    r = client.get(f"{API}/ontologies/{ont['id']}")
+    cfg = detail["line_items"]
+    assert cfg, "the configured template should have a line-item set in force"
+    r = client.get(f"{API}/line-items/versions/{cfg['id']}")
     assert r.status_code == 200, r.text
-    return {m.get("canonical_key") for m in (r.json()["definition"].get("mappings") or [])}
+    # ``namespace`` filter as in ``get_template_detail``: the off-template entries are parts OF a
+    # line, never template lines, so they are not keys this screen can be asked about.
+    return {i.get("key") for i in (r.json()["definition"].get("items") or [])
+            if i.get("namespace", "template") == "template"}
 
 
-def test_every_line_says_whether_the_rulebook_in_force_maps_it(client):
+def test_every_line_says_whether_the_configuration_in_force_maps_it(client):
     """The editor opens off ``node_config``, so ``node_config`` is where the answer has to be.
 
-    Without it the screen cannot tell an editable concept from one whose every write the server
+    Without it the screen cannot tell an editable line from one whose every write the server
     refuses, and it offered the same fully-enabled editor for both.
+
+    Asked of the CONFIGURED pair. The old spelling asked it of ``hkfrs_hk_china_v1``, which had an
+    ontology in force; that template is seeded template-only now, so the question there is answered
+    by the companion test below and the flag itself is exercised here.
     """
-    detail = _detail(client)
+    detail = _configured_detail(client)
     silent = [k for k, c in detail["node_config"].items() if "mapped" not in c]
     assert not silent, (
-        f"{len(silent)} lines say nothing about whether the rulebook maps them (e.g. "
+        f"{len(silent)} lines say nothing about whether the configuration maps them (e.g. "
         f"{sorted(silent)[:3]}) — the screen cannot know which of its controls would be refused")
-    declared = _rulebook_concepts(client, detail)
+    declared = _declared_keys(client, detail)
     wrong = sorted(k for k, c in detail["node_config"].items() if c["mapped"] != (k in declared))
-    assert not wrong, f"`mapped` disagrees with the rulebook in force for {wrong}"
-    assert not all(c["mapped"] for c in detail["node_config"].values()), (
-        "the shipped template declares lines this rulebook has no concept for; a `mapped` that is "
-        "True everywhere is the flag not being computed at all")
+    assert not wrong, f"`mapped` disagrees with the configuration in force for {wrong}"
+    # THE SHIPPED PAIR IS FULLY MAPPED, and that is the merge's own measurement rather than an
+    # accident: the projection that produced this configuration placed 462 of 462 template concepts
+    # with 0 fields homeless. The old assertion here was the opposite one — "a `mapped` that is True
+    # everywhere is the flag not being computed at all" — and it held of the ontology in force, which
+    # had no concept for ``bs_liabilities__total_liabilities``. Keeping it would pin a coverage HOLE
+    # as though it were the invariant. What is asserted instead is the fact that replaced it, and the
+    # flag is proved to be computed by the companion test below, where it comes back False.
+    assert all(c["mapped"] for c in detail["node_config"].values()), sorted(
+        k for k, c in detail["node_config"].items() if not c["mapped"])[:10]
 
 
-def test_the_calculated_total_this_round_exposed_is_the_unmapped_one(client):
-    """The concrete case, named, because "some line is unmapped" is only useful if you know which.
-
-    The rulebook maps sixteen of the seventeen lines the template prints at statement level;
-    ``bs_liabilities__total_liabilities`` is the one it does not, and serving those totals as
-    selectable lines is what first put it in front of an analyst. If a later rulebook gains the
-    concept, this test is the record of what changed — the derived test above keeps the class covered.
-    """
-    detail = _detail(client)
-    key = "bs_liabilities__total_liabilities"
-    assert key in detail["node_config"], "the class of node this is about must stay selectable"
-    assert key not in _rulebook_concepts(client, detail)
-    assert detail["node_config"][key]["mapped"] is False
-    assert detail["node_config"]["pl_gross_profit"]["mapped"] is True, (
-        "the other sixteen ARE mapped: an editor read-only for a concept the rulebook has is the "
-        "same defect facing the other way")
-
-
-def test_the_controls_the_screen_withholds_are_the_ones_the_server_refuses(client):
-    """``mapped`` is not an opinion about tidiness — it is the answer to "would this be refused?".
-
-    All three writes the screen used to offer for an unmapped key are asked here, so the flag and the
-    server's answer cannot drift apart: the concept editor's Save (404, not in this ontology), the
-    confusable-with picker and the netting pickers (422, unknown concept). None of the three changes
-    stored state when it is refused.
-    """
-    detail = _detail(client)
-    ont_id = detail["ontology"]["id"]
-    unmapped = sorted(k for k, c in detail["node_config"].items() if not c["mapped"])
-    assert unmapped, "no unmapped line in the shipped template would make this test prove nothing"
-    editable = next(k for k, c in detail["node_config"].items() if c["mapped"])
-    for key in unmapped:
-        r = client.patch(f"{API}/ontologies/{ont_id}/mappings",
-                         json={"canonical_key": key, "aliases": ["Anything at all"]})
-        assert r.status_code == 404, f"an alias edit on {key} was accepted: {r.text}"
-        r = client.patch(f"{API}/ontologies/{ont_id}/mappings",
-                         json={"canonical_key": editable, "confusable_with": [key]})
-        assert r.status_code == 422, f"{key} was accepted as a confusable_with target: {r.text}"
-        r = client.patch(f"{API}/ontologies/{ont_id}/netting-rules",
-                         json={"id": "unmapped_probe", "target_key": key, "subtract_keys": []})
-        assert r.status_code == 422, f"{key} was accepted as a netting target: {r.text}"
-
-
-_UNRESOLVABLE_TPL_KEY = "unresolvable_probe_tpl"
-_UNRESOLVABLE_ONT_KEY = "unresolvable_probe_ont"
-_UNRESOLVABLE_TEMPLATE = {
-    "template_key": _UNRESOLVABLE_TPL_KEY,
-    "name": "Unresolvable rulebook probe",
+_UNCONFIGURED_TPL_KEY = "unconfigured_probe_tpl"
+_UNCONFIGURED_TEMPLATE = {
+    "template_key": _UNCONFIGURED_TPL_KEY,
+    "name": "Template with no configuration",
     "statements": [{
         "type": "balance_sheet",
         "sections": [{"node_id": "cash", "canonical_key": "probe_cash", "label": "Cash",
                       "role": "line"}],
     }],
 }
-_UNRESOLVABLE_ONTOLOGY = {
-    "ontology_key": _UNRESOLVABLE_ONT_KEY,
+
+
+def test_a_template_with_no_configuration_says_so_on_every_line(client):
+    """The other side of the flag, and the proof it is computed rather than defaulted to True.
+
+    A template with no line-item set targeting it has nothing in force, so the screen must say so —
+    no ``line_items`` block, and every line ``mapped: False``. A blank the user can fix in
+    configuration is the right answer; a fully-enabled editor over writes the server would refuse
+    is not.
+
+    POSTS ITS OWN TEMPLATE rather than reading the seeded ``hkfrs_hk_china_v1``. That is not
+    tidiness: asserting "nothing is published against this template" over a SHARED seeded key makes
+    the test depend on the whole suite never publishing a set that targets it, and it passed alone
+    while failing in the full run for exactly that reason. A key this test creates cannot be
+    configured by anyone else, so the False case is pinned by construction. Follows the
+    ``unresolvable_probe_tpl`` pattern already in this file, minus the configuration.
+
+    This replaces ``test_the_controls_the_screen_withholds_are_the_ones_the_server_refuses`` as the
+    place the False case is pinned; see its retirement note below.
+    """
+    r = client.post(f"{API}/templates", json={"definition": _UNCONFIGURED_TEMPLATE})
+    assert r.status_code == 201, r.text
+
+    detail = _detail(client, template_key=_UNCONFIGURED_TPL_KEY)
+    assert detail["line_items"] is None, (
+        "nothing is published against this template, so the screen must not name a configuration")
+    assert detail["node_config"], "the template's lines are still served"
+    assert not any(c["mapped"] for c in detail["node_config"].values()), (
+        "no set targets this template, so no line of it is mapped")
+
+
+# RETIRED: test_the_calculated_total_this_round_exposed_is_the_unmapped_one.
+#
+# Its whole subject was that the rulebook in force for ``hkfrs_hk_china_v1`` had no concept for
+# ``bs_liabilities__total_liabilities`` while it did have one for the other sixteen statement-level
+# lines. Both halves of that premise are gone: nothing is published against that template any more,
+# and the one shipped configuration covers its target template completely (462/462, 0 homeless), so
+# there is no "the unmapped one" to name. The CLASS is still covered — every statement-level line is
+# selectable (``test_every_statement_level_line_is_editable``) and every line states whether it is
+# mapped (the two tests above, one for each answer).
+
+_UNRESOLVABLE_TPL_KEY = "unresolvable_probe_tpl"
+_UNRESOLVABLE_CFG_KEY = "unresolvable_probe_cfg"
+_UNRESOLVABLE_TEMPLATE = {
+    "template_key": _UNRESOLVABLE_TPL_KEY,
+    "name": "Unresolvable configuration probe",
+    "statements": [{
+        "type": "balance_sheet",
+        "sections": [{"node_id": "cash", "canonical_key": "probe_cash", "label": "Cash",
+                      "role": "line"}],
+    }],
+}
+_UNRESOLVABLE_SET = {
+    "line_items_key": _UNRESOLVABLE_CFG_KEY,
     "target_template_key": _UNRESOLVABLE_TPL_KEY,
-    "schema_version": 2,
+    "schema_version": 1,
     # A section layer, so the fold runs at all…
     "section_defaults": {"bs_s1": {"statement": "balance_sheet", "section_scope": ["bs_s1"]}},
-    # …and an `inherits` naming an entry that is not in it. The definition VALIDATES, and
-    # `loader.resolve_inherits` raises on it — so `get_template_detail`'s `load_ontology(resolve=True)`
-    # fails and its `except` serves the screen no rules at all. The concept is declared regardless,
-    # and the declaration is what every editing endpoint looks for.
-    "mappings": [{"canonical_key": "probe_cash", "label": "Cash", "aliases": ["Cash"],
-                  "inherits": "no_such_section"}],
+    # …and an `inherits` naming an entry that is not in it. The definition VALIDATES, and resolving
+    # the section layer raises on it — so `get_template_detail`'s
+    # `load_line_item_set(resolve=True)` fails and its `except` serves the screen no rules at all.
+    # The ITEM is declared regardless, and the declaration is what the editing endpoint looks for.
+    "items": [{"key": "probe_cash", "label": "Cash", "aliases": ["Cash"],
+               "inherits": "no_such_section"}],
 }
 
 
 @pytest.fixture
-def unresolvable_rulebook(client):
-    """A stored rulebook the detail cannot LOAD, targeting a template of one line.
+def unresolvable_config(client):
+    """A stored configuration the detail cannot LOAD, targeting a template of one line.
 
-    Inserted straight into the database because ``POST /ontologies`` refuses an unresolvable
+    Inserted straight into the database because ``POST /line-items`` refuses an unresolvable
     ``inherits`` (422) — a row like this predates that gate, which is the state the ``except`` in
-    ``get_template_detail`` exists for.
+    ``get_template_detail`` exists for. It was an ``ontology_versions`` row seeded the same way;
+    line items is the single configuration engine, so the store is ``line_item_versions``.
     """
-    from app.db.models import OntologyVersion, TemplateVersion
+    from app.db.models import LineItemVersion, TemplateVersion
 
     from app.db.base import SessionLocal
 
     r = client.post(f"{API}/templates", json={"definition": _UNRESOLVABLE_TEMPLATE})
     assert r.status_code == 201, r.text
     with SessionLocal() as session:
-        session.add(OntologyVersion(ontology_key=_UNRESOLVABLE_ONT_KEY,
+        session.add(LineItemVersion(line_items_key=_UNRESOLVABLE_CFG_KEY,
                                     target_template_key=_UNRESOLVABLE_TPL_KEY,
-                                    version=1, definition=_UNRESOLVABLE_ONTOLOGY))
+                                    version=1, definition=_UNRESOLVABLE_SET))
         session.commit()
     try:
         yield r.json()
     finally:
-        _drop(OntologyVersion, OntologyVersion.ontology_key, _UNRESOLVABLE_ONT_KEY)
+        _drop(LineItemVersion, LineItemVersion.line_items_key, _UNRESOLVABLE_CFG_KEY)
         _drop(TemplateVersion, TemplateVersion.template_key, _UNRESOLVABLE_TPL_KEY)
 
 
-def test_a_rulebook_that_cannot_be_loaded_still_says_which_concepts_it_declares(
-        client, unresolvable_rulebook):
+def test_a_configuration_that_cannot_be_loaded_still_says_which_items_it_declares(
+        client, unresolvable_config):
     """``mapped`` is read off the STORED definition, because that is what the writes are checked on.
 
-    Taken from the loaded rulebook, one unresolvable ``inherits`` — and every concept of the shipped
-    rulebook uses ``inherits`` — turned the flag inside out: the screen locked every line and said
-    the rulebook declared no concept for any of them, while the edit endpoint went on accepting the
-    key it had just disabled.
+    Taken from the loaded configuration, one unresolvable ``inherits`` — and 475 of 475 shipped items
+    inherit their gate — turned the flag inside out: the screen locked every line and said the
+    configuration declared no item for any of them, while the edit endpoint went on accepting the key
+    it had just disabled.
     """
-    r = client.get(f"{API}/templates/{unresolvable_rulebook['id']}/detail")
+    r = client.get(f"{API}/templates/{unresolvable_config['id']}/detail")
     assert r.status_code == 200, r.text
     detail = r.json()
     assert detail["node_config"]["probe_cash"]["mapped"] is True, (
-        "the rulebook declares this concept; only its RULES could not be loaded")
-    r = client.patch(f"{API}/ontologies/{detail['ontology']['id']}/mappings",
-                     json={"canonical_key": "probe_cash", "aliases": ["Cash at bank"]})
-    assert r.status_code == 200, (
-        f"the write `mapped` is a claim about: {r.text}")
+        "the configuration declares this item; only its RULES could not be loaded")
+
+    # THE SECOND HALF CHANGED, AND ON PURPOSE. On the retired ontology route this edit was ACCEPTED
+    # (200) and the assertion was "the write `mapped` is a claim about" — mapped True meant the write
+    # went through. ``_publish_new_version`` loads with ``resolve=True`` now, so it refuses to
+    # publish another version that cannot be resolved, and the refusal NAMES the dangling `inherits`
+    # rather than pretending the key is unknown. That is the honest answer for this row: the item IS
+    # declared, and the thing wrong with the configuration is the section it points at.
+    #
+    # The invariant this test exists for is untouched: ``mapped`` is read off the STORED definition,
+    # so one dangling `inherits` cannot make the screen say the configuration declares no item for
+    # any of its lines. A 404 here would be that inversion reappearing on the write side.
+    r = client.patch(f"{API}/line-items/versions/{detail['line_items']['id']}/items",
+                     json={"key": "probe_cash", "aliases": ["Cash at bank"]})
+    assert r.status_code == 422, r.text
+    body = json.dumps(r.json())
+    assert "no_such_section" in body and "probe_cash" in body, (
+        f"the refusal has to name the section it could not find, or the author cannot fix it: {body}")
 
 
-# --- an unvalidatable rulebook is refused ----------------------------------------------------
+# --- an unvalidatable configuration is refused ------------------------------------------------
 
 _PROBE_KEY = "orphan_probe_tpl"
-_PROBE_ONT_KEY = "orphan_probe_ont"
+_PROBE_CFG_KEY = "orphan_probe_cfg"
 _PROBE_TEMPLATE = {
     "template_key": _PROBE_KEY,
     "name": "Orphan probe",
     "statements": [{
         "type": "balance_sheet",
-        "sections": [{"node_id": "cash", "canonical_key": "cash", "label": "Cash",
-                      "role": "line"}],
+        "sections": [
+            {"node_id": "cash", "canonical_key": "cash", "label": "Cash", "role": "line"},
+            # A SECOND LINE THE CONFIGURATION BELOW DOES NOT DECLARE, so this pair carries an
+            # UNMAPPED key for `test_the_controls_the_screen_withholds_are_the_ones_the_server_
+            # refuses` to drive. That test used to read one off the shipped pair; the one shipped
+            # configuration covers its target template completely (462/462, 0 homeless), so the
+            # unmapped case has to be constructed rather than found.
+            {"node_id": "inv", "canonical_key": "inv", "label": "Inventories", "role": "line"},
+        ],
     }],
 }
-_PROBE_ONTOLOGY = {
-    "ontology_key": _PROBE_ONT_KEY,
+_PROBE_SET = {
+    "schema_version": 1,
+    "line_items_key": _PROBE_CFG_KEY,
     "target_template_key": _PROBE_KEY,
-    "mappings": [{"canonical_key": "cash", "label": "Cash", "aliases": ["Cash"]}],
+    "items": [{"key": "cash", "label": "Cash", "aliases": ["Cash"]}],
 }
 
 
@@ -380,28 +441,28 @@ def _drop(model, key_column, key: str) -> None:
 
 @pytest.fixture
 def probe_pair(client):
-    """A throwaway template and a rulebook published against it, removed again afterwards.
+    """A throwaway template and a configuration published against it, removed again afterwards.
 
     The ``client`` fixture is session-scoped and so is its database: a probe left behind would sit
-    in every later test's `/templates` and `/ontologies` listing.
+    in every later test's `/templates` and `/line-items/versions` listing.
     """
-    from app.db.models import OntologyVersion, TemplateVersion
+    from app.db.models import LineItemVersion, TemplateVersion
 
     r = client.post(f"{API}/templates", json={"definition": _PROBE_TEMPLATE})
     assert r.status_code == 201, r.text
     tpl = r.json()
-    r = client.post(f"{API}/ontologies", json={"definition": _PROBE_ONTOLOGY})
+    r = client.post(f"{API}/line-items", json={"definition": _PROBE_SET})
     assert r.status_code == 201, r.text
     try:
         yield tpl, r.json()
     finally:
-        _drop(OntologyVersion, OntologyVersion.ontology_key, _PROBE_ONT_KEY)
+        _drop(LineItemVersion, LineItemVersion.line_items_key, _PROBE_CFG_KEY)
         _drop(TemplateVersion, TemplateVersion.template_key, _PROBE_KEY)
 
 
 @pytest.fixture
-def orphaned_ontology(probe_pair):
-    """The same rulebook, with its target template GONE — a renamed key, or a deleted template.
+def orphaned_config(probe_pair):
+    """The same configuration, with its target template GONE — a renamed key, or a deleted template.
 
     Orphaned by dropping the template row rather than by publishing against a key that never
     existed, because the create path has always refused that: the hole was on the edit path.
@@ -412,69 +473,114 @@ def orphaned_ontology(probe_pair):
     return probe_pair[1]["id"]
 
 
-def test_an_edit_to_a_rulebook_with_no_target_template_is_refused(client, orphaned_ontology):
+def test_the_controls_the_screen_withholds_are_the_ones_the_server_refuses(client, probe_pair):
+    """``mapped`` is not an opinion about tidiness — it is the answer to "would this be refused?".
+
+    Both writes the screen offers for a declared key are asked here on an UNDECLARED one, so the flag
+    and the server's answer cannot drift apart: the item editor's Save (404, not in this version) and
+    the confusable-with picker (422, unknown line item). Neither changes stored state when refused.
+
+    WAS THREE WRITES, ON THE SHIPPED PAIR. The third was the NETTING picker, and that editor is
+    deleted with ``routes/ontologies.py``: the shipped configuration declares 0 netting rules, so it
+    was an editor for an empty list (see ``routes/line_items.py``, "WHAT IS GONE"). Do not reinstate
+    the third leg without code and data that read netting rules. The pair is a probe rather than the
+    shipped one because the shipped configuration now covers its target template completely, so
+    there is no unmapped key on it to ask about — see ``_PROBE_TEMPLATE``'s second line.
+    """
+    tpl, cfg = probe_pair
+    detail = client.get(f"{API}/templates/{tpl['id']}/detail").json()
+    cfg_id = detail["line_items"]["id"]
+    unmapped = sorted(k for k, c in detail["node_config"].items() if not c["mapped"])
+    assert unmapped == ["inv"], f"the probe pair must carry exactly one unmapped line: {unmapped}"
+    editable = next(k for k, c in detail["node_config"].items() if c["mapped"])
+    for key in unmapped:
+        r = client.patch(f"{API}/line-items/versions/{cfg_id}/items",
+                         json={"key": key, "aliases": ["Anything at all"]})
+        assert r.status_code == 404, f"an alias edit on {key} was accepted: {r.text}"
+        r = client.patch(f"{API}/line-items/versions/{cfg_id}/items",
+                         json={"key": editable, "confusable_with": [key]})
+        assert r.status_code == 422, f"{key} was accepted as a confusable_with target: {r.text}"
+
+
+def test_an_edit_to_a_configuration_with_no_target_template_is_refused(client, orphaned_config):
     """`if tpl_row is not None` skipped validation entirely when the target template was missing,
-    so this edit published — and a rulebook nothing had checked became the one in force."""
-    r = client.patch(f"{API}/ontologies/{orphaned_ontology}/mappings",
-                     json={"canonical_key": "cash", "aliases": ["Cash at bank"]})
+    so this edit published — and a configuration nothing had checked became the one in force."""
+    r = client.patch(f"{API}/line-items/versions/{orphaned_config}/items",
+                     json={"key": "cash", "aliases": ["Cash at bank"]})
     assert r.status_code == 422, r.text
     assert _PROBE_KEY in json.dumps(r.json()), (
         "the refusal has to name the template it could not find, or the author cannot fix it")
 
 
-def test_a_netting_edit_takes_the_same_gate(client, orphaned_ontology):
-    """Both inline-edit endpoints publish through `_publish_new_version`, so neither can be the
-    one path where validation is skipped."""
-    r = client.patch(f"{API}/ontologies/{orphaned_ontology}/netting-rules",
-                     json={"id": "probe", "target_key": "cash", "subtract_keys": []})
-    assert r.status_code == 422, r.text
-    assert _PROBE_KEY in json.dumps(r.json())
+# RETIRED: test_a_netting_edit_takes_the_same_gate.
+#
+# It asked the SECOND inline-edit endpoint, ``PATCH /ontologies/{id}/netting-rules``, to take the
+# same target-template gate as the alias edit — "both inline-edit endpoints publish through
+# `_publish_new_version`, so neither can be the one path where validation is skipped".
+#
+# There is only ONE inline-edit endpoint now. The netting-rules editor is deleted with
+# ``routes/ontologies.py``, because it governed nothing: the shipped configuration declares 0 netting
+# rules on both shipped files, so it was an editor for an empty list (``routes/line_items.py``, "WHAT
+# IS GONE"). The invariant it shared — an edit whose target template is missing is refused rather
+# than published unvalidated — is asserted above on the endpoint that survives, and
+# ``_publish_new_version`` has no second caller left to skip it.
+#
+# Re-add the endpoint and this test together, and only alongside code and data that read netting
+# rules.
 
 
-def test_a_new_rulebook_naming_no_stored_template_is_refused(client):
-    body = {"definition": {"ontology_key": "no_such_target_ont",
+def test_a_new_configuration_naming_no_stored_template_is_refused(client):
+    # One recognising item, because the door checks "recognises anything" BEFORE it checks the target
+    # template (``routes/line_items.py``); an empty `items` list would be refused for the other
+    # reason and this test would stop being about the template at all.
+    body = {"definition": {"schema_version": 1,
+                           "line_items_key": "no_such_target_cfg",
                            "target_template_key": "template_that_was_never_published",
-                           "mappings": []}}
-    r = client.post(f"{API}/ontologies", json=body)
+                           "items": [{"key": "cash", "label": "Cash", "aliases": ["Cash"]}]}}
+    r = client.post(f"{API}/line-items", json=body)
     assert r.status_code == 422, r.text
     assert "template_that_was_never_published" in json.dumps(r.json())
 
 
 # --- and the record says WHICH template version it was checked against -----------------------
 
-def test_a_published_rulebook_states_the_template_version_it_was_checked_against(probe_pair):
+def test_a_published_configuration_states_the_template_version_it_was_checked_against(probe_pair):
     """The check runs against whichever template version is newest at publish time, which is not
     necessarily the version a run pins. Saying so on the response is what lets a reader tell,
-    rather than assume, what a rulebook was held to."""
-    tpl, ont = probe_pair
-    assert ont.get("validated_against_template") == {
+    rather than assume, what a configuration was held to."""
+    tpl, cfg = probe_pair
+    assert cfg.get("validated_against_template") == {
         "id": tpl["id"], "template_key": tpl["template_key"], "version": tpl["version"]}
 
 
 def test_an_inline_edit_states_it_the_same_way(client, probe_pair):
     """Create and edit report it with one spelling, so neither path is the one you have to guess
     about."""
-    tpl, ont = probe_pair
-    r = client.patch(f"{API}/ontologies/{ont['id']}/mappings",
-                     json={"canonical_key": "cash", "aliases": ["Cash at bank"]})
+    tpl, cfg = probe_pair
+    r = client.patch(f"{API}/line-items/versions/{cfg['id']}/items",
+                     json={"key": "cash", "aliases": ["Cash at bank"]})
     assert r.status_code == 200, r.text
     against = r.json().get("validated_against_template")
     assert against == {"id": tpl["id"], "template_key": _PROBE_KEY, "version": tpl["version"]}
-    assert against == ont["validated_against_template"]
+    assert against == cfg["validated_against_template"]
 
 
-def test_an_edit_to_the_shipped_rulebook_names_the_shipped_template(client):
-    """Not only for a probe: the rulebook actually in force reports it too."""
-    ont = _detail(client)["ontology"]
-    assert ont, "the reference template should have a rulebook in force"
-    r = client.patch(f"{API}/ontologies/{ont['id']}/mappings",
-                     json={"canonical_key": "pl_gross_profit", "aliases": ["Gross profit"]})
+def test_an_edit_to_the_shipped_configuration_names_the_shipped_template(client):
+    """Not only for a probe: the configuration actually in force reports it too.
+
+    Asked of the CONFIGURED pair — ``hkfrs_hk_china_v1`` is template-only now, so it has nothing in
+    force to edit. The key edited is one the shipped set really declares.
+    """
+    cfg = _configured_detail(client)["line_items"]
+    assert cfg, "the configured template should have a line-item set in force"
+    r = client.patch(f"{API}/line-items/versions/{cfg['id']}/items",
+                     json={"key": "is_pl__gross_profit", "aliases": ["Gross profit"]})
     assert r.status_code == 200, r.text
     against = r.json().get("validated_against_template")
     assert against, "an edit that says nothing about what validated it cannot be audited"
-    assert against["template_key"] == SEEDED_TEMPLATE
+    assert against["template_key"] == CONFIGURED_TEMPLATE
     assert against["version"] == max(r["version"] for r in client.get(f"{API}/templates").json()
-                                     if r["template_key"] == SEEDED_TEMPLATE)
+                                     if r["template_key"] == CONFIGURED_TEMPLATE)
     assert against["id"]
 
 

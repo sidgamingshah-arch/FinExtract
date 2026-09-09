@@ -2,12 +2,19 @@
  *
  * The whole job of this page is picking a template, so it carries only the facts you choose
  * between: what a version is called, which key it is a version of, which version it is, whether
- * it is published, and which ontology supplies its rules. Every one of those arrives in the single
- * GET /templates the list already makes. The structure tree and the ontology editors are a
- * different task and live on the detail page (see Template.tsx), reached by clicking a row.
+ * it is published, and which LINE-ITEM SET supplies its rules. Those arrive in the single
+ * GET /templates the list already makes, plus the one GET /line-items/versions that names the
+ * configuration in force. The structure tree and the per-item rule editors are a different task
+ * and live on the detail page (see Template.tsx), reached by clicking a row.
  *
- * There is deliberately NO line-item count column. The count is not in GET /templates; it is only
- * on the per-template detail, a ~230 KB document (the whole tree plus every concept's criteria),
+ * THE ONTOLOGY COLUMN THAT STOOD HERE IS GONE, and with it the second store it read from
+ * (`useOntologies` over `/ontologies`) and the "superseded" label it printed. Line items is the
+ * single configuration engine: a row is described by the line-item version IN FORCE for its
+ * template key, there is no second kind of rulebook to name, and nothing on this screen selects an
+ * engine. Do not reinstate an ontology column — the rows it listed no longer exist.
+ *
+ * There is deliberately NO item-count column. The count is not in GET /templates; it is only
+ * on the per-template detail, a ~230 KB document (the whole tree plus every item's criteria),
  * so printing it cost one such document per row — 922 KB of transfer on a four-row index to fill
  * four integers, 99% of everything the page fetched. What a reader loses is comparing the size of
  * two versions' spreads at a glance from the list; the number itself is not lost, because the
@@ -15,28 +22,29 @@
  * for the version it just created. It belongs back here the day GET /templates carries
  * `line_items`, which the publish endpoint already computes for its own response.
  *
- * Authoring stays HERE: publishing a template version, or a rulebook for it, is something you
- * do to the collection rather than to one concept inside one version of it.
+ * Authoring stays HERE: publishing a template version, or a line-item set for it, is something you
+ * do to the collection rather than to one item inside one version of it.
  */
 import type { CSSProperties } from "react";
 import { useRef, useState } from "react";
 
 import {
-  ontologyInForce, useOntologies, useTemplateXlsxColumns, useUploadOntology, useUploadTemplateXlsx,
+  configurationInForce, useLineItemVersions, usePublishLineItems, useTemplateXlsxColumns,
+  useUploadTemplateXlsx,
 } from "../lib/queries";
 import { ApiError, api, downloadTemplateXlsx } from "../lib/api";
 import { color, font, layout, radius } from "../theme";
-import type { Locale, OntologyRef, TemplateRef } from "../types";
+import type { LineItemVersionRef, Locale, TemplateRef } from "../types";
 
-/** Admin-only: the authoring desk for templates and ontologies.
+/** Admin-only: the authoring desk for templates and their line items.
  *
  * Deciding what a spread should contain is a spreadsheet job, so the primary path is the round
  * trip: download the active template as a workbook, mark each line extracted or calculated (and
  * for a calculated one, what it is calculated FROM), upload it back. That publishes a new
  * VERSION — nothing is overwritten, so an extraction that already ran still explains itself
- * against the template it actually used. The ontology (the extraction rulebook) is uploaded
- * against a named template and validated against it, so a rule for a line the template does not
- * define is refused with the key in the message rather than silently ignored.
+ * against the template it actually used. The line-item set (the one configuration the extractor
+ * reads) is uploaded against a named template and validated against it, so a rule for a line the
+ * template does not define is refused with the key in the message rather than silently ignored.
  */
 function TemplateAuthoring({
   templates,
@@ -50,14 +58,14 @@ function TemplateAuthoring({
   t: (k: string) => string;
 }) {
   const xlsxRef = useRef<HTMLInputElement>(null);
-  const ontRef = useRef<HTMLInputElement>(null);
+  const lineItemsRef = useRef<HTMLInputElement>(null);
   const jsonRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   // Upload onto the selected template's key (a new version of it) or start a fresh template.
   const [asNew, setAsNew] = useState(false);
   const uploadXlsx = useUploadTemplateXlsx();
-  const uploadOnt = useUploadOntology();
+  const publishLineItems = usePublishLineItems();
   const cols = useTemplateXlsxColumns();
 
   const selected = templates.find((x) => x.id === selectedId);
@@ -104,28 +112,31 @@ function TemplateAuthoring({
     }
   }
 
-  async function onOntology(e: React.ChangeEvent<HTMLInputElement>) {
+  // Was `onOntology`, posting to `/ontologies` through `useUploadOntology`. That store and that
+  // route are gone: a set published here becomes a new version of THE configuration, the one the
+  // extractor reads and a run pins itself to.
+  async function onLineItems(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
-    setBusy("ontology");
+    setBusy("line-items");
     setMsg(null);
     try {
       const definition = JSON.parse(await f.text());
-      const res = await uploadOnt.mutateAsync({
+      const res = await publishLineItems.mutateAsync({
         definition,
-        // Point the rulebook at the template the buttons act on — that is the one it will be
+        // Point the set at the template the buttons act on — that is the one it will be
         // checked against, and checking it against something else would be the wrong answer
         // quietly.
         targetTemplateKey: selected?.template_key,
       });
-      setMsg({ ok: true, text: t("tp.auth.publishedOntology")
-        .replace("{key}", res.ontology_key).replace("{v}", String(res.version))
-        .replace("{n}", String(res.mappings)).replace("{tpl}", res.target_template_key) });
+      setMsg({ ok: true, text: t("tp.auth.publishedLineItems")
+        .replace("{key}", res.line_items_key).replace("{v}", String(res.version))
+        .replace("{n}", String(res.items)).replace("{tpl}", res.target_template_key) });
     } catch (err) {
       fail(err);
     } finally {
       setBusy(null);
-      if (ontRef.current) ontRef.current.value = "";
+      if (lineItemsRef.current) lineItemsRef.current.value = "";
     }
   }
 
@@ -136,9 +147,12 @@ function TemplateAuthoring({
     setMsg(null);
     try {
       const def = JSON.parse(await f.text());
-      const isOntology = "target_template_key" in def || "mappings" in def;
-      const res = isOntology ? await api.createOntology(def) : await api.createTemplate(def);
-      const key = "template_key" in res ? res.template_key : res.ontology_key;
+      // Which of the two documents was pasted. The old sniff looked for `mappings`, the ontology's
+      // concept list; a line-item set declares `items`, so that is what says "this is the
+      // configuration, publish it as a version of it" rather than "this is a template".
+      const isLineItems = "target_template_key" in def || "items" in def;
+      const res = isLineItems ? await api.publishLineItems(def) : await api.createTemplate(def);
+      const key = "template_key" in res ? res.template_key : res.line_items_key;
       setMsg({ ok: true, text: t("tp.importOk").replace("{key}", key)
         .replace("{v}", String(res.version)) });
       if ("template_key" in res) onSelect(res.id);
@@ -195,8 +209,9 @@ function TemplateAuthoring({
       <input ref={xlsxRef} type="file" data-testid="tpl-xlsx-input" style={{ display: "none" }}
              onChange={onXlsx}
              accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
-      <input ref={ontRef} type="file" accept="application/json,.json" data-testid="tpl-ont-input"
-             style={{ display: "none" }} onChange={onOntology} />
+      <input ref={lineItemsRef} type="file" accept="application/json,.json"
+             data-testid="tpl-line-items-input"
+             style={{ display: "none" }} onChange={onLineItems} />
       <input ref={jsonRef} type="file" accept="application/json,.json" data-testid="tpl-json-input"
              style={{ display: "none" }} onChange={onJson} />
 
@@ -209,9 +224,9 @@ function TemplateAuthoring({
                 data-testid="tpl-upload-xlsx" style={btn(true)}>
           {busy === "upload" ? t("tp.auth.working") : t("tp.auth.upload")}
         </button>
-        <button onClick={() => ontRef.current?.click()} disabled={!!busy}
-                data-testid="tpl-upload-ontology" style={btn(false)}>
-          {busy === "ontology" ? t("tp.auth.working") : t("tp.auth.uploadOntology")}
+        <button onClick={() => lineItemsRef.current?.click()} disabled={!!busy}
+                data-testid="tpl-upload-line-items" style={btn(false)}>
+          {busy === "line-items" ? t("tp.auth.working") : t("tp.auth.uploadLineItems")}
         </button>
         <button onClick={() => jsonRef.current?.click()} disabled={!!busy}
                 data-testid="tpl-import-json"
@@ -275,7 +290,7 @@ export function sortTemplates(templates: TemplateRef[]): TemplateRef[] {
     : (a.name || a.template_key).localeCompare(b.name || b.template_key)));
 }
 
-/** The JSON Schema an uploaded ontology is validated against, saved as a file.
+/** The JSON Schema an uploaded line-item set is validated against, saved as a file.
  *
  * Fetched rather than bundled: it is generated from the pydantic model the upload gate uses, so a
  * copy shipped in the frontend would drift the first time a field is added — and the whole value of
@@ -290,13 +305,13 @@ function SchemaDownload({ t }: { t: (k: string) => string }) {
     setBusy(true);
     setErr(null);
     try {
-      const s = await api.ontologySchema();
+      const s = await api.lineItemSchema();
       const blob = new Blob([JSON.stringify(s.json_schema, null, 2)],
                             { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `ontology_schema_v${s.schema_version}.json`;
+      a.download = `line_items_schema_v${s.schema_version}.json`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -339,8 +354,8 @@ function HeadCell({ label }: { label: string }) {
 
 /** One template version. The whole row is the affordance — an index exists to be clicked into,
  *  so there is no separate "open" button to hunt for. */
-function TemplateRow({ tpl, ontology, active, onOpen, t }: {
-  tpl: TemplateRef; ontology: OntologyRef | undefined;
+function TemplateRow({ tpl, lineItems, active, onOpen, t }: {
+  tpl: TemplateRef; lineItems: LineItemVersionRef | undefined;
   active: boolean; onOpen: () => void; t: (k: string) => string;
 }) {
   const [hover, setHover] = useState(false);
@@ -384,35 +399,24 @@ function TemplateRow({ tpl, ontology, active, onOpen, t }: {
           {t(tpl.is_published ? "tp.list.published" : "tp.list.draft")}
         </span>
       </div>
-      <div data-testid="tpl-row-ontology" style={{ fontSize: 11.5, minWidth: 0 }}>
-        {ontology ? (
+      {/* THE CONFIGURATION IN FORCE for this template key — the line-item version the next run
+          will map against (`configurationFor`), named by key and revision.
+
+          THE "IN FORCE, THOUGH SUPERSEDED" BADGE THAT SAT HERE IS GONE with the field behind it.
+          It reconciled an ontology row that declared itself replaced while still being the one
+          selected; `LineItemVersionRef` has no `superseded`, because selection is "the latest
+          stored wins" and `in_force` is the whole answer. Do not reintroduce a second, declarative
+          notion of replacement — it is what made this column able to contradict the extractor. */}
+      <div data-testid="tpl-row-line-items" style={{ fontSize: 11.5, minWidth: 0 }}>
+        {lineItems ? (
           <>
             <span style={{ fontFamily: font.mono, color: color.sec, overflowWrap: "anywhere" }}>
-              {ontology.ontology_key}
+              {lineItems.line_items_key}
             </span>
-            <span style={{ color: color.muted }}>{` · v${ontology.version}`}</span>
-            {/* "IN FORCE, THOUGH SUPERSEDED" — never the bare word, because this column only ever
-                names the rulebook IN FORCE (`ontologyFor`). So `superseded` here is always a
-                statement about the rulebook the next run will map against, and printing "superseded"
-                beside it said the opposite of what the column means: an admin reads that the
-                extractor is governed by a rulebook someone retired, when it is the current one.
-
-                The state is ordinary now, not a corner. It used to need every rulebook for the
-                template to have been replaced with no replacement present — the old ranking
-                preferred a live row. Selection is "the latest stored wins", so it takes only an
-                admin republishing a key that an older rulebook declared it superseded, or one the
-                repo retired: newest stored, therefore in force, and still carrying the label. The
-                server resolves the same collision the same way for a run's own record
-                (extractions.rulebook_record), and the extraction view's picker has always used this
-                exact phrase — one wording for one state, in all three places. */}
-            {ontology.superseded && (
-              <span style={{ color: color.amberFg, marginInlineStart: 6 }}>
-                {t("tp.rb.inForceSuperseded")}
-              </span>
-            )}
+            <span style={{ color: color.muted }}>{` · v${lineItems.version}`}</span>
           </>
         ) : (
-          <span style={{ color: color.muted }}>{t("tp.list.noOntology")}</span>
+          <span style={{ color: color.muted }}>{t("tp.list.noLineItems")}</span>
         )}
       </div>
     </div>
@@ -439,7 +443,7 @@ export function TemplateList({
   t: (k: string) => string;
 }) {
   const [filter, setFilter] = useState("");
-  const ontologies = useOntologies();
+  const configurations = useLineItemVersions();
 
   // `inert` is not in React 18's attribute types, so it is spread rather than written as a prop.
   // aria-hidden rides along: a screen reader must not read out a list the pointer and the keyboard
@@ -468,13 +472,14 @@ export function TemplateList({
     );
   }
 
-  // Which rulebook a row is honestly described by: the one IN FORCE for its template key, decided
-  // by the shared rule (see ontologyInForce) rather than by a third local copy of it. The copy
-  // that stood here compared `version` alone, which named the superseded v1 whenever it had been
-  // edited more times than the v2 that replaced it — and would have named a generated skeleton of
-  // empty stubs on the same grounds.
-  const ontologyFor = (key: string) =>
-    ontologyInForce(ontologies.data, (o) => o.target_template_key === key);
+  // Which configuration a row is honestly described by: the line-item version IN FORCE for its
+  // template key, READ from the server's own flag through the shared reader (see
+  // configurationInForce) rather than ranked by a local copy of the rule. The copy that stood here
+  // compared `version` alone, which named the superseded v1 whenever it had been edited more times
+  // than the v2 that replaced it — and would have named a generated skeleton of empty stubs on the
+  // same grounds.
+  const configurationFor = (key: string) =>
+    configurationInForce(configurations.data, (c) => c.target_template_key === key);
 
   const q = filter.trim().toLowerCase();
   const rows = sortTemplates(
@@ -494,10 +499,10 @@ export function TemplateList({
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-            {/* The SHAPE an uploaded ontology must have, next to the filter because it describes
-                the collection rather than any one version. Generated from the model the upload gate
-                validates with, so it cannot describe a rule the gate does not enforce. The
-                per-template starter file is a different artifact and lives on the detail page,
+            {/* The SHAPE an uploaded line-item set must have, next to the filter because it
+                describes the collection rather than any one version. Generated from the model the
+                upload gate validates with, so it cannot describe a rule the gate does not enforce.
+                The per-template starter file is a different artifact and lives on the detail page,
                 where there is a template to derive it from. */}
             {canEdit && <SchemaDownload t={t} />}
             <input
@@ -528,7 +533,7 @@ export function TemplateList({
             <HeadCell label={t("tp.list.colKey")} />
             <HeadCell label={t("tp.list.colVersion")} />
             <HeadCell label={t("tp.list.colState")} />
-            <HeadCell label={t("tp.list.colOntology")} />
+            <HeadCell label={t("tp.list.colLineItems")} />
           </div>
           {rows.length === 0 ? (
             <div style={{ borderTop: `1px solid ${color.hairline}`, padding: "22px 18px",
@@ -538,7 +543,7 @@ export function TemplateList({
           ) : rows.map((tpl) => (
             <TemplateRow
               key={tpl.id} tpl={tpl}
-              ontology={ontologyFor(tpl.template_key)} active={tpl.id === activeId}
+              lineItems={configurationFor(tpl.template_key)} active={tpl.id === activeId}
               onOpen={() => onOpen(tpl.id)} t={t}
             />
           ))}

@@ -3,7 +3,9 @@
  * session token and the two locale concerns:
  *
  *  - `locale`        — the OUTPUT language for extracted financial data (statements,
- *                      line items, notes). Always applied.
+ *                      line items, notes). Always applied. Starts at the deployment's
+ *                      configured default (`features.default_output_locale`, hydrated from
+ *                      GET /settings) and is overridden by the language switcher.
  *  - `uiLocalization`— admin flag (synced from GET /settings): when true the whole
  *                      interface is localized too; when false the UI stays English and
  *                      only financial output follows `locale`.
@@ -19,6 +21,13 @@ import type { Basis, ExportFmt, ExtractMode, Locale, StatementKey } from "./type
 
 interface UIState {
   locale: Locale; // output/data language
+  /** True once the viewer picked an output language themselves (the language switcher).
+   *
+   * The server's configured default (`features.default_output_locale`) may only fill an
+   * UNCHOSEN locale: the /settings snapshot arrives asynchronously, so without this flag a
+   * deployment defaulting to "zh" would yank the screen back to Chinese moments after someone
+   * switched to English. */
+  localeChosen: boolean;
   uiLocalization: boolean; // admin flag: localize whole UI (from /settings)
   token: string | null; // session token
 
@@ -49,6 +58,9 @@ interface UIState {
   navCollapsed: boolean;
 
   setLocale: (l: Locale) => void;
+  /** Adopt the deployment's configured default output language (from GET /settings). A no-op
+   *  once the viewer has chosen for themselves. */
+  hydrateDefaultLocale: (l: Locale) => void;
   setUiLocalization: (v: boolean) => void;
   setToken: (t: string | null) => void;
   setExtractMode: (m: ExtractMode) => void;
@@ -70,7 +82,12 @@ interface UIState {
 }
 
 export const useUI = create<UIState>((set, get) => ({
+  // "en" only until the /settings snapshot lands (`hydrateDefaultLocale`, wired in
+  // lib/queries.ts:useSettings). The store is created synchronously at module load, before any
+  // request, so there has to be SOME value here; it is the pre-hydration placeholder rather than
+  // the app's default output language, which is `[features] default_output_locale`.
   locale: "en",
+  localeChosen: false,
   uiLocalization: false,
   token: getToken(),
   extractMode: "auto",
@@ -88,7 +105,11 @@ export const useUI = create<UIState>((set, get) => ({
   exportFmt: "excel",
   navCollapsed: getStoredNavCollapsed(),
 
-  setLocale: (locale) => set({ locale }),
+  setLocale: (locale) => set({ locale, localeChosen: true }),
+  hydrateDefaultLocale: (locale) => {
+    if (get().localeChosen) return;
+    set({ locale });
+  },
   setUiLocalization: (uiLocalization) => set({ uiLocalization }),
   setToken: (token) => {
     setStoredToken(token);

@@ -76,9 +76,22 @@ def test_cash_flow_is_expanded():
         assert extra in labels, extra
 
 
-def test_template_and_ontology_upload_via_api(client):
-    """End-to-end: the template then the ontology upload through the real endpoints."""
+def test_template_upload_via_api(client):
+    """End-to-end: the template uploads through the real endpoint.
+
+    THE SECOND HALF OF THIS TEST IS RETIRED. It posted the ontology to `/api/v1/ontologies` and
+    asserted 201; that endpoint is gone, because line items is the single configuration engine and
+    its store was the second one. The two things it was checking are both still covered, and better:
+
+      * that a configuration publishes through the real endpoint — `POST /api/v1/line-items`,
+        exercised by tests/test_api.py, test_schemas.py, test_validation_block.py,
+        test_working_view_schema.py, test_coverage_contract.py and two more;
+      * that the retired door is actually shut — tests/test_retired_ontology_path.py, which asserts
+        the endpoints 404, the modules do not import, no served OpenAPI path or field says
+        ontology, and no role still carries the old permission.
+
+    Asserting the 404 here as well would be a third copy of that, so this test keeps only the part
+    that is its own: the HK template itself is postable.
+    """
     r = client.post("/api/v1/templates", json={"definition": TEMPLATE})
     assert r.status_code == 201, r.text
-    r2 = client.post("/api/v1/ontologies", json={"definition": ONTOLOGY})
-    assert r2.status_code == 201, r2.text

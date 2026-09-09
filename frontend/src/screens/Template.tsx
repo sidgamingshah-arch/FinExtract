@@ -1,10 +1,15 @@
-/** Screen 7 — Template & Ontology, in two pages.
+/** Screen 7 — Template & line items, in two pages.
  *
  * Page 1 is the index (see TemplateList.tsx): the templates that exist, one row each, and the
- * authoring desk. Page 2 — everything below — is one template's detail: its structure tree, the
- * node editor, the netting policies, the ontology editing. It is raised OVER the index rather
+ * authoring desk. Page 2 — everything below — is one template's detail: its structure tree and
+ * the inline editor for the LINE ITEM a template line maps to. It is raised OVER the index rather
  * than replacing it, so dismissing it puts the reader back on the list they were reading, filter
  * and scroll intact, and `?template=` keeps a reloaded tab on the version it was open on.
+ *
+ * There is ONE configuration engine — the line items — so the editor here saves through
+ * `/line-items` and publishes a new line-item version. The netting-policy editor and the
+ * starter-file download that used to live on this page addressed the ontology and are gone
+ * (see the notes at their old sites below); nothing on this screen selects a second engine.
  */
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -15,10 +20,8 @@ import { Card } from "../components/ui";
 import { TemplateList, sortTemplates } from "./TemplateList";
 import { useAppLocale, useUI } from "../store";
 import { color, font, radius } from "../theme";
-import type {
-  Locale, NettingRuleEdit, NettingRuleView, NodeConfig, TemplateRef, ValueScope,
-} from "../types";
-import { useDownloadOntologySkeleton, useTemplateDetail, useTemplates } from "../lib/queries";
+import type { Locale, NodeConfig, TemplateRef, ValueScope } from "../types";
+import { useTemplateDetail, useTemplates } from "../lib/queries";
 import { ApiError, api } from "../lib/api";
 import { useCan } from "../lib/rbac";
 import { NATIVE_NAME, useT } from "../i18n";
@@ -63,47 +66,20 @@ function FieldMock({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** Render the netting expression: left muted, added token indigo, subtracted token red. */
-function NettingExpr({ expr }: { expr: string }) {
-  // Format: "face_value = Note12.total − Note12.related_party"
-  const eq = expr.indexOf("=");
-  const lhs = eq >= 0 ? expr.slice(0, eq).trim() : expr;
-  const rhs = eq >= 0 ? expr.slice(eq + 1).trim() : "";
-  const parts = rhs.split("−");
-  const added = (parts[0] ?? "").trim();
-  const subtracted = (parts[1] ?? "").trim();
-  const box: CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    background: color.rowAltBg,
-    border: `1px solid ${color.hairline3}`,
-    borderRadius: radius.control,
-    padding: "10px 12px",
-    fontFamily: font.mono,
-    fontSize: 11.5,
-    color: color.ink,
-    flexWrap: "wrap",
-  };
-  return (
-    <div style={box}>
-      <span style={{ color: color.muted }}>{lhs}</span> ={" "}
-      <span style={{ color: color.indigo, fontWeight: 600 }}>{added}</span> −{" "}
-      <span style={{ color: color.redFg, fontWeight: 600 }}>{subtracted}</span>
-    </div>
-  );
-}
+/** THE NETTING EXPRESSION RENDERER IS GONE with the netting editor and the read-only netting
+ *  card below (see the note at the old render site). Netting is part of the line-item set, so it
+ *  is published through the one configuration engine rather than shown in a display of its own. */
 
-/** A concept that EXISTS in this template. `confusable_with` and every netting key must name
- *  one: the server 422s on an unknown key, so both are picked from this list, never typed. */
+/** A line item that EXISTS in this template. `confusable_with` must name one: the server 422s on
+ *  an unknown key, so it is picked from this list, never typed. */
 interface Concept { key: string; label: string }
 
 type Msg = { ok: boolean; text: string };
 
 /** How an editor tells the detail page it is holding an unsaved change, under a name of its own
- *  (`concept`, `netting:<id>`) so several editors can be dirty at once and each can go clean on
- *  its own. The detail needs the answer because the way OUT of the page — "← All templates" —
- *  lives in its header, and used to discard whatever was in an editor without a word. */
+ *  (`concept`) so several editors can be dirty at once and each can go clean on its own. The
+ *  detail needs the answer because the way OUT of the page — "← All templates" — lives in its
+ *  header, and used to discard whatever was in an editor without a word. */
 type ReportDirty = (source: string, dirty: boolean) => void;
 
 /** The server's own `detail` when it sent one — a rejected key or an invalid regex has to say
@@ -289,7 +265,8 @@ function CriteriaEditor({
   onChange: (patch: Partial<Criteria>) => void;
   onDraft: (field: CriteriaList, v: string) => void; t: (k: string) => string;
 }) {
-  // A concept is never confusable with itself, and only keys in this ontology are legal.
+  // A line item is never confusable with itself, and only keys this line-item set declares are
+  // legal.
   const others = concepts.filter((c) => c.key !== canonicalKey);
   const labelOf = (k: string) => concepts.find((c) => c.key === k)?.label ?? k;
   const list = (field: CriteriaList, labelKey: string, hintKey: string, phKey: string,
@@ -377,288 +354,23 @@ function CriteriaEditor({
   );
 }
 
-/** One netting policy. Admins edit its key sets, condition and explanation in place; everyone
- *  else sees exactly the read-only expression. Each save publishes a new ontology version via
- *  `apply`, which the card above owns so the confirmation survives the refetch. */
-function NettingRuleRow({ rule, concepts, editable, isNew, apply, onDone, onDirty, t }: {
-  rule: NettingRuleView; concepts: Concept[]; editable: boolean; isNew?: boolean;
-  apply: (edit: NettingRuleEdit) => Promise<boolean>; onDone?: () => void;
-  onDirty: ReportDirty; t: (k: string) => string;
-}) {
-  const stored = {
-    target: rule.target_key,
-    subtract: rule.subtract.map((c) => c.key),
-    add: rule.add.map((c) => c.key),
-    condition: rule.condition ?? "",
-    label: rule.label ?? "",
-  };
-  const sig = JSON.stringify(stored);
-  const [form, setForm] = useState(stored);
-  const [busy, setBusy] = useState<"save" | "delete" | null>(null);
-  const [confirmDel, setConfirmDel] = useState(false);
+/** THE NETTING-POLICY EDITOR IS GONE (`NettingRuleRow` + `NettingRules`, and the
+ *  `PATCH /ontologies/{id}/netting-rules` call behind them).
+ *
+ *  It let an admin publish a target line net of its components, keyed by ontology concept and
+ *  saved as a new ontology VERSION. There is one configuration engine now — the line items — and
+ *  netting belongs to the line-item set, so it is published with the rest of that set rather than
+ *  through a second, ontology-shaped door. The shipped configuration declares ZERO netting rules,
+ *  so the editor governed nothing: porting its PATCH would have been work on a no-op. Do not
+ *  reinstate it here; add netting to the line-item set and edit it through `/line-items`. */
 
-  // Adopt stored truth when the rule changes under us: our own save's refetch, or another
-  // admin's edit. The card-level save confirmation is deliberately left alone.
-  const seen = useRef(sig);
-  useEffect(() => {
-    if (seen.current !== sig) {
-      seen.current = sig;
-      setForm(stored);
-      setConfirmDel(false);
-    }
-  }, [sig, stored]);
-
-  /** Prefer the template's own label for a key, then the labels the server sent with this
-   *  rule (a netted line need not be a leaf of the tree the editor shows). */
-  function labelOf(k: string): string {
-    const inTemplate = concepts.find((c) => c.key === k);
-    if (inTemplate) return inTemplate.label;
-    const inRule = [...rule.subtract, ...rule.add].find((c) => c.key === k);
-    if (inRule) return inRule.label;
-    if (k === rule.target_key && rule.target_label) return rule.target_label;
-    return k;
-  }
-
-  const dirty = JSON.stringify(form) !== sig;
-  // Tell the page. On unmount the answer is "nothing pending": a draft row that was cancelled, or
-  // a rule the refetch removed, must not leave the detail believing there is an edit to lose.
-  useEffect(() => {
-    onDirty(`netting:${rule.id}`, dirty);
-    return () => onDirty(`netting:${rule.id}`, false);
-  }, [dirty, rule.id, onDirty]);
-  const patch = (p: Partial<typeof stored>) => setForm((f) => ({ ...f, ...p }));
-  // A line cannot be netted against itself, nor subtracted and added at once.
-  const others = concepts.filter((c) => c.key !== form.target);
-
-  async function save() {
-    if (!form.target || !dirty || busy) return;
-    setBusy("save");
-    const ok = await apply({
-      id: rule.id, target_key: form.target, subtract_keys: form.subtract, add_keys: form.add,
-      condition: form.condition, label: form.label,
-    });
-    setBusy(null);
-    if (ok) onDone?.();
-  }
-
-  async function remove() {
-    if (busy) return;
-    setBusy("delete");
-    await apply({ id: rule.id, delete: true });
-    setBusy(null);
-  }
-
-  const btn: CSSProperties = {
-    fontSize: 12, fontWeight: 600, color: "#fff", background: color.indigo, border: "none",
-    borderRadius: radius.control, padding: "7px 13px",
-  };
-  const ghost: CSSProperties = {
-    fontSize: 12, color: color.sec, background: "none",
-    border: `1px solid ${color.controlBorder}`, borderRadius: radius.control, padding: "7px 12px",
-    cursor: "pointer",
-  };
-
-  return (
-    <div data-testid="netting-rule"
-         style={{ border: `1px solid ${color.hairline3}`, borderRadius: radius.control, padding: 12 }}>
-      {isNew && (
-        <div style={{ marginBottom: 11 }}>
-          <FieldLabel label={t("tp.nettingTarget")} hint={t("tp.nettingTargetHint")} />
-          <select
-            data-testid="netting-target"
-            value={form.target}
-            onChange={(e) => patch({ target: e.target.value })}
-            style={{ ...textInput, cursor: "pointer" }}
-          >
-            <option value="">{t("tp.nettingTargetPick")}</option>
-            {concepts.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
-          </select>
-        </div>
-      )}
-
-      {form.target && (
-        <div style={{ fontFamily: font.mono, fontSize: 11.5, color: color.ink, marginBottom: 6,
-                      display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
-          <span style={{ fontWeight: 600, color: color.indigo }}>{labelOf(form.target)}</span>
-          <span style={{ color: color.muted }}>=</span>
-          <span style={{ color: color.muted }}>{labelOf(form.target)}</span>
-          {form.subtract.map((k) => (
-            <span key={k} style={{ color: color.redFg, fontWeight: 600 }}>− {labelOf(k)}</span>
-          ))}
-          {form.add.map((k) => (
-            <span key={k} style={{ color: color.greenFg, fontWeight: 600 }}>+ {labelOf(k)}</span>
-          ))}
-        </div>
-      )}
-
-      {!editable && (
-        <>
-          {rule.label && (
-            <div style={{ fontSize: 11.5, color: color.sec, lineHeight: 1.5 }}>{rule.label}</div>
-          )}
-          {rule.condition && (
-            <div style={{ fontSize: 11, color: color.muted, lineHeight: 1.5, marginTop: 6 }}>
-              <b style={{ color: color.sec2 }}>{t("tp.nettingWhen")}:</b> {rule.condition}
-            </div>
-          )}
-        </>
-      )}
-
-      {editable && (
-        <div style={{ marginTop: 10 }}>
-          <ChipList
-            label={t("tp.nettingSubtract")} hint={t("tp.nettingSubtractHint")}
-            placeholder={t("tp.nettingKeyPick")} tone="red" items={form.subtract} editable
-            options={others.filter((o) => !form.add.includes(o.key))} labelOf={labelOf}
-            testId="netting-subtract" onChange={(next) => patch({ subtract: next })} t={t}
-          />
-          <ChipList
-            label={t("tp.nettingAddKeys")} hint={t("tp.nettingAddKeysHint")}
-            placeholder={t("tp.nettingKeyPick")} items={form.add} editable
-            options={others.filter((o) => !form.subtract.includes(o.key))} labelOf={labelOf}
-            testId="netting-add-keys" onChange={(next) => patch({ add: next })} t={t}
-          />
-          <FieldLabel label={t("tp.nettingCondition")} hint={t("tp.nettingConditionHint")} />
-          <textarea
-            value={form.condition} rows={2} placeholder={t("tp.nettingConditionPh")}
-            onChange={(e) => patch({ condition: e.target.value })}
-            style={{ ...textInput, resize: "vertical", lineHeight: 1.5, marginBottom: 12 }}
-          />
-          <FieldLabel label={t("tp.nettingLabel")} />
-          <input
-            data-testid="netting-label"
-            value={form.label} placeholder={t("tp.nettingLabelPh")}
-            onChange={(e) => patch({ label: e.target.value })}
-            style={{ ...textInput, marginBottom: 12 }}
-          />
-          <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
-            <button
-              data-testid="netting-save" onClick={save}
-              disabled={!form.target || !dirty || !!busy}
-              style={{ ...btn, cursor: !form.target || !dirty || busy ? "default" : "pointer",
-                       opacity: !form.target || !dirty ? 0.5 : 1 }}
-            >
-              {/* Labelled apart from the concept editor's Save: on this screen two different
-                  things can be pending at once, and "Save changes" would be ambiguous. */}
-              {busy === "save" ? t("tp.saving") : t("tp.nettingSave")}
-            </button>
-            {isNew ? (
-              <button onClick={onDone} style={ghost}>{t("tp.nettingCancel")}</button>
-            ) : dirty && !busy ? (
-              <button onClick={() => { setForm(stored); setConfirmDel(false); }} style={ghost}>
-                {t("tp.revert")}
-              </button>
-            ) : null}
-            {dirty && <span style={{ fontSize: 11, color: color.muted }}>{t("tp.unsaved")}</span>}
-            <span style={{ flex: 1 }} />
-            <span style={{ fontFamily: font.mono, fontSize: 10, color: color.faint }}>{rule.id}</span>
-            {!isNew && (
-              <button
-                data-testid="netting-delete"
-                onClick={confirmDel ? remove : () => setConfirmDel(true)}
-                style={{ ...ghost, color: color.redFg, borderColor: color.redFg }}
-              >
-                {busy === "delete" ? t("tp.deleting")
-                  : confirmDel ? t("tp.nettingDeleteConfirm") : t("tp.nettingDelete")}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** Template-wide netting policies (LLM-gated): a target line net of the components it may
- *  include, applied per-document only when the model confirms the containment. Editable by
- *  admins because netting RESTATES a reported figure — so it goes through the same versioned
- *  publish as a concept edit, never an in-place change. */
-function NettingRules({ rules, concepts, ontologyId, canEdit, onDirty, t }: {
-  rules: NettingRuleView[]; concepts: Concept[]; ontologyId: string | undefined;
-  canEdit: boolean; onDirty: ReportDirty; t: (k: string) => string;
-}) {
-  const qc = useQueryClient();
-  const editable = canEdit && !!ontologyId;
-  const [msg, setMsg] = useState<Msg | null>(null);
-  // Id of the rule being drafted, generated once per draft so the upsert creates a rule
-  // instead of overwriting an existing one.
-  const [adding, setAdding] = useState<string | null>(null);
-
-  /** The single place a rule edit is published: report the version it created, then re-read
-   *  the detail so the card shows stored truth. The message lives here, not in the row, so it
-   *  survives both the refetch and the draft editor unmounting. */
-  async function apply(edit: NettingRuleEdit): Promise<boolean> {
-    if (!ontologyId) return false;
-    setMsg(null);
-    try {
-      const res = await api.editNettingRule(ontologyId, edit);
-      setMsg({ ok: true, text: t("tp.saved").replace("{v}", String(res.version)) });
-      await qc.invalidateQueries({ queryKey: ["template-detail"] });
-      qc.invalidateQueries({ queryKey: ["ontologies"] });
-      return true;
-    } catch (err) {
-      setMsg({ ok: false, text: `${t("tp.saveErr")} ${serverText(err)}`.slice(0, 300) });
-      return false;
-    }
-  }
-
-  return (
-    <Card style={{ marginTop: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-        <span style={{ fontSize: 13, fontWeight: 600 }}>{t("tp.nettingRules")}</span>
-        <span style={{ fontSize: 9.5, fontWeight: 600, padding: "2px 7px", borderRadius: radius.pill,
-                       background: color.amberBg, color: color.amberFg }}>{t("tp.nettingLLM")}</span>
-      </div>
-      <p style={{ margin: "0 0 12px", fontSize: 11.5, color: color.sec2, lineHeight: 1.55 }}>
-        {t("tp.nettingRulesHint")}
-      </p>
-      {rules.length === 0 && !adding ? (
-        <div style={{ fontSize: 12, color: color.muted }}>{t("tp.nettingNone")}</div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {rules.map((r) => (
-            <NettingRuleRow key={r.id} rule={r} concepts={concepts} editable={editable}
-                            apply={apply} onDirty={onDirty} t={t} />
-          ))}
-          {adding && (
-            <NettingRuleRow
-              key={adding} isNew editable
-              rule={{ id: adding, target_key: "", target_label: "", subtract: [], add: [],
-                      condition: "", label: "" }}
-              concepts={concepts} apply={apply} onDone={() => setAdding(null)}
-              onDirty={onDirty} t={t}
-            />
-          )}
-        </div>
-      )}
-      {editable && !adding && (
-        <button
-          data-testid="netting-add"
-          onClick={() => setAdding(`netting_${Date.now().toString(36)}`)}
-          style={{ marginTop: 12, fontSize: 12, fontWeight: 600, color: color.indigo,
-                   background: "#fff", border: `1px dashed ${color.indigoBorder2}`,
-                   borderRadius: radius.control, padding: "8px 13px", cursor: "pointer" }}
-        >
-          {t("tp.nettingAdd")}
-        </button>
-      )}
-      {msg && (
-        <div style={{ marginTop: 11, fontSize: 11.5, lineHeight: 1.5,
-                      color: msg.ok ? color.greenFg : color.redFg }}>
-          {msg.text}
-        </div>
-      )}
-    </Card>
-  );
-}
-
-/** Editable ontology rules for the selected concept: the aliases the extractor matches on, the
- *  sign convention, and the criteria the mapper reasons over (definition / include / exclude /
- *  confusable-with / scope / lexical hints). Saving publishes a NEW ontology version
+/** Editable rules for the selected LINE ITEM: the aliases the extractor matches on, the sign
+ *  convention, and the criteria the mapper reasons over (definition / include / exclude /
+ *  confusable-with / scope / lexical hints). Saving publishes a NEW line-item version
  *  server-side (history preserved), then re-reads the screen so what you see is the stored
  *  result, not local optimism. */
-function NodeRules({ cfg, canonicalKey, ontologyId, concepts, locale, canEdit, onDirty, t }: {
-  cfg: NodeConfig; canonicalKey: string | undefined; ontologyId: string | undefined;
+function NodeRules({ cfg, canonicalKey, lineItemVersionId, concepts, locale, canEdit, onDirty, t }: {
+  cfg: NodeConfig; canonicalKey: string | undefined; lineItemVersionId: string | undefined;
   concepts: Concept[]; locale: Locale; canEdit: boolean; onDirty: ReportDirty;
   t: (k: string) => string;
 }) {
@@ -704,12 +416,12 @@ function NodeRules({ cfg, canonicalKey, ontologyId, concepts, locale, canEdit, o
     }
   }, [storedKey, stored, cfg.sign, storedCriteria]);
 
-  // A template line the rulebook in force does not map has no mapping entry to PATCH: the save
-  // answers 404 "not in this ontology", and the confusable-with picker 422s on the key. So the whole
-  // editor is read-only for it rather than a Save that is always refused — the detail's header says
-  // why. `mapped === false` is the server SAYING it is unmapped; a payload that omits the field
+  // A template line the configuration in force does not declare has no item to PATCH: the save
+  // answers 404 "not in this line-item set", and the confusable-with picker 422s on the key. So the
+  // whole editor is read-only for it rather than a Save that is always refused — the detail's header
+  // says why. `mapped === false` is the server SAYING it is unmapped; a payload that omits the field
   // predates it and described nodes that were mapped, so absent stays editable.
-  const editable = canEdit && !!ontologyId && !!canonicalKey && cfg.mapped !== false;
+  const editable = canEdit && !!lineItemVersionId && !!canonicalKey && cfg.mapped !== false;
   // What a save would persist: the committed chips plus any alias still sitting in the input.
   // Folding the draft in here (rather than relying on the input's blur firing before the
   // button's click) means typing an alias and clicking Save directly can never drop it.
@@ -749,9 +461,9 @@ function NodeRules({ cfg, canonicalKey, ontologyId, concepts, locale, canEdit, o
     setBusy(true);
     setMsg(null);
     try {
-      // One PATCH for the whole concept: aliases, sign and criteria are validated together,
+      // One PATCH for the whole line item: aliases, sign and criteria are validated together,
       // so a bad regex or an unknown key cannot leave half the edit published.
-      const res = await api.editOntologyMapping(ontologyId!, {
+      const res = await api.editLineItem(lineItemVersionId!, {
         canonical_key: canonicalKey!, locale, aliases: effective, sign_convention: sign,
         definition: effCriteria.definition, value_scope: effCriteria.value_scope,
         include: effCriteria.include, exclude: effCriteria.exclude,
@@ -763,9 +475,9 @@ function NodeRules({ cfg, canonicalKey, ontologyId, concepts, locale, canEdit, o
       setDraft("");
       setDrafts(EMPTY_DRAFTS);
       setMsg({ ok: true, text: t("tp.saved").replace("{v}", String(res.version)) });
-      // Re-read the detail (and the ontology list) so the screen shows the stored version.
+      // Re-read the detail (and the line-item version list) so the screen shows the stored version.
       await qc.invalidateQueries({ queryKey: ["template-detail"] });
-      qc.invalidateQueries({ queryKey: ["ontologies"] });
+      qc.invalidateQueries({ queryKey: ["line-item-versions"] });
     } catch (err) {
       setMsg({ ok: false, text: `${t("tp.saveErr")} ${serverText(err)}`.slice(0, 300) });
     } finally {
@@ -907,10 +619,10 @@ function NodeRules({ cfg, canonicalKey, ontologyId, concepts, locale, canEdit, o
 
 /** Page 2 — one template's detail, raised over the index.
  *
- * Everything that belongs to a single template is here: its structure tree, the concept editor,
- * the netting policies. The way back to the list is rendered BEFORE the body and in every state,
- * including the two states where there is nothing to show — a reader who followed a stale
- * `?template=` link must not land on a screen with no exit.
+ * Everything that belongs to a single template is here: its structure tree and the editor for the
+ * line item a selected template line maps to. The way back to the list is rendered BEFORE the body
+ * and in every state, including the two states where there is nothing to show — a reader who
+ * followed a stale `?template=` link must not land on a screen with no exit.
  */
 function TemplateDetail({ id, tpl, locale, canEdit, onDismiss, t }: {
   id: string; tpl: TemplateRef | undefined; locale: Locale; canEdit: boolean;
@@ -919,13 +631,11 @@ function TemplateDetail({ id, tpl, locale, canEdit, onDismiss, t }: {
   const { data, isError } = useTemplateDetail(id, locale);
   const tplSel = useUI((s) => s.tplSel);
   const setTpl = useUI((s) => s.setTpl);
-  // The starter-ontology download, and why it failed if it did: the file arrives through the
-  // browser's own download machinery, so success is invisible and an unreported failure looks
-  // exactly like a download the browser declined to show.
-  const skeleton = useDownloadOntologySkeleton();
-  const [skelErr, setSkelErr] = useState<string | null>(null);
-  // Which editors are holding an unsaved change, by name. Several can be at once — a concept's
-  // aliases and a netting rule are separate saves — and the page only needs to know whether ANY
+  // THE STARTER-FILE DOWNLOAD IS GONE (`useDownloadOntologySkeleton` and the error line beside
+  // it). It emitted an empty ontology stubbed from this template's keys — a file for authoring a
+  // second, rival rulebook. Authoring starts from the line-item configuration in force now, so
+  // there is nothing to seed and no skeleton route to call.
+  // Which editors are holding an unsaved change, by name. The page only needs to know whether ANY
   // of them is, to decide whether leaving costs the reader work.
   const [dirtyBy, setDirtyBy] = useState<Record<string, boolean>>({});
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -945,11 +655,11 @@ function TemplateDetail({ id, tpl, locale, canEdit, onDismiss, t }: {
   // aliases, sign and criteria under the heading of the line that was clicked, with no row
   // highlighted to give it away. An analyst editing that is editing the wrong concept.
   const cfg: NodeConfig | undefined = data ? data.node_config[tplSel] : undefined;
-  // Every concept the RULEBOOK IN FORCE maps, in statement order — the only legal values for
-  // `confusable_with` and for a netting rule's keys, so both are picked from here. A template line
-  // the rulebook does not declare is left out: the server rejects any key that is not a concept of
-  // the ontology (422, "names unknown concepts"), so offering it would be a picker entry whose only
-  // possible outcome is a refused save. The shipped template has two such lines.
+  // Every line item the CONFIGURATION IN FORCE declares, in statement order — the only legal
+  // values for `confusable_with`, so it is picked from here. A template line the configuration does
+  // not declare is left out: the server rejects any key the line-item set does not declare (422,
+  // "names unknown items"), so offering it would be a picker entry whose only possible outcome is a
+  // refused save. The shipped template has two such lines.
   const concepts: Concept[] = Object.entries(data?.node_config ?? {})
     .filter(([, c]) => c.mapped !== false)
     .map(([key, c]) => ({ key, label: c.label || key }));
@@ -1036,7 +746,7 @@ function TemplateDetail({ id, tpl, locale, canEdit, onDismiss, t }: {
               return (
                 <div
                   key={node.id}
-                  // Only lines map to a concept (headings carry no ontology rules to edit) — and
+                  // Only lines map to a line item (headings carry no rules to edit) — and
                   // only lines are clickable. A heading used to select its own id, which no
                   // `node_config` key can match: the click threw away whatever the analyst had
                   // selected and put a different concept, or nothing, in the editor.
@@ -1115,12 +825,13 @@ function TemplateDetail({ id, tpl, locale, canEdit, onDismiss, t }: {
                     : canEdit ? t("tp.editorSubhead") : t("tp.viewOnlyHint")}
                 </p>
 
-                {/* Editable ontology rules for this concept (aliases + sign + mapping criteria),
-                    saved as a new version */}
+                {/* Editable rules for this line item (aliases + sign + mapping criteria), saved
+                    as a new line-item version. `line_items.id` is the version the PATCH targets:
+                    the ONE configuration a template's detail edits. */}
                 <NodeRules
                   cfg={cfg}
                   canonicalKey={cfg.canonical_key ?? tplSel}
-                  ontologyId={data.ontology?.id}
+                  lineItemVersionId={data.line_items?.id}
                   concepts={concepts}
                   locale={locale}
                   canEdit={canEdit}
@@ -1128,39 +839,12 @@ function TemplateDetail({ id, tpl, locale, canEdit, onDismiss, t }: {
                   t={t}
                 />
 
-                {/* Note-to-face netting rule (flagship) */}
-                <div
-                  style={{
-                    background: color.surface,
-                    border: `1px solid ${color.indigoBorder}`,
-                    borderRadius: radius.card,
-                    padding: 18,
-                    borderLeft: `3px solid ${color.indigo}`,
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 9 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600 }}>{t("tp.nettingRule")}</span>
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 600,
-                        padding: "2px 7px",
-                        borderRadius: radius.pill,
-                        background: color.indigoTint2,
-                        color: color.indigo,
-                      }}
-                    >
-                      {t("tp.key")}
-                    </span>
-                  </div>
-                  <p style={{ margin: "0 0 12px", fontSize: 12, color: color.sec, lineHeight: 1.55 }}>
-                    {cfg.netting.explain}
-                  </p>
-                  <NettingExpr expr={cfg.netting.expr} />
-                </div>
+                {/* THE READ-ONLY NETTING CARD IS GONE from here with the netting editor below —
+                    it described one ontology concept's note-to-face restatement. Netting lives in
+                    the line-item set now, so this page has no netting display of its own. */}
               </>
             ) : (
-              /* No concept resolved, so no concept's rules — never a stand-in for the one that
+              /* No line item resolved, so no rules — never a stand-in for the one that
                  didn't. With the selection seeded above this is the case where the tree offers
                  nothing to select (a template of headings alone), which is why it asks rather than
                  explains. The words are the review screen's `r.remapPick`, the app's one localized
@@ -1174,14 +858,10 @@ function TemplateDetail({ id, tpl, locale, canEdit, onDismiss, t }: {
               </div>
             )}
 
-            {/* Template-wide containment-netting policies (LLM-gated), admin-editable. These are
-                the TEMPLATE's policies, not the selected concept's, so they stay put when no
-                concept resolved. */}
-            {data.netting_rules && (
-              <NettingRules rules={data.netting_rules} concepts={concepts}
-                            ontologyId={data.ontology?.id} canEdit={canEdit}
-                            onDirty={reportDirty} t={t} />
-            )}
+            {/* THE TEMPLATE-WIDE NETTING EDITOR STOOD HERE (`NettingRules` over
+                `data.netting_rules`). It published ontology versions; the shipped configuration
+                declares zero netting rules, so it governed nothing. Netting is part of the
+                line-item set — edit it through `/line-items`, not by reinstating this. */}
           </div>
         </div>
       </div>
@@ -1202,9 +882,9 @@ function TemplateDetail({ id, tpl, locale, canEdit, onDismiss, t }: {
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 18px" }}>
           <button
             data-testid="tpl-detail-close"
-            // An unsaved alias, criterion or netting edit is work that only exists here: it is not
-            // stored until Save publishes a new ontology version. Leaving used to discard it with no
-            // word, so the ask comes first and the reader chooses.
+            // An unsaved alias or criterion is work that only exists here: it is not stored until
+            // Save publishes a new line-item version. Leaving used to discard it with no word, so
+            // the ask comes first and the reader chooses.
             onClick={() => { if (dirty) setConfirmLeave(true); else onDismiss(); }}
             style={{ fontSize: 12, fontWeight: 600, color: color.indigo, background: "#fff",
                      border: `1px solid ${color.indigoBorder2}`, borderRadius: radius.control,
@@ -1219,37 +899,10 @@ function TemplateDetail({ id, tpl, locale, canEdit, onDismiss, t }: {
                 .filter(Boolean).join(" · ")}
             </div>
           </div>
-          {/* A ready-to-edit ontology for THIS template — every canonical_key it declares already a
-              stub inside its section, so an author fills in aliases and criteria instead of
-              reverse-engineering the shape from 422s. It lives here rather than on the index because
-              the file is derived from one template, and asking which one on a page listing seven of
-              them would be a worse question than clicking the one you mean. */}
-          {canEdit && (
-            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
-              {skelErr && (
-                <span data-testid="tpl-skeleton-error"
-                      style={{ fontSize: 11, color: color.redFg }}>{skelErr}</span>
-              )}
-              <button
-                data-testid="tpl-skeleton-download"
-                disabled={skeleton.isPending}
-                title={t("tp.detail.skeletonHelp")}
-                onClick={() => {
-                  setSkelErr(null);
-                  skeleton.mutate(
-                    { templateId: id, fallbackName: tpl?.template_key ?? "ontology" },
-                    { onError: (e) => setSkelErr(e instanceof ApiError ? e.message : String(e)) },
-                  );
-                }}
-                style={{ fontSize: 12, fontWeight: 600, color: color.indigo, background: "#fff",
-                         border: `1px solid ${color.indigoBorder2}`, borderRadius: radius.control,
-                         padding: "7px 12px", whiteSpace: "nowrap",
-                         cursor: skeleton.isPending ? "default" : "pointer" }}
-              >
-                {skeleton.isPending ? t("tp.detail.skeletonBusy") : t("tp.detail.skeleton")}
-              </button>
-            </div>
-          )}
+          {/* THE STARTER-FILE DOWNLOAD CARD STOOD HERE. It handed an author an empty ontology
+              stubbed from this template's keys — the first step of authoring a rival rulebook.
+              The one configuration engine is the line items, and it ships configured, so the
+              starting point is the version in force (Line items screen), not a blank file. */}
         </div>
         {/* Gated on `dirty` as well as on the ask: saving while the question is on screen answers
             it — there is nothing left to discard, so the warning must not keep claiming there is. */}
@@ -1291,8 +944,8 @@ export default function TemplateScreen() {
   const locale = useAppLocale();
   const t = useT();
   // Render the REAL configured template(s), not the demo project: the index lists the templates
-  // that exist, and a row's detail (tree + per-node config) comes from that template and its
-  // paired ontology.
+  // that exist, and a row's detail (tree + per-node config) comes from that template and the
+  // line-item configuration in force for it.
   const tplList = useTemplates();
   const canEdit = useCan("config:template"); // authoring is admin-only
   // Which template's detail is up lives in the URL, so a reload — and the browser's own Back

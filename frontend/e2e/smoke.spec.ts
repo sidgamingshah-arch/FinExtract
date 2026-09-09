@@ -1,39 +1,51 @@
 // `test` comes from ./fixtures, not from @playwright/test: it carries an auto fixture that
 // ABORTS any request leaving this machine. See e2e/fixtures.ts — an off-box asset on the
 // critical path is what made this suite fail at a different test on each run.
+//
+// The node imports are for ONE assertion — the "in any locale" half of the ontology/rulebook word
+// sweep, which reads the i18n catalogues off disk instead of rendering four languages through a
+// persisted admin setting. See BANNED_WORDS for why that trade was made.
+import { readFileSync, readdirSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { expect, type Page, test } from "./fixtures";
 
 const DCL = { waitUntil: "domcontentloaded" as const };
 
-/** THE RULEBOOK AND TEMPLATE THIS SUITE EXTRACTS AGAINST, named rather than inferred.
+/** THE CONFIGURATION AND TEMPLATE THIS SUITE EXTRACTS AGAINST, named rather than inferred.
  *
- * The fixtures used to take whatever the app defaults to, which is "the rulebook in force" — and
- * that is a single answer only while the repository ships one. It now ships two, the original
- * `hkfrs_hk_china` and the China/PRC `output_csv_hk`, so the default moved and with it every
- * finding these tests judge: the review queue's first finding stopped being row-shaped, a card's
- * figure came back "—", an acceptance stopped orphaning, and "the rulebook in force" became
- * ambiguous across two templates.
+ * The fixtures used to take whatever the app defaults to, which is "the configuration in force" —
+ * and that is a single answer only while one is stored per template. Naming it fixes the class of
+ * failure rather than its instances: another set can be published without moving this suite's
+ * subject.
  *
- * Naming it fixes the class of failure rather than the five instances: a third rulebook can be
- * added without moving this suite's subject. `hkfrs_hk_china` because that is what these
- * fixtures' expected findings were authored against — `unmapped.pdf` carries a caption that
- * rulebook deliberately cannot place, which is what makes the finding a property of the fixture
- * rather than a side effect of how mapping happens to score.
+ * ONE CONFIGURATION ENGINE, AND IT IS LINE ITEMS. These two constants used to name an ONTOLOGY
+ * (`hkfrs_hk_china`) and the template it targeted. There is no ontology: no table, no route, no
+ * stored version, nothing selectable. What a run pins is a `line_item_versions` row
+ * (`extraction_runs.line_item_version_id`), and the repo seeds exactly one set —
+ * `app/sample/templates/output_csv_hk_line_items.json`, `output_csv_hk`, targeting
+ * `output_csv_hk_v1` (`app/sample/reference.py`). So that is the pair named here, and it is the
+ * only pair that CAN be named: `hkfrs_hk_china_v1` is now seeded template-only and has no
+ * configuration in force at all.
  *
- * THE RULEBOOK IS THE LEVER, not the template: `ExtractionView` resolves the rulebook first and
- * constrains the template to that rulebook's `target_template_key`, so a template named on its
- * own is ignored. Both are named here — the rulebook to pin runs with, the template key to scope
+ * THE CONFIGURATION IS THE LEVER, not the template: `ExtractionView` resolves the line-item
+ * version first and constrains the template to its `target_template_key`, so a template named on
+ * its own is ignored. Both are named here — the set to pin runs with, the template key to scope
  * the "in force" assertions, which are per template.
  *
- * MEASURED, not assumed. Extracting `unmapped.pdf` under each rulebook raises:
- *
- *   hkfrs_hk_china   3 open — one calculated_mismatch AND two `unmapped` (row-shaped, remappable)
- *   output_csv_hk    1 open — the calculated_mismatch alone; it maps everything else
- *
- * So the tests that judge a row-shaped finding need this rulebook pinned: under the default there
- * is no such finding to select, at any position. */
-const SUITE_RULEBOOK_KEY = "hkfrs_hk_china";
-const SUITE_TEMPLATE_KEY = "hkfrs_hk_china_v1";
+ * WHAT THIS COST, recorded rather than papered over. The old comment carried a MEASURED pair of
+ * extraction outcomes for `unmapped.pdf` — 3 open findings (two of them row-shaped) under
+ * `hkfrs_hk_china`, 1 open (the calculated_mismatch alone) under `output_csv_hk` — and pinned the
+ * first so the tests that judge a ROW-SHAPED finding had one to select. The engine that produced
+ * the first of those numbers is gone, so the measurement cannot be restored by pinning: the
+ * row-shaped-finding tests below now run against the one configuration there is. That is the
+ * accepted consequence of collapsing two engines into one (a blank cell a configurator can fix
+ * beats a filled cell from a path that is supposed to be gone), and it is an OPEN RISK rather than
+ * a verified state — this suite needs a browser and a live server, and it has not been run since
+ * the swap. */
+const SUITE_CONFIG_KEY = "output_csv_hk";
+const SUITE_TEMPLATE_KEY = "output_csv_hk_v1";
 
 /** Log in via the demo quick-sign-in buttons (passwordless in demo mode). */
 async function loginAs(page: Page, role: "admin" | "reviewer" | "analyst") {
@@ -82,10 +94,11 @@ async function resetThresholds(page: Page) {
 
 /** Open one template's detail page.
  *
- * Template & Ontology is two pages: an index of the templates that exist, and the structure tree
- * plus the ontology editors on a detail raised over it. Anything that drives an editor has to
- * click into a row first — and specifically into a row that HAS a rulebook, since a template no
- * ontology targets yet is legitimately read-only. */
+ * Template & Line Items is two pages: an index of the templates that exist, and the structure tree
+ * plus the line-item editors on a detail raised over it. Anything that drives an editor has to
+ * click into a row first — and specifically into a row that HAS a configuration, since a template
+ * no line-item set targets yet is legitimately read-only. That is not hypothetical: the repo seeds
+ * one set, so exactly one template row carries one and the rest print "None yet". */
 async function openTemplateDetail(page: Page) {
   await page.goto("/template", DCL);
   const rows = page.getByTestId("tpl-row").filter({ hasNotText: "None yet" });
@@ -282,8 +295,14 @@ test("end-to-end: upload a new file → Run integrity check shows real results �
 test("analyst cannot reach the config template screen but can select a template", async ({ page }) => {
   await loginAs(page, "analyst");
 
-  // Template & Ontology is an admin-only configuration screen: it must NOT appear in the
+  // Template & Line Items is an admin-only configuration screen: it must NOT appear in the
   // analyst's nav, and a direct visit is redirected away (to the analyst's first screen).
+  //
+  // THE LABEL IS THE ONE THE RAIL RENDERS NOW. It read "Template & Ontology" (`SCREENS.template`
+  // and `nav.template`) while the screen offered a second, selectable engine. Line items is the
+  // single configuration engine, so the rail must not print a word for an engine a user can no
+  // longer choose — and an absence assertion against the OLD label would pass on the rename alone,
+  // which is the assertion quietly meaning nothing.
   //
   // The rail is COLLAPSED by default, which hides every label — so it is expanded first. Asserting
   // the absence of a label against a rail that shows none of them would pass whatever the role may
@@ -294,8 +313,8 @@ test("analyst cannot reach the config template screen but can select a template"
     await page.getByTestId("nav-toggle").click();
   }
   await expect(rail).toHaveAttribute("data-collapsed", "0");
-  await expect(page.getByText("Workspace").first()).toBeVisible();  // labels are showing…
-  await expect(page.getByText("Template & Ontology")).toHaveCount(0); // …and this one is not there
+  await expect(page.getByText("Workspace").first()).toBeVisible();      // labels are showing…
+  await expect(page.getByText("Template & Line Items")).toHaveCount(0); // …and this one is not there
   await page.goto("/template", DCL);
   await expect(page).not.toHaveURL(/\/template/);
 
@@ -381,15 +400,13 @@ test("the template screen is an index first: a row opens the detail, which dismi
   // editor into a row that would swap the subject being edited.
   expect(await indexRowFocusable(page)).toBe(false);
 
-  // The starter ontology for THIS template is downloadable from its detail — it is derived from
-  // one template, so it lives where a template is already chosen. Both halves of this feature
-  // existed for a while with no UI at all and nothing noticed, because everything was exported
-  // and tsc stayed quiet; these two assertions are what would have caught that.
-  const [starter] = await Promise.all([
-    page.waitForEvent("download", { timeout: 30_000 }),
-    page.getByTestId("tpl-skeleton-download").click(),
-  ]);
-  expect(starter.suggestedFilename()).toMatch(/_ontology_skeleton\.json$/);
+  // THE STARTER-ONTOLOGY DOWNLOAD WAS ASSERTED HERE and is gone. It fetched
+  // `/ontologies/skeleton?template_id=…` and handed back a `<key>_ontology_skeleton.json` of empty
+  // stubs — the first step of authoring a RIVAL rulebook, which is exactly the surface the merge
+  // removed. Line items is the single configuration engine: there is one stored set, an authoring
+  // start it could be the beginning of no longer exists, and `tpl-skeleton-download` is not
+  // rendered by any screen. The SHAPE download below is what survived, because the shape still
+  // constrains an upload. Do not reinstate a per-template skeleton here.
 
   // Dismissed → back on the index, still filtered, and reachable again.
   await page.getByTestId("tpl-detail-close").click();
@@ -399,21 +416,47 @@ test("the template screen is an index first: a row opens the detail, which dismi
   await expect(page).not.toHaveURL(/[?&]template=/);
   expect(await indexRowFocusable(page)).toBe(true);
 
-  // And the SHAPE any ontology must have is downloadable from the index, because it constrains
-  // every one of them rather than any single template.
+  // And the SHAPE any line-item set must have is downloadable from the index, because it
+  // constrains every one of them rather than any single template. Served by `GET /line-items/schema`
+  // — the one endpoint the retired `/ontologies` surface had that was worth keeping, generated from
+  // the model the publish gate validates with, so it cannot describe a rule the gate does not
+  // enforce.
   const [schema] = await Promise.all([
     page.waitForEvent("download", { timeout: 30_000 }),
     page.getByTestId("tpl-schema-download").click(),
   ]);
-  expect(schema.suggestedFilename()).toMatch(/^ontology_schema_v\d+\.json$/);
+  expect(schema.suggestedFilename()).toMatch(/^line_items_schema_v\d+\.json$/);
   await expect(page.getByTestId("tpl-schema-error")).toHaveCount(0);
 });
 
-test("admin edits the ontology inline and the new version persists", async ({ page }) => {
+test("admin edits a line item inline and the new version persists", async ({ page }) => {
+  // WHAT THIS EDIT NOW GOES THROUGH. It used to reach `PATCH /ontologies/{id}/mappings` and publish
+  // an `ontology_versions` row. That store, that route and that engine are gone: the editor calls
+  // `PATCH /line-items/versions/{id}/items` (`api.editLineItem`), which re-validates the edited set
+  // against its target template and publishes a NEW `line_item_versions` row. Versioned rather than
+  // in place, because a run PINS the version it used (`extraction_runs.line_item_version_id`) — so
+  // this test is also what establishes the second stored version the pinning test below needs.
+  //
+  // ASSERTED THROUGH THE REQUEST, not only through the screen: a save that published to the retired
+  // engine would still have shown "Saved as v2" and still have survived a reload, because both
+  // stores versioned and both reloaded. The URL is the only thing that says WHICH configuration
+  // engine the edit reached.
+  const patched: string[] = [];
+  // COLLECTED, not asserted inside the handler: an `expect` that throws from a page event fires
+  // outside the test's own await chain, where Playwright cannot attribute it to a step.
+  const retired: string[] = [];
+  page.on("request", (r) => {
+    if (r.method() === "PATCH" && /\/api\/v1\/line-items\/versions\/[^/]+\/items$/.test(r.url())) {
+      patched.push(r.url());
+    }
+    // Nothing may reach an engine the product no longer has, on any path.
+    if (/\/api\/v1\/ontolog/.test(r.url())) retired.push(r.url());
+  });
+
   await loginAs(page, "admin");
   await openTemplateDetail(page);
 
-  // The real configured template renders its tree; pick the first editable concept.
+  // The configured template renders its tree; pick the first editable line item.
   const nodes = page.getByTestId("tpl-node");
   await expect(nodes.first()).toBeVisible({ timeout: 15_000 });
   await nodes.first().click();
@@ -428,15 +471,19 @@ test("admin edits the ontology inline and the new version persists", async ({ pa
   await expect(page.getByText(alias)).toBeVisible();
   await expect(page.getByText("Unsaved changes")).toBeVisible();
 
-  // Save → the server publishes a NEW ontology version and reports it back.
+  // Save → the server publishes a NEW line-item version and reports it back…
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByText(/Saved as v\d+/)).toBeVisible({ timeout: 15_000 });
+  // …and it published it through the ONE configuration engine.
+  expect(patched.length, "the inline save did not PATCH /line-items/versions/{id}/items")
+    .toBeGreaterThan(0);
 
   // The edit survives a full reload (it is stored, not just in local state).
   await page.reload(DCL);
   await expect(nodes.first()).toBeVisible({ timeout: 15_000 });
   await nodes.first().click();
   await expect(page.getByText(alias)).toBeVisible({ timeout: 15_000 });
+  expect(retired, "the screen still talks to /api/v1/ontologies").toEqual([]);
 });
 
 test("admin edits the mapping CRITERIA and the new version persists", async ({ page }) => {
@@ -470,55 +517,198 @@ test("admin edits the mapping CRITERIA and the new version persists", async ({ p
   await expect(page.getByText(criterion)).toBeVisible({ timeout: 15_000 });
 });
 
-test("admin adds a netting rule and it persists; unknown keys are impossible", async ({ page }) => {
-  await loginAs(page, "admin");
-  await openTemplateDetail(page);
-  await expect(page.getByTestId("tpl-node").first()).toBeVisible({ timeout: 15_000 });
+/* THE NETTING-RULE EDITOR TEST WAS HERE ("admin adds a netting rule and it persists; unknown keys
+ * are impossible") and is RETIRED, because the affordance it drove is gone rather than moved.
+ *
+ * It clicked `netting-add`, filled a `netting-rule` row and saved it, and the save reached
+ * `PATCH /ontologies/{id}/netting-rules` — a second, ontology-shaped publishing door beside the
+ * mapping edit, on the store that no longer exists. Netting is part of the line-item set now, so it
+ * is published the way every other part of it is: through the one configuration engine
+ * (`POST /line-items`, or the inline item edit above). No screen renders `netting-add`,
+ * `netting-target`, `netting-rule`, `netting-label`, `netting-save` or `netting-delete` any more,
+ * so every assertion in it addressed a control that cannot exist.
+ *
+ * NOT REWRITTEN AGAINST THE NEW DOOR, deliberately: there is no netting EDITOR to drive from a
+ * browser, and a test that POSTed a whole set through the API would be a backend publish-gate test
+ * wearing a Playwright fixture — that gate is covered where it lives. What is genuinely lost is
+ * browser-level cover for authoring a netting rule; it is lost because the UI for it is, and that
+ * is the accepted coverage cost of collapsing two engines into one. */
 
-  await page.getByTestId("netting-add").click();
-  const target = page.getByTestId("netting-target");
-  await expect(target).toBeVisible();
-  // Keys are PICKED from the concepts that exist — there is no free-text key field to typo.
-  const options = target.locator("option");
-  expect(await options.count()).toBeGreaterThan(1);
-  await target.selectOption({ index: 1 });
-
-  // The draft rule is rendered last; fill and save it there (existing rules have the same
-  // fields, so the locator has to be scoped to the row).
-  const draft = page.getByTestId("netting-rule").last();
-  const label = `E2E netting ${Date.now()}`;
-  await draft.getByTestId("netting-label").fill(label);
-  await draft.getByTestId("netting-save").click();
-  await expect(page.getByText(/Saved as v\d+/)).toBeVisible({ timeout: 15_000 });
-
-  // Stored: after a reload the rule comes back (the server appends it, so it is the last row)
-  // with the explanation we typed.
-  await page.reload(DCL);
-  await expect(page.getByTestId("tpl-node").first()).toBeVisible({ timeout: 15_000 });
-  const rows = page.getByTestId("netting-rule");
-  const saved = rows.last();
-  await expect(saved.getByTestId("netting-label")).toHaveValue(label, { timeout: 15_000 });
-  const before = await rows.count();
-
-  // Clean up after ourselves so the rule doesn't leak into later runs (delete is two-step).
-  await saved.getByTestId("netting-delete").click();
-  await saved.getByTestId("netting-delete").click();
-  await expect(page.getByText(/Saved as v\d+/)).toBeVisible({ timeout: 15_000 });
-  await expect(rows).toHaveCount(before - 1, { timeout: 15_000 });
-});
-
-test("an analyst gets no ontology editing affordances at all", async ({ page }) => {
+test("an analyst gets no line-item editing affordances at all", async ({ page }) => {
   await loginAs(page, "analyst");
 
-  // The authoring screen is admin-only, so the analyst is redirected away from it — and none
-  // of the criteria / netting edit controls exist anywhere in their app.
+  // THE PERMISSION IS `config:line_items` (`Permission.CONFIG_LINE_ITEMS`, backend
+  // app/security/rbac.py), which is what gates every `/line-items` route — the whole configuration
+  // surface behind one name. It was `CONFIG_ONTOLOGY`, gating `/ontologies`; that route module is
+  // deleted, so there is one permission for one engine.
+  //
+  // The authoring screen is admin-only, so the analyst is redirected away from it — and none of the
+  // line-item edit controls exist anywhere in their app.
   await page.goto("/template", DCL);
   await expect(page).not.toHaveURL(/\/template/);
   await expect(page.getByTestId("criteria-include")).toHaveCount(0);
   await expect(page.getByTestId("criteria-scope")).toHaveCount(0);
-  await expect(page.getByTestId("netting-add")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Save rule" })).toHaveCount(0);
+  await expect(page.getByTestId("criteria-definition")).toHaveCount(0);
+  await expect(page.getByPlaceholder("New alias")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Save changes" })).toHaveCount(0);
+  // The `netting-add` / "Save rule" assertions that stood here are gone with the editor they
+  // named: a `toHaveCount(0)` on a control no role can reach is an assertion that passes for the
+  // wrong reason. See the retirement note above.
+
+  // The CONFIGURATION READ screen is a different question from the configuration EDIT screen, and
+  // it must refuse the analyst the same way — it is the other half of `config:line_items`.
+  await page.goto("/line-items", DCL);
+  await expect(page).not.toHaveURL(/\/line-items/);
+});
+
+/** THE WORD ITSELF. The one thing a reader must never meet.
+ *
+ *  Every other test in this file asks whether a screen does the right thing. This one asks whether
+ *  the product still SAYS the old thing, because "no ontology in the frontend" is not a behaviour a
+ *  behavioural test can catch: a picker can be repointed at `/line-items/versions` and still be
+ *  captioned "Rulebook", a screen can be relabelled in English and keep the old noun in three
+ *  translations, and every assertion above would pass. The instruction was that the user must not
+ *  SEE the word; this is the assertion that says so directly.
+ *
+ *  TWO HALVES, because "on any page" and "in any locale" are reachable by different means.
+ *
+ *  `PAGES` sweeps what the app RENDERS, in the locale the app serves by default. It reads visible
+ *  text (`innerText`, so a hidden node is not evidence about what a reader sees), plus the text of
+ *  every `<option>` — a closed `<select>` renders only its selection, and the picker's other options
+ *  are exactly where a stale label would hide — plus the three attributes that put words on a screen
+ *  without putting them in the text: `placeholder`, `title` and `aria-label`.
+ *
+ *  `DICTIONARIES` covers every locale, and it reads the catalogues rather than rendering four
+ *  languages. That is a deliberate trade and worth stating: whole-interface localization is a
+ *  PERSISTED admin setting (`features.ui_localization`), so a test that turned it on to render zh /
+ *  ar / fr would hand every test after it a different language if it failed before restoring it —
+ *  the exact class of cross-test leakage `resetThresholds` and `setSampleLoaded` exist to prevent.
+ *  Reading the dictionaries is also the stronger check: it covers every string in every locale,
+ *  including the ones no fixture in this file happens to render.
+ *
+ *  "rulebook" is barred as well as "ontolog". It was the product's own user-facing word for the
+ *  retired engine — the picker's label, the upload card's heading, the sentence naming what a run
+ *  read a filing against — so leaving it in place would relabel the word and keep the concept, which
+ *  is what the merge removed. It survives ONLY as internal spelling a reader cannot reach: testids
+ *  (`ex-rulebook-pick`, `u-rulebook`), the `?rulebook=` query key, and the `rulebook` wire field on
+ *  the run payload. None of those is scanned here, and none of them should be renamed for tidiness.
+ *
+ *  ONE LIVE OFFENDER IS KNOWN AND IS NOT IN THE FRONTEND. `backend/app/api/routes/documents.py`
+ *  builds review-queue cards titled "Rulebook guard failed" / "Rulebook guard <rule_id>", localized
+ *  into every language beside it (its `L()` table), and the Review Queue prints them verbatim. The
+ *  half of this test that renders /review will fail on that title as soon as a filing raises a guard
+ *  finding, and the fix is in that file, not here: the word has to come off the card. It is left
+ *  ASSERTED rather than excluded, because an exclusion would be this suite agreeing to keep showing
+ *  the word. (`getByText("Rulebook guard failed")` also still appears in a `toHaveCount(0)` sweep
+ *  near the end of this file — that one asserts the string is ABSENT, so it stays correct however
+ *  the card is retitled, but it is the second place naming this string and both should move
+ *  together.) */
+const BANNED_WORDS = /ontolog|rulebook/i;
+
+/** Every path this suite can render, with the roles that may see it (`rbac.SCREENS_BY_ROLE`). */
+const PAGES: { path: string; roles: ("admin" | "analyst")[] }[] = [
+  { path: "/upload", roles: ["admin", "analyst"] },
+  { path: "/integrity", roles: ["admin", "analyst"] },
+  { path: "/scope", roles: ["admin", "analyst"] },
+  { path: "/extraction", roles: ["admin", "analyst"] },
+  { path: "/workspace", roles: ["admin", "analyst"] },
+  { path: "/notes", roles: ["admin", "analyst"] },
+  { path: "/review", roles: ["admin", "analyst"] },
+  { path: "/commentary", roles: ["admin", "analyst"] },
+  { path: "/disclosures", roles: ["admin", "analyst"] },
+  { path: "/export", roles: ["admin", "analyst"] },
+  // The two configuration screens and the oversight pair — admin only, and the three screens the
+  // retired engine had the most words on.
+  { path: "/template", roles: ["admin"] },
+  { path: "/line-items", roles: ["admin"] },
+  { path: "/settings", roles: ["admin"] },
+  { path: "/audit", roles: ["admin"] },
+];
+
+/** What a reader can actually read on the page as it stands. */
+async function readableText(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const parts: string[] = [document.body.innerText ?? ""];
+    // A closed <select> shows one option; the rest are one click away and just as readable.
+    for (const o of Array.from(document.querySelectorAll("option"))) {
+      parts.push(o.textContent ?? "");
+    }
+    // Words that reach a reader without being text.
+    for (const attr of ["placeholder", "title", "aria-label"]) {
+      for (const el of Array.from(document.querySelectorAll(`[${attr}]`))) {
+        parts.push(el.getAttribute(attr) ?? "");
+      }
+    }
+    return parts.join("\n");
+  });
+}
+
+test("no screen says ontology or rulebook, in any locale", async ({ page }) => {
+  test.setTimeout(180_000);
+
+  for (const role of ["admin", "analyst"] as const) {
+    // Between roles only. `signOut` reaches into localStorage, and on a page that has not navigated
+    // yet (a fresh context sits on about:blank) that access throws rather than clearing anything —
+    // so the FIRST `loginAs`, which starts at "/" and finds the sign-in buttons, needs nothing.
+    if (role !== "admin") await signOut(page);
+    await loginAs(page, role);
+    for (const { path, roles } of PAGES) {
+      if (!roles.includes(role)) continue;
+      await page.goto(path, DCL);
+      // The screen has to have SETTLED before its text is evidence: a shell rendered over a query
+      // in flight would pass this by having nothing on it yet. The nav rail is the shell's own
+      // marker and is present on every one of these paths.
+      await expect(page.getByTestId("nav-rail")).toBeVisible({ timeout: 15_000 });
+      // …and give the screen's own first paint a beat. Not a fix for a flake: without it this
+      // asserts about the loading placeholder rather than about the screen.
+      await page.waitForTimeout(1_500);
+      const text = await readableText(page);
+      const hit = BANNED_WORDS.exec(text);
+      expect(hit, `${path} as ${role} says "${hit?.[0]}" — the word for a configuration engine `
+                  + "this product no longer has. Line items is the single engine; the label, the "
+                  + "i18n string or the option text naming a rulebook/ontology has to go.")
+        .toBeNull();
+    }
+  }
+
+  // EVERY LOCALE, read off the catalogues the chrome is rendered from. Values only: these files
+  // carry comments that legitimately NAME the retired engine to say it is gone (this suite does the
+  // same), and a raw file scan would fail on the record of the removal instead of on the removal.
+  const dictDir = join(dirname(fileURLToPath(import.meta.url)), "..", "src", "i18n", "screens");
+  // Explicitly typed: e2e/ is outside the `src`-only tsconfig, so `@types/node` is not in the
+  // program here (playwright.config.ts imports node:path the same way) and these would be `any`.
+  const dictFiles: string[] = readdirSync(dictDir)
+    .filter((f: string) => f.endsWith(".ts"))
+    .map((f: string) => join(dictDir, f));
+  const files = [join(dictDir, "..", "..", "i18n.ts"), ...dictFiles];
+  expect(files.length, "no i18n catalogue was found, so this half asserts nothing")
+    .toBeGreaterThan(5);
+  const offenders: string[] = [];
+  for (const file of files) {
+    const lines: string[] = readFileSync(file, "utf8").split(/\r?\n/);
+    lines.forEach((line: string, i: number) => {
+      // One dictionary entry: `"some.key": "the string a reader sees",`. Nothing else in these
+      // files has that shape, and a comment does not.
+      const entry = /^\s*"([^"]+)"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,?\s*$/.exec(line);
+      if (entry && BANNED_WORDS.test(entry[2])) {
+        offenders.push(`${file}:${i + 1} ${entry[1]} = ${entry[2]}`);
+      }
+    });
+  }
+  expect(offenders, "an i18n string still names an ontology or a rulebook — a screen relabelled in "
+                    + "English only is still showing the word to everyone else").toEqual([]);
+
+  // The rail's and stepper's ENGLISH FALLBACK labels live in code, not in the catalogues
+  // (`SCREENS[...].label`), and `nav.template` is exactly the label that used to read
+  // "Template & Ontology" — so the fallback is checked the same way the strings are.
+  const screensFile = join(dirname(fileURLToPath(import.meta.url)), "..", "src", "screens",
+                           "config.ts");
+  const labels = [...readFileSync(screensFile, "utf8").matchAll(/label:\s*"([^"]*)"/g)]
+    .map((m) => m[1]);
+  expect(labels.length, "no screen labels were found, so this assertion is vacuous")
+    .toBeGreaterThan(5);
+  expect(labels.filter((l) => BANNED_WORDS.test(l)),
+         "a screen's English fallback label still names the retired engine").toEqual([]);
 });
 
 test("admin tunes the extraction thresholds and they persist", async ({ page }) => {
@@ -784,57 +974,62 @@ test("an analyst gets no template authoring affordances", async ({ page }) => {
   await expect(page.getByTestId("tpl-upload-xlsx")).toHaveCount(0);
 });
 
-test("the index names the rulebook the SERVER says is in force, and ranks nothing itself",
+test("the index names the configuration the SERVER says is in force, and ranks nothing itself",
      async ({ page }) => {
-  // The rulebooks are fixed for this test so the answer cannot depend on how many times earlier
-  // tests published a new version.
+  // The versions are fixed for this test so the answer cannot depend on how many times earlier
+  // tests published a new one.
   //
   // WHAT THIS NOW PROVES. The column used to be computed here, by ranking the served list — first on
   // `version >`, later on [declares a supersession, version, key] — and this test's three rows were
   // shaped to break those rankings. That whole approach was the defect: selection is the server's
-  // rule ("the latest stored rulebook wins", `ontology_select.select_for_template`), it turns on
-  // `created_at`, and this payload does not carry that field, so no ranking on this side could ever
-  // have agreed with the extractor. The two did disagree, and the screen named a rulebook the run had
-  // not used.
+  // rule ("whatever was stored last wins", `services/config_select.select_for_template`), it turns
+  // on `created_at`, and no ranking on this side could ever agree with the extractor even now that
+  // the payload carries that field, because two implementations of one rule is the drift itself. The
+  // two did disagree, and the screen named a configuration the run had not used.
   //
   // So the flag is the answer and the rows are shaped to punish any attempt to second-guess it:
-  // `in_force` sits on the row that carries the LOWEST edit version, declares no supersession, and is
-  // itself reported as replaced — the row that every ranking the client has ever applied would have
-  // ranked last. If the column prints it, the column is reading the server's answer and nothing else.
+  // `in_force` sits on the row with the LOWEST edit version AND the OLDEST `created_at` — the row
+  // every ranking the client has ever applied would have ranked last. If the column prints it, the
+  // column is reading the server's answer and nothing else.
   //
-  // (A row both in force and superseded is a real state, not a contrivance: an admin republishing a
-  // rulebook whose key an older declaration named as replaced makes it the newest thing stored. The
-  // server resolves the two — running outranks the label — in extractions.rulebook_record.)
-  await page.route("**/api/v1/ontologies", async (route) => {
+  // THE LIST IS `GET /line-items/versions` NOW, not `GET /ontologies`. One configuration engine, one
+  // store, one route: the ontology route module is deleted, and `useLineItemVersions` is the only
+  // list any screen holds. A row also carries `loads`, which the ontology payload had no notion of —
+  // one is served unloadable here, because the column must still name the in-force row and not
+  // quietly fall through to a healthier-looking one.
+  await page.route("**/api/v1/line-items/versions", async (route) => {
     if (route.request().method() !== "GET") return route.fallback();
     await route.fulfill({
       json: [
-        { id: "o-v1", ontology_key: "hkfrs_hk_china_v1", target_template_key: "hkfrs_hk_china_v1",
-          version: 9, schema_version: 1, supersedes: null, superseded: true, in_force: false },
-        { id: "o-draft", ontology_key: "hkfrs_hk_china_skeleton",
-          target_template_key: "hkfrs_hk_china_v1", version: 4, schema_version: 2,
-          supersedes: null, superseded: false, in_force: false },
-        { id: "o-v2", ontology_key: "hkfrs_hk_china_v2", target_template_key: "hkfrs_hk_china_v1",
-          version: 1, schema_version: 2, supersedes: null, superseded: true, in_force: true },
+        { id: "li-b", line_items_key: "e2e_rival", target_template_key: SUITE_TEMPLATE_KEY,
+          version: 9, created_at: "2025-06-01T00:00:00+00:00", in_force: false, loads: true,
+          items: 475, aliases: 3_200 },
+        { id: "li-c", line_items_key: "e2e_broken", target_template_key: SUITE_TEMPLATE_KEY,
+          version: 4, created_at: "2025-05-01T00:00:00+00:00", in_force: false, loads: false,
+          items: 12, aliases: 0 },
+        { id: "li-a", line_items_key: "e2e_in_force", target_template_key: SUITE_TEMPLATE_KEY,
+          version: 1, created_at: "2025-01-01T00:00:00+00:00", in_force: true, loads: true,
+          items: 475, aliases: 3_200 },
       ],
     });
   });
 
   await loginAs(page, "admin");
   await page.goto("/template", DCL);
-  const row = page.getByTestId("tpl-row").filter({ hasText: "hkfrs_hk_china_v1" }).first();
+  const row = page.getByTestId("tpl-row").filter({ hasText: SUITE_TEMPLATE_KEY }).first();
   await expect(row).toBeVisible({ timeout: 15_000 });
   // The column has to name what the extractor would actually use for this template…
-  const column = row.getByTestId("tpl-row-ontology");
-  await expect(column).toContainText("hkfrs_hk_china_v2 · v1", { timeout: 15_000 });
-  // …and it must not print the bare word "superseded" beside it. This row is in force AND carries
-  // the replacement label, and the column only ever names the rulebook in force — so the label has
-  // to be the reconciled phrase the extraction view's picker already uses, or an admin reads that
-  // the extractor is governed by a retired rulebook when it is the current one. Asserted through the
-  // rendered text rather than an i18n key, because what is wrong is what a reader sees.
-  await expect(column).toContainText("in force, though superseded");
-  await expect(column).not.toHaveText(/·\s*v1\s*superseded\s*$/);
-  await page.unroute("**/api/v1/ontologies");
+  const column = row.getByTestId("tpl-row-line-items");
+  await expect(column).toContainText("e2e_in_force · v1", { timeout: 15_000 });
+  // …AND IT MUST NOT PRINT A REPLACEMENT LABEL AT ALL. What stood here was the reconciled phrase
+  // "in force, though superseded", which existed because an ontology row could DECLARE itself
+  // replaced while still being the row selected — two claims the column had to hold together, and
+  // the source of it being able to contradict the extractor. `LineItemVersionRef` carries no
+  // `superseded`: selection is latest-stored-wins, `in_force` is the whole answer, and the badge is
+  // gone with the field. Asserted through the rendered text rather than an i18n key, because what
+  // would be wrong is what a reader sees.
+  await expect(column).not.toContainText(/supersed|replac/i);
+  await page.unroute("**/api/v1/line-items/versions");
 });
 
 test("the index renders its rows without fetching a per-template document for any of them",
@@ -857,9 +1052,12 @@ test("the index renders its rows without fetching a per-template document for an
   // ROW. The workbook round-trip test above publishes one, and this suite is serial.
   expect(await rows.count()).toBeGreaterThan(1);
 
-  // Everything the index prints came out of the ONE list call: name, key, version, state, rulebook.
+  // Everything the index prints came out of the ONE list call: name, key, version, state, and the
+  // line-item configuration in force. `not.toBeEmpty()` and not a key match: a template with no set
+  // targeting it legitimately prints "None yet", which is a filled cell and a true statement — and
+  // since the merge that is the normal case for every template but one.
   await expect(rows.first()).toContainText(/hkfrs/i);
-  await expect(rows.first().getByTestId("tpl-row-ontology")).not.toBeEmpty();
+  await expect(rows.first().getByTestId("tpl-row-line-items")).not.toBeEmpty();
   await expect(page.getByTestId("tpl-row-lines")).toHaveCount(0);
   // Wait before declaring victory: a fetch fired on mount can still be in flight, and asserting
   // "none yet" would pass on timing rather than on there being none.
@@ -875,7 +1073,7 @@ test("the index renders its rows without fetching a per-template document for an
   expect(perTemplate.length).toBe(1);
 });
 
-test("leaving a template with unsaved ontology edits asks before discarding them", async ({
+test("leaving a template with unsaved line-item edits asks before discarding them", async ({
   page,
 }) => {
   await loginAs(page, "admin");
@@ -884,7 +1082,7 @@ test("leaving a template with unsaved ontology edits asks before discarding them
   await expect(nodes.first()).toBeVisible({ timeout: 15_000 });
   await nodes.first().click();
 
-  // An alias that exists only in this browser until Save publishes a new ontology version.
+  // An alias that exists only in this browser until Save publishes a new line-item version.
   const alias = `E2E discard ${Date.now()}`;
   const input = page.getByPlaceholder("New alias");
   await input.fill(alias);
@@ -916,15 +1114,20 @@ test("leaving a template with unsaved ontology edits asks before discarding them
   await expect(page.getByTestId("template-detail")).toHaveCount(0);
 });
 
-test("an analyst chooses which rulebook a run reads the filing against", async ({ page }) => {
+test("an analyst chooses which configuration a run reads the filing against", async ({ page }) => {
   test.setTimeout(180_000);
   // What the run was actually started with. The picker is only real if the choice reaches the POST
   // that starts the extraction — a select that changed a caption would be decoration.
+  //
+  // THE FIELD IS `line_item_version_id`. It was `ontology_version_id`, and reading the old name
+  // here would now record `null` on every run and pass the "the default is what is in force"
+  // assertion below by comparing two absences. There is one configuration engine, so a run pins a
+  // `line_item_versions` row and nothing else (`extraction_runs.line_item_version_id`).
   const posted: (string | null)[] = [];
   page.on("request", (r) => {
     if (r.method() === "POST" && /\/documents\/[^/]+\/extractions$/.test(r.url())) {
       try {
-        posted.push((JSON.parse(r.postData() ?? "{}").ontology_version_id as string) ?? null);
+        posted.push((JSON.parse(r.postData() ?? "{}").line_item_version_id as string) ?? null);
       } catch {
         posted.push(null);
       }
@@ -940,266 +1143,189 @@ test("an analyst chooses which rulebook a run reads the filing against", async (
   await expect(page.getByRole("heading", { name: "Extracted data" }))
     .toBeVisible({ timeout: 60_000 });
 
-  // The default is the rulebook in force, and the RUN says so — the sentence under the picker is
-  // read from the run's own record, so it is evidence about the run rather than a caption.
+  // The default is the configuration in force, and the RUN says so — the sentence under the picker
+  // is read from the run's own record, so it is evidence about the run rather than a caption.
+  //
+  // THE TESTIDS ARE UNCHANGED (`ex-rulebook-*`, and `?rulebook=` in the URL below). A test hook and
+  // a query-string key are not surfaces a user or an operator meets, and renaming them would break
+  // every assertion that reads them for no reader's benefit. What DID have to change is the id
+  // attribute: `data-rulebook-id` is now `data-line-items-id`, because what it carries is a
+  // `line_item_versions` id and the run's record names it that.
   const pick = page.getByTestId("ex-rulebook-pick");
   await expect(pick).toBeVisible();
   const used = page.getByTestId("ex-rulebook-used");
   const values = await pick.locator("option").evaluateAll(
     (os) => os.map((o) => (o as HTMLOptionElement).value));
-  // MORE THAN ONE STORED RULEBOOK VERSION is what makes pinning possible, and where it comes from
-  // has changed. The comment here used to name "the seeded pair (the adopted v2 and the v1 it
-  // replaces)" — a pair that no longer exists: the repo consolidated to ONE rulebook and RETIRED
-  // both of those keys, and the pair was only ever present because the suite ran against a
-  // developer's pre-consolidation database. What the list holds now is several VERSIONS of the one
-  // shipped rulebook, published by the three inline-edit tests above in this serial file, and
-  // pinning an older version of one rulebook is the same question this screen exists to answer.
-  // Not established inside this test on purpose: publishing a rival rulebook would change what is in
+  // MORE THAN ONE STORED VERSION is what makes pinning possible, and where it comes from has
+  // changed twice. It was once "the seeded pair (the adopted v2 and the v1 it replaces)", then
+  // "several versions of the one shipped rulebook"; there is no rulebook of any kind now. What the
+  // list holds is several versions of the one shipped LINE-ITEM SET, published by the two
+  // inline-edit tests above in this serial file, each of which PATCHes
+  // /line-items/versions/{id}/items and gets a new row back. Pinning an older version of the one
+  // configuration is the same question this screen exists to answer — and it is the only form the
+  // question can still take, since a rival engine to compare against is exactly what was removed.
+  // Not established inside this test on purpose: publishing a rival set would change what is in
   // force for every test after it, and there is no endpoint to take one back.
   expect(values.length,
-         "only one rulebook version is stored, so nothing can be pinned AGAINST the one in force — "
-         + "the ontology-edit tests above are what publish the others").toBeGreaterThan(1);
+         "only one configuration version is stored, so nothing can be pinned AGAINST the one in "
+         + "force — the inline-edit tests above are what publish the others").toBeGreaterThan(1);
   const inForceId = await pick.inputValue();
   expect(posted).toContain(inForceId);
-  await expect(used).toHaveAttribute("data-rulebook-id", inForceId, { timeout: 60_000 });
-  await expect(used).toContainText(/the rulebook in force for/);
+  await expect(used).toHaveAttribute("data-line-items-id", inForceId, { timeout: 60_000 });
+  await expect(used).toContainText(/the line items in force for/);
 
   // Pin the other one. Two things have to be true, and only one of them was checkable before: the
   // choice has to reach the POST that starts the run, and the RUN has to come back saying it read
-  // the filing against that rulebook. A picker that changed only the caption would pass the first.
+  // the filing against that configuration. A picker that changed only the caption would pass the
+  // first.
   const other = values.find((v) => v && v !== inForceId) as string;
   const label = await pick.locator(`option[value="${other}"]`).textContent() ?? "";
   const [, otherKey, otherVersion] = /^\s*(\S+) · v(\d+)/.exec(label) ?? [];
   expect(otherKey).toBeTruthy();
   await pick.selectOption(other);
   await expect.poll(() => posted[posted.length - 1], { timeout: 60_000 }).toBe(other);
-  // What the run RECORDED, straight off the element that prints it: the pinned rulebook, named.
-  await expect(used).toHaveAttribute("data-rulebook-id", other, { timeout: 60_000 });
+  // What the run RECORDED, straight off the element that prints it: the pinned version, named.
+  await expect(used).toHaveAttribute("data-line-items-id", other, { timeout: 60_000 });
   await expect(used).toContainText(`${otherKey} v${otherVersion}`);
-  await expect(used).toContainText(/not the rulebook in force/);
-  // …and that run really read the filing: the rows come back for the pinned rulebook too.
+  await expect(used).toContainText(/not the configuration in force/);
+  // …and that run really read the filing: the rows come back for the pinned version too.
   await expect(page.getByRole("heading", { name: "Extracted data" }))
     .toBeVisible({ timeout: 60_000 });
   await expect(page.getByText("Trade receivables").first()).toBeVisible({ timeout: 60_000 });
 
   // The pin has to survive a reload, and as component state it did not: reopening the screen moved
-  // the reader silently back to the rulebook in force, with nothing on screen saying the figures
-  // had been produced under a different one. The pin is in the URL now, so it is both durable and
-  // shareable — which is what comparing two rulebooks on one filing actually needs.
+  // the reader silently back to the configuration in force, with nothing on screen saying the
+  // figures had been produced under a different one. The pin is in the URL now, so it is both
+  // durable and shareable — which is what comparing two configurations on one filing needs.
   expect(new URL(page.url()).searchParams.get("rulebook")).toBe(other);
   await page.reload(DCL);
   await expect(page.getByRole("heading", { name: "Extracted data" }))
     .toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId("ex-rulebook-pick")).toHaveValue(other, { timeout: 60_000 });
   const usedAgain = page.getByTestId("ex-rulebook-used");
-  await expect(usedAgain).toHaveAttribute("data-rulebook-id", other, { timeout: 60_000 });
-  await expect(usedAgain).toContainText(/not the rulebook in force/);
+  await expect(usedAgain).toHaveAttribute("data-line-items-id", other, { timeout: 60_000 });
+  await expect(usedAgain).toContainText(/not the configuration in force/);
 });
 
-/** One row of GET /ontologies — only the fields this file reasons about, spelled here so a field the
- *  server stops serving fails on the cast rather than arriving as `undefined`. */
-interface OntologyRow {
-  id: string; ontology_key: string; version: number; superseded: boolean;
-  // WHICH rulebook the next run maps against, stated by the server (routes/ontologies.py) because
-  // the rule is "the latest stored wins" and turns on `created_at`, which this payload does not
-  // carry. Read it; never rank the list to work it out.
+/** One row of GET /line-items/versions — only the fields this file reasons about, spelled here so
+ *  a field the server stops serving fails on the cast rather than arriving as `undefined`.
+ *
+ *  WAS `OntologyRow` OVER GET /ontologies. That route module is deleted and there is one
+ *  configuration store, so this is the only version row the suite can hold. Two differences matter
+ *  and both are removals:
+ *
+ *  * NO `superseded`. It answered "has some other stored definition DECLARED this key replaced" —
+ *    a label that decided nothing about what runs (selection is latest-stored-wins) and could be
+ *    true of the very row in force, so a payload could contradict itself. `in_force` is the whole
+ *    answer; do not reintroduce a second, declarative notion of replacement.
+ *  * `concept_count`/`alias_count` are `items`/`aliases`. The server counts them off the stored
+ *    definition (`routes/line_items.py::_sizes`), aliases across every locale.
+ *
+ *  `loads` is new and has no ontology counterpart: the server tries each stored definition rather
+ *  than assuming a row it holds is usable. That check is the reason it exists — 41 of the 44 stored
+ *  ontology versions no longer loaded, and every one of them was offered as a selectable choice. */
+interface LineItemVersionRow {
+  id: string; line_items_key: string; version: number;
+  // WHICH configuration the next run maps against, stated by the server
+  // (routes/line_items.py::list_versions, which asks `config_select.select_for_template`) because
+  // the rule is "whatever was stored last wins" and turns on `created_at`. Read it; never rank the
+  // list to work it out, even though the payload now carries the stamp — two implementations of one
+  // rule is the drift this flag exists to end.
   in_force: boolean;
-  target_template_key: string; concept_count: number; alias_count: number;
+  // False when the STORED definition can no longer be read as a configuration. A run pinned to such
+  // a row recognises nothing in the filing, so it is not offered as a choice.
+  loads?: boolean;
+  target_template_key: string; items: number; aliases: number;
 }
 
-/** An ontology_key the repo has RETIRED (app/sample/reference.py::RETIRED_ONTOLOGY_KEYS).
+/* THE SUPERSESSION-ADOPTION TEST WAS HERE ("a run that used a superseded rulebook says so, however
+ * the client sees the list") together with the `RETIRED_RULEBOOK_KEY` constant it needed, and both
+ * are RETIRED. Recorded here because what it guarded is gone, not moved.
  *
- * One of the two pre-consolidation rulebook names. `superseded_keys` reports a stored rulebook under
- * such a key as replaced the moment the shipped rulebook is also present — which is the only way a
- * "superseded rulebook" can be brought into existence from a browser: there is no DELETE for an
- * ontology, so publishing a rival that DECLARES it supersedes the shipped one would take the shipped
- * one out of force for every test after this file's, irreversibly. A retired name replaces nothing. */
-const RETIRED_RULEBOOK_KEY = "hkfrs_hk_china_v2";
+ * WHAT IT DID. It published a byte-identical copy of the ontology in force under
+ * `hkfrs_hk_china_v2` — a key `app/sample/reference.py::RETIRED_ONTOLOGY_KEYS` named as retired —
+ * republished the shipped one on top, then lied to the client about `in_force` so the browser
+ * pinned the row the SERVER knew had been replaced. The claim under test was that the sentence
+ * under the picker prints the RUN'S OWN record ("…has since been replaced") rather than the
+ * screen's re-derivation from the version list.
+ *
+ * WHY IT CANNOT BE REWRITTEN. Every one of its four premises is deliberately gone:
+ *
+ *  * `POST /ontologies` and `GET /ontologies/{id}` are gone with the route module, so the state it
+ *    established cannot be established.
+ *  * the server no longer COMPUTES supersession. There is no `superseded` on a version row and no
+ *    `superseded` in `ConfigurationRecord`'s status union (`in_force` | `pinned` | `engine_default`
+ *    | `missing`), because a declarative "some other definition says this is replaced" decided
+ *    nothing about what runs and could be true of the row in force.
+ *  * `RETIRED_ONTOLOGY_KEYS` is gone from the seeder, so there is no retired name to publish under.
+ *  * `tp.rb.usedSuperseded` is never selected by `describeRun`, so the sentence it asserted cannot
+ *    be rendered in any locale.
+ *
+ * WHAT STILL GUARDS THE UNDERLYING INVARIANT. The defect was a screen WRITING the sentence instead
+ * of printing the run's record, and that half survives: the test above pins an older version and
+ * asserts, off `data-line-items-id` and the rendered text, that the run reports the version it
+ * actually used and names the one in force as something it departed from — across a reload. The
+ * `pinned` status is the same code path the `superseded` one was a special case of. What is
+ * genuinely lost is cover for a client whose list DISAGREES with the server; that scenario needed a
+ * server-computed second opinion to disagree with, and removing it was the point.
+ *
+ * NOTE FOR T1: this retirement belongs in T1's docstring as well as here. This task may edit only
+ * frontend/e2e/smoke.spec.ts, so the record is written here and flagged rather than added there. */
 
-test("a run that used a superseded rulebook says so, however the client sees the list",
-     async ({ page }) => {
-  test.setTimeout(240_000);
-  // The blocker this closes: the sentence naming the rulebook was written by the SCREEN, from the
-  // ontology list and its own idea of which one was in force. So a reload after the adopted
-  // rulebook changed hands described a run that had read the filing against a REPLACED rulebook as
-  // governed by the current one — an audit statement, wrong, with nothing on screen to contradict
-  // it.
-  //
-  // Reproduce it by making the client's view disagree with the truth: the ids stay real, only the
-  // `in_force` flag is moved, so the client picks (and pins) the rulebook the server knows has been
-  // replaced, while its own list insists that one is current. Re-derivation on this page therefore
-  // says "in force"; the run's record says "replaced". The screen must print the record.
-  //
-  // THE REPLACED RULEBOOK IS ESTABLISHED HERE, NOT INHERITED. This test used to flip the flags
-  // around the literal `hkfrs_hk_china_v1` and simply expect such a rulebook to be stored. It was —
-  // because the suite ran against the developer's `backend/finex.db`, seeded before the
-  // one-rulebook consolidation. Against the suite's own database (playwright.config.ts) it is not:
-  // the repo ships ONE rulebook, `hkfrs_hk_china`, and names both pre-consolidation keys as retired.
-  // So the state is now created through the real publish endpoint — and created as the state the
-  // shipped code documents at length, a database that still holds one of those retired rulebooks.
-  await loginAs(page, "admin");                     // publishing a rulebook is CONFIG_ONTOLOGY
-  const before = await apiGet<OntologyRow[]>(page, "/api/v1/ontologies");
-  // WHICH ROW IS IN FORCE is the server's decision (ontology_select.select_for_template): among the
-  // rows targeting one template that nothing has replaced, the SHIPPED key wins, then a declared
-  // supersession, then incumbency, and only then the highest edit version. This file cannot name the
-  // shipped key, so it does not re-implement that rule — it asserts the premise under which "the
-  // highest version" is the same answer, and says so out loud if the premise ever stops holding.
-  // WHICH ROW IS IN FORCE IS READ, NOT RE-DERIVED. The server states it (`in_force` on each row,
-  // computed by `ontology_select.select_for_template`), and this file must not re-implement the rule
-  // — it used to, as "among live rows the highest version", back when selection ranked on five tests
-  // (shipped key, declared supersession, incumbency, version). The rule is now simply "the latest
-  // stored rulebook wins", which turns on `created_at` — a field this payload does not carry, so no
-  // client-side ranking here could agree with the extractor even in principle.
-  // SCOPED TO ONE NAMED TEMPLATE. Every template has its own rulebook in force, so "the rulebook
-  // in force" is only a single answer within a template — asserting there is exactly one across
-  // the whole store made this test fail the moment a second template shipped, which is a fact
-  // about the repository rather than about the audit sentence under test.
-  const inForceRows = before.filter(
-    (o) => o.in_force && o.target_template_key === SUITE_TEMPLATE_KEY);
-  expect(inForceRows.length, `no rulebook is in force for ${SUITE_TEMPLATE_KEY}, so there is `
-                             + "nothing to publish a retired copy of").toBeGreaterThan(0);
-  expect(inForceRows.length,
-         `two rows claim to be in force for ${SUITE_TEMPLATE_KEY}`).toBe(1);
-  const inForce = inForceRows[0];
-  const shipped = await apiGet<{ definition: Record<string, unknown> }>(
-    page, `/api/v1/ontologies/${inForce.id}`);
-  // Byte-identical to the rulebook in force except for its KEY: what makes this one "replaced" is
-  // the name being one the repo retired, so nothing about how it maps differs and no later test's
-  // figures can move because this row exists.
-  const published = await apiSend(page, "POST", "/api/v1/ontologies", {
-    definition: { ...shipped.definition, ontology_key: RETIRED_RULEBOOK_KEY },
-  });
-  expect(published.status(), await published.text()).toBe(201);
-
-  // AND THEN THE SHIPPED RULEBOOK IS PUBLISHED AGAIN, which is what makes the retired copy pinnable
-  // as a REPLACED rulebook rather than as the current one.
-  //
-  // Latest-stored wins, so the POST above just made the retired copy the newest thing stored — i.e.
-  // in force. Pinning it would then record `in_force`, and the run this test needs would not exist.
-  // Re-publishing the shipped definition under its own key puts a newer row in front of it: the
-  // shipped KEY is in force again (at a higher version), and the retired copy is now both declared
-  // replaced and not the latest, which is exactly the state a reproduction run legitimately pins.
-  const republished = await apiSend(page, "POST", "/api/v1/ontologies", {
-    definition: shipped.definition,
-  });
-  expect(republished.status(), await republished.text()).toBe(201);
-
-  const after = await apiGet<OntologyRow[]>(page, "/api/v1/ontologies");
-  const legacyRows = after.filter((o) => o.ontology_key === RETIRED_RULEBOOK_KEY);
-  expect(legacyRows.length, `nothing is stored under ${RETIRED_RULEBOOK_KEY} after a 201`)
-    .toBeGreaterThan(0);
-  const legacy = legacyRows.reduce((best, o) => (o.version > best.version ? o : best));
-  // The three halves of "the state is what this test needs", asserted rather than assumed.
-  // (a) the published rulebook is one the SERVER calls replaced — without this the run below would
-  //     record `pinned` and this test would be a second copy of the one above it;
-  expect(legacy.superseded, `${RETIRED_RULEBOOK_KEY} is not reported as retired — this test needs a `
-                            + "rulebook the server calls replaced").toBe(true);
-  // (b) …and it is NOT the one in force, because being in force outranks the replacement label
-  //     (extractions.rulebook_record): a rulebook that runs is never reported as the replaced one.
-  expect(legacy.in_force, `${RETIRED_RULEBOOK_KEY} is still in force, so pinning it would record `
-                          + "in_force and there would be no superseded run to check").toBe(false);
-  // (c) the rulebook in force is the shipped KEY, so every later test runs against the same rules.
-  const stillInForce = after.find((o) => o.in_force);
-  expect(stillInForce, "nothing is in force after republishing").toBeTruthy();
-  expect(stillInForce!.ontology_key, "publishing the retired rulebook took the shipped key out of "
-                                     + "force, which would hand every later test different rules")
-    .toBe(inForce.ontology_key);
-  expect(stillInForce!.superseded, "the rulebook in force reports itself replaced").toBe(false);
-
-  // MAKE THE CLIENT'S VIEW DISAGREE WITH THE TRUTH. `in_force` is the flag the picker selects on
-  // (queries.ts::ontologyInForce reads it and no longer ranks the list itself), so that is the flag
-  // to lie about: the ids stay real, only this one boolean moves. The client therefore picks — and
-  // pins — the rulebook the server knows has been replaced, while its own list insists that one is
-  // current. Re-derivation on this page says "in force"; the run's record says "replaced". The
-  // screen must print the record.
-  await page.route("**/api/v1/ontologies", async (route) => {
-    if (route.request().method() !== "GET") return route.fallback();
-    const res = await route.fetch();
-    const rows = await res.json();
-    await route.fulfill({
-      response: res,
-      json: rows.map((o: { id: string }) => ({ ...o, in_force: o.id === legacy.id })),
-    });
-  });
-
-  // Sign the admin out before signing the analyst in. `loginAs` starts at "/", which redirects a
-  // SIGNED-IN browser to /workspace — so with the admin's token still in localStorage the second
-  // login waits four minutes for a sign-in button that is not on the screen. Measured, not guessed:
-  // that is exactly how this test failed once the establish phase above was added. Clearing the
-  // store is what a fresh context does, and it also drops the admin's active document, which the
-  // analyst's browser has no business carrying.
-  await signOut(page);
-  await loginAs(page, "analyst");
-  await page.goto("/upload", DCL);
-  await page.setInputFiles('input[type="file"]', "e2e/fixtures/sample.pdf");
-  await expect(page.getByTestId("doc-row").filter({ hasText: "sample.pdf" }))
-    .toBeVisible({ timeout: 15_000 });
-  await page.getByRole("button", { name: /Extract directly/ }).click();
-  await expect(page.getByRole("heading", { name: "Extracted data" }))
-    .toBeVisible({ timeout: 60_000 });
-
-  // The client's list is what selected the rulebook, and it believes that one is current…
-  const pick = page.getByTestId("ex-rulebook-pick");
-  await expect(pick).toBeVisible();
-  const chosen = await pick.locator("option:checked").textContent() ?? "";
-  expect(chosen).toContain(RETIRED_RULEBOOK_KEY);
-  expect(chosen).toContain("in force");
-
-  // …and the run, which is the only thing that knows, says it was read against a rulebook that has
-  // been replaced, and names what is actually in force instead. Both names come from the API rather
-  // than from literals here, because the claim is that the screen prints the server's record.
-  const used = page.getByTestId("ex-rulebook-used");
-  await expect(used).toHaveAttribute("data-rulebook-status", "superseded", { timeout: 60_000 });
-  await expect(used).toContainText(`${RETIRED_RULEBOOK_KEY} v${legacy.version}`);
-  await expect(used).toContainText(/has since been replaced/);
-  await expect(used).toContainText(
-    `The rulebook in force is ${stillInForce!.ontology_key} v${stillInForce!.version}`);
-
-  // It survives a reload — the reload IS the failure this closes, and nothing about it is derived
-  // from the list the browser holds.
-  await page.reload(DCL);
-  await expect(page.getByTestId("ex-rulebook-used"))
-    .toHaveAttribute("data-rulebook-status", "superseded", { timeout: 120_000 });
-  await expect(page.getByTestId("ex-rulebook-used")).toContainText(/has since been replaced/);
-  await page.unroute("**/api/v1/ontologies");
-});
-
-test("the upload screen describes the rulebook the run will use, not a fabricated one",
+test("the upload screen describes the configuration the run will use, not a fabricated one",
      async ({ page }) => {
   // The blocker this closes: the card printed the SAMPLE project's ontology filename over a fixed
   // "1,240 rules · 380 aliases" and a green "Valid" badge. Three claims, none of them about any
-  // rulebook this product has ever held, on the screen where an analyst decides whether the run is
-  // configured correctly — and plausible enough in magnitude that nobody questioned them.
+  // configuration this product has ever held, on the screen where an analyst decides whether the run
+  // is configured correctly — and plausible enough in magnitude that nobody questioned them.
   //
   // Checked against the API rather than against expected text, because the point is that the two
-  // agree: the card is only right if it names the rulebook /ontologies reports in force and prints
-  // that rulebook's own counts.
+  // agree: the card is only right if it names the version `GET /line-items/versions` reports in
+  // force and prints that version's own counts. `/ontologies` is where it used to ask; that route is
+  // gone, and the card reads the ONE store through `configurationInForce`, the same function the
+  // extraction view's default goes through — so the description here and the configuration a run
+  // records cannot drift apart.
+  // AS THE ANALYST, deliberately: this card is on the analyst's own Upload screen and its whole job
+  // is to tell the person about to start a run what the run will be configured by. If this GET comes
+  // back 403 the failure is not in this test — it means `/line-items/versions` is gated on
+  // `config:line_items` (routes/line_items.py::_GATE) while three analyst-facing surfaces read it
+  // (this card, the extraction picker, the Workspace), and the analyst is being shown a card
+  // describing a list they cannot fetch. The old `GET /ontologies` was readable here, which is why
+  // the assertion is left as it is rather than quietly re-roled to admin.
   await loginAs(page, "analyst");
-  const rows = await (await page.request.get("/api/v1/ontologies")).json();
+  const rows = await apiGet<LineItemVersionRow[]>(page, "/api/v1/line-items/versions");
   expect(rows.length).toBeGreaterThan(0);
 
   await page.goto("/upload", DCL);
   const card = page.getByTestId("u-rulebook");
-  // Wait for the card to have RESOLVED a rulebook, not merely to be on screen: it renders while
-  // the list is in flight, and reading the id then says "no rulebook" about a request in progress.
+  // Wait for the card to have RESOLVED a version, not merely to be on screen: it renders while the
+  // list is in flight, and reading the id then says "nothing configured" about a request in
+  // progress. (`u-rulebook`/`data-rulebook-id` keep their names — a test hook is not a surface a
+  // user meets, and renaming them would break readers for no reader's benefit.)
   await expect(card).toHaveAttribute("data-rulebook-id", /.+/, { timeout: 15_000 });
   const id = await card.getAttribute("data-rulebook-id");
-  const ont = rows.find((o: { id: string }) => o.id === id);
-  expect(ont, "the card must name a rulebook the server actually serves").toBeTruthy();
-  // And it must be the rulebook the server says is IN FORCE, not merely one that has not been
-  // replaced — those are different claims, and the card's whole job is to say what the run will use.
-  expect(ont.in_force, "the card names a rulebook the server does not report as in force").toBe(true);
-  expect(ont.superseded).toBeFalsy();
-  await expect(card).toHaveText(ont.ontology_key);
+  const cfg = rows.find((o) => o.id === id);
+  expect(cfg, "the card must name a version the server actually serves").toBeTruthy();
+  // And it must be the version the server says is IN FORCE. The old pair of claims here — in force,
+  // and `superseded` falsy — has collapsed into one, because the payload carries no `superseded`:
+  // selection is latest-stored-wins, so "something has replaced this" is not a claim the server
+  // makes and the card must not invent it.
+  expect(cfg!.in_force, "the card names a version the server does not report as in force").toBe(true);
+  // A version whose stored definition would not load governs nothing in a run, so the card naming
+  // the run's configuration must never be describing one.
+  expect(cfg!.loads, "the card names a version the server cannot load").not.toBe(false);
+  await expect(card).toHaveText(cfg!.line_items_key);
 
-  // Its size, off its own definition — and the counts have to be load-bearing, so a real rulebook
-  // names its concepts in more than one way.
+  // Its size, off its own definition — and the counts have to be load-bearing, so a real
+  // configuration names its line items in more than one way. `items`/`aliases` on the wire; the two
+  // count NOUNS a reader sees are still "concepts" and "aliases" (`u.ontConcepts`/`u.ontAliases`),
+  // which name the counted things rather than an engine.
   const meta = page.getByTestId("u-rulebook-meta");
-  expect(ont.concept_count).toBeGreaterThan(100);
-  expect(ont.alias_count).toBeGreaterThan(ont.concept_count);
-  await expect(meta).toContainText(`v${ont.version}`);
-  await expect(meta).toContainText(`${ont.concept_count.toLocaleString("en")} concepts`);
-  await expect(meta).toContainText(`${ont.alias_count.toLocaleString("en")} aliases`);
+  expect(cfg!.items).toBeGreaterThan(100);
+  expect(cfg!.aliases).toBeGreaterThan(cfg!.items);
+  await expect(meta).toContainText(`v${cfg!.version}`);
+  await expect(meta).toContainText(`${cfg!.items.toLocaleString("en")} concepts`);
+  await expect(meta).toContainText(`${cfg!.aliases.toLocaleString("en")} aliases`);
   await expect(page.getByText("1,240 rules")).toHaveCount(0);
 });
 
@@ -1278,29 +1404,38 @@ async function extractFixture(page: Page, file: string): Promise<string> {
     .toBeTruthy();
   const id = await page.evaluate(() => localStorage.getItem("finex-active-doc"));
 
-  // PINNED BY URL, the same lever the rulebook picker uses, so the run reads the filing against
-  // SUITE_RULEBOOK_KEY however many rulebooks are in force. Opening the screen already pinned
-  // rather than clicking "Extract directly" first means ONE run: pinning afterwards would leave
-  // a default-rulebook run's findings in the queue beside the pinned run's.
+  // PINNED BY URL, the same lever the picker uses, so the run reads the filing against
+  // SUITE_CONFIG_KEY however many versions are stored. Opening the screen already pinned rather
+  // than clicking "Extract directly" first means ONE run: pinning afterwards would leave a
+  // default-configuration run's findings in the queue beside the pinned run's.
+  //
+  // The query key is still `rulebook`. It names the CONFIGURATION a run is read against and is read
+  // by `ExtractionView` under that spelling; it is not a surface a user meets, and renaming a
+  // query-string key three readers already share would be churn nobody can see.
   //
   // "Extract directly" is deliberately not clicked here — it is covered by the end-to-end test
   // above, which drives that button through upload → integrity → extract. This helper is setup
   // for tests whose subject is the review queue.
-  await page.goto(`/extraction?rulebook=${encodeURIComponent(await suiteRulebookId(page))}`, DCL);
+  await page.goto(`/extraction?rulebook=${encodeURIComponent(await suiteConfigId(page))}`, DCL);
   await expect(page.getByRole("heading", { name: "Extracted data" }))
     .toBeVisible({ timeout: 60_000 });
   return id as string;
 }
 
-/** The stored id of SUITE_RULEBOOK_KEY's rulebook, which the extraction screen pins by id. */
-async function suiteRulebookId(page: Page): Promise<string> {
-  const rows = await apiGet<OntologyRow[]>(page, "/api/v1/ontologies");
-  const mine = rows.filter((o) => o.ontology_key === SUITE_RULEBOOK_KEY);
-  expect(mine.length, `no stored rulebook is named ${SUITE_RULEBOOK_KEY}, so this suite cannot `
-                      + "pin the rules its expected findings were authored against")
+/** The stored id of SUITE_CONFIG_KEY's line-item set, which the extraction screen pins by id.
+ *
+ * Was `suiteRulebookId` over `GET /ontologies`, filtering on `ontology_key`. There is one
+ * configuration store, so this reads `GET /line-items/versions` and filters on `line_items_key` —
+ * and a version whose stored definition would not load is skipped, because pinning one recognises
+ * nothing in the filing and every fixture below would then judge an empty spread. */
+async function suiteConfigId(page: Page): Promise<string> {
+  const rows = await apiGet<LineItemVersionRow[]>(page, "/api/v1/line-items/versions");
+  const mine = rows.filter((o) => o.line_items_key === SUITE_CONFIG_KEY && o.loads !== false);
+  expect(mine.length, `no loadable configuration is stored under ${SUITE_CONFIG_KEY}, so this suite `
+                      + "cannot pin the rules its expected findings were authored against")
     .toBeGreaterThan(0);
-  // The one in force for that key when there is one — a suite run that published a retired copy
-  // earlier must not leave later fixtures extracting against it.
+  // The one in force for that key when there is one — the inline-edit tests above publish further
+  // versions, and later fixtures must not extract against whichever one happens to sort first.
   return (mine.find((o) => o.in_force) ?? mine[0]).id;
 }
 

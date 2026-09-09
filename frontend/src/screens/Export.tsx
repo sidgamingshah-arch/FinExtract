@@ -461,8 +461,8 @@ export default function ExportScreen() {
 
                 THOSE ARE NOT THE SAME POPULATION. A served row's `role` is the extractor's
                 (routes/extractions.py::_serialize_rows over LineItem.role): `line`, or the
-                `subtotal` the mapper promotes a row to when it lands on a subtotal concept
-                (stages/map_ontology.py, the only place a role ever changes) — and a caption word
+                `subtotal` the mapper promotes a row to when it lands on a subtotal line item
+                (the mapping stage, the only place a role ever changes) — and a caption word
                 never becomes a line item at all, so no row here is one. `realRows.length` is
                 therefore exactly the statement LINES that services/review_lines.py defines for both
                 routes, the population the Review header's third tile counts within on this same run,

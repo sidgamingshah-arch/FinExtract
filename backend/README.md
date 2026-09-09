@@ -22,12 +22,13 @@ app/
     stage.py           Stage protocol + PipelineContext
   ports/               Adapter Protocols (OCR, table, LLM, embeddings, object store, FX) + Registry
   adapters/            Concrete impls: local object store + stubs (real engines added here)
-  schemas/             Template + Ontology schemas, loader/validator, language parity registry
-  services/            mapping (ensemble), numbers (locale parse+sign), reconcile (§20), documents
+  schemas/             Template + LineItemSet schemas (one config engine), loader/validator, language parity
+  services/            mapping (ensemble), working_view (LineItemSet -> the matcher's view),
+                       numbers (locale parse+sign), reconcile (§20), documents
   stages/              ingest, integrity, language, classify, reconstruct, extract,
                        map_ontology, normalize, link_notes, reconcile, confidence
   db/                  SQLAlchemy base + ORM models
-  api/                 Routers: documents, extractions, templates, ontologies, languages, review
+  api/                 Routers: documents, extractions, templates, line_items, languages, review
 tests/                 Unit/golden tests + synthetic fixture generators
 ```
 

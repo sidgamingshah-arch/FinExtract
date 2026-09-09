@@ -2,6 +2,8 @@
 line items with page + normalized-bbox provenance."""
 from __future__ import annotations
 
+import json
+import pathlib
 import time
 
 import pytest
@@ -9,6 +11,77 @@ import pytest
 pytest.importorskip("fitz")
 
 from tests.fixtures.generate import make_native_pdf
+
+_SAMPLES = pathlib.Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
+
+
+def _hkfrs_configuration(client) -> dict:
+    """Publish the HKFRS spread's configuration as a LINE-ITEM SET, and hand back its version row.
+
+    WHY THIS EXISTS. These tests pinned ``ontology_version_id`` at the seeded ``hkfrs_hk_china``
+    rulebook and asserted the ``hkfrs_hk_china_v1`` spread it produces — its canonical keys, its
+    section labels, its ``label_i18n``, its ratios. There is one configuration engine now and the
+    ONE shipped set targets ``output_csv_hk_v1``, so ``hkfrs_hk_china_v1`` is seeded
+    TEMPLATE-ONLY and a run against it maps nothing until somebody publishes a set that targets it
+    (``app/sample/reference.py``, stated there as the instructed consequence). Pinning the shipped
+    set instead would silently move every assertion below onto a different spread.
+
+    So the test publishes what a configurator would: the same rulebook content, through
+    ``services.ontology_projection`` — the proven projection, 462/462 concepts with nothing
+    homeless — as a ``LineItemSet`` on the ``/line-items`` publish gate. Nothing here is an
+    ontology the product stores or serves: the file is repo DATA read off disk, the projection is
+    an internal function, and what reaches the database is a line-item version like any other.
+
+    ``section_defaults`` is carried but FILTERED to the fields the line-item schema declares: the
+    rulebook's ``SectionDefaults`` also has ``value_scope``, ``extraction_mode``, ``include`` and
+    ``exclude``, which the stray-key gate refuses. It cannot be dropped altogether — every
+    projected concept keeps its ``inherits``, and a set whose sections are missing fails its
+    resolved load with ``UnknownInheritsError`` (measured: all 183 concepts, and the run dies in
+    the worker rather than at the publish gate).
+    """
+    from app.schemas.line_items import SectionDefaults
+    from app.schemas.loader import load_ontology
+    from app.services.ontology_projection import build_definitions
+    from app.services.working_view import _jsonable
+
+    raw = json.loads((_SAMPLES / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8"))
+    ont = load_ontology(raw, resolve=True)
+    items, _census = build_definitions(list(ont.mappings), [])
+    declared = set(SectionDefaults.model_fields)
+    sections = {name: {k: v for k, v in _jsonable(sec).items() if k in declared}
+                for name, sec in (raw.get("section_defaults") or {}).items()}
+    definition = {
+        "line_items_key": "hkfrs_hk_china",
+        "target_template_key": ont.target_template_key,
+        "section_defaults": sections,
+        "locale": ont.locale,
+        "supported_locales": list(ont.supported_locales),
+        "number_format_by_locale": _jsonable(ont.number_format_by_locale),
+        "residual_framework": _jsonable(ont.residual_framework),
+        "normalisation": _jsonable(ont.normalisation),
+        "binding": _jsonable(ont.binding),
+        "global_rules": _jsonable(ont.global_rules),
+        "scope_selection": _jsonable(ont.scope_selection),
+        "decomposition_rules": _jsonable(ont.decomposition_rules),
+        "netting_rules": _jsonable(ont.netting_rules),
+        "worked_examples": _jsonable(ont.worked_examples),
+        "validation": _jsonable(ont.validation),
+        "items": items,
+    }
+    # Configuration is an admin surface (``CONFIG_LINE_ITEMS``), so the publish is made as admin;
+    # every run below is still started by the fixture's default caller.
+    r = client.post("/api/v1/line-items", json={"definition": definition},
+                    headers={"X-Role": "admin"})
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def _pins(client) -> tuple[dict, dict]:
+    """The configuration above and the template it targets, as a run pins them."""
+    cfg = _hkfrs_configuration(client)
+    tpl = next(t for t in client.get("/api/v1/templates").json()
+               if t["template_key"] == cfg["target_template_key"])
+    return cfg, tpl
 
 
 def _await_run(client, doc_id: str) -> dict:
@@ -119,13 +192,10 @@ def test_real_pages_and_statement_from_document(client):
     assert pg["focused"] + pg["skipped"] == pg["total"]
     assert all({"no", "cls", "conf", "included", "scan"} <= set(p) for p in pg["pages"])
 
-    # Attach the seeded HK ontology/template so mapping produces canonical keys (as the UI does).
-    onts = client.get("/api/v1/ontologies").json()
-    ont = next((o for o in onts if o["ontology_key"] == "hkfrs_hk_china"), onts[0])
-    tpls = client.get("/api/v1/templates").json()
-    tpl = next((tt for tt in tpls if tt["template_key"] == ont["target_template_key"]), tpls[0])
+    # Attach the seeded configuration/template so mapping produces canonical keys (as the UI does).
+    cfg, tpl = _pins(client)
     client.post(f"/api/v1/documents/{doc_id}/extractions",
-                json={"ontology_version_id": ont["id"], "template_version_id": tpl["id"]})
+                json={"line_item_version_id": cfg["id"], "template_version_id": tpl["id"]})
     st = client.get(f"/api/v1/documents/{doc_id}/statement", params={"statement": "balance_sheet"}).json()
     assert st["statement"] == "balance_sheet" and st["viewer"]["company"] == "bs.pdf"
     items = [r for r in st["rows"] if r["kind"] == "item"]
@@ -160,12 +230,9 @@ def test_dual_basis_statement_selects_by_basis(client):
     doc_id = client.post(
         "/api/v1/documents", files={"file": ("dual.pdf", make_dual_basis_pdf(), "application/pdf")}
     ).json()["id"]
-    onts = client.get("/api/v1/ontologies").json()
-    ont = next((o for o in onts if o["ontology_key"] == "hkfrs_hk_china"), onts[0])
-    tpls = client.get("/api/v1/templates").json()
-    tpl = next((tt for tt in tpls if tt["template_key"] == ont["target_template_key"]), tpls[0])
+    cfg, tpl = _pins(client)
     client.post(f"/api/v1/documents/{doc_id}/extractions",
-                json={"ontology_version_id": ont["id"], "template_version_id": tpl["id"]})
+                json={"line_item_version_id": cfg["id"], "template_version_id": tpl["id"]})
     _await_run(client, doc_id)
 
     def tr_value(basis):
@@ -179,23 +246,20 @@ def test_dual_basis_statement_selects_by_basis(client):
     assert tr_value("standalone") == 3100        # different basis → different value, one pass
 
 
-def _extract_with_ontology(client, filename="bs.pdf", data=None):
+def _extract_with_configuration(client, filename="bs.pdf", data=None):
     doc_id = client.post(
         "/api/v1/documents",
         files={"file": (filename, data or make_native_pdf(), "application/pdf")},
     ).json()["id"]
-    onts = client.get("/api/v1/ontologies").json()
-    ont = next((o for o in onts if o["ontology_key"] == "hkfrs_hk_china"), onts[0])
-    tpls = client.get("/api/v1/templates").json()
-    tpl = next((tt for tt in tpls if tt["template_key"] == ont["target_template_key"]), tpls[0])
+    cfg, tpl = _pins(client)
     client.post(f"/api/v1/documents/{doc_id}/extractions",
-                json={"ontology_version_id": ont["id"], "template_version_id": tpl["id"]})
+                json={"line_item_version_id": cfg["id"], "template_version_id": tpl["id"]})
     _await_run(client, doc_id)
     return doc_id
 
 
 def test_real_line_item_edit_persists_to_statement(client):
-    doc_id = _extract_with_ontology(client)
+    doc_id = _extract_with_configuration(client)
     rows = client.get(f"/api/v1/documents/{doc_id}/run").json()["result"]["rows"]
     key = next(r["canonical_key"] for r in rows if r.get("canonical_key"))
 
@@ -214,7 +278,7 @@ def test_derived_analysis_ratios_disclosures_notes(client):
     """Ratios, disclosure scan, and free-form notes — all derived from the extraction."""
     from tests.fixtures.generate import make_rich_pdf
 
-    doc_id = _extract_with_ontology(client, filename="rich.pdf", data=make_rich_pdf())
+    doc_id = _extract_with_configuration(client, filename="rich.pdf", data=make_rich_pdf())
     a = client.get(f"/api/v1/documents/{doc_id}/analysis").json()
 
     # Ratios computed from extracted totals.
@@ -247,7 +311,7 @@ def test_analysis_and_export_sheets_present(client):
 
     from tests.fixtures.generate import make_rich_pdf
 
-    doc_id = _extract_with_ontology(client, filename="rich.pdf", data=make_rich_pdf())
+    doc_id = _extract_with_configuration(client, filename="rich.pdf", data=make_rich_pdf())
     x = client.get(f"/api/v1/documents/{doc_id}/export", params={"fmt": "excel", "layout": "statement"})
     wb = openpyxl.load_workbook(_io.BytesIO(x.content))
     assert {"Note details", "Ratios", "Disclosures", "Credit Analysis"} <= set(wb.sheetnames)
@@ -275,7 +339,7 @@ def test_formatted_statement_export_is_template_driven(client):
     import openpyxl
     import io as _io
 
-    doc_id = _extract_with_ontology(client)
+    doc_id = _extract_with_configuration(client)
 
     # Statement layout (default) → a workbook with a Balance Sheet sheet built from the template.
     x = client.get(f"/api/v1/documents/{doc_id}/export", params={"fmt": "excel", "layout": "statement"})
@@ -315,7 +379,7 @@ def test_formatted_statement_export_is_template_driven(client):
 def test_real_statement_localized_and_basis_echoed(client):
     """The Workspace statement resolves labels in the output locale (label_i18n) and echoes
     the requested basis (Req 21, 13)."""
-    doc_id = _extract_with_ontology(client)
+    doc_id = _extract_with_configuration(client)
     zh = client.get(f"/api/v1/documents/{doc_id}/statement",
                     params={"statement": "balance_sheet", "locale": "zh"}).json()
     labels = " | ".join(r.get("label", "") for r in zh["rows"])
@@ -327,7 +391,7 @@ def test_real_statement_localized_and_basis_echoed(client):
 
 
 def test_edit_then_revert_restores_original(client):
-    doc_id = _extract_with_ontology(client)
+    doc_id = _extract_with_configuration(client)
     st0 = client.get(f"/api/v1/documents/{doc_id}/statement", params={"statement": "balance_sheet"}).json()
     item = next(r for r in st0["rows"] if r["kind"] == "item")
     key, original = item["id"], item["v1"]
@@ -345,7 +409,7 @@ def test_edit_then_revert_restores_original(client):
 
 
 def test_real_notes_index_and_detail(client):
-    doc_id = _extract_with_ontology(client)
+    doc_id = _extract_with_configuration(client)
     notes = client.get(f"/api/v1/documents/{doc_id}/notes").json()
     assert notes["count"] >= 1 and notes["linked"] >= 1
     assert any(n["no"] == "15" for n in notes["notes"])      # make_native_pdf cites "Note 15"
@@ -409,7 +473,7 @@ def test_extracted_note_detail_served_and_exported(client):
 
     from tests.fixtures.generate import make_multipage_pdf
 
-    doc_id = _extract_with_ontology(client, filename="multi.pdf", data=make_multipage_pdf())
+    doc_id = _extract_with_configuration(client, filename="multi.pdf", data=make_multipage_pdf())
 
     # All-Notes index prefers the extracted detail tables (high-confidence, with rows).
     notes = client.get(f"/api/v1/documents/{doc_id}/notes").json()
@@ -440,7 +504,7 @@ def test_note_detail_serves_the_same_period_labels_as_the_statement(client):
     """
     from tests.fixtures.generate import make_multipage_pdf
 
-    doc_id = _extract_with_ontology(client, filename="multi.pdf", data=make_multipage_pdf())
+    doc_id = _extract_with_configuration(client, filename="multi.pdf", data=make_multipage_pdf())
 
     detail = client.get(f"/api/v1/documents/{doc_id}/notes/14").json()
     assert len(detail["periods"]) == 2 and all(p.strip() for p in detail["periods"])
@@ -457,7 +521,7 @@ def test_note_detail_serves_the_same_period_labels_as_the_statement(client):
 
 
 def test_real_integrity_and_review_localized(client):
-    doc_id = _extract_with_ontology(client)
+    doc_id = _extract_with_configuration(client)
     zh = client.get(f"/api/v1/documents/{doc_id}/integrity", params={"locale": "zh"}).json()
     assert any(s["label"] == "页数" for s in zh["stats"])       # "Pages" localized
     assert zh["grade"] and zh["grade"] != "Ready to extract"
@@ -537,16 +601,13 @@ def test_page_image_endpoint_renders_png(client):
     assert r.content[:8] == b"\x89PNG\r\n\x1a\n" and len(r.content) > 100
 
 
-def test_reference_ontology_seeded_and_attached_run_maps(client):
-    """The shipped HK ontology is seeded; attaching it to a run populates canonical keys
+def test_reference_configuration_seeded_and_attached_run_maps(client):
+    """The shipped line-item configuration is seeded; attaching it to a run populates canonical keys
     (deterministic here — the alias tier maps offline without an LLM)."""
     from app.config import get_settings
     from app.services import settings_state  # noqa: F401 (import parity with other tests)
 
-    onts = client.get("/api/v1/ontologies").json()
-    ont = next(o for o in onts if o["ontology_key"] == "hkfrs_hk_china")
-    tpls = client.get("/api/v1/templates").json()
-    tpl = next(t for t in tpls if t["template_key"] == ont["target_template_key"])
+    cfg, tpl = _pins(client)
 
     doc_id = client.post(
         "/api/v1/documents", files={"file": ("bs.pdf", make_native_pdf(), "application/pdf")}
@@ -557,7 +618,7 @@ def test_reference_ontology_seeded_and_attached_run_maps(client):
     s.extraction.llm_mapping = False  # force the deterministic ensemble (no network) for the test
     try:
         r = client.post(f"/api/v1/documents/{doc_id}/extractions",
-                        json={"ontology_version_id": ont["id"], "template_version_id": tpl["id"]})
+                        json={"line_item_version_id": cfg["id"], "template_version_id": tpl["id"]})
         assert r.status_code == 202, r.text
         rows = _await_run(client, doc_id)["rows"]
         tr = next(row for row in rows if "Trade receivables" in row["source_label"])
@@ -671,12 +732,9 @@ def test_a_note_detail_row_carries_the_measured_confidence_beside_its_badge(clie
     doc_id = client.post(
         "/api/v1/documents", files={"file": ("bs.pdf", make_native_pdf(), "application/pdf")}
     ).json()["id"]
-    onts = client.get("/api/v1/ontologies").json()
-    ont = next((o for o in onts if o["ontology_key"] == "hkfrs_hk_china"), onts[0])
-    tpls = client.get("/api/v1/templates").json()
-    tpl = next((t for t in tpls if t["template_key"] == ont["target_template_key"]), tpls[0])
+    cfg, tpl = _pins(client)
     client.post(f"/api/v1/documents/{doc_id}/extractions",
-                json={"ontology_version_id": ont["id"], "template_version_id": tpl["id"]})
+                json={"line_item_version_id": cfg["id"], "template_version_id": tpl["id"]})
     index = client.get(f"/api/v1/documents/{doc_id}/notes").json()["notes"]
     for n in index:
         assert n["conf_pct"] is None, "a note carries no measurement, so it may serve no percentage"

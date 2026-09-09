@@ -50,6 +50,18 @@ ONTOLOGY = TEMPLATES / "output_csv_hk_ontology.json"
 CONFIGURED = TEMPLATES / "output_csv_hk_line_items_configured.json"
 SEED = TEMPLATES / "output_csv_hk_line_items.json"
 
+# THE FOUR SET-LEVEL FRAMEWORK BLOCKS, copied whole from the source concept file into the emitted
+# set. `LineItemSet` declares all four (`schemas/line_items.py`), the shipped seed carries all four,
+# and this script used to emit NONE of them — so the next rebuild would silently drop the caption
+# folds, the binding rules, the global rules and the scope selector out of the single configuration
+# and leave the engine reading its compiled-in defaults instead. Copied rather than retyped, for the
+# reason the vocabulary block below is: a retyped block is a second answer to one question.
+#
+# `residual_framework` is emitted the same way, in the same place, and is listed here with the rest
+# instead of being special-cased further down.
+FRAMEWORK_BLOCKS = ("normalisation", "binding", "global_rules", "scope_selection",
+                    "residual_framework")
+
 # The section-layer fields a line item declares. Narrowed from the rulebook's 18 entries rather
 # than retyped, so the gate these definitions inherit is the SAME gate the concepts inherit — two
 # answers to that question is the failure the merge exists to end.
@@ -206,10 +218,15 @@ def main() -> int:
             # resolutions and puts 74 on a DIFFERENT concept.
             CAPTION_CHARS_KEY: {k: list(v) for k, v in _BUILTIN_CAPTION_INVENTORY.items()},
         },
-        # One definition governing every exclusive_residual line item. A per-item `residual_policy`
-        # overrides a term only where its author wrote that term down, which is why the projection
-        # dumps a policy with `exclude_unset`.
-        "residual_framework": (raw.get("residual_framework") or None),
+        # THE FRAMEWORK BLOCKS — see `FRAMEWORK_BLOCKS`. A block the source does not declare is
+        # left OUT of the document rather than written as an empty one: an omitted block says
+        # "nothing was stated here", and an empty block written in its place would be a
+        # configured-empty declaration, which means nothing and must never read as a default.
+        #
+        # `residual_framework` is one of them: one definition governing every exclusive_residual
+        # line item. A per-item `residual_policy` overrides a term only where its author wrote that
+        # term down, which is why the projection dumps a policy with `exclude_unset`.
+        **{name: raw[name] for name in FRAMEWORK_BLOCKS if raw.get(name)},
         "items": items,
     }
 
@@ -221,6 +238,15 @@ def main() -> int:
     for p in reg.problems[:10]:
         print(f"     [{p.severity}] {p.key}: {p.message}")
     report_caption_characters(st)
+    # SAID OUT LOUD, because a dropped framework block is invisible in a 475-item diff: each of the
+    # four either survives the load or does not, and "absent" here means the source concept file
+    # states nothing under that name — not that the loader lost it.
+    for name in FRAMEWORK_BLOCKS:
+        if not raw.get(name):
+            print(f"  {name:24}: absent from {ONTOLOGY.name} — not written")
+            continue
+        kept = "round-tripped" if getattr(st, name, None) else "DROPPED ON LOAD"
+        print(f"  {name:24}: copied, {kept}")
     gated = sum(1 for d in st.items if d.statement is not None)
     print(f"  gate resolved onto      : {gated}/{len(st.items)}")
     print(f"  in output template      : {sum(1 for d in st.items if d.in_output)}")

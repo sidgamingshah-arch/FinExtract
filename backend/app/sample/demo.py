@@ -90,6 +90,11 @@ def localize_label(english_label: str, locale: str) -> str:
 
 # --- Project meta -----------------------------------------------------------
 
+# The sample's configured line-item count, stated ONCE. Two cards on the shell print it — the
+# template card and the line-items configuration card below — and they are the same population, so
+# a second literal would be the drift this module keeps deleting.
+_LINE_ITEM_COUNT = 312
+
 PROJECT = {
     "id": "demo",
     "entity": "Reliance Industries Ltd",
@@ -107,8 +112,15 @@ PROJECT = {
     # The Export footer printed two of them, so replacing its hard-coded "148 · 12" with these
     # literals moved the same fabrication one file down. Counted at the point of service instead:
     # api/routes/projects.py::_demo_progress.
-    "template": {"key": "indas_std_v4", "name": "Ind-AS Standard Spread v4", "line_items": 312},
-    "ontology": {"file": "ontology_indas_v4.json", "rules": 1240, "aliases": 380, "status": "valid"},
+    "template": {"key": "indas_std_v4", "name": "Ind-AS Standard Spread v4",
+                 "line_items": _LINE_ITEM_COUNT},
+    # THE SINGLE CONFIGURATION ENGINE, on the card that used to name an ontology. This read
+    # {"file": "ontology_indas_v4.json", "rules": 1240, "aliases": 380, "status": "valid"} — a
+    # second configuration the user could see and select. There is no ontology to select any more:
+    # line items ARE the configuration, so the card names the line-item set. `items` is the count
+    # stated above rather than a second figure ("1,240 rules" over 312 line items answered nothing).
+    "line_items": {"file": "line_items_indas_v4.json", "items": _LINE_ITEM_COUNT,
+                   "aliases": 380, "status": "valid"},
 }
 
 # --- Source documents (upload screen) --------------------------------------
@@ -237,7 +249,7 @@ STATEMENTS = {
 INSPECTOR = {
     "trade_recv": {"tag": "Note-netted", "src": "p.142 (face) · p.171 (Note 12)",
                    "formula": "Note12.total (96,900) - Note12.3 related_party (12,400)", "result": "84,500 cr",
-                   "note": "Overarching face value netted against note detail per ontology rule. Related-party receivables are carried separately under Other financial assets."},
+                   "note": "Overarching face value netted against note detail per the line-item netting rule. Related-party receivables are carried separately under Other financial assets."},
     "ppe": {"tag": "Direct", "src": "p.142 (face) · p.156 (Note 3)",
             "formula": "Note3.net_block (gross 6,84,200 - accum. depreciation 2,61,020)", "result": "4,23,180 cr",
             "note": "High-confidence direct match to the face of the Balance Sheet, cross-checked against Note 3 net block."},
@@ -246,7 +258,7 @@ INSPECTOR = {
                  "note": "Extracted from a scanned page with low OCR quality. Value could not be corroborated against a note. Sent to review queue."},
     "fin": {"tag": "Sign anomaly", "src": "p.145 (face) · Note 25",
             "formula": "Note25.finance_costs", "result": "18,400 cr",
-            "note": "Extracted as a credit (positive). Ontology sign rule expects finance costs to be an expense (negative). Flagged to the review queue."},
+            "note": "Extracted as a credit (positive). The line-item sign rule expects finance costs to be an expense (negative). Flagged to the review queue."},
 }
 DEFAULT_INSPECTOR = {"tag": "Direct", "src": "p.142 (face)", "formula": "direct match", "result": "", "note": "Direct match to the face of the statement."}
 
@@ -283,8 +295,11 @@ REVIEW = [
     {"id": "sign", "type": "structural", "icon": "±", "title": "Sign anomaly — Finance costs positive",
      "where": "Statement of P&L · expense shown as credit", "severity": "Medium", "tone": "high",
      "delta": "+18,400", "target": "fin",
-     "calc": [["Extracted value", "+18,400", False], ["Expected sign (expense)", "negative", True], ["Ontology rule", "debit / negative", False]],
-     "fix": "Ontology sign rule for Finance costs is expense = negative. Flip sign to −18,400 to match statement convention."},
+     # "Ontology rule" / "Ontology sign rule …" here and in i18n_data.TR: the sign expectation is
+     # declared on the LINE ITEM, which is the only configuration there is, and the card says so.
+     # TR is keyed on the English source string, so both sides moved together.
+     "calc": [["Extracted value", "+18,400", False], ["Expected sign (expense)", "negative", True], ["Line-item rule", "debit / negative", False]],
+     "fix": "Line-item sign rule for Finance costs is expense = negative. Flip sign to −18,400 to match statement convention."},
     # The FIRST category, and the one the sample was missing: a figure printed on the face that
     # reaches no line of the output. Here it is the second way in — the caption mapped to a concept
     # this template declares nowhere — which is why the card can name what it was placed on.
@@ -334,7 +349,9 @@ NOTE_DETAIL = {
     },
 }
 
-# --- Template & ontology (screen 7) ----------------------------------------
+# --- Template & line items (screen 7) --------------------------------------
+# Screen 7 used to pair the template with an ontology. Line items are now the single configuration
+# engine, so the node config below (aliases, sign, netting) is line-item configuration.
 
 TEMPLATE_TREE = [
     {"id": "sec_a", "label": "ASSETS", "lvl": 0, "head": True},
