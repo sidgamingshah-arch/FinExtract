@@ -107,11 +107,26 @@ _SET = {
 # asserted EQUAL to the value sent, which is why every nested object is sent whole: the apply dumps
 # a sub-model in JSON mode, so a partially-sent object would come back with its own defaults filled
 # in and the comparison would be against this table's idea of them rather than the model's.
+# FIELDS THAT CANNOT BE COHERENT WITH THE REST OF ONE PATCH, and are round-tripped on their own
+# below instead. This is not an exemption from being authorable — the exhaustiveness test still
+# requires an entry in `_ROUND_TRIP` for each — it is that the combined body sets
+# `type: "calculated"` and these fields are only legal on another type, so including them would
+# assert a shape a screen can never send.
+#
+# `prompt` is the only one: `LineItemDef` refuses it unless the line is `extracted`, because a
+# calculated line's figure comes from arithmetic and the model is never asked about it.
+_NOT_COHERENT_WITH_THE_REST = {"prompt"}
+
 _ROUND_TRIP: dict[str, tuple[str, object]] = {
     # meaning — the four the user named, plus the label
     "label": ("label", "Cash and cash equivalents"),
     "description": ("description", "Cash on hand, at bank, and short-term deposits."),
     "definition": ("definition", "IAS 7 cash and cash equivalents, net of nothing."),
+    # Extra instruction for THIS line, sent inside its own candidate entry. Round-tripped like any
+    # other prose field; the constraint that it is only legal on an `extracted` line is a
+    # `LineItemDef` validator and is tested separately, because it is a refusal rather than a
+    # write. The probe item this table is applied to is `extracted`, so this round-trips.
+    "prompt": ("prompt", "Prefer the note total over the face figure when they disagree."),
     "include_criteria": ("include_criteria", ["bank balances", "cash on hand"]),
     "exclude_criteria": ("exclude_criteria", ["bank overdrafts repayable on demand"]),
     "confusable_with": ("confusable_with", ["probe_other"]),
@@ -364,12 +379,14 @@ def test_one_patch_round_trips_a_value_for_every_authorable_field(client, probe)
     _tpl, cfg = probe
     body = {"key": _EDITED}
     for _def_field, (edit_field, value) in _ROUND_TRIP.items():
+        if _def_field in _NOT_COHERENT_WITH_THE_REST:
+            continue
         body[edit_field] = value
 
     new_id = _saved(client, cfg["id"], body)
     stored = _stored(client, new_id)
     wrong = {f: (stored.get(f), value) for f, (_e, value) in _ROUND_TRIP.items()
-             if stored.get(f) != value}
+             if f not in _NOT_COHERENT_WITH_THE_REST and stored.get(f) != value}
     assert not wrong, f"{len(wrong)} field(s) did not round-trip: {wrong}"
     # A SAVE THAT SILENTLY DOES NOTHING IS THE DEFECT BEING FIXED, so the version is asserted to be
     # a different one and the key it edited is named back.
@@ -638,3 +655,37 @@ def test_the_two_sign_fields_are_two_questions(client, probe):
     field, _index, shown = _refusal(r)
     assert field == "sign_convention" and "sign_rule.convention" in shown, (
         "the refusal has to point at the field that CAN express the full vocabulary")
+
+
+def test_a_prompt_round_trips_on_an_extracted_line(client, probe):
+    """The per-line prompt, on the one type it is sent for.
+
+    Excluded from the combined patch above because that body sets `type: "calculated"` — see
+    `_NOT_COHERENT_WITH_THE_REST`. Tested here on its own so the field is still proved authorable.
+    """
+    _tpl, cfg = probe
+    wording = _ROUND_TRIP["prompt"][1]
+
+    new_id = _saved(client, cfg["id"],
+                    {"key": _EDITED, "type": "extracted", "prompt": wording})
+
+    assert _stored(client, new_id)["prompt"] == wording
+
+
+def test_a_prompt_is_refused_on_a_line_the_model_is_never_asked_about(client, probe):
+    """A prompt on a calculated line would be stored, shown on the screen, and never sent.
+
+    That is indistinguishable from a prompt that is working, which is why it is a refusal rather
+    than something ignored — and the refusal is addressed to `prompt`, so the editor puts it on
+    that control rather than in a banner.
+    """
+    _tpl, cfg = probe
+
+    r = client.patch(f"{API}/line-items/versions/{cfg['id']}/items",
+                     json={"key": _EDITED, "type": "calculated",
+                           "terms": [{"ref": _EDITED, "sign": 1}],
+                           "prompt": "this would never be sent"})
+
+    assert r.status_code == 422, r.text
+    fields = [e["field"] for e in r.json()["detail"]["errors"]]
+    assert "prompt" in fields, fields

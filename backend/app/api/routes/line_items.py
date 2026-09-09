@@ -452,6 +452,10 @@ def get_line_items(template_key: str | None = None, session: Session = Depends(d
             "locale": st.locale,
             "supported_locales": st.supported_locales,
             "metadata": st.metadata.model_dump(mode="json"),
+            # THE MASTER PROMPT, served so the screen can show and edit it. It is appended to the
+            # framework's base instruction on every mapping call, so a reader looking at a line's
+            # own prompt needs to see what it is being added to.
+            "prompt": st.prompt,
             # Shown so a reader can see the gate is authored once per section rather than per
             # item — the two-layer model that survived the merge.
             "section_defaults": {k: v.model_dump(mode="json", exclude_none=True)
@@ -848,6 +852,9 @@ class ItemEdit(BaseModel):
     # let a caption be resolved by MEANING, so they have to be editable too or an analyst can only
     # ever tune string matching.
     definition: str | None = None
+    # Extra instruction for THIS line, sent inside its own candidate entry. Refused by
+    # `LineItemDef` on a non-`extracted` line, and that refusal lands on this field.
+    prompt: str | None = None
     include_criteria: list[str] | None = None
     exclude_criteria: list[str] | None = None
     confusable_with: list[str] | None = None
@@ -957,6 +964,7 @@ _EDIT_SCALARS: dict[str, str] = {
     "label": "label",
     "description": "description",
     "definition": "definition",
+    "prompt": "prompt",
     "type": "type",
     "in_output": "in_output",
     "rollup": "rollup",
@@ -1532,6 +1540,54 @@ class ItemCreate(BaseModel):
     key: str
     label: str | None = None
     inherits: str | None = None
+
+
+class SetEdit(BaseModel):
+    """A change to the configuration ITSELF rather than to one of its lines.
+
+    Only the master prompt for now. Kept deliberately narrow: every other set-level block
+    (`global_rules`, `binding`, `normalisation`, `residual_framework`) is a structure whose editing
+    needs its own controls and its own refusals, and a body that accepted all of them would be a
+    second, unvalidated door into the whole configuration.
+    """
+
+    prompt: str | None = None
+
+
+@router.patch("/versions/{version_id}", dependencies=[_GATE])
+def edit_line_item_set(version_id: str, body: SetEdit,
+                       session: Session = Depends(db)) -> dict:
+    """Edit the configuration's own settings by publishing a NEW version.
+
+    THE MASTER PROMPT lives here because it applies to every mapping call rather than to one line:
+    `mapping._build_system` appends it to the framework's base instruction, before the policies. A
+    per-line prompt is the other half and goes through `PATCH .../items` — the two compose, and
+    neither replaces the base instruction, whose shape the reply parser depends on.
+
+    Versioned like every other edit: a run pins the version it used, so the prompt a past run was
+    given stays readable rather than being rewritten under it.
+    """
+    from app.db.models import LineItemVersion
+
+    row = session.get(LineItemVersion, version_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Line-item version not found")
+
+    sent = body.model_fields_set
+    if not sent:
+        _refuse([_err(None, "nothing was sent to change")], what="This edit was not applied")
+
+    definition = copy.deepcopy(row.definition or {})
+    if "prompt" in sent:
+        if body.prompt is None:
+            # A string field has no "nothing was said" state; empty is a configured empty and is
+            # stored as one, in keeping with every other block on the set.
+            _refuse([_err("prompt", "prompt is text, so it has no null state — send \"\" to "
+                                    "clear it, and an empty prompt adds nothing to the "
+                                    "instruction")])
+        definition["prompt"] = body.prompt
+
+    return _publish_new_version(session, row, definition)
 
 
 @router.post("/versions/{version_id}/items", status_code=201, dependencies=[_GATE])

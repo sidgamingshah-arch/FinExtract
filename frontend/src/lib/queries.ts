@@ -697,6 +697,16 @@ function invalidateConfiguration(qc: ReturnType<typeof useQueryClient>) {
   return qc.invalidateQueries({ queryKey: ["line-items"] });
 }
 
+/** Edit the configuration's own settings (the master prompt). */
+export function useEditLineItemSet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { lineItemVersionId: string; edit: { prompt?: string } }) =>
+      api.editLineItemSet(vars.lineItemVersionId, vars.edit),
+    onSuccess: () => invalidateConfiguration(qc),
+  });
+}
+
 /** Add a line item beyond the template's own. Server-side it is always `internal`. */
 export function useAddLineItem() {
   const qc = useQueryClient();

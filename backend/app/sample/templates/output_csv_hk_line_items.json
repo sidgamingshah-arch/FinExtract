@@ -610,6 +610,7 @@
   "unbound_row_policy": "Route an unclaimed face value only to the residual for its resolved printed section. Never borrow a neighbouring concept or cross a section. After all mapping and gap-closing opportunities, the engine-level face_mapping_contract gives any remaining face value a unique engine_unclassified_face key outside the ontology/template namespaces. This keeps the row stored and reviewable without feeding it into an unrelated calculation. Verified non-additive aggregates replaced by mapped components remain evidence-only.",
   "match_priority": "Integer 0-99, higher evaluated first. Long specific captions rank above short generic ones so 'Total assets less current liabilities' cannot be pre-empted by 'Total current liabilities' on token overlap. Residuals are 0 and unreachable by matching."
  },
+ "prompt": "Map each caption to the concept whose definition and criteria best match what the caption REPRESENTS. Rely on financial meaning, not string similarity or shared words. Respect the exclusion criteria and the confusable-with warnings.",
  "global_rules": {
   "source_fact_id": "document_id|entity_scope|period|currency|unit|page|table_or_note|source_row_id",
   "sign_convention": {

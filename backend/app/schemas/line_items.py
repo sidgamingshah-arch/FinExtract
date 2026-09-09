@@ -274,6 +274,20 @@ class LineItemDef(BaseModel):
     # matching decision or hide the meaning from the screen.
     description: str = ""
     definition: str = ""
+    # EXTRA INSTRUCTION FOR THIS LINE, sent to the model beside this concept's definition when it
+    # is offered as a candidate (`mapping._concept_payload`).
+    #
+    # APPENDS, NEVER REPLACES. The set-level ``prompt`` and the framework's own base instruction
+    # both still apply — a per-line prompt that replaced them would silently drop the global
+    # policies (parent/child allocation, the duplicate-fact rule, the totals policy) for whichever
+    # captions happened to be offered that concept, and nothing in the output would say so.
+    #
+    # ONLY MEANINGFUL ON AN ``extracted`` LINE, and the validator below refuses it elsewhere: a
+    # calculated or derived line gets its figure from arithmetic, and an ``extraction_mode:
+    # "derive"`` concept is never offered to the model at all (`mapping._unmatchable`), so a prompt
+    # authored on one would be text that is never sent — the kind of configuration that looks like
+    # it is working because nothing contradicts it.
+    prompt: str = ""
     # Whether it reaches the statement screens and the export. An intermediate never does; the
     # validator below enforces that rather than trusting whoever edits the file.
     in_output: bool = True
@@ -410,6 +424,17 @@ class LineItemDef(BaseModel):
             raise ValueError(f"{self.key}: a {self.type} line needs at least one term")
         if self.type == "derived" and not (self.cascade or self.implemented_by):
             raise ValueError(f"{self.key}: a derived line needs a cascade or `implemented_by`")
+        # A PROMPT ON A LINE NOTHING IS ASKED ABOUT would never be sent. Only an `extracted` line
+        # is offered to the model as a candidate for a printed caption; a calculated or
+        # intermediate line is arithmetic over other lines, and a derived one is computed. Refused
+        # rather than ignored, because text that is stored, shown on the screen and never used is
+        # indistinguishable from text that is working.
+        if self.prompt.strip() and self.type != "extracted":
+            raise ValueError(
+                f"{self.key}: a prompt is only sent for an `extracted` line, and this one is "
+                f"`{self.type}` — its figure comes from arithmetic, so the model is never asked "
+                f"about it. Clear the prompt, or change the type if the line is in fact read off "
+                f"the page.")
         if self.side == "from_section" and not self._can_read_a_section():
             raise ValueError(
                 f"{self.key}: `from_section` needs a statement that prints section banners — "
@@ -1345,6 +1370,19 @@ class LineItemSet(BaseModel):
     binding: Binding | None = None
     # Set-wide rules that are not per-item: the only one of the four with a non-None default,
     # because `GlobalRules`' own field defaults ARE the declaration when the block is absent.
+    # THE MASTER PROMPT. Appended to the framework's base instruction for every mapping call, so
+    # this is where a deployment states how it wants captions read — before any per-line prompt.
+    #
+    # WHY IT IS APPENDED RATHER THAN A REPLACEMENT. The base instruction carries the contract the
+    # rest of the system depends on: map to exactly ONE concept, reference item_id, never output
+    # values, return an empty key when nothing fits. A configuration that could replace it could
+    # produce a reply the parser refuses, and the failure would arrive as "the model returned
+    # nothing usable" rather than as a configuration error. So this widens the instruction and
+    # cannot break its shape.
+    #
+    # EMPTY MEANS NOTHING IS ADDED — it does not restore some built-in wording, in keeping with
+    # every other block here.
+    prompt: str = ""
     global_rules: GlobalRules = Field(default_factory=GlobalRules)
     # Which pages/statements the run is allowed to search in the first place.
     scope_selection: ScopeSelection | None = None

@@ -628,6 +628,15 @@ export const api = {
     req<LineItemEditResult & { key: string }>(
       `/line-items/versions/${lineItemVersionId}/items`,
       { method: "PATCH", body: JSON.stringify(edit) }),
+  /** Edit the CONFIGURATION'S OWN settings — currently the master prompt.
+   *
+   *  Distinct from `editLineItem`, which edits one line: this is appended to the base instruction
+   *  on every mapping call, so it is what a per-line prompt gets added to. Publishes a new version
+   *  like every other edit. */
+  editLineItemSet: (lineItemVersionId: string, edit: { prompt?: string }) =>
+    req<LineItemEditResult>(
+      `/line-items/versions/${lineItemVersionId}`,
+      { method: "PATCH", body: JSON.stringify(edit) }),
   /** ADD a line item beyond what the template asked for.
    *
    *  Only key/label/inherits are sent; everything else is configured afterwards through

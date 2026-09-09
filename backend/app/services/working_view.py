@@ -157,6 +157,9 @@ def _definition_of(st: LineItemSet) -> dict:
         "residual_framework": _jsonable(st.residual_framework),
         "normalisation": _jsonable(st.normalisation),
         "binding": _jsonable(st.binding),
+        # The master prompt, so `mapping._build_system` can append it. Carried here rather than
+        # read off the set directly because the matcher only ever sees this object.
+        "prompt": st.prompt,
         "global_rules": _jsonable(st.global_rules),
         "scope_selection": _jsonable(st.scope_selection),
         "decomposition_rules": _jsonable(st.decomposition_rules),

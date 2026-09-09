@@ -1333,6 +1333,9 @@ export interface NodeConfig {
    *  close to one; these decide the concept by MEANING, so they are editable too. Optional
    *  because the demo project's template view predates them. */
   definition?: string;
+  /** Extra instruction for THIS line, carried inside its own candidate entry. Only sent for an
+   *  `extracted` line — the server refuses it on any other type, and the refusal lands here. */
+  prompt?: string;
   include?: string[];
   exclude?: string[];
   /** Other canonical_keys this concept is easily confused with (server rejects unknown keys). */
@@ -1551,6 +1554,9 @@ export interface LineItemDef {
   /** The authoritative accounting meaning, matched against by the LLM's description tier.
    *  Separate from `description`, which is display prose. */
   definition: string;
+  /** Extra instruction sent to the model beside this line's definition, when it is offered as a
+   *  candidate. Only meaningful on an `extracted` line. */
+  prompt: string;
   in_output: boolean;
   parent: string;
   /** What this parenthood means arithmetically. The twelve parts of the depreciation line are
@@ -1910,6 +1916,10 @@ export interface LineItemSetInfo {
     name: string; version: string; supersedes: string | null;
     changes: string[]; breaking_changes: string[];
   };
+  /** THE MASTER PROMPT. Appended to the framework's base instruction on every mapping call, before
+   *  the global policies. A line's own `prompt` is added on top of this, inside that line's
+   *  candidate entry — so this is what a per-line prompt is adding to. */
+  prompt: string;
   /** The gate, authored once per section and claimed by `inherits`. */
   section_defaults: Record<string, Partial<{
     statement: StatementToken; section_scope: string[]; scopes: SearchScope[];

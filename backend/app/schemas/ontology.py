@@ -138,6 +138,11 @@ class OntologyMapping(BaseModel):
     # fed to the LLM so the mapping decision is criteria-driven, not string-driven.
     # (Learnings from field-tested Ind-AS extraction ontologies.)
     definition: str = ""
+    # Extra instruction for this concept, carried from `LineItemDef.prompt` by
+    # `services/working_view`. Not authored here — nothing authors an ontology any more — but the
+    # matcher reads its questions off this object, so the field needs a home on it or the
+    # projection would drop a configured prompt in silence.
+    prompt: str = ""
     include: list[str] = Field(default_factory=list)
     exclude: list[str] = Field(default_factory=list)
     confusable_with: list[str] = Field(default_factory=list)  # canonical_keys easy to confuse
@@ -603,6 +608,9 @@ class OntologyDefinition(BaseModel):
     decomposition_rules: list[DecompositionRule] = Field(default_factory=list)
     # Face-line containment netting (e.g. cost of sales stated inclusive of admin / S&M).
     netting_rules: list[NettingRule] = Field(default_factory=list)
+    # The master prompt, carried from `LineItemSet.prompt` by `services/working_view` and appended
+    # to the base instruction in `mapping._build_system`.
+    prompt: str = ""
     global_rules: GlobalRules = Field(default_factory=GlobalRules)
     worked_examples: list[WorkedExample] = Field(default_factory=list)
 

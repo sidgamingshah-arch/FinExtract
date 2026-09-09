@@ -58,7 +58,8 @@ RENAMED: dict[str, str] = {
 # because the next person reads it as evidence and stops looking.
 
 SAME: tuple[str, ...] = (
-    "label", "description", "definition", "confusable_with", "value_scope", "extraction_mode",
+    "label", "description", "definition", "prompt", "confusable_with", "value_scope",
+    "extraction_mode",
     "analyst_bucket", "aliases", "aliases_i18n", "keyword_hints", "regex_hints", "exclude_hints",
     "sign_rule", "inherits", "statement", "section_scope",
     "temporality", "face_only", "unit_of_account", "note_use", "note_use_rationale",

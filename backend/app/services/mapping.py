@@ -122,23 +122,49 @@ class LlmBatchDecision(BaseModel):
         return value
 
 
-_LLM_SYSTEM = (
-    "You map a single raw line-item caption from a financial statement to ONE canonical "
-    "concept, by MEANING. You are given the caption (with any context) and candidate "
-    "concepts, each with: canonical_key, a definition, inclusion criteria (include), "
-    "exclusion criteria (exclude), concepts it is easily confused with, and its value_scope. "
-    "Choose the candidate whose definition and criteria best match what the caption "
-    "represents — rely on financial meaning, not string similarity or shared words. Respect "
-    "the exclusion criteria and the confusable-with warnings. If no candidate genuinely "
-    "fits, return an empty canonical_key. Return calibrated confidence in [0,1] (high only "
-    "when unambiguous) and, when clear, an allocation_status describing how the value "
-    "relates to parents/children."
+# THE SYSTEM PROMPT IS TWO THINGS, and they are separated because only one of them is safe to
+# configure.
+#
+# _LLM_REPLY_CONTRACT is how the answer must be SHAPED and how it must cite what it decided. The
+# reply parser, the per-item attribution and the audit trail all depend on it: an answer that
+# names an item_id nobody asked about, omits one that was asked, or returns a figure instead of a
+# key is not a worse answer — it is an unusable one, and the failure surfaces as "the model
+# returned nothing usable" rather than as a configuration mistake. So it is NOT editable, and it
+# is always sent first.
+#
+# The judgement half — map by meaning rather than by shared words, respect the exclusions, prefer
+# the definition — is a deployment's opinion about how captions should be read, and lives in
+# configuration as `LineItemSet.prompt`. DEFAULT_MAPPING_GUIDANCE below is the wording that ships;
+# it is seeded into the configuration file rather than being a fallback here, so that editing it in
+# one place is the whole story and an empty prompt means "no guidance beyond the contract" rather
+# than "quietly restore whatever the code used to say".
+_LLM_REPLY_CONTRACT = (
+    "You are given a raw line-item caption from a financial statement (with any context) and "
+    "candidate concepts, each with: canonical_key, a definition, inclusion criteria (include), "
+    "exclusion criteria (exclude), concepts it is easily confused with, and its value_scope.\n"
+    "HOW TO ANSWER — this part is fixed and must be followed exactly:\n"
+    "- Choose at most ONE canonical_key per item, from the candidates you were given.\n"
+    "- Cite the item by the `item_id` you were given, and the concept by its exact "
+    "`canonical_key`. Never invent either, and never return an item_id that was not given to you.\n"
+    "- Never output values, figures or amounts — you are deciding which line a caption is, not "
+    "what it is worth.\n"
+    "- If no candidate genuinely fits, return an empty canonical_key. That is a valid answer.\n"
+    "- Return calibrated confidence in [0,1] (high only when unambiguous), and when it is clear, "
+    "an allocation_status describing how the value relates to parents/children."
+)
+
+# The shipped judgement wording, seeded into `LineItemSet.prompt`. Kept here as the source of that
+# seed — and referenced by the test that holds the two in step — not as a runtime fallback.
+DEFAULT_MAPPING_GUIDANCE = (
+    "Map each caption to the concept whose definition and criteria best match what the caption "
+    "REPRESENTS. Rely on financial meaning, not string similarity or shared words. Respect the "
+    "exclusion criteria and the confusable-with warnings."
 )
 
 # Appended for the BATCH path only. The base instruction opens "You map a single raw line-item
 # caption", which is false when several are decided at once, and it never says what a section is —
 # so a model told an item's section had no way to know the word was binding. Kept separate from
-# `_LLM_SYSTEM` so correcting the batch framing cannot silently rewrite the per-line prompt.
+# the contract so correcting the batch framing cannot silently rewrite the reply rules.
 _LLM_BATCH_ADDENDUM = (
     "\n\nThis request carries SEVERAL captions from one statement at once, in the order they are "
     "printed in the document. Decide them together: a caption's meaning is often fixed by the "
@@ -1936,9 +1962,22 @@ class OntologyMatcher:
         return claim[0]
 
     def _build_system(self) -> str:
-        """Base instruction + the ontology's global extraction policies + worked examples."""
+        """The fixed reply contract, then the configured guidance, then the global policies.
+
+        THE ORDER IS THE POINT. `_LLM_REPLY_CONTRACT` is first and is not configurable: it states
+        how the answer must be shaped and cited, which the reply parser and the per-item
+        attribution depend on. Everything after it is a deployment's opinion about how captions
+        should be READ, and all of it comes from configuration — so an admin can change any rule
+        of judgement without being able to produce a reply the system cannot use.
+        """
         g = self.ontology.global_rules
-        lines: list[str] = [_LLM_SYSTEM]
+        lines: list[str] = [_LLM_REPLY_CONTRACT]
+        # THE CONFIGURED GUIDANCE (`LineItemSet.prompt`, carried here by `working_view`). The
+        # shipped wording lives in the configuration file, seeded from
+        # `DEFAULT_MAPPING_GUIDANCE` — so editing it there is the whole story, and an empty
+        # prompt means "no guidance beyond the contract" rather than quietly restoring a literal.
+        if getattr(self.ontology, "prompt", ""):
+            lines.append("\n" + self.ontology.prompt.strip())
         policies: list[str] = []
         policies += list(g.parent_child_allocation)
         if g.duplicate_fact_rule:
@@ -2030,6 +2069,13 @@ class OntologyMatcher:
                     : max(0, int(getattr(self.settings.extraction,
                                          "llm_example_aliases_cap", 4) or 0))],
             }
+            # THIS CONCEPT'S OWN INSTRUCTION, beside its definition. Carried in the candidate
+            # entry rather than appended to the system prompt because a call offers up to
+            # `llm_candidate_cap` concepts: appending would stack forty instructions on one
+            # request, most of them about concepts the caption is not, and the model would have no
+            # way to tell which applied to what.
+            if getattr(m, "prompt", ""):
+                entry["instruction"] = m.prompt
             if m.include:
                 entry["include"] = m.include
             if m.exclude:
