@@ -54,6 +54,7 @@ import json
 import re
 import threading
 import unicodedata
+from collections import Counter
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 
@@ -64,6 +65,7 @@ from app.config import Settings, get_settings
 from app.core.models.enums import MappingMethod
 from app.schemas.ontology import OntologyDefinition, OntologyMapping
 from app.services.han import has_han, to_simplified
+from app.services.note_context import subject_tokens as _context_tokens
 
 
 class LlmMappingDecision(BaseModel):
@@ -2168,6 +2170,138 @@ class OntologyMatcher:
             out.append(entry)
         return out
 
+    # Per-candidate PROSE that is policy when every candidate says it, and a discriminator when
+    # they disagree. Only prose fields are eligible: an identifying fact (`canonical_key`,
+    # `definition`, `include`, `exclude`) belongs to its concept whatever the rest of the list
+    # says, and folding one would state a concept's own criteria as though they governed the
+    # others.
+    _FOLDABLE_FIELDS = ("decomposition_rule", "section_disambiguation", "value_scope")
+    # Below three candidates a fold saves nothing and costs locality, so it is not attempted.
+    _FOLD_MIN_CANDIDATES = 3
+
+    @classmethod
+    def _fold_shared_fields(cls, candidates: list[dict]) -> tuple[list[dict], dict]:
+        """State each policy field's prevailing value once, and keep it inline only where it differs.
+
+        WHY. The candidate block exists to let the model DISCRIMINATE between concepts, and it is
+        60% of the request. A policy field whose value is the same on most of the offered concepts
+        discriminates almost nothing there: paying for it once per candidate buys repetition, not
+        information about which candidate to choose. Measured on the shipped rulebook,
+        `decomposition_rule` has 3 distinct values across 391 items — 358 of them the same sentence,
+        which is `global_rules.no_fabricated_split` restated — and all 13 distinct
+        `section_disambiguation` values are "Bind only to <statement> / <section>", which restates
+        the `section` the source_item already carries and the instruction already enforces.
+
+        IT IS A DEFAULT WITH EXCEPTIONS, SO NOTHING IS LOST. The prevailing value is stated once and
+        every candidate that disagrees keeps its own inline, which overrides. Each concept's
+        effective value is exactly what the rulebook authored, and the contingent-liabilities
+        sentence that genuinely applies to one concept stays on that concept.
+
+        TWO PRECONDITIONS, both about not asserting more than the rulebook says:
+
+        * EVERY candidate must declare the field. A default lifted over a candidate that is SILENT
+          would hand it a policy its author never wrote — the one way a size optimisation could
+          change a decision. So silence anywhere in the block disables the fold for that field.
+        * The prevailing value must be strictly more common than any other. Two values at four
+          apiece have no default between them; naming one would be arbitrary.
+
+        MEASURED PER REQUEST rather than listed in code, because the test is "does this field
+        separate THESE candidates" — a property of the call. A batch scoped to one section folds its
+        section sentence; a batch spanning five sections keeps all five inline, where they do
+        discriminate.
+        """
+        if len(candidates) < cls._FOLD_MIN_CANDIDATES:
+            return candidates, {}
+        defaults: dict = {}
+        for field in cls._FOLDABLE_FIELDS:
+            values = [c.get(field) for c in candidates]
+            if not all(values):                      # silence anywhere: no default may be asserted
+                continue
+            counts = Counter(values).most_common()
+            if len(counts) > 1 and counts[0][1] == counts[1][1]:
+                continue                             # no clear prevailing value
+            if counts[0][1] < 2:
+                continue
+            defaults[field] = counts[0][0]
+        if not defaults:
+            return candidates, {}
+        trimmed = [{k: v for k, v in c.items()
+                    if not (k in defaults and v == defaults[k])}
+                   for c in candidates]
+        return trimmed, defaults
+
+    def _criteria_boilerplate(self) -> frozenset[str]:
+        """Words that appear in so many concepts' criteria that they cannot identify a subject.
+
+        THE MIRROR OF THE POOL'S IDF, applied to the other side of the comparison.
+        `note_context` discounts words this FILING prints everywhere; this discounts words this
+        RULEBOOK writes everywhere. Both rest on the same argument — a word shared by everything
+        distinguishes nothing — and the second is needed because the shipped criteria are machine
+        generated: 462 of 462 definitions are the sentence "Extract the reported value for '<label>'
+        from the stated section. Do not calculate or replace it, because the revised template does
+        not designate this field as formula-driven."
+
+        WITHOUT THIS FILTER THAT BOILERPLATE IS THE PROBE. Measured before it existed, the probe for
+        `cf_financing__translation_adj_relating_to_cash` selected the trade-receivables note at
+        0.381 on three shared words — `amounts`, `from`, `other` — every one of them from the
+        template sentence and none of them from the concept. A context block about receivables was
+        being attached to a cash-flow translation adjustment, and the request would have looked
+        perfectly reasonable.
+
+        THE FRACTION IS MEASURED, not chosen. Concept frequency over the shipped rulebook has a
+        sharp cliff: 25 tokens appear in 76%-99.6% of the 462 concepts (the template sentence), and
+        the next most common word is `balance` at 47%. Any threshold between 50% and 70% isolates
+        exactly the boilerplate, so the default sits in the middle of that gap and no real financial
+        vocabulary is near it.
+        """
+        cached = getattr(self, "_criteria_boilerplate_cache", None)
+        if cached is not None:
+            return cached
+        fraction = float(getattr(self.settings.extraction,
+                                 "llm_context_criteria_boilerplate_fraction", 0.6) or 0.0)
+        concepts = list(self._by_key.values())
+        if not concepts or fraction <= 0:
+            self._criteria_boilerplate_cache = frozenset()
+            return self._criteria_boilerplate_cache
+        seen: Counter = Counter()
+        for m in concepts:
+            seen.update(set(_context_tokens(" ".join([
+                m.label or "", m.meaning() or "", *(m.include or ()),
+                *m.aliases_for(self.locale)[:4]]))))
+        floor = fraction * len(concepts)
+        self._criteria_boilerplate_cache = frozenset(t for t, c in seen.items() if c >= floor)
+        return self._criteria_boilerplate_cache
+
+    def _context_probe(self, caption: str, result: MappingResult) -> str:
+        """The text a note or face row is scored against: what this caption might MEAN.
+
+        The caption alone is too short to be a meaning — "Others", "Deferred taxation" and a wrapped
+        fragment all share almost no content words with the note that explains them. So the probe
+        adds the authored criteria of the concepts the deterministic tiers already consider possible
+        for this row: their labels, definitions and include lists. Those sentences are the only
+        written statement of what each concept means, which is what makes the resulting selection a
+        judgement about subject matter rather than a caption-to-title string comparison.
+
+        Deliberately the DETERMINISTIC candidates and not the whole offered list: scoring against
+        all forty concepts of a statement would make every row's probe nearly the same text, and
+        every row would then receive the same notes.
+        """
+        parts: list[str] = [caption]
+        keys = [result.canonical_key] + [c.canonical_key for c in result.candidates]
+        for key in list(dict.fromkeys(k for k in keys if k))[:_det_cap(self.settings) + 1]:
+            m = self._by_key.get(key)
+            if m is None:
+                continue
+            parts.append(m.label or key.replace("_", " "))
+            parts.append(m.meaning() or "")
+            parts.extend(m.include or ())
+            parts.extend(m.aliases_for(self.locale)[:4])
+        # The rulebook's own boilerplate removed, so what is left is the subject — see
+        # `_criteria_boilerplate`.
+        drop = self._criteria_boilerplate()
+        return " ".join(t for t in _context_tokens(" ".join(p for p in parts if p))
+                        if t not in drop)
+
     def _residual_expectations(self, statement: str | None,
                                sections: set[str] | None = None) -> list[dict]:
         """What each section's residual is EXPECTED to absorb — ``expected_components``.
@@ -2741,7 +2875,8 @@ class OntologyMatcher:
                     preliminary: dict[str, MappingResult] | None = None,
                     require_complete: bool = False,
                     chunk_size: int | None = None,
-                    cited_note_text: dict[str, list[dict[str, str]]] | None = None) -> dict[str, MappingResult]:
+                    context_pool=None,
+                    cited_notes: dict[str, set[str]] | None = None) -> dict[str, MappingResult]:
         """Batch mapping: decide many captions in one grounded LLM call so cross-line judgements
         (containment, residual, 'Others') have context. The model references the provided item_ids
         and candidate keys — it never invents a value; values/provenance stay on the deterministic
@@ -2783,7 +2918,7 @@ class OntologyMatcher:
             chunk = items[start:start + size]
             out.update(self._match_chunk(
                 chunk, statement, sec, preliminary or {}, require_complete=require_complete,
-                cited_note_text=cited_note_text))
+                context_pool=context_pool, cited_notes=cited_notes))
         return out
 
     def _match_chunk(self, items: list[tuple[str, str]], statement: str | None,
@@ -2791,7 +2926,8 @@ class OntologyMatcher:
                      preliminary: dict[str, MappingResult],
                      require_complete: bool = False,
                      retry_depth: int = 0,
-                     cited_note_text: dict[str, list[dict[str, str]]] | None = None) -> dict[str, MappingResult]:
+                     context_pool=None,
+                     cited_notes: dict[str, set[str]] | None = None) -> dict[str, MappingResult]:
         """One provider call over at most ``BATCH_MAX_ITEMS`` captions. See :meth:`match_batch`."""
         # `binding.order` step 3, on the batch path: RESTRICT the offered concepts before the call.
         # Only concepts from THIS statement, and only from the sections this chunk was actually
@@ -2890,31 +3026,74 @@ class OntologyMatcher:
         # `deterministic` is built ABOVE, before the candidate cap: the cap is seeded from each
         # row's own deterministic evidence, so that evidence has to exist before the list is cut.
 
+        # WHAT THE DOCUMENT SAYS ABOUT EACH ROW — several notes AND face rows from elsewhere in the
+        # filing, chosen because they discuss the row's subject (`services.note_context`). This
+        # replaces a field that carried only the note a row explicitly CITED, which supplied nothing
+        # at all for the majority of face rows and could not show the relationship between two
+        # printed rows that the `role` decision (whole vs component) is entirely about.
+        #
+        # Selected HERE rather than by the caller because the probe is built from each row's own
+        # deterministic candidates, and those exist only inside this method.
+        own_rows = {iid for iid, _ in items}
+        context: dict[str, list[dict]] = {}
+        if context_pool is not None and len(context_pool):
+            ex = self.settings.extraction
+            for iid, label in items:
+                found = context_pool.select(
+                    probe_text=self._context_probe(label, deterministic[iid]),
+                    cited_refs=(cited_notes or {}).get(iid) or set(),
+                    exclude_row_ids=own_rows,
+                    notes_cap=int(getattr(ex, "llm_context_notes_cap", 3) or 0),
+                    face_cap=int(getattr(ex, "llm_context_face_cap", 3) or 0),
+                    char_budget=int(getattr(ex, "llm_context_char_budget", 1200) or 0),
+                    min_score=float(getattr(ex, "llm_context_min_score", 0.35) or 0.0))
+                if found:
+                    context[iid] = found
+
+        # THE PREVAILING VALUE OF EACH POLICY FIELD, stated once instead of once per candidate.
+        # A candidate that disagrees keeps its own inline and that overrides, so no concept's
+        # effective policy changes — see `_fold_shared_fields`.
+        candidates, shared = self._fold_shared_fields(candidates)
+
         payload: dict = {
             "instruction": "Confirm or correct the deterministic evidence for every source_item, "
                            "then map it to exactly one candidate canonical_key by meaning and the "
                            "policies. Reference item_id and canonical_key; "
                            "do not output values. source_items are in the order they are printed "
                            "in the document. When an item carries a `section`, the concept you "
-                           "choose must belong to that section.",
+                           "choose must belong to that section. Each item's `context` is what this "
+                           "filing says elsewhere about the same subject: a `note` is a breakdown "
+                           "and a `face` row is a printed statement line, `cited: true` marks a "
+                           "note the item's own text references, and an `amount` larger than the "
+                           "item's own is the evidence that the item is a component rather than a "
+                           "whole figure. `candidate_policy_defaults` applies to every candidate "
+                           "except one that states its own value for the same field.",
+            # THE EVIDENCE BEFORE THE CLOSED LIST. `source_items` and their context are read first
+            # and `candidates` last, because the question is what each row means and the candidate
+            # list is only the vocabulary the answer must be expressed in.
             "source_items": [
                 {"item_id": iid, "caption": label,
                  **({"section": tok} if (tok := _sec_token(iid)) else {}),
-                 **({"cited_note_text": cited_note_text[iid]}
-                    if cited_note_text and cited_note_text.get(iid) else {}),
                  **({"deterministic_suggestion": deterministic[iid].canonical_key}
                     if deterministic[iid].canonical_key else {}),
                  "deterministic_candidates": [candidate.canonical_key
-                                              for candidate in deterministic[iid].candidates[:_det_cap(self.settings)]]}
+                                              for candidate in deterministic[iid].candidates[:_det_cap(self.settings)]],
+                 **({"context": context[iid]} if context.get(iid) else {})}
                 for iid, label in items
             ],
-            "candidates": candidates,
         }
         # What each section's residual is expected to absorb (`expected_components`), so "none of
         # these" is a licensed answer for the captions the rulebook already knows have no concept.
         expectations = self._residual_expectations(statement, tokens or None)
         if expectations:
             payload["residual_expectations"] = expectations
+        if shared:
+            payload["candidate_policy_defaults"] = shared
+        # LAST, deliberately. Everything above is the question — the rows, what the filing says
+        # about them, and the policies that govern the answer. This is the vocabulary the answer has
+        # to be expressed in, and it is the largest block in the request; reading it first invites
+        # the model to shop the list for a near-enough label instead of deciding what the row means.
+        payload["candidates"] = candidates
         user = json.dumps(payload, ensure_ascii=False, indent=2)
         with self._usage_lock:
             self.usage["batch_chunks"] += 1
@@ -3066,7 +3245,7 @@ class OntologyMatcher:
             out.update(self._match_chunk(
                 missing, statement, sec, preliminary,
                 require_complete=True, retry_depth=retry_depth + 1,
-                cited_note_text=cited_note_text))
+                context_pool=context_pool, cited_notes=cited_notes))
 
         # Section-level proposals may be incomplete; the required statement pass above corrects
         # them. No deterministic result is substituted for an omitted LLM decision.

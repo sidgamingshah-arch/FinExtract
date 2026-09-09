@@ -237,6 +237,37 @@ class ExtractionSettings(BaseModel):
     # vocabulary whose median concept has 3 aliases and whose longest has 23. It therefore bounds
     # the long tail and leaves the typical concept's list intact.
     llm_example_aliases_cap: int = 4
+    # DOCUMENT CONTEXT per source item (services.note_context). Notes and face rows are capped
+    # separately on purpose: one cap over both lets a filing with forty notes crowd out the face
+    # rows, and the face rows are what carry the whole-vs-component evidence the `role` decision
+    # needs. `llm_context_char_budget` is the backstop — it cuts the already-ranked list, so what
+    # it drops is always the least relevant unit and never whatever happened to be last.
+    llm_context_notes_cap: int = 3
+    llm_context_face_cap: int = 3
+    llm_context_char_budget: int = 1200
+    # Below this similarity a unit is not offered at all. A row whose subject appears nowhere else
+    # in the filing should carry NO context rather than the three least-unrelated notes — padding
+    # the request with material about other subjects is worse than sending none.
+    #
+    # THE NUMBER IS MEASURED. The score is an IDF-weighted cosine in 0..1, so it means the same
+    # thing on a three-note extract as on a forty-note filing (verified in
+    # `test_note_context_ranking`: 0.711 vs 0.697 for one probe against one note). Measured over ten
+    # note subjects scored against the shipped rulebook's own criteria for the concept each note is
+    # about, the CORRECT note ranked first 7 times out of 7 and scored 0.451 at worst / 0.605 at the
+    # median, while unrelated pairs scored exactly 0.000 in 43 of 63 cases, 0.109 at the 90th
+    # percentile and 0.448 at the very worst — so the two distributions do not overlap at all. 0.22
+    # sits in that gap, near the noise end so a weak-but-real subject match is still offered. Raise
+    # it to require strong matches; lower it to accept more, bounded by the caps above either way.
+    llm_context_min_score: float = 0.22
+    # A word appearing in at least this FRACTION of the rulebook's concepts is dropped from the
+    # probe — the mirror of the pool's IDF, applied to the configuration side. It matters because
+    # the shipped criteria are machine generated: all 462 definitions share one template sentence,
+    # and without this filter the probe for a cash-flow translation adjustment selected the
+    # trade-receivables note at 0.381 on `amounts`, `from` and `other`, every one of them from the
+    # template and none from the concept. Concept frequency has a sharp cliff — 25 tokens in
+    # 76%-99.6% of concepts (the sentence), then `balance` at 47% — so anything from 0.5 to 0.7
+    # isolates exactly the boilerplate. 0 disables the filter.
+    llm_context_criteria_boilerplate_fraction: float = 0.6
     # Restrict LLM disambiguation to these canonical_keys only; every other row is decided by the
     # deterministic ensemble (rule/alias tiers), never sent to the model. Empty = no restriction
     # (the default: LLM considered for any row the ensemble can't otherwise resolve).

@@ -35,6 +35,7 @@ from app.core.models import DocumentModel
 from app.core.models.enums import AllocationStatus, LineRole, MappingMethod, PrintedIn
 from app.core.models.line_item import LineItem
 from app.core.stage import PipelineContext
+from app.services import note_context
 from app.services.caption_shape import prose_reasons
 from app.services.mapping import (
     OntologyMatcher,
@@ -715,6 +716,11 @@ class MapOntologyStage:
             # unit is the statement and not the source page it used to be.
             groups = batch_groups(doc, stmt_by_page)
             by_id = {str(li.id): li for li in doc.line_items}
+            # EVERY note and face row of the filing, with the IDF weights this filing's own
+            # vocabulary implies. Built once and shared by every subgroup: document frequency is a
+            # property of the document, so computing it per batch would make a note's weight depend
+            # on which batch happened to be asking.
+            context_pool = note_context.build_pool(doc, stmt_by_page)
             batched = unstated = 0
             # Each (statement, section) subgroup is an independent `match_batch` call — candidates
             # are scoped to its own statement and section banner, so nothing about one subgroup's
@@ -735,19 +741,17 @@ class MapOntologyStage:
                             mapped += 1
                     continue
                 batched += len(group)
-                cited_note_text: dict[str, list[dict[str, str]]] | None = None
-                if statement in {"balance_sheet", "profit_and_loss"}:
-                    by_note: dict[str, list[dict[str, str]]] = {}
-                    for table in doc.notes:
-                        if table.source_text:
-                            by_note.setdefault(str(table.note_number), []).append(
-                                {"note_number": str(table.note_number), "title": table.title,
-                                 "text": table.source_text})
-                    cited_note_text = {
-                        str(line.id): [text for number in _cited_notes([line])
-                                       for text in by_note.get(number, [])]
-                        for line in group
-                    }
+                # WHICH NOTES EACH ROW REFERENCES — the printed citation, which the selector treats
+                # as evidence and admits unconditionally. Everything else it offers is chosen by
+                # subject (`services.note_context`); the pool itself is built once for the whole
+                # document, outside this loop, because IDF is a property of the filing.
+                #
+                # No longer restricted to the balance sheet and P&L. That restriction dated from
+                # when the context was the full text of a cited note — unbounded, so it was only
+                # affordable on two statements. The selector is bounded per row, so the cash-flow
+                # and equity statements now get the same context they always needed: a cash-flow
+                # line and the face row it reconciles to are exactly the relationship this shows.
+                cited_notes = {str(line.id): _cited_notes([line]) for line in group}
                 # Subsection-by-subsection: each statement batch is split by printed section banner.
                 # Rows whose banner is unresolved are mapped together in an unconstrained subgroup.
                 by_section: dict[str | None, list] = {}
@@ -755,7 +759,7 @@ class MapOntologyStage:
                     by_section.setdefault(section_of_banner(li.section_hint), []).append(li)
                 for _section, subgroup in by_section.items():
                     if not focus_keys:
-                        tasks.append((statement, subgroup, cited_note_text))
+                        tasks.append((statement, subgroup, cited_notes))
                         continue
                     # TEMPORARY (focus-run routing). Two gates, cheapest first.
                     #
@@ -797,7 +801,7 @@ class MapOntologyStage:
                         else:
                             llm_rows.append(li)
                     if llm_rows:
-                        tasks.append((statement, llm_rows, cited_note_text))
+                        tasks.append((statement, llm_rows, cited_notes))
                         focus_llm += len(llm_rows)
 
             # ONE CHUNK'S SIZE, read once and threaded into BOTH things it decides: the size
@@ -823,14 +827,14 @@ class MapOntologyStage:
                                        matcher.BATCH_MAX_ITEMS) or matcher.BATCH_MAX_ITEMS))
 
             def _run_task(task: tuple) -> tuple[list, dict]:
-                statement, subgroup, cited_note_text = task
+                statement, subgroup, cited_notes = task
                 return subgroup, matcher.match_batch(
                     [(str(li.id), li.source_label) for li in subgroup],
                     statement=statement,
                     # A statement spans several section banners, so the banner is per row.
                     sections={str(li.id): li.section_hint for li in subgroup},
                     chunk_size=chunk,
-                    cited_note_text=cited_note_text)
+                    context_pool=context_pool, cited_notes=cited_notes)
 
             max_workers = max(1, ctx.settings.extraction.llm_max_concurrency)
             # REPORT BEFORE THE FIRST CALL, so a reader learns how many there will be rather than
