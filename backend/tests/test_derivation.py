@@ -1,13 +1,29 @@
 """services.derivation — how a computed figure explains itself.
 
-The eight specification-governed concepts are assembled from note datasets, so the figure alone is
-not checkable: a reviewer needs the inputs and the pages they were printed on. These tests pin the
-folding of two per-period cascades into one contributions list, which is where the explanation
-either survives or quietly loses a period.
+A figure assembled out of note datasets rather than read off a caption is not checkable on its own:
+a reviewer needs the inputs and the pages they were printed on. These tests pin the folding of two
+per-period cascades into one contributions list, which is where the explanation either survives or
+quietly loses a period.
+
+`services.derivation` is a READER, and that is now the whole of it. The in-app writers of these
+payloads — the derivation services, each computing an output line out of a hand-enumerated list of
+note titles, row captions and formula variants — are DELETED, and those figures must come from
+configuration instead. The trail these tests exercise is therefore read from STORED ROWS WRITTEN BY
+EARLIER RUNS: `extraction_runs.result` is a durable JSON column and the payloads in it outlive the
+code that wrote them, so every reader here still has live callers and every assertion still guards
+them. The `method=` strings below are opaque labels off such a stored row, not names of anything
+that runs today.
 """
 from __future__ import annotations
 
 from app.services.derivation import build, input_from_evidence, merge_for_basis, record
+
+# The `method` of a stored derivation is a free-text label an earlier run wrote into
+# `extraction_runs.result`. These two are the strings the deleted derivation services left behind,
+# kept verbatim because that is what the rows this reader must still fold actually contain — they
+# name nothing that exists in the app today, and no assertion here depends on their spelling.
+STORED_METHOD = "deprec_impairment"          # written by a run predating the removal
+STORED_METHOD_FINDS = "secur_fincl_assets"   # likewise, and its Find_1/Find_2 formula with it
 
 
 def _ev(dataset, note, label, value, page=None, duplicate=None):
@@ -21,12 +37,12 @@ def _ev(dataset, note, label, value, page=None, duplicate=None):
 
 def _store(current_inputs, prior_inputs=None, *, formula="P3", basis="consolidated"):
     store = record(None, basis=basis, period_label="current",
-                   derivation=build(method="deprec_impairment", formula=formula,
+                   derivation=build(method=STORED_METHOD, formula=formula,
                                     inputs=[input_from_evidence(e) for e in current_inputs],
                                     result="500"))
     if prior_inputs is not None:
         store = record(store, basis=basis, period_label="prior",
-                       derivation=build(method="deprec_impairment", formula=formula,
+                       derivation=build(method=STORED_METHOD, formula=formula,
                                         inputs=[input_from_evidence(e) for e in prior_inputs],
                                         result="400"))
     return store
@@ -103,7 +119,7 @@ def test_a_restated_input_is_shown_but_not_counted():
 
 def test_the_formula_falls_back_to_the_prior_period_when_the_current_year_produced_none():
     store = record(None, basis="consolidated", period_label="prior",
-                   derivation=build(method="secur_fincl_assets", formula="Find_1 - Find_2",
+                   derivation=build(method=STORED_METHOD_FINDS, formula="Find_1 - Find_2",
                                     inputs=[], result="90"))
     formula, _ = merge_for_basis(store, "consolidated")
     assert formula == "Find_1 - Find_2"
@@ -129,12 +145,15 @@ def test_a_non_numeric_value_does_not_break_the_fold():
 
 
 def test_a_provenance_model_survives_the_json_column_the_run_is_stored_in():
-    """The six services pass a Provenance MODEL, not a dict, and the derivation is stored in a
-    JSON column.
+    """A caller may pass a Provenance MODEL, not a dict, and the derivation is stored in a JSON
+    column.
 
-    Every helper above builds provenance as a dict, which is the one shape production never
-    produces: deprec_impairment, related_party_receivables, sales_revenues and
-    secur_fincl_assets all store ``ev.provenance`` — a pydantic model — across seven call sites.
+    Every helper above builds provenance as a dict, which is the one shape a real writer never
+    produced: the four deleted derivation services all stored ``ev.provenance`` — a pydantic
+    model — across seven call sites, and the rows they wrote are still in the database for
+    :func:`input_from_evidence` and :func:`merge_for_basis` to read back. The coercion is pinned
+    here because the reader must survive that stored shape, and because whatever
+    configuration-driven source records this payload next is free to hand over a model too.
     A model reaching ``extraction_runs.result`` ends the run, and not with a bad figure: the flush
     raises ``TypeError: Object of type Provenance is not JSON serializable``, SQLAlchemy rolls the
     transaction back, and the ``status='succeeded'`` written in that same UPDATE is rolled back
@@ -158,7 +177,7 @@ def test_a_provenance_model_survives_the_json_column_the_run_is_stored_in():
 
     # …and through the fold the inspector renders, which carries provenance under other keys.
     store = record(None, basis="consolidated", period_label="current",
-                   derivation=build(method="deprec_impairment", formula="P2",
+                   derivation=build(method=STORED_METHOD, formula="P2",
                                     inputs=[row], result="529841"))
     _, contributions = merge_for_basis(store, "consolidated")
     json.dumps(contributions)

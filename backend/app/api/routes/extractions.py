@@ -344,10 +344,10 @@ def _build_supplemental_rows(*, template_def: dict | None, base_rows: list[dict]
             if nkey == "related_party_transactions":
                 value = "Yes" if "related_party" in hit_disclosures else "No"
             elif nkey == "contingent_liabilities":
-                # LEFT EMPTY DELIBERATELY, never "No". This concept is NUMERIC — services
-                # .contingent_liabilities computes a total from the filing's own figures, and on an
-                # English filing it does (HK$1,310,743k). Reaching this branch means the service
-                # produced nothing, and the rulebook is explicit about what may not be said then:
+                # LEFT EMPTY DELIBERATELY, never "No". This concept is NUMERIC and its figure has
+                # to come from configuration — a note source the rulebook describes, bound like any
+                # other line. Reaching this branch means nothing bound it, and the rulebook is
+                # explicit about what may not be said then:
                 # exclude[2] "Do not infer a numeric zero from silence", and
                 # docs/PRC_Contingent_Liabilities_Extraction_Logic_Revised.md §8.1 "Do not state
                 # that no contingent liabilities exist merely because no amount was disclosed."
@@ -1356,12 +1356,11 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
         except Exception:  # noqa: BLE001 — a scan failure must not fail the extraction
             disclosures = []
         # THE CONTINGENT-LIABILITY WORKING RIDES WITH ITS OWN DISCLOSURE. The presence scan says
-        # only "found, page 209"; the stage has already computed the exposure summed per type and
-        # a one-sentence account of every paragraph that fits no type. Folded in here because
-        # `disclosures` is the one list that reaches the Excel sheet, the JSON export, /analysis
-        # and the Disclosures screen — so the reasoning arrives everywhere the number does,
-        # instead of being recomputed or, as it was, dropped. Runs after the pipeline, so
-        # `doc_model.contingent_liabilities` is populated.
+        # only "found, page 209"; the working is the narrative behind it — what each disclosed
+        # matter is, and a one-sentence account of every paragraph that fits no type. Folded in
+        # here because `disclosures` is the one list that reaches the Excel sheet, the JSON export,
+        # /analysis and the Disclosures screen, so the reasoning arrives everywhere the disclosure
+        # does. Runs after the pipeline, so `doc_model.contingent_liabilities` is populated.
         from app.services.contingent_liabilities import attach_contingent_explanation
         disclosures = attach_contingent_explanation(disclosures, doc_model.contingent_liabilities)
 
@@ -1417,12 +1416,11 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
             "note_details": _serialize_notes(doc_model),
             "disclosures": disclosures,
             # The contingent-liability working IN FULL, per basis:period — the paragraph, the
-            # per-type sums and the unclassified statements, exactly as
-            # `stages.contingent_liabilities` computed them. The disclosure entry above carries a
-            # reduction of this for the one period a document-level disclosure is about; this is
-            # the whole of it, for a machine consumer and for the other period. It was computed on
-            # every run and never serialised, so nothing downstream could see the reasoning behind
-            # the single total on `notes__contingent_liabilities`.
+            # matters as disclosed and the unclassified statements, exactly as the disclosure stage
+            # read them. The disclosure entry above carries a reduction of this for the one period
+            # a document-level disclosure is about; this is the whole of it, for a machine consumer
+            # and for the other period. It was read on every run and never serialised, so nothing
+            # downstream could see the narrative a reviewer is meant to read.
             "contingent_liabilities": doc_model.contingent_liabilities,
             "reconciliation": ([e.model_dump(mode="json") for e in recon.entries] if recon else []),
             # A note's OWN arithmetic: a block subtotal the filing printed on a bare line, against

@@ -121,9 +121,9 @@ SECTION_SIDE: dict[str, Side] = {
 Namespace = Literal["template", "internal"]
 
 # What a parent asserts about its children. The overload this fixes was real: the twelve parts of
-# `is_pl__deprec_and_impairment_oper_exp` are alternative sources for ONE figure —
-# `deprec_impairment`'s own module docstring says they must never be summed "since they routinely
-# restate the same figure" — and `check_rollups` would have summed them.
+# `is_pl__deprec_and_impairment_oper_exp` are alternative sources for ONE figure — filings
+# routinely restate the same charge across several of those notes, so they must never be summed —
+# and `check_rollups` would have summed them. `alternatives` is how a parent says so.
 Rollup = Literal["sum", "alternatives", "none"]
 
 
@@ -177,30 +177,30 @@ class CascadeRung(BaseModel):
     terms: list[Term] = Field(default_factory=list)
     note: str = ""                     # why this rung exists, for the person reading the screen
     # A RUNG THAT COMPUTES BELOW ZERO IS REFUSED, and the next rung is tried. This is not a
-    # nicety: `deprec_impairment._first_valid` skips a candidate below zero and flags
-    # NEGATIVE_RESIDUAL, and the config that claimed to port it had no such refusal — so a rung
-    # computing -50 would win here and be refused by the service it describes. Default True
-    # because every shipped cascade is a charge, a balance or an exposure, none of which can be
-    # negative; a definition that genuinely can (a net movement, a carryforward) turns it off.
+    # nicety: a rung resolving to -50 has mistaken what its inputs meant — the commonest case is
+    # a cascade whose only present figure was a DEDUCTION with nothing to deduct it from — and
+    # publishing it would be worse than falling through. Default True because every shipped
+    # cascade is a charge, a balance or an exposure, none of which can be negative; a definition
+    # that genuinely can (a net movement, a carryforward) turns it off.
     refuse_negative: bool = True
 
 
 class NoteSource(BaseModel):
     """Which note a sub-line item is read from, and which of its rows count.
 
-    This is what the closed enumerations become. `note_title_any` replaces the hard-coded
-    `_NOTE_HEADINGS` pattern per dataset, and `row_caption_any` replaces `_QUALIFYING_RE` — the
-    162-alternative whitelist that refused a filing writing "Depreciation charge for the year".
-    Both take patterns, so widening one is an edit here rather than a release.
+    This is what the closed enumerations become. Note titles and qualifying row captions used to
+    be hand-enumerated in code — a per-dataset heading pattern and a 162-alternative caption
+    whitelist that refused a filing writing "Depreciation charge for the year". Both are patterns
+    here, so widening one is an edit to the configuration rather than a release.
     """
 
     note_title_any: list[str] = Field(default_factory=list)
     row_caption_any: list[str] = Field(default_factory=list)
     row_caption_none: list[str] = Field(default_factory=list)
     # WHICH TEXT THESE PATTERNS ARE AUTHORED AGAINST. The shipped patterns were lifted out of
-    # `deprec_impairment`, which matches RAW captions, so folding them through `normalize_label`
-    # would stop some of them matching. `mapping_v1` says the opposite — author against normalised
-    # text, as the rulebook's aliases are. Saying it per pattern group beats guessing.
+    # code that matched RAW captions, so folding them through `normalize_label` would stop some of
+    # them matching. `mapping_v1` says the opposite — author against normalised text, as the
+    # rulebook's aliases are. Saying it per pattern group beats guessing.
     caption_normalization: Literal["none", "mapping_v1"] = "none"
 
     @model_validator(mode="after")
@@ -411,9 +411,9 @@ class LineItemDef(BaseModel):
 
     # ── derived ──────────────────────────────────────────────────────────────────────────────
     cascade: list[CascadeRung] = Field(default_factory=list)
-    # The service that implements this cascade today, when one does. Present so a definition can
-    # describe an existing derivation before anything is rewired to read it — the config and the
-    # code can be compared before either is trusted.
+    # An in-code implementer for this line, naming what computes it. Kept as an escape hatch and
+    # as the alternative the validator below accepts, but the shipped set names one for no line —
+    # every derived line there carries a `cascade`, which is the configuration-driven route.
     implemented_by: str = ""
 
     @model_validator(mode="after")

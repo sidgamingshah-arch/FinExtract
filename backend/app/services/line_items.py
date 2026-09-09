@@ -200,11 +200,11 @@ def evaluate(d: LineItemDef, known: dict[str, Decimal | None]) -> Evaluation:
             if not got.resolved:
                 continue
             # A RUNG BELOW ZERO IS NOT AN ANSWER, it is evidence this rung's inputs did not mean
-            # what the rung assumed. `deprec_impairment._first_valid` skips such a candidate and
-            # flags NEGATIVE_RESIDUAL, then tries the next priority; the config that claimed to
-            # port that cascade had no such refusal, so a rung computing -50 would have won here
-            # and been refused by the service it describes. Same rule, and the refusals are
-            # reported rather than swallowed so a reviewer can see which rung was passed over.
+            # what the rung assumed, so the cascade skips the candidate and tries the next rung
+            # down. Every shipped cascade computes a charge, a balance or an exposure, none of
+            # which can be negative; a rung that resolves to -50 has mistaken its inputs, not
+            # found a figure. The refusals are reported rather than swallowed so a reviewer can
+            # see which rung was passed over and why the answer came from further down.
             if rung.refuse_negative and got.value is not None and got.value < 0:
                 refused.append(f"{rung.id} computed {got.value}")
                 continue
@@ -241,10 +241,10 @@ def check_rollups(reg: Registry, values: dict[str, Decimal | None], *,
 
     ONLY WHERE `rollup == "sum"`. This check used to run on every parent, which was wrong for the
     line it was written for: the twelve sub-line items under `is_pl__deprec_and_impairment_oper_exp`
-    are ALTERNATIVE sources for one figure — `deprec_impairment`'s module docstring says they must
-    never be summed "since they routinely restate the same figure" — so summing them would have
-    reported the parent as disagreeing with a total that means nothing. `parent` was carrying two
-    relations at once; `rollup` separates them.
+    are ALTERNATIVE sources for one figure, which is what the set declares by giving that parent
+    `rollup: alternatives` — filings routinely restate the same charge in several of those notes,
+    so summing them would have reported the parent as disagreeing with a total that means nothing.
+    `parent` was carrying two relations at once; `rollup` separates them.
     """
     out: list[Problem] = []
     for parent in reg.by_key.values():

@@ -752,18 +752,20 @@ def get_document_integrity(document_id: str, locale: str = Depends(output_locale
     return _serialize_document_integrity(row, locale)
 
 
-# A disclosure the pipeline also QUANTIFIES, and the concept carrying that figure.
+# A disclosure that also has a FIGURE on the run's rows, and the concept carrying it.
 #
 # The disclosure catalogue is a presence scan — label, page, snippet — and that is all the Analysis
 # screen could ever show: "Contingent liabilities · p.197 · <snippet>", with the amount nowhere on
-# the screen even though the pipeline had computed it. On the measured CSRC filing that amount is
-# ¥118,754,500 (¥117,523,500 of 保函 plus ¥1,231,000 of 国内信用证), and a reader was told the
-# disclosure EXISTS while the figure sat in a row they were not looking at.
+# the screen even though the run had bound one. A reader was told the disclosure EXISTS while the
+# figure sat in a row they were not looking at.
 #
-# Read off the run's own rows rather than from a new field on the stored result, deliberately: the
+# READ OFF THE RUN'S OWN ROWS, deliberately, rather than from a new field on the stored result: the
 # figure is already there, so nothing about what extraction WRITES changes, and the export sheets
 # that consume `result` see the identical shape they did before. Only this endpoint's response
-# gains the two keys.
+# gains the two keys. Those rows are now filled by the configuration binding the concept to a note
+# source — no derivation computes the amount any more — so the amount appears when the
+# configuration finds it and the disclosure stands on its presence and prose alone when it does
+# not. That is the same contract this code already had: an absent amount is left absent.
 _QUANTIFIED_DISCLOSURE = {"contingent_liabilities": "notes__contingent_liabilities"}
 
 

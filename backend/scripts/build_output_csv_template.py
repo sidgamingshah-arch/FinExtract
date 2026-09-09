@@ -716,13 +716,16 @@ ARITHMETIC_RULE_EXCLUSIONS = {
     "NCA_023": "balance-sheet accumulated intangible amortisation; extracted, not computed",
     "CA_038": "balance-sheet doubtful accounts allowance; extracted, not computed",
     # P&L_014's workbook rule is a PRIORITY CASCADE, not a parent-minus-children residual: its
-    # 2nd rung is "depreciation in the PBT note − Deprec & Impairment(Oper Exp)", and
-    # services.deprec_impairment implements exactly that as COS_P1/COS_P2, writing the result onto
-    # the line. Harvesting it as COMPUTE_RESIDUAL compiled it to
-    # `reported(cos) − oper_exp − impairment_fixed_assets`, so on any filing where both children
-    # are present (the only case rollups.py `requires_complete` computes) the operating share
-    # COS_P2 had already netted out was subtracted a SECOND time.
-    "P&L_014": "COS depreciation is the COS_P1/COS_P2 cascade in services.deprec_impairment; "
+    # 2nd rung is "depreciation in the PBT note − Deprec & Impairment(Oper Exp)", and the
+    # line-item set declares exactly that as the COS_P1/COS_P2 cascade on
+    # `is_pl__deprec_and_impairment_cos`. (It used to be computed in code by
+    # services.deprec_impairment, a derivation of ~208 enumerated note titles, row captions and
+    # formula variants; that service was removed, so the cascade lives in the line-item set alone
+    # and the figure must come from that configuration.) Harvesting it as COMPUTE_RESIDUAL
+    # compiled it to `reported(cos) − oper_exp − impairment_fixed_assets`, so on any filing where
+    # both children are present (the only case rollups.py `requires_complete` computes) the
+    # operating share COS_P2 had already netted out was subtracted a SECOND time.
+    "P&L_014": "COS depreciation is the COS_P1/COS_P2 cascade declared in the line-item set; "
                "a template residual re-subtracts what COS_P2 already netted",
 }
 # Curated nodes that must stay plain extracted lines even if an older base carried a rollup.

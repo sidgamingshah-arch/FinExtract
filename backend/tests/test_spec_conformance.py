@@ -134,22 +134,51 @@ def test_every_spec_governed_concept_exists(mappings):
 # named only `alias_matching != "disabled"`; asserting that alone would let a future unlock of
 # `is_pl__deprec_and_impairment_oper_exp` or `bs_nca__secur_and_other_fincl_assets_ltp` delete an
 # allowlist entry while the concept stayed unreachable through `extraction_mode: derive`.
+#
+# WHAT `derive` MEANS NOW, and why every entry below had to be restated. It used to mean "a service
+# assembles this figure out of note datasets", so a locked concept still had a producer: the lock
+# closed the caption route and the service filled the cell anyway. The derivation services are
+# DELETED — deprec_impairment (~208 hand-enumerated note titles, row captions and formula
+# variants), secur_fincl_assets (~91), related_party_receivables (~73), sales_revenues (~18) and
+# contingent_liabilities' number half (~172; its narrative disclosure survives) — so `derive` names
+# no producer at all and is a DEAD END rather than a second route behind the lock. For all four
+# concepts below the consequence is the same: the figure must now come from configuration, nothing
+# fills the cell in the meantime, and the lock is the only thing between the concept and any figure.
+# That is the hand-off to the configuration work; these four are exactly the concepts it has to
+# reach, and unlocking them is a separate measured change (it regresses 8 correct mappings today),
+# not something to do from this file.
 _UNMATCHABLE_BY_DESIGN: dict[str, str] = {
-    # `derive` AND locked. Unlocking `alias_matching` here before statement/section is threaded
-    # into `mapping._computed_claim` regresses 8 correct mappings to None (7 cash-flow
-    # "Depreciation of ..." rows and 1 balance-sheet CIP row), so the lock is load-bearing until
-    # that lands. Note the second lock: `extraction_mode: derive` keeps the concept in
-    # `_computed_only`, so lifting `alias_matching` alone does NOT make it matchable.
-    OPER_EXP: "alias_matching=disabled and extraction_mode=derive; see mapping.py:1482-1491",
-    # Locked only, and `extract_or_derive` — the spec reports COS_P1 as DIRECTLY_EXTRACTED
-    # (test_cos_depreciation_stays_extractable), so this lock is the one with no second reason
-    # behind it and the one an unlock reaches first.
-    COS: "alias_matching=disabled; extraction_mode is extract_or_derive, so the lock is the only "
-         "thing keeping its 17 aliases and its PPE depreciation regex_hint out of the index",
-    # Same pairing as OPER_EXP: `derive` plus the lock, same 8-mapping regression on an unlock.
-    SECUR_LTP: "alias_matching=disabled and extraction_mode=derive; see mapping.py:1482-1491",
-    OTHER_RECV_CP: "alias_matching=disabled; its value is assembled by a service stage, but the "
-                   "mode is extract_or_derive, so only the lock keeps its 29 aliases unread",
+    # `derive` AND locked, and READ THE SECOND LOCK DIFFERENTLY NOW. `extraction_mode: derive` used
+    # to mean "a service assembles this instead", so it was a second route to a figure sitting
+    # behind the lock. The derivation services are DELETED, so it is a DEAD END: nothing derives
+    # this concept any more and the mode names no producer. The figure must come from configuration
+    # — a caption binding — and the lock is what currently stands between the concept and any
+    # figure at all, so the cell is blank until both are addressed together.
+    # Unlocking `alias_matching` here before statement/section is threaded into
+    # `mapping._computed_claim` regresses 8 correct mappings to None (7 cash-flow
+    # "Depreciation of ..." rows and 1 balance-sheet CIP row), so the lock stays load-bearing until
+    # that lands — which is why this entry is a declared waiver and not a fix.
+    OPER_EXP: "alias_matching=disabled and extraction_mode=derive, but nothing derives it now — "
+              "the mode is a dead end and the lock is the only thing between this concept and any "
+              "figure; see mapping.py:1482-1491",
+    # Locked only, and `extract_or_derive`. The `derive` half named a service that is gone, and the
+    # spec reports COS_P1 as DIRECTLY_EXTRACTED (test_cos_depreciation_stays_extractable), so the
+    # lock is not merely the first thing an unlock reaches — it is the ONLY thing keeping this
+    # concept from a figure, since there is no computed path behind it to fall back on.
+    COS: "alias_matching=disabled; extraction_mode is extract_or_derive and no service derives it "
+         "any more, so the lock is the only thing between the concept and any figure at all — it "
+         "keeps its 17 aliases and its PPE depreciation regex_hint out of the index",
+    # Same pairing as OPER_EXP: `derive` plus the lock, the `derive` half equally a dead end now,
+    # and the same 8-mapping regression on an unlock.
+    SECUR_LTP: "alias_matching=disabled and extraction_mode=derive, but the service that derived "
+               "it is deleted — the mode is a dead end and the lock is the only thing between this "
+               "concept and any figure; see mapping.py:1482-1491",
+    # Was: "its value is assembled by a service stage". It is not — that stage is deleted and no
+    # stage assembles it, so `extract_or_derive` leaves nothing but the caption route, which the
+    # lock closes.
+    OTHER_RECV_CP: "alias_matching=disabled; no service assembles its value any more and the mode "
+                   "is extract_or_derive, so the lock is the only thing between the concept and "
+                   "any figure, keeping its 29 aliases unread",
     # Permanent, and the one entry here that is not a defect: this is a section residual bucket,
     # populated by the sweep off the template rather than by any caption. `spec_alias_curation`
     # denies it a borrowed alias anyway — see the comment on `_BORROWED_CAPTION_DENIALS`.
@@ -521,9 +550,14 @@ def test_contingent_liabilities_is_fully_declared(mappings):
 # ── the modes of the four note-assembled pairs agree within each pair ─────────────────────────
 @pytest.mark.parametrize("key", [SECUR_CP, OTHER_RECV_CP])
 def test_a_service_computed_field_is_not_declared_plain_extract(mappings, key):
-    # Its value is computed by a stage that overwrites whatever the caption mapper left. Declaring
-    # it a plain `extract` lets an alias-matched caption be consumed by an exclusive_leaf whose
-    # value is then discarded, stranding the concept the caption really named.
+    # Its value USED TO BE computed by a stage that overwrote whatever the caption mapper left, and
+    # declaring it a plain `extract` let an alias-matched caption be consumed by an exclusive_leaf
+    # whose value was then discarded, stranding the concept the caption really named. That stage is
+    # deleted and the figure must come from configuration now, so this pin has become the narrower
+    # one it should always have been: `extract_or_derive` is what keeps these two out of the
+    # exclusive-leaf claim while their caption binding is still being authored. Tightening either
+    # to `extract` reopens the stranding, and `derive` would close the caption route that is now
+    # their only route, so the mode stays exactly as declared.
     assert mappings[key].get("extraction_mode") == "extract_or_derive"
 
 

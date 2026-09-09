@@ -1,19 +1,28 @@
 /** Line items — the configuration behind the eight output lines and their sub-line items.
  *
- * WHY THIS SCREEN EXISTS. Those eight lines are each assembled from parts that lived only as
- * Python: `deprec_impairment` alone reads thirteen note-level datasets and resolves them through a
- * five-rung cascade, and the template declares the eight with no children at all — so nothing
+ * WHY THIS SCREEN EXISTS. Those eight lines were each assembled from parts that lived only as
+ * Python: `deprec_impairment` alone read thirteen note-level datasets and resolved them through a
+ * five-rung cascade, and the template declared the eight with no children at all — so nothing
  * outside that module knew the parts existed. Widening one caption meant editing a
  * 162-alternative regex and shipping a release. This is the surface on which the whole arrangement
  * is read AND authored.
  *
+ * THOSE SERVICES ARE NOW GONE — all five derivation services (2,731 lines carrying ~562
+ * hand-enumerated note titles, row captions and formula variants) were deleted, and only the
+ * contingent-liabilities DISCLOSURE survives, because its output is a paragraph rather than a
+ * number. Nothing in the pipeline computes those figures any more, so THIS SCREEN IS WHERE THEY
+ * COME FROM: a line item with no alias, definition or cascade describing its caption leaves its
+ * output cell blank, by design. `implemented_by` is free text and now reads as history — a note of
+ * what once computed a line, not a switch that routes anything.
+ *
  * THIS IS THE EDITOR FOR THE ONE CONFIGURATION THE PIPELINE READS. It was read-only, and said so,
  * on the justification that the definitions only DESCRIBED derivations five services computed
- * (`implemented_by` names which), so nothing downstream read them. That justification expired:
- * line items is the single configuration engine, the matcher is built from this set by
- * `services/working_view.py`, and a run pins `extraction_runs.line_item_version_id`. The
- * definitions DRIVE extraction, so a field that is authorable in the schema and unreachable from
- * here is a control the product claims to have and does not.
+ * (`implemented_by` named which), so nothing downstream read them. That justification expired
+ * twice over: line items is the single configuration engine, the matcher is built from this set by
+ * `services/working_view.py`, a run pins `extraction_runs.line_item_version_id` — and the
+ * derivations the field described no longer exist. The definitions DRIVE extraction, so a field
+ * that is authorable in the schema and unreachable from here is a control the product claims to
+ * have and does not.
  *
  * A SAVE PUBLISHES A NEW VERSION and never writes in place. A run pins the exact version it used,
  * so mutating a stored definition would retroactively change how a past run is explained; the

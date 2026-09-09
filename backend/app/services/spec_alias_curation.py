@@ -74,7 +74,7 @@ _DEPRECIATION_DENIALS = (
 # the source note for the Level 3 amount. The trade-receivable and prepayment captions are
 # contamination — they are bs_ca__other_receivables_cp's own vocabulary.
 # 11 patterns, shared by the CP and LTP twins. Only the CP twin is matchable today: SECUR_LTP is
-# locked AND `extraction_mode: derive`, so it carries two independent reasons to be unreachable.
+# locked (see the module docstring), so this list filters nothing for it until the lock is lifted.
 _SECURITIES_DENIALS = (
     r"^Derivative$", r"^Other receivables$",
     r"^Investment in related parties/associates/JV$",

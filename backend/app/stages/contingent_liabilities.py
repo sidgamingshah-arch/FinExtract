@@ -1,22 +1,35 @@
-"""Contingent Liabilities — writes services.contingent_liabilities's structured output onto
-DocumentModel.contingent_liabilities (paragraph + classified/unclassified tables, keyed by
-"basis:period"), and the quantifiable total onto the notes__contingent_liabilities LineItem for
-grid/export consistency with every other Notes-statement leaf.
+"""Contingent Liabilities — a DISCLOSURE stage. It writes narrative, and only narrative.
 
-Runs alongside the other computed-field stages: after notes are linked and units normalized,
-before reconcile.
+The one output is `DocumentModel.contingent_liabilities`: per "basis:period", a summary paragraph
+plus the classified and unclassified tables that services.contingent_liabilities builds, for the
+Disclosures screen and the exports to render as prose for a human. NOTHING is written onto any
+LineItem — this stage sets no value on any row, and does not participate in the grid or in
+reconcile arithmetic. It is the sole survivor of the computed-field stages precisely because its
+output is a paragraph rather than a number.
+
+REMOVED — the publish onto `notes__contingent_liabilities`. This stage used to also set a single
+Decimal on that LineItem (with confidence.method "computed:contingent_liabilities" and the
+service's qa_flags copied onto the row), taken from a derived total the service assembled out of
+172 hand-enumerated entries: 26 note titles, 23 amount labels, 14 non-exposure phrases, 72
+classifier terms and 19 matter types. That was a derivation and it is gone, together with the
+services.computed_paths precedence gate that used to arbitrate between it and the rulebook's own
+reading. THE FIGURE FOR `notes__contingent_liabilities` MUST NOW COME FROM CONFIGURATION — a
+rulebook alias binding the 或有负债 / contingent-liability caption. Until the config describes it
+that cell is blank, deliberately; do not reinstate a publish here.
+
+Runs after notes are linked and units normalized, before reconcile.
 """
 from __future__ import annotations
 
 from decimal import Decimal
 
 from app.core.models.document import DocumentModel
-from app.core.models.enums import Basis
-from app.core.models.line_item import ExtractedValue, LineItem
 from app.core.stage import PipelineContext
-from app.services.computed_paths import policy_from
 from app.services.contingent_liabilities import ContingentLiabilitiesResult, compute
 
+# Kept SOLELY as the template-declaration guard below: it asks "does this template want the
+# concept at all", which decides whether the narrative is worth building. Nothing is written to a
+# line item under this key any more.
 NOTES_KEY = "notes__contingent_liabilities"
 
 
@@ -51,12 +64,10 @@ class ContingentLiabilitiesStage:
         if not doc.notes:
             ctx.log("contingent_liabilities:skipped(no notes extracted)")
             return doc
-        # THE COMPLEX PATH IS SWITCHABLE — see services.computed_paths. Off, this concept is left
-        # to whatever the rulebook's own 或有负债 / contingent-liability aliases bind.
-        policy = policy_from(ctx.settings)
-        if not policy.runs("contingent_liabilities"):
-            ctx.log("contingent_liabilities:skipped(complex path disabled)")
-            return doc
+        # No precedence gate here any more. services.computed_paths existed to arbitrate between a
+        # computed figure and the rulebook's own reading of the same caption; this stage publishes
+        # no figure, so there is nothing to arbitrate and nothing to switch off. The narrative
+        # always runs when the template declares the field.
 
         # The document's own page text, for the case where the disclosure's PAGE never became a
         # note. A pure-prose page carrying the guarantee totals was classified `face/balance_sheet`
@@ -76,32 +87,24 @@ class ContingentLiabilitiesStage:
             return doc
         results = {pk: self._maybe_enhance(result, ctx) for pk, result in results.items()}
 
-        row = next((li for li in doc.line_items if li.canonical_key == NOTES_KEY), None)
+        # The narrative, per period, and nothing else. A `notes__contingent_liabilities` LineItem
+        # used to be looked up (or created) here and given the service's derived total, its
+        # confidence.method set to "computed:contingent_liabilities" and its qa_flags copied over.
+        # That derivation — a Decimal out of 172 hand-enumerated entries (26 note titles, 23 amount
+        # labels, 14 non-exposure phrases, 72 classifier terms, 19 matter types) — is removed, so
+        # this stage touches no line item at all and that figure must come from configuration.
         out: dict[str, dict] = {}
         for (basis, period_label), result in results.items():
             out[f"{basis}:{period_label}"] = _to_dict(result)
-            if result.total_quantifiable is None:
-                continue
-            if row is None:
-                row = LineItem(source_label=NOTES_KEY, canonical_key=NOTES_KEY,
-                               ordinal=max((li.ordinal for li in doc.line_items), default=0) + 1)
-                doc.line_items.append(row)
-            row.set_value(ExtractedValue(value=result.total_quantifiable,
-                                         value_raw=result.total_quantifiable,
-                                         basis=Basis(basis), period_label=period_label))
-            row.confidence.method = "computed:contingent_liabilities"
-            for flag in result.flags:
-                if flag not in row.confidence.flags:
-                    row.confidence.flags.append(flag)
         doc.contingent_liabilities = out
         ctx.log(f"contingent_liabilities:{len(out)} period(s) computed")
         return doc
 
     @staticmethod
     def _maybe_enhance(result: ContingentLiabilitiesResult, ctx: PipelineContext) -> ContingentLiabilitiesResult:
-        """Rewrite the prose via the configured LLM, if any — never the classification or a
-        total, and never a hard failure: a stub provider, a disabled setting, or a failed/
-        malformed call all leave the deterministic paragraph exactly as computed."""
+        """Rewrite the prose via the configured LLM, if any — never the classification or any
+        disclosed amount, and never a hard failure: a stub provider, a disabled setting, or a
+        failed/malformed call all leave the deterministic paragraph exactly as computed."""
         from app.config import get_settings
         from app.ports.registry import registry
         from app.services.contingent_liabilities import enhance_with_llm

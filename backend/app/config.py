@@ -301,46 +301,24 @@ class ExtractionSettings(BaseModel):
     # reported in the run log (map_line_items:prose_captions_skipped names the rows and the reason),
     # so the loss is visible rather than silent. Set to false to restore it.
     skip_prose_captions: bool = True
-    # ── TWO PATHS TO A FIGURE ────────────────────────────────────────────────────────────────
+    # ── REMOVED: THE TWO-PATH PRECEDENCE KNOBS ──────────────────────────────────────────────────
     #
-    # Eight concepts can be reached either by the GENERIC path (the rulebook: an alias names the
-    # caption, the banner scopes it, the template's rollups check it) or by the COMPLEX path
-    # (five hand-written derivations under services/, each implementing a spec in docs/ that
-    # assembles the figure from note-level datasets through a priority cascade).
+    # Four settings stood here — `complex_path_enabled`, `complex_path_services`,
+    # `computed_path_precedence` ("complex"/"generic"/"corroborate") and the per-key override
+    # `computed_path_by_key`. They arbitrated between TWO ways of reaching the same eight
+    # concepts: the rulebook's own reading of a printed caption, and five hand-written
+    # derivations (deprec_impairment ~208 enumerated entries, contingent_liabilities ~172,
+    # secur_fincl_assets ~91, related_party_receivables ~73, sales_revenues ~18 — ~562 note
+    # titles, row captions and formula variants in all) that assembled a figure from note-level
+    # datasets through a priority cascade. `services/computed_paths.py` (269 lines) was the single
+    # place that arbitration was applied; these four switched it.
     #
-    # They differ in where they are strong. The complex path is more capable on the filings its
-    # spec was written from and holds the audited derivations; its reach is bounded by CLOSED
-    # caption enumerations — 162 alternatives in deprec_impairment, 145 in
-    # contingent_liabilities — so a filing spelling a caption differently gets a refusal, not a
-    # wrong number. Measured on two filings from outside the reference set: 2 of 8 and 3 of 8
-    # figures produced, revenue blank on both. The generic path resolves ~58% of printed captions
-    # on any English filing, so it is broader and shallower.
-    #
-    # Until now nothing chose. Each derivation ran after mapping and wrote unconditionally, so the
-    # complex path always won and the generic reading was discarded with no record. That default
-    # is kept — `complex` — but it is now a decision that can be seen, changed and audited.
-    # See services/computed_paths.py, which is the single place it is applied.
-    #
-    # Runs the five derivations at all. False measures what the rulebook alone can do, which is
-    # the only honest way to see the generic path's real coverage.
-    complex_path_enabled: bool = True
-    # Restrict the complex path to these services by name (deprec_impairment,
-    # secur_fincl_assets, related_party_receivables, sales_revenues, contingent_liabilities).
-    # Empty = all of them, which is the default.
-    complex_path_services: list[str] = Field(default_factory=list)
-    # Who publishes when BOTH paths produce a figure for the same (concept, basis, period):
-    #   "complex"     — the derivation publishes; what it displaced is recorded (today's behaviour)
-    #   "generic"     — the printed reading publishes; the derivation is recorded as corroboration
-    #   "corroborate" — the printed reading publishes where it has one, the derivation fills gaps,
-    #                   and a disagreement beyond `recon_rel_tolerance` is flagged for review
-    # A derivation always fills a gap the generic path left empty, under every setting: that is
-    # the case the old code could not express, because it never knew a second path had answered.
-    computed_path_precedence: Literal["complex", "generic", "corroborate"] = "complex"
-    # Per-concept override of the above, keyed by canonical_key. A mapping, so it lives in
-    # config.toml and cannot travel through the admin settings patch (which carries only
-    # float/bool/str) — the same split `llm_focus_keys`/`llm_focus_only` uses, for the same
-    # reason: WHICH concepts is a deployment decision, WHETHER is an operational one.
-    computed_path_by_key: dict[str, str] = Field(default_factory=dict)
+    # The derivations are gone, and computed_paths.py with them. There is now ONE path to a
+    # figure — the configuration: an alias names the printed caption, the section banner scopes
+    # it, the template's rollups check it. With one path there is no precedence to set, nothing to
+    # gate per service, and nothing to corroborate, so all four settings are removed rather than
+    # left inert. Any concept those derivations used to compute must now be reached by describing
+    # its caption in the rulebook; until it is, the cell is blank by design.
 
     # Publish only notes a face row cites (see stages/prune_notes.py). False publishes every
     # extracted note table regardless of whether any face figure references it.

@@ -11,13 +11,21 @@ definitions describing one corner of it.
     ---
     475  definitions
 
-The configurator's 21 are not retyped here either: they are read from `generate_line_items.py`'s
-output, which derives them from the shipped services' own constants. Two generators feeding one
-seed, neither of them hand-maintained.
+THE REBUILD IS NOW ONE STEP. `output_csv_hk_line_items_configured.json` — the configurator's own
+21 definitions, being the 8 merged output lines and the 13 `sub__*` note-level parts — is
+HAND-MAINTAINED: edit that file, then run this script to merge it with the rulebook.
+
+It used to be generated. `scripts/generate_line_items.py` derived those 21 from
+`services.deprec_impairment`'s module constants (`_NOTE_HEADINGS`, `_QUALIFYING_RE`,
+`_MOVEMENT_EXCLUDE_RE`, `_ASSET_NOTE_KEYS`, `_OPEX_DIRECT_KEYS`) — 25-odd caption alternatives and
+the two cascades (P1–P5 for the operating-expense line, COS_P1/COS_P2 for the cost-of-sales one),
+none of them retyped. The five derivation services were removed, so its import failed at module
+level and the generator was retired with them. Nothing derives the configured seed from code any
+more: its note titles, row captions, exclusions and cascade rungs are now AUTHORED there, and a
+figure a rung used to produce has to come from that configuration or the cell stays blank.
 
 Run from ``backend``:
-    ../.venv/Scripts/python.exe scripts/generate_line_items.py   # the 21, from the services
-    ../.venv/Scripts/python.exe scripts/build_line_items.py      # merge with the 462
+    ../.venv/Scripts/python.exe scripts/build_line_items.py      # merge the 21 with the 462
 """
 from __future__ import annotations
 
@@ -104,11 +112,13 @@ def main() -> int:
     raw = json.loads(ONTOLOGY.read_text(encoding="utf-8"))
     ont = load_ontology(raw, resolve=True)
 
-    # The configurator's own definitions, from the file `generate_line_items.py` derives from the
-    # shipped services. NOT from SEED — that is this script's OUTPUT, and reading it back would
-    # treat 462 projected definitions as hand-configured ones and make the build unreproducible.
+    # The configurator's own definitions, hand-maintained in CONFIGURED (they were generated from
+    # `services.deprec_impairment`'s constants until that service and its generator were removed).
+    # NOT from SEED — that is this script's OUTPUT, and reading it back would treat 462 projected
+    # definitions as hand-configured ones and make the build unreproducible.
     if not CONFIGURED.exists():
-        print(f"  ABORT: {CONFIGURED.name} is missing — run generate_line_items.py first")
+        print(f"  ABORT: {CONFIGURED.name} is missing — it is hand-maintained and there is no "
+              f"generator to recreate it; restore it from version control")
         return 1
     current = load_line_item_set(json.loads(CONFIGURED.read_text(encoding="utf-8")),
                                  resolve=False)

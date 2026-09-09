@@ -802,12 +802,12 @@ def _add_analysis_sheets(wb, rows: list[dict], disclosures: list[dict],
         _disclosure_amount(ws, ri, d.get("amount"), num_fmt, right)
         ws.cell(ri, 5, d.get("snippet", "")).alignment = wrap
         ri += 1
-        # THE WORKING BEHIND A QUANTIFIED DISCLOSURE, where the pipeline computed one. Only
-        # contingent liabilities carries it today (`contingent_liabilities.disclosure_explanation`
-        # attaches it to the entry). Written as indented rows UNDER the disclosure rather than as
-        # new columns, because it is a variable number of lines per type and per unclassified
-        # paragraph — and a "Where found" snippet is a location, not an account of the figure.
-        # A sheet showing 118,754,500 with no statement of what it is made of cannot be reviewed.
+        # THE WORKING BEHIND A QUANTIFIED DISCLOSURE. Only contingent liabilities carries one
+        # today, attached to the entry by the disclosure stage's own explanation. Written as
+        # indented rows UNDER the disclosure rather than as new columns, because it is a variable
+        # number of lines per matter type and per unclassified paragraph — and a "Where found"
+        # snippet is a location, not an account of the figure. A sheet showing 118,754,500 with no
+        # statement of what it is made of cannot be reviewed.
         ri = _emit_disclosure_working(ws, d, ri, wrap, num_fmt, right)
     summary_row = ri + 1
     found = sum(bool(d.get("present")) for d in disclosures)

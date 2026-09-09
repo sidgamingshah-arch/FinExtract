@@ -62,12 +62,18 @@ def test_every_arithmetic_workbook_rule_is_compiled_or_explicitly_excluded():
     # NCA_010 (Other Fixed Assets), NCA_014 (Net Fixed Assets), and NCA_022 (Other
     # Intangible Assets) are directly reported fields in the active ontology, not formulas
     # to recompute from neighbouring lines.
-    # P&L_014 (Deprec & Impairment(COS)) is computed by services.deprec_impairment's priority
-    # cascade over note-level datasets, not by the template rollup this workbook rule describes.
-    # NCA_037/CA_016 (Secur & Other Fincl Assets(LTP)/(CP)) are likewise computed by
-    # services.secur_fincl_assets, not by the wealth-management/pledged rollup this rule describes.
-    # NCA_032 (Due from Related Parties(LTP)) and CA_044 (Other Receivables(CP)) are computed by
-    # services.related_party_receivables, not by the entrusted-loan/related-party rollup here.
+    # The five ids below are excluded for one reason each, and it is the same reason: none of them
+    # is the template rollup this workbook rule describes, so compiling the rule against the
+    # template would assert arithmetic the template never states. What CHANGED is only the
+    # justification, not the set.
+    # P&L_014 (Deprec & Impairment(COS)) used to be computed by services.deprec_impairment's
+    # priority cascade over note-level datasets (~208 enumerated note titles, row captions and
+    # formula variants). NCA_037/CA_016 (Secur & Other Fincl Assets(LTP)/(CP)) by
+    # services.secur_fincl_assets (~91). NCA_032 (Due from Related Parties(LTP)) and CA_044 (Other
+    # Receivables(CP)) by services.related_party_receivables (~73). All three services are DELETED:
+    # these ids are not a template rollup, and are no longer computed by anything either — the
+    # figure has to come from configuration, and the cell is blank until it does.
+    # Retired pins for the removed services are recorded in test_retired_derivations.py.
     excluded = {"P&L_091", "Others_011", "Notes_013", "NCA_010", "NCA_022", "NCA_023", "CA_038",
                 "P&L_014", "NCA_037", "CA_016", "NCA_032", "CA_044"}
     calculated = set(calculated_nodes(TEMPLATE_DEF))
@@ -317,10 +323,12 @@ def test_critical_face_captions_have_their_correct_owner():
     assert actual == expected
 
 # Deprec & Impairment (Oper Exp)/(COS) and Secur & Other Fincl Assets (CP)/(LTP) moved to
-# extraction_mode "derive" — computed by services.deprec_impairment and
-# services.secur_fincl_assets, never bound to a printed caption — so the priority-ownership
-# disambiguation this file used to test for them lives in test_deprec_impairment.py and
-# test_secur_fincl_assets.py instead.
+# extraction_mode "derive" and were never bound to a printed caption, so the priority-ownership
+# disambiguation this file used to test for them is not tested here. It used to be tested against
+# services.deprec_impairment (~208 enumerated note titles, row captions and formula variants) and
+# services.secur_fincl_assets (~91) in test_deprec_impairment.py / test_secur_fincl_assets.py.
+# Both services are DELETED and those modules with them — see test_retired_derivations.py for what
+# was retired and why. Nothing computes these four now; their figures must come from configuration.
 
 
 def test_a_statement_level_total_reaches_its_concept_whatever_banner_it_is_printed_under():

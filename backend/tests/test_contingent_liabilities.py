@@ -10,6 +10,26 @@ from app.core.models.line_item import ExtractedValue, NoteItem, NotesTable, Unit
 from app.services.contingent_liabilities import (
     UNCLASSIFIED, ContingentLiabilitiesNarrative, compute, enhance_with_llm)
 
+# RETIRED WITH THE DERIVED FIGURE — this concept no longer publishes a number.
+# `_quantifiable_total` and the `total_quantifiable` field are gone from the service: the single
+# Decimal that landed on `notes__contingent_liabilities` was the head of a derivation built from
+# 172 hand-enumerated entries (26 note titles, 23 amount labels, 14 non-exposure phrases, 72
+# classifier terms, 19 matter types). THAT FIGURE MUST NOW COME FROM CONFIGURATION — a rulebook
+# alias binding the caption — so a blank cell here is the expected outcome, not a regression.
+# Only the PROSE survives (paragraph + both tables), and the tests below still cover all of it.
+#
+# Two tests asserted nothing but the removed figure and are retired rather than weakened:
+#   * test_no_single_total_is_published_across_unlike_units — pinned `total_quantifiable is None`
+#     plus the MULTIPLE_CURRENCIES_NOT_AGGREGATED flag that withheld the total across two
+#     currencies. Both the field and the flag no longer exist.
+#   * test_a_single_currency_still_publishes_its_total — pinned the one case that DID publish a
+#     total (CNY 500 + 200 == 700). There is no total to publish from any number of currencies.
+# The currency-and-scale rule they guarded is not lost: it is still asserted through the
+# `classified_summary` rows in test_each_currency_gets_its_own_row_rather_than_one_converted_sum
+# and test_the_same_currency_in_two_scales_is_not_added, and through the `breakdown` rows in
+# test_two_currencies_stay_two_rows_because_the_concept_publishes_no_figure — which is where the
+# rule actually matters now that per-type/per-currency grouping is the only answer given.
+
 
 def _ev(value=None, basis="consolidated", period="current", currency="CNY", scale="1"):
     return ExtractedValue(value=None if value is None else Decimal(value),
@@ -181,28 +201,9 @@ def test_the_same_currency_in_two_scales_is_not_added():
     result = compute(doc)[("consolidated", "current")]
     assert len(result.classified_summary) == 2
     assert {g["amount"] for g in result.classified_summary} == {Decimal("500"), Decimal("300")}
-    # And no single total either: unlike scales are as unaddable as unlike currencies.
-    assert result.total_quantifiable is None
-    assert "MULTIPLE_CURRENCIES_NOT_AGGREGATED" in result.flags
-
-
-def test_no_single_total_is_published_across_unlike_units():
-    doc = _doc(_note("35", "对外担保", [
-        _item("公司担保", "500", currency="CNY"),
-        _item("公司担保", "300", currency="USD"),
-    ]))
-    result = compute(doc)[("consolidated", "current")]
-    assert result.total_quantifiable is None
-    assert "MULTIPLE_CURRENCIES_NOT_AGGREGATED" in result.flags
-
-
-def test_a_single_currency_still_publishes_its_total():
-    doc = _doc(_note("35", "对外担保", [
-        _item("公司担保", "500"), _item("银行保函", "200"),
-    ]))
-    result = compute(doc)[("consolidated", "current")]
-    assert result.total_quantifiable == Decimal("700")
-    assert "MULTIPLE_CURRENCIES_NOT_AGGREGATED" not in result.flags
+    # The two dropped assertions here — `total_quantifiable is None` and the
+    # MULTIPLE_CURRENCIES_NOT_AGGREGATED flag — went with the derived figure. Two scales staying
+    # two rows is the live invariant, and it is what the two assertions above hold.
 
 
 # ── §6.4: what makes two rows one item ───────────────────────────────────────────────────────
@@ -317,17 +318,16 @@ def test_an_unquantified_matter_keeps_its_sentence_and_reports_no_amount():
     assert "AMOUNT_NOT_DISCLOSED" in working["qa_flags"]
 
 
-def test_two_currencies_stay_two_rows_because_the_concept_publishes_no_total():
-    """The case where the breakdown is not extra colour but the ONLY answer: `_quantifiable_total`
-    withholds a figure across unlike units, so a reader with no breakdown gets nothing at all."""
+def test_two_currencies_stay_two_rows_because_the_concept_publishes_no_figure():
+    """The breakdown is not extra colour, it is the ONLY answer. The concept publishes no figure at
+    all now — `_quantifiable_total` and its MULTIPLE_CURRENCIES_NOT_AGGREGATED withholding were
+    removed with the derivation, and notes__contingent_liabilities has to be bound in
+    configuration — so a reader with no per-currency breakdown gets nothing whatsoever."""
     from app.services.contingent_liabilities import disclosure_explanation
 
     doc = _doc(_note("35", "对外担保", [
         _item("为子公司提供的连带责任保证", "5000000", currency="CNY"),
         _item("为境外子公司提供的连带责任保证", "700000", currency="USD")]))
-    result = compute(doc)[("consolidated", "current")]
-    assert result.total_quantifiable is None
-    assert "MULTIPLE_CURRENCIES_NOT_AGGREGATED" in result.flags
 
     working = disclosure_explanation(_stage_record(doc))
     assert {(g["currency"], g["amount"]) for g in working["breakdown"]} == {

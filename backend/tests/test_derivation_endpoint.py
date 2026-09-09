@@ -1,8 +1,16 @@
-"""A service-computed figure explains itself through the statement endpoint.
+"""A derived figure explains itself through the statement endpoint.
 
-services.derivation builds the explanation and the stages attach it; this checks it survives
-serialization and reaches the inspector in the shape the client already renders — the step where
-it was previously dropped, leaving a reviewer the winning priority and one page reference.
+services.derivation READS the explanation off the row and the endpoint renders it; this checks it
+survives serialization and reaches the inspector in the shape the client already renders — the step
+where it was previously dropped, leaving a reviewer the winning priority and one page reference.
+
+The derivation services that used to write these payloads are DELETED and those figures must now
+come from configuration, so the trail exercised here is read from STORED ROWS WRITTEN BY EARLIER
+RUNS — which is literally what `_doc_with_derived_row` seeds: an `extraction_runs.result` whose
+`derivation` and `mapping_method` were recorded before the removal. That column is durable, the
+rows outlive the code that wrote them, and the reader must keep folding them, so every assertion
+below still guards live behaviour. The `deprec_impairment` spellings in the fixtures are stored
+label text, not references to anything that runs today.
 """
 from __future__ import annotations
 
@@ -26,6 +34,8 @@ def _value(period, value):
 
 
 def _derivation(period, formula, inputs):
+    # `method` is free-text a run wrote into the JSON column; this is the string a pre-removal run
+    # left, kept verbatim because it is what the stored rows being folded actually say.
     return {f"consolidated:{period}": {
         "method": "deprec_impairment", "formula": formula, "result": "500",
         "inputs": inputs, "flags": ["ASSUMED_ZERO_COS_DEPRECIATION"]}}

@@ -13,6 +13,7 @@
   "changes": [
    "absorbed all 462 rulebook concepts: 454 projected, 8 merged with configured assembly, 13 configurator-only parts",
    "declaration order follows the rulebook, so ties decided by order agree",
+   "the eight output lines no longer name a service implementer. The five derivation services were REMOVED - deprec_impairment (~208 enumerated entries), contingent_liabilities (~172, its NUMBER only; its narrative disclosure survives), secur_fincl_assets (~91), related_party_receivables (~73), sales_revenues (~18): ~562 hand-enumerated note titles, row captions and formula variants in all. `implemented_by` is therefore deleted from all eight and every figure must now come from configuration. The six cascade-less lines - is_pl__sales_revenues, bs_ca__secur_and_other_fincl_assets_cp, bs_nca__secur_and_other_fincl_assets_ltp, bs_nca__due_from_related_parties_ltp, bs_ca__other_receivables_cp, notes__contingent_liabilities - are now `extracted`, since a `derived` line with neither a cascade nor an implementer is refused by LineItemDef; the two depreciation lines stay `derived` on their own cascades (P1-P5 and COS_P1/COS_P2). Cells these services used to fill go blank until the configuration reads them off a caption - that is the intended outcome, so do not reinstate a service name here. Mirrored in output_csv_hk_line_items_configured.json, which is the assembly half of this file",
    "authored expected_components prose on the 11 exclusive_residual buckets (3-4 caption phrases each, 37 in total): the payload block services.mapping._residual_expectations publishes as \"captions_with_no_dedicated_concept\" was empty on every statement, so an empty canonical_key was never a licensed answer. Each phrase was checked against all 462 concepts' labels and aliases in its own section; hkfrs_hk_china_ontology.json's wording was NOT copied - \"Bank overdrafts\", \"Pension surplus\", \"Right-of-use assets\", \"Biological assets\", \"Contract liabilities\", \"Bills receivable\", \"Merger reserve\", \"Deposits paid for acquisition of land\", \"Donations\" and \"Sales taxes and surcharges\" all have dedicated concepts here and would have routed real money into a sweep"
   ],
   "breaking_changes": [
@@ -2399,10 +2400,9 @@
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
    "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
    "template_note": "Exact field from Balance Sheet!A34; value cell B34.",
-   "type": "derived",
+   "type": "extracted",
    "namespace": "template",
    "rollup": "none",
-   "implemented_by": "related_party_receivables",
    "order": 6
   },
   {
@@ -2722,8 +2722,7 @@
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
    "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
    "template_note": "Exact field from Balance Sheet!A39; value cell B39.",
-   "type": "derived",
-   "implemented_by": "secur_fincl_assets",
+   "type": "extracted",
    "namespace": "template",
    "rollup": "none",
    "order": 5
@@ -4718,10 +4717,9 @@
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
    "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
    "template_note": "Exact field from Balance Sheet!A73; value cell B73.",
-   "type": "derived",
+   "type": "extracted",
    "namespace": "template",
    "rollup": "none",
-   "implemented_by": "secur_fincl_assets",
    "order": 4
   },
   {
@@ -6432,10 +6430,9 @@
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
    "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
    "template_note": "Exact field from Balance Sheet!A101; value cell B101.",
-   "type": "derived",
+   "type": "extracted",
    "namespace": "template",
    "rollup": "none",
-   "implemented_by": "related_party_receivables",
    "order": 7
   },
   {
@@ -13226,10 +13223,9 @@
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
    "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
    "template_note": "Exact field from Income Statement!A6; value cell B6.",
-   "type": "derived",
+   "type": "extracted",
    "namespace": "template",
    "rollup": "none",
-   "implemented_by": "sales_revenues",
    "order": 3
   },
   {
@@ -13811,7 +13807,6 @@
     }
    ],
    "rollup": "alternatives",
-   "implemented_by": "deprec_impairment",
    "order": 2
   },
   {
@@ -15466,7 +15461,6 @@
    "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
    "template_note": "Exact field from Income Statement!A43; value cell B43.",
    "type": "derived",
-   "implemented_by": "deprec_impairment",
    "namespace": "template",
    "cascade": [
     {
@@ -26844,10 +26838,9 @@
    "section_disambiguation": "Bind only to Financial Statement Notes / notes.",
    "aggregation_note": "Sum unique items per type AND per currency; never convert currencies and never add a reported total to its own components.",
    "template_note": "Classified narrative and tables per docs/PRC_Contingent_Liabilities_Extraction_Logic_Revised.md; the quantifiable total per currency also lands on this row.",
-   "type": "derived",
+   "type": "extracted",
    "namespace": "template",
    "rollup": "none",
-   "implemented_by": "contingent_liabilities",
    "order": 8
   },
   {

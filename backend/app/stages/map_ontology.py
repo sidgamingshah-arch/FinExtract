@@ -398,9 +398,10 @@ def _apply_result(li, result) -> bool:
     """
     # Secur & Other Fincl Assets(CP)/(LTP) used to bind directly here on a bare "Financial
     # assets at fair value through profit or loss" face caption, at whatever figure was
-    # printed. Both are now extraction_mode "derive" (services.secur_fincl_assets computes
-    # them from note totals less proven deductions), so a face row with that caption is
-    # left unmatched here — same rule "derive" already gives every other computed concept.
+    # printed. The rulebook's `extraction_mode` governs instead, and on the shipped set both
+    # are "derive", so a face row with that caption is left unmatched here — the same rule
+    # "derive" already gives every other computed concept. No service computes them any more:
+    # their figures have to arrive from the configuration's own note sources.
     if result and result.canonical_key:
         li.canonical_key = result.canonical_key
         li.confidence.mapping = result.confidence
@@ -650,9 +651,9 @@ class MapOntologyStage:
         # the note-item loop below runs over every LINE row of every extracted note — on a real
         # filing that is hundreds of single-row provider calls, which would dwarf the batch path
         # this routing exists to shrink. Under focus routing they use the provider-less matcher:
-        # the focus concepts are reached either through the batch path above or through their own
-        # deterministic note-sourced services, and `notes__contingent_liabilities` is aliased
-        # exactly ("Contingent liabilities" resolves deterministically at 1.0).
+        # the focus concepts reach the model only through the batch path above, and
+        # `notes__contingent_liabilities` is aliased exactly ("Contingent liabilities" resolves
+        # deterministically at 1.0).
         line_matcher = det_matcher or matcher
         # Record the strategy for the run record: mapping by MEANING (LLM) and mapping by
         # string/rule evidence are very different quality levels, and the difference has to be

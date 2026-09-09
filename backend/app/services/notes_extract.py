@@ -623,10 +623,10 @@ def without_empty_duplicates(tables: list[NotesTable]) -> list[NotesTable]:
 # markers, and its "(a)"/"(i)" narrative paragraphs, are routinely printed a page after the table
 # they belong to — which is why the section builder above deliberately keeps a titled but
 # item-less section. Figures are STATED in that prose and nowhere else: the depreciation charged
-# to "other operating expenses" (services.deprec_impairment reads it for its highest-priority
-# candidate) and a guarantee's amount (services.contingent_liabilities likewise). Dropping such a
-# fragment does not merely inflate or deflate a note count, it deletes a reported number, so
-# emptiness of ROWS alone cannot be the test.
+# to "other operating expenses", and a guarantee's amount, are routinely printed in a legend or a
+# lettered paragraph rather than in any row. Everything downstream can only read what this
+# function keeps, so dropping such a fragment does not merely inflate or deflate a note count, it
+# deletes a reported number — emptiness of ROWS alone cannot be the test.
 #
 # Furniture is what the test above was reaching for: a carried section left holding the running
 # header, whose text is nothing beyond the note's own title. That is what this predicate separates

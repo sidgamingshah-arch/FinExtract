@@ -233,10 +233,13 @@ def test_the_note_level_parts_are_off_template():
 # ── a rung below zero is refused, and the next is tried ──────────────────────────────────────────
 
 def test_a_rung_computing_below_zero_is_passed_over():
-    """`deprec_impairment._first_valid` skips a negative candidate and flags NEGATIVE_RESIDUAL.
+    """A rung computing below zero is passed over and the next is tried.
 
-    The first port had no such refusal, so a rung computing -50 would have won in the config and
-    been refused by the very service it claimed to describe.
+    This began as parity with the deleted `services.deprec_impairment`, whose `_first_valid` skipped
+    a negative candidate and flagged NEGATIVE_RESIDUAL; the first port of it had no such refusal, so
+    a rung computing -50 would have won in the config. The service is gone and the figure must now
+    come from configuration, so this is no longer a parity check against anything: the cascade
+    evaluator's own refusal is the definition, and it is pinned here.
     """
     d = LineItemDef(key="out", type="derived", cascade=[
         CascadeRung(id="P1", terms=[Term(ref="a"), Term(ref="b", sign=-1)]),
@@ -278,12 +281,14 @@ def _sub(key: str) -> LineItemDef:
 def test_children_that_are_alternatives_are_not_summed():
     """The twelve parts of the Oper Exp line restate ONE figure; summing them means nothing.
 
-    `deprec_impairment`'s module docstring says they must never be summed "since they routinely
-    restate the same figure". `parent` was carrying display nesting and arithmetic rollup at once,
-    so this check reported the parent as disagreeing with a total that had no meaning.
+    The rule came across from the deleted `services.deprec_impairment`, whose module docstring said
+    they must never be summed "since they routinely restate the same figure"; `rollup="alternatives"`
+    in the shipped configuration is now the only place that fact is written down, which is why it is
+    pinned here. `parent` was carrying display nesting and arithmetic rollup at once, so this check
+    reported the parent as disagreeing with a total that had no meaning.
     """
     reg = build([_sub("sub__a"), _sub("sub__b"),
-                 LineItemDef(key=OPER, type="derived", implemented_by="deprec_impairment",
+                 LineItemDef(key=OPER, type="derived", implemented_by="rulebook_derivation",
                              rollup="alternatives")])
 
     assert check_rollups(reg, {OPER: Decimal("100"), "sub__a": Decimal("100"),
@@ -308,10 +313,13 @@ def test_the_shipped_depreciation_lines_declare_their_children_alternatives():
 
 
 def test_the_cost_of_sales_line_kept_both_of_its_rungs():
-    """The service has COS_P1 and COS_P2 (deprec_impairment.py:355, :504); the port dropped one.
+    """Both rungs of the cost-of-sales cascade are shipped; the first port of them dropped one.
 
-    A filing that discloses total depreciation and the operating-expense share but no
-    cost-of-sales note would have blanked this line.
+    COS_P1 and COS_P2 came across from the deleted `services.deprec_impairment` (~208 enumerated
+    note titles, row captions and formula variants), which is no longer there to be compared with —
+    this configuration is now the whole of the line's arithmetic. A filing that discloses total
+    depreciation and the operating-expense share but no cost-of-sales note is blanked if the second
+    rung goes missing again, and nothing else would catch it.
     """
     cos = {d.key: d for d in _seed().items}["is_pl__deprec_and_impairment_cos"]
 

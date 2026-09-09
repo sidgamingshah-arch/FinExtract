@@ -258,8 +258,10 @@ def demo_arithmetic() -> None:
                                     "sub__b": Decimal("100")})
         print(f"    rollup={rollup:14} ({note:26}) -> {len(probs)} problem(s)")
     print("""      The twelve parts of the depreciation line are alternative sources for one
-      figure; `deprec_impairment`'s own docstring says they must never be summed. `parent` was
-      carrying display nesting AND arithmetic rollup at once.""")
+      figure; the line item's own `rollup: alternatives` declaration in the seed says they must
+      never be summed (it was `services.deprec_impairment`'s docstring that said so, until that
+      derivation was removed and the declaration became the only statement of the rule).
+      `parent` was carrying display nesting AND arithmetic rollup at once.""")
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════

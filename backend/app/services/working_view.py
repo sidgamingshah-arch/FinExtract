@@ -28,8 +28,9 @@ WHAT IS DELIBERATELY DROPPED, and why each is safe:
                    itself in `SAME` and round-trips directly. Reconstructing the mode from the
                    type is not even possible — three modes map onto "extracted".
     `implemented_by`  written by the projection only to satisfy `LineItemDef`'s "a derived line
-                   needs a cascade or an implementer" rule. It names a service, not a concept
-                   property, and `OntologyMapping` has nowhere to put it.
+                   needs a cascade or an implementer" rule. It names an implementer, not a concept
+                   property, `OntologyMapping` has nowhere to put it, and the shipped set names
+                   one for none of the eight — every derived line there carries a cascade instead.
 
 THE TWO HAZARDS THAT COULD NOT BE SETTLED BY READING, both now measured:
 

@@ -7,16 +7,36 @@ results are available (`app/core/pipeline.py::Pipeline.run`).
 
 ## Stages
 
-**Twenty-one stages, assembled by `app/core/pipeline.py::default_pipeline()`.** That
+**Seventeen stages, assembled by `app/core/pipeline.py::default_pipeline()`.** That
 function is the only place the order is stated; `api/routes/extractions.py::pipeline_stage_names`
 reads the list off it rather than keeping a copy, and the run row records the list it was
 queued with. Do not add a third copy — the list below names each stage and its file, and
 its order is `default_pipeline()`'s:
 
 `ingest · integrity · language_detect · classify · extract · map_line_items · residual ·
-normalize · link_notes · deprec_impairment · secur_fincl_assets ·
-related_party_receivables · sales_revenues · contingent_liabilities · reconcile ·
-prune_notes · confidence · gap_closing · face_mapping_contract · structural · segment`
+normalize · link_notes · contingent_liabilities · reconcile · prune_notes · confidence ·
+gap_closing · face_mapping_contract · structural · segment`
+
+**Why the list is four stages shorter, and why six output lines are now blank.** Five
+*derivation* services used to sit between `link_notes` and `reconcile`, and they have been
+removed: `deprec_impairment` (532 lines, ~208 enumerated entries), `contingent_liabilities`'
+number half (761 lines total, ~172 enumerated branches — 26 note titles, 23 amount labels, 14
+non-exposure phrases, 72 classifiers, 19 matter types), `secur_fincl_assets` (619 lines, ~91),
+`related_party_receivables` (690 lines, ~73) and `sales_revenues` (129 lines, ~18) —
+**2,731 lines carrying ~562 enumerated entries** between them. Each one COMPUTED a figure for a
+named output line out of a hand-enumerated list of note titles, row captions and formula
+variants, instead of the figure being read off a caption the configuration describes; together
+they were the largest body of filing-specific logic in the codebase, and the reason six of the
+eight target output lines had no configuration-driven source. `services/computed_paths.py` — the
+precedence policy that arbitrated between those derivations and the rulebook's own reading —
+went with them, since there is nothing left to arbitrate. **The figures now come from the
+line-item configuration**: an alias, a definition and a cascade authored on the Line items
+screen, tuned against the specification documents that remain in `docs/`
+(`HKEX_Depreciation_*`, `HKEX_Securities_*`, `PRC_Related_Party_*`, `PRC_Sales_Revenues_*`,
+`PRC_Contingent_Liabilities_*` — specs for the configuration, no longer descriptions of code).
+A cell with no configured source is blank *by design*; the fix is a line-item definition, never
+a reinstated stage. Only the contingent-liabilities **disclosure** survives as a stage, because
+its output is a paragraph rather than a number.
 
 **Two passes over the first four.** `services/documents.py::analyze_document` runs
 `ingest · integrity · language_detect · classify` alone at upload, synchronously, so the
@@ -145,61 +165,42 @@ The face and its cited notes are processed in this order:
    numbered `16` is the common HK house style, and the citation as printed matches nothing. The
    fallback applies only when the citation itself names no table, so no row is ever tied to both
    a sub-note and its parent — the reconciliation would subtract the same detail twice.
-10. **Deprec & Impairment** (`stages/deprec_impairment.py` +
-    `services/deprec_impairment.py`) — resolves `Deprec & Impairment (Oper Exp)` and `(COS)`,
-    neither of which is read off a printed caption: each is assembled from up to twelve
-    note-level datasets (R&D, selling, G&A and other operating expenses, the
-    profit-before-tax reconciliation, cost of sales, five asset notes, cash flow from
-    operations) and resolved by a fixed priority cascade — P1 the operating-expense notes,
-    P2 the PBT note's opex-specific callout, then P3–P5 subtracting cost-of-sales
-    depreciation from the PBT, asset-note and cash-flow totals. An undisclosed
-    cost-of-sales figure is taken as zero and reported as such. Specification:
-    `docs/HKEX_Depreciation_Extraction_Logic_Revised.md`.
+10. **Contingent liabilities** (`stages/contingent_liabilities.py` +
+    `services/contingent_liabilities.py`) — **a disclosure stage: it writes narrative, and only
+    narrative.** The one output is `DocumentModel.contingent_liabilities` — per
+    "basis:period", a summary paragraph plus the classified tables (Letters of Credit,
+    Performance bonds, Bank guarantees, Corporate guarantees, then unclassified), summed per
+    type AND per currency because unlike units are never converted — rendered as prose for a
+    human by the Disclosures screen and by the exports. **Nothing is written onto any
+    `LineItem`**: the stage sets no value on any row and takes no part in the grid or in
+    reconcile arithmetic. It is the sole survivor of the derivation stages precisely because a
+    paragraph is not a number, and it keeps this position — after notes are linked — because
+    the narrative is built from linked notes.
 
-11. **Secur & Other Fincl Assets** (`stages/secur_fincl_assets.py` +
-    `services/secur_fincl_assets.py`) — in-scope financial-asset note totals less the
-    deduction components proven included in them, less (CP only) the Level 3 fair-value
-    amount. A CP total those deductions exceed reports zero and carries the shortfall into
-    LTP, since Level 3 assets are one pool the two maturities cannot separately claim.
-    Specification: `docs/HKEX_Securities_Other_Financial_Assets_Extraction_Logic_Clean.md`.
-
-12. **Related-party receivables** (`stages/related_party_receivables.py` +
-    `services/related_party_receivables.py`) — `Due from Related Parties (LTP)` is the
-    highest of three independent measurements of one concept (statement-linked, the
-    receivable notes, the related-party note), never their sum. `Other Receivables (CP)` is
-    a gross pool of five current classes less the related-party amount proven inside that
-    same pool. Specification:
-    `docs/PRC_Related_Party_and_Other_Receivables_Extraction_Logic.md`.
-
-13. **Sales (Revenues)** (`stages/sales_revenues.py` + `services/sales_revenues.py`) —
-    Priority 2 only. The face caption is read by the ordinary mapper above; this fills a
-    (basis, period) the face left empty from the 主营业务/主营业务收入 row of a 营业收入
-    note, never that note's combined total and never a cost column. Specification:
-    `docs/PRC_Sales_Revenues_Extraction_Logic_Simplified.md`.
-
-14. **Contingent liabilities** (`stages/contingent_liabilities.py` +
-    `services/contingent_liabilities.py`) — the one field whose output is not a figure: a
-    classified narrative plus tables (Letters of Credit, Performance bonds, Bank
-    guarantees, Corporate guarantees, then unclassified), summed per type AND per currency
-    because unlike units are never converted. The quantifiable total lands on the ordinary
-    `notes__contingent_liabilities` row when there is a single one to publish. Specification:
+    *Removed from it:* the publish onto the ordinary `notes__contingent_liabilities` row. That
+    single Decimal came from a total assembled out of **~172 hand-enumerated entries** (26 note
+    titles, 23 amount labels, 14 non-exposure phrases, 72 classifier terms, 19 matter types),
+    arbitrated against the rulebook's own reading by the deleted `services/computed_paths.py`.
+    **The figure must now come from the line-item configuration** — an alias binding the
+    或有负债 / contingent-liability caption. Until the configuration describes it that cell is
+    blank, deliberately. Specification for the tuning:
     `docs/PRC_Contingent_Liabilities_Extraction_Logic_Revised.md`.
 
-15. **Reconcile** (`stages/reconcile.py` + `services/reconcile.py`) — the §20 subtraction
+11. **Reconcile** (`stages/reconcile.py` + `services/reconcile.py`) — the §20 subtraction
     and the note→face tie grading (see [03-reconciliation](03-reconciliation.md)).
-16. **Prune notes** (`stages/prune_notes.py`) — publishes only the notes a face line
+12. **Prune notes** (`stages/prune_notes.py`) — publishes only the notes a face line
     actually references; accounting policies, governance tables and subsequent events are
     noise in the notes index, the export and the review queue. Runs *after* reconcile,
     which needs every extracted note to check the ties. Nothing is deleted from the source
     or from provenance — the log records exactly what was dropped.
-17. **Confidence** (`stages/confidence.py`) — sets the `validation` sub-signal on extracted
+13. **Confidence** (`stages/confidence.py`) — sets the `validation` sub-signal on extracted
     values from the checks available at this point (the balance-sheet identity per
     (basis, period), and the note→face tie from the reconcile report), so
     `ConfidenceVector.overall` is capped by participation in a failed check rather than
     reporting a clean OCR/mapping as confident. The row-based rule catalog that populates
     the review queue runs at the API layer instead — see
     [02-data-model-and-schemas](02-data-model-and-schemas.md#validation-engine-feeds-the-review-queue).
-18. **Gap closing** (`stages/gap_closing.py` + `services/gap_closing.py`) — a subtotal that
+14. **Gap closing** (`stages/gap_closing.py` + `services/gap_closing.py`) — a subtotal that
     still does not tie may be missing a line the mapper could not place. **Arithmetic
     proposes and the model disposes**: only a subset of leftovers that closes the gap in
     *both* periods within tolerance is offered (one period is a coincidence, two is
@@ -210,7 +211,7 @@ The face and its cited notes are processed in this order:
     and on a non-`stub` provider; with neither, the gap stays a review item, which is the
     honest outcome. Confirmed routings are kept on `DocumentModel.gap_routings` so the
     decision is inspectable rather than an unexplained change of mapping.
-19. **Face mapping contract** (`stages/face_mapping_contract.py`) — the final mapping
+15. **Face mapping contract** (`stages/face_mapping_contract.py`) — the final mapping
    invariant for a run carrying a line-item set. Every face row with a value must either have
    a canonical key or be a verified non-additive aggregate replaced by mapped components.
    Anything else receives a unique `engine_unclassified_face` key outside every line-item and
@@ -218,7 +219,7 @@ The face and its cited notes are processed in this order:
    any calculation. It is never assigned a neighbouring real line item merely to make the
    unmapped count zero. Extraction-only runs that carry no line-item set skip this gate because
    they are not mapping runs.
-20. **Structural** (`stages/structural.py` + `services/structural_checks.py`) — runs the
+16. **Structural** (`stages/structural.py` + `services/structural_checks.py`) — runs the
     arithmetic the template and the rulebook *declare*: template `rollup`s and statement
     `identities`, the rulebook's `validation.identities`, its
     `validation.cross_concept_guards` and its `validation.section_reconciliation`. Every
@@ -226,7 +227,7 @@ The face and its cited notes are processed in this order:
     carrying a classifiable `reason` (`services/coverage.py`), so partial coverage is
     visible rather than implied. A failure flags the participating line items and values.
 
-21. **Segment** (`stages/segment.py` + `services/buckets.py`) — files every face row and
+17. **Segment** (`stages/segment.py` + `services/buckets.py`) — files every face row and
     every note into the **thirteen face sections** an analyst reads a filing in, plus Others:
     the balance sheet's five (current / non-current assets, current / non-current
     liabilities, equity & reserves), the income statement's four (income, expenses,

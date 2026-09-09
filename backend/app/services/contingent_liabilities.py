@@ -1,11 +1,25 @@
-"""Contingent Liabilities — PRC filings' 或有负债/担保/未决诉讼 notes.
+"""Contingent Liabilities — the DISCLOSURE narrative for PRC/HK 或有负债/担保/未决诉讼 notes.
 
-Implements docs/PRC_Contingent_Liabilities_Extraction_Logic_Revised.md. Unlike every other
-computed field in this package, the target is not one number: it is a short narrative paragraph
-plus a classified-summary table (Letters of Credit, Performance bonds, Bank guarantees, Corporate
-guarantees) and an unclassified-items table, built from every item the identified notes disclose —
-classified in that fixed priority order so a broad "guarantee" caption never displaces a more
-specific instrument, summed once per type and currency, and never inferred to zero from silence.
+Implements the narrative half of docs/PRC_Contingent_Liabilities_Extraction_Logic_Revised.md.
+This service produces PROSE FOR A HUMAN TO READ, and nothing else: a short summary paragraph, a
+classified-summary table (Letters of Credit, Performance bonds, Bank guarantees, Corporate
+guarantees, Commitments) and an unclassified-items table, built from every item the identified
+notes disclose — classified in that fixed priority order so a broad "guarantee" caption never
+displaces a more specific instrument, grouped once per type and currency, and never inferred to
+zero from silence. It is the one concept whose output is narrative rather than a number, which is
+why it survives as a disclosure stage.
+
+REMOVED — the derived figure. This module used to also publish a single Decimal onto the
+`notes__contingent_liabilities` LineItem, assembled by `_quantifiable_total` out of 172
+hand-enumerated entries: 26 note titles, 23 amount labels, 14 non-exposure phrases, 72
+classifier terms and 19 matter types, with a MULTIPLE_CURRENCIES_NOT_AGGREGATED flag arbitrating
+when the enumerated groups spanned unlike units. That was a derivation — a figure COMPUTED out of
+a hand-maintained vocabulary instead of read off a caption the configuration describes — so it is
+gone. THE NUMBER FOR `notes__contingent_liabilities` MUST NOW COME FROM CONFIGURATION (a rulebook
+alias binding the 或有负债 / contingent-liability caption). Until the config describes it that
+cell is blank, which is the intended outcome; do not reinstate a computed total here. The
+classification vocabulary below is retained solely because the PROSE needs it to say what kind of
+exposure each disclosed item is.
 """
 from __future__ import annotations
 
@@ -106,9 +120,9 @@ _CORPORATE_GUARANTEE_RE = re.compile(
     re.IGNORECASE)
 # CONTRACTED COMMITMENTS, which a CAS filing states under 承诺事项 beside its contingencies and
 # an HKFRS one under "Capital commitments". They are exposures of the same kind — an amount owed
-# on a condition — and only a CLASSIFIED item reaches the quantifiable total, so without a
-# category of their own 688008's 资本承诺 85,066,126.15 and 投资承诺 145,700,000.00 were read,
-# left unclassified, and the concept came back with no figure at all. Last in the order, so a
+# on a condition — and only a CLASSIFIED item reaches the per-type breakdown, so without a
+# category of their own 688008's 资本承诺 85,066,126.15 and 投资承诺 145,700,000.00 were read but
+# said nothing about their kind in the narrative. Last in the order, so a
 # guarantee or a letter of credit that happens to sit in a commitments note keeps its own, more
 # specific classification.
 _COMMITMENT_RE = re.compile(
@@ -466,21 +480,14 @@ def _classified_summary(items: list[ContingentItem]) -> list[dict]:
     return list(groups.values())
 
 
-def _quantifiable_total(classified: list[dict]) -> tuple[Decimal | None, list[str]]:
-    """The one figure this concept publishes on its row, when one figure is meaningful.
-
-    §6.2 forbids converting currencies without a reported conversion, and a scale is part of
-    what makes two amounts addable. Where the classified groups span more than one
-    currency-and-scale, there is no single total to publish: the per-currency subtotals in
-    `classified_summary` are the answer, and the row reports none rather than a sum of unlike
-    units that would look authoritative.
-    """
-    if not classified:
-        return None, []
-    units = {(g["currency"], g["scale"]) for g in classified}
-    if len(units) > 1:
-        return None, ["MULTIPLE_CURRENCIES_NOT_AGGREGATED"]
-    return sum((g["amount"] for g in classified), Decimal(0)), []
+# REMOVED: `_quantifiable_total` — the single Decimal this concept published onto the
+# `notes__contingent_liabilities` LineItem, summed across the classified groups (and withheld
+# under MULTIPLE_CURRENCIES_NOT_AGGREGATED when those groups spanned more than one
+# currency-and-scale). It was the head of a derivation built from 172 hand-enumerated entries
+# (26 note titles, 23 amount labels, 14 non-exposure phrases, 72 classifier terms, 19 matter
+# types). THAT FIGURE MUST NOW COME FROM CONFIGURATION — a rulebook alias binding the caption —
+# not from a total computed here. The per-type/per-currency `classified_summary` groups remain,
+# for the narrative only.
 
 
 def _unclassified_statement(it: ContingentItem) -> str:
@@ -514,10 +521,16 @@ def _summary_paragraph(classified: list[dict], unclassified: list[ContingentItem
 
 @dataclass
 class ContingentLiabilitiesResult:
+    """One period's DISCLOSURE narrative. Prose and tables only — no figure for any LineItem.
+
+    A `total_quantifiable: Decimal | None` field used to sit between `unclassified_items` and
+    `status`, carrying the derived total onto `notes__contingent_liabilities`. It is removed with
+    the derivation; that number has to come from configuration now. Note for anyone reading old
+    call sites: the positional arity dropped by one here.
+    """
     summary_paragraph: str
     classified_summary: list[dict]
     unclassified_items: list[dict]
-    total_quantifiable: Decimal | None
     status: str
     flags: list[str] = field(default_factory=list)
 
@@ -530,10 +543,12 @@ class ContingentLiabilitiesResult:
 # amount — exactly the account a reader needs — and the stage stores all of it on
 # `DocumentModel.contingent_liabilities`. But the run RESULT carried no such key, so every
 # consumer downstream (the Excel Disclosures sheet, the JSON export, /analysis, the Disclosures
-# screen) could see only the single total that lands on `notes__contingent_liabilities`. A figure
-# with no statement of what it is made of is the one thing a credit reader cannot use: 118,754,500
-# of "contingent liabilities" is unreviewable, while "Corporate guarantees 118,754,500 across 3
-# disclosed items, pages 209-210" can be checked against the page.
+# screen) could see only the single derived total that used to land on
+# `notes__contingent_liabilities`. A figure with no statement of what it is made of is the one
+# thing a credit reader cannot use: 118,754,500 of "contingent liabilities" is unreviewable, while
+# "Corporate guarantees 118,754,500 across 3 disclosed items, pages 209-210" can be checked
+# against the page. That derived total is now REMOVED (its figure has to come from configuration),
+# which makes this working the whole of what this concept reports.
 #
 # ATTACHED TO THE DISCLOSURE ENTRY rather than threaded as a new argument through four export
 # builders and two routes: `disclosures` is one list that ALREADY flows to every one of those
@@ -589,8 +604,10 @@ def disclosure_explanation(record: dict | None) -> dict:
         "explanation": period.get("summary_paragraph") or "",
         # Sum-up by type. Per CURRENCY AND SCALE as well as type, which is `_classified_summary`'s
         # own grouping: a type disclosed in both thousands and millions is two rows, never one
-        # wrong sum, and the total on the concept's row is withheld entirely in that case
-        # (MULTIPLE_CURRENCIES_NOT_AGGREGATED) — so the breakdown is then the ONLY answer.
+        # wrong sum. There is no row total to reconcile against any more — the derived total and
+        # its MULTIPLE_CURRENCIES_NOT_AGGREGATED flag are gone, and the figure for
+        # notes__contingent_liabilities must come from configuration — so the breakdown is simply
+        # the answer this disclosure gives.
         "breakdown": breakdown,
         # A paragraph that fits no type, as one sentence with its amount.
         "statements": statements,
@@ -618,14 +635,15 @@ def _result_from(items: list[ContingentItem], extra_flags: list[str]
         flags.append("AMOUNT_NOT_DISCLOSED")
     classified = _classified_summary(items)
     unclassified = [it for it in items if it.classification == UNCLASSIFIED]
-    total, total_flags = _quantifiable_total(classified)
-    flags.extend(total_flags)
+    # No total is assembled here any more: `_quantifiable_total` and the
+    # MULTIPLE_CURRENCIES_NOT_AGGREGATED flag it raised were removed with the derivation. The
+    # figure for notes__contingent_liabilities has to come from configuration.
     return ContingentLiabilitiesResult(
         _summary_paragraph(classified, unclassified), classified,
         [{"short_statement": _unclassified_statement(it), "amount": it.amount,
           "currency": it.currency, "source_note": it.note_number, "page": it.page}
          for it in unclassified],
-        total, "COMPUTED", flags)
+        "COMPUTED", flags)
 
 
 def compute(doc: DocumentModel,
@@ -668,7 +686,7 @@ def compute(doc: DocumentModel,
         raw_items, found_note = _extract_items(doc, pk)
         if not found_note:
             out[pk] = ContingentLiabilitiesResult(
-                "", [], [], None, "NO_NOTES_FOUND", ["MISSING_CONTINGENT_LIABILITY_NOTES"])
+                "", [], [], "NO_NOTES_FOUND", ["MISSING_CONTINGENT_LIABILITY_NOTES"])
             continue
         items = _dedupe(raw_items)
         flags = ["POSSIBLE_DUPLICATE"] if any(it.duplicate_of for it in items) else []
@@ -678,15 +696,15 @@ def compute(doc: DocumentModel,
                 break
         classified = _classified_summary(items)
         unclassified = [it for it in items if it.classification == UNCLASSIFIED]
-        total, total_flags = _quantifiable_total(classified)
-        flags.extend(total_flags)
+        # As in `_result_from`: no derived total. `_quantifiable_total` summed these groups onto
+        # notes__contingent_liabilities and is removed — that figure comes from configuration now.
         out[pk] = ContingentLiabilitiesResult(
             _summary_paragraph(classified, unclassified),
             classified,
             [{"short_statement": _unclassified_statement(it),
               "amount": it.amount, "currency": it.currency,
               "source_note": it.note_number, "page": it.page} for it in unclassified],
-            total, "COMPUTED", flags)
+            "COMPUTED", flags)
     return out
 
 
@@ -756,6 +774,6 @@ def enhance_with_llm(provider: LlmProvider, result: ContingentLiabilitiesResult,
                         for it, s in zip(result.unclassified_items, narrative.unclassified_statements)]
     enhanced = ContingentLiabilitiesResult(
         narrative.summary_paragraph or result.summary_paragraph,
-        result.classified_summary, unclassified, result.total_quantifiable,
+        result.classified_summary, unclassified,
         result.status, [*result.flags, "LLM_NARRATIVE"])
     return enhanced, meta

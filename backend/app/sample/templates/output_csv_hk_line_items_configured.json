@@ -10,6 +10,7 @@
   "name": "Output CSV (HK) line items",
   "version": "2",
   "changes": [
+   "the eight output lines no longer name a service implementer. The five derivation services were REMOVED — deprec_impairment (~208 enumerated entries), contingent_liabilities (~172, its number only; its narrative survives), secur_fincl_assets (~91), related_party_receivables (~73), sales_revenues (~18): ~562 hand-enumerated note titles, row captions and formula variants in all. `implemented_by` is therefore deleted from all eight and every figure must now come from configuration. The six cascade-less lines (is_pl__sales_revenues, bs_ca__secur_and_other_fincl_assets_cp, bs_nca__secur_and_other_fincl_assets_ltp, bs_nca__due_from_related_parties_ltp, bs_ca__other_receivables_cp, notes__contingent_liabilities) are `extracted`, which is what `extraction_mode` already says; the two depreciation lines stay `derived` on their own cascades (P1-P5, COS_P1/COS_P2). Cells these services used to fill go blank until the configuration reads them off a caption — that is the intended outcome, so do not reinstate a service name here",
    "merged the ontology's scoping layer in: statement + section_scope via `inherits`",
    "children of the two depreciation lines marked `alternatives`, never summed",
    "COS_P2 restored — the first port dropped a rung the service has",
@@ -1274,7 +1275,6 @@
    "type": "derived",
    "in_output": true,
    "order": 1,
-   "implemented_by": "deprec_impairment",
    "inherits": "is_pl",
    "rollup": "alternatives",
    "description": "Depreciation charged to operating expenses. Never printed as one caption — assembled from the notes and resolved by trying the rungs in order.",
@@ -1392,7 +1392,6 @@
    "type": "derived",
    "in_output": true,
    "order": 2,
-   "implemented_by": "deprec_impairment",
    "inherits": "is_pl",
    "rollup": "alternatives",
    "description": "Depreciation charged to cost of sales. Read from the cost-of-sales note.",
@@ -1429,10 +1428,9 @@
   {
    "key": "is_pl__sales_revenues",
    "label": "Sales (Revenues)",
-   "type": "derived",
+   "type": "extracted",
    "in_output": true,
    "order": 3,
-   "implemented_by": "sales_revenues",
    "description": "The top line. Priority 1 is the face caption the spec accepts; Priority 2 is the revenue note's own total.",
    "inherits": "is_pl",
    "rollup": "none"
@@ -1440,10 +1438,9 @@
   {
    "key": "bs_ca__secur_and_other_fincl_assets_cp",
    "label": "Secur & Other Fincl Assets (CP)",
-   "type": "derived",
+   "type": "extracted",
    "in_output": true,
    "order": 4,
-   "implemented_by": "secur_fincl_assets",
    "description": "Current-portion securities and other financial assets, net of the pools carved out of it.",
    "inherits": "bs_ca",
    "rollup": "none"
@@ -1451,10 +1448,9 @@
   {
    "key": "bs_nca__secur_and_other_fincl_assets_ltp",
    "label": "Secur & Other Fincl Assets (LTP)",
-   "type": "derived",
+   "type": "extracted",
    "in_output": true,
    "order": 5,
-   "implemented_by": "secur_fincl_assets",
    "description": "The long-term portion, plus any negative current-portion carryforward.",
    "inherits": "bs_nca",
    "rollup": "none"
@@ -1462,10 +1458,9 @@
   {
    "key": "bs_nca__due_from_related_parties_ltp",
    "label": "Due from Related Parties (LTP)",
-   "type": "derived",
+   "type": "extracted",
    "in_output": true,
    "order": 6,
-   "implemented_by": "related_party_receivables",
    "description": "The largest valid of three searches — the receivable notes, the related-party grouping, and the related-party transactions note.",
    "inherits": "bs_nca",
    "rollup": "none"
@@ -1473,10 +1468,9 @@
   {
    "key": "bs_ca__other_receivables_cp",
    "label": "Other Receivables (CP)",
-   "type": "derived",
+   "type": "extracted",
    "in_output": true,
    "order": 7,
-   "implemented_by": "related_party_receivables",
    "description": "Gross other receivables less the related-party amount carved out of them.",
    "inherits": "bs_ca",
    "rollup": "none"
@@ -1484,10 +1478,9 @@
   {
    "key": "notes__contingent_liabilities",
    "label": "Contingent liabilities",
-   "type": "derived",
+   "type": "extracted",
    "in_output": true,
    "order": 8,
-   "implemented_by": "contingent_liabilities",
    "description": "Guarantees, letters of credit, performance bonds and bank guarantees, summed by type.",
    "inherits": "notes",
    "rollup": "none"

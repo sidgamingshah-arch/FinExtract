@@ -247,8 +247,12 @@ def test_a_narrative_only_note_keeps_its_fragment():
     """The empty-fragment filter must not delete a note that legitimately has no rows.
 
     A contingent-liability disclosure or an auditor's paragraph is prose with no detail table at
-    all. It is the only fragment for its number, so there is nothing for it to duplicate — and
-    services.contingent_liabilities reads exactly such a note.
+    all. It is the only fragment for its number, so there is nothing for it to duplicate — and the
+    surviving NARRATIVE half of services.contingent_liabilities reads exactly such a note. Its
+    number half — a Decimal published onto `notes__contingent_liabilities` off ~172 enumerated note
+    titles, amount labels, classifiers and matter types — was REMOVED and that figure must now come
+    from configuration; the disclosure paragraph is what still needs this fragment kept, and the
+    Disclosures screen and the CSV export are what read it.
     """
     from app.services.notes_extract import without_empty_duplicates
 

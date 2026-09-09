@@ -3,9 +3,13 @@
 The eight output lines and their sub-line items are configuration now, so the questions these
 tests answer are the ones a configurator has to get right before anyone trusts it: does it refuse
 a formula that cannot be computed, does it evaluate inputs before the things that need them, and
-does its arithmetic behave the way the shipped cascades behave. The last one matters most — the
-config is a PORT of `deprec_impairment`'s five rungs, and a port that quietly disagrees is worse
-than no port at all.
+does its arithmetic behave the way the shipped cascades say it behaves. The last one matters most,
+and it changed character: the five-rung cascade below used to be a PORT of `services.deprec_impairment`
+(~208 hand-enumerated note titles, row captions and formula variants), and these tests checked the
+port against the service. That service is DELETED and the figure must now come from configuration,
+so there is nothing left to be a parity check against — the shipped cascade IS the definition of
+the arithmetic, which makes every assertion here more load-bearing, not less. Retired pins for the
+removed service live in test_retired_derivations.py.
 
 The last section adds the two facts the Line Items EDITOR is built on. The screen was read-only,
 and a read-only screen may render whatever it likes: nothing it shows can be refused, and nothing
@@ -46,10 +50,13 @@ def _sub(key: str, parent: str = OPER) -> LineItemDef:
 
 
 def _deprec_cascade() -> LineItemDef:
-    """The five rungs as the generated configuration states them."""
+    """The five rungs as the generated configuration states them — the only statement of them left.
+
+    `implemented_by` is a neutral label here on purpose: no service implements this line any more.
+    """
     r = lambda k, sign=1, role="required": Term(ref=k, sign=sign, role=role)
     return LineItemDef(
-        key=OPER, type="derived", in_output=True, implemented_by="deprec_impairment",
+        key=OPER, type="derived", in_output=True, implemented_by="rulebook_derivation",
         cascade=[
             CascadeRung(id="P1", terms=[r(k, 1, "any_of") for k in OPEX_SUBS]),
             CascadeRung(id="P2", terms=[r("sub__pbt_oper_exp_depreciation")]),
@@ -65,7 +72,7 @@ def _registry():
                "sub__pbt_depreciation"]]
     subs.append(_sub(COS, parent="is_pl__deprec_and_impairment_cos"))
     subs.append(LineItemDef(key="is_pl__deprec_and_impairment_cos", type="derived",
-                            implemented_by="deprec_impairment",
+                            implemented_by="rulebook_derivation",
                             cascade=[CascadeRung(id="COS_P1", terms=[Term(ref=COS)])]))
     return build(subs + [_deprec_cascade()])
 
@@ -294,7 +301,7 @@ def test_sub_line_items_that_do_not_come_to_their_parent_are_a_warning_not_a_ref
     """A filing routinely discloses only some of the parts, so a disagreement is a reviewer's
     business rather than a reason to publish nothing."""
     reg = build([_sub("sub__a"), _sub("sub__b"),
-                 LineItemDef(key=OPER, type="derived", implemented_by="deprec_impairment")])
+                 LineItemDef(key=OPER, type="derived", implemented_by="rulebook_derivation")])
     for d in reg.by_key.values():
         if d.key.startswith("sub__"):
             d.parent = OPER
@@ -307,7 +314,7 @@ def test_sub_line_items_that_do_not_come_to_their_parent_are_a_warning_not_a_ref
 
 def test_a_parent_whose_children_do_sum_raises_nothing():
     reg = build([_sub("sub__a"), _sub("sub__b"),
-                 LineItemDef(key=OPER, type="derived", implemented_by="deprec_impairment")])
+                 LineItemDef(key=OPER, type="derived", implemented_by="rulebook_derivation")])
     for d in reg.by_key.values():
         if d.key.startswith("sub__"):
             d.parent = OPER

@@ -46,10 +46,6 @@ def default_pipeline() -> Pipeline:
     from app.stages.map_ontology import MapOntologyStage
     from app.stages.normalize import NormalizeStage
     from app.stages.link_notes import LinkNotesStage
-    from app.stages.deprec_impairment import DeprecImpairmentStage
-    from app.stages.secur_fincl_assets import SecurFinclAssetsStage
-    from app.stages.related_party_receivables import RelatedPartyReceivablesStage
-    from app.stages.sales_revenues import SalesRevenuesStage
     from app.stages.contingent_liabilities import ContingentLiabilitiesStage
     from app.stages.reconcile import ReconcileStage
     from app.stages.confidence import ConfidenceStage
@@ -75,24 +71,22 @@ def default_pipeline() -> Pipeline:
         ResidualStage(),
         NormalizeStage(),
         LinkNotesStage(),
-        # Deprec & Impairment (Oper Exp)/(COS) are assembled from note-level datasets, never a
-        # single printed caption — resolved here, after notes are linked and units normalized, so
-        # the reconcile/structural checks below see the computed figure rather than a blank cell.
-        DeprecImpairmentStage(),
-        # Same reasoning for Secur & Other Fincl Assets (CP)/(LTP): note totals less proven
-        # deductions, with the unabsorbed Level 3 fair-value amount carried from CP into LTP.
-        SecurFinclAssetsStage(),
-        # Due from Related Parties (LTP)/Other Receivables (CP): the highest of three independent
-        # related-party measurements, and a gross receivable pool less its own proven deduction.
-        RelatedPartyReceivablesStage(),
-        # Sales(Revenues): the face reading stands (ordinary alias mapping, above); this only fills
-        # a (basis, period) the face left with no value, from the 主营业务/主营业务收入 row of a
-        # 营业收入 note — never the note's own combined total.
-        SalesRevenuesStage(),
-        # Contingent Liabilities: a classified narrative + tables, not a single figure — see
-        # services.contingent_liabilities. The quantifiable total also lands on the ordinary
-        # notes__contingent_liabilities LineItem, for grid/export consistency with every other
-        # Notes-statement leaf.
+        # REMOVED: four derivation stages used to run here, between LinkNotesStage and
+        # ContingentLiabilitiesStage — deprec_impairment (532 lines, ~208 enumerated entries),
+        # secur_fincl_assets (619 lines, ~91), related_party_receivables (690 lines, ~73) and
+        # sales_revenues (129 lines, ~18), plus the number half of contingent_liabilities
+        # (~172 enumerated branches: 26 note titles, 23 amount labels, 14 non-exposure phrases,
+        # 72 classifiers, 19 matter types). Between them they COMPUTED six output lines —
+        # Deprec & Impairment (Oper Exp)/(COS), Secur & Other Fincl Assets (CP)/(LTP), Due from
+        # Related Parties (LTP)/Other Receivables (CP), Sales(Revenues) and the
+        # notes__contingent_liabilities figure — out of hand-enumerated note titles, row captions
+        # and formula variants rather than reading a caption the configuration describes.
+        # Those figures must now come from CONFIGURATION: the line-item set's aliases and
+        # cascades. Nothing in the pipeline computes them, so a cell with no configured source
+        # is blank by design — do not reinstate a stage here to fill it.
+        # Contingent Liabilities: publishes a classified narrative + tables only — a paragraph
+        # for a human to read, not a number — see services.contingent_liabilities. It keeps its
+        # position here, after notes are linked, because the narrative is built from linked notes.
         ContingentLiabilitiesStage(),
         ReconcileStage(),
         # Only notes cited from the face of the statements are published — after reconcile,

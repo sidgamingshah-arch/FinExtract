@@ -1,14 +1,23 @@
 """How a computed figure was reached, in the shape the statement inspector already renders.
 
-The eight concepts governed by docs/*_Extraction_Logic*.md are assembled from note-level datasets
-rather than read off a caption, and each service builds a full evidence trail while doing it. That
-trail used to end at the stage: only the FIRST evidence item's page reference survived, as the
-value's provenance, and the rest was dropped. What a reviewer saw was `computed:deprec_impairment:P3`
-and one page number — the priority that won, but not the figures it won with.
+A figure assembled out of note-level datasets rather than read off a caption is not checkable on
+its own, so whatever assembles it records which rule won and which note lines it consumed. This
+module is the READER of that trail: it shapes a stored ``derivation`` payload for the statement
+inspector. The trail used to end at the stage — only the FIRST evidence item's page reference
+survived, as the value's provenance, and the rest was dropped, so a reviewer saw a rule name and
+one page number but not the figures it won with.
 
-A row's derivation is stored per ``basis:period``, because that is the granularity the services
-compute at: Oper Exp for the current year and for the prior year are two separate cascades that may
-resolve at different priorities from different notes. :func:`merge_for_basis` folds the two periods
+THE IN-APP WRITERS ARE GONE. The four derivation services that used to build these payloads —
+each computing an output line out of a hand-enumerated list of note titles, row captions and
+formula variants — were removed along with the rest of the filing-specific derivation logic; those
+figures must now come from the configuration. Nothing in the app writes a `derivation` on a row
+today. These functions stay because their readers are live and the payload is durable: rows in
+``extraction_runs.result`` from earlier runs still carry it, and a configuration-driven source is
+free to record the same shape.
+
+A row's derivation is stored per ``basis:period``, because that is the granularity these figures
+are computed at: Oper Exp for the current year and for the prior year are two separate cascades
+that may resolve at different priorities from different notes. :func:`merge_for_basis` folds the two periods
 back into one contributions list, so a reader sees each input once with both of its figures beside
 it — the same shape `item_row` builds for a concept combined from several printed lines, and
 therefore the same rendering, with no new UI.
@@ -32,11 +41,10 @@ def _identity(item: dict) -> tuple:
 
 
 def _json_safe_provenance(prov: Any) -> dict | None:
-    """A provenance as a PLAIN DICT, whatever the service handed over.
+    """A provenance as a PLAIN DICT, whatever the caller handed over.
 
-    Every one of the six services that feeds this function stores ``ev.provenance`` — a
-    ``Provenance`` pydantic MODEL, not a dict (deprec_impairment, related_party_receivables,
-    sales_revenues and secur_fincl_assets, seven call sites). A derivation is written to a row and
+    An evidence record's ``provenance`` is routinely a ``Provenance`` pydantic MODEL rather than a
+    dict, and this is the boundary where that becomes fatal. A derivation is written to a row and
     the row is written to ``extraction_runs.result``, a JSON column, so a model object reaching
     this far ends the run: the flush raises ``TypeError: Object of type Provenance is not JSON
     serializable``, SQLAlchemy rolls the transaction back, and the ``status='succeeded'`` in the
@@ -44,9 +52,9 @@ def _json_safe_provenance(prov: Any) -> dict | None:
     ``running`` with a null result, for ever.
 
     Coerced HERE rather than at the serialization boundary because this is where the object enters
-    the derivation payload, so one conversion covers all seven call sites and every consumer
-    downstream gets the same shape. ``_src_label`` below already hedged with ``isinstance(prov,
-    dict)``, which is the same problem noticed and worked around instead of fixed.
+    the derivation payload, so one conversion covers every caller and every consumer downstream
+    gets the same shape. ``_src_label`` below already hedged with ``isinstance(prov, dict)``,
+    which is the same problem noticed and worked around instead of fixed.
     """
     if prov is None or isinstance(prov, dict):
         return prov

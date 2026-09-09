@@ -31,6 +31,27 @@ Four files land in `--out`:
 wrong number but a caption nothing claimed, and `rulebook_recorded` differing from
 `rulebook_requested` explains a wrong figure on its own.
 
+## `build_line_items.py` — rebuild the line-item seed (ONE step)
+
+Merges the rulebook's 462 concepts with the configurator's own 21 definitions — the **8 merged
+output lines** and the **13 `sub__*` note-level parts** — into
+`app/sample/templates/output_csv_hk_line_items.json`.
+
+```bash
+cd backend
+../.venv/Scripts/python.exe scripts/build_line_items.py
+```
+
+The rebuild used to be two steps: `generate_line_items.py` derived those 21 definitions from
+`services.deprec_impairment`'s module constants (the note-title patterns, ~25 qualifying row
+captions, the movement exclusions and the two cascades — P1–P5 for the operating-expense
+depreciation line, COS_P1/COS_P2 for the cost-of-sales one), and this script merged them. The five
+derivation services were removed, the generator's module-level import of them failed, and it was
+retired with them. So `output_csv_hk_line_items_configured.json` is now **hand-maintained** — its
+note titles, row captions, exclusions and cascade rungs are authored, not generated — and any
+figure those enumerated branches used to produce must now come from that configuration, or the
+cell is blank. There is no generator to recreate the file: restore it from version control.
+
 ## `live_analysis.py` — real Claude extraction + analysis for one entity
 
 Feeds an entity's line items to Claude through the project's real `AnthropicLlmProvider`
