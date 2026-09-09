@@ -419,6 +419,21 @@ def _apply_result(li, result) -> bool:
             # because a reviewer looking at the comprehensive-income bottom line needs to
             # see that the caption on the page said "loss for the year".
             li.confidence.flags.append(f"section_reroute_from:{result.rerouted_from}")
+        if getattr(result, "role", "whole") == "component":
+            # ONE PART OF THE FIGURE, NOT THE FIGURE. A line item's amount is often the sum of
+            # several printed rows — a note splitting depreciation by function prints four, and
+            # all four belong on the operating-expense line. The rows are left where they are and
+            # marked; `services.assemble_components` adds them up afterwards and writes the
+            # derivation trail, because summing here would mean each row overwriting the last as
+            # the loop reached it.
+            #
+            # MARKED RATHER THAN INFERRED. "Two rows share a key" cannot distinguish a genuine
+            # component from a face line repeating the note total behind it — the second is the
+            # same figure twice and adding it overstates the line. So only a row the model
+            # DECLARED a component is summed, and two undeclared rows on one key stay the
+            # `ambiguous_mapping` they have always been.
+            li.confidence.flags.append(f"component_of:{result.canonical_key}")
+            li.confidence.flags.append(f"component_sign:{result.sign}")
         if result.needs_review:
             li.confidence.flags.append("low_mapping_confidence")
         return True

@@ -558,9 +558,22 @@ def test_the_response_budget_is_measured_from_the_response_envelope(v2):
     assert matcher._effective_batch_max_tokens(25) == floor
     assert matcher._effective_batch_max_tokens(15) == floor
     assert matcher._effective_batch_max_tokens(80) < get_settings().llm.max_tokens
-    # And the per-item slope is what was measured, not a round number someone liked.
-    assert (OntologyMatcher._batch_max_tokens(2)
-            - OntologyMatcher._batch_max_tokens(1)) == 80
+    # AND THE PER-ITEM SLOPE COVERS WHAT ONE DECISION ACTUALLY COSTS — derived from the envelope
+    # above, not hardcoded.
+    #
+    # It read `== 80` and that is what made this test wrong when the reply schema grew: `role` and
+    # `sign` added ~26 characters a decision, so a full 25-item batch needed about 2,288 tokens
+    # against the 2,256 the 80 allowed. The measurement above caught the shortfall and this line
+    # then failed for the opposite reason — it required the slope to stay at the number that no
+    # longer fit. A test that measures the cost and then pins the allowance to a literal only
+    # agrees with itself until the schema moves.
+    slope = OntologyMatcher._batch_max_tokens(2) - OntologyMatcher._batch_max_tokens(1)
+    per_item = (len(envelope) / 3) / OntologyMatcher.BATCH_MAX_ITEMS
+    assert slope >= per_item, (
+        f"the slope allows {slope} tokens a decision and one costs about {per_item:.0f} — a full "
+        f"batch would truncate, and a truncated reply does not parse")
+    # …and is not wildly generous either, since the slope is also what sizes the request.
+    assert slope <= per_item * 1.5, (slope, per_item)
 
 
 def test_small_batch_budget_is_measured_from_the_response_not_the_global_cap(v2):

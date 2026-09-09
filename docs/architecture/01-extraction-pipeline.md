@@ -7,14 +7,14 @@ results are available (`app/core/pipeline.py::Pipeline.run`).
 
 ## Stages
 
-**Seventeen stages, assembled by `app/core/pipeline.py::default_pipeline()`.** That
+**Eighteen stages, assembled by `app/core/pipeline.py::default_pipeline()`.** That
 function is the only place the order is stated; `api/routes/extractions.py::pipeline_stage_names`
 reads the list off it rather than keeping a copy, and the run row records the list it was
 queued with. Do not add a third copy — the list below names each stage and its file, and
 its order is `default_pipeline()`'s:
 
 `ingest · integrity · language_detect · classify · extract · map_line_items · residual ·
-normalize · link_notes · contingent_liabilities · reconcile · prune_notes · confidence ·
+normalize · link_notes · contingent_liabilities · assemble_components · reconcile · prune_notes · confidence ·
 gap_closing · face_mapping_contract · structural · segment`
 
 **Why the list is four stages shorter, and why six output lines are now blank.** Five
@@ -186,21 +186,38 @@ The face and its cited notes are processed in this order:
     blank, deliberately. Specification for the tuning:
     `docs/PRC_Contingent_Liabilities_Extraction_Logic_Revised.md`.
 
-11. **Reconcile** (`stages/reconcile.py` + `services/reconcile.py`) — the §20 subtraction
+11. **Assemble components** (`stages/assemble_components.py` +
+    `services/assemble_components.py`) — SEVERAL PRINTED ROWS MAY BE ONE LINE ITEM'S FIGURE. A
+    note that splits a total by function prints four rows that all belong on one line; before
+    this, two rows on one concept was an `ambiguous_mapping` and the line went unfilled, because
+    that flag cannot tell a genuine component set from a face line repeating the note total behind
+    it. Those two cases are indistinguishable afterwards — both produce a bigger number on a
+    statement that still balances — so the MODEL DECLARES which it is (`LlmBatchItem.role`,
+    `"whole"` or `"component"`, with a `sign`), the mapper marks the row, and only a declared
+    component is summed here. Two undeclared rows on one key stay ambiguous. A declared component
+    sitting beside a row that states the whole figure is REFUSED and flagged rather than resolved
+    either way, because both readings invent a total the filing does not print. Each contribution
+    is recorded through `services/derivation.py` — the caption, note and page off the ROW's own
+    provenance, the model's reason for including it, and the sign and total — which is what the
+    statement inspector already renders as contributions with click-to-source. **Nothing here
+    enumerates a caption:** which rows are components was decided by the configuration and the
+    model. Runs after `normalize` (components must share a scale and sign before they are added)
+    and before `reconcile` (which checks the assembled figure against a printed subtotal).
+12. **Reconcile** (`stages/reconcile.py` + `services/reconcile.py`) — the §20 subtraction
     and the note→face tie grading (see [03-reconciliation](03-reconciliation.md)).
-12. **Prune notes** (`stages/prune_notes.py`) — publishes only the notes a face line
+13. **Prune notes** (`stages/prune_notes.py`) — publishes only the notes a face line
     actually references; accounting policies, governance tables and subsequent events are
     noise in the notes index, the export and the review queue. Runs *after* reconcile,
     which needs every extracted note to check the ties. Nothing is deleted from the source
     or from provenance — the log records exactly what was dropped.
-13. **Confidence** (`stages/confidence.py`) — sets the `validation` sub-signal on extracted
+14. **Confidence** (`stages/confidence.py`) — sets the `validation` sub-signal on extracted
     values from the checks available at this point (the balance-sheet identity per
     (basis, period), and the note→face tie from the reconcile report), so
     `ConfidenceVector.overall` is capped by participation in a failed check rather than
     reporting a clean OCR/mapping as confident. The row-based rule catalog that populates
     the review queue runs at the API layer instead — see
     [02-data-model-and-schemas](02-data-model-and-schemas.md#validation-engine-feeds-the-review-queue).
-14. **Gap closing** (`stages/gap_closing.py` + `services/gap_closing.py`) — a subtotal that
+15. **Gap closing** (`stages/gap_closing.py` + `services/gap_closing.py`) — a subtotal that
     still does not tie may be missing a line the mapper could not place. **Arithmetic
     proposes and the model disposes**: only a subset of leftovers that closes the gap in
     *both* periods within tolerance is offered (one period is a coincidence, two is
@@ -211,7 +228,7 @@ The face and its cited notes are processed in this order:
     and on a non-`stub` provider; with neither, the gap stays a review item, which is the
     honest outcome. Confirmed routings are kept on `DocumentModel.gap_routings` so the
     decision is inspectable rather than an unexplained change of mapping.
-15. **Face mapping contract** (`stages/face_mapping_contract.py`) — the final mapping
+16. **Face mapping contract** (`stages/face_mapping_contract.py`) — the final mapping
    invariant for a run carrying a line-item set. Every face row with a value must either have
    a canonical key or be a verified non-additive aggregate replaced by mapped components.
    Anything else receives a unique `engine_unclassified_face` key outside every line-item and
@@ -219,7 +236,7 @@ The face and its cited notes are processed in this order:
    any calculation. It is never assigned a neighbouring real line item merely to make the
    unmapped count zero. Extraction-only runs that carry no line-item set skip this gate because
    they are not mapping runs.
-16. **Structural** (`stages/structural.py` + `services/structural_checks.py`) — runs the
+17. **Structural** (`stages/structural.py` + `services/structural_checks.py`) — runs the
     arithmetic the template and the rulebook *declare*: template `rollup`s and statement
     `identities`, the rulebook's `validation.identities`, its
     `validation.cross_concept_guards` and its `validation.section_reconciliation`. Every
@@ -227,7 +244,7 @@ The face and its cited notes are processed in this order:
     carrying a classifiable `reason` (`services/coverage.py`), so partial coverage is
     visible rather than implied. A failure flags the participating line items and values.
 
-17. **Segment** (`stages/segment.py` + `services/buckets.py`) — files every face row and
+18. **Segment** (`stages/segment.py` + `services/buckets.py`) — files every face row and
     every note into the **thirteen face sections** an analyst reads a filing in, plus Others:
     the balance sheet's five (current / non-current assets, current / non-current
     liabilities, equity & reserves), the income statement's four (income, expenses,

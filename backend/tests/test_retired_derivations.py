@@ -306,7 +306,15 @@ def test_the_four_derivation_stages_left_the_pipeline_and_the_disclosure_stage_d
         assert retired not in names, (
             f"stage {retired!r} is back in the pipeline. Nothing computes these figures now — "
             f"they come from the line-item configuration.")
-    assert len(names) == 17, names
+    # 18, NOT 17. `assemble_components` was added after this test was written, and it is the
+    # opposite of what the four retired stages were: it enumerates no caption and computes no
+    # figure of its own — it adds up the rows the CONFIGURATION and the model between them
+    # identified as components of one line, which is how a line whose amount is printed as several
+    # rows gets filled without a service written for it.
+    assert len(names) == 18, names
+    assert "assemble_components" in names, (
+        "the component assembly is gone, so a line item printed as several rows cannot be filled "
+        "at all — that is not a return to the derivations, it is the loss of their replacement")
     assert SURVIVING_STAGE_NAME in names, (
         "the contingent-liabilities stage is gone — that removal took the NARRATIVE with it and "
         "breaks the Disclosures screen and the export. Only its number was to be removed.")

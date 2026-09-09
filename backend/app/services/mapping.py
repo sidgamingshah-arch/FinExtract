@@ -48,6 +48,8 @@ on its own.
 """
 from __future__ import annotations
 
+from typing import Literal
+
 import json
 import re
 import threading
@@ -83,6 +85,30 @@ class LlmBatchItem(BaseModel):
     confidence: float = Field(ge=0, le=1)
     allocation_status: str = ""
     reason: str = Field(default="", description="brief justification grounded in meaning/criteria")
+    # IS THIS ROW THE WHOLE FIGURE, OR ONE PART OF IT?
+    #
+    # WHY THE MODEL HAS TO SAY. A line item's figure is often the SUM of several printed rows — a
+    # note that splits depreciation by function prints four, and all four belong on the operating
+    # expense line. But a face line repeating a note total is the SAME figure printed twice, and
+    # adding those two overstates the line. Both cases look identical afterwards: a bigger number,
+    # on a statement that still balances because the parent's own row was consumed. Nothing
+    # downstream can tell them apart, which is why this is declared rather than inferred from "two
+    # rows share a key".
+    #
+    # `whole` is the default and the conservative answer: two rows both claiming to be the whole
+    # figure stay an `ambiguous_mapping`, which is the protection that already exists. `component`
+    # is what licenses the sum, and it commits the model to a claim the reconciliation can then
+    # check — a component set whose total does not tie to the printed subtotal shows up.
+    role: Literal["whole", "component"] = Field(
+        default="whole",
+        description='"whole" if this row IS the figure for that concept; "component" if it is one '
+                    'part of it and other rows supply the rest')
+    # THE ARITHMETIC, for a component. A cascade spelled "the wider disclosure less the
+    # cost-of-sales share" consumes one of its inputs negatively, and a contributions list that
+    # shows it positive does not add up to the figure above it.
+    sign: Literal[-1, 1] = Field(
+        default=1,
+        description="+1 if this component is added, -1 if it is subtracted; ignored for `whole`")
 
 
 class LlmBatchDecision(BaseModel):
@@ -150,7 +176,19 @@ _LLM_REPLY_CONTRACT = (
     "what it is worth.\n"
     "- If no candidate genuinely fits, return an empty canonical_key. That is a valid answer.\n"
     "- Return calibrated confidence in [0,1] (high only when unambiguous), and when it is clear, "
-    "an allocation_status describing how the value relates to parents/children."
+    "an allocation_status describing how the value relates to parents/children.\n"
+    "- SEVERAL ROWS MAY BELONG ON ONE CONCEPT, and you must say which case you are in. Set "
+    "`role` to \"component\" when this row is one PART of that concept's figure and other rows "
+    "supply the rest — a note that splits a total by function prints several rows and all of them "
+    "belong on the one line. Set `role` to \"whole\" (the default) when this row IS the figure. "
+    "Do NOT mark a row as a component when it repeats an amount another row already accounts for: "
+    "a face line and the note total behind it are the same figure printed twice, and adding them "
+    "overstates the line. If you are unsure, answer \"whole\" — a duplicate declared whole is "
+    "caught, a duplicate declared component is added silently.\n"
+    "- For a component, set `sign` to -1 when it is SUBTRACTED and +1 when it is added, and give "
+    "`reason` for that row specifically — which criterion or wording makes it part of this "
+    "concept. Each component's own page, note and caption are already recorded, so `reason` is "
+    "the one part of the trace only you can supply."
 )
 
 # The shipped judgement wording, seeded into `LineItemSet.prompt`. Kept here as the source of that
@@ -803,6 +841,14 @@ class MappingResult:
     rerouted_from: str | None = None                        # see Candidate.rerouted_from
     # See Candidate.reason. Set only when the winning method is LLM.
     reason: str | None = None
+    # WHETHER THIS ROW IS THE WHOLE FIGURE FOR ITS CONCEPT, OR ONE PART OF IT — the model's own
+    # declaration (`LlmBatchItem.role`), carried through so `_apply_result` can act on it. Only
+    # ever "component" when the semantic tier said so: the deterministic tiers answer "which
+    # concept is this caption", which is not a claim about completeness, so they leave it "whole"
+    # and two of them on one key stay the `ambiguous_mapping` they have always been.
+    role: str = "whole"
+    # +1 added, -1 subtracted. Meaningless unless `role` is "component".
+    sign: int = 1
     # Set when the row was left unmapped because its caption names a concept the framework COMPUTES
     # (`OntologyMatcher._computed_claim`). Carried, not merely counted, because the caller has to act
     # on it: such a row is a subtotal, and an unclaimed face row with a value is otherwise swept into
@@ -2637,7 +2683,16 @@ class OntologyMatcher:
     # chars) with an allocation_status set — measured by dumping the model, not estimated from the
     # schema. JSON made of UUIDs and long snake_case identifiers tokenises at roughly three
     # characters per token, so one decision costs about 80 response tokens.
-    _BATCH_RESPONSE_TOKENS_PER_ITEM = 80
+    #
+    # RAISED FROM 80 TO 95 when `role` and `sign` were added to the reply, and the test that
+    # measures the envelope is what caught it: a 25-item batch serialises to 6,864 characters —
+    # about 2,288 tokens — against the 2,256 the old slope allowed. Thirty-two tokens short of a
+    # full batch, which does not degrade gracefully. A truncated reply is not a partial answer: the
+    # JSON fails to parse, the whole chunk falls back to per-line matching, the cross-line context
+    # the batch existed for is lost, and the run still reports itself as LLM-mapped. `"role":
+    # "whole","sign":1` is ~26 characters, so the slope has to move with the schema — which is
+    # exactly why that test measures rather than asserting a number.
+    _BATCH_RESPONSE_TOKENS_PER_ITEM = 95
     _BATCH_RESPONSE_RESERVE = 256          # the envelope itself, plus a margin against truncation
     # A transport chunk, not a semantic boundary: section results are carried into the second-level
     # statement pass as preliminary mappings. This only bounds one structured response's size.
@@ -2984,13 +3039,24 @@ class OntologyMatcher:
             alloc = (d.allocation_status or "").strip() or (
                 "direct_exclusive" if self._by_key[key].value_scope == "exclusive_leaf" else None)
             reason = (d.reason or "").strip() or None
+            # THE MODEL'S COMPLETENESS DECLARATION, carried through unchanged. `role` is only ever
+            # "component" because the model said so — a component licenses the sum and, unlike
+            # "whole", is a claim the reconciliation can check. Read defensively: an older model
+            # or a reply that omits the field is "whole", which is the conservative answer and
+            # keeps the pre-existing `ambiguous_mapping` protection in force.
+            role = getattr(d, "role", "whole") or "whole"
+            sign = -1 if int(getattr(d, "sign", 1) or 1) < 0 else 1
+            with self._usage_lock:
+                if role == "component":
+                    self.usage["components_declared"] = (
+                        self.usage.get("components_declared", 0) + 1)
             out[d.item_id] = MappingResult(
                 canonical_key=key, method=MappingMethod.LLM, confidence=conf,
                 candidates=[Candidate(key, MappingMethod.LLM, conf, rerouted_from=rerouted_from,
                                       reason=reason)],
                 needs_review=conf < acc, scores={"llm": conf},
                 allocation_status=alloc, agreement=["llm"], rerouted_from=rerouted_from,
-                reason=reason,
+                reason=reason, role=role, sign=sign,
             )
         missing = [(iid, label) for iid, label in items if iid not in answered_ids]
         if missing and require_complete:

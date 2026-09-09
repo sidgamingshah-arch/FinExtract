@@ -44,6 +44,7 @@ def default_pipeline() -> Pipeline:
     from app.stages.classify import ClassifyStage
     from app.stages.extract import ExtractStage
     from app.stages.map_ontology import MapOntologyStage
+    from app.stages.assemble_components import AssembleComponentsStage
     from app.stages.normalize import NormalizeStage
     from app.stages.link_notes import LinkNotesStage
     from app.stages.contingent_liabilities import ContingentLiabilitiesStage
@@ -88,6 +89,19 @@ def default_pipeline() -> Pipeline:
         # for a human to read, not a number — see services.contingent_liabilities. It keeps its
         # position here, after notes are linked, because the narrative is built from linked notes.
         ContingentLiabilitiesStage(),
+        # SEVERAL PRINTED ROWS MAY BE ONE LINE ITEM'S FIGURE — a note splitting a total by
+        # function prints four rows that all belong on one line. Before this, two rows on one
+        # concept was an `ambiguous_mapping` and the line went unfilled, because that flag cannot
+        # tell a genuine component set from a face line repeating the note total behind it.
+        #
+        # THE MODEL DECLARES WHICH IT IS (`LlmBatchItem.role`), the mapper marks the row, and this
+        # adds up only what was declared — so a duplicate stays ambiguous while a component set
+        # sums, and each contribution carries its page, its caption and the model's reason for
+        # including it. Nothing here enumerates a caption; the rows come from configuration.
+        #
+        # AFTER normalize (components must share a scale and sign before they are added) and
+        # BEFORE reconcile (which has to check the assembled figure against a printed subtotal).
+        AssembleComponentsStage(),
         ReconcileStage(),
         # Only notes cited from the face of the statements are published — after reconcile,
         # which needs every extracted note to check the note->face ties.
