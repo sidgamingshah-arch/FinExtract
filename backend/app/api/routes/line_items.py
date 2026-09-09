@@ -1520,6 +1520,122 @@ def edit_line_item(version_id: str, body: ItemEdit,
     return out
 
 
+class ItemCreate(BaseModel):
+    """A NEW line item, added beyond what the template asked for.
+
+    Only `key` and `label` are taken. Everything else is configured afterwards through the edit
+    endpoint, which is the one place that knows how to validate each field and how to attribute a
+    refusal to the control that caused it — a create that accepted the whole shape would be a
+    second, thinner spelling of that.
+    """
+
+    key: str
+    label: str | None = None
+    inherits: str | None = None
+
+
+@router.post("/versions/{version_id}/items", status_code=201, dependencies=[_GATE])
+def add_line_item(version_id: str, body: ItemCreate,
+                  session: Session = Depends(db)) -> dict:
+    """Add a line item, as `namespace: "internal"`, by publishing a NEW version.
+
+    The rule this serves: a template provisions its own lines, and an author may ADD to that set
+    but never delete from it. So everything created here is `internal` — the author's own — and
+    `template` is not a namespace a request can ask for. A key the template DOES declare is refused
+    rather than quietly created as internal, because that item already exists and the author means
+    to edit it.
+    """
+    from app.db.models import LineItemVersion
+
+    row = session.get(LineItemVersion, version_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Line-item version not found")
+
+    definition = copy.deepcopy(row.definition or {})
+    items = definition.get("items")
+    if not isinstance(items, list):
+        raise HTTPException(status_code=422, detail="This version has no items to add to")
+
+    key = (body.key or "").strip()
+    if not key:
+        _refuse([_err("key", "a line item needs a key")], what="This item was not added")
+    if any(d.get("key") == key for d in items):
+        _refuse([_err("key", f"{key!r} already exists in this configuration — edit it instead")],
+                error="duplicate_key", what="This item was not added")
+
+    item: dict = {"key": key, "label": (body.label or "").strip() or key,
+                  "namespace": "internal", "type": "extracted", "in_output": False}
+    if body.inherits:
+        # Optional, and unvalidated here on purpose: a dangling `inherits` is caught by the
+        # RESOLVED load inside `_publish_new_version` and reported against the `inherits` control,
+        # which is a better message than anything this endpoint could invent.
+        item["inherits"] = body.inherits
+    # `in_output` defaults FALSE for an added item. A new line is not part of the deliverable until
+    # somebody says so, and a template's own lines are the ones that are — provisioning sets it
+    # true for those. Defaulting true here would silently widen the output on every addition.
+
+    items.append(item)
+    out = _publish_new_version(session, row, definition,
+                               edited_key=key, edited_index=len(items) - 1)
+    out["key"] = key
+    return out
+
+
+@router.delete("/versions/{version_id}/items/{key}", dependencies=[_GATE])
+def delete_line_item(version_id: str, key: str,
+                     session: Session = Depends(db)) -> dict:
+    """Delete an item — refused when the TEMPLATE put it there.
+
+    THE REFUSAL IS SERVER-SIDE, not a hidden button. A template line's item exists because the
+    deliverable has a column for that figure; removing it would leave the output with a line
+    nothing can ever fill, and the loss would show up as a blank cell rather than as an error.
+    Hiding the control in the UI leaves the same delete one API call away, so the rule lives here.
+
+    Protection FOLLOWS THE TEMPLATE. `services.provision_line_items` demotes an item to
+    `internal` when a re-uploaded template no longer carries its line, which is what makes that
+    item deletable from then on — the author can discard it deliberately, having kept the aliases
+    and criteria authored on it in the meantime.
+    """
+    from app.db.models import LineItemVersion
+    from app.services.provision_line_items import protected_keys
+
+    row = session.get(LineItemVersion, version_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Line-item version not found")
+
+    definition = copy.deepcopy(row.definition or {})
+    items = definition.get("items")
+    if not isinstance(items, list):
+        raise HTTPException(status_code=422, detail="This version has no items to delete from")
+
+    at = next((i for i, d in enumerate(items) if d.get("key") == key), None)
+    if at is None:
+        raise HTTPException(status_code=404, detail=f"No line item {key!r} in this configuration")
+
+    if key in protected_keys(definition):
+        raise HTTPException(
+            status_code=409,
+            detail={"error": "template_item_protected",
+                    "message": (f"{key!r} is a line of the target template, so its configuration "
+                                f"cannot be deleted — the output has a column for that figure. "
+                                f"Remove the line from the template and re-publish it, and this "
+                                f"item becomes an ordinary one you can delete."),
+                    "key": key})
+
+    # Anything that NAMED the deleted item now names nothing. Reported rather than repaired: a
+    # rollup term or a `sole_component_of` pointing at a removed key is a decision the author has
+    # to make, and the resolved load inside `_publish_new_version` refuses it with the offending
+    # control named — so this is a check that produces a better message, not a different outcome.
+    referrers = [d.get("key") for d in items
+                 if d.get("key") != key and key in json.dumps(d, ensure_ascii=False)]
+    items.pop(at)
+    out = _publish_new_version(session, row, definition)
+    out["deleted"] = key
+    if referrers:
+        out["now_dangling_references_in"] = referrers
+    return out
+
+
 # ── the schema help index ─────────────────────────────────────────────────────────────────────
 #
 # Ported wholesale from ``services/ontology_skeleton.py`` (``field_help`` and its helpers), whose

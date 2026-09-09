@@ -265,13 +265,21 @@ def test_every_line_says_whether_the_configuration_in_force_maps_it(client):
 
 
 _UNCONFIGURED_TPL_KEY = "unconfigured_probe_tpl"
+# HEADERS ONLY, and that is now the whole point. A template carrying any line that holds a figure
+# provisions its own configuration on upload (`routes/templates._provision_line_items`), so the
+# no-configuration state can no longer be reached by publishing an ordinary template — the
+# previous version of this probe had one `role: "line"` and stopped being unconfigured the moment
+# that rule landed. A section header names a section rather than a figure and is deliberately not
+# provisioned, so a header-only template is the one template that legitimately has nothing in
+# force. Which is the honest shape for this test anyway: it asks what the screen says when there
+# is no configuration, and this is now the only way there isn't one.
 _UNCONFIGURED_TEMPLATE = {
     "template_key": _UNCONFIGURED_TPL_KEY,
     "name": "Template with no configuration",
     "statements": [{
         "type": "balance_sheet",
-        "sections": [{"node_id": "cash", "canonical_key": "probe_cash", "label": "Cash",
-                      "role": "line"}],
+        "sections": [{"node_id": "bs_ca", "canonical_key": "bs_ca", "label": "Current Assets",
+                      "role": "header"}],
     }],
 }
 
@@ -280,29 +288,59 @@ def test_a_template_with_no_configuration_says_so_on_every_line(client):
     """The other side of the flag, and the proof it is computed rather than defaulted to True.
 
     A template with no line-item set targeting it has nothing in force, so the screen must say so —
-    no ``line_items`` block, and every line ``mapped: False``. A blank the user can fix in
+    no ``line_items`` block, and no line reporting itself mapped. A blank the user can fix in
     configuration is the right answer; a fully-enabled editor over writes the server would refuse
     is not.
 
-    POSTS ITS OWN TEMPLATE rather than reading the seeded ``hkfrs_hk_china_v1``. That is not
-    tidiness: asserting "nothing is published against this template" over a SHARED seeded key makes
-    the test depend on the whole suite never publishing a set that targets it, and it passed alone
-    while failing in the full run for exactly that reason. A key this test creates cannot be
-    configured by anyone else, so the False case is pinned by construction. Follows the
-    ``unresolvable_probe_tpl`` pattern already in this file, minus the configuration.
+    POSTS ITS OWN TEMPLATE rather than reading a seeded key. That is not tidiness: asserting
+    "nothing is published against this template" over a SHARED seeded key makes the test depend on
+    the whole suite never publishing a set that targets it, and it passed alone while failing in
+    the full run for exactly that reason.
 
     This replaces ``test_the_controls_the_screen_withholds_are_the_ones_the_server_refuses`` as the
     place the False case is pinned; see its retirement note below.
     """
     r = client.post(f"{API}/templates", json={"definition": _UNCONFIGURED_TEMPLATE})
     assert r.status_code == 201, r.text
+    # Nothing was provisioned, and the upload says so by omitting the block rather than by
+    # reporting an empty one.
+    assert "line_item_version" not in r.json(), (
+        "a header-only template implies no lines, so it must provision no configuration")
 
     detail = _detail(client, template_key=_UNCONFIGURED_TPL_KEY)
     assert detail["line_items"] is None, (
         "nothing is published against this template, so the screen must not name a configuration")
-    assert detail["node_config"], "the template's lines are still served"
-    assert not any(c["mapped"] for c in detail["node_config"].values()), (
+    assert not any(c["mapped"] for c in (detail["node_config"] or {}).values()), (
         "no set targets this template, so no line of it is mapped")
+
+
+def test_an_ordinary_template_arrives_configured(client):
+    """The counterpart, and the rule that changed the probe above.
+
+    Any template with a figure-bearing line provisions its configuration on upload, so `mapped` is
+    True on every one of its lines from the moment it exists. Before this, a fresh template served
+    every line unmapped and an author had to write the whole configuration by hand first.
+    """
+    definition = {
+        "template_key": "configured_on_upload_tpl",
+        "name": "Configured on upload",
+        "statements": [{
+            "type": "balance_sheet",
+            "sections": [{
+                "node_id": "bs_ca", "canonical_key": "bs_ca", "label": "Current Assets",
+                "role": "header",
+                "children": [{"node_id": "bs_ca__cash", "canonical_key": "bs_ca__cash",
+                              "label": "Cash", "role": "line"}],
+            }],
+        }],
+    }
+    r = client.post(f"{API}/templates", json={"definition": definition})
+    assert r.status_code == 201, r.text
+    assert r.json().get("line_item_version"), "the template provisioned no configuration"
+
+    detail = _detail(client, template_key="configured_on_upload_tpl")
+    assert detail["line_items"] is not None, "the screen names no configuration for it"
+    assert detail["node_config"]["bs_ca__cash"]["mapped"] is True
 
 
 # RETIRED: test_the_calculated_total_this_round_exposed_is_the_unmapped_one.

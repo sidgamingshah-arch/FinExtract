@@ -28,6 +28,56 @@ class TemplateCreate(BaseModel):
     definition: dict
 
 
+def _provision_line_items(session: Session, template_definition: dict) -> dict | None:
+    """Publish the line-item set this template implies, merged over whatever is already in force.
+
+    Returns the new version's identity, or None when the template implies no lines at all.
+
+    FAILS SOFT, DELIBERATELY. A template that validated is stored before this runs, and it stays
+    stored if this cannot produce a publishable set: a provisioning defect must not make a valid
+    template unuploadable, and the author can publish a configuration by hand. The reason is logged
+    with the template key, because silence here would look like "this template has no lines".
+    """
+    import logging
+
+    from app.db.models import LineItemVersion
+    from app.schemas.line_items import load_line_item_set
+    from app.services.config_select import select_for_template
+    from app.services.provision_line_items import figure_bearing, provision
+
+    key = template_definition.get("template_key")
+    if not figure_bearing(template_definition):
+        return None
+
+    existing = None
+    current = select_for_template(session, key) if key else None
+    if current is not None:
+        existing = current.definition
+
+    definition = provision(template_definition, existing)
+    try:
+        load_line_item_set(definition, resolve=True)
+    except Exception as exc:  # noqa: BLE001 — see the fail-soft note above
+        logging.getLogger(__name__).warning(
+            "template %s published, but its line items could not be provisioned: %s", key, exc)
+        return None
+
+    li_key = definition.get("line_items_key")
+    max_ver = session.execute(
+        select(func.max(LineItemVersion.version))
+        .where(LineItemVersion.line_items_key == li_key)
+    ).scalar()
+    row = LineItemVersion(line_items_key=li_key, target_template_key=key,
+                          version=(max_ver or 0) + 1, definition=definition)
+    session.add(row)
+    session.commit()
+    counts: dict[str, int] = {}
+    for item in definition.get("items") or ():
+        ns = item.get("namespace") or "internal"
+        counts[ns] = counts.get(ns, 0) + 1
+    return {"id": row.id, "line_items_key": li_key, "version": row.version, "items": counts}
+
+
 def _publish(session: Session, definition: dict) -> dict:
     """Validate a definition and store it as the next version of its template key."""
     from app.db.models import TemplateVersion
@@ -69,8 +119,23 @@ def _publish(session: Session, definition: dict) -> dict:
     )
     session.add(row)
     session.commit()
+
+    # A TEMPLATE PROVISIONS ITS OWN LINE ITEMS. Publishing a template used to store this row and
+    # stop, so a newly uploaded template arrived with NO configuration: every line served
+    # `mapped: false`, and an author had to write four hundred items by hand before it could map
+    # anything. The shipped pair was only ever in the right shape because a build script produced
+    # both halves at once.
+    #
+    # Every line the template carries gets an item in the `template` namespace, which is what makes
+    # it undeletable (see `routes/line_items.delete_line_item`); an author adds `internal` items
+    # beyond it. On a RE-UPLOAD, the existing configuration is merged forward — nothing authored is
+    # lost, and a line the new version has dropped is kept and demoted to `internal` rather than
+    # discarded, so its aliases and criteria survive a template revision.
+    provisioned = _provision_line_items(session, definition)
+
     return {"id": row.id, "template_key": template.template_key, "name": template.name,
             "version": version,
+            **({"line_item_version": provisioned} if provisioned else {}),
             # A line is a node that CARRIES A FIGURE — this codebase's one predicate for that
             # (`review_lines`, which the review header counts both routes' populations with).
             # `get_template_detail`'s walk and `export._emit_nodes` ask it too, so the count an upload
