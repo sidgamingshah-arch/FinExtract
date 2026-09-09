@@ -181,9 +181,62 @@ function Patterns({ label, values, tone }: { label: string; values: string[]; to
  *
  *  The headings are questions rather than field-category nouns because the author arrives with a
  *  question ("why did this caption land on the wrong line?") and not with a field name. */
-function Group({ question, note, right, children }: {
+/** SIMPLE — the eight questions a configurator answers to make a line work.
+ *
+ *  73 editable fields was a schema browser, not a configuration screen. The cut is evidence-led,
+ *  measured over the 475 shipped items: these are the fields an author sets to define a line at
+ *  all, and between them they cover every line in the shipped set. Everything else is either an
+ *  override of a section-level default or machinery for a case that arises on a handful of lines.
+ *
+ *  `aliases` and `definition` carry the most weight: aliases catch the wording a filing prints,
+ *  and the definition is what resolves a wording nobody listed. `include_criteria` /
+ *  `exclude_criteria` sharpen that. `inherits` decides where the line may be found, `type` decides
+ *  how it gets a figure, `in_output` whether it is delivered, and `sign_convention` what to flag.
+ */
+const SIMPLE_FIELDS = new Set([
+  "label", "aliases", "definition", "include_criteria", "exclude_criteria",
+  "inherits", "type", "in_output", "sign_expectation",
+]);
+
+/** RETIRED — controls removed rather than demoted, with the measurement that decided each.
+ *
+ *  Counted against the 475 authored shipped items (`_audit/field_usage.py`). A field NO item
+ *  declares is a control nobody has had a reason to touch, and offering it implies a decision that
+ *  has never needed making. A field declared on hundreds of items with ONE distinct value is a
+ *  constant wearing a control.
+ *
+ *  Deliberately NOT retired though never declared: `in_output` (the shipped file relies on its
+ *  default; provisioning sets it, and it decides whether a line is delivered) and `terms` (unused
+ *  only because the five derivations still live in Python — the moment one moves to configuration
+ *  this is how it is expressed).
+ *
+ *  Retiring a control does not remove the FIELD: a stored value keeps working and the endpoint
+ *  still accepts it. What goes is the invitation to set it here.
+ */
+const RETIRED_FIELDS = new Set([
+  "pattern",                 // 0 of 475 — `regex_hints` is the list version and is used on 393
+  "scopes",                  // 0 of 475 — search order; the section already decides where to look
+  "side",                    // 0 of 475 — read off the banner in practice
+  "allow_contra",            // 0 of 475
+  "face_only",               // 0 of 475 — arrives from the section
+  "sole_component_of",       // 0 of 475
+  "analyst_bucket",          // 0 of 475
+  "sign_rule.convention",    // 0 of 475 — `sign_expectation` is the one that is used
+  "sign_rule.flip_if_label_matches",
+  // (`note_use_rationale` is measured the same way — 394 of 475 with ONE distinct value, prose
+  //  that never varies — but it was never rendered as a control here, so there is nothing to
+  //  retire. Recorded so a future author does not add one.)
+  "description",             // 21 of 475, and `definition` is the field the model actually reads
+  "order",                   // 21 of 475 — display order, which the template already fixes
+]);
+
+function Group({ question, note, right, children, visible = true }: {
   question: string; note?: ReactNode; right?: ReactNode; children: ReactNode;
+  /** False when every field inside is filtered out — a heading over nothing is worse than an
+   *  absent section, because it reads as a group whose controls failed to load. */
+  visible?: boolean;
 }) {
+  if (!visible) return null;
   return (
     <Card pad={13} style={{ marginBottom: 12 }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between",
@@ -285,6 +338,10 @@ interface EditorProps {
 
 function Detail(p: EditorProps) {
   const { item, set, vocab, keys, locale, patch, drop, errors, indexErrors } = p;
+  // SIMPLE BY DEFAULT. The screen used to open all 73 controls at once, which is how a
+  // configuration screen becomes unreadable: the eight fields that define a line sat among sixty
+  // that override a section default or serve a case arising on four lines out of 475.
+  const [mode, setMode] = useState<"simple" | "advanced">("simple");
   // NO VOCABULARY, NO AUTHORING. Every select's options come from what the server served, derived
   // there from the same `Literal[...]` aliases the loader validates with. A control offering a
   // token this deployment's gate refuses is worse than no control: the author authors, saves, and
@@ -312,13 +369,25 @@ function Detail(p: EditorProps) {
    *  refused this field, and WRAPS the control so the refusal is rendered exactly once — by the
    *  control itself, in the server's own words, with the invalid border on the input. A second copy
    *  of the message under a marker element would be the same sentence twice. */
-  const fld = (name: string, render: (error?: string) => ReactNode) => (
-    <div data-testid={`li-field-${name}`} key={name}>
-      <div data-testid={errors[name] ? `li-field-error-${name}` : undefined}>
-        {render(errors[name])}
+  const fld = (name: string, render: (error?: string) => ReactNode) => {
+    // THE ONE FILTER POINT. Every control on this screen goes through `fld`, so what a reader is
+    // offered is decided here rather than in eight groups that would drift apart.
+    if (RETIRED_FIELDS.has(name)) return null;
+    // A field the server refused is shown WHATEVER the mode, because hiding the control a refusal
+    // is addressed to leaves an author with a message and nothing to act on.
+    if (mode === "simple" && !SIMPLE_FIELDS.has(name) && !errors[name]) return null;
+    return (
+      <div data-testid={`li-field-${name}`} key={name}>
+        <div data-testid={errors[name] ? `li-field-error-${name}` : undefined}>
+          {render(errors[name])}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
+  /** Whether a group has anything to show, so an empty card is not rendered in simple mode. */
+  const anyOf = (...names: string[]) =>
+    names.some((n) => !RETIRED_FIELDS.has(n)
+                       && (mode === "advanced" || SIMPLE_FIELDS.has(n) || !!errors[n]));
   const idx = (name: string) => indexErrors[name];
 
   const type = g<LineItemType>("type", item.type);
@@ -372,9 +441,34 @@ function Detail(p: EditorProps) {
                             letterSpacing: 0.3, padding: "2px 6px", borderRadius: 4,
                             background: color.segBg, color: color.muted }}>Internal</span>}
       </div>
-      <div style={{ fontFamily: font.mono, fontSize: 11, color: color.muted, margin: "3px 0 10px" }}>
-        {item.key}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                     gap: 10, flexWrap: "wrap", margin: "3px 0 10px" }}>
+        <span style={{ fontFamily: font.mono, fontSize: 11, color: color.muted }}>{item.key}</span>
+        {/* SIMPLE / ADVANCED. Simple is the eight fields that define a line; advanced is every
+            override and every mechanism. A field the server REFUSED is shown in either mode —
+            hiding the control a refusal is addressed to leaves an author with a message and
+            nothing to act on. */}
+        <div role="group" aria-label="How much configuration to show"
+             style={{ display: "flex", border: `1px solid ${color.cardBorder}`,
+                       borderRadius: radius.control, overflow: "hidden" }}>
+          {(["simple", "advanced"] as const).map((m) => (
+            <button key={m} onClick={() => setMode(m)} aria-pressed={mode === m}
+                    data-testid={`li-mode-${m}`}
+                    style={{ fontSize: 11, cursor: "pointer", padding: "3px 10px", border: 0,
+                              textTransform: "capitalize",
+                              background: mode === m ? color.indigo : "transparent",
+                              color: mode === m ? "#fff" : color.sec2 }}>
+              {m}
+            </button>
+          ))}
+        </div>
       </div>
+      {mode === "simple" && (
+        <p style={{ margin: "0 0 10px", fontSize: 10.5, color: color.muted }}>
+          The fields that define this line. <b>Advanced</b> adds the section overrides and the
+          assembly rules — needed on a minority of lines, and inherited from the section otherwise.
+        </p>
+      )}
 
       {/* WHY EVERY CONTROL IS DISABLED, said once and at the top. `FieldRow` prints a reason on
           the controls that take one, but a form of seventy disabled controls needs the answer
@@ -406,7 +500,7 @@ function Detail(p: EditorProps) {
           description-matching tier (it prefers it over `description`), and the four criteria
           fields are what let a caption be resolved by MEANING rather than by string match — which
           is the difference between widening one line and editing a 162-alternative regex. */}
-      <Group question="What is this line, in words?"
+      <Group visible={anyOf("label", "description", "definition", "include_criteria", "exclude_criteria", "confusable_with", "section_disambiguation")} question="What is this line, in words?"
              note="What the model reads when the printed caption is not close to any alias.">
         {fld("label", (e) => (
           <TextField label="Label" testid="label" editable={editable} reason={lockReason}
@@ -491,7 +585,7 @@ function Detail(p: EditorProps) {
           replaces THAT locale's list, and the base list too when the locale is the set default.
           The other locales are read-only beside it and say so. A map-shaped write is precisely how
           editing the Chinese aliases clobbers the English ones. */}
-      <Group question="Which printed captions are this line?"
+      <Group visible={anyOf("aliases", "pattern", "regex_hints", "keyword_hints", "exclude_hints", "alias_matching")} question="Which printed captions are this line?"
              note={<>Recognition evidence, matched against the caption as printed. Aliases are
                    edited ONE LOCALE AT A TIME — the selector says which.</>}
              right={
@@ -604,7 +698,7 @@ function Detail(p: EditorProps) {
           claimed by more than one line item and some of those claims span different statements,
           so the gate is what settles which line a caption reaches. Nearly all of it arrives by
           INHERITANCE from a `section_defaults` entry — hence the badges. */}
-      <Group question="Where may it be claimed from?"
+      <Group visible={anyOf("inherits", "statement", "section_scope", "scopes", "side", "allow_contra", "match_priority", "extraction_mode", "face_only", "note_use", "note_source")} question="Where may it be claimed from?"
              note="The gate is authored once per section and claimed by `inherits`; editing a
                    gate field here overrides the section for this line only.">
         {fld("inherits", (e) => (
@@ -807,7 +901,7 @@ function Detail(p: EditorProps) {
       {/* ── 4. STRUCTURE ─────────────────────────────────────────────────────────────────────
           The tree, and what a parenthood ASSERTS. `rollup` exists because the rollup check would
           otherwise have summed the twelve alternative restatements of the depreciation line. */}
-      <Group question="How does it sit among the other lines?">
+      <Group visible={anyOf("type", "in_output", "parent", "rollup", "order", "namespace", "value_scope", "is_gross_parent", "children_if_decomposed", "sole_component_of", "expected_components", "never_sweep", "residual_policy")} question="How does it sit among the other lines?">
         {fld("type", (e) => (
           <SelectField<LineItemType>
             label="Type" testid="type" editable={editable} reason={lockReason}
@@ -1040,7 +1134,7 @@ function Detail(p: EditorProps) {
           both is how an author changes the wrong one: `sign_convention` on the item is the sign
           the line is EXPECTED to carry (a review trigger, sent as `sign_expectation`), and
           `sign_rule.convention` is how a value is NORMALISED. */}
-      <Group question="What kind of figure is it?">
+      <Group visible={anyOf("temporality", "unit_of_account", "sign_expectation", "sign_rule.convention", "analyst_bucket")} question="What kind of figure is it?">
         {fld("temporality", (e) => (
           <SelectField<LineItemTemporality>
             label="Instant or duration" testid="temporality" editable={editable} nullable
@@ -1123,7 +1217,7 @@ function Detail(p: EditorProps) {
           the one that does not apply is how a type change makes a group vanish and an author
           concludes the field was taken away — and both are needed while a line is being moved
           from one type to the other. */}
-      <Group question="How is its value assembled?"
+      <Group visible={anyOf("terms", "cascade", "implemented_by")} question="How is its value assembled?"
              note="A calculated or intermediate line is a signed sum of terms; a derived line is
                    an ordered cascade of attempts, the first that resolves winning.">
         <details open={type === "calculated" || type === "intermediate"}>
