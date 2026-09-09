@@ -20,7 +20,7 @@ import { Card } from "../components/ui";
 import { TemplateList, sortTemplates } from "./TemplateList";
 import { useAppLocale, useUI } from "../store";
 import { color, font, radius } from "../theme";
-import type { Locale, NodeConfig, TemplateRef, ValueScope } from "../types";
+import type { LineItemEdit, Locale, NodeConfig, TemplateRef, ValueScope } from "../types";
 import { useTemplateDetail, useTemplates } from "../lib/queries";
 import { ApiError, api } from "../lib/api";
 import { useCan } from "../lib/rbac";
@@ -463,13 +463,40 @@ function NodeRules({ cfg, canonicalKey, lineItemVersionId, concepts, locale, can
     try {
       // One PATCH for the whole line item: aliases, sign and criteria are validated together,
       // so a bad regex or an unknown key cannot leave half the edit published.
-      const res = await api.editLineItem(lineItemVersionId!, {
-        canonical_key: canonicalKey!, locale, aliases: effective, sign_convention: sign,
+      //
+      // THREE OF THE KEYS THIS BODY SENT WERE THE ONTOLOGY-ERA SPELLING, and the save could not
+      // have worked. `ItemEdit` (backend `routes/line_items.py`) names the item `key`, not
+      // `canonical_key`, and the criteria `include_criteria` / `exclude_criteria`, not `include` /
+      // `exclude`. `key` is REQUIRED there, so every save was a 422 on a field the screen never
+      // sent; and pydantic IGNORES keys it does not declare, so even past that refusal the two
+      // criteria lists would have been dropped in silence — a save reporting "Saved as v3" having
+      // stored nothing of what was typed into the criteria editor. That silent no-op is the defect,
+      // not the 422.
+      //
+      // Typed on `LineItemEdit` (the shape the endpoint actually accepts) rather than assembled as
+      // a bare literal, so the next rename on the wire is a compile error here instead of another
+      // save that succeeds and stores nothing.
+      const edit: LineItemEdit = {
+        key: canonicalKey!, locale, aliases: effective,
+        // `sign_convention` STAYS, and is not `sign_expectation`. This screen's `SIGN_OPTIONS`
+        // are the legacy 3-token sign-RULE vocabulary (`as_reported` / `expense_contra` /
+        // `auto`), which the backend maps into `sign_rule.convention` — how a value is
+        // NORMALISED. `sign_expectation` is a different question (the sign a figure is expected
+        // to carry, which review validation reads), so sending this control's value under that
+        // name would write an answer to a question nobody was asked.
+        sign_convention: sign,
         definition: effCriteria.definition, value_scope: effCriteria.value_scope,
-        include: effCriteria.include, exclude: effCriteria.exclude,
+        include_criteria: effCriteria.include, exclude_criteria: effCriteria.exclude,
         confusable_with: effCriteria.confusable_with, keyword_hints: effCriteria.keyword_hints,
         regex_hints: effCriteria.regex_hints, exclude_hints: effCriteria.exclude_hints,
-      });
+      };
+      // `api.editLineItem` is still DECLARED on the legacy `MappingEdit`, whose required
+      // `canonical_key` describes a body the endpoint refuses; api.ts is not part of this change.
+      // Asserted through the function's own parameter type rather than by naming `MappingEdit`, so
+      // this line follows api.ts when that signature is retyped on `LineItemEdit` and there is no
+      // reference here to an interface that is due to be deleted.
+      const res = await api.editLineItem(
+        lineItemVersionId!, edit as unknown as Parameters<typeof api.editLineItem>[1]);
       setAliases(effective);
       setCriteria(effCriteria);
       setDraft("");

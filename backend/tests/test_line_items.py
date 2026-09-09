@@ -1,4 +1,4 @@
-"""Line-item definitions: validation, evaluation order, and the arithmetic.
+"""Line-item definitions: validation, evaluation order, the arithmetic, and what the editor sees.
 
 The eight output lines and their sub-line items are configuration now, so the questions these
 tests answer are the ones a configurator has to get right before anyone trusts it: does it refuse
@@ -6,18 +6,29 @@ a formula that cannot be computed, does it evaluate inputs before the things tha
 does its arithmetic behave the way the shipped cascades behave. The last one matters most — the
 config is a PORT of `deprec_impairment`'s five rungs, and a port that quietly disagrees is worse
 than no port at all.
+
+The last section adds the two facts the Line Items EDITOR is built on. The screen was read-only,
+and a read-only screen may render whatever it likes: nothing it shows can be refused, and nothing
+it shows can be mistaken for something the author wrote. Neither holds any more, so both of those
+now need pinning — what the controls may offer (`vocab`) and which of an item's values it actually
+declared rather than inherited (`declared_fields`).
 """
 from __future__ import annotations
 
 import json
 import pathlib
 from decimal import Decimal
+from typing import get_args
 
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.line_items import (CascadeRung, LineItemDef, NoteSource, Term,
-                                    load_line_item_set)
+from app.core.models.enums import SignConvention, StatementType
+from app.schemas.line_items import (AliasMatching, CascadeRung, ExtractionMode, LineItemDef,
+                                    LineItemType, Namespace, NoteSource, NoteUse, Rollup,
+                                    SearchScope, Side, SignExpectation, Temporality, Term,
+                                    UnitOfAccount, ValueScope, load_line_item_set)
+from app.services.buckets import BUCKET_KEYS
 from app.services.line_items import build, check_rollups, evaluate_all
 
 OPER = "is_pl__deprec_and_impairment_oper_exp"
@@ -344,3 +355,189 @@ def test_every_pattern_in_the_shipped_seed_compiles():
                 for v in getattr(d.note_source, f)]
     assert len(patterns) > 700, "the seed lost its caption patterns"
     assert build(defs).ok
+
+
+# ── what GET /line-items tells the editor ────────────────────────────────────────────────────────
+# Two facts, both of which only became facts when the Line Items screen stopped being read-only.
+#
+#   * `vocab` — every value a control may offer. A select offering a token the publish gate refuses
+#     is worse than no control at all: the author authors, saves, and is told no by a validator two
+#     layers down, with the work already typed in. So the closed sets are DERIVED from the same
+#     aliases the loader validates with, and these tests hold them to that rather than to a list
+#     retyped beside them — a retyped list is how `SearchScope` acquired a second spelling of
+#     `income_statement` that nothing else in the backend spells.
+#   * `declared_fields` — which values the item itself DECLARED. All 475 shipped items take their
+#     gate from `section_defaults`, and once folded an inherited value is indistinguishable from a
+#     declared one; the editor's inherited badge is this field and nothing else.
+#
+# NEITHER TEST MAY ASSUME WHICH SET IS IN FORCE. `config_select` answers "the latest one stored",
+# the suite publishes configurations of its own, and this file is not the first to run — so an
+# assertion about the 475-item shipped set read through `GET /line-items` passes alone and fails in
+# the suite (measured: a 183-item probe set was in force). What is asserted against the endpoint is
+# therefore true of ANY set it can serve, and the claims that are specifically about the SHIPPED set
+# are read off the seed, the way `test_every_pattern_in_the_shipped_seed_compiles` above does.
+
+
+def test_every_closed_set_the_editor_offers_is_the_schema_s_own(client):
+    """The served vocabulary is the schema's, not a curated copy of it.
+
+    Held to `get_args` of the alias each list describes, so a token added to `SearchScope` or a
+    bucket added to `BUCKET_KEYS` reaches the screen the moment it exists and cannot be half-added:
+    a list the screen offers and the alias does not declare is a refusal on save, and a token the
+    alias declares and the list omits is a value an author cannot reach at all.
+    """
+    r = client.get("/api/v1/line-items")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    vocab = body["vocab"]
+
+    # `statements` and `sign_conventions` are ENUMS, served by `.value`; the rest are `Literal`
+    # aliases. `analyst_buckets` is neither — it is `services.buckets.BUCKET_KEYS`, which is the
+    # list `_validate_against_target_template` refuses an unknown bucket against, and before that
+    # refusal existed `bucket_of` filed those rows in Others with nothing saying why.
+    expected = {
+        "statements": [s.value for s in StatementType],
+        "sign_conventions": [c.value for c in SignConvention],
+        "scopes": list(get_args(SearchScope)),
+        "sides": list(get_args(Side)),
+        "rollups": list(get_args(Rollup)),
+        "namespaces": list(get_args(Namespace)),
+        "types": list(get_args(LineItemType)),
+        "value_scopes": list(get_args(ValueScope)),
+        "extraction_modes": list(get_args(ExtractionMode)),
+        "alias_matching": list(get_args(AliasMatching)),
+        "temporalities": list(get_args(Temporality)),
+        "units_of_account": list(get_args(UnitOfAccount)),
+        "sign_expectations": list(get_args(SignExpectation)),
+        "note_uses": list(get_args(NoteUse)),
+        "caption_normalizations": list(
+            get_args(NoteSource.model_fields["caption_normalization"].annotation)),
+        "term_roles": list(get_args(Term.model_fields["role"].annotation)),
+        "analyst_buckets": list(BUCKET_KEYS),
+    }
+    missing = sorted(set(expected) - set(vocab))
+    assert not missing, f"the editor has no options to render these controls from: {missing}"
+    assert {k: vocab[k] for k in expected} == expected
+
+    # NONE OF THEM SERVED EMPTY. A select rendered from an empty list offers the author nothing, and
+    # on this screen that is indistinguishable from a field nobody wired up — which is the failure
+    # this whole block exists to make loud rather than visual.
+    empty = sorted(k for k, v in expected.items() if not v)
+    assert not empty, f"the editor would render these controls with no options: {empty}"
+
+    # THE FOUR LISTS THAT COME FROM THE SET rather than from an alias, checked against the set
+    # instead of for non-emptiness: `section_scope`, `residual_policy.framework` and `.population`
+    # are FREE strings on the model, so what is served is a datalist of what this set already
+    # declares — and a set declaring no residual policy has no framework to suggest. Inventing one
+    # would be the curated list this block refuses.
+    for suggestions in ("inherits_options", "section_scope_tokens",
+                        "residual_frameworks", "residual_populations"):
+        options = vocab[suggestions]
+        assert options == sorted(set(options)), f"{suggestions} must be sorted and unique"
+
+    # `inherits`, though, is NOT free: it names a `section_defaults` entry of THIS set, and a
+    # dangling one is not a load error but a silent no-op that leaves the item with no gate at all.
+    # So the options can only come from the set the same response is serving.
+    assert vocab["inherits_options"] == sorted(body["set"]["section_defaults"])
+
+    # The banner tokens an author may re-enter must at least include the ones the set is already
+    # gated on, or a section an item is confined to today cannot be typed back in tomorrow.
+    declared_scope = {s for sec in body["set"]["section_defaults"].values()
+                      for s in (sec.get("section_scope") or [])}
+    assert declared_scope <= set(vocab["section_scope_tokens"])
+
+    # The legacy 3-token UI spelling the Template screen still sends. It is kept accepted, so every
+    # token it offers must name a real `SignConvention` — it can express three of the six, and the
+    # screen offers the full six under a different label.
+    from app.api.routes.line_items import _SIGN_FROM_UI
+
+    assert set(vocab["legacy_sign_conventions"]) == set(_SIGN_FROM_UI)
+    assert set(_SIGN_FROM_UI.values()) <= set(vocab["sign_conventions"])
+
+    # WHAT IS NOT AUTHORABLE, AND WHY — served rather than left absent, because "silently missing
+    # from the form" and "read-only for a reason" look identical to a reader and only one of them
+    # is a decision. Each one must genuinely be refused by the edit body, `key` excepted: it is
+    # that body's own SELECTOR, not a value it writes.
+    from app.api.routes.line_items import ItemEdit
+
+    assert all(reason.strip() for reason in vocab["not_editable"].values()), \
+        "a field held read-only without a reason is just a missing field"
+    still_accepted = sorted((set(vocab["not_editable"]) - {"key"}) & set(ItemEdit.model_fields))
+    assert not still_accepted, \
+        f"the screen calls these read-only while the edit body writes them: {still_accepted}"
+
+
+def test_declared_fields_is_what_the_item_declared_not_what_it_inherited(client):
+    """`declared_fields` is the key set of the STORED dict, never of the resolved payload.
+
+    The served item is RESOLVED — all 475 shipped items fold a gate in from `section_defaults` —
+    and serving the unfolded shape instead would show a screen full of items that appear to
+    constrain nothing. But once folded, an inherited value cannot be told apart from a declared one
+    or from a model default, and that distinction is the one an editor has to draw: SAVING a field
+    the item never declared turns the section's value into the item's own and silently detaches it
+    from the section, so the next edit to that section no longer reaches it.
+
+    Pinned against `GET /versions/{id}`, which serves the definition exactly as stored, so the two
+    endpoints cannot disagree about what an item said. Whichever version happens to be in force,
+    because the rule is a property of the endpoint and not of one configuration.
+    """
+    body = client.get("/api/v1/line-items").json()
+    stored = client.get(f"/api/v1/line-items/versions/{body['version']['id']}")
+    assert stored.status_code == 200, stored.text
+    definition = stored.json()["definition"]
+    raw = {d["key"]: d for d in definition["items"]}
+
+    # Storage is flat and the payload NESTS sub-line items under their parent, so the whole tree has
+    # to be walked before it can be compared with what was stored.
+    served: dict[str, dict] = {}
+
+    def walk(items):
+        for item in items:
+            served[item["key"]] = item
+            walk(item["children"])
+
+    walk(body["items"])
+    assert set(served) == set(raw), "every stored item must be reachable in the nested payload"
+    for key, item in served.items():
+        assert item["declared_fields"] == sorted(raw[key]), \
+            f"{key}: declared_fields must be the stored dict's keys, not the resolved payload's"
+        assert "key" in item["declared_fields"], f"{key}: a stored item declares its own key"
+        if item["inherits"] and "statement" not in item["declared_fields"]:
+            # An INHERITED gate, on the payload the screen actually renders: present as a value,
+            # absent as a declaration. Whether any item in the set in force is in this position is
+            # a property of that set, so the shipped-set count is pinned below.
+            assert item["statement"] is not None, \
+                f"{key}: the payload must carry the gate the item is matched under"
+
+    # THE FACT THE INHERITED BADGE DEPENDS ON, on the SHIPPED set — read off the seed, because
+    # `config_select` serves the LATEST stored version and by the time this file runs the suite has
+    # published configurations of its own. Resolved exactly the way `GET /line-items` resolves it
+    # (`load_line_item_set(..., resolve=True)`), so the two cannot answer differently.
+    seed = json.loads((pathlib.Path(__file__).resolve().parents[1] / "app" / "sample" / "templates"
+                       / "output_csv_hk_line_items.json").read_text(encoding="utf-8"))
+    declared = {d["key"]: sorted(d) for d in seed["items"]}
+    resolved = {d.key: d for d in load_line_item_set(seed, resolve=True).items}
+
+    # Thirteen of the 475 say nothing about `statement` themselves and are gated all the same,
+    # through `inherits`. Each must resolve to a gate that IS present while `declared_fields` stays
+    # silent about it — the resolved payload alone cannot say which of the two happened, and an
+    # editor that saved the resolved value back would turn the section's gate into the item's own.
+    inherited = [k for k, d in resolved.items() if d.inherits and "statement" not in declared[k]]
+    assert len(inherited) == 13, \
+        f"the shipped set inherits 13 gates rather than declaring them; found {len(inherited)}"
+    for key in inherited:
+        item = resolved[key]
+        assert item.statement is not None, f"{key}: resolution must fold the section's gate in"
+        assert item.statement == seed["section_defaults"][item.inherits]["statement"], \
+            f"{key}: the resolved gate must be the section's, not a model default"
+
+    # AND IT IS NOT THE PAYLOAD'S KEYS FILTERED BY WHAT THE ITEM DECLARED, which is the near-miss
+    # that would satisfy everything above: a declared key need not survive the load at all. 394 of
+    # the 475 shipped items carry `note_use_rationale`, `LineItemDef` declares no such field (the
+    # model spells the surviving one `notes_as_source_rationale`, recovered from the section layer),
+    # and the loader drops it. An editor intersecting `declared_fields` with the served shape would
+    # therefore stop reporting a key the author can read in the file they published.
+    dropped = {f for fields in declared.values() for f in fields} - set(LineItemDef.model_fields)
+    assert dropped == {"note_use_rationale"}, \
+        f"a stored key the model no longer drops, or a new one it does: {sorted(dropped)}"
+    assert sum(1 for f in declared.values() if "note_use_rationale" in f) == 394

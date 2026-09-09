@@ -3,7 +3,8 @@ import { useEffect } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type {
-  Basis, FxRateInput, LineItemVersionRef, Locale, SettingsPatch, StatementKey, TemplateRef,
+  Basis, FxRateInput, LineItemEdit, LineItemVersionRef, Locale, SettingsPatch, StatementKey,
+  TemplateRef,
 } from "../types";
 import { useUI } from "../store";
 import { api } from "./api";
@@ -635,6 +636,50 @@ export function usePublishLineItems() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["line-item-versions"] });
       qc.invalidateQueries({ queryKey: ["template-detail"] });
+    },
+  });
+}
+
+/** EDIT ONE LINE ITEM'S DEFINITION — the Line Items screen's save.
+ *
+ *  The screen was READ-ONLY on the justification that the definitions only DESCRIBED derivations
+ *  five services computed, so nothing downstream read them. That justification expired: line items
+ *  is the single configuration engine, the matcher is built from the set, and a run pins
+ *  `extraction_runs.line_item_version_id`. The definitions drive extraction, so the screen is an
+ *  editor and this is the mutation behind it.
+ *
+ *  EVERY EDIT PUBLISHES A NEW VERSION, re-validated against the target template first — never an
+ *  in-place write, because a past run pins the version it used and mutating a stored definition
+ *  would retroactively change how that run is explained. `result.version` is the number to
+ *  confirm with.
+ *
+ *  WHY THESE THREE KEYS:
+ *   * `line-items` — `GET /line-items` selects latest-stored-wins, so invalidating it is the whole
+ *     mechanism by which the screen shows the newly published version as the one in force. Awaited
+ *     (returning the promise keeps the mutation pending until the refetch lands) so the save
+ *     cannot settle while the screen is still captioned with the version it just superseded.
+ *   * `line-item-versions` — the version picker, which has just gained a row.
+ *   * `template-detail` — the Template screen reads its per-node rules out of the line-item
+ *     version that targets it, so an edit published here changes what that screen shows.
+ *
+ *  ERRORS ARE NOT SWALLOWED and not retried: a 422 from this endpoint is the server refusing the
+ *  configuration field by field (`ApiError.fields`), which is information the author needs on the
+ *  control that caused it. The caller keeps the form open and renders them.
+ *
+ *  DISTINCT FROM `useEditLineItem` further down, which is the sample spread's PER-FIGURE edit and
+ *  is what the Workspace consumes. Two different things: one changes a number in one extraction,
+ *  this one changes the configuration every future extraction is run against. Deliberately not
+ *  merged — one name for both is how a figure edit and a configuration publish come to look
+ *  interchangeable. */
+export function useEditLineItemConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { lineItemVersionId: string; edit: LineItemEdit }) =>
+      api.editLineItem(vars.lineItemVersionId, vars.edit),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["line-item-versions"] });
+      qc.invalidateQueries({ queryKey: ["template-detail"] });
+      return qc.invalidateQueries({ queryKey: ["line-items"] });
     },
   });
 }

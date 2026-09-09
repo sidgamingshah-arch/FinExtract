@@ -2,9 +2,9 @@
 
 Line items are the single configuration engine, so this module carries the WHOLE of what a user or
 an API consumer can do to the thing a run maps against: read the version in force, list the stored
-versions, download one, read the schema it must satisfy, publish a new one, and correct one item
-inline. ``api/routes/ontologies.py`` stood beside this file and is DELETED — with it went the
-skeleton download, the workbook download and upload, and the netting-rules editor (see
+versions, download one, read the schema it must satisfy, publish a new one, and EDIT one item
+field by field. ``api/routes/ontologies.py`` stood beside this file and is DELETED — with it went
+the skeleton download, the workbook download and upload, and the netting-rules editor (see
 "WHAT IS GONE" below). Nothing here says ontology, because there is no longer a second
 configuration surface to tell apart from this one.
 
@@ -28,6 +28,15 @@ The third one replaced five ranking rules in ``config_select``: a configuration 
 nothing is not a lower-priority configuration, it is not a configuration, and the door is the only
 place an author is present to be told why.
 
+THE ITEM EDIT ACCEPTS EVERY AUTHORABLE FIELD, which it did not always. ``ItemEdit`` carried
+thirteen of ``LineItemDef``'s forty-odd, and the Line Items screen was read-only on the
+justification that these definitions merely DESCRIBED derivations five services computed. That
+justification expired — the matcher is built from this set and a run pins the version it used — so
+a field that is authorable in the schema and unreachable through the edit body is a control the
+product claims to have and does not. What is deliberately still not accepted is named in
+``ItemEdit``'s own comment and served to the screen as ``vocab.not_editable``, because "absent
+from the form" and "read-only for a reason" look identical to a reader and only one is a decision.
+
 WHAT IS GONE with the ontology route, deliberately, each for its own reason. The SKELETON download
 (a stub-per-template-key .json) and the WORKBOOK download/upload were authoring aids for a
 hand-written rulebook; the configuration is generated and edited item by item now, and the workbook
@@ -47,17 +56,42 @@ import typing
 from typing import Any, Literal, get_args, get_origin
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import db
+from app.core.models.enums import SignConvention, StatementType
+
+# THE VOCABULARIES ARE IMPORTED, NEVER RESTATED — the rule `schemas/line_items.py` opens with, and
+# the reason `ItemEdit` below is typed on these aliases rather than on `str`. The first version of
+# that schema declared its own `SearchScope` containing `income_statement`, a token nothing else in
+# the backend spells, and read as a gate it would have refused every P&L item on every page. An
+# edit body that re-declared the same closed sets would put that second spelling back, one door
+# further out, where it is even harder to see.
 from app.schemas.line_items import (
+    AliasMatching,
+    CascadeRung,
+    ExtractionMode,
     LineItemDef,
     LineItemSet,
+    LineItemType,
     MappingVocabulary,
+    Namespace,
+    NoteSource,
+    NoteUse,
+    ResidualPolicy,
+    Rollup,
+    SearchScope,
     SectionDefaults,
+    Side,
+    SignExpectation,
+    SignRule,
+    Temporality,
+    Term,
+    UnitOfAccount,
     UnknownInheritsError,
+    ValueScope,
     load_line_item_set,
 )
 from app.schemas.loader import load_template, unknown_keys
@@ -236,6 +270,112 @@ def _sizes(definition: dict) -> dict:
     return {"items": len(items), "aliases": aliases}
 
 
+# ── what the editor may offer ──────────────────────────────────────────────────────────────────
+#
+# The Line Items screen is an EDITOR (see `ItemEdit` and `edit_line_item` below), and an editor
+# offering a value the publish gate refuses is worse than no control at all: the author authors,
+# saves, and is told no by a validator two layers down. So the closed sets are SERVED, from the
+# same aliases the edit body is typed on and the loader validates with — one spelling, three
+# readers (the schema, the edit body, the screen).
+#
+# `analyst_bucket` is the measured reason this block exists rather than being hard-coded in the
+# frontend: a value naming no analyst section is refused by `_validate_against_target_template`,
+# and before that refusal existed `bucket_of` silently filed those rows in Others.
+
+
+# The four fields an author CANNOT change from the item editor, each with the one line that says
+# why. Served with the vocabulary because "silently absent" and "read-only for a reason" look
+# identical on a screen, and only one of them is a decision.
+_NOT_EDITABLE: dict[str, str] = {
+    "key": ("the identity every other declaration names — `parent`, `terms[].ref`, "
+            "`confusable_with`, `children_if_decomposed`, `expected_components`, `never_sweep`, "
+            "`sole_component_of` and the template's `canonical_key` all name it, and it is this "
+            "endpoint's own selector, so rename via a full republish"),
+    "children": ("computed from `parent` on every read — storage is flat, so editing the "
+                 "projection cannot be persisted; reparent the child instead"),
+    "aliases_i18n": ("edited one locale at a time through `aliases` + `locale`, never as a whole "
+                     "map — a map-shaped write is how editing the Chinese aliases clobbers the "
+                     "English ones"),
+    "min_confidence_to_auto_accept": ("withdrawn — it was read by nothing (all four accept "
+                                      "decisions compare against the global "
+                                      "`settings.extraction.auto_accept_confidence`); the accept "
+                                      "bar is that one global setting, so re-add this only "
+                                      "alongside code that reads it"),
+}
+
+
+def _literal_values(annotation) -> list:
+    """The tokens of a `Literal[...]` alias, in declaration order."""
+    return list(get_args(annotation))
+
+
+def _vocabulary(st: LineItemSet) -> dict:
+    """Every value an item edit may legally carry, keyed the way the editor's controls are.
+
+    Derived, never curated. A token added to `SearchScope` or a bucket added to `BUCKET_KEYS`
+    reaches the screen the moment it exists, and a curated list beside the models is precisely the
+    drift `GET /line-items/schema` was ported here to remove.
+    """
+    from app.services.buckets import BUCKET_KEYS
+
+    # Section scope is authored in TWO spellings and both resolve through one vocabulary: an item
+    # names a scope id (`bs_ca`, `bs_s1_current_assets`) and `scope_tokens` maps it to the banner
+    # token a printed heading folds to. Offering only one of the two would make half the shipped
+    # set unauthorable, so both are served — as SUGGESTIONS, not a closed set: `section_scope` is
+    # a free list on the model, and a filing printing a banner nobody has declared yet is exactly
+    # the case an author is here to handle.
+    scope_ids = {s for d in st.items for s in d.section_scope if s}
+    scope_ids |= {s for sec in st.section_defaults.values() for s in sec.section_scope if s}
+    banner_tokens = {b.token for b in st.vocabulary.section_banners if b.token}
+    banner_tokens |= {t for t in st.vocabulary.scope_tokens.values() if t}
+
+    # `residual_policy.framework` and `.population` are free strings on the model, so what is
+    # offered is what this set already declares plus the framework it actually carries — a
+    # datalist, not a closed set, because the model does not close them.
+    frameworks = {p.framework for d in st.items if (p := d.residual_policy) and p.framework}
+    populations = {p.population for d in st.items if (p := d.residual_policy) and p.population}
+    if st.residual_framework is not None:
+        frameworks.add("residual_framework")
+        populations.add(st.residual_framework.population)
+
+    return {
+        "statements": [s.value for s in StatementType],
+        "scopes": _literal_values(SearchScope),
+        "sides": _literal_values(Side),
+        "rollups": _literal_values(Rollup),
+        "namespaces": _literal_values(Namespace),
+        "types": _literal_values(LineItemType),
+        "value_scopes": _literal_values(ValueScope),
+        "extraction_modes": _literal_values(ExtractionMode),
+        "alias_matching": _literal_values(AliasMatching),
+        "temporalities": _literal_values(Temporality),
+        "units_of_account": _literal_values(UnitOfAccount),
+        # The EXPECTATION (`sign_expectation` on the edit body, `sign_convention` on the model)…
+        "sign_expectations": _literal_values(SignExpectation),
+        # …and the NORMALISATION (`sign_rule.convention`), which is a different question. Six
+        # values, of which the legacy 3-token UI vocabulary below can express three.
+        "sign_conventions": [c.value for c in SignConvention],
+        "legacy_sign_conventions": sorted(_SIGN_FROM_UI),
+        "note_uses": _literal_values(NoteUse),
+        "caption_normalizations": _literal_values(
+            NoteSource.model_fields["caption_normalization"].annotation),
+        "term_roles": _literal_values(Term.model_fields["role"].annotation),
+        "analyst_buckets": list(BUCKET_KEYS),
+        # `inherits` names a `section_defaults` entry of THIS set. A dangling one is not a load
+        # error but a silent no-op that leaves the item with no gate at all, which is why the
+        # options come from the set rather than from anything the client remembers.
+        "inherits_options": sorted(st.section_defaults),
+        "section_scope_tokens": sorted(scope_ids | banner_tokens),
+        "residual_frameworks": sorted(frameworks),
+        "residual_populations": sorted(populations),
+        # WHAT IS NOT AUTHORABLE HERE, AND WHY — served rather than restated in the screen, so a
+        # field cannot quietly disappear from the editor with no reason attached. Point of order
+        # for whoever adds a field: absent from the form is a defect; read-only with a reason is
+        # a decision.
+        "not_editable": _NOT_EDITABLE,
+    }
+
+
 # ── reads ──────────────────────────────────────────────────────────────────────────────────────
 
 
@@ -272,9 +412,20 @@ def get_line_items(template_key: str | None = None, session: Session = Depends(d
     defs = st.items
     reg = build(defs)
 
+    # WHAT EACH ITEM ITSELF DECLARED, keyed by key, off the UNRESOLVED stored dicts. The served
+    # item is the RESOLVED one (475 of 475 take their gate from `section_defaults`), and once
+    # validated an inherited value is indistinguishable from a declared one and from a model
+    # default — which is exactly the distinction an editor has to draw, because saving a field the
+    # item never declared turns an inherited value into a declared one and silently detaches the
+    # item from its section. Computed once rather than per item: `payload` recurses.
+    stored = row.definition or {}
+    raw_list = stored.get("items") if isinstance(stored, dict) else stored
+    raw_items = {d.get("key"): d for d in (raw_list or []) if isinstance(d, dict)}
+
     def payload(d) -> dict:
         out = d.model_dump(mode="json")
         out["children"] = [payload(k) for k in reg.children_of(d.key)]
+        out["declared_fields"] = sorted(raw_items.get(d.key, {}).keys())
         return out
 
     roots = sorted((d for d in defs if not d.parent), key=lambda d: (d.order, d.key))
@@ -306,6 +457,9 @@ def get_line_items(template_key: str | None = None, session: Session = Depends(d
             "section_defaults": {k: v.model_dump(mode="json", exclude_none=True)
                                  for k, v in st.section_defaults.items()},
         },
+        # EVERY VALUE THE EDITOR MAY OFFER, so the UI cannot present one the gate then refuses.
+        # See `_vocabulary`: derived from the same aliases `ItemEdit` is typed on.
+        "vocab": _vocabulary(st),
         "counts": {
             "total": len(defs),
             "output": sum(1 for d in defs if d.in_output),
@@ -399,7 +553,9 @@ class LineItemSetCreate(BaseModel):
     target_template_key: str | None = None
 
 
-def _validate_against_target_template(session: Session, st: LineItemSet) -> dict:
+def _validate_against_target_template(session: Session, st: LineItemSet,
+                                      *, key_field: str = "key",
+                                      edited_key: str | None = None) -> dict:
     """Hold a configuration to the template it targets, and report WHICH version it was held to.
 
     Every publishing path goes through here, so validation cannot be skipped on one of them. On the
@@ -428,6 +584,19 @@ def _validate_against_target_template(session: Session, st: LineItemSet) -> dict
       462 keys. A group is a PROHIBITION, and a prohibition addressing nothing cannot be told apart
       from a filing that never triggered it. Every member is checked, not just the aggregate: a
       group missing one component permits exactly the double count it was written to prevent.
+
+    EVERY ERROR CARRIES A ``field``, because this gate is reached from the ITEM EDITOR as well as
+    from the upload door and a refusal an editor cannot pin to a control is a refusal the author
+    cannot act on. Two arguments exist for that, and both are about not lying to the author:
+
+    * ``key_field`` — the template-key check fires on ``namespace == "template" and key not in
+      template``, and on an edit that CHANGED ``namespace`` the culprit is the namespace, not the
+      key. Attributed to ``key`` there, the author reads "the key is wrong" about a key they cannot
+      edit.
+    * ``edited_key`` — a problem on a DIFFERENT item is not this author's control. A stored set can
+      carry one the edit did not cause, and pointing it at the item in front of them would have
+      them change a field that was never wrong. Those keep their ``location`` and lose their
+      ``field``, which puts them in the banner where they belong.
 
     The returned record says which template version the check ran against — the NEWEST stored at
     publish time, which is not necessarily the version a run pins, so a reader with only the response
@@ -458,20 +627,27 @@ def _validate_against_target_template(session: Session, st: LineItemSet) -> dict
     own_keys = {d.key for d in st.items}
     errors: list[dict] = []
     for d in st.items:
+        # A control only when this IS the item being edited — see the docstring.
+        mine = edited_key is None or d.key == edited_key
+        key_on = key_field if mine else None
+        bucket_on = "analyst_bucket" if mine else None
+        children_on = "children_if_decomposed" if mine else None
         if d.namespace == "template" and d.key not in template_keys:
-            errors.append({"location": f"item:{d.key}",
+            errors.append({"location": f"item:{d.key}", "field": key_on, "index": None,
                            "message": "key does not exist in the target template"})
         if d.analyst_bucket and d.analyst_bucket not in BUCKET_KEYS:
-            errors.append({"location": f"item:{d.key}",
+            errors.append({"location": f"item:{d.key}", "field": bucket_on, "index": None,
                            "message": (f"analyst_bucket {d.analyst_bucket!r} is not an analyst "
                                        f"section; expected one of {', '.join(BUCKET_KEYS)}")})
-        for child in d.children_if_decomposed:
+        for i, child in enumerate(d.children_if_decomposed):
             if "|" in child:
                 errors.append({"location": f"item:{d.key}",
+                               "field": children_on, "index": i,
                                "message": (f"children_if_decomposed entry {child!r} contains '|', "
                                            f"so it names no key — list each child separately")})
             elif child not in own_keys:
                 errors.append({"location": f"item:{d.key}",
+                               "field": children_on, "index": i,
                                "message": (f"children_if_decomposed names {child!r}, which is not "
                                            f"a key in this set, so the containment it declares is "
                                            f"unenforceable")})
@@ -480,15 +656,23 @@ def _validate_against_target_template(session: Session, st: LineItemSet) -> dict
         for role, key in ([("aggregate", group.aggregate)]
                           + [("component", c) for c in group.components]):
             if key and key not in own_keys:
+                # No item-editor control owns a set-level group, so this one carries no `field`:
+                # an unattributed error belongs in the banner, not against a control.
                 errors.append({"location": f"mutually_exclusive_group:{gid}",
+                               "field": None, "index": None,
                                "message": (f"{role} {key!r} is not a key in this set, so the "
                                            f"exclusivity it declares can never be enforced")})
     for rule in st.decomposition_rules:
         if rule.face_key not in template_keys:
-            errors.append({"location": f"decomposition:{rule.id}",
+            errors.append({"location": f"decomposition:{rule.id}", "field": None, "index": None,
                            "message": f"face_key {rule.face_key!r} does not exist in the template"})
     if errors:
-        raise HTTPException(status_code=422, detail={"errors": errors[:50]})
+        # Same shape as every other refusal here, `location` kept alongside `field` — see
+        # `_refuse`. The tag differs because this gate is about the CONFIGURATION against its
+        # template, not about the one field an author just typed.
+        _refuse(errors, error="invalid_configuration",
+                what=(f"This configuration does not hold against template "
+                      f"{tpl_row.template_key!r} v{tpl_row.version}"))
     return {"id": tpl_row.id, "template_key": tpl_row.template_key, "version": tpl_row.version}
 
 
@@ -563,11 +747,13 @@ def create_line_item_set(body: LineItemSetCreate, session: Session = Depends(db)
     # real stray key later in the file.
     stray = [p for p in unknown_keys(definition, st, limit=5000) if not _accounted_for(p)][:20]
     if stray:
-        raise HTTPException(
-            status_code=422,
-            detail={"errors": [{"location": p,
-                                "message": "key is not part of the line-item schema"}
-                               for p in stray]})
+        # No `field`: a stray key is a path in an uploaded file (`items[3].aliasses`), not a
+        # control on a screen, so it belongs in the banner. Same envelope regardless — see
+        # `_refuse`.
+        _refuse([{"location": p, "field": None, "index": None,
+                  "message": "key is not part of the line-item schema"} for p in stray],
+                error="invalid_configuration",
+                what="This configuration declares keys the line-item schema does not")
 
     if not _recognises_anything(resolved):
         raise HTTPException(
@@ -610,8 +796,35 @@ def create_line_item_set(body: LineItemSetCreate, session: Session = Depends(db)
 # rename in this change that reaches an API consumer, and the one the whole change is about: the old
 # field named the ontology's concept space, and there is no concept space any more. In a comment
 # because a pydantic docstring is served as the request body's OpenAPI description.
+#
+# WHAT THIS BODY USED TO BE, so nobody trims it back. It accepted THIRTEEN fields while
+# ``LineItemDef`` declares roughly forty, and the justification on the Line Items screen was that
+# the definitions described derivations five services still computed, so nothing downstream read
+# them. That justification expired: line items is the single configuration engine, the matcher is
+# built from this set, and a run pins ``extraction_runs.line_item_version_id``. The definitions
+# DRIVE extraction, so a field that is authorable in the schema and unreachable through this body
+# is a control the product claims to have and does not.
+#
+# THREE FIELDS ARE STILL NOT ACCEPTED, each for its own reason, and the reasons are served to the
+# screen as ``vocab.not_editable`` rather than left implicit:
+#
+#   * ``key`` — the identity every other declaration names, and this endpoint's own selector, so an
+#     inline rename has no coherent target.
+#   * ``children`` — a projection of ``parent`` computed on every read; editing it cannot persist.
+#   * ``aliases_i18n`` — reachable one locale at a time through ``aliases`` + ``locale``. A
+#     map-shaped write is precisely how editing the Chinese aliases clobbers the English ones.
+#
+# And ``min_confidence_to_auto_accept`` is WITHDRAWN, deliberately, and is not accepted here: it
+# was read by nothing (all four accept decisions compare against the global
+# ``settings.extraction.auto_accept_confidence``), it is absent from ``LineItemDef``, and accepting
+# it would store a key the upload gate then refuses. Re-add it only alongside code that reads it.
 class ItemEdit(BaseModel):
-    """An inline edit to ONE line item's matching rules. Only provided fields change.
+    """An inline edit to ONE line item. Only fields PRESENT in the body change.
+
+    Presence, not truthiness: a field left out is untouched, an explicit ``null`` writes "nothing
+    was said" where the schema has such a state, and ``[]`` / ``""`` is a CONFIGURED EMPTY that is
+    stored as empty and never re-defaulted. Clearing a list has to be expressible or an author
+    cannot undo their own edit.
 
     ``aliases`` is locale-scoped: it replaces that locale's ``aliases_i18n`` list (and the base
     ``aliases`` list when the locale is the set's own default), so editing the Chinese aliases can
@@ -621,6 +834,12 @@ class ItemEdit(BaseModel):
     key: str
     locale: str | None = None
     aliases: list[str] | None = None
+    # THE LEGACY 3-TOKEN UI SPELLING, kept because the Template screen sends it. It writes
+    # `sign_rule.convention` through `_SIGN_FROM_UI` and can express three of the six real
+    # `SignConvention` values. It is NOT `LineItemDef.sign_convention`: that field is the sign the
+    # line is EXPECTED to carry, which review validation reads, and it is `sign_expectation` below.
+    # Two fields, two questions; the screen must label them apart or an author edits one thinking
+    # they changed the other.
     sign_convention: str | None = None
     label: str | None = None
     description: str | None = None
@@ -632,8 +851,10 @@ class ItemEdit(BaseModel):
     include_criteria: list[str] | None = None
     exclude_criteria: list[str] | None = None
     confusable_with: list[str] | None = None
-    value_scope: str | None = None
-    # Lexical rule hints (regex / keyword), the deterministic tier's controls.
+    value_scope: ValueScope | None = None
+    # Lexical rule hints (regex / keyword), the deterministic tier's controls. `exclude_hints` are
+    # regex VETOES — prose belongs in `exclude_criteria`, and folding prose into this list either
+    # fails validation or compiles as an accidental veto.
     keyword_hints: list[str] | None = None
     regex_hints: list[str] | None = None
     exclude_hints: list[str] | None = None
@@ -641,11 +862,70 @@ class ItemEdit(BaseModel):
     # claimed from. Editable because it is what decides whether a figure lands on the right line at
     # all — 420 of 1,969 shipped captions are claimed by more than one item, and 96 of those across
     # different statements, so `intangible assets` is separated by the gate and by nothing else.
+    #
+    # `statement` stays `str | None` rather than `StatementType | None` because `""` is the
+    # spelling the existing editor clears it with and that has to keep meaning "claimable
+    # anywhere"; the token is checked against `StatementType` in the apply, attributed to the field.
     statement: str | None = None
     section_scope: list[str] | None = None
 
+    # ── the structure of the tree ─────────────────────────────────────────────────────────────
+    type: LineItemType | None = None
+    in_output: bool | None = None
+    parent: str | None = None
+    rollup: Rollup | None = None
+    order: int | None = None
+    namespace: Namespace | None = None
 
-_VALUE_SCOPES = {"exclusive_leaf", "exclusive_child", "exclusive_residual", "not_applicable"}
+    # ── the rest of the gate ──────────────────────────────────────────────────────────────────
+    inherits: str | None = None
+    match_priority: int | None = None
+    alias_matching: AliasMatching | None = None
+    extraction_mode: ExtractionMode | None = None
+    scopes: list[SearchScope] | None = None
+    side: Side | None = None
+    allow_contra: bool | None = None
+    note_source: NoteSource | None = None
+    note_use: NoteUse | None = None
+    face_only: bool | None = None
+
+    # ── containment and residuals ─────────────────────────────────────────────────────────────
+    is_gross_parent: bool | None = None
+    children_if_decomposed: list[str] | None = None
+    sole_component_of: str | None = None
+    residual_policy: ResidualPolicy | None = None
+    expected_components: list[str] | None = None
+    never_sweep: list[str] | None = None
+
+    # ── recognition ───────────────────────────────────────────────────────────────────────────
+    pattern: str | None = None
+
+    # ── measurement ───────────────────────────────────────────────────────────────────────────
+    temporality: Temporality | None = None
+    unit_of_account: UnitOfAccount | None = None
+    # `LineItemDef.sign_convention` — the EXPECTATION review validation reads. Named
+    # `sign_expectation` on the wire because `sign_convention` is already taken by the legacy
+    # 3-token spelling above, and one name for two fields is how an author changes the wrong one.
+    sign_expectation: SignExpectation | None = None
+    sign_rule: SignRule | None = None
+    analyst_bucket: str | None = None
+
+    # ── assembly ──────────────────────────────────────────────────────────────────────────────
+    terms: list[Term] | None = None
+    cascade: list[CascadeRung] | None = None
+    implemented_by: str | None = None
+
+    # ── prose ─────────────────────────────────────────────────────────────────────────────────
+    # `section_disambiguation` is NOT decoration: `mapping.py` reads it, and it answers exactly the
+    # question the 31 containment collisions ask. The rest document a decision someone will
+    # otherwise re-litigate.
+    decomposition_rule: str | None = None
+    others_rule: str | None = None
+    section_disambiguation: str | None = None
+    derivation: str | None = None
+    aggregation_note: str | None = None
+    template_note: str | None = None
+    notes_as_source_rationale: str | None = None
 
 
 def _clean_list(items: list[str] | None) -> list[str]:
@@ -662,22 +942,259 @@ _SIGN_FROM_UI = {
 }
 
 
-def _publish_new_version(session: Session, row, definition: dict) -> dict:
+# ── the apply tables ──────────────────────────────────────────────────────────────────────────
+#
+# TABLE-DRIVEN, replacing a chain of `if body.X is not None`. Two reasons, and the second is the
+# defect being fixed. First, forty fields of that chain is forty chances to forget one — the
+# thirteen-field version was that chain, and the fields it did not carry were invisible. Second,
+# `is not None` cannot tell `null` from absent, so it could not express a CLEAR at all: an author
+# emptying a list sent `[]`, which is not None and therefore worked, but an author clearing a
+# nullable object had no way to say so. Presence (`model_fields_set`) distinguishes three states,
+# which is the number the schema actually has.
+#
+# ItemEdit field -> the LineItemDef field it writes. Straight copy of the validated value.
+_EDIT_SCALARS: dict[str, str] = {
+    "label": "label",
+    "description": "description",
+    "definition": "definition",
+    "type": "type",
+    "in_output": "in_output",
+    "rollup": "rollup",
+    "order": "order",
+    "namespace": "namespace",
+    "inherits": "inherits",
+    "match_priority": "match_priority",
+    "alias_matching": "alias_matching",
+    "extraction_mode": "extraction_mode",
+    "value_scope": "value_scope",
+    "side": "side",
+    "allow_contra": "allow_contra",
+    "note_use": "note_use",
+    "face_only": "face_only",
+    "is_gross_parent": "is_gross_parent",
+    "temporality": "temporality",
+    "unit_of_account": "unit_of_account",
+    # THE ONE RENAME: `sign_expectation` on the wire is `sign_convention` on the model. See
+    # `ItemEdit.sign_expectation`.
+    "sign_expectation": "sign_convention",
+    "analyst_bucket": "analyst_bucket",
+    "implemented_by": "implemented_by",
+    "decomposition_rule": "decomposition_rule",
+    "others_rule": "others_rule",
+    "section_disambiguation": "section_disambiguation",
+    "derivation": "derivation",
+    "aggregation_note": "aggregation_note",
+    "template_note": "template_note",
+    "notes_as_source_rationale": "notes_as_source_rationale",
+}
+
+# Lists of plain strings, written through `_clean_list` so the editor's ordering survives and
+# blanks do not. `[]` IS STORED. The ones that name other keys, that must compile, or that are
+# locale-scoped are special cases in the apply instead.
+_EDIT_LISTS: dict[str, str] = {
+    "include_criteria": "include_criteria",
+    "exclude_criteria": "exclude_criteria",
+    "keyword_hints": "keyword_hints",
+    # `scopes` is a search ORDER, not a set, and `_clean_list` preserves order — which is why it
+    # belongs here rather than being sorted anywhere on the way through.
+    "scopes": "scopes",
+}
+
+# Nullable sub-objects: dumped in JSON mode so what is stored is what an upload would carry, and
+# `null` disables the whole object (a residual with no policy, an item with no note source).
+_EDIT_MODELS: dict[str, str] = {
+    "residual_policy": "residual_policy",
+    "note_source": "note_source",
+    "sign_rule": "sign_rule",
+}
+
+# Lists of sub-objects. `[]` means "no terms" / "no rungs", which is what the model's own default
+# says, so there is no separate null state to express.
+_EDIT_MODEL_LISTS: dict[str, str] = {
+    "terms": "terms",
+    "cascade": "cascade",
+}
+
+# Which LineItemDef fields have a "nothing was said" state at all, read OFF THE MODEL so it cannot
+# drift from what the loader accepts. An explicit `null` on a field that has no such state is
+# refused with the value that does clear it, rather than being written and coming back as a
+# pydantic error four layers down naming a path the author never typed.
+_NULLABLE_ON_DEF: set[str] = {
+    name for name, f in LineItemDef.model_fields.items()
+    if type(None) in get_args(f.annotation)
+}
+
+# Every field of the edit body that writes something, for the refusal attribution below. `key` and
+# `locale` are selectors, not values.
+_EDITABLE_FIELDS: set[str] = set(ItemEdit.model_fields) - {"key", "locale"}
+
+# LineItemDef field name -> the ItemEdit field that writes it, where the two differ. Only one does,
+# and getting it wrong would attribute a sign-expectation refusal to the legacy normalisation
+# control — a different question on a different row of the screen.
+_MODEL_TO_EDIT_FIELD: dict[str, str] = {"sign_convention": "sign_expectation"}
+
+# Validator messages that name no field of their own, and the control each one is really about.
+# `_coherent`'s `from_section` refusal is the case that forces this table: its remedy sentence
+# mentions `scopes` and `section_scope`, so a scan for field names in the text would land on
+# either of those while the thing to change is `side`.
+_MESSAGE_CULPRITS: tuple[tuple[str, str], ...] = (
+    ("`from_section` needs", "side"),
+    ("needs a cascade or", "cascade"),
+    ("needs at least one term", "terms"),
+    ("exactly one of `ref` or `const`", "terms"),
+    ("`abs` applies to a referenced", "terms"),
+)
+
+
+def _err(field: str | None, message: str, index: int | None = None) -> dict:
+    """One refusal, addressed to the control that caused it."""
+    return {"field": field, "index": index, "message": message}
+
+
+def _error_line(error: dict) -> str:
+    field, index = error.get("field"), error.get("index")
+    where = field if index is None else f"{field}[{index}]"
+    return f"{where}: {error['message']}" if where else error["message"]
+
+
+def _refuse(errors: list[dict], *, error: str = "invalid_edit",
+            what: str = "This edit was not applied") -> None:
+    """Refuse, saying WHICH FIELD each problem belongs to.
+
+    The endpoint re-validates against the target template before it publishes, so a refusal is
+    information the author needs rather than an error to swallow — and a refusal with no field on
+    it lands in a banner the author reads once and cannot act on. One sentence for the summary, the
+    per-field list for the controls, and the server's own message verbatim in both: a paraphrase
+    here is a second spelling of a rule this module does not own.
+
+    ONE SHAPE FOR EVERY REFUSAL FROM THIS FILE, tag included, because the client that has to render
+    them is one client and a second shape is a second renderer that will be written later, worse,
+    or not at all. ``location`` survives on the entries that carry it (the upload door reports
+    ``items[3].aliasses``, which is not a control on any screen) — an entry can have both.
+    """
+    shown = "; ".join(_error_line(e) for e in errors[:5])
+    more = f" (+{len(errors) - 5} more)" if len(errors) > 5 else ""
+    raise HTTPException(status_code=422, detail={
+        "error": error,
+        "message": f"{what} — {len(errors)} problem(s) to fix first: {shown}{more}.",
+        # Bounded like every other error list on this route: one bad paste can produce hundreds,
+        # and the hundredth says nothing the first fifty did not.
+        "errors": errors[:50],
+    })
+
+
+def _clear_hint(target_field: str) -> str:
+    """What to send to clear a field that has no null state, in the JSON spelling."""
+    field = LineItemDef.model_fields.get(target_field)
+    if field is None:                          # pragma: no cover — table and model agree
+        return "an empty value"
+    if field.default_factory is not None:
+        return _as_json(field.default_factory())
+    return _as_json(field.default)
+
+
+def _field_of_loc(loc: tuple) -> tuple[str | None, int | None]:
+    """Map a pydantic error location onto the edit field that owns it.
+
+    ``items.12.side`` -> ``side``; ``items.12.terms.0.ref`` -> ``terms`` index 0. The deepest
+    segment that names an edit field wins, and the integer immediately after it is the row the
+    editor has to highlight — `terms.0.ref` is one bad row in a term table, not a bad table.
+    """
+    field: str | None = None
+    index: int | None = None
+    for i, part in enumerate(loc):
+        if not isinstance(part, str):
+            continue
+        name = _MODEL_TO_EDIT_FIELD.get(part, part)
+        if name in _EDITABLE_FIELDS:
+            field, index = name, None
+            following = loc[i + 1] if i + 1 < len(loc) else None
+            if isinstance(following, int):
+                index = following
+    return field, index
+
+
+def _field_in_message(message: str) -> tuple[str | None, int | None]:
+    """Attribute a whole-item validator's message, which carries no field in its location.
+
+    ``LineItemDef._coherent`` and ``_refuse_uncompilable`` run on the item, so pydantic reports
+    them at ``items.12`` with the field named only in the prose ("regex_hints[0] '(' : missing )").
+    Read out of the prose rather than dropped, because "something on this item is wrong" is not a
+    thing an author can act on.
+    """
+    for needle, field in _MESSAGE_CULPRITS:
+        if needle in message:
+            return field, None
+    # Longest name first: `section_scope` must not be found inside a message that says `scopes`,
+    # and `sign_convention` must not shadow `sign_rule.flip_if_label_matches`.
+    for name in sorted(_EDITABLE_FIELDS, key=len, reverse=True):
+        if name not in message:
+            continue
+        hit = re.search(re.escape(name) + r"\[(\d+)\]", message)
+        return name, int(hit.group(1)) if hit else None
+    return None, None
+
+
+def _attributed_errors(exc: ValidationError, edited_index: int | None = None) -> list[dict]:
+    """A pydantic failure, one error per control, with the server's message kept whole.
+
+    Anything that cannot be attributed keeps its full path in the message instead of losing it —
+    an unattributed error belongs in the banner, and a dropped one belongs nowhere.
+
+    ``edited_index`` is the position of the item being edited, and errors on ANY OTHER item are
+    deliberately left unattributed. A stored set can carry a problem the edit did not cause (a row
+    written by an older schema, a sibling someone else broke), and pointing that at a control on
+    the item in front of the author is worse than pointing at nothing: they would change a field
+    that was never wrong and watch the same refusal come back.
+    """
+    out: list[dict] = []
+    for error in exc.errors():
+        loc = tuple(error.get("loc") or ())
+        message = str(error.get("msg", "")).removeprefix("Value error, ")
+        mine = (edited_index is None
+                or len(loc) < 2 or loc[0] != "items" or loc[1] == edited_index)
+        field, index = _field_of_loc(loc) if mine else (None, None)
+        if field is None and mine:
+            field, index = _field_in_message(message)
+        if field is None:
+            where = ".".join(str(p) for p in loc)
+            message = f"{where}: {message}" if where else message
+        out.append(_err(field, message, index))
+    return out
+
+
+def _publish_new_version(session: Session, row, definition: dict, *, key_field: str = "key",
+                         edited_key: str | None = None, edited_index: int | None = None) -> dict:
     """Validate an edited definition and store it as the NEXT version of the same set.
 
     Shared by every inline edit so validation can never be skipped on one path: a run references the
     exact version it used, so an edit must ADD a version rather than mutate one — mutating a stored
     definition would retroactively change how a past run is explained.
+
+    THE REFUSALS ARE ATTRIBUTED, the publish itself is unchanged. Everything the loader can say
+    about an edited definition is something an author has to fix on a control: a bad `side`, a term
+    naming nothing, a regex that does not compile. Reported as `field`/`index`, it lands on the
+    row that caused it; reported as one sentence off `str(exc)` — which is what this used to do —
+    it is hundreds of pydantic lines in a banner. Anything that cannot be attributed keeps its
+    sentence, so no message is lost either way.
     """
     from app.db.models import LineItemVersion
 
     try:
         st = load_line_item_set(definition, resolve=True)
-    except Exception as exc:  # noqa: BLE001
+    except UnknownInheritsError as exc:
+        # NOT a load error and not a typo the schema can see: the item validates, loads, and
+        # carries NONE of its section's gate, so nothing could ever place it. The message names
+        # every offender and the sections that do exist, which is what makes it fixable.
+        _refuse([_err("inherits", str(exc))])
+    except ValidationError as exc:
+        _refuse(_attributed_errors(exc, edited_index))
+    except Exception as exc:  # noqa: BLE001 — a PatternOverlap or anything else the set refuses
         raise HTTPException(status_code=422,
                             detail=f"Edit produced an invalid configuration: {exc}") from exc
 
-    validated_against = _validate_against_target_template(session, st)
+    validated_against = _validate_against_target_template(session, st, key_field=key_field,
+                                                          edited_key=edited_key)
 
     max_ver = session.execute(
         select(func.max(LineItemVersion.version))
@@ -699,12 +1216,20 @@ def _publish_new_version(session: Session, row, definition: dict) -> dict:
 @router.patch("/versions/{version_id}/items", dependencies=[_GATE])
 def edit_line_item(version_id: str, body: ItemEdit,
                    session: Session = Depends(db)) -> dict:
-    """Apply an inline item edit by publishing a NEW version.
+    """Apply an edit to ONE line item by publishing a NEW version.
+
+    Every authorable field on a line item arrives here; ``key``, ``children`` and ``aliases_i18n``
+    are the three that do not, each for a reason served as ``vocab.not_editable``.
 
     Versioned rather than in-place: an extraction run pins the exact version it used
     (``extraction_runs.line_item_version_id``), so mutating a stored definition would retroactively
     change how past runs are explained. The edit is re-validated against the target template before
     it is published, so the editor cannot persist a configuration the pipeline would then reject.
+
+    PRESENCE DECIDES WHAT CHANGES, not truthiness. A field left out of the body is untouched, an
+    explicit ``null`` writes "nothing was said" where the schema has such a state, and ``[]`` /
+    ``""`` is a configured empty that is stored as empty. A refusal names the field and, in a list,
+    the entry — and a refused edit writes nothing at all.
     """
     from app.db.models import LineItemVersion
 
@@ -717,80 +1242,280 @@ def edit_line_item(version_id: str, body: ItemEdit,
     if not isinstance(items, list):
         raise HTTPException(status_code=422, detail="This version has no items to edit")
 
-    target = next((d for d in items if d.get("key") == body.key), None)
-    if target is None:
+    # The POSITION as well as the dict: pydantic reports an error on `items.<i>.<field>`, and `i` is
+    # how a refusal is told apart from a problem some OTHER item in the set was already carrying.
+    # Taken from the walk rather than with `.index`, which compares by value.
+    target_at = next((i for i, d in enumerate(items)
+                      if isinstance(d, dict) and d.get("key") == body.key), None)
+    if target_at is None:
         raise HTTPException(status_code=404,
                             detail=f"Line item {body.key!r} is not in this version")
+    target = items[target_at]
 
-    if body.aliases is not None:
-        cleaned = _clean_list(body.aliases)
-        locale = body.locale or definition.get("locale") or "en"
-        i18n = dict(target.get("aliases_i18n") or {})
-        i18n[locale] = cleaned
-        target["aliases_i18n"] = i18n
-        # The base list mirrors the default locale (what non-localized consumers read).
-        if locale == (definition.get("locale") or "en"):
-            target["aliases"] = cleaned
+    known = {d.get("key") for d in items if isinstance(d, dict)}
+    sent = body.model_fields_set
+    errors: list[dict] = []
+    # EVERY PROBLEM IN ONE PASS, and NOTHING WRITTEN UNTIL THERE ARE NONE. The writes are staged
+    # here and applied to `target` at the end, so a refused edit leaves the definition exactly as
+    # it was — the property `test_the_controls_the_screen_withholds_are_the_ones_the_server_refuses`
+    # asserts — and an author fixing three fields is told about three, not told about the first,
+    # then the second, then the third.
+    writes: dict[str, object] = {}
 
-    if body.sign_convention is not None:
-        mapped = _SIGN_FROM_UI.get(body.sign_convention)
-        if mapped is None:
-            raise HTTPException(status_code=422,
-                                detail=f"Unknown sign convention {body.sign_convention!r}; "
-                                       f"expected one of {sorted(_SIGN_FROM_UI)}")
-        rule = dict(target.get("sign_rule") or {})
-        rule["convention"] = mapped
-        target["sign_rule"] = rule
+    def compile_all(values: list[str], field: str) -> None:
+        """Refuse a pattern that does not compile, saying WHICH entry.
 
-    if body.label is not None:
-        target["label"] = body.label
-    if body.description is not None:
-        target["description"] = body.description
-    if body.definition is not None:
-        target["definition"] = body.definition
-    if body.value_scope is not None:
-        if body.value_scope not in _VALUE_SCOPES:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Unknown value_scope {body.value_scope!r}; expected one of "
-                       f"{sorted(_VALUE_SCOPES)}")
-        target["value_scope"] = body.value_scope
-    if body.confusable_with is not None:
-        # These name OTHER line items; a typo would silently weaken the very disambiguation the
-        # field exists for, so unknown keys are rejected rather than stored.
-        known = {d.get("key") for d in items}
-        unknown = [k for k in body.confusable_with if k and k not in known]
-        if unknown:
-            raise HTTPException(status_code=422,
-                                detail=f"confusable_with names unknown line items: {unknown}")
-        target["confusable_with"] = _clean_list(body.confusable_with)
-    if body.statement is not None:
-        # `""` clears the gate — "claimable on any statement", which is what `None` means in the
-        # schema. A CONFIGURED EMPTY VALUE MEANS NOTHING, never "fall back to a default", so it is
-        # written as null rather than dropped (dropping it would re-expose the item to whatever its
-        # section layer declares).
-        target["statement"] = body.statement or None
-    if body.section_scope is not None:
-        # An empty list is UNCONSTRAINED here, by the schema's own rule — and it is stored, not
-        # skipped, for the same reason.
-        target["section_scope"] = _clean_list(body.section_scope)
-    for field in ("include_criteria", "exclude_criteria", "keyword_hints", "exclude_hints"):
-        value = getattr(body, field)
-        if value is not None:
-            target[field] = _clean_list(value)
-    if body.regex_hints is not None:
-        # A bad pattern would raise inside the matcher on every future run, so it is compiled here
-        # and refused now rather than breaking extraction later.
-        cleaned = _clean_list(body.regex_hints)
-        for pattern in cleaned:
+        A torn pattern is a SILENT hole rather than a crash: an exclusion that does not compile
+        simply stops excluding, and the wrong rows get summed into a figure nobody can trace back
+        (see `schemas.line_items._refuse_uncompilable` — splitting a shipped 34-alternative regex
+        on `|` tore `^\\s*at\\s+(?:1|31)` into two fragments matching nothing). The index is here
+        because a list of twenty regexes with one bad entry is not a list an author can eyeball.
+        """
+        for i, pattern in enumerate(values):
             try:
                 re.compile(pattern)
             except re.error as exc:
-                raise HTTPException(status_code=422,
-                                    detail=f"Invalid regex {pattern!r}: {exc}") from exc
-        target["regex_hints"] = cleaned
+                errors.append(_err(field, f"{pattern!r} is not a valid regex: {exc}", i))
 
-    out = _publish_new_version(session, row, definition)
+    def keys_exist(values: list[str], field: str) -> None:
+        """Refuse an entry that names no line item in this set.
+
+        Every reader of these lists compares an entry against a key that was MATCHED, so an entry
+        that is not a key matches nothing and the relation it declares is silently unenforced —
+        indistinguishable from a filing that never triggered it. That is the same requirement the
+        publish gate applies to `children_if_decomposed`, applied at the field an author typed.
+
+        The PIPE is called out separately, as it is at the gate: the generated rulebook shipped 30
+        of 31 carriers with every child packed into one pipe-joined string, so the whole file
+        produced ONE decomposition instead of 25. That is a splitting mistake, not a typo in one
+        name, and saying so points at the fix.
+        """
+        for i, value in enumerate(values):
+            if not value:
+                continue
+            if "|" in value:
+                errors.append(_err(field, f"{value!r} contains '|', so it names no key — list "
+                                          f"each entry separately", i))
+            elif value not in known:
+                errors.append(_err(field, f"{value!r} is not a key in this set, so the relation "
+                                          f"it declares can never be enforced", i))
+
+    # ── the three general tables ──────────────────────────────────────────────────────────────
+    for field, into in _EDIT_SCALARS.items():
+        if field not in sent:
+            continue                            # ABSENT: do not touch
+        value = getattr(body, field)
+        if value is None and into not in _NULLABLE_ON_DEF:
+            errors.append(_err(field, f"{field} has no 'nothing was said' state on a line item — "
+                                      f"send {_clear_hint(into)} to clear it"))
+            continue
+        writes[into] = value
+
+    for field, into in _EDIT_LISTS.items():
+        if field not in sent:
+            continue
+        value = getattr(body, field)
+        if value is None:
+            errors.append(_err(field, f"{field} is a list, so it has no null state — send [] to "
+                                      f"clear it, and [] is stored as empty"))
+            continue
+        writes[into] = _clean_list(value)
+
+    for field, into in _EDIT_MODELS.items():
+        if field not in sent:
+            continue
+        model = getattr(body, field)
+        # `null` DISABLES the object, and that is a real configuration: a residual with no policy
+        # of its own, an item read off no note. Written rather than dropped, because dropping it
+        # would leave whatever the section layer says in force.
+        writes[into] = None if model is None else model.model_dump(mode="json")
+
+    for field, into in _EDIT_MODEL_LISTS.items():
+        if field not in sent:
+            continue
+        rows = getattr(body, field)
+        if rows is None:
+            errors.append(_err(field, f"{field} is a list, so it has no null state — send [] to "
+                                      f"clear it"))
+            continue
+        writes[into] = [r.model_dump(mode="json") for r in rows]
+
+    # ── aliases: LOCALE-SCOPED, and the contract is exactly as it was ─────────────────────────
+    if "aliases" in sent:
+        if body.aliases is None:
+            errors.append(_err("aliases", "aliases is a list, so it has no null state — send [] "
+                                          "to clear this locale's aliases"))
+        else:
+            cleaned = _clean_list(body.aliases)
+            locale = body.locale or definition.get("locale") or "en"
+            i18n = dict(target.get("aliases_i18n") or {})
+            i18n[locale] = cleaned
+            writes["aliases_i18n"] = i18n
+            # The base list mirrors the default locale (what non-localized consumers read). This
+            # is the whole of the locale contract: ONE locale's list is replaced, so editing zh
+            # cannot clobber en, and only the default locale also writes the base list.
+            if locale == (definition.get("locale") or "en"):
+                writes["aliases"] = cleaned
+
+    # ── the sign fields, which are two different questions ───────────────────────────────────
+    # `sign_rule` first, then the legacy 3-token spelling patches `convention` on whatever object
+    # results — so a body sending both ends up with the legacy value in force rather than with the
+    # order of two `if`s deciding it.
+    if "sign_convention" in sent and body.sign_convention is not None:
+        mapped = _SIGN_FROM_UI.get(body.sign_convention)
+        if mapped is None:
+            errors.append(_err("sign_convention",
+                               f"unknown sign convention {body.sign_convention!r}; expected one "
+                               f"of {sorted(_SIGN_FROM_UI)} (the legacy 3-token spelling), or "
+                               f"send `sign_rule.convention` for the full vocabulary"))
+        else:
+            staged = writes.get("sign_rule", target.get("sign_rule"))
+            rule = dict(staged or {})
+            rule["convention"] = mapped
+            writes["sign_rule"] = rule
+    if "sign_rule" in sent and body.sign_rule is not None:
+        # `SignRule` does NOT compile its own patterns — `LineItemDef._coherent` does, at publish,
+        # as an item-level error naming a path the author never typed. Compiled here so the
+        # offending entry is named, because a silent sign inversion is one of the most expensive
+        # errors on a statement and this is the only field that causes one. Dotted field name: the
+        # index belongs to `flip_if_label_matches`, not to the object.
+        compile_all(body.sign_rule.flip_if_label_matches, "sign_rule.flip_if_label_matches")
+
+    # ── the gate ─────────────────────────────────────────────────────────────────────────────
+    if "statement" in sent:
+        # `""` and `null` both clear the gate — "claimable on any statement", which is what `None`
+        # means in the schema. A CONFIGURED EMPTY VALUE MEANS NOTHING, never "fall back to a
+        # default", so it is written as null rather than dropped (dropping it would re-expose the
+        # item to whatever its section layer declares).
+        statement = (body.statement or "").strip() or None
+        allowed = [s.value for s in StatementType]
+        if statement is not None and statement not in allowed:
+            errors.append(_err("statement", f"{statement!r} is not a statement; expected one of "
+                                            f"{allowed}, or '' for 'claimable anywhere'"))
+        else:
+            writes["statement"] = statement
+    if "section_scope" in sent:
+        if body.section_scope is None:
+            errors.append(_err("section_scope", "section_scope is a list, so it has no null "
+                                                "state — send [] for 'unconstrained'"))
+        else:
+            # An empty list is UNCONSTRAINED here, by the schema's own rule — and it is stored, not
+            # skipped, for the same reason.
+            writes["section_scope"] = _clean_list(body.section_scope)
+    # `note_source`'s THREE PATTERN GROUPS are compile-checked, but not here: `NoteSource` carries
+    # its own `_patterns_compile` validator, so the body never parses at all when one of them does
+    # not compile and FastAPI answers 422 with `loc: ["body", "note_source"]` and the group plus
+    # index in the message ("row_caption_any[0] '(bad': missing )"). Re-checking it below the model
+    # would be unreachable code pretending to be a guard. That the check lives on the model is the
+    # point of typing this field on `NoteSource` rather than on `dict`: this object REPLACED the
+    # 162-alternative `_QUALIFYING_RE` whitelist that refused a filing writing "Depreciation charge
+    # for the year", and a torn pattern here is a silent hole rather than a crash.
+
+    # ── recognition: the regex fields, each compiled where it is written ─────────────────────
+    for field in ("regex_hints", "exclude_hints"):
+        if field not in sent:
+            continue
+        value = getattr(body, field)
+        if value is None:
+            errors.append(_err(field, f"{field} is a list, so it has no null state — send [] to "
+                                      f"clear it"))
+            continue
+        cleaned = _clean_list(value)
+        # `exclude_hints` was accepted before and NOT compiled, unlike `regex_hints` — the one
+        # asymmetry that mattered, because a torn veto stops vetoing in silence.
+        compile_all(cleaned, field)
+        writes[field] = cleaned
+    if "pattern" in sent:
+        pattern = body.pattern or ""            # `null` and `""` both mean "no pattern"
+        compile_all([pattern] if pattern else [], "pattern")
+        writes["pattern"] = pattern
+
+    # ── the keys other declarations name ─────────────────────────────────────────────────────
+    if "confusable_with" in sent:
+        if body.confusable_with is None:
+            errors.append(_err("confusable_with", "confusable_with is a list, so it has no null "
+                                                  "state — send [] to clear it"))
+        else:
+            # These name OTHER line items; a typo would silently weaken the very disambiguation the
+            # field exists for, so unknown keys are rejected rather than stored.
+            cleaned = _clean_list(body.confusable_with)
+            unknown = [k for k in cleaned if k not in known]
+            if unknown:
+                errors.append(_err("confusable_with",
+                                   f"confusable_with names unknown line items: {unknown}"))
+            else:
+                writes["confusable_with"] = cleaned
+    for field in ("expected_components", "never_sweep", "children_if_decomposed"):
+        if field not in sent:
+            continue
+        value = getattr(body, field)
+        if value is None:
+            errors.append(_err(field, f"{field} is a list, so it has no null state — send [] to "
+                                      f"clear it"))
+            continue
+        cleaned = _clean_list(value)
+        keys_exist(cleaned, field)
+        writes[field] = cleaned
+    if "sole_component_of" in sent:
+        # Nullable, and `""` means the same thing: this line is the sole component of nothing.
+        sole = (body.sole_component_of or "").strip() or None
+        if sole is not None and sole not in known:
+            errors.append(_err("sole_component_of",
+                               f"{sole!r} is not a key in this set, so the subtotal this line "
+                               f"claims to be the sole component of does not exist"))
+        else:
+            writes["sole_component_of"] = sole
+    for field in ("terms", "cascade"):
+        if field not in sent or getattr(body, field) is None:
+            continue
+        for i, entry in enumerate(getattr(body, field)):
+            # A cascade rung's terms are the same `Term` shape, so the same check reaches both —
+            # a `ref` naming nothing is a term that silently contributes nothing to the sum.
+            for term in (entry.terms if field == "cascade" else [entry]):
+                if term.ref and term.ref not in known:
+                    errors.append(_err(field, f"term ref {term.ref!r} is not a key in this set, "
+                                              f"so it would contribute nothing to this formula",
+                                       i))
+
+    # ── the tree ─────────────────────────────────────────────────────────────────────────────
+    if "parent" in sent:
+        # `""` and `null` both make the item a ROOT. Refused on self-reference and on any cycle:
+        # `build` reports a parent that is not a line item as a problem rather than a load error,
+        # so an unchecked reparent would publish a set with a broken tree and no refusal at all.
+        parent = (body.parent or "").strip()
+        if not parent:
+            writes["parent"] = ""
+        elif parent == body.key:
+            errors.append(_err("parent", "a line item cannot be its own parent"))
+        elif parent not in known:
+            errors.append(_err("parent", f"{parent!r} is not a key in this set"))
+        else:
+            # Walk upward with the edit APPLIED, over this set's own keys, so a cycle the edit
+            # would create is caught before it is stored.
+            parents = {d.get("key"): (d.get("parent") or "")
+                       for d in items if isinstance(d, dict)}
+            parents[body.key] = parent
+            chain, cursor = [body.key], parent
+            while cursor:
+                if cursor in chain:
+                    errors.append(_err("parent", f"that would make a cycle: "
+                                                 f"{' -> '.join(chain + [cursor])}"))
+                    break
+                chain.append(cursor)
+                cursor = parents.get(cursor, "")
+            else:
+                writes["parent"] = parent
+
+    if errors:
+        _refuse(errors)
+    target.update(writes)
+
+    # `namespace` is the attribution that depends on the edit: flipping it to `template` on a key
+    # the template does not declare is refused by the publish gate, and told about `key` — which
+    # is not editable — the author reads it as "the key is wrong".
+    out = _publish_new_version(session, row, definition,
+                               key_field="namespace" if "namespace" in sent else "key",
+                               edited_key=body.key, edited_index=target_at)
     out["key"] = body.key
     return out
 

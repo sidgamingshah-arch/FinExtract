@@ -71,16 +71,26 @@ export function setStoredNavCollapsed(v: boolean): void {
  *  sentence. Three different refusals share status 409 there — the figures moved, the subject is a
  *  conflict the queue cannot resolve, the write itself lost a race — and one status cannot tell
  *  them apart, so a screen that explains a 409 must read the code rather than assume the first
- *  meaning. */
+ *  meaning.
+ *
+ *  `fields` is the PER-FIELD refusal list (`detail.errors[]`), carried so an editor can put the
+ *  server's message on the control that caused it. The configuration edit re-validates the whole
+ *  set against the target template before it publishes, so a refusal names one field out of forty
+ *  — and a forty-field form told only "422, this edit was not applied" leaves the author hunting.
+ *  Undefined for every response that carries no such list, which is most of them: a screen must be
+ *  able to tell "no per-field information" from "no problems". */
 export class ApiError extends Error {
   status: number;
   detail?: string;
   code?: string;
-  constructor(status: number, message: string, detail?: string, code?: string) {
+  fields?: LineItemFieldError[];
+  constructor(status: number, message: string, detail?: string, code?: string,
+              fields?: LineItemFieldError[]) {
     super(message);
     this.status = status;
     this.detail = detail;
     this.code = code;
+    this.fields = fields;
   }
 }
 
@@ -95,11 +105,72 @@ export function refusalText(err: unknown): string {
   return err instanceof Error ? err.message : "";
 }
 
-/** Pull FastAPI's `detail` out of an error body; undefined when it isn't a plain message. */
+/** Pull FastAPI's `detail` out of an error body — the server's own sentence about what it refused.
+ *
+ *  TWO SHAPES, because the routes send two. Most raise `HTTPException(detail="a sentence")`; the
+ *  configuration routes raise a STRUCTURED detail (`{error, message, errors[]}` —
+ *  `routes/line_items.py::_refuse`) so one refusal can carry a summary AND a per-field list. This
+ *  used to return the string shape only, which meant a structured detail was DROPPED ENTIRELY and
+ *  the screen printed "422 Unprocessable Content" with none of the server's words — the worst case
+ *  of the two, since a configuration refusal is the one an author is expected to act on.
+ *
+ *  `detail.message` is the sentence in that shape. FastAPI's own request-validation 422 sends
+ *  `detail` as an ARRAY of `{loc, msg, type}`, which has no `message` and is not a sentence
+ *  anybody wants shown, so arrays fall through to undefined and the status line stands. */
 function errorDetail(text: string): string | undefined {
   try {
     const body = JSON.parse(text) as { detail?: unknown };
-    return typeof body.detail === "string" ? body.detail : undefined;
+    const detail = body.detail;
+    if (typeof detail === "string") return detail;
+    if (detail && typeof detail === "object" && !Array.isArray(detail)) {
+      const message = (detail as { message?: unknown }).message;
+      if (typeof message === "string") return message;
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Pull `detail.errors[]` — the refusals ADDRESSED TO A FIELD — out of a structured error body.
+ *
+ *  The edit endpoint validates every field in one pass and writes nothing until there are no
+ *  problems, so a refused save comes back naming each field that has to change (`field`), which
+ *  entry of a list field it is (`index`), and the server's message verbatim. Read here rather than
+ *  in a screen because the shape is the wire's, not one screen's, and a second copy of this parse
+ *  is a second place for the server's words to quietly become "Error: 422".
+ *
+ *  NOT PARAPHRASED and NOT REORDERED: `message` is the only statement of a rule this client does
+ *  not own. `field: null` is kept as null rather than dropped — those are the refusals that belong
+ *  to the set rather than to a control (a rollup that does not tie), and a form has to show them
+ *  somewhere. Entries with no `message` are skipped: there is nothing to put on a control.
+ *
+ *  Undefined, not `[]`, when the body carries no such list — "the server said nothing per field"
+ *  and "the server said there are no field problems" are different answers. */
+function errorFields(text: string): LineItemFieldError[] | undefined {
+  try {
+    const body = JSON.parse(text) as { detail?: unknown };
+    const detail = body.detail;
+    if (!detail || typeof detail !== "object" || Array.isArray(detail)) return undefined;
+    const raw = (detail as { errors?: unknown }).errors;
+    if (!Array.isArray(raw)) return undefined;
+    const out: LineItemFieldError[] = [];
+    for (const entry of raw) {
+      if (!entry || typeof entry !== "object") continue;
+      const e = entry as { field?: unknown; index?: unknown; message?: unknown;
+                           location?: unknown };
+      if (typeof e.message !== "string") continue;
+      out.push({
+        field: typeof e.field === "string" ? e.field : null,
+        index: typeof e.index === "number" ? e.index : null,
+        message: e.message,
+        // `location` survives only on entries that came from the upload door
+        // (`items[3].aliasses`), which is not a control on any screen — kept so the banner can
+        // still say where, omitted rather than blanked so a reader can test for it.
+        ...(typeof e.location === "string" ? { location: e.location } : {}),
+      });
+    }
+    return out.length ? out : undefined;
   } catch {
     return undefined;
   }
@@ -132,7 +203,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new ApiError(res.status, `${res.status} ${res.statusText} — ${text}`,
-                       errorDetail(text), errorCode(text));
+                       errorDetail(text), errorCode(text), errorFields(text));
   }
   if (res.status === 204) return undefined as T; // no content (e.g. DELETE)
   return res.json() as Promise<T>;
@@ -159,7 +230,9 @@ import type {
   FxRateInput,
   FxRateResolution,
   IntegrityResponse,
+  LineItemEdit,
   LineItemEditResult,
+  LineItemFieldError,
   LineItemSchema,
   LineItemVersionRef,
   Locale,
@@ -380,7 +453,15 @@ export const api = {
       `/documents/${documentId}/scope`,
       { method: "PUT", body: JSON.stringify({ included_pages: includedPages }) },
     ),
-  /** The configured line items — the eight output lines and their sub-line items. */
+  /** The configured line items — the eight output lines and their sub-line items.
+   *
+   *  Signature unchanged; the RESPONSE now also carries `version` (which stored version answered,
+   *  so the screen can caption itself with the row a run would map against instead of assuming)
+   *  and `vocab` (every value an edit may legally carry, plus the reasons for the fields shown
+   *  read-only). Both are declared on `LineItemsResponse`, so a screen reads them off the type
+   *  rather than through a cast — a cast is how a payload field gets renamed with no reader
+   *  noticing. `GET /line-items` selects latest-stored-wins, which is what makes invalidating
+   *  `["line-items"]` after an edit show the newly published version as the one in force. */
   lineItems: () => req<LineItemsResponse>("/line-items"),
   /** Data-driven commentary computed from a document's real extraction (not the demo). */
   documentCommentary: (documentId: string, locale: Locale = "en") =>
@@ -514,20 +595,36 @@ export const api = {
     }
     return res.json();
   },
-  /** Edit ONE line item's rules inline — aliases, sign, the section gate and the matching
-   *  criteria the model reasons over. The server validates the result and publishes a NEW
-   *  line-item version (so a past extraction still explains itself against the version it
-   *  actually used); the response carries that new version's id/number.
+  /** Edit ONE line item's DEFINITION inline — every authorable field on it, not a subset: the
+   *  meaning fields (`description`, `definition`, the include/exclude criteria, `confusable_with`),
+   *  the tree, the gate, recognition, measurement and the assembly arithmetic. The server validates
+   *  the result and publishes a NEW line-item version (so a past extraction still explains itself
+   *  against the version it actually used); the response carries that new version's id/number.
+   *
+   *  THE BODY IS `LineItemEdit`, which is the wire's own shape. Presence decides what changes —
+   *  a key left out is untouched, an explicit `null` writes "nothing was said", and `[]`/`""` is a
+   *  configured empty that is stored as empty and never re-defaulted. So do NOT strip `null`s or
+   *  substitute a default on the way in: an author who cannot clear a list cannot undo their edit.
    *
    *  Was `editOntologyMapping` on `/ontologies/{id}/mappings`. The endpoint's own body names the
    *  item `key` — the ontology's `canonical_key` named a concept space that no longer exists —
    *  and the edit object handed in here is passed through unchanged.
    *
+   *  `MappingEdit` IS STILL IN THE UNION, and only for `Template.tsx`, which is not in this
+   *  change and still sends `canonical_key` / `include` / `exclude`. It is a BRIDGE, not a choice:
+   *  drop it from this union and delete the interface the moment that screen sends `LineItemEdit`
+   *  (the note on `MappingEdit` in `types.ts` says the same). Nothing new should be typed on it —
+   *  the server declares `key` required and ignores keys it does not know, so an edit sent in the
+   *  old spelling is a save that quietly does nothing, which is the defect class being closed.
+   *
+   *  A refusal comes back as 422 with `detail.errors[]` addressed per field; `req` lifts that onto
+   *  `ApiError.fields` so the editor can show each message against the control that caused it.
+   *
    *  THE NETTING-RULE EDIT THAT SAT BESIDE THIS IS GONE with the route that served it
    *  (`PATCH /ontologies/{id}/netting-rules`). Netting is part of the line-item set, so it is
    *  published like any other part of it — through the one configuration engine, not through a
    *  second ontology-shaped door. */
-  editLineItem: (lineItemVersionId: string, edit: MappingEdit) =>
+  editLineItem: (lineItemVersionId: string, edit: LineItemEdit | MappingEdit) =>
     req<LineItemEditResult & { key: string }>(
       `/line-items/versions/${lineItemVersionId}/items`,
       { method: "PATCH", body: JSON.stringify(edit) }),

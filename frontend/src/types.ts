@@ -1370,8 +1370,17 @@ export interface TemplateResponse {
   line_items?: { id: string; line_items_key: string; version: number; locale: string } | null;
 }
 
-/** An inline edit to ONE concept's mapping rules; only the fields present are changed.
- *  `aliases` is locale-scoped, so editing one language never clobbers another's list. */
+/** THE TEMPLATE SCREEN'S LEGACY EDIT BODY. Superseded by `LineItemEdit` below — do not add
+ *  fields here, and do not point a new caller at it.
+ *
+ *  It is kept only because `api.editLineItem` is still typed on it and `Template.tsx` still sends
+ *  `canonical_key`, and neither file is in this change. The wire has moved: the endpoint is
+ *  `PATCH /line-items/versions/{id}/items` and its body (`routes/line_items.py::ItemEdit`) takes
+ *  `key`, not `canonical_key`, and `include_criteria` / `exclude_criteria`, not `include` /
+ *  `exclude`. Pydantic IGNORES the keys it does not declare, so the two criteria lists the
+ *  Template screen sends under the old names are accepted with a 200 and DROPPED — a save that
+ *  silently does nothing, which is the defect class this whole change is closing. DELETE this
+ *  interface the moment `api.ts` and `Template.tsx` send `LineItemEdit`; nothing else reads it. */
 export interface MappingEdit {
   canonical_key: string;
   locale?: string;
@@ -1453,6 +1462,37 @@ export type LineItemNamespace = "template" | "internal";
 export type LineItemSide = "from_section" | "asset" | "liability" | "equity" | "none";
 /** What a term's absence means. `adjustment` never justifies a cascade rung on its own. */
 export type TermRole = "required" | "any_of" | "adjustment";
+/* The scalar vocabularies below were spelled inline on `LineItemDef` and had to be spelled a
+ * second time the moment an EDIT body needed them. Named once and read by both, because two
+ * copies of a closed set is one copy that stops matching the backend's `Literal[...]` and an
+ * editor that offers a token the publish gate refuses. Every one of them is served at runtime
+ * under `LineItemVocab` as well — the type says what is legal, the vocab says what THIS set has. */
+/** `disabled` makes the line unreachable by every matching tier, fillable only by the sweep. */
+export type LineItemAliasMatching = "enabled" | "disabled";
+/** Only `do_not_extract` suppresses a line. The other three stay candidates the matcher can
+ *  recognise — reading `derive` as "do not extract" refuses a printed row and sweeps it. */
+export type LineItemExtractionMode =
+  | "extract" | "extract_or_derive" | "derive" | "do_not_extract";
+/** Instant versus duration — the line's identity as a measurement. `null` means nothing said. */
+export type LineItemTemporality = "instant" | "duration";
+export type LineItemUnitOfAccount = "balance" | "flow" | "subtotal";
+/** Whether a cited note may be a SOURCE for this line or only evidence for it. Three-valued:
+ *  `null` is "nothing was said", which is NOT `evidence_only`. */
+export type LineItemNoteUse = "evidence_only" | "decomposition_allowed";
+/** The sign the line is EXPECTED to carry — a review trigger, never a transformation. This is
+ *  `LineItemDef.sign_convention`, and it is sent as `sign_expectation` on an edit: the wire name
+ *  `sign_convention` is taken by the legacy 3-token spelling, and one name for two questions is
+ *  how an author changes the wrong one. */
+export type SignExpectation = "positive_expected" | "negative_expected" | "either";
+/** The convention a value is NORMALISED and stored under (`sign_rule.convention`) — a different
+ *  question from `SignExpectation`. Six values; the legacy 3-token UI vocabulary the Template
+ *  screen sends (`as_reported` / `expense_contra` / `auto`) can express three of them. */
+export type SignRuleConvention = "natural" | "natural_positive" | "natural_negative"
+  | "debit_positive" | "credit_positive" | "context";
+/** Whether `note_source`'s three pattern groups are authored against RAW captions or against
+ *  `normalize_label`-folded text. The shipped patterns were lifted from a matcher that reads raw
+ *  captions, so folding them would stop some of them matching. */
+export type CaptionNormalization = "none" | "mapping_v1";
 
 export interface LineItemTerm {
   ref: string;
@@ -1469,11 +1509,19 @@ export interface CascadeRung {
    *  refuse a negative candidate, and the config that ported them originally did not. */
   refuse_negative: boolean;
 }
+/** Which note a sub-line item is read from and which of its rows count.
+ *
+ *  This object REPLACED a hard-coded heading list and a 162-alternative regex whitelist that
+ *  refused a filing writing "Depreciation charge for the year". Widening it is the single edit the
+ *  Line Items screen exists to make possible, so all four fields are authorable. */
 export interface NoteSource {
   note_title_any: string[];
   row_caption_any: string[];
+  /** Regex VETOES over the note's rows. A torn pattern here does not fail loudly — the exclusion
+   *  simply stops excluding — which is why the edit path compiles each one and attributes the
+   *  compile error to this list and to the offending index. */
   row_caption_none: string[];
-  caption_normalization: "none" | "mapping_v1";
+  caption_normalization: CaptionNormalization;
 }
 /** Sweep terms for a residual bucket — the section's unexplained remainder. */
 export interface ResidualPolicy {
@@ -1485,8 +1533,14 @@ export interface ResidualPolicy {
   plug: boolean;
   itemise: boolean;
 }
+/** How a value is NORMALISED: the convention it is stored under, plus regexes that flip its sign
+ *  when the printed label matches. A silent sign inversion is one of the most expensive errors on
+ *  a statement and `flip_if_label_matches` is the only field that causes one, so it is compiled on
+ *  the edit path with the error attributed per index. */
 export interface SignRule {
-  convention: string;
+  /** Narrowed from `string`: the backend field is the six-value `SignConvention` enum, and a
+   *  `string` here is how a select comes to offer a seventh value the publish gate then refuses. */
+  convention: SignRuleConvention;
   flip_if_label_matches: string[];
 }
 export interface LineItemDef {
@@ -1514,10 +1568,12 @@ export interface LineItemDef {
   section_scope: string[];
   /** Descending tie-break for collisions the gate leaves standing. */
   match_priority: number | null;
-  /** `disabled` makes it unreachable by every matching tier, fillable only by the sweep. */
-  alias_matching: "enabled" | "disabled";
-  extraction_mode: "extract" | "extract_or_derive" | "derive" | "do_not_extract";
-  value_scope: string;
+  alias_matching: LineItemAliasMatching;
+  extraction_mode: LineItemExtractionMode;
+  /** Narrowed from `string` to the backend's own four-value `ValueScope`. It was already
+   *  validated against that set on the edit path, so a wider type here only ever let a control
+   *  offer a fifth value and collect the 422. */
+  value_scope: ValueScope;
   residual_policy: ResidualPolicy | null;
   expected_components: string[];
   never_sweep: string[];
@@ -1546,15 +1602,24 @@ export interface LineItemDef {
   include_criteria: string[];
   exclude_criteria: string[];
   note_source: NoteSource | null;
-  note_use: "evidence_only" | "decomposition_allowed" | null;
+  note_use: LineItemNoteUse | null;
+  /** `null` means nothing was said, which is NOT `false` — v1 sets never expressed it. */
   face_only: boolean | null;
-  min_confidence_to_auto_accept: number;
+  // NO `min_confidence_to_auto_accept`. It was declared here, NON-OPTIONAL, and the server has
+  // never sent it: the field was withdrawn from `LineItemDef` on the backend ("remove line item
+  // level control for now") because nothing read it — all four accept decisions compare against
+  // the global `settings.extraction.auto_accept_confidence`. So every item this screen rendered
+  // carried `undefined` behind a type promising a number. A type that lies about the payload is
+  // worse than a missing field, because the compiler stops asking. The screen names it in its
+  // "not editable here" list off `LineItemVocab.not_editable`, which is where the reason lives;
+  // re-add it here only alongside code that reads it.
 
   // ── measurement ──────────────────────────────────────────────────────────────────────────
-  temporality: "instant" | "duration" | null;
-  unit_of_account: "balance" | "flow" | "subtotal" | null;
-  /** An expectation, never a transformation — `sign_rule` performs the flip. */
-  sign_convention: "positive_expected" | "negative_expected" | "either" | null;
+  temporality: LineItemTemporality | null;
+  unit_of_account: LineItemUnitOfAccount | null;
+  /** An expectation, never a transformation — `sign_rule` performs the flip. Sent back as
+   *  `sign_expectation` on an edit; see `SignExpectation`. */
+  sign_convention: SignExpectation | null;
   sign_rule: SignRule | null;
   analyst_bucket: string | null;
 
@@ -1570,10 +1635,262 @@ export interface LineItemDef {
 
   terms: LineItemTerm[];
   cascade: CascadeRung[];
-  /** The service that computes this line today, while the config only describes it. */
+  /** The service that computes this line today, while the config only describes it. Clearing it
+   *  is how an author hands the derivation over to an authored `cascade` — and a `derived` line
+   *  with neither is refused, attributed to `type`. */
   implemented_by: string;
-  /** Nested by the backend for display; storage is flat and keyed by `parent`. */
+  /** Nested by the backend for display; storage is flat and keyed by `parent`. READ-ONLY: a
+   *  projection of `parent` recomputed on every read, so an edit to it cannot be persisted. */
   children: LineItemDef[];
+  /** WHICH FIELDS THIS ITEM ITSELF DECLARED, off the unresolved stored JSON.
+   *
+   *  Everything above is served RESOLVED — 475 of 475 shipped items take their gate from
+   *  `section_defaults` via `inherits` — and once folded, an inherited value is indistinguishable
+   *  from a declared one and from a model default. That is exactly the distinction an editor has
+   *  to draw: saving a field the item never declared turns an inherited value into a declared one
+   *  and silently detaches the item from its section. A field absent from this list and non-empty
+   *  above was INHERITED, and the control says so. */
+  declared_fields: string[];
+}
+
+/** AN INLINE EDIT TO ONE LINE ITEM — the body of `PATCH /line-items/versions/{id}/items`, mirroring
+ *  `routes/line_items.py::ItemEdit`.
+ *
+ *  THREE STATES, and the payload has to be built with `JSON.stringify` semantics in mind because
+ *  the server reads PRESENCE (`model_fields_set`), not truthiness:
+ *    • ABSENT      — the field is untouched. Omit a key to leave it alone.
+ *    • `null`      — "nothing was said", written where the schema has such a state
+ *                    (`statement`, `match_priority`, `face_only`, `note_use`, `temporality`,
+ *                    `unit_of_account`, `sign_expectation`, `analyst_bucket`, `sole_component_of`,
+ *                    `inherits`, and the whole of `note_source` / `residual_policy` / `sign_rule`).
+ *    • `[]` / `""` — a CONFIGURED EMPTY. Stored as empty and never re-defaulted, because an author
+ *                    who cannot clear a list cannot undo their own edit.
+ *  Do not drop a `null` on the way out (an `undefined` field disappears from the JSON and means
+ *  "untouched" instead of "clear"), and do not substitute a default for an empty list.
+ *
+ *  `aliases` IS LOCALE-SCOPED. It replaces `aliases_i18n[locale]`, and the base `aliases` list as
+ *  well when `locale` is the set's own default — the other locales are untouched, so editing the
+ *  Chinese aliases can never clobber the English ones. That is also why `aliases_i18n` is not a
+ *  field here: a map-shaped write is precisely how one locale overwrites another. Send `locale`
+ *  with `aliases` or the set default is assumed.
+ *
+ *  EVERY EDIT PUBLISHES A NEW VERSION (`LineItemEditResult`), re-validated against the target
+ *  template first. Never an in-place write: a run pins `extraction_runs.line_item_version_id`, so
+ *  mutating a stored definition would retroactively change how a past run is explained.
+ *
+ *  Refusals come back as `LineItemEditRefusal`, addressed per field — show them on the control. */
+export interface LineItemEdit {
+  /** WHICH item to edit, and not itself editable. It is the endpoint's selector, and it is the
+   *  identity `parent`, `terms[].ref`, `cascade[].terms[].ref`, `confusable_with`,
+   *  `children_if_decomposed`, `expected_components`, `never_sweep`, `sole_component_of` and the
+   *  target template's `canonical_key` all name — so an inline rename has no coherent target and
+   *  no way to fix up the references. Rename via a full republish. Required, like the server's
+   *  own field: a body with no key targets nothing. */
+  key: string;
+  /** Which locale's alias list `aliases` replaces. Omitted means the set's default locale. */
+  locale?: string;
+
+  // ── meaning: what this line IS, which is what lets a caption resolve by meaning rather than
+  //    by string match. The four criteria fields are the highest-leverage controls on the screen.
+  label?: string;
+  description?: string;
+  definition?: string;
+  include_criteria?: string[];
+  exclude_criteria?: string[];
+  /** Other keys of THIS set (unknown keys are refused, attributed to this field). Routes an
+   *  unresolvable pair to review instead of letting the engine pick one at confidence 1.0. */
+  confusable_with?: string[];
+  /** Which of two look-alike captions this is. Read by `mapping.py` — not decoration. */
+  section_disambiguation?: string | null;
+
+  // ── structure of the tree ─────────────────────────────────────────────────────────────────
+  /** The premise of the whole model: which of the other groups carry meaning at all.
+   *  `calculated`/`intermediate` with no `terms`, and `derived` with neither `cascade` nor
+   *  `implemented_by`, are refused — attributed to `type` and to `terms`/`cascade`. */
+  type?: LineItemType;
+  /** Forced false for `type: intermediate`; an intermediate never reaches the output. */
+  in_output?: boolean;
+  /** Names an existing key of this set, or `""`/`null` to make the item a root. Self-reference
+   *  and any cycle are refused, attributed to `parent`. */
+  parent?: string | null;
+  /** What the parenthood ASSERTS arithmetically. `alternatives` is what stops the rollup check
+   *  summing the twelve alternative restatements of the depreciation line. */
+  rollup?: LineItemRollup;
+  /** Display order among siblings. DISPLAY ONLY — `match_priority` is the matching tie-break. */
+  order?: number;
+  /** `template` keys are held against the target template's `canonical_key`s by the publish gate;
+   *  `internal` items are exempt because they name no output column. Flipping to `template` on a
+   *  key the template does not declare is refused, attributed HERE and not to `key`. */
+  namespace?: LineItemNamespace;
+  value_scope?: ValueScope;
+
+  // ── the gate: WHERE this line may be claimed from ─────────────────────────────────────────
+  /** Names a `section_defaults` entry of this set; a dangling value is refused by name. */
+  inherits?: string | null;
+  /** One of `StatementToken`. `null` — or `""`, the spelling the existing editor clears with —
+   *  means claimable anywhere. Typed as `string | null` on the wire and checked against the
+   *  backend's `StatementType` in the apply, attributed to this field. */
+  statement?: StatementToken | "" | null;
+  /** The banners a caption may sit under. `[]` IS STORED and means unconstrained. */
+  section_scope?: string[];
+  /** Descending tie-break for the collisions the gate leaves standing. `null` is "nothing said",
+   *  which is distinct from `0` — the floor residuals sit at, unreachable by matching. */
+  match_priority?: number | null;
+  extraction_mode?: LineItemExtractionMode;
+  /** A search ORDER, not a gate — the order is meaningful and is preserved as sent. */
+  scopes?: SearchScope[];
+  /** `from_section` is refused unless the item can reach a section (a balance-sheet `statement`,
+   *  `balance_sheet` in `scopes`, or a `section_scope` naming a side). */
+  side?: LineItemSide;
+  /** Whether a caption printed on the opposite side may fill this line. Off by default — a bare
+   *  "Cash" once resolved to an overdraft. */
+  allow_contra?: boolean;
+  /** `null` disables note sourcing for this line entirely. */
+  note_source?: NoteSource | null;
+  note_use?: LineItemNoteUse | null;
+  face_only?: boolean | null;
+
+  // ── recognition: how the printed caption is matched ───────────────────────────────────────
+  /** `disabled` makes the line unreachable by every matching tier while leaving it fillable by
+   *  the residual sweep — the lock that defines a residual bucket. */
+  alias_matching?: LineItemAliasMatching;
+  /** THIS LOCALE'S captions only. See the locale contract in the interface doc above. */
+  aliases?: string[];
+  /** A single regex over the caption. Compiled server-side; the compile error is attributed
+   *  here. */
+  pattern?: string;
+  regex_hints?: string[];
+  keyword_hints?: string[];
+  /** REGEX VETOES against the raw caption — a match here refuses the line. Deliberately distinct
+   *  from `exclude_criteria`, which is prose: folding prose into this list either fails to compile
+   *  or compiles as an accidental veto. Compiled per index on the edit path. */
+  exclude_hints?: string[];
+
+  // ── containment and residuals ─────────────────────────────────────────────────────────────
+  /** Declares this line the gross parent of the children it already contains, so the pair is
+   *  never loaded additively. Without it, 31 caption collisions had no discriminator. */
+  is_gross_parent?: boolean;
+  /** Keys of this set. Non-keys and pipe-joined strings are both refused here. */
+  children_if_decomposed?: string[];
+  sole_component_of?: string | null;
+  /** `null` disables the policy; sending the object enables it. */
+  residual_policy?: ResidualPolicy | null;
+  expected_components?: string[];
+  never_sweep?: string[];
+
+  // ── measurement ───────────────────────────────────────────────────────────────────────────
+  temporality?: LineItemTemporality | null;
+  unit_of_account?: LineItemUnitOfAccount | null;
+  /** `LineItemDef.sign_convention` — the EXPECTATION review validation reads. Named
+   *  `sign_expectation` on the wire because `sign_convention` below is the legacy spelling. */
+  sign_expectation?: SignExpectation | null;
+  /** THE LEGACY 3-TOKEN UI SPELLING (`as_reported` / `expense_contra` / `auto`), kept because the
+   *  Template screen sends it. It writes `sign_rule.convention` and can express three of the six
+   *  real values — it is NOT `sign_expectation`. Prefer `sign_rule` below, which says all six. */
+  sign_convention?: string;
+  /** The NORMALISATION: the convention a value is stored under plus the label regexes that flip
+   *  its sign. `null` clears it. */
+  sign_rule?: SignRule | null;
+  /** Validated against the served `LineItemVocab.analyst_buckets`. A value naming no section
+   *  silently loses this line's rows to Others with nothing saying why. */
+  analyst_bucket?: string | null;
+
+  // ── assembly: the arithmetic a non-extracted line is built from ───────────────────────────
+  /** The signed sum a `calculated`/`intermediate` line is assembled from. Every `ref` is checked
+   *  against this set's keys, so a typo is refused rather than being a term that contributes
+   *  nothing. `[]` is stored — and then refused for a calculated line, which is the point. */
+  terms?: LineItemTerm[];
+  /** The ordered attempts a `derived` line is assembled by — first rung that resolves wins, so
+   *  the ORDER IS the priority and is preserved as sent. */
+  cascade?: CascadeRung[];
+  /** The service that computes this derivation today. Clearing it requires a `cascade`. */
+  implemented_by?: string;
+
+  // ── prose a reviewer or the model reads ───────────────────────────────────────────────────
+  decomposition_rule?: string | null;
+  others_rule?: string | null;
+  derivation?: string | null;
+  aggregation_note?: string | null;
+  template_note?: string | null;
+  notes_as_source_rationale?: string | null;
+}
+
+/** EVERY VALUE AN EDIT MAY LEGALLY CARRY, served with the definitions (`_vocabulary`).
+ *
+ *  Derived on the server from the same `Literal[...]` aliases the edit body is typed on and the
+ *  loader validates with, never curated: a token added to a backend enum reaches the screen the
+ *  moment it exists. An editor offering a value the publish gate refuses is worse than no control
+ *  at all — the author authors, saves, and is told no by a validator two layers down — so the
+ *  controls are built from THESE lists and not from anything hardcoded in the frontend. */
+export interface LineItemVocab {
+  statements: StatementToken[];
+  scopes: SearchScope[];
+  sides: LineItemSide[];
+  rollups: LineItemRollup[];
+  namespaces: LineItemNamespace[];
+  types: LineItemType[];
+  value_scopes: ValueScope[];
+  extraction_modes: LineItemExtractionMode[];
+  alias_matching: LineItemAliasMatching[];
+  temporalities: LineItemTemporality[];
+  units_of_account: LineItemUnitOfAccount[];
+  /** The EXPECTATION (`sign_expectation`)… */
+  sign_expectations: SignExpectation[];
+  /** …and the NORMALISATION (`sign_rule.convention`), which is a different question. */
+  sign_conventions: SignRuleConvention[];
+  /** The 3-token UI vocabulary `sign_convention` still accepts, for the Template screen. */
+  legacy_sign_conventions: string[];
+  note_uses: LineItemNoteUse[];
+  caption_normalizations: CaptionNormalization[];
+  term_roles: TermRole[];
+  /** `services.buckets.BUCKET_KEYS`. Served so the select cannot offer a bucket the gate
+   *  refuses. */
+  analyst_buckets: string[];
+  /** The `section_defaults` keys of THIS set — what `inherits` may name. From the set rather
+   *  than from anything the client remembers, because a dangling value is not a load error but a
+   *  silent no-op that leaves the item with no gate at all. */
+  inherits_options: string[];
+  /** Scope ids and banner tokens this set already uses — SUGGESTIONS, not a closed set:
+   *  `section_scope` is a free list, and a filing printing an undeclared banner is exactly the
+   *  case an author is here to handle. */
+  section_scope_tokens: string[];
+  /** Free strings on the model, so these are datalists too. */
+  residual_frameworks: string[];
+  residual_populations: string[];
+  /** WHAT IS NOT AUTHORABLE HERE, AND WHY — field name → the one line that says why, served so
+   *  the screen never has to restate a reason it does not own. Silently absent and read-only-for-
+   *  a-reason look identical on a screen and only one of them is a decision: render every entry
+   *  read-only WITH its reason. Carries `key`, `children`, `aliases_i18n` and the withdrawn
+   *  `min_confidence_to_auto_accept`. */
+  not_editable: Record<string, string>;
+}
+
+/** ONE REFUSAL, ADDRESSED TO THE CONTROL THAT CAUSED IT.
+ *
+ *  The edit endpoint re-validates against the target template before it publishes, so a refusal is
+ *  information the author needs — not an error to swallow, and not a banner they read once and
+ *  cannot act on. Show `message` verbatim against `field` (a paraphrase in the client is a second
+ *  spelling of a rule the server owns).
+ *
+ *  `field` IS NULLABLE: a few refusals belong to the set rather than to a control (a rollup that
+ *  does not tie, a decomposition rule) and the server sends `field: null` for those — show them at
+ *  the top of the form. `index` addresses one row of a list field (`regex_hints[2]`,
+ *  `terms[0].ref`, `note_source.row_caption_any[0]`). `location` survives on entries that came
+ *  from the upload door (`items[3].aliasses`), which is not a control on any screen. */
+export interface LineItemFieldError {
+  field: string | null;
+  index?: number | null;
+  message: string;
+  location?: string;
+}
+/** The 422 body of a refused edit — `detail` of the `HTTPException`. One shape for every refusal
+ *  the route raises, tag included, so there is one renderer rather than a second one written later
+ *  and worse. `message` is the single-sentence summary; `errors` is what the controls read, capped
+ *  at 50 by the server because one bad paste can produce hundreds. */
+export interface LineItemEditRefusal {
+  error: string;
+  message: string;
+  errors: LineItemFieldError[];
 }
 export interface LineItemProblem {
   key: string;
@@ -1602,8 +1919,19 @@ export interface LineItemSetInfo {
   }>>;
 }
 export interface LineItemsResponse {
+  /** WHICH STORED VERSION answered — the row a run would map against, served with every read.
+   *  Declared here because the screen was reaching for it through a cast
+   *  (`(q.data as { version?: LineItemVersionRef }).version`), and a cast is how a payload field
+   *  gets renamed without a single reader noticing. After an edit publishes, this is the new
+   *  version in force, which is what the screen has to caption itself with. Only the identity
+   *  fields are sent on this one (`in_force`/`loads`/`items`/`aliases` come from
+   *  `GET /line-items/versions`), which is why those are optional on the ref. */
+  version: LineItemVersionRef;
   items: LineItemDef[];
   set: LineItemSetInfo;
+  /** Every value the editor may offer, so no control can present one the publish gate refuses —
+   *  and the reasons for the fields it must show read-only. See `LineItemVocab`. */
+  vocab: LineItemVocab;
   counts: {
     total: number; output: number; sub_line_items: number;
     by_type: Record<LineItemType, number>;

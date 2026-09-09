@@ -517,6 +517,465 @@ test("admin edits the mapping CRITERIA and the new version persists", async ({ p
   await expect(page.getByText(criterion)).toBeVisible({ timeout: 15_000 });
 });
 
+/* ── /line-items IS AN EDITOR ───────────────────────────────────────────────────────────────────
+ *
+ * The three tests below are the only BROWSER-level cover that a save on the Line Items screen does
+ * anything at all, and they exist because that screen was READ-ONLY and said so in its own module
+ * docstring — on the justification that the definitions merely DESCRIBED derivations five services
+ * computed, so nothing downstream read them. That justification expired: line items is the single
+ * configuration engine, `services/working_view.py` builds the matcher out of the set, and a run
+ * pins `extraction_runs.line_item_version_id`. The definitions DRIVE extraction, so "configurable
+ * from the front-end" is a claim about this screen and nothing else.
+ *
+ * ASSERTED THROUGH THE REQUEST, exactly as the two template-editor tests above are, and for the
+ * same reason: a screen can print "Published as v7" out of local state, survive a reload out of a
+ * cache, and have published nothing. The URL of the PATCH is the only thing that says which
+ * configuration engine the edit reached, and the version the caption names AFTER the save is the
+ * only thing that says the publish is the one the next run will pin.
+ *
+ * THEY PUBLISH REAL VERSIONS, deliberately — same as the template-editor tests, and the pinning
+ * test further down depends on more than one stored version existing. They are additive (a new
+ * alias, a new criterion, prose) on one named line, so nothing they write can remove a caption an
+ * extraction assertion elsewhere in this serial file depends on. */
+
+/** The line these tests author. NAMED rather than "the first row", because two of the three
+ *  assertions are about ITS stored aliases: `bs_nca__buildings` is one of the shipped items that
+ *  carries BOTH an `en` and a `zh` alias list, which is what makes the locale contract observable
+ *  from a browser at all. A first-row subject would silently stop testing that the day the set is
+ *  re-ordered. */
+const LI_SUBJECT = "bs_nca__buildings";
+
+/** The one PATCH the Line Items editor is allowed to make. */
+const LI_PATCH = /\/api\/v1\/line-items\/versions\/([^/]+)\/items$/;
+
+/* Only the parts of `GET /line-items` these tests reason about, spelled here rather than imported,
+ * so each assertion states which part of the wire contract it is holding the screen to — and so a
+ * field the server stops sending fails here instead of arriving as `undefined` and quietly
+ * satisfying a comparison. */
+interface LiItem {
+  key: string;
+  description: string;
+  definition: string;
+  include_criteria: string[];
+  /** The regex VETOES — read to prove a refused edit wrote nothing, not merely that it said no. */
+  exclude_hints: string[];
+  /** The base list. Written ONLY when the edited locale is the set's own default — that asymmetry
+   *  is half of the locale contract, so it is read separately from `aliases_i18n`. */
+  aliases: string[];
+  aliases_i18n: Record<string, string[]>;
+  children: LiItem[];
+}
+interface LiRead {
+  /** WHICH stored row answered (`routes/line_items.py::_version_identity`). The screen captions
+   *  itself with this, so it is what "in force" means here. */
+  version: { id: string; line_items_key: string; version: number } | null;
+  set: { locale: string; supported_locales: string[] };
+  items: LiItem[];
+}
+
+/** The served set, flattened — sub-line items are NESTED in the payload and keyed flat in storage. */
+function liFlat(items: LiItem[]): LiItem[] {
+  const out: LiItem[] = [];
+  const walk = (xs: LiItem[]) => xs.forEach((x) => { out.push(x); walk(x.children); });
+  walk(items);
+  return out;
+}
+
+/** One named line item, as the SERVER currently stores it. The definitive reading for the locale
+ *  contract: the screen can only show what it was served, so "editing zh did not clobber en" has
+ *  to be answered off the payload as well as off the pane. */
+async function liServed(page: Page, key: string): Promise<{ read: LiRead; item: LiItem }> {
+  const read = await apiGet<LiRead>(page, "/api/v1/line-items");
+  const item = liFlat(read.items).find((d) => d.key === key);
+  expect(item, `${key} is not in the served set`).toBeTruthy();
+  return { read, item: item! };
+}
+
+/** The version number the screen says is in force ("Showing output_csv_hk v3 — …"). */
+async function liInForceVersion(page: Page): Promise<number> {
+  const caption = page.getByTestId("li-in-force");
+  await expect(caption).toBeVisible({ timeout: 15_000 });
+  const text = (await caption.textContent()) ?? "";
+  const n = Number(/\sv(\d+)\b/.exec(text)?.[1]);
+  expect(Number.isFinite(n), `no version in the in-force caption: ${JSON.stringify(text)}`)
+    .toBeTruthy();
+  return n;
+}
+
+/** Open /line-items and select ONE named line.
+ *
+ *  Through the SEARCH box rather than by scrolling: the set ships 475 items and the row for a named
+ *  key is otherwise somewhere inside a 475-row list. The search is part of the layout these tests
+ *  were told to build into rather than restructure, so using it is also cover that it still
+ *  narrows to a key. */
+async function openLineItem(page: Page, key: string) {
+  await page.goto("/line-items", DCL);
+  await expect(page.getByTestId("li-in-force")).toBeVisible({ timeout: 15_000 });
+  await page.getByTestId("li-search").fill(key);
+  const row = page.getByTestId(`li-row-${key}`);
+  await expect(row).toBeVisible({ timeout: 15_000 });
+  await row.click();
+  // The pane is showing THAT line: `key` is the endpoint's own selector and is rendered read-only
+  // in the locked group, so it is the one field that identifies the subject beyond doubt.
+  await expect(page.getByTestId("locked-key")).toContainText(key, { timeout: 15_000 });
+}
+
+test("the Line Items screen is an editor: a save publishes the version it then names as in force",
+     async ({ page }) => {
+  test.setTimeout(120_000);
+
+  // WHAT MAY LEAVE THE SCREEN. Collected, never asserted inside the handler: an `expect` that
+  // throws from a page event fires outside the test's own await chain, where Playwright cannot
+  // attribute it to a step.
+  const patched: string[] = [];
+  page.on("request", (r) => {
+    if (r.method() === "PATCH" && LI_PATCH.test(r.url())) patched.push(r.url());
+  });
+
+  await loginAs(page, "admin");
+  await openLineItem(page, LI_SUBJECT);
+
+  // The version in force BEFORE the edit, from the screen and from the server, which have to agree
+  // — the caption is only evidence about the configuration if it names the row `GET /line-items`
+  // answered with.
+  const before = await liServed(page, LI_SUBJECT);
+  const versionBefore = await liInForceVersion(page);
+  expect(before.read.version?.version).toBe(versionBefore);
+
+  // ── `description` AND `definition` ARE DIRECTLY AVAILABLE ─────────────────────────────────
+  // The two fields the user named. "Directly available" is a claim about the SHAPE of the pane, so
+  // it is asserted before anything is typed and before any assertion that could scroll the pane:
+  // `fill()` scrolls its target into view, which would make a below-the-fold field look reachable.
+  const description = page.getByTestId("li-field-description");
+  const definition = page.getByTestId("li-field-definition");
+  await expect(description).toBeVisible();
+  await expect(definition).toBeVisible();
+
+  // NOT BEHIND A DISCLOSURE. The pane does use `<details>` — for the assembly group's terms and
+  // cascade rungs, far below — so "no collapsed ancestor" is a real distinction here rather than a
+  // property the whole screen happens to have.
+  const drilled = await page.evaluate(() => {
+    const shut = (id: string) => {
+      let el = document.querySelector(`[data-testid="li-field-${id}"]`) as HTMLElement | null;
+      if (!el) return "missing";
+      for (; el; el = el.parentElement) {
+        if (el.tagName === "DETAILS" && !(el as HTMLDetailsElement).open) return "details";
+        if (el.hasAttribute("hidden")) return "hidden";
+        if (el.getAttribute("aria-expanded") === "false") return "collapsed";
+      }
+      return "";
+    };
+    return { description: shut("description"), definition: shut("definition") };
+  });
+  expect(drilled, "description/definition are reachable only by expanding something")
+    .toEqual({ description: "", definition: "" });
+
+  // AND THEY ARE AT THE TOP OF THE PANE, not merely present somewhere in seventy controls: the
+  // first three fields of the form are `label`, `description`, `definition`, in that order. The
+  // field table puts both in the FIRST group ("What is this line, in words?") because `meaning()`
+  // prefers `definition` over `description` and it is what the description-matching tier compares a
+  // printed caption against.
+  const order = await page.locator('[data-testid^="li-field-"]').evaluateAll(
+    (els) => els
+      .map((e) => (e.getAttribute("data-testid") ?? "").replace(/^li-field-/, ""))
+      // `li-field-error-<name>` is a CHILD of `li-field-<name>` (it wraps the control so the
+      // refusal is rendered exactly once); it is not a field of the form.
+      .filter((n) => n && !n.startsWith("error-")));
+  expect(order.slice(0, 3)).toEqual(["label", "description", "definition"]);
+
+  // …and the reader can SEE them where they land, with no scrolling. Only the top edge is
+  // asserted: the bottom of a four-row textarea against a 720px viewport is a font-metric
+  // question, and failing this suite on a font would say nothing about whether the field is
+  // reachable.
+  const viewport = page.viewportSize()!;
+  for (const [name, box] of [["description", await description.boundingBox()],
+                             ["definition", await definition.boundingBox()]] as const) {
+    expect(box, `${name} has no box`).toBeTruthy();
+    expect(box!.y >= 0 && box!.y < viewport.height,
+           `${name} starts off-screen at y=${box!.y} — it cannot be read without scrolling`)
+      .toBeTruthy();
+  }
+
+  // ── FOUR EDITS, THROUGH THE CONTROLS ──────────────────────────────────────────────────────
+  const stamp = Date.now();
+  const descriptionText = `E2E description ${stamp}`;
+  const definitionText = `E2E definition ${stamp}`;
+  const criterion = `E2E counts as this line ${stamp}`;
+  const alias = `E2E caption ${stamp}`;
+
+  await description.getByTestId("input-description").fill(descriptionText);
+  await definition.getByTestId("input-definition").fill(definitionText);
+
+  // `include_criteria` and `aliases` are the other two the instruction named: prose criteria and
+  // captions are what let a caption resolve by MEANING rather than by string match. Both commit on
+  // Enter, and both must ADD to the stored list rather than replace it.
+  const includeAdd = page.getByTestId("li-field-include_criteria").getByTestId("add-include_criteria");
+  await includeAdd.fill(criterion);
+  await includeAdd.press("Enter");
+  await expect(page.getByText(criterion)).toBeVisible();
+
+  const aliasAdd = page.getByTestId("li-field-aliases").getByTestId("add-aliases");
+  await aliasAdd.fill(alias);
+  await aliasAdd.press("Enter");
+  await expect(page.getByText(alias)).toBeVisible();
+
+  // The edits are real local state, and the bar counts the FIELDS that differ from what the server
+  // served — not the keystrokes, and not a control that was clicked into and left alone.
+  await expect(page.getByTestId("li-dirty-count")).toHaveText(/^4 fields changed$/);
+
+  // ── SAVE = PUBLISH ────────────────────────────────────────────────────────────────────────
+  await page.getByTestId("li-save").click();
+
+  // The screen names the version it published…
+  const saved = page.getByTestId("li-saved");
+  await expect(saved).toBeVisible({ timeout: 30_000 });
+  const savedVersion = Number(/\bv(\d+)\b/.exec((await saved.textContent()) ?? "")?.[1]);
+  expect(Number.isFinite(savedVersion), "the save banner names no version").toBeTruthy();
+  expect(savedVersion, "the save did not publish a NEW version").toBeGreaterThan(versionBefore);
+
+  // …through the ONE configuration engine, exactly once, against the version that WAS in force.
+  // A second PATCH would mean the screen published twice for one press, which on a versioned store
+  // is a second row nobody authored.
+  expect(patched.length, "the save did not PATCH /line-items/versions/{id}/items exactly once")
+    .toBe(1);
+  expect(LI_PATCH.exec(patched[0])?.[1],
+         "the edit was applied to a version other than the one in force")
+    .toBe(before.read.version?.id);
+
+  // …and the caption above the list now names THAT version as the one in force. This is the half a
+  // "Saved" toast cannot answer: a save that publishes a row nothing then reads is the defect being
+  // fixed.
+  await expect(page.getByTestId("li-in-force")).toContainText(`v${savedVersion}`, {
+    timeout: 30_000,
+  });
+  expect(await liInForceVersion(page)).toBe(savedVersion);
+
+  // ── ALL FOUR EDITS CAME BACK ──────────────────────────────────────────────────────────────
+  // Stored, not local: a full reload, the line found again, and every one of the four read off the
+  // control that wrote it.
+  await page.reload(DCL);
+  await openLineItem(page, LI_SUBJECT);
+  await expect(page.getByTestId("li-field-description").getByTestId("input-description"))
+    .toHaveValue(descriptionText, { timeout: 15_000 });
+  await expect(page.getByTestId("li-field-definition").getByTestId("input-definition"))
+    .toHaveValue(definitionText);
+  await expect(page.getByTestId("li-field-include_criteria")).toContainText(criterion);
+  await expect(page.getByTestId("li-field-aliases")).toContainText(alias);
+  // And nothing was clobbered on the way: the criterion the set shipped is still beside the new
+  // one, and the four `en` captions are still there. An "edit" that replaces the list it was
+  // supposed to extend passes every assertion above.
+  const after = await liServed(page, LI_SUBJECT);
+  expect(after.item.include_criteria).toEqual([...before.item.include_criteria, criterion]);
+  expect(after.item.aliases_i18n.en).toEqual([...before.item.aliases_i18n.en, alias]);
+  // `en` is this set's default locale, so the base list mirrors it — the other half of the alias
+  // contract, and the half the zh test below asserts the negative of.
+  expect(after.read.set.locale).toBe("en");
+  expect(after.item.aliases).toEqual([...before.item.aliases, alias]);
+});
+
+test("editing one locale's aliases from the browser never touches another's", async ({ page }) => {
+  test.setTimeout(120_000);
+
+  // THE CONTRACT: `aliases` replaces THAT locale's `aliases_i18n` list, and the base `aliases`
+  // list as well when the locale being edited is the set's default. So editing `zh` must leave
+  // `en` and the base list exactly as they were. It is enforced in
+  // `routes/line_items.py::edit_line_item` and covered there; what has never been covered is that
+  // the SCREEN drives it that way — that the selector scopes the write instead of sending a
+  // map-shaped `aliases_i18n`, which is precisely how editing the Chinese captions comes to
+  // clobber the English ones.
+  //
+  // WHY THE READ IS INTERCEPTED. The shipped set declares `supported_locales: ["en"]` while its
+  // items carry `zh` alias lists (473 distinct zh captions across the set, `bs_nca__buildings`
+  // among them), and the locale selector offers exactly what the set declares. So the second
+  // locale is visible on this screen — the other locales render read-only beside the editor — and
+  // unreachable by the selector, which is a real gap in the shipped configuration rather than in
+  // the screen. Only the READ is widened, to the locales the items themselves already carry: the
+  // PATCH, the publish, the store and the re-read are all the product's. A no-op the day the set
+  // declares its own second locale.
+  const widened: string[] = [];
+  // HELD IN A CONST because `page.unroute` matches the handler by the matcher it was registered
+  // with: a second arrow function with an identical body is a different object and would leave the
+  // stub in place for the re-read below, which is the one read that has to be the product's.
+  const readOfTheSet = (url: URL) => url.pathname === "/api/v1/line-items";
+  await page.route(
+    readOfTheSet,
+    async (route) => {
+      if (route.request().method() !== "GET") return route.fallback();
+      const response = await route.fetch();
+      const body = (await response.json()) as LiRead;
+      const seen = new Set(body.set.supported_locales);
+      for (const d of liFlat(body.items)) {
+        for (const l of Object.keys(d.aliases_i18n ?? {})) seen.add(l);
+      }
+      body.set.supported_locales = [...seen];
+      widened.push(body.set.supported_locales.join(","));
+      // Status and body spelled out rather than `{ response, json }`: fulfilling from an APIResponse
+      // carries its headers across, and a `content-encoding` describing the ORIGINAL bytes on a
+      // body we just rewrote is an unparseable response with no error to read.
+      return route.fulfill({ status: response.status(), contentType: "application/json",
+                             body: JSON.stringify(body) });
+    },
+  );
+
+  await loginAs(page, "admin");
+  await openLineItem(page, LI_SUBJECT);
+
+  const before = await liServed(page, LI_SUBJECT);
+  const versionBefore = await liInForceVersion(page);
+  const enBefore = before.item.aliases_i18n.en;
+  const baseBefore = before.item.aliases;
+  expect(enBefore?.length, `${LI_SUBJECT} has no en aliases to protect`).toBeGreaterThan(0);
+  expect(before.item.aliases_i18n.zh?.length, `${LI_SUBJECT} has no zh aliases to replace`)
+    .toBeGreaterThan(0);
+
+  // On arrival the editor is on the set's default locale, and the alias control says which one it
+  // is writing — the header names it because a list of captions with no locale on it is the same
+  // list in four languages.
+  const locale = page.getByTestId("li-locale");
+  await expect(locale).toHaveValue("en");
+  await expect(page.getByTestId("li-field-aliases")).toContainText("Aliases (en)");
+
+  // Switch to `zh`. No unsaved alias edit exists yet, so this cannot prompt — switching WITH one
+  // is a discard confirmation, which is a different question from the write contract.
+  await locale.selectOption("zh");
+  await expect(locale).toHaveValue("zh");
+  await expect(page.getByTestId("li-field-aliases")).toContainText("Aliases (zh)");
+  // The other locale is on screen, read-only, and says so. That sentence is the screen's own
+  // statement of the contract this test then verifies against the store.
+  await expect(page.getByText(/editing zh never touches these/)).toBeVisible();
+
+  // REPLACE the zh list: clear it (a configured empty is a real state, and clearing is how an
+  // author reaches it) and author two captions in its place.
+  const aliases = page.getByTestId("li-field-aliases");
+  await aliases.getByTestId("clear-aliases").click();
+  // STAMPED, so neither can collide with one of the 473 zh captions the set already carries: an
+  // alias two line items share is a caption collision the publish gate is entitled to refuse, and
+  // a refusal here would look like the locale contract failing.
+  const zhStamp = Date.now();
+  const zhNext = [`土地及楼宇 ${zhStamp}`, `租赁土地 ${zhStamp}`];
+  const add = aliases.getByTestId("add-aliases");
+  for (const a of zhNext) {
+    await add.fill(a);
+    await add.press("Enter");
+    await expect(aliases).toContainText(a);
+  }
+  // One field changed — the aliases — and the summary says in WHICH locale, which is the half of
+  // the contract an author has to be able to see before they publish.
+  await expect(page.getByTestId("li-dirty-count")).toHaveText(/^1 field changed$/);
+  await expect(page.getByText(/aliases \+\d+ −\d+ \(zh\)/)).toBeVisible();
+
+  await page.getByTestId("li-save").click();
+  const saved = page.getByTestId("li-saved");
+  await expect(saved).toBeVisible({ timeout: 30_000 });
+  const savedVersion = Number(/\bv(\d+)\b/.exec((await saved.textContent()) ?? "")?.[1]);
+  expect(savedVersion).toBeGreaterThan(versionBefore);
+
+  // ── THE STORE, READ WITHOUT THE STUB ──────────────────────────────────────────────────────
+  // The widening is dropped first, so what comes back is the product's own payload: the same read
+  // the pipeline's matcher is built from.
+  await page.unroute(readOfTheSet);
+  expect(widened.length, "the read was never widened, so the locale selector was never the "
+                         + "product's own list of locales").toBeGreaterThan(0);
+  await page.reload(DCL);
+  await openLineItem(page, LI_SUBJECT);
+
+  const after = await liServed(page, LI_SUBJECT);
+  expect(after.item.aliases_i18n.zh, "the zh list was not replaced").toEqual(zhNext);
+  expect(after.item.aliases_i18n.en, "editing zh clobbered the en aliases").toEqual(enBefore);
+  // And the base list, which mirrors the DEFAULT locale only: a zh edit must not reach it, or
+  // every non-localized consumer of `aliases` silently starts reading Chinese.
+  expect(after.item.aliases, "editing zh reached the base alias list").toEqual(baseBefore);
+
+  // The screen agrees, back on the default locale: the en captions are still the editable list and
+  // the new zh ones are the read-only neighbours.
+  await expect(page.getByTestId("li-locale")).toHaveValue("en");
+  await expect(page.getByTestId("li-field-aliases")).toContainText(enBefore[0]);
+  await expect(page.getByText("Aliases (zh) — read-only here")).toBeVisible();
+  for (const a of zhNext) await expect(page.getByText(a)).toBeVisible();
+});
+
+test("a refused line-item edit lands on the control that caused it and publishes nothing",
+     async ({ page }) => {
+  test.setTimeout(120_000);
+
+  // WHY THIS FIELD. `exclude_hints` are REGEX VETOES against the raw caption, and a torn pattern
+  // there does not fail loudly — the exclusion simply stops excluding, and rows nobody can trace
+  // get summed into a figure. It was accepted by the edit endpoint and NOT compile-checked, unlike
+  // `regex_hints`; it is compiled now, per entry. So it is both the sharpest refusal on the form
+  // and the one whose absence was a silent hole.
+  //
+  // A REFUSAL IS INFORMATION, NOT AN ERROR TO SWALLOW: the endpoint re-validates the whole edited
+  // set against the target template before it publishes, so what comes back is what the author has
+  // to act on. Two things must be true — the server's own sentence is on the control that caused
+  // it, and NOTHING was published.
+  const refusals: string[] = [];
+  page.on("response", (res) => {
+    if (res.request().method() !== "PATCH" || !LI_PATCH.test(res.url())) return;
+    void res.json().then((body: unknown) => {
+      const detail = (body as { detail?: { errors?: { field?: string; message?: string }[] } })
+        .detail;
+      for (const e of detail?.errors ?? []) {
+        if (e.field === "exclude_hints" && typeof e.message === "string") refusals.push(e.message);
+      }
+    }).catch(() => { /* the shape is asserted below, off `refusals`, not in here */ });
+  });
+
+  await loginAs(page, "admin");
+  await openLineItem(page, LI_SUBJECT);
+
+  const before = await liServed(page, LI_SUBJECT);
+  const versionBefore = await liInForceVersion(page);
+  const inForceBefore = (await page.getByTestId("li-in-force").textContent()) ?? "";
+
+  // An uncompilable veto. `(` opens a group nothing closes, which is exactly the shape that tore a
+  // shipped 34-alternative regex into fragments matching nothing.
+  const torn = "(unclosed";
+  const hints = page.getByTestId("li-field-exclude_hints");
+  const add = hints.getByTestId("add-exclude_hints");
+  await add.fill(torn);
+  await add.press("Enter");
+  await expect(hints).toContainText(torn);
+  await expect(page.getByTestId("li-dirty-count")).toHaveText(/^1 field changed$/);
+
+  await page.getByTestId("li-save").click();
+
+  // The server refused, per field and per entry…
+  await expect.poll(() => refusals.length,
+                    { timeout: 30_000,
+                      message: "the server did not refuse `exclude_hints` — an uncompilable veto "
+                             + "was accepted" }).toBeGreaterThan(0);
+  // …and its own words are on the control, verbatim. Compared against the message the WIRE carried
+  // rather than against a sentence spelled here: a paraphrase in this file is a second spelling of
+  // a rule the backend owns, and it would pass while the screen showed "Error: 422".
+  const onField = page.getByTestId("li-field-error-exclude_hints");
+  await expect(onField).toBeVisible({ timeout: 15_000 });
+  await expect(onField).toContainText(refusals[0]);
+  await expect(onField).toContainText(torn);
+  // The summary sentence is shown too, because a refusal can also carry problems that belong to
+  // the SET rather than to any one control.
+  await expect(page.getByTestId("li-form-error")).toContainText(/problem\(s\) to fix first/);
+
+  // NOTHING WAS PUBLISHED. A refused edit writes nothing at all: the caption has not moved, the
+  // server still answers with the same row, and the item is byte-for-byte as it was.
+  await expect(page.getByTestId("li-saved")).toHaveCount(0);
+  expect(await liInForceVersion(page)).toBe(versionBefore);
+  expect((await page.getByTestId("li-in-force").textContent()) ?? "").toBe(inForceBefore);
+  const after = await liServed(page, LI_SUBJECT);
+  expect(after.read.version?.id).toBe(before.read.version?.id);
+  expect(after.item.aliases_i18n).toEqual(before.item.aliases_i18n);
+  // The torn veto itself is nowhere in the store. Asserted separately from the version id: a
+  // refusal that published a row AND stored the bad pattern, and a refusal that published nothing
+  // but half-wrote the item, are different failures.
+  expect(after.item.exclude_hints, "the uncompilable veto was stored anyway")
+    .toEqual(before.item.exclude_hints);
+  expect(after.item.exclude_hints).not.toContain(torn);
+
+  // The author's work is still in the form, so they can fix the entry rather than retype four
+  // fields — the draft survives the refusal it caused.
+  await expect(page.getByTestId("li-dirty-count")).toHaveText(/^1 field changed$/);
+  await expect(hints).toContainText(torn);
+});
+
 /* THE NETTING-RULE EDITOR TEST WAS HERE ("admin adds a netting rule and it persists; unknown keys
  * are impossible") and is RETIRED, because the affordance it drove is gone rather than moved.
  *
