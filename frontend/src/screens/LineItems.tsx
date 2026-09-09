@@ -427,9 +427,11 @@ function Detail(p: EditorProps) {
         {fld("definition", (e) => (
           <TextArea label="Definition — the authoritative accounting meaning" testid="definition"
                     editable={editable} rows={4} reason={lockReason}
-                    help="Preferred over the description by `meaning()`, so this is the text a
-                          printed caption is compared against by the description tier. The single
-                          highest-leverage field for resolving a caption by meaning."
+                    help="The accounting meaning of this line, in prose. When a printed caption does
+                          not match any alias, this is the text the model
+                          reads to decide whether the caption belongs here
+                          — so it is what resolves a wording nobody
+                          thought to list."
                     value={g("definition", item.definition)}
                     onChange={(v) => patch({ definition: v ?? "" })}
                     error={e} inherited={inh("definition", item.definition)} />
@@ -462,8 +464,10 @@ function Detail(p: EditorProps) {
         {fld("confusable_with", (e) => (
           <KeyPicker label="Easy to confuse with" testid="confusable_with" multi
                      editable={editable} reason={lockReason} options={keys} exclude={[item.key]}
-                     help="Routes an unresolvable pair to review instead of letting the engine
-                           pick one at confidence 1.0."
+                     help="Lines whose captions a reader could genuinely mix up. When a caption
+                           could be either, the row is sent to review
+                           instead of one of them being chosen and
+                           reported as certain."
                      value={g("confusable_with", item.confusable_with)}
                      onChange={(v) => patch({ confusable_with: v })}
                      error={e} indexErrors={idx("confusable_with")}
@@ -472,8 +476,9 @@ function Detail(p: EditorProps) {
         {fld("section_disambiguation", (e) => (
           <TextArea label="Which of two look-alike captions this is" testid="section_disambiguation"
                     editable={editable} rows={2} nullable reason={lockReason}
-                    help="Not decoration: `mapping.py` reads it, and it answers exactly the
-                          question a containment collision asks."
+                    help="What tells this line apart from the one above, in one sentence. Read when
+                          two lines both claim a caption — so it decides
+                          which of them gets the figure."
                     value={g("section_disambiguation", item.section_disambiguation)}
                     onChange={(v) => patch({ section_disambiguation: v })}
                     error={e}
@@ -540,16 +545,22 @@ function Detail(p: EditorProps) {
         )}
         {fld("pattern", (e) => (
           <TextField label="Pattern" testid="pattern" editable={editable} mono reason={lockReason}
-                     help="A single regex over the caption. Compiled server-side; a compile error
-                           comes back on this control."
+                     help="One pattern matched against the printed caption. Checked when you save,
+                           and a pattern that will not compile is
+                           reported here rather than silently never
+                           matching."
                      value={pattern} onChange={(v) => patch({ pattern: v })}
                      monoNote={patternNote} error={e} inherited={inh("pattern", item.pattern)} />
         ))}
         {fld("regex_hints", (e) => (
           <StringListEditor label="Regex hints — positive evidence" testid="regex_hints"
                             editable={editable} variant="mono"
-                            help="Patterns that positively evidence a match. Each is compiled; a
-                                  refusal names the entry."
+                            help="Patterns that make a caption MORE likely to be this line. Each is
+                                  checked when you save, and a
+                                  broken one is named — a pattern
+                                  that cannot compile would
+                                  otherwise match nothing and look
+                                  like a caption problem."
                             value={g("regex_hints", item.regex_hints)}
                             onChange={(v) => patch({ regex_hints: v })}
                             error={e} indexErrors={idx("regex_hints")}
@@ -557,7 +568,8 @@ function Detail(p: EditorProps) {
         ))}
         {fld("keyword_hints", (e) => (
           <StringListEditor label="Keyword hints" testid="keyword_hints" editable={editable}
-                            help="Keywords the deterministic tier scores on."
+                            help="Words that count towards a caption matching this line, without
+                                  having to write a full pattern."
                             value={g("keyword_hints", item.keyword_hints)}
                             onChange={(v) => patch({ keyword_hints: v })}
                             error={e} indexErrors={idx("keyword_hints")}
@@ -599,8 +611,10 @@ function Detail(p: EditorProps) {
           <SelectField<string>
             label="Inherits its gate from" testid="inherits" editable={editable} nullable
             reason={lockReason} nullLabel="nothing — this line declares its own gate"
-            help="Names a `section_defaults` entry, folded in before validation. Repointing an
-                  item at the right section is the cheapest correct fix for a mis-gated line."
+            help="The section this line belongs to. It supplies the statement and the banners this
+                  line may be found under, so a line pointed at the wrong section
+                  will not be found at all — and correcting this is usually the
+                  fix."
             options={vocab?.inherits_options ?? []}
             value={g("inherits", item.inherits)} onChange={(v) => patch({ inherits: v })}
             error={e} />
@@ -631,9 +645,9 @@ function Detail(p: EditorProps) {
         {fld("scopes", (e) => (
           <OrderedMultiSelect<SearchScope>
             label="Where to look, in search order" testid="scopes" editable={editable}
-            help="A search ORDER, not a gate — the first scope that yields a figure is published.
-                  `notes` leads by default because for the eight output lines the note is the
-                  authoritative source."
+            help="Where to look for this figure, tried in this order — the first place that yields a
+                  number is used. It is an order, not a restriction: nothing here
+                  forbids a place, it only decides which is consulted first."
             options={vocab?.scopes ?? []} labelOf={(s) => SCOPE_LABEL[s] ?? s}
             addLabel="Add a scope…"
             value={g("scopes", item.scopes)} onChange={(v) => patch({ scopes: v })}
@@ -643,9 +657,9 @@ function Detail(p: EditorProps) {
           <SelectField<LineItemSide>
             label="Asset, liability or equity" testid="side" editable={editable}
             reason={lockReason}
-            help="`from_section` reads the side off the banner the caption sits under — and is
-                  refused unless this line can reach a section (a balance-sheet statement,
-                  `balance_sheet` in the scopes, or a section scope naming a side)."
+            help="Which side of the balance sheet this line sits on. “From section” takes it from
+                  the heading the caption was printed under, which only works if
+                  this line can reach a section — otherwise say the side outright."
             options={vocab?.sides ?? []} labelOf={(s) => SIDE_LABEL[s] ?? s}
             value={g("side", item.side)} onChange={(v) => v && patch({ side: v })}
             error={e} inherited={inh("side", item.side)} />
@@ -665,7 +679,10 @@ function Detail(p: EditorProps) {
           <NumberField label="Match priority" testid="match_priority" editable={editable}
                        allowNull reason={lockReason}
                        nullLabel="nothing said" numberLabel="a priority"
-                       help="Descending tie-break for the collisions the gate leaves standing."
+                       help="When two lines could both take a caption, the higher number wins. Only
+                             consulted for a genuine tie — it does not
+                             make a line match a caption it otherwise
+                             would not."
                        zeroNote="0 is the residual floor — a line at 0 is unreachable by matching
                                  altogether. That is a different assertion from “nothing said”."
                        value={g("match_priority", item.match_priority)}
@@ -700,7 +717,7 @@ function Detail(p: EditorProps) {
         ))}
         {fld("note_use", (e) => (
           <SelectField<LineItemNoteUse>
-            label="What a cited note may be" testid="note_use" editable={editable} nullable
+            label="What a cited note may be used for" testid="note_use" editable={editable} nullable
             reason={lockReason} nullLabel="nothing said"
             help="Three-valued: “nothing said” is NOT `evidence_only`."
             options={vocab?.note_uses ?? []} helpOf={(v) => NOTE_USE_HELP[v]}
@@ -738,8 +755,12 @@ function Detail(p: EditorProps) {
             {fld("note_source.row_caption_any", (e) => (
               <StringListEditor label="Rows that COUNT" testid="note_source-row_caption_any"
                                 editable={editable} variant="mono"
-                                help="The replacement for the 162-alternative whitelist. Widen it
-                                      here instead of shipping a release."
+                                help="Which rows inside the note count towards this figure. A row
+                                      the note prints but no
+                                      pattern here matches
+                                      contributes nothing, so
+                                      widen this when a filing
+                                      words a row differently."
                                 value={noteSource.row_caption_any}
                                 onChange={(v) => setNoteSource({ row_caption_any: v })}
                                 error={e} indexErrors={idx("note_source.row_caption_any")} />
@@ -748,18 +769,30 @@ function Detail(p: EditorProps) {
               <StringListEditor label="Rows that must be EXCLUDED"
                                 testid="note_source-row_caption_none"
                                 editable={editable} variant="veto"
-                                help="A veto over the note's rows. A torn pattern here stops
-                                      excluding in silence, so each one is compiled."
+                                help="Rows inside the note that must NOT count, even if a pattern
+                                      above matched them. Each
+                                      is checked when you save
+                                      — a broken pattern would
+                                      otherwise exclude
+                                      nothing and the figure
+                                      would quietly include
+                                      rows you meant to drop."
                                 value={noteSource.row_caption_none}
                                 onChange={(v) => setNoteSource({ row_caption_none: v })}
                                 error={e} indexErrors={idx("note_source.row_caption_none")} />
             ))}
             {fld("note_source.caption_normalization", (e) => (
               <SelectField<CaptionNormalization>
-                label="The three groups above are written against"
+                label="Match those patterns against"
                 testid="note_source-caption_normalization" editable={editable} reason={lockReason}
-                help="The shipped patterns were lifted from a matcher that reads RAW captions, so
-                      folding them would stop some of them matching."
+                help="Whether the three pattern lists above are matched against the caption AS
+                      PRINTED, or against a cleaned-up version (lowercased,
+                      punctuation and spacing removed, Chinese variants
+                      folded). Choose “as printed” if you copied the wording
+                      straight out of a filing; choose normalised to let one
+                      pattern cover capitalisation and punctuation
+                      differences. Changing this on existing patterns can stop
+                      them matching."
                 options={vocab?.caption_normalizations ?? []}
                 labelOf={(v) => (v === "none" ? "raw captions, as printed"
                                               : "normalised text (mapping_v1)")}
@@ -778,9 +811,10 @@ function Detail(p: EditorProps) {
         {fld("type", (e) => (
           <SelectField<LineItemType>
             label="Type" testid="type" editable={editable} reason={lockReason}
-            help="The premise of the whole model: which of the other groups carry meaning at all.
-                  A calculated or intermediate line with no terms, and a derived line with neither
-                  a cascade nor an `implemented_by`, are both refused."
+            help="How this line gets its figure, and therefore which sections below apply: read off
+                  the page, added up from parts, or worked out by a rule. A line
+                  that says it is calculated but lists no parts cannot produce
+                  anything, so that is refused when you save."
             options={vocab?.types ?? []} labelOf={(v) => TYPE_TONE[v].label}
             helpOf={(v) => ({
               extracted: "recognised from a printed caption",
@@ -812,15 +846,18 @@ function Detail(p: EditorProps) {
         {fld("parent", (e) => (
           <KeyPicker label="Part of" testid="parent" editable={editable} reason={lockReason}
                      options={keys} exclude={[item.key]}
-                     help="Which line this one is a part of. Clearing it makes this a root line.
-                           Self-reference and any cycle are refused."
+                     help="The line this one is a component of — its figure can then feed that
+                           line's total, and it appears nested underneath
+                           it. Leave it empty for a line that stands on
+                           its own. A line cannot be part of itself, or
+                           of something that is already part of it."
                      value={g("parent", item.parent) || null}
                      onChange={(v) => patch({ parent: v })}
                      error={e} inherited={inh("parent", item.parent)} />
         ))}
         {fld("rollup", (e) => (
           <SelectField<LineItemRollup>
-            label="What the parenthood asserts" testid="rollup" editable={editable}
+            label="How the parts combine" testid="rollup" editable={editable}
             reason={lockReason}
             help="Choosing `sum` where the parts are alternative restatements of ONE figure
                   double-counts it."
@@ -831,16 +868,18 @@ function Detail(p: EditorProps) {
         {fld("order", (e) => (
           <NumberField label="Display order among siblings" testid="order" editable={editable}
                        reason={lockReason}
-                       help="DISPLAY ONLY. It does not affect matching — `match_priority` in the
-                             gate above is the matching tie-break."
+                       help="Where this line sits among its siblings on screen and in the output.
+                             Presentation only — it has no effect on
+                             which captions match."
                        value={g("order", item.order)} onChange={(v) => patch({ order: v ?? 0 })}
                        error={e} />
         ))}
         {fld("namespace", (e) => (
           <SelectField<LineItemNamespace>
-            label="Key space" testid="namespace" editable={editable} reason={lockReason}
-            help="Flipping to `template` on a key the target template does not declare is refused
-                  — and the refusal lands here, not on the key."
+            label="Where this line came from" testid="namespace" editable={editable} reason={lockReason}
+            help="Whether the output template asked for this line, or you added it. Only the
+                  template can put a line in its own space, so this cannot be set
+                  by hand — and a template line cannot be deleted."
             options={vocab?.namespaces ?? []} helpOf={(v) => NAMESPACE_HELP[v]}
             value={g("namespace", item.namespace)} onChange={(v) => v && patch({ namespace: v })}
             error={e} />
@@ -848,14 +887,19 @@ function Detail(p: EditorProps) {
         {fld("value_scope", (e) => (
           <SelectField<ValueScope>
             label="May it overlap another line?" testid="value_scope" editable={editable}
-            reason={lockReason} help="Read by the residual sweep."
+            reason={lockReason} help="Whether this line's figure may also be counted inside another
+                                      line. Consulted when a
+                                      section's leftover is
+                                      worked out, so that a
+                                      figure is not counted
+                                      twice."
             options={vocab?.value_scopes ?? []} helpOf={(v) => VALUE_SCOPE_HELP[v]}
             value={g("value_scope", item.value_scope)}
             onChange={(v) => v && patch({ value_scope: v })}
             error={e} inherited={inh("value_scope", item.value_scope)} />
         ))}
         {fld("is_gross_parent", (e) => (
-          <BoolField label="This is a GROSS PARENT of the children it contains"
+          <BoolField label="Already includes its children's figures"
                      testid="is_gross_parent" editable={editable}
                      help="Without it, caption collisions had no discriminator and both claimants
                            were loaded additively — double-counting a figure the filing printed
@@ -880,15 +924,16 @@ function Detail(p: EditorProps) {
         {fld("sole_component_of", (e) => (
           <KeyPicker label="Sole component of" testid="sole_component_of" editable={editable}
                      reason={lockReason} options={keys} exclude={[item.key]}
-                     help="When the face prints only the subtotal, the whole undifferentiated
-                           figure becomes this line — and the inference is refused as soon as any
-                           sibling is evidenced."
+                     help="Use when a filing prints only the subtotal and none of its parts: the
+                           whole figure is then taken as this line. The moment any sibling line
+                           IS found on the page, that assumption is dropped — the subtotal
+                           evidently covers more than this one line."
                      value={g("sole_component_of", item.sole_component_of)}
                      onChange={(v) => patch({ sole_component_of: v })}
                      error={e} inherited={inh("sole_component_of", item.sole_component_of)} />
         ))}
         {fld("expected_components", (e) => (
-          <KeyPicker label="Components expected before it sweeps" testid="expected_components"
+          <KeyPicker label="Parts expected to be found first" testid="expected_components"
                      multi editable={editable} reason={lockReason} options={keys}
                      help="The keys a residual or parent expects to be evidenced. A typo here
                            silently disables the expectation, so entries are picked, not typed."
@@ -937,7 +982,7 @@ function Detail(p: EditorProps) {
                          onChange={(v) => setResidual({ framework: v })} error={e} />
             ))}
             {fld("residual_policy.section_scope", (e) => (
-              <TextField label="The one section it may not leave"
+              <TextField label="Section this bucket is confined to"
                          testid="residual_policy-section_scope" editable={editable} mono
                          reason={lockReason}
                          help="What makes “may not cross a section” mean anything. Per-item by
@@ -1016,9 +1061,10 @@ function Detail(p: EditorProps) {
           <SelectField<SignExpectation>
             label="Expected sign — a review trigger" testid="sign_expectation" editable={editable}
             nullable reason={lockReason}
-            help="The sign this line is EXPECTED to carry. Never a transformation: a value against
-                  the expectation is flagged for review, not flipped. This is the item's own
-                  `sign_convention`, sent as `sign_expectation`."
+            help="The sign this figure should normally have. Nothing is ever flipped for you — a
+                  value with the unexpected sign is flagged for a human to look
+                  at, because a genuine negative and a sign error look the same to
+                  a machine."
             options={vocab?.sign_expectations ?? []}
             value={g("sign_expectation", item.sign_convention)}
             onChange={(v) => patch({ sign_expectation: v })}
@@ -1061,9 +1107,10 @@ function Detail(p: EditorProps) {
           <SelectField<string>
             label="Analyst section for its rows" testid="analyst_bucket" editable={editable}
             nullable reason={lockReason} nullLabel="nothing said — read from the printed section"
-            help="Used when the printed section cannot say — the interest case, which no statement
-                  prints a section for. A value naming no section loses this line's rows to Others
-                  with nothing saying why, so the options are the ones the gate accepts."
+            help="Which section this line's rows are filed under when the page itself does not say —
+                  interest, for instance, which statements rarely print a heading
+                  for. A value naming no real section sends the rows to “Others”
+                  instead, which is why this is a list rather than free text."
             options={vocab?.analyst_buckets ?? []}
             value={g("analyst_bucket", item.analyst_bucket)}
             onChange={(v) => patch({ analyst_bucket: v })}
@@ -1086,8 +1133,10 @@ function Detail(p: EditorProps) {
           </summary>
           {fld("terms", (e) => (
             <TermRows label="Terms" testid="terms" editable={editable}
-                      help="Every `ref` is checked against this set's keys, so a typo is refused
-                            rather than being a term that silently contributes nothing."
+                      help="The parts this line is added up from, each with its sign. Every part
+                            must name a line that exists — a mistyped
+                            name is refused when you save rather than
+                            becoming a part that contributes nothing."
                       terms={g("terms", item.terms)} onChange={(v) => patch({ terms: v })}
                       options={keys} error={e}
                       // The server attributes a bad term ref to `terms` AND the term's index; the
@@ -1114,9 +1163,10 @@ function Detail(p: EditorProps) {
           {fld("implemented_by", (e) => (
             <TextField label="Computed today by" testid="implemented_by" editable={editable} mono
                        reason={lockReason}
-                       help="The service that computes this derivation while the configuration only
-                             describes it. Clearing it hands the derivation over to the cascade
-                             above — and a derived line with neither is refused."
+                       help="Names the built-in rule that works this figure out today, where the
+                             settings above only describe it. Clear it
+                             to have the rungs above used instead — but
+                             a derived line needs one or the other."
                        value={g("implemented_by", item.implemented_by)}
                        onChange={(v) => patch({ implemented_by: v })} error={e} />
           ))}
