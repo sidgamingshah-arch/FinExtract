@@ -12,7 +12,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .confidence import ConfidenceVector
 from .enums import (
@@ -125,6 +125,39 @@ class ExtractedValue(BaseModel):
     # refuses elsewhere. What the line was CONFIGURED to hold is `LineItemDef.output_structure`;
     # what it actually got is this.
     value_text: str | None = None
+
+    @model_validator(mode="after")
+    def _a_fact_is_words_or_a_figure_and_never_both(self):
+        """Refuse a fact that carries text AND a number. The invariant the whole design rests on.
+
+        WITHOUT THIS THE INVARIANT IS A CONVENTION, and the survey that chose this design found
+        exactly how a convention breaks here: pydantic parses `Decimal` in lax mode, so a phrase
+        LIFTED FROM THE PAGE whose text happens to read "2024", "3" or "1000" is accepted into
+        `value` as a number. From that point it is indistinguishable from a figure — it is summed
+        into subtotals (`structural_checks.collect_values`), negated by the unsigned-expense pass
+        (`stages.normalize`), and subtracted in the note-to-face tie. An audit-opinion year or a
+        covenant threshold printed as text would become a fabricated financial figure, and every
+        total containing it would still balance.
+
+        So the two states are made mutually exclusive at construction, where no code path can miss
+        it, rather than asserted by each producer. `sign_normalised` goes with them: it records that
+        the engine FLIPPED a reported sign, and a sentence has no sign to flip.
+        """
+        if self.value_text is None:
+            return self
+        clashes = [name for name in ("value", "value_raw", "reconciled")
+                   if getattr(self, name) is not None]
+        if clashes:
+            raise ValueError(
+                f"a fact carrying `value_text` must carry no figure, but {', '.join(clashes)} "
+                f"{'is' if len(clashes) == 1 else 'are'} also set — text and a number on one fact "
+                f"is how a phrase reading '2024' becomes a figure that every total then balances "
+                f"around. Put the words in `value_text` and leave the figures unset.")
+        if self.sign_normalised:
+            raise ValueError(
+                "`sign_normalised` records that a reported figure's sign was flipped, and a text "
+                "fact has no sign to flip")
+        return self
     # True when the sign of ``value`` was FLIPPED away from ``value_raw`` by the rulebook's
     # ``global_rules.sign_convention.unsigned_source`` rule — a filing that prints its expenses as
     # unsigned positives. The rulebook asks for the transformation to be recorded on the fact ("set

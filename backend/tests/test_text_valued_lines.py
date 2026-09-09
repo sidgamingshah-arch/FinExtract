@@ -59,6 +59,43 @@ def test_a_text_fact_leaves_the_numeric_fields_alone():
     assert ev.value_text == "Unqualified opinion"
 
 
+def test_a_phrase_that_reads_like_a_number_cannot_also_be_a_number():
+    """THE FABRICATED-FIGURE CASE, and the reason the invariant is enforced rather than assumed.
+
+    Pydantic parses `Decimal` in lax mode, so a phrase LIFTED FROM THE PAGE whose text happens to
+    read "2024" is accepted into `value` as a number. From there it is indistinguishable from a
+    figure: summed into subtotals, negated by the unsigned-expense pass, subtracted in the
+    note-to-face tie. An audit-opinion year would become a financial figure, and every total
+    containing it would still balance — so nothing downstream could ever report it.
+
+    Making the two states mutually exclusive at CONSTRUCTION is what turns "a text fact leaves
+    `value` as None" from a convention every producer must remember into a property of the type.
+    """
+    with pytest.raises(ValueError, match="must carry no figure"):
+        ExtractedValue(basis=Basis.CONSOLIDATED, value_text="2024", value=Decimal("2024"))
+    with pytest.raises(ValueError, match="must carry no figure"):
+        ExtractedValue(basis=Basis.CONSOLIDATED, value_text="1,000", value_raw=Decimal("1000"))
+    with pytest.raises(ValueError, match="must carry no figure"):
+        ExtractedValue(basis=Basis.CONSOLIDATED, value_text="Qualified",
+                       reconciled=Decimal("5"))
+
+
+def test_words_cannot_claim_their_sign_was_flipped():
+    """`sign_normalised` records the one place the engine changes a reported number's sign. A
+    sentence has no sign, so the flag on a text fact asserts an audit trail for a transformation
+    that cannot have happened."""
+    with pytest.raises(ValueError, match="no sign to flip"):
+        ExtractedValue(basis=Basis.CONSOLIDATED, value_text="Qualified", sign_normalised=True)
+
+
+def test_the_ordinary_facts_are_all_still_legal():
+    """The guard must refuse only the incoherent pair — a figure, words alone, and an empty slot
+    are each a real state the pipeline produces."""
+    ExtractedValue(basis=Basis.CONSOLIDATED, value=Decimal("400"), value_raw=Decimal("400"))
+    ExtractedValue(basis=Basis.CONSOLIDATED, value_text="Unqualified opinion")
+    ExtractedValue(basis=Basis.CONSOLIDATED)
+
+
 def test_a_text_fact_is_not_a_figure_to_the_one_function_that_answers_that():
     """`structural_checks._printed` is the MODEL door — the single place the structural checks read
     a figure off an ExtractedValue. Its guard is what makes 45 reported crash sites safe."""
@@ -149,6 +186,39 @@ def test_the_grid_resolver_ignores_a_text_row(monkeypatch):
     assert out.get("bs_ca__inventories") == 400.0
     # The text concept must be absent, not present as 0.0.
     assert "notes__audit_opinion" not in out or out["notes__audit_opinion"] is None
+
+
+def test_the_two_stages_that_do_the_most_arithmetic_run_clean_over_a_text_row():
+    """THE CLAIM, AT FULL STAGE SCALE. The 139-site survey named `stages/normalize.py` and
+    `stages/residual.py` as carrying most of the reported crash sites — the per-row sign pass, the
+    unsigned-expense unanimity vote, the section sweep, the residual reconciliation.
+
+    Every one of those claims assumed the text would arrive IN `value_raw`, because the survey ran
+    before the representation was chosen. With text in its own field those sites are gated by the
+    `raw is None` check they already had, so this runs the REAL stages and asserts three things at
+    once: neither raises, the text fact is still there afterwards, and the figures beside it are
+    bit-for-bit what they were. The third is what rules out the silent failure — a stage that
+    "handled" the text row by folding it into a total would pass the first two.
+    """
+    from app.config import get_settings
+    from app.core.stage import PipelineContext
+    from app.stages.normalize import NormalizeStage
+    from app.stages.residual import ResidualStage
+
+    doc = _doc(
+        _row("is_pl__sales_revenues", "Revenue", _figure("1000")),
+        _row("is_pl__cost_of_sales", "Cost of sales", _figure("400")),
+        _row("notes__audit_opinion", "Audit opinion", _words("Unqualified opinion")),
+    )
+    ctx = PipelineContext(settings=get_settings())
+    for stage in (NormalizeStage(), ResidualStage()):
+        doc = stage.run(doc, ctx)
+
+    texts = [v.value_text for li in doc.line_items for v in li.values.values() if v.value_text]
+    assert texts == ["Unqualified opinion"], "the text fact did not survive the stages"
+    figures = {li.canonical_key: str(v.value)
+               for li in doc.line_items for v in li.values.values() if v.value is not None}
+    assert figures == {"is_pl__sales_revenues": "1000", "is_pl__cost_of_sales": "400"}
 
 
 def test_a_text_fact_survives_a_round_trip_through_the_model():
