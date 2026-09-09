@@ -113,9 +113,11 @@ _SET = {
 # `type: "calculated"` and these fields are only legal on another type, so including them would
 # assert a shape a screen can never send.
 #
-# `prompt` is the only one: `LineItemDef` refuses it unless the line is `extracted`, because a
-# calculated line's figure comes from arithmetic and the model is never asked about it.
-_NOT_COHERENT_WITH_THE_REST = {"prompt"}
+# `prompt` and `output_structure` are the two: `LineItemDef` refuses either unless the line is
+# `extracted`. A calculated line's figure comes from arithmetic, so the model is never asked about
+# it (the prompt would never be sent) and no arithmetic yields a sentence (so text output is
+# incoherent). Both are proved authorable by their own tests below.
+_NOT_COHERENT_WITH_THE_REST = {"prompt", "output_structure"}
 
 _ROUND_TRIP: dict[str, tuple[str, object]] = {
     # meaning — the four the user named, plus the label
@@ -127,6 +129,10 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
     # `LineItemDef` validator and is tested separately, because it is a refusal rather than a
     # write. The probe item this table is applied to is `extracted`, so this round-trips.
     "prompt": ("prompt", "Prefer the note total over the face figure when they disagree."),
+    # What the line OUTPUTS: a number, a phrase off the page, or prose the model writes. Carried
+    # here so the coverage guard sees it; excluded from the combined body because a non-`value`
+    # structure is only legal on an `extracted` line, and asserted on its own below.
+    "output_structure": ("output_structure", "phrase"),
     "include_criteria": ("include_criteria", ["bank balances", "cash on hand"]),
     "exclude_criteria": ("exclude_criteria", ["bank overdrafts repayable on demand"]),
     "confusable_with": ("confusable_with", ["probe_other"]),
@@ -670,6 +676,67 @@ def test_a_prompt_round_trips_on_an_extracted_line(client, probe):
                     {"key": _EDITED, "type": "extracted", "prompt": wording})
 
     assert _stored(client, new_id)["prompt"] == wording
+
+
+def test_an_output_structure_round_trips_on_an_extracted_line(client, probe):
+    """A line can be told to hold a phrase off the page rather than a number.
+
+    Excluded from the combined patch because that body sets `type: "calculated"` — see
+    `_NOT_COHERENT_WITH_THE_REST`. Proved authorable here.
+    """
+    _tpl, cfg = probe
+
+    new_id = _saved(client, cfg["id"],
+                    {"key": _EDITED, "type": "extracted", "output_structure": "phrase"})
+
+    assert _stored(client, new_id)["output_structure"] == "phrase"
+
+
+def test_every_line_defaults_to_a_number_so_existing_configuration_is_unchanged(client, probe):
+    """THE COMPATIBILITY ASSERTION. Adding an output structure must not reinterpret 475 shipped
+    lines: every one of them means a figure, and a default of anything else would silently take
+    them all out of the arithmetic.
+
+    Asserted in the two places it has to hold, which are different statements:
+
+    * STORAGE gains nothing. A line that never declared an output structure still does not carry
+      the key, so adding the field did not rewrite a single authored file.
+    * THE RESOLVED READ says `value`. Absence has to MEAN a number rather than mean nothing, or
+      every existing line would arrive at the arithmetic with no answer to what it is.
+    """
+    _tpl, cfg = probe
+
+    assert "output_structure" not in _stored(client, cfg["id"])
+    assert _in_force(client).get("output_structure", "value") == "value"
+
+
+def test_prose_is_refused_without_a_prompt_to_write_it_from(client, probe):
+    """Prose is specified by the line's prompt and by nothing else, so prose with no prompt has
+    nothing to generate from — it would publish an empty cell for a reason no reader could see."""
+    _tpl, cfg = probe
+
+    r = client.patch(f"{API}/line-items/versions/{cfg['id']}/items",
+                     json={"key": _EDITED, "type": "extracted", "output_structure": "prose",
+                           "prompt": ""})
+
+    assert r.status_code == 422, r.text
+    fields = [e["field"] for e in r.json()["detail"]["errors"]]
+    assert any(f in fields for f in ("output_structure", "prompt")), fields
+
+
+def test_text_output_is_refused_on_a_line_whose_value_is_arithmetic(client, probe):
+    """There is no calculation that produces a sentence. Refused rather than ignored, because a
+    calculated line quietly holding text would reach every subtotal that sums it."""
+    _tpl, cfg = probe
+
+    r = client.patch(f"{API}/line-items/versions/{cfg['id']}/items",
+                     json={"key": _EDITED, "type": "calculated",
+                           "terms": [{"ref": _EDITED, "sign": 1}],
+                           "output_structure": "prose"})
+
+    assert r.status_code == 422, r.text
+    fields = [e["field"] for e in r.json()["detail"]["errors"]]
+    assert any(f in fields for f in ("output_structure", "type")), fields
 
 
 def test_a_prompt_is_refused_on_a_line_the_model_is_never_asked_about(client, probe):

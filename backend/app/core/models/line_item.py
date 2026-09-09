@@ -103,6 +103,28 @@ class ValueKey(BaseModel, frozen=True):
 class ExtractedValue(BaseModel):
     value_raw: Decimal | None = None      # exactly as printed (paren-negatives applied)
     value: Decimal | None = None          # sign-normalized (units NOT applied)
+    # A FACT THAT IS WORDS RATHER THAN A FIGURE — an audit opinion's wording, a going-concern
+    # statement, or prose the model wrote for a line whose `output_structure` asks for it.
+    #
+    # A SEPARATE FIELD, AND THE THREE ABOVE STAY STRICTLY `Decimal`. Widening `value` to
+    # `Decimal | str` was the obvious move and it is the wrong one: a survey of this repository
+    # found 139 sites that read a value, 45 of which would raise on a string. Almost every one of
+    # them is already written as `if ev.value is None: continue` or
+    # `ev.value if ev.value is not None else ev.value_raw` — so a text fact that leaves `value` as
+    # None is skipped correctly by all of them, with no edit and no chance of a site being missed.
+    # Widening would have turned each of those guards into a hole.
+    #
+    # SO THE ARITHMETIC NEVER SEES IT, and that is the point rather than a limitation: a sentence
+    # has no business in a subtotal, a balance identity or a sign check. Contributing 0 to a total
+    # would be worse than being absent, because the total would still balance and nothing would say
+    # a line had been skipped.
+    #
+    # NO SEPARATE `kind` DISCRIMINATOR, deliberately. `value_text is not None` already answers
+    # "is this fact words?", and it cannot disagree with itself; a `kind` field could say "prose"
+    # beside an empty `value_text`, which is the two-places-storing-one-quantity bug this codebase
+    # refuses elsewhere. What the line was CONFIGURED to hold is `LineItemDef.output_structure`;
+    # what it actually got is this.
+    value_text: str | None = None
     # True when the sign of ``value`` was FLIPPED away from ``value_raw`` by the rulebook's
     # ``global_rules.sign_convention.unsigned_source`` rule — a filing that prints its expenses as
     # unsigned positives. The rulebook asks for the transformation to be recorded on the fact ("set

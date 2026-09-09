@@ -42,14 +42,15 @@
 import { useState, type ReactNode } from "react";
 
 import {
-  BoolField, KeyPicker, LockedRow, NumberField, OrderedMultiSelect, RungCards, SelectField,
-  StringListEditor, TermRows, TextArea, TextField, TriBoolField, type KeyOption,
+  BoolField, InfoToggle, KeyPicker, LockedRow, NumberField, OrderedMultiSelect, RungCards,
+  SelectField, StringListEditor, TermRows, TextArea, TextField, TriBoolField, type KeyOption,
 } from "../components/configFields";
 import { Button, Card } from "../components/ui";
 import { useT } from "../i18n";
 import { ApiError, refusalText } from "../lib/api";
 import {
-  useAddLineItem, useDeleteLineItem, useEditLineItemConfig, useLineItems,
+  useAddLineItem, useDeleteLineItem, useEditLineItemConfig, useEditLineItemSet,
+  useLineItems,
 } from "../lib/queries";
 import { useCan } from "../lib/rbac";
 import { SCREENS } from "./config";
@@ -60,7 +61,7 @@ import type {
   LineItemSide, LineItemTemporality, LineItemType, LineItemUnitOfAccount, LineItemVocab,
   NoteSource, ResidualPolicy, SearchScope, SignExpectation, SignRuleConvention, StatementToken,
   ValueScope,
-} from "../types";
+  OutputStructure,} from "../types";
 
 const TYPE_TONE: Record<LineItemType, { bg: string; fg: string; label: string }> = {
   extracted: { bg: color.greenBg, fg: color.greenFg, label: "Extracted" },
@@ -205,6 +206,20 @@ function Patterns({ label, values, tone }: { label: string; values: string[]; to
 const SIMPLE_FIELDS = new Set([
   "label", "aliases", "definition", "include_criteria", "exclude_criteria",
   "inherits", "type", "in_output", "sign_expectation",
+  // NOTE SOURCING, promoted from advanced on review: reading a figure out of a note is an everyday
+  // authoring decision for the sub-line items, not a specialist one.
+  //
+  // THE THREE PATTERN LISTS COME WITH IT, and that is not a liberty. `note_source` itself is only a
+  // BoolField — the switch that decides whether a note is read at all — and the lists below it are
+  // what say WHICH note and which of its rows. They render only while the switch is on. Promoting
+  // the switch alone would put a control on the simple form that reveals nothing when you use it.
+  "note_source", "note_source.note_title_any", "note_source.row_caption_any",
+  "note_source.row_caption_none",
+  // WHAT THE LINE OUTPUTS. On the simple form because it is the first thing that decides what the
+  // line even is, and because every other control in its group is conditional on it.
+  "output_structure",
+  // `note_source.caption_normalization` deliberately stays advanced: 0 of 475 items declare it, so
+  // promoting it would put a control nobody has needed on the form most authors see.
 ]);
 
 /** RETIRED — controls removed rather than demoted, with the measurement that decided each.
@@ -237,7 +252,249 @@ const RETIRED_FIELDS = new Set([
   //  retire. Recorded so a future author does not add one.)
   "description",             // 21 of 475, and `definition` is the field the model actually reads
   "order",                   // 21 of 475 — display order, which the template already fixes
+
+  // ── RETIRED BY REVIEW, NOT BY MEASUREMENT ────────────────────────────────────────────────────
+  // Everything above is retired because NO item declares it. The nine below are different and the
+  // difference matters to whoever reads this next: most of them ARE declared, some on hundreds of
+  // items. They were removed because the surface was judged too large to author against, with the
+  // usage counted (`scripts/line_item_options_workbook.py`) and accepted.
+  //
+  // Retiring is still not deleting: every field keeps working, the endpoint keeps accepting it, and
+  // the shipped values keep driving extraction. What goes is the invitation to set it HERE. The
+  // consequence is therefore narrow and worth naming — a value already authored stays in force, and
+  // a NEW one can no longer be authored on this screen.
+  "match_priority",          // 462 of 475, 76 distinct — decides which line wins a contested
+                             //   caption. The shipped ranking stands; ties can no longer be
+                             //   re-broken from here.
+  "is_gross_parent",         // 32 of 475 — with the next field, the pair that stops a parent being
+  "children_if_decomposed",  // 31 of 475 — loaded alongside the children it already contains.
+                             //   Existing containment holds; a new one is not authorable here.
+  "expected_components",     // 11 of 475 — what a section's residual is expected to absorb.
+  "parent",                  // 13 of 475 — reporting hierarchy, distinct from `inherits`, which is
+  "rollup",                  //  8 of 475 — the gate and stays. These two were the roll-up pair.
+  "cascade",                 //  2 of 475 — ordered fallbacks when the preferred source is absent.
+  "implemented_by",          //  1 of 475 — names the code filling a line configuration cannot.
+  "decomposition_rule",      // 391 of 475 but only THREE distinct values, 358 of them restating
+                             //   `global_rules.no_fabricated_split`, which the system prompt
+                             //   already carries. A set-level policy copied onto every row.
 ]);
+
+/** THE MASTER PROMPT, edited in place — the one instruction that applies to every mapping call.
+ *
+ *  WHY IT IS A SCREEN-LEVEL BLOCK and not a field on a line. It belongs to the CONFIGURATION, not
+ *  to any item: `PATCH /line-items/versions/{id}` writes it and publishes a new version exactly as
+ *  an item edit does. Putting it on the item form would imply each line has one.
+ *
+ *  WHAT IS NOT HERE, deliberately. The reply contract — the shape of the answer and the citation
+ *  rules the parser depends on — is fixed in code (`mapping._LLM_REPLY_CONTRACT`) and is not
+ *  offered for editing, because an admin who could change it could produce a reply the system
+ *  cannot read. This box is the half that is a matter of judgement.
+ */
+function MasterPrompt({ versionId, served, canEdit }: {
+  versionId: string; served: string; canEdit: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState(served);
+  const save = useEditLineItemSet();
+  // Re-seed when the server serves a different version, so a publish elsewhere is not overwritten
+  // by a stale draft still sitting in this box.
+  const [seed, setSeed] = useState(served);
+  if (seed !== served) { setSeed(served); setText(served); }
+  const dirty = text !== served;
+
+  return (
+    <Card pad={12} style={{ marginBottom: 10 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+        <b style={{ fontSize: 12.5 }}>Master prompt</b>
+        <InfoToggle open={open} about="the master prompt" onToggle={() => setOpen((v) => !v)} />
+        <span style={{ fontSize: 11, color: color.muted }}>
+          {served ? `${served.length} characters, sent on every mapping call` : "not set"}
+        </span>
+        <span style={{ flex: 1 }} />
+        <button type="button" data-testid="li-master-prompt-toggle"
+                onClick={() => setOpen((v) => !v)}
+                style={{ fontSize: 11.5, cursor: "pointer", padding: "3px 10px",
+                          border: `1px solid ${color.cardBorder}`, borderRadius: radius.control,
+                          background: "transparent", color: color.sec2 }}>
+          {open ? "Close" : canEdit ? "Edit" : "View"}
+        </button>
+      </div>
+      {open && (
+        <div style={{ marginTop: 9 }}>
+          <p style={{ margin: "0 0 7px", fontSize: 10.5, color: color.muted, lineHeight: 1.5 }}>
+            Appended to the fixed reply contract and read before the global policies, so this is
+            where a standing rule about how captions should be judged belongs. The reply shape and
+            the citation rules are fixed in code and are not editable here — changing them could
+            produce an answer the pipeline cannot read.
+          </p>
+          <TextArea label="Instruction sent with every mapping call" testid="master_prompt"
+                    editable={canEdit} rows={6}
+                    reason={canEdit ? undefined : "you do not have `config:line_items`"}
+                    value={text} onChange={(v) => setText(v ?? "")} />
+          {canEdit && (
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <Button testid="li-master-prompt-save" disabled={!dirty || save.isPending}
+                      onClick={() => save.mutate({ lineItemVersionId: versionId,
+                                                    edit: { prompt: text } })}>
+                {save.isPending ? "Publishing…" : "Save — publishes a new version"}
+              </Button>
+              {dirty && (
+                <button type="button" onClick={() => setText(served)}
+                        style={{ fontSize: 11.5, cursor: "pointer", border: 0,
+                                  background: "transparent", color: color.sec2 }}>
+                  Discard
+                </button>
+              )}
+              {save.isError && (
+                <span style={{ fontSize: 11, color: color.redFg }}>
+                  {refusalText(save.error as ApiError) ?? (save.error as Error)?.message}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** The three output structures as an author reads them, and what each one commits to. */
+const OUTPUT_STRUCTURE_LABEL: Record<string, string> = {
+  value: "Value — a number",
+  phrase: "Phrase — short text off the page",
+  prose: "Prose — written by the model from the prompt",
+};
+const OUTPUT_STRUCTURE_HELP: Record<string, string> = {
+  value: "The default, and what every existing line is. Totals, reconciliation and the balance "
+       + "identities all read it.",
+  phrase: "A short piece of text as printed — an audit opinion's wording, a going-concern "
+        + "statement. Lifted, not written: the words come from the filing.",
+  prose: "Text the model writes for this line from the line's own prompt below. Nothing is read "
+       + "off the page, so the prompt is the whole specification — and is required.",
+};
+
+/** WHAT THE CURRENT SELECTIONS MAKE MEANINGLESS — the reason a control is withheld, or null.
+ *
+ *  WHY THIS IS NOT A UI PREFERENCE. Most of these rules are ENFORCED BY THE SERVER, in
+ *  `LineItemDef._coherent` (backend/app/schemas/line_items.py). Before this, the form offered every
+ *  control regardless of the line's type, so an author could fill in a prompt on a calculated line,
+ *  save, and be told "a prompt is only sent for an `extracted` line" by a validator two layers
+ *  down. Offering a control whose value the save will refuse is worse than not offering it.
+ *
+ *  The rest are inert rather than refused: the value stores fine and no code ever reads it. Those
+ *  are the more dangerous half, because nothing contradicts them — an author sets aliases on a line
+ *  the matcher can never reach and the configuration looks like it is working.
+ *
+ *  NOTHING IS HIDDEN SILENTLY. Every reason returned here is counted in the form header and can be
+ *  revealed, because a control that is absent and a control that is withheld for a stated reason
+ *  look identical on a screen and only one of them is a decision — the rule this file already
+ *  applies to `LockedRow`.
+ */
+function withheldReason(name: string, sel: {
+  type: string; extractionMode: string; aliasMatching: string; outputStructure: string;
+}): string | null {
+  const { type, extractionMode, aliasMatching, outputStructure } = sel;
+
+  // ── SERVER-ENFORCED ────────────────────────────────────────────────────────────────────────
+  // `_coherent`: a prompt is only ever sent for an `extracted` line, and is refused elsewhere.
+  if (name === "prompt" && type !== "extracted") {
+    return `a prompt is only sent for an extracted line, and this one is ${type} — its figure comes from arithmetic, so the model is never asked about it`;
+  }
+  // `_coherent` forces `in_output = false` on an intermediate, whatever was submitted.
+  if (name === "in_output" && type === "intermediate") {
+    return "an intermediate line never reaches the export; the server forces this off";
+  }
+  // `_coherent`: terms are REQUIRED for calculated/intermediate and meaningless otherwise.
+  if (name === "terms" && !["calculated", "intermediate"].includes(type)) {
+    return `terms are the inputs of an arithmetic line; a ${type} line does not have any`;
+  }
+  // `_coherent`: a derived line needs a cascade or `implemented_by`; neither means anything else.
+  if (["cascade", "implemented_by"].includes(name) && type !== "derived") {
+    return `only a derived line is filled this way; this one is ${type}`;
+  }
+
+  // A TEXT LINE IS NOT A FIGURE. `phrase` and `prose` hold words, so the controls that describe a
+  // NUMBER describe nothing: there is no sign to expect, no unit of account, and the line cannot be
+  // a component of a subtotal or appear in a balance identity. Withheld rather than left on the
+  // form, because a sign expectation on a sentence is a review trigger that can never fire and an
+  // author cannot tell that from one that simply has not fired yet.
+  const NUMERIC_ONLY = ["sign_expectation", "unit_of_account", "value_scope", "residual_policy",
+                        "never_sweep", "expected_components", "is_gross_parent",
+                        "children_if_decomposed", "rollup", "aggregation_note"];
+  if (outputStructure !== "value" && NUMERIC_ONLY.includes(name)) {
+    return `this line outputs ${outputStructure === "prose" ? "prose" : "a phrase"}, not a number, so it takes no part in totals or sign checks`;
+  }
+
+  // ── INERT BY CONFIGURATION ─────────────────────────────────────────────────────────────────
+  // A line the matcher can never reach gets no caption offered to it, so every caption-matching
+  // control is text that is stored and never read. `alias_matching: "disabled"` and
+  // `extraction_mode: "derive"` are the two locks that produce it — together they are
+  // `mapping._unmatchable`, and a concept in that set cannot be reached by any caption or any
+  // model decision.
+  const CAPTION_MATCHING = ["aliases", "pattern", "regex_hints", "keyword_hints", "exclude_hints",
+                            "confusable_with", "section_disambiguation"];
+  if (CAPTION_MATCHING.includes(name)) {
+    if (aliasMatching === "disabled") {
+      return "caption matching is switched off for this line, so nothing here is ever consulted";
+    }
+    if (extractionMode === "derive") {
+      return "a derive-only line is never offered to the matcher, so nothing here is ever consulted";
+    }
+  }
+  return null;
+}
+
+/** Fields the CURRENT selections make mandatory, shown even when retired or in simple mode.
+ *
+ *  The one case where withholding a control would trap an author. `_coherent` refuses a derived
+ *  line that has neither a cascade nor an `implemented_by`, and both of those controls are retired
+ *  — so choosing "derived" would produce a refusal with no control on the screen to answer it. The
+ *  same holds for `terms` on a calculated line, which is behind the advanced toggle.
+ */
+function requiredNow(name: string, sel: { type: string; outputStructure: string }): boolean {
+  if (["cascade", "implemented_by"].includes(name)) return sel.type === "derived";
+  if (name === "terms") return ["calculated", "intermediate"].includes(sel.type);
+  // PROSE IS WRITTEN FROM THE PROMPT AND NOTHING ELSE, and the server refuses prose without one.
+  // So the moment an author chooses prose, the prompt has to be on the form whatever the mode —
+  // otherwise the save is refused with no control on screen to answer the refusal.
+  if (name === "prompt") return sel.outputStructure === "prose";
+  return false;
+}
+
+/** Every field `withheldReason` can speak about — the ONLY controls conditionality can remove.
+ *
+ *  Kept beside the rules rather than as a list of all 63 field names, because a second copy of the
+ *  form's inventory is a copy that goes stale. Adding a rule above means adding its field here, and
+ *  the test below this file's usage asserts the two agree.
+ */
+const CONDITIONAL_FIELDS = [
+  "prompt", "in_output", "terms", "cascade", "implemented_by",
+  "aliases", "pattern", "regex_hints", "keyword_hints", "exclude_hints",
+  "confusable_with", "section_disambiguation",
+  // withheld once the line outputs text rather than a number
+  "sign_expectation", "unit_of_account", "value_scope", "residual_policy", "never_sweep",
+  "expected_components", "is_gross_parent", "children_if_decomposed", "rollup",
+  "aggregation_note",
+];
+
+/** What this line's own selections withhold, computed BEFORE the form renders.
+ *
+ *  Up front rather than collected as the controls are walked, because the count belongs in the
+ *  header — which React builds before the fields below it, so a set filled during the walk would
+ *  always read as empty there.
+ */
+function withheldFields(
+  sel: { type: string; extractionMode: string; aliasMatching: string; outputStructure: string },
+  errors: Record<string, string>,
+): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const name of CONDITIONAL_FIELDS) {
+    if (errors[name] || requiredNow(name, sel)) continue;
+    const why = withheldReason(name, sel);
+    if (why) out.set(name, why);
+  }
+  return out;
+}
 
 function Group({ question, note, right, children, visible = true }: {
   question: string; note?: ReactNode; right?: ReactNode; children: ReactNode;
@@ -246,15 +503,23 @@ function Group({ question, note, right, children, visible = true }: {
   visible?: boolean;
 }) {
   if (!visible) return null;
+  // The group's own explanation collapses behind the same ⓘ the fields use, for the same reason:
+  // seven headings each carrying a paragraph is most of the form's height before a single control.
+  const [showNote, setShowNote] = useState(false);
   return (
     <Card pad={13} style={{ marginBottom: 12 }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between",
-                     gap: 12, flexWrap: "wrap", marginBottom: note ? 4 : 10 }}>
-        <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: color.ink }}>{question}</h3>
+                     gap: 12, flexWrap: "wrap", marginBottom: note && showNote ? 4 : 10 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+          <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: color.ink }}>{question}</h3>
+          {note && <InfoToggle open={showNote} about={question}
+                               onToggle={() => setShowNote((v) => !v)} />}
+        </div>
         {right}
       </div>
-      {note && (
-        <p style={{ margin: "0 0 11px", fontSize: 10.5, color: color.muted, lineHeight: 1.5 }}>
+      {note && showNote && (
+        <p style={{ margin: "0 0 11px", paddingLeft: 9, fontSize: 10.5, color: color.muted,
+                     lineHeight: 1.5, borderLeft: `2px solid ${color.indigoBorder2}` }}>
           {note}
         </p>
       )}
@@ -351,6 +616,10 @@ function Detail(p: EditorProps) {
   // configuration screen becomes unreadable: the eight fields that define a line sat among sixty
   // that override a section default or serve a case arising on four lines out of 475.
   const [mode, setMode] = useState<"simple" | "advanced">("simple");
+  // OFF by default: the point of the conditional rules is that a control the line cannot use is not
+  // on the form. The escape hatch exists so the withholding is auditable rather than mysterious —
+  // an author who wants to see what was taken away, and why, can.
+  const [showInapplicable, setShowInapplicable] = useState(false);
   // NO VOCABULARY, NO AUTHORING. Every select's options come from what the server served, derived
   // there from the same `Literal[...]` aliases the loader validates with. A control offering a
   // token this deployment's gate refuses is worse than no control: the author authors, saves, and
@@ -378,25 +647,54 @@ function Detail(p: EditorProps) {
    *  refused this field, and WRAPS the control so the refusal is rendered exactly once — by the
    *  control itself, in the server's own words, with the invalid border on the input. A second copy
    *  of the message under a marker element would be the same sentence twice. */
+  /** The selections the conditional rules are read against — the DRAFT value where the author has
+   *  touched it, so the form reacts as they change the type rather than after they save. */
+  const sel = {
+    type: String(g("type", item.type) ?? "extracted"),
+    extractionMode: String(g("extraction_mode", item.extraction_mode) ?? "extract"),
+    aliasMatching: String(g("alias_matching", item.alias_matching) ?? "enabled"),
+    outputStructure: String(g("output_structure", item.output_structure) ?? "value"),
+  };
+  /** What this line's own selections withhold. Derived from `sel`, so it follows the author's
+   *  choice of type immediately rather than after a save. */
+  const withheld = withheldFields(sel, errors);
+
   const fld = (name: string, render: (error?: string) => ReactNode) => {
     // THE ONE FILTER POINT. Every control on this screen goes through `fld`, so what a reader is
     // offered is decided here rather than in eight groups that would drift apart.
-    if (RETIRED_FIELDS.has(name)) return null;
+    //
+    // ORDER MATTERS, and it is: a refusal beats everything, then what this line's own selections
+    // make meaningless, then what the selections make MANDATORY (which overrides retirement and
+    // simple mode both), then retirement, then the mode.
+    if (withheld.has(name) && !showInapplicable) return null;
+    const forced = requiredNow(name, sel);
+    if (RETIRED_FIELDS.has(name) && !forced) return null;
     // A field the server refused is shown WHATEVER the mode, because hiding the control a refusal
     // is addressed to leaves an author with a message and nothing to act on.
-    if (mode === "simple" && !SIMPLE_FIELDS.has(name) && !errors[name]) return null;
+    if (mode === "simple" && !SIMPLE_FIELDS.has(name) && !errors[name] && !forced) return null;
     return (
       <div data-testid={`li-field-${name}`} key={name}>
         <div data-testid={errors[name] ? `li-field-error-${name}` : undefined}>
           {render(errors[name])}
         </div>
+        {/* Shown only while the author has asked to see inapplicable controls, so the reason
+            arrives with the control it explains rather than as a list somewhere else. */}
+        {withheld.has(name) && (
+          <div style={{ fontSize: 10, color: color.amberFg, marginTop: -9, marginBottom: 12 }}>
+            does not apply: {withheld.get(name)}
+          </div>
+        )}
       </div>
     );
   };
   /** Whether a group has anything to show, so an empty card is not rendered in simple mode. */
   const anyOf = (...names: string[]) =>
-    names.some((n) => !RETIRED_FIELDS.has(n)
-                       && (mode === "advanced" || SIMPLE_FIELDS.has(n) || !!errors[n]));
+    names.some((n) => {
+      const forced = requiredNow(n, sel);
+      if (withheldReason(n, sel) && !forced && !showInapplicable && !errors[n]) return false;
+      if (RETIRED_FIELDS.has(n) && !forced) return false;
+      return mode === "advanced" || SIMPLE_FIELDS.has(n) || !!errors[n] || forced;
+    });
   const idx = (name: string) => indexErrors[name];
 
   const type = g<LineItemType>("type", item.type);
@@ -479,6 +777,25 @@ function Detail(p: EditorProps) {
         </p>
       )}
 
+      {/* WHAT THIS LINE'S OWN SELECTIONS TOOK OFF THE FORM, stated rather than left to be noticed.
+          A control that is absent and a control withheld for a reason look identical on a screen,
+          and only one of them is a decision — the same rule `LockedRow` exists for. */}
+      {withheld.size > 0 && (
+        <p style={{ margin: "0 0 10px", fontSize: 10.5, color: color.muted }}>
+          {withheld.size} control{withheld.size === 1 ? "" : "s"} {withheld.size === 1 ? "does" : "do"}{" "}
+          not apply to {sel.type === "extracted" ? "an" : "a"} <b>{sel.type}</b> line
+          {sel.aliasMatching === "disabled" || sel.extractionMode === "derive"
+            ? " with caption matching off" : ""}
+          {" "}and {withheld.size === 1 ? "is" : "are"} not shown.{" "}
+          <button type="button" data-testid="li-show-inapplicable"
+                  onClick={() => setShowInapplicable((v) => !v)}
+                  style={{ border: 0, background: "transparent", padding: 0, fontSize: 10.5,
+                            color: color.indigo, cursor: "pointer", textDecoration: "underline" }}>
+            {showInapplicable ? "hide them again" : "show them anyway"}
+          </button>
+        </p>
+      )}
+
       {/* WHY EVERY CONTROL IS DISABLED, said once and at the top. `FieldRow` prints a reason on
           the controls that take one, but a form of seventy disabled controls needs the answer
           before the reader starts hunting for it. */}
@@ -538,6 +855,19 @@ function Detail(p: EditorProps) {
                     value={g("definition", item.definition)}
                     onChange={(v) => patch({ definition: v ?? "" })}
                     error={e} inherited={inh("definition", item.definition)} />
+        ))}
+        {fld("prompt", (e) => (
+          <TextArea label="Extra instruction for this line, sent to the model" testid="prompt"
+                    editable={editable} rows={3} reason={lockReason}
+                    help="ADDED TO THE MASTER PROMPT, never replacing it — the global policies still
+                          apply. Sent only when this line is offered to the
+                          model as a candidate, so it is the place to put
+                          the one rule that applies to THIS line and
+                          nothing else. Required when the line outputs
+                          prose, because prose is written from it."
+                    value={g("prompt", item.prompt)}
+                    onChange={(v) => patch({ prompt: v ?? "" })}
+                    error={e} />
         ))}
         {fld("include_criteria", (e) => (
           <StringListEditor label="Counts as this line" testid="include_criteria"
@@ -1143,7 +1473,23 @@ function Detail(p: EditorProps) {
           both is how an author changes the wrong one: `sign_convention` on the item is the sign
           the line is EXPECTED to carry (a review trigger, sent as `sign_expectation`), and
           `sign_rule.convention` is how a value is NORMALISED. */}
-      <Group visible={anyOf("temporality", "unit_of_account", "sign_expectation", "sign_rule.convention", "analyst_bucket")} question="What kind of figure is it?">
+      <Group visible={anyOf("output_structure", "temporality", "unit_of_account", "sign_expectation", "sign_rule.convention", "analyst_bucket")} question="What kind of figure is it?">
+        {fld("output_structure", (e) => (
+          <SelectField<OutputStructure>
+            label="What this line outputs" testid="output_structure" editable={editable}
+            reason={lockReason} options={vocab?.output_structures ?? []}
+            labelOf={(o) => OUTPUT_STRUCTURE_LABEL[o] ?? o}
+            helpOf={(o) => OUTPUT_STRUCTURE_HELP[o]}
+            help="Almost every line is a NUMBER, and everything that totals or reconciles assumes
+                  it. The other two make the line hold text instead: a
+                  phrase taken off the page, or prose the model writes
+                  from this line's own prompt. Text output is only
+                  available on an extracted line — no arithmetic
+                  produces a sentence."
+            value={g("output_structure", item.output_structure) ?? "value"}
+            onChange={(v) => patch({ output_structure: v ?? "value" })}
+            error={e} />
+        ))}
         {fld("temporality", (e) => (
           <SelectField<LineItemTemporality>
             label="Instant or duration" testid="temporality" editable={editable} nullable
@@ -1740,6 +2086,17 @@ export default function LineItemsScreen() {
           </p>
         )}
       </div>
+
+      {/* THE MASTER PROMPT — one per configuration, not per line.
+          Sent on EVERY mapping call, appended to the framework's fixed reply contract and ahead of
+          the global policies, so it is the deployment's standing instruction on how captions should
+          be read. A line's own prompt is added on top of this rather than replacing it.
+          Collapsed by default: it is set once and then rarely, and open it would be a paragraph
+          above every visit to this screen. The fixed contract — the reply shape and the citation
+          rules the parser depends on — is deliberately NOT here and is not editable. */}
+      {inForce?.id && (
+        <MasterPrompt versionId={inForce.id} served={set.prompt ?? ""} canEdit={canEdit} />
+      )}
 
       {/* ADD A LINE ITEM. The template provisions an item for every line it carries, and an author
           adds beyond that set — so this creates an `internal` item, which is the only namespace a

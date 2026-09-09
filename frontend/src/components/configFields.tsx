@@ -97,6 +97,41 @@ function Note({ children, tone = "muted" }: { children: ReactNode; tone?: "muted
   return <div style={{ ...helpStyle, color: fg, marginTop: 4 }}>{children}</div>;
 }
 
+/** THE ⓘ TOGGLE. Every field's explanation hides behind one of these.
+ *
+ *  WHY. The explanations are the most valuable thing on this form and they were also what made it
+ *  unusable: two sentences under each of forty-odd controls turns a form into a document, and an
+ *  author scrolling to find one field reads three screens of prose they already know. Collapsed,
+ *  the same form is a short list of labels; the prose is one click away and unchanged.
+ *
+ *  A DISCLOSURE, NOT A TOOLTIP, and deliberately. A hover tooltip is unreachable on a touch device,
+ *  vanishes while you read it, and cannot be kept open beside the control you are editing — and
+ *  these particular explanations are the ones that stop an author detaching a line from its
+ *  section. They have to be readable at leisure, so the text lands in the flow and stays until it
+ *  is dismissed.
+ */
+export function InfoToggle({ open, onToggle, about }: {
+  open: boolean; onToggle: () => void;
+  /** The field's label, so the control announces WHICH field it explains rather than just "info". */
+  about: string;
+}) {
+  return (
+    <button type="button" onClick={onToggle} aria-expanded={open}
+            data-testid="field-info"
+            aria-label={open ? `Hide what ${about} does` : `What does ${about} do?`}
+            title={open ? "Hide the explanation" : "What does this do?"}
+            style={{
+              flex: "0 0 auto", width: 15, height: 15, padding: 0, lineHeight: "13px",
+              fontSize: 10, fontWeight: 700, fontFamily: font.sans, cursor: "pointer",
+              borderRadius: "50%", border: `1px solid ${open ? color.indigo : color.controlBorder}`,
+              background: open ? color.indigo : "transparent",
+              color: open ? color.surface : color.muted,
+            }}>
+      i
+    </button>
+  );
+}
+
 /** THE WRAPPER EVERY CONTROL RENDERS INSIDE: the label, the control, the server's message in red
  *  under it, and the inherited badge.
  *
@@ -112,18 +147,32 @@ export function FieldRow({
   /** Why the control is read-only, when it is. Shown instead of nothing — see the header. */
   reason?: string;
 }) {
+  // Collapsed by default — see `InfoToggle`. Per row rather than one flag for the form, so opening
+  // one explanation does not unfold the other forty.
+  const [showHelp, setShowHelp] = useState(false);
   return (
     <div data-testid={testid ? `field-${testid}` : undefined}
          style={{ marginBottom: 14 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap",
                      marginBottom: 4 }}>
         <span style={labelStyle}>{label}</span>
+        {help && <InfoToggle open={showHelp} about={label}
+                             onToggle={() => setShowHelp((v) => !v)} />}
         {inherited && <InheritedBadge from={inherited} />}
+        {/* NOT behind the toggle. A read-only reason and a server refusal are not explanations of
+            what the field does — they are the answers to "why can I not use this", asked by
+            someone already looking at it. Hiding either leaves an author with a dead control and
+            no account of it. */}
         {!editable && reason && (
           <span style={{ ...helpStyle, color: color.amberFg }}>{reason}</span>
         )}
       </div>
-      {help && <div style={{ ...helpStyle, marginBottom: 6 }}>{help}</div>}
+      {help && showHelp && (
+        <div style={{ ...helpStyle, marginBottom: 6, paddingLeft: 9,
+                       borderLeft: `2px solid ${color.indigoBorder2}` }}>
+          {help}
+        </div>
+      )}
       {children}
       {error && (
         <div data-testid="field-error"

@@ -76,6 +76,7 @@ from app.schemas.line_items import (
     LineItemDef,
     LineItemSet,
     LineItemType,
+    OutputStructure,
     MappingVocabulary,
     Namespace,
     NoteSource,
@@ -345,6 +346,8 @@ def _vocabulary(st: LineItemSet) -> dict:
         "rollups": _literal_values(Rollup),
         "namespaces": _literal_values(Namespace),
         "types": _literal_values(LineItemType),
+        # The three output structures, so the control cannot offer a fourth.
+        "output_structures": _literal_values(OutputStructure),
         "value_scopes": _literal_values(ValueScope),
         "extraction_modes": _literal_values(ExtractionMode),
         "alias_matching": _literal_values(AliasMatching),
@@ -878,6 +881,9 @@ class ItemEdit(BaseModel):
 
     # ── the structure of the tree ─────────────────────────────────────────────────────────────
     type: LineItemType | None = None
+    # WHAT THE LINE OUTPUTS — a number, a phrase lifted from the page, or prose the model writes
+    # from this line's prompt. See `schemas.line_items.OutputStructure`.
+    output_structure: OutputStructure | None = None
     in_output: bool | None = None
     parent: str | None = None
     rollup: Rollup | None = None
@@ -966,6 +972,7 @@ _EDIT_SCALARS: dict[str, str] = {
     "definition": "definition",
     "prompt": "prompt",
     "type": "type",
+    "output_structure": "output_structure",
     "in_output": "in_output",
     "rollup": "rollup",
     "order": "order",

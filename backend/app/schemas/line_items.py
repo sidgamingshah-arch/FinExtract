@@ -84,6 +84,23 @@ from app.schemas.ontology import (
 
 LineItemType = Literal["extracted", "calculated", "intermediate", "derived"]
 
+# WHAT A LINE ITEM OUTPUTS. `type` says how the value ARRIVES (read off the page, or arithmetic);
+# this says what KIND of thing it is, which is a different question and until now had one possible
+# answer.
+#
+#   "value"  — a number. THE DEFAULT, and what every shipped line is. Everything that totals,
+#              reconciles or checks an identity assumes this.
+#   "phrase" — a short piece of text taken FROM the document (an audit opinion's wording, a going-
+#              concern statement, a covenant's stated threshold as printed).
+#   "prose"  — text GENERATED for this line by the model from the line's own `prompt`. Nothing is
+#              read off the page; the prompt is the specification.
+#
+# A NON-NUMERIC LINE IS NOT A FIGURE, and the arithmetic must not pretend otherwise: it has no sign
+# to expect, no unit of account, and it cannot be a component of a subtotal or appear in a balance
+# identity. Contributing 0 to a total would be worse than being absent, because the total would
+# still balance and nothing would say the line had been skipped.
+OutputStructure = Literal["value", "phrase", "prose"]
+
 # Where a caption may be READ FROM, in the order they are searched — a search ORDER, not a gate.
 # `notes` leads by default: a note states the figure the face only summarises, and for the eight
 # output lines the note IS the authoritative source, which is why the derivation services read
@@ -268,6 +285,9 @@ class LineItemDef(BaseModel):
     key: str
     label: str = ""
     type: LineItemType = "extracted"
+    # What this line OUTPUTS — see `OutputStructure`. Defaults to a number, so every existing
+    # configuration keeps exactly the meaning it had.
+    output_structure: OutputStructure = "value"
     # Display prose, and — separately — the authoritative accounting meaning. `definition` is what
     # the LLM's description-based tier matches a caption against (`OntologyMapping.meaning()`
     # prefers it over `description`), so collapsing the two would either put display copy into a
@@ -429,6 +449,21 @@ class LineItemDef(BaseModel):
         # intermediate line is arithmetic over other lines, and a derived one is computed. Refused
         # rather than ignored, because text that is stored, shown on the screen and never used is
         # indistinguishable from text that is working.
+        # A GENERATED OR LIFTED VALUE CANNOT COME OUT OF ARITHMETIC. `calculated`, `intermediate`
+        # and `derived` lines get their figure by summing or computing other lines, and there is no
+        # arithmetic that yields a sentence — so the pair is incoherent rather than merely unusual.
+        if self.output_structure != "value" and self.type != "extracted":
+            raise ValueError(
+                f"{self.key}: a `{self.output_structure}` line is text, and a `{self.type}` line "
+                f"gets its value from arithmetic — there is no calculation that produces a "
+                f"sentence. Set the type to `extracted`, or the output structure back to `value`.")
+        # PROSE IS SPECIFIED BY THE PROMPT AND BY NOTHING ELSE. With no prompt there is nothing to
+        # generate from, so the line would publish an empty cell for a reason no reader could see.
+        if self.output_structure == "prose" and not self.prompt.strip():
+            raise ValueError(
+                f"{self.key}: a `prose` line is written by the model from this line's own prompt, "
+                f"and no prompt is set — there is nothing to generate from. Write the prompt, or "
+                f"choose `phrase` to lift the text off the page instead.")
         if self.prompt.strip() and self.type != "extracted":
             raise ValueError(
                 f"{self.key}: a prompt is only sent for an `extracted` line, and this one is "

@@ -1447,6 +1447,18 @@ export interface ExportOption {
  * almost everything below is optional rather than a discriminated union: the backend serves one
  * shape and the screen shows the parts that apply. */
 export type LineItemType = "extracted" | "calculated" | "intermediate" | "derived";
+
+/** WHAT A LINE OUTPUTS. `LineItemType` says how the value ARRIVES; this says what KIND of thing it
+ *  is, which until now had one possible answer.
+ *
+ *   "value"  — a number. THE DEFAULT, and what every shipped line is. Everything that totals,
+ *              reconciles or checks an identity assumes it.
+ *   "phrase" — a short piece of text taken FROM the document (an audit opinion's wording).
+ *   "prose"  — text the model writes for this line from the line's own `prompt`.
+ *
+ *  Only legal on an `extracted` line: no arithmetic produces a sentence, and the server refuses
+ *  the pair. `prose` additionally requires a prompt, which is the only thing it is written from. */
+export type OutputStructure = "value" | "phrase" | "prose";
 /** Where a caption may be READ FROM, in search order — not a gate. The tokens are
  *  `StatementType`'s own: this list once said `income_statement` and `changes_in_equity`, neither
  *  of which the backend knows (it says `profit_and_loss` and `equity_changes`), so a scope sent
@@ -1557,6 +1569,10 @@ export interface LineItemDef {
   /** Extra instruction sent to the model beside this line's definition, when it is offered as a
    *  candidate. Only meaningful on an `extracted` line. */
   prompt: string;
+  /** What this line outputs — a number, a phrase lifted from the page, or prose the model writes
+   *  from `prompt`. OPTIONAL because the default is not written to storage: an existing
+   *  configuration carries no such key, and absent MEANS `value`. */
+  output_structure?: OutputStructure;
   in_output: boolean;
   parent: string;
   /** What this parenthood means arithmetically. The twelve parts of the depreciation line are
@@ -1701,6 +1717,12 @@ export interface LineItemEdit {
   label?: string;
   description?: string;
   definition?: string;
+  /** Extra instruction for THIS line, appended to the master prompt inside this line's own
+   *  candidate entry. Refused unless the line is `extracted`. */
+  prompt?: string;
+  /** A number, a phrase off the page, or prose written from `prompt`. Refused unless the line is
+   *  `extracted`; `prose` is refused with no prompt to write it from. */
+  output_structure?: OutputStructure;
   include_criteria?: string[];
   exclude_criteria?: string[];
   /** Other keys of THIS set (unknown keys are refused, attributed to this field). Routes an
@@ -1835,6 +1857,7 @@ export interface LineItemVocab {
   rollups: LineItemRollup[];
   namespaces: LineItemNamespace[];
   types: LineItemType[];
+  output_structures: OutputStructure[];
   value_scopes: ValueScope[];
   extraction_modes: LineItemExtractionMode[];
   alias_matching: LineItemAliasMatching[];
