@@ -18,6 +18,7 @@ import { useState } from "react";
 import { Card } from "../components/ui";
 import { useT } from "../i18n";
 import { useLineItems } from "../lib/queries";
+import { SCREENS } from "./config";
 import { color, font, radius } from "../theme";
 import type {
   LineItemDef, LineItemTerm, LineItemType, LineItemVersionRef, SearchScope,
@@ -361,6 +362,13 @@ export default function LineItemsScreen() {
   const t = useT();
   const q = useLineItems();
   const [sel, setSel] = useState<string | null>(null);
+  // SEARCH AND TYPE FILTER. 475 items in a tree is not browsable: finding one meant scrolling, and
+  // the detail pane rendered at the TOP of a column as tall as the list, so clicking a line near
+  // the bottom put its detail far above the reader's scroll position — it looked like nothing had
+  // happened. The filter narrows the list and the panes below scroll independently, which is the
+  // structural half of the same fix.
+  const [query, setQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<LineItemType | null>(null);
 
   if (q.isError) {
     return (
@@ -395,7 +403,37 @@ export default function LineItemsScreen() {
   const walk = (xs: LineItemDef[]) => xs.forEach((x) => { flat.push(x); walk(x.children); });
   walk(items);
   const byKey = new Map(flat.map((d) => [d.key, d]));
-  const selected = (sel && byKey.get(sel)) || items[0];
+
+  // Where each item sits, so a filtered hit can show its parent — a child key on its own ("P2")
+  // says nothing about which line it belongs to, and the tree indentation that used to convey it
+  // is gone while filtering.
+  const parentOf = new Map<string, string>();
+  const mapParents = (xs: LineItemDef[], parent: string | null) => xs.forEach((x) => {
+    if (parent) parentOf.set(x.key, parent);
+    mapParents(x.children, x.key);
+  });
+  mapParents(items, null);
+
+  const needle = query.trim().toLowerCase();
+  // Matched over everything a configurator would search BY: the key and label, plus every alias in
+  // every locale and the hint patterns — searching only labels would miss the Chinese caption that
+  // is the reason to open the line at all.
+  const hay = (d: LineItemDef) => [
+    d.key, d.label, d.definition,
+    ...(d.aliases ?? []),
+    ...Object.values(d.aliases_i18n ?? {}).flat(),
+    ...(d.keyword_hints ?? []),
+  ].filter(Boolean).join("  ").toLowerCase();
+  const hit = (d: LineItemDef) =>
+    (!typeFilter || d.type === typeFilter) && (!needle || hay(d).includes(needle));
+
+  const filtering = !!needle || !!typeFilter;
+  const hits = filtering ? flat.filter(hit) : [];
+  // While filtering, the selection must be one of the visible rows — otherwise the detail pane
+  // shows a line the list no longer offers, which is the same disorientation in reverse.
+  const selected = filtering
+    ? ((sel && hits.some((d) => d.key === sel) && byKey.get(sel)) || hits[0])
+    : ((sel && byKey.get(sel)) || items[0]);
 
   const row = (d: LineItemDef, depth: number) => (
     <div key={d.key}>
@@ -432,7 +470,21 @@ export default function LineItemsScreen() {
   return (
     <div style={{ padding: "28px 32px", maxWidth: 1320 }}>
       <div style={{ marginBottom: 6 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 600, margin: "0 0 4px" }}>Line items</h1>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between",
+                      gap: 16, flexWrap: "wrap" }}>
+          <h1 style={{ fontSize: 20, fontWeight: 600, margin: "0 0 4px" }}>Line items</h1>
+          {/* THE TEMPLATE IS REACHED FROM HERE, not from a nav entry of its own. It used to sit in
+              the rail as "Template & Line Items" directly above this screen, which read as two
+              configuration masters for one engine. Its own job — which lines the output has, and
+              the per-line alias and sign editor over them — is still needed, so the destination
+              stays and this is the way in. */}
+          <a href={SCREENS.template.path}
+             style={{ fontSize: 12, color: color.indigo, textDecoration: "none",
+                      border: `1px solid ${color.indigoBorder2}`, borderRadius: radius.control,
+                      padding: "4px 10px", whiteSpace: "nowrap" }}>
+            {SCREENS.template.icon} Output template &amp; per-line editor →
+          </a>
+        </div>
         <p style={{ margin: 0, color: color.sec2, fontSize: 12.5 }}>
           The lines that reach the output template, and the parts each is assembled from. Each
           line's <b>type</b> decides what it needs. This is the single configuration the pipeline
@@ -463,11 +515,10 @@ export default function LineItemsScreen() {
                      fontSize: 11.5, color: color.sec2 }}>
         <span><b style={{ fontFamily: font.mono }}>{counts.output}</b> output lines</span>
         <span><b style={{ fontFamily: font.mono }}>{counts.sub_line_items}</b> sub-line items</span>
-        {(Object.keys(TYPE_TONE) as LineItemType[]).filter((k) => counts.by_type[k]).map((k) => (
-          <span key={k}>
-            <b style={{ fontFamily: font.mono }}>{counts.by_type[k]}</b> {TYPE_TONE[k].label.toLowerCase()}
-          </span>
-        ))}
+        {/* THE PER-TYPE COUNTS MOVED into the filter row below, where they are the filter chips.
+            They read the same numbers off `counts.by_type`; keeping a second, read-only copy here
+            put the same four figures on screen twice, one of them clickable and one not, which is
+            the kind of thing a reader has to test by clicking to understand. */}
         <span title="how many resolved a statement gate, and how many got it from a section
 rather than declaring it themselves">
           <b style={{ fontFamily: font.mono }}>{counts.gated}</b> gated
@@ -495,7 +546,62 @@ rather than declaring it themselves">
         {set.metadata.version && <span>authored v{set.metadata.version}</span>}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(320px, 1fr) minmax(380px, 1fr)",
+      {/* SEARCH. Above both panes because it governs the list, and full width so a long caption
+          being pasted in to find its line has room. */}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap",
+                     marginBottom: 10 }}>
+        <div style={{ position: "relative", flex: "1 1 320px", minWidth: 240 }}>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape") setQuery(""); }}
+            data-testid="li-search"
+            aria-label="Search line items"
+            placeholder="Search key, label, alias in any locale, or hint…"
+            style={{ width: "100%", boxSizing: "border-box", padding: "7px 30px 7px 10px",
+                      fontSize: 12.5, borderRadius: radius.control, color: color.ink,
+                      border: `1px solid ${query ? color.indigoBorder : color.cardBorder}`,
+                      background: color.surface, outlineColor: color.indigo }}
+          />
+          {query && (
+            <button onClick={() => setQuery("")} aria-label="Clear search"
+                    style={{ position: "absolute", right: 4, top: 4, border: 0, cursor: "pointer",
+                              background: "none", color: color.muted, fontSize: 14,
+                              lineHeight: "20px", padding: "0 6px" }}>×</button>
+          )}
+        </div>
+        {/* The type counts were already on screen as a read-only legend; making them CLICKABLE
+            costs nothing and turns the commonest question ("show me the derived ones") into one
+            click instead of a scroll. */}
+        {(Object.keys(TYPE_TONE) as LineItemType[]).filter((k) => counts.by_type[k]).map((k) => {
+          const on = typeFilter === k;
+          return (
+            <button key={k} onClick={() => setTypeFilter(on ? null : k)}
+                    aria-pressed={on} data-testid={`li-filter-${k}`}
+                    style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 0.3, cursor: "pointer",
+                              textTransform: "uppercase", padding: "4px 8px",
+                              borderRadius: radius.control, whiteSpace: "nowrap",
+                              background: on ? TYPE_TONE[k].fg : TYPE_TONE[k].bg,
+                              color: on ? color.surface : TYPE_TONE[k].fg,
+                              border: `1px solid ${on ? TYPE_TONE[k].fg : "transparent"}` }}>
+              {TYPE_TONE[k].label} {counts.by_type[k]}
+            </button>
+          );
+        })}
+        {filtering && (
+          <span data-testid="li-hit-count"
+                style={{ fontSize: 11.5, color: color.sec2, fontFamily: font.mono }}>
+            {hits.length} of {flat.length}
+          </span>
+        )}
+      </div>
+
+      {/* EACH PANE SCROLLS ON ITS OWN. Both used to grow with their content under
+          `alignItems: start`, so the list was ~475 rows tall and the detail sat at the TOP of a
+          column that long — click a line near the bottom and its detail rendered thousands of
+          pixels above where you were looking. Bounding each pane to the viewport and making the
+          detail sticky is what makes selecting a line show you that line. */}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(320px, 1fr) minmax(380px, 1.1fr)",
                      gap: 16, alignItems: "start" }}>
         <Card pad={10}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10,
@@ -504,12 +610,36 @@ rather than declaring it themselves">
                          textTransform: "uppercase" }}>
             <span>Line item</span><span>Type</span><span>Out</span>
           </div>
-          <div style={{ marginTop: 4 }}>{items.map((d) => row(d, 0))}</div>
+          <div style={{ marginTop: 4, maxHeight: "calc(100vh - 300px)", minHeight: 220,
+                         overflowY: "auto" }}>
+            {filtering
+              ? (hits.length
+                  ? hits.map((d) => (
+                      <div key={d.key}>
+                        {parentOf.get(d.key) && (
+                          <div style={{ fontSize: 9.5, fontFamily: font.mono, color: color.faint,
+                                         padding: "3px 10px 0" }}>
+                            in {byKey.get(parentOf.get(d.key)!)?.label
+                                 || parentOf.get(d.key)}
+                          </div>
+                        )}
+                        {row(d, 0)}
+                      </div>
+                    ))
+                  : <div style={{ fontSize: 12.5, color: color.muted, padding: "14px 10px" }}>
+                      Nothing matches <b>{query}</b>
+                      {typeFilter && <> in <b>{TYPE_TONE[typeFilter].label}</b></>}.
+                    </div>)
+              : items.map((d) => row(d, 0))}
+          </div>
         </Card>
         <Card>
-          {selected
-            ? <Detail item={selected} byKey={byKey} />
-            : <div style={{ fontSize: 12.5, color: color.muted }}>Select a line item.</div>}
+          <div style={{ position: "sticky", top: 0, maxHeight: "calc(100vh - 240px)",
+                         overflowY: "auto" }}>
+            {selected
+              ? <Detail item={selected} byKey={byKey} />
+              : <div style={{ fontSize: 12.5, color: color.muted }}>Select a line item.</div>}
+          </div>
         </Card>
       </div>
     </div>

@@ -26,14 +26,17 @@ export const SCREENS: Record<string, ScreenDef> = {
   // live only as a card at the BOTTOM of Extraction, below the rows grid and the source panel —
   // a long scroll past what most readers came for, and not where its name says it is.
   disclosures: { id: "disclosures", path: "/disclosures", label: "Disclosures", icon: "❑" },
-  // Labelled for the ONE configuration engine. This label used to name the retired second engine
-  // (the rulebook a run selected instead of the line-item set); there is only the line-item set
-  // now, so the nav must not offer a word for an engine a user can no longer choose. Kept in step
-  // with `nav.template` in i18n.ts, which is what the rail renders — this is its English fallback.
-  template: { id: "template", path: "/template", label: "Template & Line Items", icon: "◆" },
-  // The line items themselves and the parts each is assembled from. Its own destination beside
-  // Template & Line Items because it configures a different thing: the template says WHICH lines
-  // the output has, this says where each one's figure comes from.
+  // The output shape: which lines the deliverable has, and the per-line alias/sign editor over
+  // them. NO LONGER IN THE NAV — see NAV_GROUPS below. It is reached from Line Items, which is the
+  // single configuration destination.
+  //
+  // The label was "Template & Line Items", which is how this came to read as a SECOND master: it
+  // claimed both jobs while sitting in the rail directly above an entry actually called "Line
+  // Items". One configuration engine has to mean one place to configure it, so the label now names
+  // only what this screen is.
+  template: { id: "template", path: "/template", label: "Template", icon: "◆" },
+  // THE configuration destination. The line items themselves, what each is assembled from, and the
+  // gate that decides where each may be claimed.
   line_items: { id: "line_items", path: "/line-items", label: "Line Items", icon: "≡" },
   settings: { id: "settings", path: "/settings", label: "Settings", icon: "⚙" },
   // The deployment-wide run trail. Not a pipeline step and not per-document: it is admin oversight,
@@ -63,7 +66,12 @@ export const NAV_GROUPS: { group: string; items: string[] }[] = [
   { group: "EXTRACT", items: ["extraction", "workspace", "notes"] },
   { group: "QUALITY", items: ["review"] },
   { group: "ANALYSIS", items: ["commentary", "disclosures"] },
-  { group: "CONFIGURE", items: ["template", "line_items", "settings", "audit"] },
+  // ONE CONFIGURATION DESTINATION. `template` used to sit here beside `line_items`, so the rail
+  // offered two configuration masters — and the first was labelled "Template & Line Items", which
+  // made the pair read as the same thing listed twice. Line items is the single configuration
+  // engine, so it gets the single entry; the template's output shape and its per-line editor are
+  // reached FROM it (see the Line Items screen header) rather than from a rail entry of their own.
+  { group: "CONFIGURE", items: ["line_items", "settings", "audit"] },
   { group: "DELIVER", items: ["export"] },
 ];
 
