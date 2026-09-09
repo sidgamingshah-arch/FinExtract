@@ -628,6 +628,28 @@ export const api = {
     req<LineItemEditResult & { key: string }>(
       `/line-items/versions/${lineItemVersionId}/items`,
       { method: "PATCH", body: JSON.stringify(edit) }),
+  /** ADD a line item beyond what the template asked for.
+   *
+   *  Only key/label/inherits are sent; everything else is configured afterwards through
+   *  `editLineItem`, which is the one place that knows how to validate each field and address a
+   *  refusal to the control that caused it. The server makes every added item
+   *  `namespace: "internal"` — "template" is not a namespace a request can ask for, because the
+   *  template is the only thing that may put an item in it. */
+  addLineItem: (lineItemVersionId: string,
+                item: { key: string; label?: string; inherits?: string }) =>
+    req<LineItemEditResult & { key: string }>(
+      `/line-items/versions/${lineItemVersionId}/items`,
+      { method: "POST", body: JSON.stringify(item) }),
+  /** DELETE a line item the author added.
+   *
+   *  A template line's item is refused with 409 `template_item_protected`, and that refusal is the
+   *  server's, not this screen's: the output has a column for that figure, so removing its
+   *  configuration would leave a line nothing can fill. Hiding the control would leave the same
+   *  delete one call away — so the UI hides it as a courtesy and the rule lives on the endpoint. */
+  deleteLineItem: (lineItemVersionId: string, key: string) =>
+    req<LineItemEditResult & { deleted: string; now_dangling_references_in?: string[] }>(
+      `/line-items/versions/${lineItemVersionId}/items/${encodeURIComponent(key)}`,
+      { method: "DELETE" }),
   /** The deployment-wide run trail (admin only — `audit:view`). */
   adminAudit: (limit = 500) => req<AdminAuditResponse>(`/audit?limit=${limit}`),
   listTemplates: () =>

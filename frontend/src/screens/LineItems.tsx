@@ -39,7 +39,9 @@ import {
 import { Button, Card } from "../components/ui";
 import { useT } from "../i18n";
 import { ApiError, refusalText } from "../lib/api";
-import { useEditLineItemConfig, useLineItems } from "../lib/queries";
+import {
+  useAddLineItem, useDeleteLineItem, useEditLineItemConfig, useLineItems,
+} from "../lib/queries";
 import { useCan } from "../lib/rbac";
 import { SCREENS } from "./config";
 import { color, font, radius } from "../theme";
@@ -1266,6 +1268,13 @@ export default function LineItemsScreen() {
   const q = useLineItems();
   const canEdit = useCan("config:line_items");
   const save = useEditLineItemConfig();
+  // Add and delete publish a new version exactly as an edit does — see `useAddLineItem`.
+  const add = useAddLineItem();
+  const remove = useDeleteLineItem();
+  const [adding, setAdding] = useState(false);
+  const [newKey, setNewKey] = useState("");
+  const [newLabel, setNewLabel] = useState("");
+  const [newInherits, setNewInherits] = useState("");
   const [sel, setSel] = useState<string | null>(null);
   // SEARCH AND TYPE FILTER. 475 items in a tree is not browsable: finding one meant scrolling, and
   // the detail pane rendered at the TOP of a column as tall as the list, so clicking a line near
@@ -1579,6 +1588,80 @@ export default function LineItemsScreen() {
         )}
       </div>
 
+      {/* ADD A LINE ITEM. The template provisions an item for every line it carries, and an author
+          adds beyond that set — so this creates an `internal` item, which is the only namespace a
+          request may ask for. `in_output` starts FALSE server-side: a new line is not part of the
+          deliverable until somebody says so. Configuration then happens through the pane on the
+          right, which is the one place that validates each field and attributes a refusal. */}
+      {canEdit && inForce?.id && (
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap",
+                       marginBottom: 10 }}>
+          {!adding
+            ? (
+              <button onClick={() => setAdding(true)} data-testid="li-add-open"
+                      style={{ fontSize: 12, cursor: "pointer", padding: "6px 12px",
+                                borderRadius: radius.control, background: color.indigo,
+                                color: "#fff", border: 0 }}>
+                + Add line item
+              </button>
+            ) : (
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap",
+                             padding: 10, border: `1px solid ${color.cardBorder}`,
+                             borderRadius: radius.card, background: color.surface }}>
+                <input autoFocus value={newKey} onChange={(e) => setNewKey(e.target.value)}
+                       data-testid="li-add-key" placeholder="key (e.g. bs_ca__my_line)"
+                       style={{ fontSize: 12, padding: "6px 9px", width: 230,
+                                 fontFamily: font.mono, borderRadius: radius.control,
+                                 border: `1px solid ${color.cardBorder}` }} />
+                <input value={newLabel} onChange={(e) => setNewLabel(e.target.value)}
+                       data-testid="li-add-label" placeholder="label"
+                       style={{ fontSize: 12, padding: "6px 9px", width: 200,
+                                 borderRadius: radius.control,
+                                 border: `1px solid ${color.cardBorder}` }} />
+                {/* `inherits` is what gives the item a section gate. Offered as a picker over the
+                    sections that EXIST, because a dangling value is the one configuration failure
+                    that is silent — the item validates and simply carries no gate, so nothing can
+                    place it. */}
+                <select value={newInherits} onChange={(e) => setNewInherits(e.target.value)}
+                        data-testid="li-add-inherits"
+                        style={{ fontSize: 12, padding: "6px 9px", borderRadius: radius.control,
+                                  border: `1px solid ${color.cardBorder}` }}>
+                  <option value="">section… (optional)</option>
+                  {Object.keys(set.section_defaults).sort().map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+                <button data-testid="li-add-save" disabled={!newKey.trim() || add.isPending}
+                        onClick={() => add.mutate(
+                          { lineItemVersionId: inForce.id,
+                            item: { key: newKey.trim(), label: newLabel.trim() || undefined,
+                                    inherits: newInherits || undefined } },
+                          { onSuccess: (r) => {
+                              setAdding(false); setNewKey(""); setNewLabel(""); setNewInherits("");
+                              setSel(r.key);          // land the author on what they just made
+                            } })}
+                        style={{ fontSize: 12, cursor: "pointer", padding: "6px 12px",
+                                  borderRadius: radius.control, border: 0, color: "#fff",
+                                  background: newKey.trim() ? color.indigo : color.muted2 }}>
+                  {add.isPending ? "Adding…" : "Add"}
+                </button>
+                <button onClick={() => { setAdding(false); add.reset(); }}
+                        style={{ fontSize: 12, cursor: "pointer", padding: "6px 10px",
+                                  borderRadius: radius.control, background: "none",
+                                  border: `1px solid ${color.cardBorder}`, color: color.sec2 }}>
+                  Cancel
+                </button>
+                {add.error && (
+                  <div data-testid="li-add-error"
+                       style={{ fontSize: 11.5, color: color.redFg, flexBasis: "100%" }}>
+                    {refusalText(add.error)}
+                  </div>
+                )}
+              </div>
+            )}
+        </div>
+      )}
+
       {/* A configuration that does not load is the one thing this screen must not hide. */}
       {!valid && (
         <div style={{ background: color.redBg, color: color.redFg, borderRadius: 8,
@@ -1714,6 +1797,41 @@ rather than declaring it themselves">
         <Card>
           <div style={{ position: "sticky", top: 0, maxHeight: "calc(100vh - 240px)",
                          overflowY: "auto" }}>
+            {/* WHOSE ITEM THIS IS, and the delete only where it is allowed.
+                A `template` item exists because the deliverable has a column for that figure, so
+                deleting it would leave a line nothing can fill — the endpoint refuses it with 409
+                and the reason is stated here rather than leaving a reader to click and find out.
+                The UI hiding the button is a courtesy; the rule is the server's, because otherwise
+                the same delete is one API call away. */}
+            {selected && canEdit && inForce?.id && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                             gap: 10, flexWrap: "wrap", marginBottom: 10, paddingBottom: 8,
+                             borderBottom: `1px solid ${color.hairline2}` }}>
+                <span style={{ fontSize: 11, color: color.muted }}>
+                  {selected.namespace === "template"
+                    ? "From the output template — its configuration cannot be deleted."
+                    : "Added beyond the template — yours to remove."}
+                </span>
+                {selected.namespace !== "template" && (
+                  <button data-testid={`li-delete-${selected.key}`} disabled={remove.isPending}
+                          onClick={() => remove.mutate(
+                            { lineItemVersionId: inForce.id, key: selected.key },
+                            { onSuccess: () => setSel(null) })}
+                          style={{ fontSize: 11.5, cursor: "pointer", padding: "4px 10px",
+                                    borderRadius: radius.control, background: "none",
+                                    border: `1px solid ${color.redFg}55`, color: color.redFg,
+                                    whiteSpace: "nowrap" }}>
+                    {remove.isPending ? "Deleting…" : "Delete this item"}
+                  </button>
+                )}
+              </div>
+            )}
+            {remove.error && (
+              <div data-testid="li-delete-error"
+                   style={{ fontSize: 11.5, color: color.redFg, marginBottom: 10 }}>
+                {refusalText(remove.error)}
+              </div>
+            )}
             {selected
               ? <Detail item={selected} set={set} vocab={vocab} keys={keyOptions}
                         canEdit={canEdit} versionId={inForce?.id} versionNumber={inForce?.version}

@@ -684,6 +684,40 @@ export function useEditLineItemConfig() {
   });
 }
 
+/** The same invalidation set for every configuration mutation.
+ *
+ *  Each one PUBLISHES A NEW VERSION rather than mutating the stored row, so the version list, the
+ *  Template screen's per-node block and the configuration itself are all stale afterwards —
+ *  including on an ADD or a DELETE, not just an edit. Written once because three copies of this
+ *  list is how one of them comes to be missing a key and a screen goes on showing the version
+ *  before the change. */
+function invalidateConfiguration(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ["line-item-versions"] });
+  qc.invalidateQueries({ queryKey: ["template-detail"] });
+  return qc.invalidateQueries({ queryKey: ["line-items"] });
+}
+
+/** Add a line item beyond the template's own. Server-side it is always `internal`. */
+export function useAddLineItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { lineItemVersionId: string;
+                         item: { key: string; label?: string; inherits?: string } }) =>
+      api.addLineItem(vars.lineItemVersionId, vars.item),
+    onSuccess: () => invalidateConfiguration(qc),
+  });
+}
+
+/** Delete a line item the author added. A template line's item comes back 409 — see api.ts. */
+export function useDeleteLineItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { lineItemVersionId: string; key: string }) =>
+      api.deleteLineItem(vars.lineItemVersionId, vars.key),
+    onSuccess: () => invalidateConfiguration(qc),
+  });
+}
+
 /** The shape an authored configuration must have (JSON Schema + the per-field index).
  *
  * `enabled` exists because the endpoint is admin-only: called without `config:line_items` it 403s,
