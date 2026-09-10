@@ -22,8 +22,18 @@ TWO GATES, and the split is deliberate.
      intended divergence (`_SECTION_OVERRIDE`).
 
   2. THE SHIPPED SET (`test_shipped_*`) — the properties that must hold of the artefact the
-     application actually boots with: 462 concepts and not 475, the framework blocks present,
-     the residual policies' `model_fields_set` intact, the section override idempotent.
+     application actually boots with: every definition projected (539, the rulebook's 462 plus the
+     77 note-level parts), the framework blocks present, the residual policies' `model_fields_set`
+     intact, the section override idempotent.
+
+     GATE 2 IS NO LONGER AN EQUALITY, and the module title overstates it for that gate. The view
+     used to drop the 77 off-template `sub__*` definitions, so "the working view IS the rulebook"
+     held of the shipped set as well as of the round trip. It now projects every definition,
+     because `namespace` decides where a figure is PUBLISHED and not whether the engine may
+     recognise it — tying the second to the first left 77 declared line items unbindable by every
+     tier. So the shipped relationship is a bounded superset (rulebook + parts, asserted in both
+     directions) while GATE 1 remains an exact equality: a set projected from the rulebook contains
+     no internal parts, so its view is the rulebook's 462 exactly.
 
 WHY GATE 2 DOES NOT PIN FIELD-FOR-FIELD EQUALITY, stated rather than quietly dropped. Measured
 today, the shipped set is NOT a fresh projection of `output_csv_hk_ontology.json`: it diverges on
@@ -56,7 +66,10 @@ RULEBOOK = TEMPLATES / "output_csv_hk_ontology.json"
 PROJECTED = sorted(set(SAME) | set(RENAMED))
 
 CONCEPTS = 462                 # the rulebook's concepts, and the set's `namespace == "template"`
-ITEMS = 539                    # …plus the 77 `sub__*` note-level parts, which are not concepts
+ITEMS = 539                    # …plus the 77 `sub__*` note-level parts, which ARE concepts too:
+                               # the view projects every definition, and `namespace` decides only
+                               # where a figure is PUBLISHED. See
+                               # test_shipped_set_projects_every_definition_including_the_parts.
 RESIDUALS = 11                 # concepts carrying a `residual_policy` (all `exclusive_residual`)
 
 # The one concept whose working view deliberately DISAGREES with the rulebook, because the
@@ -205,18 +218,42 @@ def test_the_section_layer_must_be_folded_and_only_one_field_depends_on_it():
 
 # ── gate 2: the artefact the application boots with ──────────────────────────────────────────
 
-def test_shipped_set_projects_462_concepts_not_475():
+def test_shipped_set_projects_every_definition_including_the_parts():
+    """THE VIEW NO LONGER DROPS ANYTHING, and that is the change this test records.
+
+    It used to assert the opposite — 462 concepts and not 475, the 77 `sub__*` parts dropped — on
+    the reasoning that an off-template key is "part OF a line, never a template line". That
+    conflated two independent things. `namespace` says WHERE a figure is published (its output
+    column, and whether the config screen can edit it) and still does exactly that; whether the
+    ENGINE may recognise a caption as that concept is a different question. Tying recognition to
+    publication left 77 declared line items unrecognisable by every tier.
+
+    So the shipped view is now every definition, and the relationship to the rulebook is no longer
+    equality but a bounded superset: the rulebook's 462 plus exactly the internal parts. That is
+    asserted in both directions, because a superset claim alone would not notice the view LOSING a
+    rulebook concept.
+    """
     st = load_shipped_set()
     assert len(st.items) == ITEMS
     view = build_working_view(st)
-    assert len(view.mappings) == CONCEPTS
-    dropped = {i.key for i in st.items} - set(_by_key(view))
-    assert len(dropped) == ITEMS - CONCEPTS
-    assert all(k.startswith("sub__") for k in dropped), (
-        f"something other than the note-level parts was dropped: {sorted(dropped)}")
-    assert all(i.namespace == "internal" for i in st.items if i.key in dropped)
-    # The keys the matcher sees are the rulebook's keys, so no tier gains a claimant.
-    assert set(_by_key(view)) == set(_by_key(_rulebook()))
+    assert len(view.mappings) == ITEMS, "the view must project every definition"
+
+    seen = set(_by_key(view))
+    assert {i.key for i in st.items} == seen, "a declared line item is missing from the view"
+
+    # The view is the rulebook PLUS the parts, and nothing else in either direction.
+    rulebook = set(_by_key(_rulebook()))
+    extra = seen - rulebook
+    assert not rulebook - seen, f"the view lost rulebook concepts: {sorted(rulebook - seen)}"
+    assert len(extra) == ITEMS - CONCEPTS
+    assert all(k.startswith("sub__") for k in extra), (
+        f"something other than the note-level parts is new: {sorted(extra)}")
+    assert all(i.namespace == "internal" for i in st.items if i.key in extra)
+
+    # AND THEY ARE REAL CONCEPTS, not inert rows: an unbindable one would be a silent no-op.
+    matcher_view = {m.canonical_key: m for m in view.mappings}
+    assert all(matcher_view[k].extraction_mode == "extract" for k in extra)
+    assert all(matcher_view[k].statement for k in extra), "a part with no statement is offered nowhere"
 
 
 def test_shipped_set_diverges_only_in_the_known_classes():

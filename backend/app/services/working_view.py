@@ -167,7 +167,34 @@ def _definition_of(st: LineItemSet) -> dict:
         "netting_rules": _jsonable(st.netting_rules),
         "worked_examples": _jsonable(st.worked_examples),
         "validation": _jsonable(st.validation),
-        "mappings": [_concept_of(i) for i in st.items if i.namespace == "template"],
+        # EVERY DEFINITION IS A CONCEPT. THERE IS NO "SUB-LINE ITEM" KIND.
+        #
+        # This used to read `if i.namespace == "template"`, on the reasoning that the off-template
+        # `sub__*` entries are "parts OF a line, never template lines". That confused two
+        # independent things:
+        #
+        #   * WHERE A FIGURE IS PUBLISHED — which output column it lands in, and whether the config
+        #     screen lets an author edit it. That is what `namespace` says, and it is unchanged:
+        #     `routes/templates.py` and `routes/line_items.py` still filter on it, correctly, and an
+        #     off-template key still has no output column.
+        #   * WHETHER THE ENGINE MAY RECOGNISE IT — which tiers can bind a caption to it and
+        #     whether the model is offered it. That has nothing to do with publication, and making
+        #     it depend on publication is what left 77 real line items unrecognisable.
+        #
+        # THE COST OF THE OLD READING, measured. The 77 were absent from `_by_key`, so: no tier
+        # could bind a caption to one; `_concept_payload` could not offer one; and naming one was
+        # refused as a key that names nothing, which needed a special `sub_item_keys` channel and an
+        # `identified_for` back-door to work around. Seven of the eight focus concepts are `derived`
+        # parents the model is (rightly) not offered, and their parts were the only thing it COULD
+        # usefully have answered with — so a live 45-call run changed none of the eight figures.
+        #
+        # NOTHING NEEDS AUTHORING TO MAKE THIS WORK, which is the sign the split was accidental
+        # rather than designed: the resolve step already gives every one of them a statement
+        # (`notes`), a `section_scope` (`['notes']`), a competitive `match_priority` (80 against a
+        # median of 81), `extraction_mode: extract` and a real label. And none of the 77 declares an
+        # alias, so admitting them cannot take a face row off a template concept by string
+        # evidence — there are zero alias collisions between the two groups.
+        "mappings": [_concept_of(i) for i in st.items],
     }
 
 

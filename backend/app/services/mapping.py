@@ -3024,7 +3024,7 @@ class OntologyMatcher:
                     cited_notes: dict[str, set[str]] | None = None,
                     identified_notes: list[dict] | None = None,
                     notes=None,
-                    sub_item_keys: set[str] | None = None) -> dict[str, MappingResult]:
+                    ) -> dict[str, MappingResult]:
         """Batch mapping: decide many captions in one grounded LLM call so cross-line judgements
         (containment, residual, 'Others') have context. The model references the provided item_ids
         and candidate keys — it never invents a value; values/provenance stay on the deterministic
@@ -3068,7 +3068,7 @@ class OntologyMatcher:
                 chunk, statement, sec, preliminary or {}, require_complete=require_complete,
                 context_pool=context_pool, cited_notes=cited_notes,
                 identified_notes=identified_notes, notes=notes,
-                sub_item_keys=sub_item_keys))
+                ))
         return out
 
     def _match_chunk(self, items: list[tuple[str, str]], statement: str | None,
@@ -3080,7 +3080,7 @@ class OntologyMatcher:
                      cited_notes: dict[str, set[str]] | None = None,
                      identified_notes: list[dict] | None = None,
                      notes=None,
-                     sub_item_keys: set[str] | None = None) -> dict[str, MappingResult]:
+                     ) -> dict[str, MappingResult]:
         """One provider call over at most ``BATCH_MAX_ITEMS`` captions. See :meth:`match_batch`."""
         # `binding.order` step 3, on the batch path: RESTRICT the offered concepts before the call.
         # Only concepts from THIS statement, and only from the sections this chunk was actually
@@ -3377,13 +3377,16 @@ class OntologyMatcher:
             # could otherwise have unlocked it.
             if not key:
                 continue
-            sub_keys = sub_item_keys or frozenset()
-            if key not in self._by_key and key not in sub_keys:
+            # ONE MEMBERSHIP TEST, because there is one kind of concept. This carried a second set
+            # (`sub_item_keys`) and an `is_sub_item` branch below it, for the 77 definitions the
+            # working view used to drop for being off-template. They are ordinary concepts in
+            # `_by_key` now — see `working_view._definition_of` — so admitting them needs no channel
+            # of its own, and the branch that used to decide them separately is gone with it.
+            if key not in self._by_key:
                 with self._usage_lock:
                     self.usage["batch_refused"] += 1
                     self.usage["batch_unknown_key"] = self.usage.get("batch_unknown_key", 0) + 1
                 continue
-            is_sub_item = key not in self._by_key
             # A concept from a different section than the row's banner is refused here for the
             # same reason it is refused in `match`. The model is now TOLD the section, so this is
             # a backstop rather than the only line of defence — and it still carries the two arms
@@ -3408,34 +3411,6 @@ class OntologyMatcher:
             # A cited off-candidate answer therefore SKIPS the statement/section gate and is flagged
             # for review instead, with the rows its citation resolved to.
             off_candidate = key not in offered_keys
-            if is_sub_item:
-                # A SUB-LINE ITEM IS A LEGITIMATE ANSWER, and on this configuration it is usually
-                # the RIGHT one: it is the layer that corresponds to something a note actually
-                # prints, and it is what the refused parent's cascade reads. The model can see
-                # them even though the working view cannot — every identified note carries
-                # `identified_for`, naming the sub-items it was identified for.
-                #
-                # It is never on the candidate list (it is not in the working view at all) and
-                # every gate below indexes `_by_key`, so it is decided here, on the same terms as
-                # any other answer past the offered list: cited, resolved, and reviewed.
-                if not (d.sources or ()):
-                    with self._usage_lock:
-                        self.usage["batch_refused"] += 1
-                        self.usage["batch_uncited_off_candidate"] = self.usage.get(
-                            "batch_uncited_off_candidate", 0) + 1
-                    continue
-                resolved, unresolved = note_sourced.resolve_sources(d.sources, notes_for_sources)
-                conf = max(0.0, min(1.0, d.confidence))
-                with self._usage_lock:
-                    self.usage["batch_sub_item"] = self.usage.get("batch_sub_item", 0) + 1
-                out[d.item_id] = MappingResult(
-                    key, MappingMethod.LLM, conf,
-                    candidates=[Candidate(key, MappingMethod.LLM, conf, reason=d.reason)],
-                    needs_review=True, scores={"llm": conf},
-                    allocation_status=(d.allocation_status or "").strip() or None,
-                    agreement=["llm"], reason=d.reason, role=d.role, sign=d.sign,
-                    sources=resolved, unresolved_sources=unresolved, off_candidate=True)
-                continue
             # ONLY A CITED OFF-CANDIDATE ANSWER TAKES THE NEW PATH. An UNCITED one falls through to
             # the gates below exactly as it always did — and that is not merely conservative, it
             # preserves a correction this branch had quietly disabled: `_family_route` takes an
@@ -3581,7 +3556,7 @@ class OntologyMatcher:
                 require_complete=True, retry_depth=retry_depth + 1,
                 context_pool=context_pool, cited_notes=cited_notes,
                 identified_notes=identified_notes, notes=notes,
-                sub_item_keys=sub_item_keys))
+                ))
 
         # Section-level proposals may be incomplete; the required statement pass above corrects
         # them. No deterministic result is substituted for an omitted LLM decision.

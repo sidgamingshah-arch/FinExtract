@@ -99,20 +99,12 @@ class _Answers:
         return response_schema.model_validate({"mappings": self.mappings}), {}
 
 
-def _sub_item_keys(shipped):
-    """The set `stages.map_ontology` supplies. Which concepts are WITHHELD from the model is the
-    matcher's own decision (`_llm_withheld`), read off the declared `extraction_mode` — not
-    something the caller passes, so the offer and the refusal cannot drift apart."""
-    return {i.key for i in shipped.items if getattr(i, "parent", "")}
-
-
 def _decide(shipped, mappings, *, notes=None, caption="Depreciation charge for the year"):
     provider = _Answers(mappings)
     matcher = OntologyMatcher(build_working_view(shipped), locale="en",
                               settings=get_settings(), llm_provider=provider)
     out = matcher.match_batch([("r1", caption)], statement="profit_and_loss",
-                              sections={"r1": None}, notes=notes or _rows_note(),
-                              sub_item_keys=_sub_item_keys(shipped))
+                              sections={"r1": None}, notes=notes or _rows_note())
     return out["r1"], matcher, provider
 
 
@@ -144,23 +136,50 @@ def test_all_eight_focus_concepts_are_derived_over_sub_line_items(shipped):
         assert any(i.parent == key for i in shipped.items), f"{key} has no sub-line items"
 
 
-def test_a_sub_line_item_is_invisible_to_the_matcher(shipped):
-    """Which is why naming one had to be made possible explicitly: the working view is a projection
-    of the matchable concepts and drops every one of them."""
+def test_a_part_OF_a_line_is_still_a_line_item(shipped):
+    """THERE IS NO "SUB-LINE ITEM" KIND, and this test used to assert the opposite.
+
+    It read: "a sub-line item is invisible to the matcher … the working view is a projection of the
+    matchable concepts and drops every one of them". That projection confused publication with
+    recognition. `namespace` says WHERE a figure is published — which output column it lands in, and
+    whether the config screen lets an author edit it — and it still does exactly that. Whether the
+    engine may RECOGNISE a caption as that concept is a different question, and making it depend on
+    publication left 77 real line items unrecognisable: no tier could bind them, `_concept_payload`
+    could not offer them, and naming one was refused as a key that names nothing.
+
+    They are ordinary concepts now, and nothing had to be authored to make that work — which is the
+    sign the split was accidental. The resolve step already gives every one of them a statement, a
+    section scope, a competitive priority and `extraction_mode: extract`.
+    """
     matcher = OntologyMatcher(build_working_view(shipped), locale="en", settings=get_settings())
-    subs = [i.key for i in shipped.items if getattr(i, "parent", "")]
-    assert len(subs) >= 77
-    assert not any(k in matcher._by_key for k in subs), "a sub-item reached the working view"
+    parts = [i.key for i in shipped.items if getattr(i, "parent", "")]
+    assert len(parts) >= 77
+    assert all(k in matcher._by_key for k in parts), "a declared line item is not a concept"
+    # Every definition, not a projection of them.
+    assert len(matcher._by_key) == len(shipped.items)
 
 
-def test_neither_the_parent_nor_the_sub_item_is_ever_offered(shipped):
-    """The premise of every test below. If these started appearing in candidate lists the tests
-    would pass for the wrong reason — they would be exercising the ordinary on-list path."""
+def test_a_part_is_offered_to_the_model_and_its_derived_parent_is_not(shipped):
+    """The distinction that DOES survive, and it is about arithmetic rather than about publication.
+
+    A `derived` parent's figure is computed by its cascade, so it is not the model's to answer. Its
+    parts correspond to rows a note actually prints and are declared `extract`, so under the
+    extract-only rule they are exactly what the model SHOULD be offered. Before this, neither was
+    offered and the model had nothing it could usefully say about any of the eight focus concepts —
+    measured: a live 45-call run changed none of the eight figures.
+    """
     matcher = OntologyMatcher(build_working_view(shipped), locale="en", settings=get_settings())
-    assert COMPUTED in matcher._unmatchable
     offered = {c["canonical_key"]
                for c in matcher._concept_payload(matcher._by_priority(list(matcher._by_key)))}
-    assert COMPUTED not in offered and SUB not in offered
+
+    assert COMPUTED in matcher._unmatchable, "the parent is computed, so it is withheld"
+    assert COMPUTED not in offered
+    assert SUB in offered, "the part a note prints must be offerable"
+    assert SUB not in matcher._llm_withheld
+
+    # And it is scoped where such a row is actually printed, rather than everywhere.
+    assert matcher._in_statement(SUB, "notes") is True
+    assert matcher._in_statement(SUB, "balance_sheet") is False
 
 
 def test_only_extract_mode_concepts_are_put_in_front_of_the_model(shipped):
@@ -211,8 +230,7 @@ def test_nothing_in_the_request_names_a_key_the_model_may_not_use(shipped):
             ("r3", "Profit before taxation"), ("r4", "Inventories"),
             ("r5", "Bank balances and cash")]
     matcher.match_batch(rows, statement="balance_sheet",
-                        sections={iid: None for iid, _ in rows},
-                        sub_item_keys=_sub_item_keys(shipped))
+                        sections={iid: None for iid, _ in rows})
 
     payload = json.loads(provider.user)
     named = {c["canonical_key"] for c in payload["candidates"]}
@@ -234,7 +252,7 @@ def test_the_suggestion_is_dropped_rather_than_the_whole_row(shipped):
     matcher = OntologyMatcher(build_working_view(shipped), locale="en",
                               settings=get_settings(), llm_provider=provider)
     matcher.match_batch([("r1", "Gross profit")], statement="profit_and_loss",
-                        sections={"r1": None}, sub_item_keys=_sub_item_keys(shipped))
+                        sections={"r1": None})
 
     payload = json.loads(provider.user)
     assert [i["caption"] for i in payload["source_items"]] == ["Gross profit"]
@@ -307,16 +325,24 @@ def test_the_contract_tells_the_model_to_answer_at_the_sub_line_instead(shipped)
     assert "from the candidates you were given" not in provider.system, "closed-list wording"
 
 
-# ── a sub-line item: the proper answer ────────────────────────────────────────────────────────
+# ── a part of a line: answered like any other concept ─────────────────────────────────────────
 
-def test_a_cited_sub_line_item_is_accepted(shipped):
-    """The whole point: the layer a note actually prints becomes answerable."""
+def test_a_cited_part_is_accepted(shipped):
+    """The whole point: the layer a note actually prints is answerable.
+
+    NO SPECIAL BRANCH DOES THIS ANY MORE. It used to be decided by an `is_sub_item` arm with its own
+    `batch_sub_item` counter, because the key was absent from `_by_key` and every gate below indexed
+    that dict. Now it is an ordinary concept, so the ordinary path decides it — and the counter is
+    gone with the branch. This row asks about a P&L caption while the part is scoped to `notes`, so
+    it arrives off-candidate and pays the off-candidate price: cited, resolved, reviewed.
+    """
     r, m, _p = _decide(shipped, _answer(SUB, _ROW_CITE))
 
     assert r.canonical_key == SUB
     assert r.off_candidate is True
     assert r.needs_review is True, "the statement/section gate was skipped, so a human must see it"
-    assert m.usage.get("batch_sub_item") == 1
+    assert m.usage.get("batch_off_candidate") == 1
+    assert m.usage.get("batch_sub_item") is None, "the special-case branch should be gone"
 
 
 def test_an_uncited_sub_line_item_is_refused(shipped):
