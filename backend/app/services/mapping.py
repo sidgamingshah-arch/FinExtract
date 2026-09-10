@@ -100,6 +100,20 @@ class SourceRef(BaseModel):
     caption: str = Field(default="", description="the row caption, quoted as the document prints it")
     quote: str = Field(default="", description="the sentence it came from, when the figure is "
                                                "stated in prose rather than in a table row")
+    # THE FIGURE, and the ONLY place the model may state one.
+    #
+    # Everywhere else the contract forbids it: the model decides WHICH LINE a caption is, and
+    # a figure it restated would be a number nobody printed. The exception is a figure stated
+    # in PROSE — "^ Depreciation charges of approximately HK$529,841,000 … are included in
+    # 'other operating expenses'" — which belongs to no extracted row, so there is nothing to
+    # read it off. Without this the line stays empty however plainly the filing states it.
+    #
+    # IT IS VERIFIED, NOT TRUSTED. `resolve_sources` requires the amount to appear in the
+    # cited note's own text before it is accepted, so the model is LOCATING a printed number
+    # rather than supplying one. A figure that is not in the prose is refused.
+    amount: str = Field(default="", description="the figure as printed, ONLY when it is stated "
+                                               "in prose and belongs to no table row; it must "
+                                               "appear verbatim in the note text you quote")
 
 
 class LlmBatchItem(BaseModel):
@@ -220,8 +234,13 @@ _LLM_REPLY_CONTRACT = (
     "place.\n"
     "- Cite the item by the `item_id` you were given, and the concept by its exact "
     "`canonical_key`. Never return an item_id that was not given to you.\n"
-    "- Never output values, figures or amounts — you are deciding which line a caption is, not "
-    "what it is worth.\n"
+    "- Do not output values, figures or amounts — you are deciding which line a caption is, "
+    "not what it is worth. THE ONE EXCEPTION is a figure stated in PROSE: where a note's "
+    "narrative states an amount that appears in no table row ('Depreciation charges of "
+    "approximately HK$529,841,000 are included in other operating expenses'), give that "
+    "amount in the matching `sources` entry's `amount`, with the sentence in `quote`. It is "
+    "checked against the note's own text and refused if it is not there, so give it exactly "
+    "as printed and never round, convert or infer one.\n"
     "- If no candidate genuinely fits, return an empty canonical_key. That is a valid answer.\n"
     "- Return calibrated confidence in [0,1] (high only when unambiguous), and when it is clear, "
     "an allocation_status describing how the value relates to parents/children.\n"

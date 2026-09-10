@@ -28,12 +28,13 @@ from __future__ import annotations
 
 import re
 from concurrent.futures import ThreadPoolExecutor
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 import app.adapters  # noqa: F401 - registers configured LLM adapters
 from app.core.models import DocumentModel
-from app.core.models.enums import AllocationStatus, LineRole, MappingMethod, PrintedIn
-from app.core.models.line_item import LineItem
+from app.core.models.enums import (AllocationStatus, Basis, LineRole, MappingMethod,
+                                   PrintedIn)
+from app.core.models.line_item import ExtractedValue, LineItem
 from app.core.stage import PipelineContext
 from app.services import note_context
 from app.services.caption_shape import prose_reasons
@@ -387,6 +388,65 @@ def _sibling_evidence(doc: DocumentModel, ontology, parents: list,
     return ""
 
 
+def _apply_prose_value(li, result, prose: list[dict]) -> None:
+    """Put a prose-stated figure on the row, WITHOUT throwing away what the page printed.
+
+    THE PRINTED FIGURE IS KEPT. A row reaching here already carries the amount its own line
+    printed, and the prose figure is a different quantity — on laisun.pdf the row prints the TOTAL
+    depreciation and the footnote states the operating-expense SHARE of it. Overwriting silently
+    would lose the number a reader can see on the page, so the printed one stays in `value_raw`,
+    the prose one becomes `value`, and the trail carries the sentence plus what was displaced.
+
+    ONE SLOT, NOT ALL OF THEM. The sentence says which LINE the figure belongs to, not which
+    column, so it is written to the row's current-period slot (or its only slot) and never
+    broadcast across periods — a footnote's single amount spread over two years would assert a
+    figure for a year the filing never gave one.
+    """
+    from app.services import derivation
+
+    best = next((s for s in prose if s.get("figures", {}).get("prose")), None)
+    if best is None:
+        return
+    try:
+        amount = Decimal(str(best["figures"]["prose"]))
+    except (InvalidOperation, ValueError, TypeError):
+        return
+
+    slots = list((li.values or {}).values())
+    target = next((ev for ev in slots if str(getattr(ev, "period_label", "") or "") == "current"),
+                  slots[0] if slots else None)
+    if target is None:
+        # No printed slot at all: the row exists only as a caption, so the prose figure is the
+        # only figure it will ever have.
+        li.set_value(ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current", value=amount,
+                                    value_raw=amount))
+        target = next(iter(li.values.values()))
+    else:
+        printed = target.value if target.value is not None else target.value_raw
+        if printed is not None and printed != amount:
+            li.confidence.flags.append(f"prose_value_displaced_printed:{printed}")
+        if target.value_raw is None:
+            target.value_raw = printed if printed is not None else amount
+        target.value = amount
+
+    basis = str(getattr(getattr(target, "basis", ""), "value", getattr(target, "basis", "")) or "")
+    period = str(getattr(target, "period_label", "") or "")
+    li.derivation = derivation.record(
+        li.derivation, basis=basis, period_label=period,
+        derivation=derivation.build(
+            method="prose_sourced", formula=None,
+            inputs=[{"label": s.get("caption") or f"note {s.get('note')}",
+                     "note": s.get("note"), "value": str(s.get("figures", {}).get("prose", "")),
+                     "provenance": s.get("provenance"),
+                     # THE SENTENCE, verbatim. It is the only evidence for this figure, so the
+                     # inspector shows a reviewer the words rather than asking them to trust it.
+                     "excerpt": s.get("quote") or "",
+                     "counted": True, "deducted": False}
+                    for s in prose],
+            result=amount, flags=["prose_sourced", f"note:{best.get('note')}"]))
+    li.confidence.flags.append(f"prose_sourced_value:{best.get('note')}")
+    li.is_computed = True
+
 def _apply_result(li, result) -> bool:
     """Write one mapping decision onto a row. THE ONE PLACE A ROW IS WRITTEN.
 
@@ -435,6 +495,17 @@ def _apply_result(li, result) -> bool:
             # `ambiguous_mapping` they have always been.
             li.confidence.flags.append(f"component_of:{result.canonical_key}")
             li.confidence.flags.append(f"component_sign:{result.sign}")
+        # A FIGURE THE FILING STATES ONLY IN PROSE. `sources` entries flagged `prose` carry an
+        # amount verified against the note's own text (`note_sourced._amount_in_text`), which is
+        # what separates a figure the model LOCATED from one it supplied. It is written onto the
+        # row because that is the only way it reaches the statement screens and the export — every
+        # one of them reads `_serialize_rows`, and a value that is not on a row is not in that
+        # list. Being flagged for review does not hold it back: nothing downstream suppresses a
+        # reviewed value, which is what makes "print it and export it, and review it too"
+        # achievable at once rather than a choice.
+        prose = [s for s in (getattr(result, "sources", None) or ()) if s.get("prose")]
+        if prose:
+            _apply_prose_value(li, result, prose)
         if result.needs_review:
             li.confidence.flags.append("low_mapping_confidence")
         return True

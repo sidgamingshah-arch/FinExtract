@@ -299,9 +299,32 @@ def resolve_sources(sources, notes) -> tuple[list[dict], list[dict]]:
                     break
         if hit is None:
             # THE PROSE CASE. A figure stated in a footnote belongs to no row, so there is nothing
-            # to match a caption against — the note is still identified, and the quote is carried
-            # so a reviewer can find the sentence. Reported as unresolved because no page or figure
-            # was recovered, which is exactly what a reviewer needs to know.
+            # to match a caption against. Where the model also gave the AMOUNT, this is the one
+            # place it is allowed to — and the amount is VERIFIED against the note's own text
+            # before it is accepted, which is what makes it a located figure rather than a
+            # supplied one.
+            stated = str(getattr(ref, "amount", "") or "").strip()
+            table = _note_by_number(notes, want_note)
+            if stated and table is not None:
+                found = _amount_in_text(stated, (getattr(table, "source_text", "") or "") + " " + quote)
+                if found is not None:
+                    resolved.append({
+                        "note": want_note, "title": getattr(table, "title", "") or "",
+                        "caption": getattr(ref, "caption", ""),
+                        # Keyed `prose` rather than a period: the sentence says which line the
+                        # figure belongs to, not which column, and inventing a period here would
+                        # put a figure in a year the filing never assigned it to. The caller
+                        # decides the column from the row it is filling.
+                        "figures": {"prose": str(found)},
+                        "provenance": _prose_provenance(table),
+                        "quote": quote, "prose": True})
+                    continue
+                unresolved.append({
+                    "note": want_note, "caption": getattr(ref, "caption", ""), "quote": quote,
+                    "amount": stated,
+                    "why": (f"the amount {stated} does not appear in note {want_note}'s text — a "
+                            f"figure the model stated rather than located is refused")})
+                continue
             unresolved.append({"note": want_note,
                                "caption": getattr(ref, "caption", ""),
                                "quote": quote,
@@ -323,3 +346,56 @@ def resolve_sources(sources, notes) -> tuple[list[dict], list[dict]]:
                          "caption": caption, "figures": figures, "provenance": prov,
                          "quote": quote})
     return resolved, unresolved
+
+
+def _note_by_number(notes, number: str):
+    """The note a citation names. Matched loosely because a PRC note number is chapter-qualified
+    ("七、9") and a model may cite either half."""
+    want = (number or "").strip()
+    if not want:
+        return None
+    for table in notes or ():
+        got = str(getattr(table, "note_number", "") or "")
+        if got and (want in got or got in want):
+            return table
+    return None
+
+
+def _prose_provenance(table) -> dict | None:
+    """A page for a prose figure, off the NOTE rather than off a row.
+
+    There is no row, so there is no `Provenance` to copy — but `NotesTable.source_pages` records
+    which pages the note was parsed from, and the first of them is where the sentence is. Without
+    this the figure would reach the screen with no click-to-source at all, which for a number the
+    model located rather than read is the last thing a reviewer should be denied.
+    """
+    pages = list(getattr(table, "source_pages", None) or ())
+    if not pages:
+        return None
+    return {"page_index": pages[0], "source": "note_prose"}
+
+
+def _amount_in_text(stated: str, text: str) -> Decimal | None:
+    """The stated amount, but only if that number really is in the text. Otherwise None.
+
+    THE WHOLE SAFETY PROPERTY OF A PROSE FIGURE. The model is permitted to give an amount here and
+    nowhere else, and what makes that safe is that the number must be demonstrably printed: the
+    comparison is on DIGITS, so "HK$529,841,000", "529,841,000" and "529841000" are the same
+    number, while 529,842,000 is not there and is refused.
+
+    Returns the parsed figure rather than a boolean so the caller stores what was verified and not
+    what was typed.
+    """
+    import re as _re
+
+    digits = _re.sub(r"[^0-9]", "", stated or "")
+    if not digits:
+        return None
+    haystack = _re.sub(r"[,\s ]", "", text or "")
+    if digits not in haystack:
+        return None
+    try:
+        return Decimal(digits) if "." not in stated else Decimal(
+            _re.sub(r"[^0-9.]", "", stated))
+    except (InvalidOperation, ValueError):
+        return None

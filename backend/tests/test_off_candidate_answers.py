@@ -276,3 +276,126 @@ def test_a_computed_concept_is_the_case_the_latitude_is_FOR(shipped):
 
     uncited = [{"item_id": "r1", "canonical_key": OFF_LIST, "confidence": 0.9, "sources": []}]
     assert _decide(shipped, uncited)[0].canonical_key is None
+
+
+# ── a figure the filing states only in PROSE ───────────────────────────────────────────────────
+
+_PROSE = ("^ Depreciation charges of approximately HK$529,841,000 (2024: HK$665,553,000) are "
+          "included in \u201cother operating expenses\u201d on the face of the consolidated income "
+          "statement.")
+
+
+def _prose_notes():
+    return [NotesTable(note_number="7", title="LOSS FROM OPERATING ACTIVITIES",
+                       source_pages=[141], source_text=_PROSE, items=[])]
+
+
+def _decide_prose(shipped, amount: str, *, note="7"):
+    provider = _Answers([{
+        "item_id": "r1", "canonical_key": OFF_LIST, "confidence": 0.85,
+        "reason": "the footnote states the operating-expense share",
+        "sources": [{"note": note,
+                     "caption": "Depreciation charges included in other operating expenses",
+                     "quote": _PROSE, "amount": amount}]}])
+    matcher = OntologyMatcher(build_working_view(shipped), locale="en",
+                              settings=get_settings(), llm_provider=provider)
+    out = matcher.match_batch([("r1", "Depreciation charge for the year")],
+                              statement="profit_and_loss", sections={"r1": None},
+                              notes=_prose_notes())
+    return out["r1"], matcher
+
+
+def test_a_figure_stated_only_in_prose_is_accepted_when_it_is_really_there(shipped):
+    """THE CASE THIS WHOLE PATH EXISTS FOR. 529841 appears in no extracted row anywhere in
+    laisun.pdf — the operating-expense share of the depreciation charge is disclosed in a footnote
+    and nowhere else. No row-caption regex can reach it, so without this the line stays empty
+    however plainly the filing states it."""
+    r, _m = _decide_prose(shipped, "HK$529,841,000")
+
+    prose = [s for s in r.sources if s.get("prose")]
+    assert len(prose) == 1, r.sources
+    assert prose[0]["figures"]["prose"] == "529841000"
+    # A page, so the figure is not left without click-to-source.
+    assert prose[0]["provenance"]["page_index"] == 141
+
+
+def test_a_figure_that_is_NOT_in_the_prose_is_refused(shipped):
+    """THE SAFETY PROPERTY, and the reason the model is allowed to state an amount at all. It is
+    LOCATING a printed number, not supplying one — so a number the note does not contain is
+    refused rather than believed, and the refusal says which figure and which note."""
+    r, _m = _decide_prose(shipped, "529,842,000")          # one digit out
+
+    assert not [s for s in r.sources if s.get("prose")], "an unverified figure was accepted"
+    bad = [u for u in r.unresolved_sources if u.get("amount")]
+    assert bad and "does not appear in note 7" in bad[0]["why"], r.unresolved_sources
+
+
+def test_the_comparison_is_on_digits_so_formatting_does_not_matter(shipped):
+    """"HK$529,841,000", "529,841,000" and "529841000" are one number. A verifier that compared
+    strings would refuse the figure over a currency prefix and the line would stay empty for a
+    reason no reviewer could see."""
+    for written in ("HK$529,841,000", "529,841,000", "529841000"):
+        r, _m = _decide_prose(shipped, written)
+        prose = [s for s in r.sources if s.get("prose")]
+        assert prose and prose[0]["figures"]["prose"] == "529841000", written
+
+
+def test_the_prose_figure_reaches_the_row_without_discarding_what_was_PRINTED(shipped):
+    """The row prints the TOTAL depreciation and the footnote states the operating-expense SHARE of
+    it — two different quantities. The prose figure becomes the value, the printed one is kept in
+    `value_raw`, and the displacement is flagged, because silently losing the number a reader can
+    see on the page is not an acceptable way to gain the one they cannot."""
+    from app.core.models.line_item import LineItem
+    from app.core.models.enums import LineRole
+    from app.stages.map_ontology import _apply_result
+
+    r, _m = _decide_prose(shipped, "HK$529,841,000")
+    row = LineItem(source_label="Depreciation of property, plant and equipment", role=LineRole.LINE)
+    row.set_value(ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current",
+                                 value=Decimal("587417"), value_raw=Decimal("587417"),
+                                 provenance=Provenance(page_index=141)))
+
+    assert _apply_result(row, r) is True
+
+    ev = next(iter(row.values.values()))
+    assert ev.value == Decimal("529841000")
+    assert ev.value_raw == Decimal("587417"), "the printed figure was discarded"
+    assert any(f == "prose_value_displaced_printed:587417" for f in row.confidence.flags)
+    assert any(f == "prose_sourced_value:7" for f in row.confidence.flags)
+
+
+def test_it_is_flagged_for_review_AND_still_printed_and_exported(shipped):
+    """WHAT WAS ASKED FOR, and the two halves are not in tension. Nothing downstream suppresses a
+    reviewed value: `_serialize_rows` is the single boundary every screen and every export reads,
+    so a value on the row is a value on the statement and in the workbook — while
+    `low_mapping_confidence` still puts it in front of a human.
+    """
+    from app.api.routes.extractions import _serialize_rows
+    from app.core.models import DocumentModel
+    from app.core.models.enums import LineRole
+    from app.core.models.line_item import LineItem
+    from app.services.periods import concept_value
+    from app.services.rollups import figures_as_shown
+    from app.stages.map_ontology import _apply_result
+
+    r, _m = _decide_prose(shipped, "HK$529,841,000")
+    row = LineItem(source_label="Depreciation of property, plant and equipment", role=LineRole.LINE)
+    row.set_value(ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current",
+                                 value=Decimal("587417"), value_raw=Decimal("587417"),
+                                 provenance=Provenance(page_index=141)))
+    _apply_result(row, r)
+    doc = DocumentModel(filename="f.pdf")
+    doc.line_items = [row]
+
+    wire = _serialize_rows(doc)
+    assert [v["value"] for v in wire[0]["values"]] == ["529841000"], "not on the wire"
+    # REVIEWED …
+    assert "low_mapping_confidence" in wire[0]["flags"]
+    # … AND STILL EXPORTED, through both resolvers the export and the grid use.
+    assert concept_value(wire, "consolidated", "current") == 529841000.0
+    assert figures_as_shown(None, wire, "consolidated", "current")[OFF_LIST] == 529841000.0
+    # And the SENTENCE travels, so a reviewer sees the evidence rather than being asked to trust it.
+    trail = next(iter((wire[0].get("derivation") or {}).values()))
+    assert trail["method"] == "prose_sourced"
+    assert "529,841,000" in trail["inputs"][0]["excerpt"]
+    assert (trail["inputs"][0]["provenance"] or {}).get("page_index") == 141
