@@ -413,6 +413,14 @@ function withheldReason(name: string, sel: {
     return `only a derived line is filled this way; this one is ${type}`;
   }
 
+  // `_coherent`: the note-tag threshold is about whether the MODEL is asked, and `extraction_mode`
+  // is what decides that — a derivable line takes its figure from declared arithmetic, so a note
+  // printed beside a row says nothing about whether that arithmetic should run. The server raises
+  // rather than ignoring, so the control is withheld here rather than left on to be refused.
+  if (name === "llm_only_if_note_tagged" && extractionMode !== "extract") {
+    return `this asks whether the model is consulted, and a ${extractionMode} line takes its figure from declared arithmetic — the model is never asked about it`;
+  }
+
   // A TEXT LINE IS NOT A FIGURE. `phrase` and `prose` hold words, so the controls that describe a
   // NUMBER describe nothing: there is no sign to expect, no unit of account, and the line cannot be
   // a component of a subtotal or appear in a balance identity. Withheld rather than left on the
@@ -469,6 +477,8 @@ function requiredNow(name: string, sel: { type: string; outputStructure: string 
  */
 const CONDITIONAL_FIELDS = [
   "prompt", "in_output", "terms", "cascade", "implemented_by",
+  // withheld unless the line is `extract` — see withheldReason
+  "llm_only_if_note_tagged",
   "aliases", "pattern", "regex_hints", "keyword_hints", "exclude_hints",
   "confusable_with", "section_disambiguation",
   // withheld once the line outputs text rather than a number
@@ -1037,7 +1047,7 @@ function Detail(p: EditorProps) {
           claimed by more than one line item and some of those claims span different statements,
           so the gate is what settles which line a caption reaches. Nearly all of it arrives by
           INHERITANCE from a `section_defaults` entry — hence the badges. */}
-      <Group visible={anyOf("inherits", "statement", "section_scope", "scopes", "side", "allow_contra", "match_priority", "extraction_mode", "face_only", "note_use", "note_source")} question="Where may it be claimed from?"
+      <Group visible={anyOf("inherits", "statement", "section_scope", "scopes", "side", "allow_contra", "llm_only_if_note_tagged", "match_priority", "extraction_mode", "face_only", "note_use", "note_source")} question="Where may it be claimed from?"
              note="The gate is authored once per section and claimed by `inherits`; editing a
                    gate field here overrides the section for this line only.">
         {fld("inherits", (e) => (
@@ -1107,6 +1117,25 @@ function Detail(p: EditorProps) {
                      value={g("allow_contra", item.allow_contra)}
                      onChange={(v) => patch({ allow_contra: v })}
                      error={e} inherited={inh("allow_contra", item.allow_contra)} />
+        ))}
+        {fld("llm_only_if_note_tagged", (e) => (
+          <BoolField label="Only ask the model when the face prints a note reference"
+                     testid="llm_only_if_note_tagged" editable={editable}
+                     help="For a line that is only ever disclosed in a note. With no note
+                           reference beside the row there is nothing for the model to read but the
+                           caption, so no call is spent — and the line reports 0 (or an empty
+                           value for a phrase or prose line) rather than staying blank, because
+                           the filing not disclosing it is a different statement from us not
+                           finding it. The figure any caption match had read is kept alongside, so
+                           the substitution can be audited."
+                     onText="No note reference beside the row means the line reports 0, and no
+                             model call is spent on it."
+                     offText="The line is filled from wherever it can be read, with or without a
+                              note reference."
+                     value={g("llm_only_if_note_tagged", item.llm_only_if_note_tagged)}
+                     onChange={(v) => patch({ llm_only_if_note_tagged: v })}
+                     error={e}
+                     inherited={inh("llm_only_if_note_tagged", item.llm_only_if_note_tagged)} />
         ))}
         {fld("match_priority", (e) => (
           <NumberField label="Match priority" testid="match_priority" editable={editable}

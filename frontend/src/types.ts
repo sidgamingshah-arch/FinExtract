@@ -1612,6 +1612,10 @@ export interface LineItemDef {
   scopes: SearchScope[];
   side: LineItemSide;
   allow_contra: boolean;
+  /** Only ask the model about this line when the face prints a note reference beside the row —
+   *  and where it prints none, report 0 (or "" for a text line) rather than leaving it blank.
+   *  `extraction_mode: extract` only; the server refuses it elsewhere. */
+  llm_only_if_note_tagged: boolean;
   aliases: string[];
   /** Per-locale aliases; the matcher folds every locale into one index. */
   aliases_i18n: Record<string, string[]>;
@@ -1773,6 +1777,7 @@ export interface LineItemEdit {
   /** Whether a caption printed on the opposite side may fill this line. Off by default — a bare
    *  "Cash" once resolved to an overdraft. */
   allow_contra?: boolean;
+  llm_only_if_note_tagged?: boolean;
   /** `null` disables note sourcing for this line entirely. */
   note_source?: NoteSource | null;
   note_use?: LineItemNoteUse | null;

@@ -386,6 +386,30 @@ class LineItemDef(BaseModel):
     # instrument that genuinely appears on both sides — a derivative, a swap, an option — where
     # one note table lists both and the row's own column is the only thing that separates them.
     allow_contra: bool = False
+    # ONLY ASK THE MODEL ABOUT THIS LINE WHEN THE FACE PRINTS A NOTE REFERENCE BESIDE IT, and when
+    # it does not, the line's value is 0 (a numeric output) or "" (a text one).
+    #
+    # OFF BY DEFAULT, so every existing configuration keeps exactly the meaning it had. On, it says
+    # two things about this line at once:
+    #
+    #   * The note tag is the EVIDENCE THRESHOLD. A line whose figure is only ever explained by a
+    #     note is not answerable from the face caption alone, so a row printed with no note
+    #     reference is not worth a provider call — the model would be guessing from the caption.
+    #   * ABSENCE IS A FACT, NOT A GAP. Where the filing prints no note reference for such a line,
+    #     the line is reported as zero rather than left blank. A blank says "we did not find it";
+    #     a zero says "the filing does not disclose it", and for a line that is only ever disclosed
+    #     in a note those are different statements.
+    #
+    # THE ZERO IS UNCONDITIONAL, and that is a deliberate choice with a cost worth stating: it
+    # overwrites whatever the deterministic tiers read off the page. A caption tier that matched a
+    # figure on a note-less row has that figure replaced by 0. That is the requested behaviour —
+    # the note tag is the authority, not the caption — and `stages.note_tag_gate` records the
+    # displaced figure in a flag so the substitution is auditable rather than silent.
+    #
+    # `extraction_mode: extract` ONLY. A derived or derivable line takes its figure from declared
+    # arithmetic, so a note reference beside a printed row says nothing about whether that
+    # arithmetic should run; `_coherent` refuses the combination rather than ignoring it.
+    llm_only_if_note_tagged: bool = False
     aliases: list[str] = Field(default_factory=list)
     # Per-locale aliases. A single flat list cannot hold the Han half as data: the shipped
     # rulebook carries 473 distinct zh aliases and the matcher folds EVERY locale into one index,
@@ -470,6 +494,24 @@ class LineItemDef(BaseModel):
                 f"`{self.type}` — its figure comes from arithmetic, so the model is never asked "
                 f"about it. Clear the prompt, or change the type if the line is in fact read off "
                 f"the page.")
+        # THE FIRST REFUSAL IN THIS VALIDATOR THAT TURNS ON `extraction_mode` rather than `type`,
+        # and it has to: the flag's whole subject is whether the MODEL is asked, and
+        # `extraction_mode` is what decides that (`derive` and `extract_or_derive` are withheld —
+        # see `_llm_withheld` in `services.mapping`). Refused rather than ignored, because a flag
+        # silently doing nothing on 41 of the shipped concepts is worse than a message: the author
+        # would set it, see no effect, and have nothing to read.
+        #
+        # The message names `llm_only_if_note_tagged` verbatim, because the edit door attributes a
+        # refusal to a control by finding the field name as a substring
+        # (`routes/line_items.py` `_EDITABLE_FIELDS`), and a refusal an author cannot pin to a
+        # control is a refusal they cannot act on.
+        if self.llm_only_if_note_tagged and self.extraction_mode != "extract":
+            raise ValueError(
+                f"{self.key}: `llm_only_if_note_tagged` only applies to a line the model is "
+                f"actually asked about, and this one is `{self.extraction_mode}` — its figure "
+                f"comes from declared arithmetic, so a note reference printed beside a row says "
+                f"nothing about whether that arithmetic should run. Turn the flag off, or set the "
+                f"extraction mode to `extract` if the line really is read off the page.")
         if self.side == "from_section" and not self._can_read_a_section():
             raise ValueError(
                 f"{self.key}: `from_section` needs a statement that prints section banners — "

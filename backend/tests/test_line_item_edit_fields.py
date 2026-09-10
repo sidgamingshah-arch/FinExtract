@@ -113,11 +113,17 @@ _SET = {
 # `type: "calculated"` and these fields are only legal on another type, so including them would
 # assert a shape a screen can never send.
 #
-# `prompt` and `output_structure` are the two: `LineItemDef` refuses either unless the line is
-# `extracted`. A calculated line's figure comes from arithmetic, so the model is never asked about
-# it (the prompt would never be sent) and no arithmetic yields a sentence (so text output is
-# incoherent). Both are proved authorable by their own tests below.
-_NOT_COHERENT_WITH_THE_REST = {"prompt", "output_structure"}
+# `prompt` and `output_structure`: `LineItemDef` refuses either unless the line is `extracted`. A
+# calculated line's figure comes from arithmetic, so the model is never asked about it (the prompt
+# would never be sent) and no arithmetic yields a sentence (so text output is incoherent).
+#
+# `llm_only_if_note_tagged` is the third, and it collides on a DIFFERENT field: the combined body
+# also round-trips `extraction_mode: "extract_or_derive"`, and the flag is legal only on `extract`.
+# Same reasoning one level along — a derivable line takes its figure from declared arithmetic, so a
+# note printed beside a row says nothing about whether that arithmetic should run.
+#
+# All three are proved authorable by their own tests below.
+_NOT_COHERENT_WITH_THE_REST = {"prompt", "output_structure", "llm_only_if_note_tagged"}
 
 _ROUND_TRIP: dict[str, tuple[str, object]] = {
     # meaning — the four the user named, plus the label
@@ -166,6 +172,11 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
     "scopes": ("scopes", ["balance_sheet", "notes"]),
     "side": ("side", "asset"),
     "allow_contra": ("allow_contra", True),
+    # The note-reference threshold: only ask the model when the face prints a note beside the row,
+    # and report 0 where it prints none. Legal only on `extraction_mode: extract`, which the probe
+    # item is (the default), so it round-trips; the refusal on the other two modes is a validator
+    # and is tested in test_note_tag_gate.py because it is a refusal rather than a write.
+    "llm_only_if_note_tagged": ("llm_only_if_note_tagged", True),
     "note_use": ("note_use", "decomposition_allowed"),
     "face_only": ("face_only", True),
     # THE OBJECT THAT REPLACED THE 162-ALTERNATIVE WHITELIST (`_QUALIFYING_RE`, which refused a
@@ -690,6 +701,36 @@ def test_an_output_structure_round_trips_on_an_extracted_line(client, probe):
                     {"key": _EDITED, "type": "extracted", "output_structure": "phrase"})
 
     assert _stored(client, new_id)["output_structure"] == "phrase"
+
+
+def test_the_note_tag_threshold_round_trips_on_an_extract_line(client, probe):
+    """A line can be told that a note reference beside the row is its evidence threshold.
+
+    Excluded from the combined patch because that body sets `extraction_mode: "extract_or_derive"`
+    — see `_NOT_COHERENT_WITH_THE_REST`. Proved authorable here, on the mode it is legal for.
+    """
+    _tpl, cfg = probe
+
+    new_id = _saved(client, cfg["id"], {"key": _EDITED, "extraction_mode": "extract",
+                                        "llm_only_if_note_tagged": True})
+
+    assert _stored(client, new_id)["llm_only_if_note_tagged"] is True
+
+
+def test_the_note_tag_threshold_is_refused_with_a_message_naming_its_own_control(client, probe):
+    """The refusal has to reach the control the author can actually change. Attribution is by
+    substring over the editable field names, so the validator message spells
+    `llm_only_if_note_tagged` verbatim — without that the refusal lands on `extraction_mode`, and
+    the author reads "the extraction mode is wrong" about a field they did not touch."""
+    _tpl, cfg = probe
+
+    r = _patch(client, cfg["id"], {"key": _EDITED, "extraction_mode": "derive",
+                                   "llm_only_if_note_tagged": True})
+
+    assert r.status_code == 422, r.text
+    error = r.json()["detail"]["errors"][0]
+    assert error["field"] == "llm_only_if_note_tagged", r.json()["detail"]
+    assert "llm_only_if_note_tagged" in error["message"]
 
 
 def test_every_line_defaults_to_a_number_so_existing_configuration_is_unchanged(client, probe):

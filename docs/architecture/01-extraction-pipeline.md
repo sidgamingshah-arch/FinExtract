@@ -7,7 +7,7 @@ results are available (`app/core/pipeline.py::Pipeline.run`).
 
 ## Stages
 
-**Nineteen stages, assembled by `app/core/pipeline.py::default_pipeline()`.** That
+**Twenty stages, assembled by `app/core/pipeline.py::default_pipeline()`.** That
 function is the only place the order is stated; `api/routes/extractions.py::pipeline_stage_names`
 reads the list off it rather than keeping a copy, and the run row records the list it was
 queued with. Do not add a third copy — the list below names each stage and its file, and
@@ -15,7 +15,7 @@ its order is `default_pipeline()`'s:
 
 `ingest · integrity · language_detect · classify · extract · map_line_items · residual ·
 normalize · link_notes · note_sourced · contingent_liabilities · assemble_components · reconcile · prune_notes · confidence ·
-gap_closing · face_mapping_contract · structural · segment`
+gap_closing · face_mapping_contract · note_tag_gate · structural · segment`
 
 **Why the list is four stages shorter, and why six output lines are now blank.** Five
 *derivation* services used to sit between `link_notes` and `reconcile`, and they have been
@@ -263,7 +263,19 @@ The face and its cited notes are processed in this order:
    any calculation. It is never assigned a neighbouring real line item merely to make the
    unmapped count zero. Extraction-only runs that carry no line-item set skip this gate because
    they are not mapping runs.
-18. **Structural** (`stages/structural.py` + `services/structural_checks.py`) — runs the
+18. **Note-tag gate** (`stages/note_tag_gate.py`) — a line declaring
+    `llm_only_if_note_tagged` reports **0** (or `""` for a phrase/prose line) where the face
+    printed no note reference beside its row. Absence of the tag is a statement of
+    non-disclosure, not a gap: a blank says "we did not find it", a zero says "the filing does
+    not disclose it", and for a line only ever disclosed in a note those differ. The zero is
+    unconditional and overwrites what the caption tiers read, which makes this the one stage that
+    deliberately discards a tier's answer — so `value_raw` keeps the printed figure and the value
+    carries `note_tag_absent_zeroed:<figure>` naming what was displaced. The position is
+    load-bearing on both sides: every stage that writes a figure is above it, so the zero is undone
+    by nothing; and it is above the structural checks, so a reconciliation cannot report a tie
+    against a figure this stage removed. Its other half lives in `map_line_items`, which spends no
+    provider call on such a row.
+19. **Structural** (`stages/structural.py` + `services/structural_checks.py`) — runs the
     arithmetic the template and the rulebook *declare*: template `rollup`s and statement
     `identities`, the rulebook's `validation.identities`, its
     `validation.cross_concept_guards` and its `validation.section_reconciliation`. Every
@@ -271,7 +283,7 @@ The face and its cited notes are processed in this order:
     carrying a classifiable `reason` (`services/coverage.py`), so partial coverage is
     visible rather than implied. A failure flags the participating line items and values.
 
-19. **Segment** (`stages/segment.py` + `services/buckets.py`) — files every face row and
+20. **Segment** (`stages/segment.py` + `services/buckets.py`) — files every face row and
     every note into the **thirteen face sections** an analyst reads a filing in, plus Others:
     the balance sheet's five (current / non-current assets, current / non-current
     liabilities, equity & reserves), the income statement's four (income, expenses,

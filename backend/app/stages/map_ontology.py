@@ -736,6 +736,7 @@ class MapOntologyStage:
         det_matcher = (OntologyMatcher(ontology, locale=doc.locale, settings=ctx.settings)
                        if focus_keys else None)
         focus_det = focus_llm = focus_sections_skipped = 0
+        note_tag_skipped = 0
         # item_id -> the deterministic answer a row forwarded to the model already had, so that a
         # model which answers nothing (or a batch the provider refuses outright) cannot leave the
         # row worse off than if no provider had been configured at all. Applied after the batch
@@ -819,6 +820,13 @@ class MapOntologyStage:
             # printed note row — and the model learns their keys from each identified note's
             # `identified_for`.
             _cfg_items = getattr(getattr(ctx, "line_items", None), "items", None) or ()
+            # LINES THAT ARE ONLY WORTH ASKING ABOUT WHEN THE FACE PRINTS A NOTE REFERENCE.
+            # `llm_only_if_note_tagged` says the note tag is this line's evidence threshold: with no
+            # tag beside the row there is nothing for the model to read but the caption, and the
+            # figure is reported as zero instead (`stages.note_tag_gate`). The schema refuses the
+            # flag on anything but `extraction_mode: extract`, so this set needs no mode test.
+            _note_tag_only = {i.key for i in _cfg_items
+                              if getattr(i, "llm_only_if_note_tagged", False)}
             if identified:
                 ctx.log(f"map_line_items: {len(identified)} note(s) identified by configuration "
                         f"passed in full "
@@ -900,6 +908,22 @@ class MapOntologyStage:
                             if _apply(li, res):
                                 mapped += 1
                             focus_det += 1
+                        elif (res and res.canonical_key in _note_tag_only
+                                and not _cited_notes([li])):
+                            # NO NOTE TAG, NO CALL. This line declares that a note reference beside
+                            # the row is its evidence threshold, and this row carries none — so the
+                            # model would be reading the caption and nothing else. The figure is
+                            # decided by `stages.note_tag_gate` instead, which writes the zero.
+                            #
+                            # The deterministic answer is applied all the same, so the row is not
+                            # left unmapped: the gate below needs to know WHICH line the row is in
+                            # order to zero it, and an unmapped row names no line. That the figure
+                            # is then replaced is the flag's declared behaviour, and the replacement
+                            # is flagged rather than silent.
+                            if _apply(li, res):
+                                mapped += 1
+                            focus_det += 1
+                            note_tag_skipped += 1
                         else:
                             llm_rows.append(li)
                             # KEEP THE DETERMINISTIC ANSWER AS THE FALLBACK, do not discard it.
@@ -1039,6 +1063,10 @@ class MapOntologyStage:
                 # `keys=` counts what was CONFIGURED; the answerability fields say how many of those
                 # the rulebook can actually return (see `_focus_answerability`). Without them the
                 # line overstated the run's reach — 8 configured, 4 reachable, on the shipped pair.
+                if note_tag_skipped:
+                    ctx.log(f"map_line_items:note_tag_gate_skipped_calls={note_tag_skipped} "
+                            f"(rows whose line declares llm_only_if_note_tagged and that carry no "
+                            f"note reference, so no provider call was spent on them)")
                 ctx.log(f"map_line_items:focus_routing keys={len(focus_keys)}"
                         f" {_focus_answerability(matcher, focus_keys)}"
                         f" rows_to_llm={focus_llm} rows_deterministic={focus_det}"

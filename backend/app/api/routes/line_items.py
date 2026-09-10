@@ -898,6 +898,7 @@ class ItemEdit(BaseModel):
     scopes: list[SearchScope] | None = None
     side: Side | None = None
     allow_contra: bool | None = None
+    llm_only_if_note_tagged: bool | None = None
     note_source: NoteSource | None = None
     note_use: NoteUse | None = None
     face_only: bool | None = None
@@ -984,6 +985,7 @@ _EDIT_SCALARS: dict[str, str] = {
     "value_scope": "value_scope",
     "side": "side",
     "allow_contra": "allow_contra",
+    "llm_only_if_note_tagged": "llm_only_if_note_tagged",
     "note_use": "note_use",
     "face_only": "face_only",
     "is_gross_parent": "is_gross_parent",

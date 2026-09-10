@@ -56,6 +56,7 @@ def default_pipeline() -> Pipeline:
     from app.stages.residual import ResidualStage
     from app.stages.gap_closing import GapClosingStage
     from app.stages.face_mapping_contract import FaceMappingContractStage
+    from app.stages.note_tag_gate import NoteTagGateStage
     from app.stages.segment import SegmentStage
 
     # Table reconstruction is performed inside the extract stage (native pages via the
@@ -122,6 +123,15 @@ def default_pipeline() -> Pipeline:
         # Verified non-additive aggregates are the only exception: their mapped components replace
         # them and the aggregate remains as evidence for the arithmetic check.
         FaceMappingContractStage(),
+        # A line declaring `llm_only_if_note_tagged` reports ZERO where the face printed no note
+        # reference beside it — absence of the tag is a statement of non-disclosure, not a gap.
+        #
+        # THE POSITION IS LOAD-BEARING, on both sides. Every stage that WRITES a figure is above it
+        # (normalize, note_sourced, assemble_components, reconcile), so the zero is undone by
+        # nothing; and it is above the structural checks and the segmentation, so those see the zero
+        # rather than the figure it replaced — a reconciliation that tied against a number this
+        # stage then removed would report a tie that is no longer true.
+        NoteTagGateStage(),
         StructuralStage(),
         # Last, and the position is the point: the eight analyst buckets are four balance-sheet
         # sections plus equity, all printed on one page, so only a row's RESOLVED section can

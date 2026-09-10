@@ -306,9 +306,9 @@ def test_the_four_derivation_stages_left_the_pipeline_and_the_disclosure_stage_d
         assert retired not in names, (
             f"stage {retired!r} is back in the pipeline. Nothing computes these figures now — "
             f"they come from the line-item configuration.")
-    # 19, NOT 17. Two stages were added after this test was written, and BOTH are the opposite of
-    # what the four retired ones were — neither enumerates a caption or computes a figure of its
-    # own:
+    # 20, NOT 17. Three stages were added after this test was written, and ALL THREE are the
+    # opposite of what the four retired ones were — not one enumerates a caption or computes a
+    # figure of its own:
     #
     #   * `assemble_components` adds up the rows the CONFIGURATION and the model between them
     #     identified as components of one line, which is how a line whose amount is printed as
@@ -318,7 +318,12 @@ def test_the_four_derivation_stages_left_the_pipeline_and_the_disclosure_stage_d
     #     they read those declarations, and after the removal ~650 authored patterns across 13
     #     sub-line items were read by nothing at all. The replacement enumerates no concept, so it
     #     serves an item nobody has authored yet — which is the distinction this test is guarding.
-    assert len(names) == 19, names
+    #   * `note_tag_gate` reports 0 for a line whose configuration declares
+    #     `llm_only_if_note_tagged` and whose row carries no note reference. It enumerates nothing
+    #     either: it reads one boolean off each line's own definition and acts on the row's own
+    #     citations, so a line nobody has flagged is untouched — the whole stage is a no-op on the
+    #     shipped seed, which turns the flag on for nothing.
+    assert len(names) == 20, names
     assert "assemble_components" in names, (
         "the component assembly is gone, so a line item printed as several rows cannot be filled "
         "at all — that is not a return to the derivations, it is the loss of their replacement")
