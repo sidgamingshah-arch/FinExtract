@@ -27855,7 +27855,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The depreciation and amortisation charge borne by research and development activity for the period — one expense component of that function, not the cost of the function as a whole. It is disclosed as a depreciation or amortisation row within the note that breaks down research and development expenses, which a filing may head research and development, R&D expenses, or the Traditional or Simplified Chinese equivalents. It is not that note's own research and development expense total, nor the research and development caption on the face of the income statement, and it is not an accumulated, opening, closing, disposal or impairment amount lifted from an asset movement schedule.",
+   "prompt": "Take only the depreciation or amortisation row itemised inside the research and development expense note, never that note's own total research and development expense."
   },
   {
    "key": "sub__selling_marketing_depreciation",
@@ -28023,7 +28025,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The depreciation and amortisation charge borne by selling, distribution and marketing activity for the period — the depreciation component of that function, not the whole cost of selling and distributing. It is disclosed as a depreciation or amortisation row within the note that breaks down selling, distribution or marketing expenses, however the filing heads it: selling expenses, selling and marketing, selling and distribution, distribution costs, or the Traditional or Simplified Chinese equivalents. It is not that note's own selling or distribution expense total, nor the selling and distribution caption on the face of the income statement, and it is not an accumulated, opening, closing, disposal or impairment amount from an asset movement schedule.",
+   "prompt": "Take the depreciation or amortisation row inside the selling, distribution or marketing expense note, never that note's own selling or distribution expense total."
   },
   {
    "key": "sub__ga_depreciation",
@@ -28187,7 +28191,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The depreciation and amortisation charge borne by general and administrative activity for the period — the depreciation component of administrative overhead, not the overhead itself. It is disclosed as a depreciation or amortisation row within the note that breaks down administrative or general and administrative expenses, which a filing may head administrative expenses, general and administrative expenses, G&A expenses, or the Traditional or Simplified Chinese equivalents. It is not that note's own administrative expense total, nor the administrative expenses line on the face of the income statement, and it is not an accumulated, opening, closing, disposal or impairment amount taken from an asset movement schedule.",
+   "prompt": "Take the depreciation or amortisation row inside the administrative expense note, never that note's own administrative expense total."
   },
   {
    "key": "sub__operating_expense_depreciation",
@@ -28350,7 +28356,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The depreciation and amortisation charge borne by other operating expenses for the period — the depreciation portion of that expense category, a component necessarily smaller than the category it sits inside, and never the category itself. It is disclosed as a depreciation or amortisation row within the note that breaks down operating expenses, which a filing may head operating expenses, operating costs, other operating expenses, or the Traditional or Simplified Chinese equivalents. It is not the expense total reported at the foot of that note, and it is not the other operating expenses line printed on the face of the income statement; those are the container this figure sits in, and taking either in its place overstates depreciation charged to operating expenses by the whole of the rest of the category. It is likewise not an accumulated, opening, closing, disposal or impairment amount from an asset movement schedule.",
+   "prompt": "Take only the depreciation or amortisation row itemised inside the operating expenses note, never that note's expense subtotal and never the other operating expenses line on the face of the income statement."
   },
   {
    "key": "sub__ppe_depreciation",
@@ -28510,7 +28518,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The depreciation charged for the period on property, plant and equipment, including right-of-use assets where the note presents them together — the charge recognised in profit or loss during the period, whatever functions it was charged to. It is disclosed as the depreciation line of the movement schedule inside the property, plant and equipment note, or in the fixed asset or right-of-use asset note of a filing that heads that asset class differently, in English or in Chinese. It is not the accumulated depreciation carried at either end of the period, nor the cost or net carrying amount of the assets, and it is not the depreciation attributable to operating expenses alone, because this charge still contains the share borne by cost of sales.",
+   "prompt": "Take the period's depreciation charge from the asset note's movement schedule, not the accumulated depreciation balance or carrying amount, and treat it as depreciation for all functions rather than the operating-expense share."
   },
   {
    "key": "sub__prepaid_lease_depreciation",
@@ -28669,7 +28679,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The amortisation charged for the period on prepaid land lease payments — the amount released to profit or loss over the lease term, which some filings caption as a release rather than an amortisation. It is disclosed inside the note for prepaid lease payments or prepaid land lease payments, under those headings or their Chinese equivalents, or in the right-of-use asset note that superseded them. It is not the unamortised balance of the prepayment at either end of the period, nor the split of that balance into current and non-current portions, and it is not an accumulated amortisation figure or an amount transferred out, disposed of or written off during the period.",
+   "prompt": "Take the amount released or amortised to profit or loss during the period, never the remaining prepaid lease balance or its current and non-current split."
   },
   {
    "key": "sub__fixed_asset_depreciation",
@@ -28827,7 +28839,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The depreciation charged for the period on fixed assets — the period's charge, in a filing that names its tangible asset class fixed assets rather than property, plant and equipment. It is disclosed as the depreciation line of the movement schedule inside the fixed assets note, under that heading or its Traditional or Simplified Chinese equivalent. It is not the accumulated depreciation balance shown alongside it, nor the original cost or net book value of the assets, and it is not confined to operating expenses, because the charge disclosed here also covers the share borne by cost of sales.",
+   "prompt": "Take the current period depreciation charge from the fixed assets note, never the accumulated depreciation, original cost or net book value columns beside it."
   },
   {
    "key": "sub__investment_property_depreciation",
@@ -28987,7 +29001,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The depreciation charged for the period on investment property — the systematic charge recognised by a filing that carries its investment property at cost less depreciation. It is disclosed as the depreciation line of the movement schedule inside the investment property note, under that heading or its Traditional or Simplified Chinese equivalent. It is not a fair value gain or loss, revaluation movement or impairment recognised on the same properties, and it is not the carrying amount, the accumulated depreciation or the rental income disclosed in the same note.",
+   "prompt": "Take the period's depreciation charge on investment property, never a fair value or revaluation movement, an impairment, or the property's carrying amount."
   },
   {
    "key": "sub__cip_depreciation",
@@ -29144,7 +29160,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The depreciation charged for the period on construction in progress — the charge recognised on assets still presented under that caption, which arises only where a filing depreciates them before completion. It is disclosed as the depreciation line of the movement schedule inside the construction in progress note, under that heading or its Chinese equivalent. It is not additions or costs capitalised during the period, nor an amount transferred out on completion to property, plant and equipment, and it is not the construction in progress balance carried at either end of the period.",
+   "prompt": "Take only the depreciation charge shown for construction in progress, never additions, capitalised costs, transfers out on completion, or the closing balance."
   },
   {
    "key": "sub__cfo_depreciation",
@@ -29308,7 +29326,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The depreciation and amortisation added back to profit in reconciling it to cash generated from operations — a non-cash charge for the whole group, covering every function to which depreciation was charged. It is disclosed in the operating section of the cash flow statement or in the note reconciling profit before taxation to operating cash flow, which a filing may head cash generated from operations, cash flow from operating activities, or their Chinese equivalents including a supplementary cash flow schedule. It is not the operating-expense share of depreciation by itself, since it still contains the share borne by cost of sales, and it is not the other non-cash add-backs — impairment losses, provisions, fair value movements or losses on disposal — listed beside it in the same reconciliation.",
+   "prompt": "Take the depreciation and amortisation add-back line only, treat it as depreciation for all functions rather than the operating-expense share, and never fold in the impairment or other non-cash add-backs beside it."
   },
   {
    "key": "sub__pbt_oper_exp_depreciation",
@@ -29453,7 +29473,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The depreciation or amortisation that the profit-before-tax note states was charged to an operating-expense function — administrative, general and administrative, selling, distribution, marketing, operating, or research and development. The qualifier in the caption is what makes it this figure: the note commonly discloses several depreciation amounts, and only the one tied to one of those functions belongs here. It is disclosed in the note itemising what profit or loss before taxation is arrived at after charging, or under the Traditional or Simplified Chinese equivalent of that profit-before-tax heading. It is not the note's unqualified total depreciation row, and it is not the amount the same note qualifies as charged to cost of sales; both read as depreciation in the same place but are different quantities.",
+   "prompt": "Take only the depreciation amount whose caption names an operating-expense function, never the note's unqualified total depreciation nor the amount it qualifies as charged to cost of sales."
   },
   {
    "key": "sub__pbt_depreciation",
@@ -29689,7 +29711,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The total depreciation and amortisation for the period as the profit-before-tax note reports it in a single unqualified row — the charge across every function, before any split between cost of sales and operating expenses. It is disclosed in the note itemising what profit or loss before taxation is arrived at after charging, or under the Traditional or Simplified Chinese equivalent of that profit-before-tax heading. It is not any caption in that note qualified by a function, whether cost of sales or an operating-expense function, since each of those is a share of this figure rather than the figure. Nor is it itself the depreciation charged to operating expenses, which is what remains once the cost-of-sales share is deducted.",
+   "prompt": "Take the note's unqualified total depreciation row, never a caption qualified by cost of sales or by an operating-expense function, and remember the cost-of-sales share still has to be deducted from it."
   },
   {
    "key": "sub__cos_depreciation",
@@ -29856,7 +29880,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The depreciation and amortisation charge borne by cost of sales — the part of the period's depreciation of property, plant and equipment, fixed assets, right-of-use assets, investment property or construction in progress, and of amortisation or release of prepaid lease payments, that has been absorbed into the cost of goods sold or of services rendered. It is disclosed as its own named row inside the note that breaks down cost of sales, cost of revenue, cost of services or direct operating costs. It is not the cost of sales amount itself, nor any other subtotal of that note, and it is not the period's total depreciation charge across all functions, of which this is only the production share. It is also not a movement line lifted from a fixed-asset schedule — opening or closing carrying amounts, accumulated depreciation, disposals, transfers, write-offs or exchange differences — and not an impairment loss.",
+   "prompt": "Take only the depreciation or amortisation row disclosed inside the cost of sales note, never that note's own cost total, another of its subtotals, or the period's whole depreciation charge."
   },
   {
    "key": "sub__pbt_cos_depreciation",
@@ -29993,7 +30019,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The cost-of-sales share of the period's depreciation and amortisation, stated as a row whose own caption ties the charge to cost of sales, cost of revenue, cost of goods sold, cost of services or cost of inventories. Because the caption already restricts the figure to the production share, the amount is taken as it stands and nothing is netted off it. It appears among the charges analysed in the note supporting profit or loss before taxation, in the note setting out what profit was arrived at after charging, or in an equivalent analysis of the result from operating activities. It is not that note's unqualified depreciation or amortisation line, which covers every function and is the whole from which this share is carved; it is not the share charged to operating, administrative, selling or distribution expenses; and it is not the profit before tax figure or any of the other charges listed beside it, such as staff costs or auditor's remuneration.",
+   "prompt": "Take only the row whose own caption ties depreciation or amortisation to cost of sales, never the note's undifferentiated total depreciation line or the share attributed to operating expenses."
   },
   {
    "key": "sub__rp_bs_face_receivables",
@@ -30368,7 +30396,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The carrying amount of balances owed to the reporting entity by its related parties, taken from rows the statement itself labels as related-party within the receivable classes in scope — other receivables, long-term receivables, the current portion of long-term receivables, and loans and advances. It is read off the face of the balance sheet or statement of financial position (资产负债表 / 財務狀況表), beneath its asset section headings, or off a breakdown printed as part of those statement lines. It is not the whole receivable-class line that the related-party row sits inside, and it is not the mirror-image balance due to related parties (应付 / due to) that the same statement usually shows on the liability side; a row bearing only a counterparty's name, with nothing in the filing calling that counterparty related, is also not this figure.",
+   "prompt": "Take only the statement row the filing itself labels as owed by a related party, never the receivable-class total it sits inside and never the amount due to related parties."
   },
   {
    "key": "sub__rp_lt_receivables_note",
@@ -30733,7 +30763,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The part of a filing's long-term receivables that is owed by related parties — the related-party rows inside that note, at their carrying amount after any loss allowance shown against them. It is disclosed in the long-term receivables note (长期应收款 / 長期應收款 / long-term receivables). It is not the note's own total of long-term receivables from all debtors, and it is not the portion of those receivables falling due within one year, which a PRC-format filing reclassifies out of this note and discloses separately.",
+   "prompt": "Take the related-party rows inside the long-term receivables note, never that note's total for all debtors and never the portion reclassified as falling due within one year."
   },
   {
    "key": "sub__rp_current_portion_ltr_note",
@@ -31111,7 +31143,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The related-party share of long-term receivables that has been reclassified as falling due within one year — the amount specifically attributable to the current portion of long-term receivables (一年内到期的长期应收款), still a related-party balance and still uncollected. It is disclosed in the note for non-current assets maturing within one year, or in a current-portion-of-long-term-receivables note where the filing gives one. It is not the combined non-current-assets-due-within-one-year figure, which also carries other reclassified non-current items, so where only that combined total is presented this amount is unavailable rather than equal to it; nor is it the long-term receivable balance that remains repayable beyond one year.",
+   "prompt": "Take only the related-party amount attributable to the current portion of long-term receivables, never the combined total of all non-current assets maturing within one year."
   },
   {
    "key": "sub__rp_other_receivables_note",
@@ -31476,7 +31510,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The part of other receivables that is owed by related parties — rows the other-receivables note itself identifies as related-party balances, at their carrying amount. It is disclosed in the other receivables note (其他应收款 / other receivables), including the sub-tables that note prints for balances collected by debtor, by nature of the amount, or as a related-party grouping. It is not the note's total other receivables, and it is not a debtor row identified only by a counterparty's name — related-party status must come from the filing's own wording rather than from recognising the name — nor the other payables owed to those same parties.",
+   "prompt": "Take only the rows the other-receivables note itself calls related-party, never the note's total other receivables and never a named debtor the filing does not identify as related."
   },
   {
    "key": "sub__rp_loans_and_advances_note",
@@ -31841,7 +31877,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "Loans and advances the entity has extended to related borrowers — the outstanding balance those related parties owe, carried as an asset. It is disclosed in the loans and advances note (发放贷款及垫款 / 貸款及墊款 / loans and advances to customers), which in a lender's filing sets out the loan book by borrower type or class. It is not the note's total loans and advances to all customers, and it is not entrusted lending (委托贷款 / 委托借款): where a related-party row inseparably bundles an entrusted loan, the figure is left unclaimed rather than reduced by an estimate.",
+   "prompt": "Take the loans and advances owed by related parties, never the note's total lending to all customers, and leave the row unclaimed rather than netting it when entrusted lending cannot be separated from it."
   },
   {
    "key": "sub__rp_note_by_receivable_class",
@@ -32191,7 +32229,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "Related-party receivable balances as the related-party note breaks them down by receivable class — the amount shown against a class caption such as other receivables, the current portion of long-term receivables, long-term receivables, or loans and advances, with related-party status supplied by the note heading rather than by the row wording. It is disclosed in the related-party relationships and transactions note (关联方及关联交易 / 關聯方關係及其交易 / related party relationships and transactions). It is not the same note's single umbrella related-party receivable line and not its per-counterparty rows: all three are readings of the same underlying balances, so only one of them may be taken. It is also not the note's grand total, which typically spans receivables and payables together.",
+   "prompt": "Take the related-party note's rows named by receivable class, never the same note's umbrella related-party line, its per-counterparty rows, or its grand total."
   },
   {
    "key": "sub__rp_note_by_counterparty",
@@ -32549,7 +32589,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "Related-party receivable balances as the related-party note breaks them down by counterparty type — amounts due from the parent or holding company, from subsidiaries and fellow subsidiaries, associates, joint ventures and jointly controlled entities, entities under common control, directors and key management, shareholders, and other related parties. It is disclosed in the related-party relationships and transactions note (关联方及关联交易 / 關連方及其交易), commonly in a table listing each party category on its own line. It is not the same note's receivable-class breakdown and not its umbrella related-party line, which describe the same receivables from another angle, so only one of the three readings is used. It is also not the amount due to that counterparty, which such tables often print in an adjacent column or section, and not the volume of transactions with the party.",
+   "prompt": "Take the per-counterparty receivable rows in the related-party note, never the same note's class breakdown or umbrella line, and never the amounts due to those parties printed beside them."
   },
   {
    "key": "sub__rp_note_umbrella_total",
@@ -32899,7 +32941,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The single bundled line a filing gives for amounts receivable from related parties when it discloses no breakdown — one caption standing for the whole related-party receivable pool (应收关联方款项 / 關聯方款項 / amounts due from related parties). It is disclosed in the related-party relationships and transactions note. It is not the note's grand total, which normally adds receivable and payable balances together, and it is not a subtotal to be taken alongside the same note's class or counterparty rows: where those rows exist they are the measurement and this line is merely their sum. Because a bundled figure can absorb entrusted lending that the note discloses separately, that component is removed from it rather than left inside.",
+   "prompt": "Take the note's one 'due from related parties' line item, never the note's grand total of receivables and payables, and never together with the same note's class or counterparty breakdown."
   },
   {
    "key": "sub__rp_due_from_note_noncurrent",
@@ -33212,7 +33256,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The part of the amounts-due-from-related-parties balance that is repayable after more than one year — the non-current half of that note's tenor split, the amount the filing shows as classified within non-current assets (非流动部分 / 一年后到期 / repayable beyond one year). It is disclosed in a dedicated amounts due from related parties or related companies note (应收关联方款项 / amounts due from related companies), which an English-language filing typically prints in place of the PRC-format class notes. It is not that note's whole balance due from related parties across both tenors, and it is not the portion repayable within one year: the two captions differ only by a qualifier, so a row reading current portion must never be taken here.",
+   "prompt": "Take only the portion repayable after more than one year, never the note's total due from related parties and never the portion due within one year."
   },
   {
    "key": "sub__rp_note_entrusted_loans",
@@ -33463,7 +33509,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The separately captioned amount of entrusted lending to a related party (委托贷款 / 委托借款 / 委托银行贷款 / entrusted loans) — funds the entity provides but that a bank advances and administers as its agent, disclosed apart from the entity's own direct related-party receivables. It is disclosed in the related-party relationships and transactions note, as its own row among the related-party balances. It is not a figure this line reports: it exists only to be deducted from a bundled related-party receivable total that absorbs it, so the same lending is not counted inside this line. It is also not an ordinary loan or current-account balance with a related party, and not entrusted borrowing the entity itself owes, which is a liability.",
+   "prompt": "Take only the separately captioned entrusted-loan amount, which serves as a deduction from a bundled related-party figure and is never reported as this line's own value."
   },
   {
    "key": "sub__fa_cp_fvtpl_note_total",
@@ -33700,7 +33748,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The single closing total carrying amount that a note on financial assets measured at fair value through profit or loss reports for the holdings it classifies as current assets, one figure covering every instrument class the note lists at the reporting date. It is disclosed inside the note headed as financial assets at fair value through profit or loss, financial assets at FVTPL or held-for-trading investments or securities, and the Traditional and Simplified Chinese equivalents of those headings. It is not any component row within that note: not a listed or unlisted, quoted or unquoted, equity- or debt-securities class subtotal, not the derivative or other-receivable lines, not a fair-value-level row, and not an opening balance, addition, purchase, disposal, redemption, transfer or exchange-difference movement row. It is also not the balance-sheet face line for securities and other financial assets, and not the total of a different measurement-category note such as the FVTOCI, available-for-sale, held-to-maturity or debt-investments note.",
+   "prompt": "Read only the closing grand total of the FVTPL current-asset note itself, never a class subtotal, component or movement row inside it, and never a total belonging to another measurement-category note."
   },
   {
    "key": "sub__fa_cp_fvtoci_note_total",
@@ -33935,7 +33985,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The single closing total carrying amount that a note on financial assets measured at fair value through other comprehensive income reports for the holdings it classifies as current assets, one figure covering every instrument class the note lists at the reporting date. It is disclosed inside the note headed as financial assets at fair value through other comprehensive income or financial assets at FVTOCI, their Traditional and Simplified Chinese equivalents, and the PRC-GAAP heading for equity instrument investments measured that way. It is not the total of the fair-value-through-profit-or-loss note, which the neighbouring heading differs from only on other comprehensive income versus profit or loss, and it is not the available-for-sale or debt-investments total. Nor is it any row inside the FVTOCI note itself: not a listed or unlisted, equity- or debt-securities class subtotal, not a derivative, other-receivable, impairment or fair-value-level line, and not a movement row of the year's reconciliation.",
+   "prompt": "Read only the closing grand total of the FVTOCI current-asset note, never a component or movement row inside it, and never the profit-or-loss note's total in its place."
   },
   {
    "key": "sub__fa_cp_afs_htm_note_total",
@@ -34172,7 +34224,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The closing total carrying amount that a note on available-for-sale financial assets, or a note on held-to-maturity financial assets, reports for the holdings it classifies as current assets, taken from each such note's own total row where a filing prints both headings as separate notes. It is disclosed under those pre-IFRS-9 headings, including their forms as available-for-sale or held-to-maturity investments or securities and the Traditional and Simplified Chinese equivalents. Because these headings themselves contain the words sale and maturity, it is not a proceeds-from-sale, disposal, redemption or amount-received-on-maturity row, all of which are movements during the period rather than the balance held at the reporting date. It is also not a listed or unlisted, equity- or debt-securities class subtotal inside the note, not an impairment or loss-allowance line, and not the total of the FVTPL or FVTOCI note.",
+   "prompt": "Take each available-for-sale or held-to-maturity note's own closing total and never a sale, disposal, redemption or maturity movement row that the heading's own wording invites, nor a class subtotal inside the note."
   },
   {
    "key": "sub__fa_cp_debt_investments_note_total",
@@ -34404,7 +34458,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The closing total carrying amount that a note dedicated to debt investments reports for the holdings it classifies as current assets, disclosed under headings such as debt investments, other debt investments or debt instruments at amortised cost and the Traditional and Simplified Chinese equivalents, including the PRC-GAAP form for creditor-right investments. It is that note's own total across the debt instruments it lists, at the reporting date. It is not the debt-securities or debt-instrument component row shown inside a FVTOCI, available-for-sale or held-to-maturity note, whose amount is already carried by that note's own total, so reading it here would count the same holdings twice. Nor is it a maturity-analysis, impairment or movement row inside the debt-investments note, nor a non-current debt investments amount.",
+   "prompt": "Take the debt-investments note's own closing total, never a debt-securities component row sitting inside another measurement-category note whose total has already been read."
   },
   {
    "key": "sub__fa_cp_investment_and_money_market_securities_note_total",
@@ -34641,7 +34697,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The closing total carrying amount that a note headed with one of the securities names that are current by nature reports at the reporting date, namely investment securities, marketable securities, money market instruments or short-term money market deposits and their Traditional and Simplified Chinese equivalents. A filing prints at most one of these as a note heading, and the figure is that note's own total across the securities, funds, bonds, instruments or deposits it lists. It is not an individual security, fund, bond, wealth-management product or deposit row inside the note, and not a listed or unlisted class subtotal. It is also not cash and cash equivalents or bank balances and deposits, which are disclosed in their own note even where a short-term money-market deposit resembles them, and not a total belonging to any of the measurement-category notes.",
+   "prompt": "Take the whole total of the investment, marketable or money-market securities note and never an individual instrument or deposit row inside it, nor any figure from the cash and bank balances note."
   },
   {
    "key": "sub__fa_cp_other_fincl_assets_note_total",
@@ -34877,7 +34935,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The closing total carrying amount that a residual financial-asset note reports for the holdings it classifies as current assets, disclosed under headings such as other financial assets, a bare financial assets note, or structured deposits including structured deposits with embedded derivatives, together with their Traditional and Simplified Chinese equivalents. The figure is the note's own total across the instruments it lists, so where a structured-deposit note totals its deposits inclusive of their embedded derivative element that inclusive total is the amount. It is not the embedded derivative element disclosed as a separate line, nor a wealth-management product, certificate-of-deposit or individual instrument row inside the note. It is also not the total of a note on other non-current financial assets, whose heading contains this one as a substring but which belongs to the long-term field, and not the total of the FVTPL, FVTOCI or debt-investments notes.",
+   "prompt": "Take the other financial assets or structured deposits note's own current-asset total, never a separately disclosed embedded derivative or instrument row inside it, and never a non-current counterpart of the same heading."
   },
   {
    "key": "sub__fa_cp_noncurrent_split_of_note_total",
@@ -35127,7 +35187,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The part of a financial-asset note's total that the note itself states is classified as non-current, shown against a caption such as non-current portion, analysed for reporting purposes as non-current, due after one year, or expected to be recovered or settled more than twelve months after the reporting date, and the Traditional and Simplified Chinese equivalents. It is disclosed as a split-out line inside the very notes whose totals are read for this field, that is the notes on financial assets at fair value through profit or loss or through other comprehensive income, available-for-sale or held-to-maturity financial assets, debt investments, investment and money-market securities, and other financial assets or structured deposits. It is not the current portion of that same split, whose caption differs from it by only one word and which is the part that stays in this field, and it is not the note's own total. Nor is it the total of a separate note on non-current or long-term financial assets, since only an amount sitting inside a total already extracted here may be taken out of it.",
+   "prompt": "Take only the non-current portion that the note carves out of its own total, never the current portion beside it and never the note total itself."
   },
   {
    "key": "sub__fa_cp_included_derivatives",
@@ -35407,7 +35469,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The carrying amount of derivative assets that sits inside the total of a current financial-asset note, shown there under captions such as derivative financial instruments, embedded derivatives, forward foreign exchange contracts, interest rate or cross-currency swaps and option contracts, together with their Traditional and Simplified Chinese equivalents. It is disclosed as a line item within the same notes whose totals are read for this field, so the amount is by construction part of a figure already extracted. It is not that note's own total, and not a derivatives subtotal standing above the individual derivative rows beneath it. It is also not a derivative amount reported anywhere else in the filing, whether a standalone derivative financial instruments note, the balance-sheet face line, a derivative liability, or a derivative shown as non-current, because only a derivative demonstrably included in the extracted total may be deducted from it.",
+   "prompt": "Take a derivative row from inside a note whose total was read, never that note's own total, and never a derivative figure disclosed elsewhere in the filing."
   },
   {
    "key": "sub__fa_cp_included_other_receivables",
@@ -35663,7 +35727,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The amount of other receivables that sits inside the total of a current financial-asset note, shown there under a caption such as other receivables or other receivables, prepayments and deposits, and the Traditional and Simplified Chinese equivalents. It is disclosed as a line item within the same notes whose totals are read for this field, so the amount is by construction part of a figure already extracted. It is not that note's own total, and not a total other receivables subtotal placed above its own components. It is also not the trade receivables figure, not amounts due from related parties, associates or joint ventures, and not the total of a standalone other receivables, prepayments and deposits note or the balance-sheet face line for it, since only an amount proven to sit inside the extracted note total may be deducted from it.",
+   "prompt": "Take an other-receivables row from inside a note whose total was read, never that note's total, the trade receivables figure, or a standalone receivables note or face line."
   },
   {
    "key": "sub__fa_cp_level_3_total",
@@ -35816,7 +35882,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The total fair value of financial assets measured using Level 3 inputs, that is significant unobservable inputs, as reported at the reporting date. It is disclosed in the note setting out the fair value hierarchy or fair value measurement of financial instruments, including the Traditional and Simplified Chinese forms of the fair value hierarchy, level and measurement headings. It is not the Level 1 or Level 2 amount, not the hierarchy table's grand total across all three levels, and not the Level 3 total reported in the liabilities half of the same table. Nor is it a row of the Level 3 reconciliation, such as a transfer into or out of Level 3, purchases, issues, settlements or fair-value gains and losses, nor a valuation-technique, unobservable-input or sensitivity narrative row.",
+   "prompt": "Take the Level 3 total for financial assets only, never Level 1 or Level 2, never the table's all-levels grand total or its liabilities column, and never a Level 3 reconciliation movement row."
   },
   {
    "key": "sub__face_principal_revenue",
@@ -35978,7 +36046,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "Revenue earned in the period from the entity's principal, ordinary operations, as printed on the face of the income statement itself — the top line, stated before cost of sales and before revenue from any other, non-principal business is added to it. It is read from the consolidated statement of profit or loss, comprehensive income or income statement, and from the group's own statement rather than a parent-company-only one. It is not the wider combined operating revenue total (营业收入, 营业总收入, total revenue), which contains this figure plus other-business revenue; nor is it the cost of sales or gross profit reported next to it, nor a subtotal qualified by product, industry, region or channel.",
+   "prompt": "Take the principal-operations revenue line printed on the face of the consolidated income statement, never the combined operating-revenue total that contains it and never the cost figure reported alongside it."
   },
   {
    "key": "sub__revenue_note_principal_revenue",
@@ -36133,7 +36203,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The same principal-operations revenue for the period, read from the dedicated principal-operations line inside the note that analyses operating revenue and operating cost (营业收入, 营业收入和营业成本, Revenue and cost of sales). The figure wanted is the revenue side of that note only, for principal business alone. It is not the note's own combined operating revenue total, which also carries other-business revenue; it is not the cost of sales, gross profit or margin column standing beside the revenue column in the same two-column table. Because it restates an amount the face may itself report, it is an alternative to the face figure and is never added to it.",
+   "prompt": "Read the principal-operations revenue row inside the operating-revenue note, never that note's combined revenue total and never its cost or margin column."
   },
   {
    "key": "sub__principal_operations_note_revenue",
@@ -36291,7 +36363,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The same principal-operations revenue for the period, read from a note whose own heading names principal operations (主营业务收入, 主营业务收支, 主营业务情况, Revenue from principal operations) rather than operating revenue. Filings that do not title this analysis after operating revenue put it here instead, so what is disclosed is one figure restated, not an additional amount. It is not the principal-operations cost disclosed in the same note, and it is not a further amount to be added to the face line or to the operating-revenue note's line for the same revenue. It is also not the by-industry, by-product or by-region table whose heading merely extends the same principal-operations phrase.",
+   "prompt": "Take the revenue line from the note headed principal operations as the same figure the face or the operating-revenue note would give — never an extra amount to add, and never the principal-operations cost printed beside it."
   },
   {
    "key": "sub__contract_revenue_note_revenue",
@@ -36447,7 +36521,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "Revenue from ordinary operations for the period as reported in the English or Hong Kong style revenue note — the turnover recognised from contracts with customers that the income statement's top line carries. It is disclosed in a note headed Revenue, Turnover, Revenue from contracts with customers, Disaggregation of revenue, 營業額 or 客户合同收入, and is the route for filings that carry no principal-business and other-business split for a Chinese-language note to supply. It is not the combined revenue-and-other-income total that such a note sometimes heads, and not the other income, other gains, government grant, interest or rental lines disclosed with it. Nor is it one of the disaggregation rows inside the note, which split this very figure by product, market, region or timing of transfer.",
+   "prompt": "Take the note's total revenue from contracts with customers, never a revenue-and-other-income total and never one of the note's disaggregation rows."
   },
   {
    "key": "sub__principal_revenue_by_product",
@@ -36546,7 +36622,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The whole principal-operations revenue figure for the period seen through the product axis — the all-products total that a product analysis carries, which equals the revenue line itself rather than any part of it. It is disclosed in the table analysing revenue by product, product category or product line (主营业务分产品情况, 分产品, revenue by product, product categories). It is not an individual product's or product category's revenue, which is a component of this total and must never stand in for it; it is not the cost, gross profit or proportion-of-revenue column of the same table. It is also not the industry, region or channel total, each of which is a different view of the same revenue and can never be added to this one.",
+   "prompt": "Take the all-products total of the product analysis, never a single product row, never its cost column, and never another axis's total added to it."
   },
   {
    "key": "sub__principal_revenue_by_industry_segment",
@@ -36651,7 +36729,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The whole principal-operations revenue figure for the period seen through the industry or operating-segment axis — the all-segments revenue total, which is the revenue line restated by segment and not a share of it. It is disclosed in the table analysing revenue by industry or business line, or in the segment information note, where the revenue row runs across the reportable segments. It is not one industry's or one segment's revenue, and it is not segment profit, segment result, segment cost, or the inter-segment and elimination lines that sit in the same note. Nor is it the product, region or channel total, which views the same revenue differently and is never summed with it.",
+   "prompt": "Take the total of the revenue row across all industries or reportable segments, never one segment's revenue, never segment profit or result, and never a second axis's total."
   },
   {
    "key": "sub__principal_revenue_by_geography",
@@ -36748,7 +36828,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The whole principal-operations revenue figure for the period seen through the geographic axis — the all-regions revenue total, the same revenue restated by location or market. It is disclosed in the table analysing revenue by region or area, or in the geographical information note. It is not one country's, region's or market's revenue, and not a domestic-versus-overseas component of the total. It is also not the non-current assets or other balances that geographical notes commonly disclose by location alongside revenue, and not the product, industry or channel total, which is the same revenue on another axis and never additive with this one.",
+   "prompt": "Take the all-regions revenue total from the geographic analysis, never a single region's revenue, never the non-current assets disclosed by location in the same note, and never another axis's total."
   },
   {
    "key": "sub__principal_revenue_by_sales_channel",
@@ -36847,7 +36929,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The whole principal-operations revenue figure for the period seen through the sales-channel axis — the all-channels revenue total, the same revenue restated by the way it was sold. It is disclosed in the table analysing revenue by sales mode, sales channel or distribution channel (主营业务分销售模式, 分渠道, revenue by distribution channel). It is not the revenue of a single channel such as direct sales or distribution, which is a component of this total. It is also not the cost, margin or proportion-of-revenue column of the same table, the last of which is a percentage rather than an amount, and not the product, industry or region total, which is the same revenue viewed another way and never added to this one.",
+   "prompt": "Take the all-channels revenue total from the sales-mode analysis, never one channel's revenue, never the percentage-of-revenue column, and never another axis's total."
   },
   {
    "key": "sub__cl_letters_of_credit",
@@ -37127,7 +37211,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The face amount of letters of credit outstanding at the reporting date — documentary credits, standby credits, and irrevocable or unexpired credits opened on the entity's behalf — carried as an exposure that is not recognised on the balance sheet. It is disclosed inside the contingent liabilities or contingencies note, including the combined commitments and contingencies heading (或有负债 / 或有事项 / 承诺及或有事项). It is not the note's own total of contingent liabilities or guarantees, it is not the credit facility limit, credit line or undrawn amount the bank has made available, and it is not a movement row such as credits issued, expired or cancelled during the period.",
+   "prompt": "Take only rows whose caption names a letter of credit or a documentary or standby credit, never the note's own total and never a credit facility limit, credit line or undrawn amount."
   },
   {
    "key": "sub__cl_performance_bonds",
@@ -37415,7 +37501,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The amount of performance bonds and performance guarantees in force at the reporting date — instruments that secure the entity's own performance of a contract or construction obligation (履约保函 / 履约担保 / 履约保证金). It is disclosed inside the contingent liabilities or contingencies note, among the other guarantee instruments listed there. It is not a letter of credit: where a single caption names both instruments, the letter of credit is the more specific reading and owns the row. It is also not a refundable performance deposit paid over and carried as a receivable, which is an asset rather than an exposure, and not the note's own total.",
+   "prompt": "Take only rows whose caption names a performance bond, performance guarantee or 履约保函, never a caption that also names a letter of credit and never a refundable performance deposit held as a receivable."
   },
   {
    "key": "sub__cl_bank_guarantees",
@@ -37714,7 +37802,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The amount of guarantees a bank has issued on the entity's behalf and that remain in force at the reporting date — payment and advance-payment guarantees, bid and tender guarantees, and financing or non-financing guarantees (银行保函 / 银行保证 / 银行出具的保函). It is disclosed inside the contingent liabilities or contingencies note. It is not a letter of credit and not a performance bond: both are more specific instruments, and a caption naming either of them belongs to that line rather than here. It is also not the banking facility or credit limit granted, which measures available capacity rather than exposure.",
+   "prompt": "Take only rows whose caption names a bank guarantee or 银行保函, never a caption that also names a letter of credit or performance bond, and never a facility or credit limit."
   },
   {
    "key": "sub__cl_corporate_guarantees",
@@ -38075,7 +38165,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The amount of guarantees the entity has itself given over another party's obligations — for subsidiaries, associates, joint ventures, related parties, customers or suppliers — including joint and several suretyship and guarantees over banking facilities, loans or borrowings granted to those parties (对外担保 / 公司担保 / 企业担保 / 连带责任保证). It is disclosed inside the contingent liabilities or contingencies note, where it is the broadest of the guarantee labels. It is not the guaranteed borrowing or facility itself, which is a recognised liability of the party that owes it rather than a contingent exposure of the guarantor. It is also not a bank-issued instrument: a caption that also names a letter of credit, a performance bond or a bank guarantee belongs to that more specific instrument line.",
+   "prompt": "Take only rows describing a guarantee the entity gives over another party's obligation, never the guaranteed borrowing itself and never a caption that also names a letter of credit, performance bond or bank guarantee."
   },
   {
    "key": "sub__cl_guarantee_note_balance",
@@ -38356,7 +38448,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The guarantee exposure still outstanding at the reporting date — the portion of the guarantees given that has actually been utilised or drawn down, or the guarantee balance remaining in force at period end (担保余额 / 担保责任余额 / 实际担保金额 / 尚未履行金额 / 未结金额). It is disclosed in the dedicated guarantees-given note (对外担保 / 对外提供担保 / 担保事项 / Guarantees given), where it is printed alongside, and is normally smaller than, the amount guaranteed. It is not that contracted amount guaranteed or guarantee limit, which is a different quantity for the same guarantee and may never be counted with it. It is also not the opening balance of the period and not the note's own aggregate total line.",
+   "prompt": "Take the outstanding or utilised guarantee balance at period end, never the contracted amount guaranteed, never the opening balance and never the note's total."
   },
   {
    "key": "sub__cl_guarantee_note_amount",
@@ -38646,7 +38740,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The contracted amount guaranteed — the maximum exposure the guarantee contracts create, whether or not any of it has been drawn (担保金额 / 合同担保金额 / 担保限额 / maximum amount of guarantees). It is disclosed in the dedicated guarantees-given note (对外担保 / 对外提供担保 / 担保事项 / Guarantees given), and it is the figure to use only where that note prints no outstanding guarantee balance. It is not the amount utilised or the outstanding guarantee balance, which is a separate and usually smaller figure for the very same guarantee and must never be added to this one. Nor is it the credit facility or credit limit granted to the borrower, the cumulative amount transacted, or a provision already recognised in respect of the guarantee.",
+   "prompt": "Take the contracted or maximum amount guaranteed, and only where the note prints no outstanding balance — never the utilised or outstanding balance, and never a facility limit or recognised provision."
   },
   {
    "key": "sub__cl_guarantee_released_repaid",
@@ -38876,7 +38972,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The amount of guarantees that ceased during the reporting period — guarantees released, discharged, cancelled or terminated, and amounts repaid or returned in the period (已解除担保金额 / 本期解除担保金额 / 已偿还金额 / 已归还金额). It is disclosed as a movement row in the dedicated guarantees-given note (对外担保 / 担保事项 / Guarantees given), and it exists here only to be deducted from the contracted amount guaranteed, which still contains it. It is never a contingent liability in its own right. In particular it is not the outstanding guarantee balance and not the amount guaranteed, and it may not stand in for either.",
+   "prompt": "Take the released, discharged or repaid guarantee row only as a deduction from the contracted amount guaranteed, never as an exposure figure of its own."
   },
   {
    "key": "sub__cl_related_party_guarantee_balance",
@@ -39156,7 +39254,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The guarantee exposure for related parties still outstanding at the reporting date — the utilised or drawn portion, or the balance in force at period end, of guarantees given for a parent, subsidiary, associate, joint venture or other related party (担保余额 / 实际担保金额 / 尚未履行金额). It is disclosed inside the related-party note (关联方担保 / 关联担保 / 关联方交易 / related party guarantees or transactions), which is where some filings carry these guarantees instead of a separate guarantees note. It is not the contracted amount guaranteed printed in that same note, not the value or volume of related-party transactions disclosed there, and not an amount due from or due to a related party. Where a contingent-liabilities or guarantees-given note restates the same guarantee, this figure substitutes for that disclosure rather than adding to it.",
+   "prompt": "Take the outstanding or utilised guarantee balance from the related-party note, never the contracted amount guaranteed, never a related-party transaction amount, and never a balance due to or from a related party."
   },
   {
    "key": "sub__cl_related_party_guarantee_amount",
@@ -39445,7 +39545,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The contracted amount guaranteed for related parties — the maximum exposure the guarantee contracts create for a parent, subsidiary, associate, joint venture or other related party, whether or not drawn (担保金额 / 合同担保金额 / 担保限额). It is disclosed inside the related-party note (关联方担保 / 关联担保 / 关联方交易), and it is the figure to use only where no outstanding guarantee balance is printed there. It is not the utilised or outstanding balance of the same guarantee, which is a separate figure and may never be counted with it. It is also not the value of related-party transactions for the period and not a loan or current-account balance owed by or to the related party.",
+   "prompt": "Take the contracted amount guaranteed from the related-party note, and only where no outstanding balance appears there — never the utilised balance and never a related-party transaction or loan amount."
   },
   {
    "key": "sub__cl_reported_total",
@@ -39703,7 +39805,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The single aggregate figure the filing itself prints for its contingent exposure — total contingent liabilities, total guarantees, or the guarantee total (担保金额合计 / 担保余额合计 / 担保总额 / 总担保金额 / 或有负债合计). It is disclosed as the total line of the contingent-liabilities, contingencies or guarantees-given note. It is the answer only for a filing that gives this one figure and itemises no instrument types; it may never be counted alongside the classified instrument amounts it already contains. It is also not a total of credit facility limits, contract sums or cumulative transacted amounts, none of which measures exposure.",
+   "prompt": "Take the note's own printed total only where the note itemises no instrument types, and never add it to any type amount it already includes."
   },
   {
    "key": "sub__cl_unclassified_matters",
@@ -40021,7 +40125,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The amount at stake in a contingency that is not a guarantee instrument — the claim amount, amount in dispute or estimated financial effect of pending litigation and arbitration, legal claims, contract and tax disputes, product warranty obligations, onerous contracts, environmental liabilities and bill or note recourse (涉案金额 / 诉讼金额 / 仲裁金额 / 未决诉讼 / 未决仲裁 / 预计财务影响). It is disclosed inside the contingent liabilities or contingencies note, or in a dedicated litigation and arbitration note (诉讼及仲裁事项 / 重大诉讼、仲裁事项). It is captured as evidence and reported on its own: it is not part of the quantified guarantee and letter-of-credit exposure and must not be summed with those instrument amounts. It is also not a provision already recognised for the same matter (已确认预计负债), which is a recognised liability rather than a contingency.",
+   "prompt": "Capture the claim, disputed or estimated-effect amount of a litigation, arbitration, dispute or warranty matter as separate evidence only, never adding it to the guarantee instrument amounts and never taking a provision already recognised for that matter."
   },
   {
    "key": "sub__ltp_nc_portion_of_fincl_asset_notes",
@@ -40495,7 +40601,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The part of a financial-asset note's own carrying amount that the note itself states is classified as non-current, taken from the row that carries the non-current qualifier: Non-current, Non-current portion, Analysed for reporting purposes as non-current, amounts due after more than one year, 非流動部分, 列作非流動. It is disclosed inside the notes that analyse securities and other financial assets, whatever heading a filing uses for them, including financial assets at fair value through profit or loss, financial assets at fair value through other comprehensive income, available-for-sale or held-to-maturity financial assets, debt investments, other financial assets, investment securities or securities investments, and structured deposits, and their 金融資產 / 金融资产 equivalents. It is not the note's combined total where the note covers both halves of the balance, and it is not the current-portion row printed beside it; where a note analyses itself into current and non-current, only the amount the note assigns to non-current belongs here.",
+   "prompt": "Take the row a financial-asset note labels as non-current, never that note's combined current-plus-non-current total and never the current-portion row sitting next to it."
   },
   {
    "key": "sub__ltp_fvtpl_note_total",
@@ -40941,7 +41049,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The total carrying amount of the note that analyses financial assets measured at fair value through profit or loss, read once from that note's own total or carrying-amount line, in the case where the whole note is classified as non-current and prints no current/non-current split. It is disclosed in the note headed financial assets at fair value through profit or loss or FVTPL, and in Chinese under 按公平值計入損益的金融資產 or 以公允價值計量且其變動計入當期損益的金融資產 and their simplified forms. It is not one of the instrument sub-lines the note itemises beneath that total, such as listed or unlisted equity securities, funds, wealth-management products or debt instruments, and it is not a cost, gross amount, impairment, fair-value-movement or fair-value-hierarchy line. Where the note does state a separate non-current portion, that stated portion is the figure and this combined total is not.",
+   "prompt": "Take the fair-value-through-profit-or-loss note's own total once, never an instrument sub-line beneath it and never this total when the note itself states a separate non-current portion."
   },
   {
    "key": "sub__ltp_fvtoci_note_total",
@@ -41391,7 +41501,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The total carrying amount of the note that analyses financial assets measured at fair value through other comprehensive income, read once from that note's own total or carrying-amount line, where the whole note is classified as non-current and prints no current/non-current split. It is disclosed in the note headed financial assets at fair value through other comprehensive income, FVTOCI or FVOCI, and in Chinese under 按公平值計入其他全面收益的金融資產, 以公允價值計量且其變動計入其他綜合收益的金融資產 or the PRC caption 其他權益工具投資 / 其他权益工具投资. It is not the total of the separate fair-value-through-profit-or-loss note, which is a different measurement category read on its own, and it is not one of the equity or debt instrument sub-lines listed beneath the total. It is also not the cumulative gain or loss held in the fair value reserve that such a note commonly discloses next to the carrying amount.",
+   "prompt": "Take the fair-value-through-other-comprehensive-income note's own carrying-amount total, never the profit-or-loss note's total, an instrument sub-line, or the reserve amount shown beside it."
   },
   {
    "key": "sub__ltp_afs_htm_note_total",
@@ -41843,7 +41955,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The total carrying amount of a note that analyses financial assets under the legacy classifications available-for-sale or held-to-maturity, read once from that note's own total or carrying-amount line, where the note is classified as non-current and prints no current/non-current split. It is disclosed in a note headed available-for-sale financial assets, investments or securities, or held-to-maturity financial assets, investments, securities or debt, and in Chinese under 可供出售金融資產 or 持有至到期投資 and their simplified forms; a filing normally prints at most one such note per classification. The words sale and maturity here name the classification, so this is not the disposal proceeds, redemption, or amount matured during the period that the same note may also show, and it is not one of the individual security sub-lines itemised beneath the total. Where the note states its own non-current portion, that portion is the figure rather than this total.",
+   "prompt": "Take the available-for-sale or held-to-maturity note's own carrying-amount total, never a disposal, redemption or maturity movement row whose caption merely repeats the words sale or maturity."
   },
   {
    "key": "sub__ltp_debt_investments_note_total",
@@ -42289,7 +42403,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The total carrying amount of the note that analyses debt investments, read once from that note's own total or carrying-amount line, where the note is classified as non-current and prints no current/non-current split. It is disclosed in a note headed debt investments, other debt investments, debt instruments or debt securities, and in Chinese under 債務投資, 债权投资, 其他债权投资 and their variants. It is not an individual bond, note or debenture sub-line listed beneath that total, and it is not the gross or amortised amount before impairment, the impairment allowance or expected credit loss deducted from it, nor the interest income, accrued interest or interest receivable that such a note commonly discloses next to the carrying amount. Where the note analyses itself into current and non-current, the non-current amount it states is the figure rather than this total.",
+   "prompt": "Take the debt-investments note's net carrying-amount total, never a single bond line, the gross amount before impairment, or the interest figures presented alongside it."
   },
   {
    "key": "sub__ltp_other_fincl_assets_note_total",
@@ -42731,7 +42847,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The total carrying amount of the note whose own heading is other financial assets, read once from that note's total or carrying-amount line, where the note is classified as non-current and prints no current/non-current split. It is disclosed under that heading in either language, including 其他金融資產 / 其他金融资产 and the PRC non-current caption 其他非流動金融資產 / 其他非流动金融资产. It is not a residual others or other financial assets component row printed inside a differently headed financial-asset note, which is a part of that note rather than a note total of its own, and it is not the total of a fair-value or legacy-classification note even where the instruments listed here are measured that way; each heading is read once, on its own. Nor is it the current portion of a note that analyses itself into current and non-current.",
+   "prompt": "Take the total of a note whose own heading is other financial assets, never an others or residual row sitting inside a differently headed financial-asset note."
   },
   {
    "key": "sub__ltp_investment_securities_note_total",
@@ -43174,7 +43292,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The total carrying amount of the note that analyses investment securities, read once from that note's own total or carrying-amount line, where the note is classified as non-current and prints no current/non-current split. It is disclosed in a note headed investment securities or securities investments, and in Chinese under 投資證券, 證券投資, 投资证券 or 证券投资. Because it is a balance at the reporting date, it is not the investment income, dividend income or gain on securities that a note on the same subject may report, and it is not one of the individual listed or unlisted holdings itemised beneath the total. Where the note shows both a carrying amount and a separate market or fair value for comparison, the carrying amount that agrees with the statement of financial position is the figure.",
+   "prompt": "Take the investment-securities note's carrying-amount total at the reporting date, never an individual holding, a comparative market-value column, or income earned on the securities."
   },
   {
    "key": "sub__ltp_structured_deposits_note_total",
@@ -43616,7 +43736,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The total carrying amount of the note that analyses structured deposits, read once from that note's own total or carrying-amount line, where the deposits are classified as non-current and the note prints no current/non-current split. It is disclosed in a note headed structured deposits or structured deposits with embedded derivatives, and in Chinese under 結構性存款 or 含嵌入式衍生工具的結構性存款 and their simplified forms. Because the heading itself names an embedded derivative, such a note commonly shows the derivative element as a component row inside it: that component is not this figure, it is deducted separately, and this line takes only the note's own total. It is also not the principal placed or matured during the period, and not the bank balances or plain time deposits reported as cash and cash equivalents.",
+   "prompt": "Take the structured-deposits note's own total, never the embedded-derivative component row inside it and never a bank balance or plain time deposit reported as cash."
   },
   {
    "key": "sub__ltp_fincl_assets_note_total",
@@ -44060,7 +44182,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The total carrying amount of a note whose heading is simply financial assets, or non-current financial assets, read once from that note's own total or carrying-amount line, where the note is wholly non-current and prints no current/non-current split. It is disclosed under that bare heading in either language, including 金融資產 / 金融资产 and 非流動金融資產 / 非流动金融资产, sometimes preceded only by a numbering prefix. It is not a note whose heading goes on to name a measurement category or legacy classification, such as fair value through profit or loss, fair value through other comprehensive income, available-for-sale, held-to-maturity, debt investments or other financial assets, because each of those headings is read on its own and any one note is read only once. It is also not a total financial assets subtotal in a financial-instruments-by-category or financial-risk table, which sweeps in trade and other receivables, cash and derivatives that this line must exclude.",
+   "prompt": "Take the total only from a note headed plainly financial assets, never from a category-named financial-asset note or from a financial-instruments-by-category subtotal that also contains receivables and cash."
   },
   {
    "key": "sub__ltp_included_derivatives",
@@ -44447,7 +44571,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The carrying amount of derivative instruments that is itself contained in the figure taken for this line: a component row printed inside the same non-current financial-asset note, captioned as derivatives, derivative financial instruments, embedded derivatives, 衍生金融工具 or 嵌入式衍生工具. It is read only from within that note, because being one of the note's own rows is what proves it sits inside the amount being reduced, and it is deducted from that amount, never added to it. It is not the note's own total and not its non-current portion, which are the amounts this component is subtracted from. It is also not a derivative balance presented in a standalone derivative financial instruments note or as its own line on the face of the statement of financial position, which is outside this line already and must not be deducted a second time, and not the fair-value gain or loss on derivatives reported in profit or loss.",
+   "prompt": "Deduct only a derivative component row that appears inside the same financial-asset note, never that note's total and never a derivative balance disclosed anywhere outside it."
   },
   {
    "key": "sub__ltp_included_other_receivables",
@@ -44823,7 +44949,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The carrying amount of other receivables that is itself contained in the figure taken for this line: a component row printed inside the same non-current financial-asset note, captioned as other receivables, other accounts receivable, other receivables and prepayments or deposits, 其他應收款項 or 其他应收款项. It is read only from within that note, since being one of the note's own rows is the proof it sits inside the amount being reduced, and it is deducted from that amount, never added to it. It is not the note's own total and not its non-current portion, which are the amounts this component is subtracted from. Nor is it the other-receivables balance reported as its own line on the face of the statement of financial position or analysed in a prepayments, deposits and other receivables note, which is outside this line already.",
+   "prompt": "Deduct only an other-receivables row that appears inside the financial-asset note itself, never that note's total and never the separate other-receivables line reported elsewhere."
   },
   {
    "key": "sub__ltp_included_equity_method_investments",
@@ -45232,7 +45360,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The carrying amount of investments in associates, joint ventures, jointly controlled entities or other related parties that is itself contained in the figure taken for this line: a component row printed inside the same non-current financial-asset note, captioned as investments or interests in associates or joint ventures, 於聯營公司的投資, 於合營企業的投資, 於關聯方的投資 or 長期股權投資. It is read only from within that note, because being one of the note's own rows is the proof it sits inside the amount being reduced, and it is deducted from that amount, never added to it. It is not the note's own total and not its non-current portion, which are the amounts this component is subtracted from. Nor is it the interests in associates and joint ventures reported as their own non-current lines and analysed in their own notes, which are outside this line already and must not be deducted a second time, and not the share of profit or loss of, or dividends from, those investees.",
+   "prompt": "Deduct only an associate, joint-venture or related-party investment row that appears inside the financial-asset note itself, never that note's total and never the separate interests-in-associates line reported and noted elsewhere."
   },
   {
    "key": "sub__cp_other_receivables_net",
@@ -45661,7 +45791,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The amount at which the non-trade receivables class is carried after its loss allowance has already been deducted, stated by the note as a net figure — a row captioned net carrying amount, net book value, net amount, 账面价值 or 净额, or the class name qualified as net of loss allowance or net of impairment. It is disclosed inside the note dealing with other receivables, non-trade or sundry receivables, or the combined deposits, prepayments and other receivables disclosure. It is not the gross closing balance of the same class before any allowance, not the loss allowance or bad-debt provision row, and not the related-party amount reported inside that same note; those are three separate figures standing beside it. It is also not the prepayments or deposits that may share the note's title but are not other receivables.",
+   "prompt": "Take only the row this note itself presents as already net of the loss allowance, never the gross closing balance, the allowance row, or a related-party sub-line inside the same note."
   },
   {
    "key": "sub__cp_other_receivables_gross",
@@ -46093,7 +46225,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The book balance of the non-trade receivables class at the reporting date before any loss allowance is taken off — the gross or closing carrying amount of the class, captioned as gross carrying amount, closing balance, total other receivables, 账面余额 or 期末余额 of that class. It is disclosed in the note dealing with other receivables, non-trade receivables, or the combined deposits, prepayments and other receivables disclosure. It is not the net carrying amount of the same class, which is this balance less the allowance, and it is not the allowance itself; nor is it the opening balance, the original cost 账面原值, or the unlabelled total of an ageing, largest-debtor or movement sub-table that repeats inside the note. Only a balance the note labels as the closing gross amount of the other-receivables class counts.",
+   "prompt": "Take the class's own gross closing balance before the allowance, never the net figure printed beside it and never a bare total line belonging to an ageing, debtor-concentration or movement sub-table."
   },
   {
    "key": "sub__cp_other_receivables_loss_allowance",
@@ -46501,7 +46635,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The loss allowance, bad-debt provision, credit-loss or impairment provision standing against the non-trade receivables class at the reporting date — 坏账准备, 信用损失准备, 损失准备 or their English equivalents — which is a deduction from those receivables and not a receivable itself. It appears in the note dealing with other receivables, non-trade receivables, or the combined deposits, prepayments and other receivables disclosure, typically as a less-prefixed line sitting between the gross balance and the net one. It is not the gross balance it is deducted from, and it is not the net amount left after deducting it. It is also not a movement in the allowance — the amount provided, written off, recovered or reversed during the period — nor an allowance roll-forward's opening or accumulated column; only the provision standing at the reporting date counts.",
+   "prompt": "Take the allowance standing against these receivables at the reporting date, never the gross or net balance it sits between, and never the period's charge, write-off, recovery or reversal."
   },
   {
    "key": "sub__cp_current_ltr_net",
@@ -46899,7 +47035,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The portion of long-term receivables falling due within one year of the reporting date, at its carrying amount after any allowance against it — a receivable reclassified out of non-current assets into the current pool solely because of its maturity. It is disclosed in the note dealing with long-term receivables, or with non-current assets maturing within one year, which is where a filing sets the maturing slice out from the rest of the class. It is not the whole long-term receivables balance, and not the part still falling due after more than one year; it is also not the combined total of all non-current assets maturing within one year, which can additionally contain maturing loans and advances and other maturing classes that are extracted separately. Related-party amounts disclosed in the same note are a separate figure and not part of this one.",
+   "prompt": "Take only the slice of long-term receivables maturing within one year, never the full long-term balance and never the combined maturing-non-current-assets total that surrounds it."
   },
   {
    "key": "sub__cp_current_loans_advances_net",
@@ -47363,7 +47501,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The portion of loans and advances extended to borrowers that falls due within one year of the reporting date, at its carrying amount after the allowance against it. It is disclosed in the note dealing with loans and advances, or with the current portion of loans and advances, where the maturing slice is set out separately from the rest of the class. It is not the whole loans and advances balance that the note discloses, and not the part maturing after more than one year; substituting the class total for its current portion would pull non-current lending into a current line. Related-party borrowers identified inside the same note are a separate figure.",
+   "prompt": "Take the within-one-year portion of loans and advances, never the note's whole loans-and-advances balance and never its non-current part."
   },
   {
    "key": "sub__cp_funds_placed_net",
@@ -47827,7 +47967,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "Money placed out with banks or other financial institutions under interbank placement arrangements, at its carrying amount after any allowance, to the extent that balance is reported within current assets — an asset representing funds lent to another institution. It is disclosed in the note dealing with placements with banks and other financial institutions, or with funds or deposits placed with such institutions. It is not cash at bank or a deposit held as part of cash and cash equivalents, and it is not the mirror-image liability arising where the entity has taken funds in from other institutions. Related-party placements shown inside the same note are a separate figure.",
+   "prompt": "Take the placement asset disclosed by this note, never cash and bank balances, never funds the entity has taken in from other institutions, and never a related-party sub-line."
   },
   {
    "key": "sub__cp_current_account_net",
@@ -48224,7 +48366,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "Non-trade running-account balances receivable from other units — internal, inter-unit or inter-company current accounts, 往来款 and its variants — at their carrying amount after any allowance. They are disclosed in the note dealing with current accounts or internal and unit current accounts, or in the other current assets note when that is the only place the current account is shown. It is not the total of that other current assets note, which can also carry other receivables and maturing non-current items extracted separately, so taking the omnibus total in place of the current-account row would double count them. It is also not a current-account balance the entity owes rather than is owed, and not the related-party current account disclosed inside the same note.",
+   "prompt": "Take only the current-account receivable row itself, never the other-current-assets note's omnibus total and never a current-account balance the entity owes."
   },
   {
    "key": "sub__cp_other_receivables_rp",
@@ -48592,7 +48736,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The part of the non-trade receivables class that is owed by related parties — parents, subsidiaries, associates, joint ventures, fellow subsidiaries, controlling shareholders and other counterparties the filing itself identifies as related — read from the same note that discloses the class. It exists so that a related-party amount already sitting inside the other-receivables balance can be carved back out of a third-party line. It is not the class total that contains it, and it is not the entity's own balances payable to related parties, advances received or contract liabilities on the other side of the balance sheet. It is also not a related-party transaction volume, turnover or guarantee amount with no receivable outstanding at the reporting date, and not a share of the class's pooled allowance.",
+   "prompt": "Take only the receivable balance this note attributes to related parties inside the other-receivables class, never the class total, never a due-to-related-party amount, and never a transaction or guarantee volume."
   },
   {
    "key": "sub__cp_current_ltr_rp",
@@ -48952,7 +49098,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The part of the long-term receivables maturing within one year that is owed by related parties, as that note identifies them. It is read from the note dealing with long-term receivables or with non-current assets maturing within one year — the same note that discloses the maturing slice itself — so the related-party amount can be carved out of a line that would otherwise be third-party only. It is not related-party long-term receivables still falling due after more than one year, which never entered the current pool and so must not be deducted from it. It is also not the whole maturing slice, and not an amount payable to a related party.",
+   "prompt": "Deduct only the related-party amount inside the within-one-year slice of long-term receivables, never a related-party long-term balance maturing later and never the whole slice."
   },
   {
    "key": "sub__cp_current_loans_advances_rp",
@@ -49310,7 +49458,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The part of the loans and advances maturing within one year that is owed by related-party borrowers, as the note identifies them. It is read from the note dealing with loans and advances or with their current portion — the same note that supplies the current-portion figure — which is what shows the amount is already inside the balance being reduced. It is not related-party lending falling due after more than one year, which lies outside the current pool and must not be deducted from it, and it is not the whole current portion. Entrusted or on-lent arrangements to a related party do belong here when that balance sits within the current portion.",
+   "prompt": "Deduct only the related-party share of loans and advances maturing within one year, never a related-party loan due after one year and never the whole current portion."
   },
   {
    "key": "sub__cp_funds_placed_rp",
@@ -49668,7 +49818,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The part of the interbank placement balance that is placed with a related institution — a parent, a fellow subsidiary, an associate or another counterparty the filing identifies as related. It is read from the same placements-with-banks or funds-placed note that supplies the placement figure, since only an amount shown inside that balance can be carved out of it. It is not the whole placement balance, and it is not funds taken in from a related institution, which is a liability rather than a receivable. It is also not a related-party placement mentioned only as a transaction elsewhere without being shown inside this class at the reporting date.",
+   "prompt": "Deduct only the related-party placement shown inside this note, never the note's whole placement balance and never funds the entity has taken in from a related institution."
   },
   {
    "key": "sub__cp_current_account_rp",
@@ -50028,7 +50180,9 @@
     ]
    },
    "statement": null,
-   "section_scope": []
+   "section_scope": [],
+   "definition": "The part of the current-account receivable balance that is due from related parties — intra-group and other related-unit running accounts, 关联方往来款 and its variants — as the filing identifies them. It is read from the same current-account or other current assets note that supplies the current-account figure, since only an amount shown inside that balance can be carved out of it. It is not the whole current-account balance, and it is not a current account the entity owes to a related party, which sits on the liability side. It is also not the related-party transaction turnover for the period; only the balance outstanding at the reporting date counts.",
+   "prompt": "Deduct only the related-party balance shown inside this current-account receivable, never the whole current-account figure and never an amount the entity owes a related party."
   }
  ]
 }
