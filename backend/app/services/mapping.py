@@ -65,6 +65,7 @@ from app.config import Settings, get_settings
 from app.core.models.enums import MappingMethod
 from app.schemas.ontology import OntologyDefinition, OntologyMapping
 from app.services.han import has_han, to_simplified
+from app.services import note_sourced
 from app.services.note_context import subject_tokens as _context_tokens
 
 
@@ -81,9 +82,40 @@ class LlmMappingDecision(BaseModel):
     reason: str = Field(default="", description="brief justification grounded in meaning/criteria")
 
 
+class SourceRef(BaseModel):
+    """WHERE THE MODEL TOOK A FIGURE FROM — a note and a row caption, as printed.
+
+    A CITATION, NOT A PROVENANCE, and the difference is the whole point. The model is never given
+    a page index or a bounding box, so a location it STATED would look authoritative and point
+    wherever it guessed. What it gives instead is text this codebase can look up — the note number
+    and the caption — and `resolve_sources` matches that back against the extracted rows to
+    recover the real page and figure. A citation that resolves to nothing is reported as
+    unresolved rather than believed.
+
+    SEVERAL ARE EXPECTED. A figure is routinely stated across more than one printed row, and each
+    row named here is resolved and reported separately so a reviewer sees all of them.
+    """
+
+    note: str = Field(default="", description="the note number as printed, e.g. \"7\" or \"七、9\"")
+    caption: str = Field(default="", description="the row caption, quoted as the document prints it")
+    quote: str = Field(default="", description="the sentence it came from, when the figure is "
+                                               "stated in prose rather than in a table row")
+
+
 class LlmBatchItem(BaseModel):
     item_id: str
     canonical_key: str = Field(description="chosen key, or \"\" if none fits")
+    # WHERE IT CAME FROM, required whenever the answer is not one of the offered candidates.
+    #
+    # The candidates are suggestions and the model may answer past them — deliberately, because
+    # that is what lets a caption reach the concept its section did not predict. What makes it safe
+    # is traceability: an off-candidate answer is worth exactly as much as the printed row behind
+    # it, so the model names the row and the framework resolves the row itself.
+    sources: list[SourceRef] = Field(
+        default_factory=list,
+        description="required when canonical_key was NOT among the candidates: the note and row "
+                    "caption(s) the figure is printed on. One entry per row; several are expected "
+                    "when a figure is stated across more than one row.")
     confidence: float = Field(ge=0, le=1)
     allocation_status: str = ""
     reason: str = Field(default="", description="brief justification grounded in meaning/criteria")
@@ -171,9 +203,23 @@ _LLM_REPLY_CONTRACT = (
     "candidate concepts, each with: canonical_key, a definition, inclusion criteria (include), "
     "exclusion criteria (exclude), concepts it is easily confused with, and its value_scope.\n"
     "HOW TO ANSWER — this part is fixed and must be followed exactly:\n"
-    "- Choose at most ONE canonical_key per item, from the candidates you were given.\n"
+    "- Choose at most ONE canonical_key per item.\n"
+    "- THE CANDIDATES AND THEIR ALIASES ARE SUGGESTIONS, NOT A MENU. They are the concepts "
+    "this row's statement and section make likely, and the aliases are examples of how each "
+    "is usually printed. You are NOT required to use either. If the right concept for a "
+    "caption is one that was not offered, answer with it.\n"
+    "- WHENEVER YOUR ANSWER IS NOT ONE OF THE OFFERED CANDIDATES, you MUST say where in the "
+    "document you took it from, in `sources`: the note number and the row caption(s), as "
+    "printed. One entry PER ROW — several are expected where a figure is stated across more "
+    "than one row, and each row you name is traced separately. An off-candidate answer with "
+    "no `sources` is discarded, because a mapping nobody can trace to a printed row is not "
+    "reviewable.\n"
+    "- Quote a caption as the document prints it. It is matched back against the extracted "
+    "rows to recover the page and the figure, so a paraphrase cannot be resolved, and a page "
+    "or a figure you state from memory would look authoritative and point at the wrong "
+    "place.\n"
     "- Cite the item by the `item_id` you were given, and the concept by its exact "
-    "`canonical_key`. Never invent either, and never return an item_id that was not given to you.\n"
+    "`canonical_key`. Never return an item_id that was not given to you.\n"
     "- Never output values, figures or amounts — you are deciding which line a caption is, not "
     "what it is worth.\n"
     "- If no candidate genuinely fits, return an empty canonical_key. That is a valid answer.\n"
@@ -851,6 +897,20 @@ class MappingResult:
     role: str = "whole"
     # +1 added, -1 subtracted. Meaningless unless `role` is "component".
     sign: int = 1
+    # WHAT THE MODEL CITED, AND WHAT THAT CITATION RESOLVED TO.
+    #
+    # The candidates offered are suggestions, so the model may answer past them — which is what
+    # lets a caption reach the concept its section never predicted. Such an answer is worth
+    # precisely as much as the printed row behind it, so `sources` carries the rows
+    # `note_sourced.resolve_sources` matched (each with the page and figure taken OFF THE ROW), and
+    # `unresolved_sources` carries the citations that matched nothing — a figure stated in prose
+    # belongs to no row, and saying so is more useful than dropping it.
+    sources: list[dict] = field(default_factory=list)
+    unresolved_sources: list[dict] = field(default_factory=list)
+    # True when the answer was NOT one of the concepts offered for this row. Not an error: it is
+    # the model exercising the latitude the contract gives it. Carried so review can see that the
+    # decision rests on a citation rather than on the offered shortlist.
+    off_candidate: bool = False
     # Set when the row was left unmapped because its caption names a concept the framework COMPUTES
     # (`OntologyMatcher._computed_claim`). Carried, not merely counted, because the caller has to act
     # on it: such a row is a subtotal, and an unclaimed face row with a value is otherwise swept into
@@ -2826,7 +2886,18 @@ class OntologyMatcher:
     # the batch existed for is lost, and the run still reports itself as LLM-mapped. `"role":
     # "whole","sign":1` is ~26 characters, so the slope has to move with the schema — which is
     # exactly why that test measures rather than asserting a number.
-    _BATCH_RESPONSE_TOKENS_PER_ITEM = 95
+    # 170, RAISED WITH THE SCHEMA AGAIN. `sources` is the third field to move this number, and it
+    # moves it furthest because it is a LIST: an off-candidate answer cites the row or rows the
+    # figure is printed on, and each entry carries a note, a caption as printed and sometimes the
+    # sentence it came from. Measured on the real envelope — 84 tokens a decision with no citation,
+    # 112 with one, 139 with two, 167 with three. A batch is 25 decisions, so a slope that assumed
+    # the uncited case would truncate any reply where the model exercised the latitude the contract
+    # now gives it, and a truncated reply does not parse: the whole chunk drops to the weaker
+    # per-line path on a run that still calls itself LLM-mapped.
+    #
+    # Sized for THREE citations a decision rather than the average, because the cost of over-
+    # reserving is a slightly smaller batch and the cost of under-reserving is a lost chunk.
+    _BATCH_RESPONSE_TOKENS_PER_ITEM = 170
     _BATCH_RESPONSE_RESERVE = 256          # the envelope itself, plus a margin against truncation
     # A transport chunk, not a semantic boundary: section results are carried into the second-level
     # statement pass as preliminary mappings. This only bounds one structured response's size.
@@ -2877,7 +2948,8 @@ class OntologyMatcher:
                     chunk_size: int | None = None,
                     context_pool=None,
                     cited_notes: dict[str, set[str]] | None = None,
-                    identified_notes: list[dict] | None = None) -> dict[str, MappingResult]:
+                    identified_notes: list[dict] | None = None,
+                    notes=None) -> dict[str, MappingResult]:
         """Batch mapping: decide many captions in one grounded LLM call so cross-line judgements
         (containment, residual, 'Others') have context. The model references the provided item_ids
         and candidate keys — it never invents a value; values/provenance stay on the deterministic
@@ -2920,7 +2992,7 @@ class OntologyMatcher:
             out.update(self._match_chunk(
                 chunk, statement, sec, preliminary or {}, require_complete=require_complete,
                 context_pool=context_pool, cited_notes=cited_notes,
-                identified_notes=identified_notes))
+                identified_notes=identified_notes, notes=notes))
         return out
 
     def _match_chunk(self, items: list[tuple[str, str]], statement: str | None,
@@ -2930,7 +3002,8 @@ class OntologyMatcher:
                      retry_depth: int = 0,
                      context_pool=None,
                      cited_notes: dict[str, set[str]] | None = None,
-                     identified_notes: list[dict] | None = None) -> dict[str, MappingResult]:
+                     identified_notes: list[dict] | None = None,
+                     notes=None) -> dict[str, MappingResult]:
         """One provider call over at most ``BATCH_MAX_ITEMS`` captions. See :meth:`match_batch`."""
         # `binding.order` step 3, on the batch path: RESTRICT the offered concepts before the call.
         # Only concepts from THIS statement, and only from the sections this chunk was actually
@@ -3016,6 +3089,13 @@ class OntologyMatcher:
         if not candidates:
             return {iid: self.match(label, statement=statement, section=sec.get(iid))
                     for iid, label in items}
+        # WHAT WAS ACTUALLY OFFERED for this chunk. The gate below compares the model's answer
+        # against this rather than against the whole configuration: answering past the offered set
+        # is allowed and is the case that needs a citation.
+        offered_keys = {c["canonical_key"] for c in candidates}
+        # The rows a citation is resolved against — real extracted rows, so the page and figure come
+        # off the document and never from the model.
+        notes_for_sources = notes or ()
         caption_by_id = dict(items)
         # The section given to the model is the NORMALISED token, not the raw banner: the gate
         # downstream compares `section_of_key` against `section_of_banner`, so naming the raw text
@@ -3189,10 +3269,20 @@ class OntologyMatcher:
                 continue
             answered_ids.add(d.item_id)
             key = (d.canonical_key or "").strip()
-            # Unknown, or a concept the payload deliberately withheld — a locked residual or a
-            # computed one. See `_llm` for why naming it is not a licence to file the row there;
-            # the per-line fallback at the bottom decides these rows instead.
-            if not key or key not in self._by_key or key in self._unmatchable:
+            # NO ANSWER, or a key that names no concept at all. The second is referential
+            # integrity rather than an opinion about the answer: a key the configuration does not
+            # carry cannot be stored, exported or reviewed.
+            #
+            # `_unmatchable` IS NO LONGER REFUSED HERE. It used to be — a locked residual or a
+            # `derive` concept was dropped the moment the model named it, which is why the two
+            # depreciation concepts could never be answered however clearly the filing stated them.
+            # Those are now handled by the off-candidate block below, which requires a citation and
+            # sends every one of them to review.
+            if not key:
+                continue
+            if key not in self._by_key:
+                with self._usage_lock:
+                    self.usage["batch_unknown_key"] = self.usage.get("batch_unknown_key", 0) + 1
                 continue
             # A concept from a different section than the row's banner is refused here for the
             # same reason it is refused in `match`. The model is now TOLD the section, so this is
@@ -3201,6 +3291,73 @@ class OntologyMatcher:
             # caption naming a mutually exclusive class.
             caption = caption_by_id[d.item_id]
             banner = sec.get(d.item_id)
+            # AN ANSWER PAST THE OFFERED CANDIDATES IS ALLOWED, and traceability is what pays for
+            # it. The candidates are the concepts this row's statement and section made likely;
+            # the model is told they are suggestions, so a caption whose real concept was never
+            # offered can still reach it. Two things are still required, and neither is a
+            # constraint on the model's judgement:
+            #
+            #   * THE KEY MUST EXIST in the configuration. A key that names no concept cannot be
+            #     stored, cannot be exported and cannot be reviewed — that is referential
+            #     integrity, not an opinion about the answer.
+            #   * IT MUST BE CITED. An off-candidate answer with no `sources` is discarded, because
+            #     a mapping nobody can trace to a printed row is not reviewable — and the statement
+            #     and section gates that would otherwise have caught a wrong one are deliberately
+            #     not applied to it.
+            #
+            # A cited off-candidate answer therefore SKIPS the statement/section gate and is flagged
+            # for review instead, with the rows its citation resolved to.
+            off_candidate = key not in offered_keys
+            # ONLY A CITED OFF-CANDIDATE ANSWER TAKES THE NEW PATH. An UNCITED one falls through to
+            # the gates below exactly as it always did — and that is not merely conservative, it
+            # preserves a correction this branch had quietly disabled: `_family_route` takes an
+            # answer that is right about WHAT KIND of thing the row is and wrong only about which
+            # section variant, and corrects it to the sibling the banner names. That answer is
+            # off-candidate by definition (its section was not the row's), so refusing every
+            # off-candidate answer here threw away every reroute — measured by
+            # `test_a_banner_naming_two_leaves_of_a_family_refuses_rather_than_guessing`, which went
+            # from a corrected mapping to none.
+            if off_candidate and not (d.sources or ()):
+                with self._usage_lock:
+                    self.usage["batch_uncited_off_candidate"] = self.usage.get(
+                        "batch_uncited_off_candidate", 0) + 1
+                # A WITHHELD CONCEPT NAMED WITHOUT A CITATION is refused exactly as it always was.
+                # Anything else falls through to the gates below, which is what keeps
+                # `_family_route` working: an answer right about WHAT the row is and wrong only
+                # about its section variant is off-candidate by definition, and correcting it is
+                # better than losing it.
+                if key in self._unmatchable:
+                    with self._usage_lock:
+                        self.usage["batch_refused"] += 1
+                    continue
+            if off_candidate and (d.sources or ()):
+                # A RESIDUAL BUCKET IS REFUSED EVEN WITH A CITATION, and it is the one exception to
+                # the latitude above. `_locked` holds the section residuals, whose whole purpose is
+                # to carry the UNEXPLAINED remainder — so a figure filed there does not merely risk
+                # a wrong mapping, it makes the reconciliation that would have reported the gap tie
+                # instead. That is not the model choosing where to pick a figure from; it is
+                # writing into the mechanism that audits the choice.
+                if key in self._locked:
+                    with self._usage_lock:
+                        self.usage["batch_refused"] += 1
+                        self.usage["batch_residual_named"] = self.usage.get(
+                            "batch_residual_named", 0) + 1
+                    continue
+                resolved, unresolved = note_sourced.resolve_sources(d.sources, notes_for_sources)
+                with self._usage_lock:
+                    self.usage["batch_off_candidate"] = self.usage.get("batch_off_candidate", 0) + 1
+                conf = max(0.0, min(1.0, d.confidence))
+                out[d.item_id] = MappingResult(
+                    key, MappingMethod.LLM, conf,
+                    candidates=[Candidate(key, MappingMethod.LLM, conf, reason=d.reason)],
+                    # ALWAYS reviewed: the gate that would have checked it was skipped, so a human
+                    # sees every one of these rather than the engine deciding it is fine.
+                    needs_review=True, scores={"llm": conf},
+                    allocation_status=(d.allocation_status or "").strip() or None,
+                    agreement=["llm"], reason=d.reason,
+                    role=d.role, sign=d.sign,
+                    sources=resolved, unresolved_sources=unresolved, off_candidate=True)
+                continue
             # The same refusal `match` makes, for the same reason: a caption that names a concept the
             # framework COMPUTES is not the model's to re-home, and the model was never offered that
             # concept to name. The model reports no score on the deterministic scale, so what the
@@ -3267,7 +3424,7 @@ class OntologyMatcher:
                 missing, statement, sec, preliminary,
                 require_complete=True, retry_depth=retry_depth + 1,
                 context_pool=context_pool, cited_notes=cited_notes,
-                identified_notes=identified_notes))
+                identified_notes=identified_notes, notes=notes))
 
         # Section-level proposals may be incomplete; the required statement pass above corrects
         # them. No deterministic result is substituted for an omitted LLM decision.

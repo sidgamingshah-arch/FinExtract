@@ -541,9 +541,18 @@ def test_the_response_budget_is_measured_from_the_response_envelope(v2):
     keys. A truncated batch response is not a partial answer: the JSON fails to parse, the chunk
     falls back per line, and the run still reports itself as LLM-mapped."""
     longest = max((c.canonical_key for c in v2.mappings), key=len)
+    # THE ENVELOPE CARRIES CITATIONS, because a decision now can. The candidates are suggestions
+    # and an answer past them MUST name the row or rows the figure is printed on
+    # (`LlmBatchItem.sources`) — so an envelope without them measures a shape the contract no
+    # longer describes, and would leave the slope covering the cheapest possible reply. Two
+    # citations, which is what a figure stated across two printed rows costs; measured, the same
+    # decision is ~84 tokens uncited, ~112 with one and ~139 with two.
     envelope = LlmBatchDecision(mappings=[
         LlmBatchItem(item_id=str(uuid4()), canonical_key=longest, confidence=0.95,
-                     allocation_status="parent_gross_evidence_only")
+                     allocation_status="parent_gross_evidence_only",
+                     sources=[{"note": "7",
+                               "caption": "Depreciation of property, plant and equipment^"},
+                              {"note": "7", "caption": "Depreciation of right-of-use assets^"}])
         for _ in range(OntologyMatcher.BATCH_MAX_ITEMS)]).model_dump_json()
 
     # ~3 characters per token for JSON of UUIDs and long snake_case identifiers.

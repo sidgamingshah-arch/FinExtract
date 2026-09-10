@@ -845,7 +845,7 @@ class MapOntologyStage:
                     sections={str(li.id): li.section_hint for li in subgroup},
                     chunk_size=chunk,
                     context_pool=context_pool, cited_notes=cited_notes,
-                    identified_notes=identified)
+                    identified_notes=identified, notes=doc.notes)
 
             max_workers = max(1, ctx.settings.extraction.llm_max_concurrency)
             # REPORT BEFORE THE FIRST CALL, so a reader learns how many there will be rather than

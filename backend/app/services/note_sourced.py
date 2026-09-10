@@ -247,3 +247,79 @@ def bad_patterns(item) -> list[str]:
             if rx is None:
                 out.append(f"{item.key}.note_source.{field}: /{raw}/")
     return out
+
+
+# ── resolving what the MODEL cited ────────────────────────────────────────────────────────────
+
+def resolve_sources(sources, notes) -> tuple[list[dict], list[dict]]:
+    """Match each citation the model gave against the extracted rows. Returns (resolved, unresolved).
+
+    WHY THIS EXISTS RATHER THAN TRUSTING THE CITATION. The candidates offered to the model are
+    suggestions, and it may answer past them — which is what lets a caption reach the concept its
+    section did not predict. The price is that such an answer is only worth the printed row behind
+    it, so the model names the row and THIS resolves it: the page, the figure and the note all come
+    off the extracted row, never from the model, which was given no page index and no bbox.
+
+    MATCHING IS DELIBERATELY FORGIVING ON PUNCTUATION AND STRICT ON WORDS. A filing prints
+    "Depreciation of property, plant and equipment^" and a model quoting it may drop the footnote
+    marker or the comma; neither changes which row is meant. A paraphrase does, so the words
+    themselves must be there — containment either way, after the punctuation is stripped.
+
+    A CITATION THAT RESOLVES TO NOTHING IS RETURNED AS UNRESOLVED, not dropped and not believed.
+    The caller keeps the mapping and flags it, because "the model cited a row we cannot find" and
+    "the model cited nothing" are different failures and only one of them is the model's.
+    """
+    import re as _re
+
+    def norm(text: str) -> str:
+        return _re.sub(r"[^0-9a-z一-鿿]+", "", (text or "").lower())
+
+    rows: list[tuple[str, str, object, object]] = []
+    for table in notes or ():
+        number = str(getattr(table, "note_number", "") or "")
+        for row in getattr(table, "items", None) or ():
+            caption = getattr(row, "raw_label", "") or ""
+            if caption:
+                rows.append((number, caption, row, table))
+
+    resolved: list[dict] = []
+    unresolved: list[dict] = []
+    for ref in sources or ():
+        want_note = str(getattr(ref, "note", "") or "").strip()
+        want_cap = norm(getattr(ref, "caption", ""))
+        quote = (getattr(ref, "quote", "") or "").strip()
+        hit = None
+        if want_cap:
+            for number, caption, row, table in rows:
+                if want_note and want_note not in number and number not in want_note:
+                    continue
+                got = norm(caption)
+                if got and (want_cap in got or got in want_cap):
+                    hit = (number, caption, row, table)
+                    break
+        if hit is None:
+            # THE PROSE CASE. A figure stated in a footnote belongs to no row, so there is nothing
+            # to match a caption against — the note is still identified, and the quote is carried
+            # so a reviewer can find the sentence. Reported as unresolved because no page or figure
+            # was recovered, which is exactly what a reviewer needs to know.
+            unresolved.append({"note": want_note,
+                               "caption": getattr(ref, "caption", ""),
+                               "quote": quote,
+                               "why": ("no extracted row in that note matches the caption — it may "
+                                       "be stated in prose, which carries no row")})
+            continue
+        number, caption, row, table = hit
+        figures = {}
+        prov = None
+        for ev in (getattr(row, "values", None) or {}).values():
+            if getattr(ev, "column_index", None) is not None:
+                continue
+            if getattr(ev, "value", None) is None:
+                continue
+            figures[str(getattr(ev, "period_label", "") or "?")] = str(ev.value)
+            if prov is None:
+                prov = derivation._json_safe_provenance(getattr(ev, "provenance", None))
+        resolved.append({"note": number, "title": getattr(table, "title", "") or "",
+                         "caption": caption, "figures": figures, "provenance": prov,
+                         "quote": quote})
+    return resolved, unresolved
