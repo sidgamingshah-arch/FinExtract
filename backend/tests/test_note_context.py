@@ -228,3 +228,91 @@ def test_an_empty_pool_selects_nothing_instead_of_raising():
     """A filing with no notes and no rows is a real input (a single-page extract), and it must
     produce a request with no context rather than an error."""
     assert ContextPool([]).select(probe_text="anything") == []
+
+
+# ── the notes the CONFIGURATION identifies, passed in full ─────────────────────────────────────
+
+def test_a_note_a_declaration_names_is_passed_whole_with_its_prose():
+    """THE CASE THIS EXISTS FOR, measured on laisun.pdf.
+
+    The operating-expense share of the depreciation charge is disclosed nowhere in a table. It is
+    in a footnote — "^ Depreciation charges of approximately HK$529,841,000 (2024:
+    HK$665,553,000) are included in 'other operating expenses'" — and 529841 appears in NO row
+    value anywhere in the document. So a row-caption regex cannot reach it, and neither could the
+    row-based per-item context: that note arrived in the pool as one run-on paragraph and scored
+    0.052 against a 0.22 threshold.
+
+    A `note_source` declaration is an author STATING that a note is where a line's figure lives.
+    That outranks any similarity score, so the note is passed whole — every row with its figures,
+    and the prose verbatim — and not scored at all.
+    """
+    from types import SimpleNamespace
+
+    from app.services.note_context import identified_notes
+
+    declaring = SimpleNamespace(items=[SimpleNamespace(
+        key="sub__pbt_oper_exp_depreciation",
+        note_source=SimpleNamespace(
+            note_title_any=[r"loss\s+from\s+operating\s+activities|profit.{0,20}before\s+tax"],
+            row_caption_any=[], row_caption_none=[]))])
+
+    note = SimpleNamespace(
+        note_number="7", title="LOSS FROM OPERATING ACTIVITIES",
+        items=[SimpleNamespace(raw_label="Depreciation of property, plant and equipment^",
+                               values={})],
+        source_text="^ Depreciation charges of approximately HK$529,841,000 (2024: "
+                    "HK$665,553,000) are included in \u201cother operating expenses\u201d.")
+    other = SimpleNamespace(note_number="13", title="Inventories", items=[], source_text="…")
+
+    got = identified_notes(declaring, [note, other])
+
+    assert [n["note"] for n in got] == ["7"], "only the note a declaration names is identified"
+    assert "529,841,000" in got[0]["prose"], "the prose was dropped — the figure is only there"
+    # And it says WHICH declaration wanted it, so the model can see why the note is present.
+    assert got[0]["identified_for"] == ["sub__pbt_oper_exp_depreciation"]
+
+
+def test_a_note_no_declaration_names_is_not_passed_this_way():
+    """The block is the configuration's own statement of relevance. A note nothing names belongs to
+    the scored per-row context, not here — otherwise every note in the filing arrives in full."""
+    from types import SimpleNamespace
+
+    from app.services.note_context import identified_notes
+
+    declaring = SimpleNamespace(items=[SimpleNamespace(
+        key="sub__x", note_source=SimpleNamespace(note_title_any=[r"^inventories$"],
+                                                  row_caption_any=[], row_caption_none=[]))])
+    notes = [SimpleNamespace(note_number="9", title="Trade receivables", items=[],
+                             source_text="prose")]
+    assert identified_notes(declaring, notes) == []
+
+
+def test_no_declarations_means_no_block_rather_than_every_note():
+    from types import SimpleNamespace
+
+    from app.services.note_context import identified_notes
+
+    empty = SimpleNamespace(items=[SimpleNamespace(key="k", note_source=None)])
+    notes = [SimpleNamespace(note_number="1", title="Anything", items=[], source_text="prose")]
+    assert identified_notes(empty, notes) == []
+    assert identified_notes(None, notes) == []
+
+
+def test_a_matrix_column_does_not_reach_the_identified_block_either():
+    """The same rule as the per-row context: a named component column is not a period, and a
+    segment figure presented as the year's amount is the defect that rule exists for."""
+    from decimal import Decimal
+    from types import SimpleNamespace
+
+    from app.services.note_context import identified_notes
+
+    row = SimpleNamespace(raw_label="Revenue", values={
+        "a": SimpleNamespace(period_label="current", value=Decimal("100"), column_index=None),
+        "b": SimpleNamespace(period_label="col3", value=Decimal("40"), column_index=3),
+    })
+    declaring = SimpleNamespace(items=[SimpleNamespace(
+        key="sub__r", note_source=SimpleNamespace(note_title_any=[r"revenue"],
+                                                  row_caption_any=[], row_caption_none=[]))])
+    note = SimpleNamespace(note_number="5", title="Revenue", items=[row], source_text="")
+    got = identified_notes(declaring, [note])
+    assert got[0]["rows"][0]["figures"] == {"current": "100"}

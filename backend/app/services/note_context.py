@@ -281,3 +281,76 @@ def build_pool(doc, stmt_by_page: dict[int, str] | None = None, *,
             amount=amount, section=getattr(li, "section_hint", "") or "",
             row_id=str(li.id)))
     return ContextPool(units)
+
+# ── the notes the CONFIGURATION identifies ────────────────────────────────────────────────────
+
+def identified_notes(line_item_set, notes) -> list[dict]:
+    """Every note a `note_source` declaration names, IN FULL — all rows and all prose.
+
+    WHY IN FULL, AND WHY NOT SCORED. These are not notes a similarity function guessed at: an
+    author has declared, in configuration, that this note is where a line's figure lives. That is a
+    stronger statement than any score, so the note is passed whole and unconditionally — every row
+    caption with its figures, and the surrounding PROSE.
+
+    THE PROSE IS THE POINT. Measured on laisun.pdf: the operating-expense share of the depreciation
+    charge is disclosed nowhere in a table. It is in a footnote — "^ Depreciation charges of
+    approximately HK$529,841,000 (2024: HK$665,553,000) are included in 'other operating
+    expenses'" — and 529841 appears in NO row value anywhere in the document. A row-caption regex
+    cannot reach it, and the row-based context that preceded this could not either: the note
+    reached the pool as a single run-on paragraph and scored 0.052 against a 0.22 threshold.
+
+    ONCE PER REQUEST, NOT ONCE PER ROW, and that is a shape decision rather than a budget one. The
+    identified notes are 24,910 characters on laisun; attaching them to each of a request's 43
+    source items would be about a megabyte and would fail the provider outright rather than merely
+    cost more. They are document-level evidence, so they belong beside the source items rather than
+    inside each one.
+    """
+    import re
+    decls = [i for i in (getattr(line_item_set, "items", None) or ())
+             if getattr(i, "note_source", None) is not None]
+    if not decls:
+        return []
+    compiled: list[tuple[str, list]] = []
+    for item in decls:
+        pats = []
+        for raw in (getattr(item.note_source, "note_title_any", None) or ()):
+            try:
+                pats.append(re.compile(raw, re.IGNORECASE))
+            except re.error:
+                continue
+        if pats:
+            compiled.append((item.key, pats))
+
+    out: list[dict] = []
+    for table in notes or ():
+        title = getattr(table, "title", "") or ""
+        number = str(getattr(table, "note_number", "") or "")
+        wanted_by = sorted({key for key, pats in compiled
+                            if any(p.search(title) or p.search(number) for p in pats)})
+        if not wanted_by:
+            continue
+        rows = []
+        for row in getattr(table, "items", None) or ():
+            caption = getattr(row, "raw_label", "") or ""
+            if not caption:
+                continue
+            figures = {}
+            for ev in (getattr(row, "values", None) or {}).values():
+                if getattr(ev, "column_index", None) is not None:
+                    continue
+                if getattr(ev, "value", None) is None:
+                    continue
+                figures[str(getattr(ev, "period_label", "") or "?")] = str(ev.value)
+            rows.append({"caption": caption, **({"figures": figures} if figures else {})})
+        entry: dict = {"note": number, "title": title,
+                       # WHICH declaration wanted it, so the model can see why this note is here
+                       # and which line it is expected to speak to.
+                       "identified_for": wanted_by}
+        if rows:
+            entry["rows"] = rows
+        prose = (getattr(table, "source_text", "") or "").strip()
+        if prose:
+            # The narrative, verbatim. This is where a footnote states a figure no row carries.
+            entry["prose"] = prose
+        out.append(entry)
+    return out

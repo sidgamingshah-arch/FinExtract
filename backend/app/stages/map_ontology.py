@@ -721,6 +721,16 @@ class MapOntologyStage:
             # property of the document, so computing it per batch would make a note's weight depend
             # on which batch happened to be asking.
             context_pool = note_context.build_pool(doc, stmt_by_page)
+            # THE NOTES THE CONFIGURATION NAMES, in full — rows and prose. Computed once for the
+            # document and passed on every request: an author's `note_source` declaration is a
+            # stronger statement of relevance than any similarity score, and the figure a footnote
+            # states is reachable no other way.
+            identified = note_context.identified_notes(
+                getattr(ctx, "line_items", None), doc.notes)
+            if identified:
+                ctx.log(f"map_line_items: {len(identified)} note(s) identified by configuration "
+                        f"passed in full "
+                        f"({sum(len(n.get('prose','')) for n in identified):,} chars of prose)")
             batched = unstated = 0
             # Each (statement, section) subgroup is an independent `match_batch` call — candidates
             # are scoped to its own statement and section banner, so nothing about one subgroup's
@@ -834,7 +844,8 @@ class MapOntologyStage:
                     # A statement spans several section banners, so the banner is per row.
                     sections={str(li.id): li.section_hint for li in subgroup},
                     chunk_size=chunk,
-                    context_pool=context_pool, cited_notes=cited_notes)
+                    context_pool=context_pool, cited_notes=cited_notes,
+                    identified_notes=identified)
 
             max_workers = max(1, ctx.settings.extraction.llm_max_concurrency)
             # REPORT BEFORE THE FIRST CALL, so a reader learns how many there will be rather than

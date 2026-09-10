@@ -2876,7 +2876,8 @@ class OntologyMatcher:
                     require_complete: bool = False,
                     chunk_size: int | None = None,
                     context_pool=None,
-                    cited_notes: dict[str, set[str]] | None = None) -> dict[str, MappingResult]:
+                    cited_notes: dict[str, set[str]] | None = None,
+                    identified_notes: list[dict] | None = None) -> dict[str, MappingResult]:
         """Batch mapping: decide many captions in one grounded LLM call so cross-line judgements
         (containment, residual, 'Others') have context. The model references the provided item_ids
         and candidate keys — it never invents a value; values/provenance stay on the deterministic
@@ -2918,7 +2919,8 @@ class OntologyMatcher:
             chunk = items[start:start + size]
             out.update(self._match_chunk(
                 chunk, statement, sec, preliminary or {}, require_complete=require_complete,
-                context_pool=context_pool, cited_notes=cited_notes))
+                context_pool=context_pool, cited_notes=cited_notes,
+                identified_notes=identified_notes))
         return out
 
     def _match_chunk(self, items: list[tuple[str, str]], statement: str | None,
@@ -2927,7 +2929,8 @@ class OntologyMatcher:
                      require_complete: bool = False,
                      retry_depth: int = 0,
                      context_pool=None,
-                     cited_notes: dict[str, set[str]] | None = None) -> dict[str, MappingResult]:
+                     cited_notes: dict[str, set[str]] | None = None,
+                     identified_notes: list[dict] | None = None) -> dict[str, MappingResult]:
         """One provider call over at most ``BATCH_MAX_ITEMS`` captions. See :meth:`match_batch`."""
         # `binding.order` step 3, on the batch path: RESTRICT the offered concepts before the call.
         # Only concepts from THIS statement, and only from the sections this chunk was actually
@@ -3066,7 +3069,10 @@ class OntologyMatcher:
                            "and a `face` row is a printed statement line, `cited: true` marks a "
                            "note the item's own text references, and an `amount` larger than the "
                            "item's own is the evidence that the item is a component rather than a "
-                           "whole figure. `candidate_policy_defaults` applies to every candidate "
+                           "whole figure. `identified_notes` are the notes this filing's "
+                           "configuration names as the source for a line, given in full with "
+                           "their prose — a figure stated only in a footnote is found there and "
+                           "nowhere else. `candidate_policy_defaults` applies to every candidate "
                            "except one that states its own value for the same field.",
             # THE EVIDENCE BEFORE THE CLOSED LIST. `source_items` and their context are read first
             # and `candidates` last, because the question is what each row means and the candidate
@@ -3087,6 +3093,21 @@ class OntologyMatcher:
         expectations = self._residual_expectations(statement, tokens or None)
         if expectations:
             payload["residual_expectations"] = expectations
+        # THE NOTES THE CONFIGURATION IDENTIFIES, in full and once per request.
+        #
+        # Not a similarity guess: an author declared in `note_source` that this note is where a
+        # line's figure lives, which outranks any score — so the note is passed whole, every row
+        # AND the surrounding prose. The prose is the reason: on laisun.pdf the operating-expense
+        # share of depreciation is disclosed only in a footnote ("HK$529,841,000 … included in
+        # 'other operating expenses'"), and 529841 appears in no row value anywhere in the
+        # document, so neither a row-caption regex nor the row-based per-item context could reach
+        # it.
+        #
+        # BESIDE `source_items`, NOT INSIDE EACH ONE. This is document-level evidence and it is
+        # large — 24,910 characters on laisun. Repeating it per source item would be roughly a
+        # megabyte on a 43-row request and would fail the provider rather than merely cost more.
+        if identified_notes:
+            payload["identified_notes"] = identified_notes
         if shared:
             payload["candidate_policy_defaults"] = shared
         # LAST, deliberately. Everything above is the question — the rows, what the filing says
@@ -3245,7 +3266,8 @@ class OntologyMatcher:
             out.update(self._match_chunk(
                 missing, statement, sec, preliminary,
                 require_complete=True, retry_depth=retry_depth + 1,
-                context_pool=context_pool, cited_notes=cited_notes))
+                context_pool=context_pool, cited_notes=cited_notes,
+                identified_notes=identified_notes))
 
         # Section-level proposals may be incomplete; the required statement pass above corrects
         # them. No deterministic result is substituted for an omitted LLM decision.
