@@ -3538,6 +3538,18 @@ class OntologyMatcher:
                 if role == "component":
                     self.usage["components_declared"] = (
                         self.usage.get("components_declared", 0) + 1)
+            # A CITATION IS EVIDENCE, NOT A PENALTY, so it is resolved wherever it is given.
+            #
+            # `resolve_sources` used to be called in the off-candidate branch and nowhere else, so
+            # an ON-candidate answer that cited its rows had them silently dropped: no page, no
+            # figure, nothing for a reviewer to click. That was invisible while the only cited
+            # answers were off-candidate ones, and it became load-bearing the moment the parts of a
+            # line became ordinary candidates — the prose path (a figure stated only in a footnote,
+            # verified against the note's own text) runs entirely on `sources`, and for an in-scope
+            # part it was being thrown away.
+            resolved, unresolved = ([], [])
+            if d.sources:
+                resolved, unresolved = note_sourced.resolve_sources(d.sources, notes_for_sources)
             out[d.item_id] = MappingResult(
                 canonical_key=key, method=MappingMethod.LLM, confidence=conf,
                 candidates=[Candidate(key, MappingMethod.LLM, conf, rerouted_from=rerouted_from,
@@ -3545,6 +3557,7 @@ class OntologyMatcher:
                 needs_review=conf < acc, scores={"llm": conf},
                 allocation_status=alloc, agreement=["llm"], rerouted_from=rerouted_from,
                 reason=reason, role=role, sign=sign,
+                sources=resolved, unresolved_sources=unresolved,
             )
         missing = [(iid, label) for iid, label in items if iid not in answered_ids]
         if missing and require_complete:

@@ -177,9 +177,13 @@ def test_a_part_is_offered_to_the_model_and_its_derived_parent_is_not(shipped):
     assert SUB in offered, "the part a note prints must be offerable"
     assert SUB not in matcher._llm_withheld
 
-    # And it is scoped where such a row is actually printed, rather than everywhere.
-    assert matcher._in_statement(SUB, "notes") is True
-    assert matcher._in_statement(SUB, "balance_sheet") is False
+    # AND IT IS REACHABLE WHEREVER ITS NOTE IS PRINTED, which is not where its whole is reported.
+    # Depreciation is the case: the figure is printed in the balance-sheet note on fixed assets
+    # (banner `non_current_assets`) while its whole is a profit-and-loss line. Pinning the part to
+    # either statement loses one of the two readings, so it is pinned to neither.
+    assert all(matcher._in_statement(SUB, s) for s in
+               ("notes", "balance_sheet", "profit_and_loss", "cash_flow"))
+    assert not matcher._sections_of(SUB)
 
 
 def test_only_extract_mode_concepts_are_put_in_front_of_the_model(shipped):
@@ -327,30 +331,43 @@ def test_the_contract_tells_the_model_to_answer_at_the_sub_line_instead(shipped)
 
 # ── a part of a line: answered like any other concept ─────────────────────────────────────────
 
-def test_a_cited_part_is_accepted(shipped):
-    """The whole point: the layer a note actually prints is answerable.
+def test_a_cited_part_is_accepted_on_the_ORDINARY_path(shipped):
+    """The whole point: the layer a note actually prints is answerable, by the ordinary path.
 
-    NO SPECIAL BRANCH DOES THIS ANY MORE. It used to be decided by an `is_sub_item` arm with its own
-    `batch_sub_item` counter, because the key was absent from `_by_key` and every gate below indexed
-    that dict. Now it is an ordinary concept, so the ordinary path decides it — and the counter is
-    gone with the branch. This row asks about a P&L caption while the part is scoped to `notes`, so
-    it arrives off-candidate and pays the off-candidate price: cited, resolved, reviewed.
+    TWO SPECIAL CASES DIED HERE. It was first decided by an `is_sub_item` arm with its own
+    `batch_sub_item` counter, because the key was absent from `_by_key`; then, once it was a
+    concept, by the OFF-candidate arm, because the part was scoped to `notes` and this row asks
+    about a P&L caption. It is now simply a candidate the row's own gate admits, so neither arm
+    runs — no `off_candidate`, no forced review, no counter.
+
+    THE CITATION IS STILL RESOLVED, and that is the part worth pinning. `resolve_sources` used to be
+    called on the off-candidate branch and nowhere else, so an in-scope answer that cited its rows
+    had them silently dropped — no page, no figure, nothing to click. The prose path runs entirely
+    on `sources`, so for an in-scope part it was being thrown away.
     """
     r, m, _p = _decide(shipped, _answer(SUB, _ROW_CITE))
 
     assert r.canonical_key == SUB
-    assert r.off_candidate is True
-    assert r.needs_review is True, "the statement/section gate was skipped, so a human must see it"
-    assert m.usage.get("batch_off_candidate") == 1
-    assert m.usage.get("batch_sub_item") is None, "the special-case branch should be gone"
+    assert r.off_candidate is False, "an in-scope candidate is not an answer past the list"
+    assert m.usage.get("batch_sub_item") is None, "the sub-item branch should be gone"
+    # The citation is resolved anyway: the page and figure come off the extracted row.
+    assert r.sources and r.sources[0]["provenance"]["page_index"] == 88
+    assert r.sources[0]["figures"] == {"current": "280961"}
 
 
-def test_an_uncited_sub_line_item_is_refused(shipped):
-    """The price of answering past the offered list, and it is the same price at every layer."""
+def test_an_uncited_part_IN_SCOPE_needs_no_citation(shipped):
+    """A citation is the price of answering PAST the offered list, not the price of answering.
+
+    While the parts were scoped to `notes` this row's answer was off-candidate and an uncited one
+    was refused. Unpinning them made the same answer in-scope, so it is accepted on the ordinary
+    terms every other candidate gets — the gate that would have caught a wrong one was applied
+    rather than skipped, which is exactly what the citation was standing in for.
+    """
     r, m, _p = _decide(shipped, _answer(SUB, [], confidence=0.99))
 
-    assert r.canonical_key is None
-    assert m.usage.get("batch_uncited_off_candidate") == 1
+    assert r.canonical_key == SUB
+    assert m.usage.get("batch_uncited_off_candidate") is None
+    assert not r.sources
 
 
 def test_several_cited_rows_are_each_resolved(shipped):
@@ -657,10 +674,17 @@ def test_it_is_flagged_for_review_AND_still_printed_and_exported(shipped):
     assert concept_value(wire, "consolidated", "current") is not None
     assert figures_as_shown(None, wire, "consolidated", "current")[COMPUTED] == 529841000.0
 
-    # REVIEWED: the row the model answered carries the flag, and its trail carries the SENTENCE, so
-    # a reviewer sees the evidence rather than being asked to trust it.
+    # AUDITABLE: the row the model answered says the figure came from PROSE, and its trail carries
+    # the SENTENCE, so a reviewer sees the evidence rather than being asked to trust it.
+    #
+    # NOT `low_mapping_confidence` ANY MORE, and the change is meaningful rather than cosmetic. That
+    # flag came from the off-candidate path, which forces review because it SKIPS the
+    # statement/section gate. A part is now an in-scope candidate, so the gate was applied and the
+    # answer is graded like any other — at 0.85 against the auto-accept threshold. What still marks
+    # the row is the prose provenance itself, which is the more precise signal: this figure was not
+    # read off a row, and it displaced one that was.
     answered = next(r for r in wire if r["canonical_key"] == SUB)
-    assert "low_mapping_confidence" in answered["flags"]
+    assert any(f.startswith("prose_sourced_value:") for f in answered["flags"]), answered["flags"]
     trail = next(iter((answered.get("derivation") or {}).values()))
     assert trail["method"] == "prose_sourced"
     assert "529,841,000" in trail["inputs"][0]["excerpt"]

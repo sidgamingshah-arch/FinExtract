@@ -194,7 +194,16 @@ class ExtractionSettings(BaseModel):
     # description), not string similarity. The lexical/fuzzy tiers only pre-shortlist
     # candidates. Set false to force the deterministic ensemble even with an LLM present.
     llm_mapping: bool = True
-    llm_candidate_cap: int = 40   # max candidate concepts shown to the LLM per line
+    # RAISED 40 -> 60 when the parts of a line became recognisable concepts. There are 77 of them
+    # and they sort at `match_priority` 80 against a median of 81, so at the old bound they took
+    # 7-8 of the offered slots on a face chunk and displaced that statement's own concepts.
+    #
+    # THE BOUND EXISTS TO FIT A PROVIDER LIMIT, and the limit that forced a low value is gone. The
+    # Groq free tier caps at 8,000 tokens per minute and cannot serve this pipeline at ANY cap (one
+    # request is 30,000-40,000); the Gemini endpoint accepted a 42,736-token request in 7.2s. So
+    # this is now a quality setting rather than a feasibility one. Measured at 60: a balance-sheet
+    # chunk offers roughly 44 template concepts alongside 16 parts, instead of 8 and 8.
+    llm_candidate_cap: int = 60   # max candidate concepts shown to the LLM per line
     # How many candidate concepts a REVIEWED row carries, and how many of them are named to the
     # model as the deterministic tiers' own reading.
     #

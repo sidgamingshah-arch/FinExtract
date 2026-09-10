@@ -525,18 +525,44 @@ def test_declared_fields_is_what_the_item_declared_not_what_it_inherited(client)
     declared = {d["key"]: sorted(d) for d in seed["items"]}
     resolved = {d.key: d for d in load_line_item_set(seed, resolve=True).items}
 
-    # Thirteen of the 475 say nothing about `statement` themselves and are gated all the same,
-    # through `inherits`. Each must resolve to a gate that IS present while `declared_fields` stays
-    # silent about it — the resolved payload alone cannot say which of the two happened, and an
-    # editor that saved the resolved value back would turn the section's gate into the item's own.
-    inherited = [k for k, d in resolved.items() if d.inherits and "statement" not in declared[k]]
-    assert len(inherited) == 77, \
-        f"the shipped set inherits 13 gates rather than declaring them; found {len(inherited)}"
-    for key in inherited:
+    # THE INHERITED-GATE CASE, and on the shipped set it is now the SECTION SCOPE that is inherited
+    # rather than the statement. The 77 parts used to inherit `statement: notes` from
+    # `section_defaults["notes"]`; each now declares `statement: null` and its own `section_scope`
+    # explicitly, because a part is read off the face of its own statement OR out of a note and one
+    # `statement` value cannot say both. So `statement` is declared on every item, and what still
+    # exercises the inherited-badge path is any field a section default supplies.
+    #
+    # The property under test is unchanged — an inherited value must be PRESENT in the payload
+    # while `declared_fields` stays silent about it, because an editor that saved the resolved value
+    # back would turn the section's gate into the item's own. What moved is which field demonstrates
+    # it, so the assertion asks for that rather than for a count that encodes one seed's authoring.
+    inherited_any = [k for k, d in resolved.items()
+                     if d.inherits and any(f not in declared[k]
+                                           for f in ("temporality", "unit_of_account",
+                                                     "match_priority", "sign_convention"))]
+    assert len(inherited_any) >= 77, (
+        f"nothing in the shipped set inherits a section default any more, so the inherited-badge "
+        f"path is untested; found {len(inherited_any)}")
+    # And the parts declare the two fields they were rescoped on, so the badge does NOT claim the
+    # section supplied them.
+    parts = [k for k, d in resolved.items() if d.parent]
+    assert len(parts) >= 77
+    assert all("section_scope" in declared[k] for k in parts), (
+        [k for k in parts if "section_scope" not in declared[k]])
+    # AND THE FOLD ITSELF, on a field the section still supplies. `statement` no longer demonstrates
+    # it: every item now declares that field (the parts declare it as `null`, deliberately — see
+    # `test_every_reported_line_resolves_a_gate_and_parts_deliberately_do_not`), so nothing inherits
+    # a gate any more. `match_priority` is the section default that is still inherited, and the
+    # property is the same one: resolution must fold in the SECTION's value, not a model default.
+    folded = [k for k in inherited_any if "match_priority" not in declared[k]]
+    assert folded, "no item inherits match_priority, so the fold is untested"
+    for key in folded:
         item = resolved[key]
-        assert item.statement is not None, f"{key}: resolution must fold the section's gate in"
-        assert item.statement == seed["section_defaults"][item.inherits]["statement"], \
-            f"{key}: the resolved gate must be the section's, not a model default"
+        section = seed["section_defaults"].get(item.inherits) or {}
+        if "match_priority" not in section:
+            continue
+        assert item.match_priority == section["match_priority"], \
+            f"{key}: the resolved value must be the section's, not a model default"
 
     # AND IT IS NOT THE PAYLOAD'S KEYS FILTERED BY WHAT THE ITEM DECLARED, which is the near-miss
     # that would satisfy everything above: a declared key need not survive the load at all. 394 of

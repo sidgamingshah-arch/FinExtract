@@ -253,7 +253,12 @@ def test_shipped_set_projects_every_definition_including_the_parts():
     # AND THEY ARE REAL CONCEPTS, not inert rows: an unbindable one would be a silent no-op.
     matcher_view = {m.canonical_key: m for m in view.mappings}
     assert all(matcher_view[k].extraction_mode == "extract" for k in extra)
-    assert all(matcher_view[k].statement for k in extra), "a part with no statement is offered nowhere"
+    # A part declares NO statement and NO section scope, deliberately: it is printed wherever its
+    # note is, which is not where its whole is reported (depreciation is printed in the
+    # balance-sheet note on fixed assets while its whole is a P&L line). `_in_statement` allows a
+    # concept it cannot place, so unpinned means reachable everywhere rather than nowhere.
+    assert all(matcher_view[k].statement is None for k in extra)
+    assert all(not (matcher_view[k].section_scope or []) for k in extra)
 
 
 def test_shipped_set_diverges_only_in_the_known_classes():

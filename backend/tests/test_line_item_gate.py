@@ -213,11 +213,50 @@ def test_the_shipped_seed_carries_its_template_binding():
     assert st.section_defaults, "the gate must be authored once per section, not per item"
 
 
-def test_every_shipped_definition_resolves_a_gate():
+def test_every_reported_line_resolves_a_gate_and_parts_deliberately_do_not():
+    """A REPORTED line is pinned to a statement. A PART OF one is deliberately not, and that
+    exemption is the whole content of this test.
+
+    The rule was `d.statement is None` for every definition, and for a reported line the reason
+    given is right: pinned to nothing, it is claimable on any statement. But a part cannot be
+    pinned that way, and two attempts at pinning it both broke a real reading:
+
+      * `notes` (as shipped, from `section_defaults`) — made a part unofferable for a FACE row,
+        which is what started this: a part can perfectly well take its value off the face.
+      * the PARENT's sections plus `notes` — bounded, and wrong for a subtler reason. It encodes
+        where the WHOLE is reported onto where the PART is printed, and those differ by design.
+        Depreciation is the case that proves it: the figure is printed in the BALANCE-SHEET note on
+        fixed assets, whose banner resolves to `non_current_assets`, while its whole
+        (`is_pl__deprec_and_impairment_oper_exp`) is a profit-and-loss line. Measured under that
+        scoping, `sub__ppe_depreciation` was offered under `income_and_expenses` and `notes` and
+        REFUSED under `non_current_assets` — the PP&E-note reading was lost entirely.
+
+    Any single statement or section is wrong for the same reason, so a part declares neither.
+
+    WHAT REPLACES THE GATE, because something must: no part declares an alias — zero, measured,
+    with zero collisions against a template concept's aliases — so the exact, rule and fuzzy tiers
+    have no evidence that could bind a caption to one. A part is reachable by the MODEL, whose
+    answers carry confidence, a reason and the review machinery, and by the `note_source` walk,
+    which reads declared patterns rather than the gate. That is asserted here, because it is the
+    only thing standing where the statement gate used to.
+    """
     st = _seed()
 
-    unglazed = [d.key for d in st.items if d.statement is None]
+    reported = [d for d in st.items if not d.parent]
+    unglazed = [d.key for d in reported if d.statement is None]
     assert not unglazed, f"these would be claimable on any statement: {unglazed}"
+
+    parts = [d for d in st.items if d.parent]
+    assert len(parts) >= 77
+    assert all(d.statement is None and not d.section_scope for d in parts), (
+        "a part pinned to a statement or section loses the note that prints it — see the docstring:"
+        f" {[d.key for d in parts if d.statement or d.section_scope][:6]}")
+    # THE PROTECTION THAT REPLACES THE GATE. If a part ever declares an alias, a deterministic tier
+    # could bind a caption to it with nothing left to refuse the claim.
+    aliased = [d.key for d in parts if (d.aliases or d.aliases_i18n)]
+    assert not aliased, (
+        f"these parts declare aliases, so a deterministic tier could bind a caption to one with no "
+        f"statement gate to stop it: {aliased}")
 
 
 def test_the_note_level_parts_are_off_template():

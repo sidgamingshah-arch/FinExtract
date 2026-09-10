@@ -27773,7 +27773,9 @@
      "账面原值",
      "账面价值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__selling_marketing_depreciation",
@@ -27855,7 +27857,9 @@
      "账面原值",
      "账面价值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__ga_depreciation",
@@ -27937,7 +27941,9 @@
      "账面原值",
      "账面价值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__operating_expense_depreciation",
@@ -28019,7 +28025,9 @@
      "账面原值",
      "账面价值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__ppe_depreciation",
@@ -28101,7 +28109,9 @@
      "账面原值",
      "账面价值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__prepaid_lease_depreciation",
@@ -28183,7 +28193,9 @@
      "账面原值",
      "账面价值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__fixed_asset_depreciation",
@@ -28265,7 +28277,9 @@
      "账面原值",
      "账面价值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__investment_property_depreciation",
@@ -28347,7 +28361,9 @@
      "账面原值",
      "账面价值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cip_depreciation",
@@ -28429,7 +28445,9 @@
      "账面原值",
      "账面价值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cfo_depreciation",
@@ -28511,7 +28529,9 @@
      "账面原值",
      "账面价值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__pbt_oper_exp_depreciation",
@@ -28569,7 +28589,9 @@
      "账面原值",
      "账面价值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__pbt_depreciation",
@@ -28663,7 +28685,9 @@
      "(?:行政|销售|分销|营销|经营|研发).{0,12}(?:费用|开支|成本)?.{0,6}(?:折旧|摊销)",
      "(?:折旧|摊销).{0,12}(?:计入|列入)?(?:行政|销售|分销|经营|研发)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cos_depreciation",
@@ -28745,7 +28769,9 @@
      "账面原值",
      "账面价值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__pbt_cos_depreciation",
@@ -28803,7 +28829,9 @@
      "账面原值",
      "账面价值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__rp_bs_face_receivables",
@@ -28904,7 +28932,9 @@
      "^\\s*(?:账面余额|帳面餘額)\\s*$",
      "gross\\s+(?:carrying\\s+)?(?:amount|balance)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__rp_lt_receivables_note",
@@ -29005,7 +29035,9 @@
      "^\\s*(?:账面余额|帳面餘額)\\s*$",
      "gross\\s+(?:carrying\\s+)?(?:amount|balance)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__rp_current_portion_ltr_note",
@@ -29109,7 +29141,9 @@
      "current\\s+portion\\s+of\\s+non.?current\\s+assets",
      "non.?current\\s+assets\\s+(?:due|maturing)\\s+within\\s+one\\s+year"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__rp_other_receivables_note",
@@ -29210,7 +29244,9 @@
      "^\\s*(?:账面余额|帳面餘額)\\s*$",
      "gross\\s+(?:carrying\\s+)?(?:amount|balance)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__rp_loans_and_advances_note",
@@ -29311,7 +29347,9 @@
      "^\\s*(?:账面余额|帳面餘額)\\s*$",
      "gross\\s+(?:carrying\\s+)?(?:amount|balance)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__rp_note_by_receivable_class",
@@ -29402,7 +29440,9 @@
      "(?:directors?|subsidiar(?:y|ies)|associates?)\\s*(?:'s|s'|')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
      "(?:其他关联方|其他關聯方|受同一控制方控制的企业|同一控制下)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__rp_note_by_counterparty",
@@ -29489,7 +29529,9 @@
      "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:其他应收款|其他應收款|长期应收款|長期應收款|一年内到期|一年內到期|(?:发放)?贷款及垫款|(?:發放)?貸款及墊款)",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:other\\s+receivables?|long.?term\\s+receivables?|loans?\\s+and\\s+advances)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__rp_note_umbrella_total",
@@ -29576,7 +29618,9 @@
      "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:其他应收款|其他應收款|长期应收款|長期應收款|一年内到期|一年內到期|(?:发放)?贷款及垫款|(?:發放)?貸款及墊款)",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:other\\s+receivables?|long.?term\\s+receivables?|loans?\\s+and\\s+advances)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__rp_due_from_note_noncurrent",
@@ -29662,7 +29706,9 @@
      "(?:shown|classified|included|presented)\\s+(?:as|in|under)\\s+current",
      "(?:列示为流动资产|列示為流動資產|计入流动资产|計入流動資產)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__rp_note_entrusted_loans",
@@ -29732,7 +29778,9 @@
      "^\\s*(?:账面余额|帳面餘額)\\s*$",
      "gross\\s+(?:carrying\\s+)?(?:amount|balance)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__fa_cp_fvtpl_note_total",
@@ -29794,7 +29842,9 @@
      "累計|累计",
      "账面原值|賬面原值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__fa_cp_fvtoci_note_total",
@@ -29856,7 +29906,9 @@
      "累計|累计",
      "账面原值|賬面原值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__fa_cp_afs_htm_note_total",
@@ -29918,7 +29970,9 @@
      "累計|累计",
      "账面原值|賬面原值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__fa_cp_debt_investments_note_total",
@@ -29980,7 +30034,9 @@
      "累計|累计",
      "账面原值|賬面原值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__fa_cp_investment_and_money_market_securities_note_total",
@@ -30042,7 +30098,9 @@
      "累計|累计",
      "账面原值|賬面原值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__fa_cp_other_fincl_assets_note_total",
@@ -30104,7 +30162,9 @@
      "累計|累计",
      "账面原值|賬面原值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__fa_cp_noncurrent_split_of_note_total",
@@ -30154,7 +30214,9 @@
      "impairment|loss\\s+allowance|expected\\s+credit\\s+loss|減值|减值",
      "level\\s*\\d|第[一二三四五]級|第[一二三四五]级|第[一二三]層級|第[一二三]层级"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__fa_cp_included_derivatives",
@@ -30232,7 +30294,9 @@
      "第一级|第二级|第一层级|第二层级",
      "账面原值|賬面原值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__fa_cp_included_other_receivables",
@@ -30304,7 +30368,9 @@
      "第一级|第二级|第一层级|第二层级",
      "账面原值|賬面原值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__fa_cp_level_3_total",
@@ -30345,7 +30411,9 @@
      "sensitivit|敏感度|敏感性",
      "valuation\\s+techniques?|unobservable\\s+inputs?|估值(?:方法|技術|技术)|不可觀察|不可观察"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__face_principal_revenue",
@@ -30391,7 +30459,9 @@
      "by\\s+(?:product|segment|region|geograph\\w*|channel|market|business\\s+line|industry|location)",
      "(?:行业|行業|产品|產品|地区|地區|区域|區域|渠道)(?:分[类類])?\\s*(?:小计|小計|合计|合計)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__revenue_note_principal_revenue",
@@ -30437,7 +30507,9 @@
      "by\\s+(?:product|segment|region|geograph\\w*|channel|market|business\\s+line|industry|location)",
      "(?:行业|行業|产品|產品|地区|地區|区域|區域|渠道)(?:分[类類])?\\s*(?:小计|小計|合计|合計)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__principal_operations_note_revenue",
@@ -30483,7 +30555,9 @@
      "by\\s+(?:product|segment|region|geograph\\w*|channel|market|business\\s+line|industry|location)",
      "(?:行业|行業|产品|產品|地区|地區|区域|區域|渠道)(?:分[类類])?\\s*(?:小计|小計|合计|合計)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__contract_revenue_note_revenue",
@@ -30529,7 +30603,9 @@
      "by\\s+(?:product|segment|region|geograph\\w*|channel|market|business\\s+line|industry|location)",
      "(?:行业|行業|产品|產品|地区|地區|区域|區域|渠道)(?:分[类類])?\\s*(?:小计|小計|合计|合計)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__principal_revenue_by_product",
@@ -30557,7 +30633,9 @@
      "by\\s+(?:segment|region|geograph\\w*|channel|market|business\\s+line|industry|location)",
      "^\\s*segment\\s+revenue"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__principal_revenue_by_industry_segment",
@@ -30585,7 +30663,9 @@
      "(?:分|按)(?:产品|產品|地区|地區|区域|區域|[销銷]售模式|[销銷]售渠道|渠道|管道)",
      "by\\s+(?:product|region|geograph\\w*|channel|market|location)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__principal_revenue_by_geography",
@@ -30613,7 +30693,9 @@
      "by\\s+(?:segment|product|channel|business\\s+line|industry)",
      "^\\s*segment\\s+revenue"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__principal_revenue_by_sales_channel",
@@ -30641,7 +30723,9 @@
      "by\\s+(?:segment|product|region|geograph\\w*|business\\s+line|industry|location)",
      "^\\s*segment\\s+revenue"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cl_letters_of_credit",
@@ -30695,7 +30779,9 @@
      "已偿还(?:金额|本金)?|已解除担保(?:金额)?|本期解除担保(?:金额)?|解除担保|已归还",
      "保证金退还|押金|资本承诺|已订约但未拨备|已授权但未订约|经营租赁承诺|资本性支出承诺"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cl_performance_bonds",
@@ -30752,7 +30838,9 @@
      "信用證|信用证",
      "其他應收款|其他应收款|可退還保證金|可退还保证金"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cl_bank_guarantees",
@@ -30810,7 +30898,9 @@
      "performance\\s+bonds?|performance\\s+guarantees?|performance\\s+securit(?:y|ies)",
      "履約保函|履約保證|履約擔保|履约保函|履约保证|履约担保"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cl_corporate_guarantees",
@@ -30875,7 +30965,9 @@
      "bank\\s+guarantees?|bankers?\\s+guarantees?|guarantees?\\s+issued\\s+by\\s+(?:the\\s+)?banks?|bid\\s+bonds?|tender\\s+guarantees?|advance\\s+payment\\s+guarantees?",
      "銀行保函|銀行保證|銀行出具的?保函|融資性保函|非融資性保函|付款保函|預付款保函|投標保函|银行保函|银行保证|银行出具的?保函|融资性保函|非融资性保函|付款保函|预付款保函|投标保函"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cl_guarantee_note_balance",
@@ -30927,7 +31019,9 @@
      "已偿还(?:金额|本金)?|已解除担保(?:金额)?|本期解除担保(?:金额)?|解除担保|已归还",
      "保证金退还|押金|资本承诺|已订约但未拨备|已授权但未订约|经营租赁承诺|资本性支出承诺"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cl_guarantee_note_amount",
@@ -30982,7 +31076,9 @@
      "outstanding\\s+guarantees?|guarantee\\s+balances?|balance\\s+of\\s+(?:the\\s+)?guarantees?|amounts?\\s+(?:utilis|utiliz)ed|amounts?\\s+drawn",
      "擔保[^,，、;；]{0,6}餘額|實際擔保金額|尚未履行金額|未結金額|担保[^,，、;；]{0,6}余额|实际担保金额|尚未履行金额|未结金额"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cl_guarantee_released_repaid",
@@ -31029,7 +31125,9 @@
      "授信额度|信贷额度|合同总额|合约总额|累计发生额|交易金额|已确认预计负债|已计提预计负债|账面(?:价值|原值)",
      "保证金退还|押金|资本承诺|已订约但未拨备|已授权但未订约|经营租赁承诺|资本性支出承诺"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cl_related_party_guarantee_balance",
@@ -31081,7 +31179,9 @@
      "已偿还(?:金额|本金)?|已解除担保(?:金额)?|本期解除担保(?:金额)?|解除担保|已归还",
      "保证金退还|押金|资本承诺|已订约但未拨备|已授权但未订约|经营租赁承诺|资本性支出承诺"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cl_related_party_guarantee_amount",
@@ -31136,7 +31236,9 @@
      "outstanding\\s+guarantees?|guarantee\\s+balances?|balance\\s+of\\s+(?:the\\s+)?guarantees?|amounts?\\s+(?:utilis|utiliz)ed|amounts?\\s+drawn",
      "擔保[^,，、;；]{0,6}餘額|實際擔保金額|尚未履行金額|未結金額|担保[^,，、;；]{0,6}余额|实际担保金额|尚未履行金额|未结金额"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cl_reported_total",
@@ -31184,7 +31286,9 @@
      "已偿还(?:金额|本金)?|已解除担保(?:金额)?|本期解除担保(?:金额)?|解除担保|已归还",
      "保证金退还|押金|资本承诺|已订约但未拨备|已授权但未订约|经营租赁承诺|资本性支出承诺"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cl_unclassified_matters",
@@ -31238,7 +31342,9 @@
      "已偿还(?:金额|本金)?|已解除担保(?:金额)?|本期解除担保(?:金额)?|解除担保|已归还",
      "保证金退还|押金|资本承诺|已订约但未拨备|已授权但未订约|经营租赁承诺|资本性支出承诺"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__ltp_nc_portion_of_fincl_asset_notes",
@@ -31423,7 +31529,9 @@
      "长期股权投资",
      "账面原值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__ltp_fvtpl_note_total",
@@ -31604,7 +31712,9 @@
      "长期股权投资",
      "账面原值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__ltp_fvtoci_note_total",
@@ -31785,7 +31895,9 @@
      "长期股权投资",
      "账面原值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__ltp_afs_htm_note_total",
@@ -31966,7 +32078,9 @@
      "长期股权投资",
      "账面原值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__ltp_debt_investments_note_total",
@@ -32147,7 +32261,9 @@
      "长期股权投资",
      "账面原值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__ltp_other_fincl_assets_note_total",
@@ -32328,7 +32444,9 @@
      "长期股权投资",
      "账面原值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__ltp_investment_securities_note_total",
@@ -32509,7 +32627,9 @@
      "长期股权投资",
      "账面原值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__ltp_structured_deposits_note_total",
@@ -32690,7 +32810,9 @@
      "长期股权投资",
      "账面原值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__ltp_fincl_assets_note_total",
@@ -32871,7 +32993,9 @@
      "长期股权投资",
      "账面原值"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__ltp_included_derivatives",
@@ -33029,7 +33153,9 @@
      "^\\s*總(?:計|額)\\s*$",
      "^\\s*总(?:计|额)\\s*$"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__ltp_included_other_receivables",
@@ -33183,7 +33309,9 @@
      "^\\s*總(?:計|額)\\s*$",
      "^\\s*总(?:计|额)\\s*$"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__ltp_included_equity_method_investments",
@@ -33345,7 +33473,9 @@
      "^\\s*總(?:計|額)\\s*$",
      "^\\s*总(?:计|额)\\s*$"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cp_other_receivables_net",
@@ -33423,7 +33553,9 @@
      "(?:交易金额|交易金額|本期发生额|本期發生額|transaction\\s+amount|transaction\\s+volume)",
      "(?:担保金额|擔保金額)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cp_other_receivables_gross",
@@ -33502,7 +33634,9 @@
      "(?:receivables?|balances?)\\s*[-–—,，]?\\s*net\\b",
      "(?:期末余额|账面余额|期末餘額|[帳賬]面餘額)\\s*[减減]"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cp_other_receivables_loss_allowance",
@@ -33578,7 +33712,9 @@
      "^\\s*(?:期末)?(?:账面价值|账面净值|净额|[帳賬]面價值|[帳賬]面淨值|淨額)\\s*$",
      "(?:net\\s+(?:carrying\\s+)?(?:amount|value)|carrying\\s+(?:amount|value))"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cp_current_ltr_net",
@@ -33655,7 +33791,9 @@
      "(?:交易金额|交易金額|本期发生额|本期發生額|transaction\\s+amount|transaction\\s+volume)",
      "(?:担保金额|擔保金額)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cp_current_loans_advances_net",
@@ -33750,7 +33888,9 @@
      "(?:交易金额|交易金額|本期发生额|本期發生額|transaction\\s+amount|transaction\\s+volume)",
      "(?:担保金额|擔保金額)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cp_funds_placed_net",
@@ -33845,7 +33985,9 @@
      "(?:交易金额|交易金額|本期发生额|本期發生額|transaction\\s+amount|transaction\\s+volume)",
      "(?:担保金额|擔保金額)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cp_current_account_net",
@@ -33920,7 +34062,9 @@
      "(?:交易金额|交易金額|本期发生额|本期發生額|transaction\\s+amount|transaction\\s+volume)",
      "(?:担保金额|擔保金額)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cp_other_receivables_rp",
@@ -33977,7 +34121,9 @@
      "(?:账龄|賬齡|帳齡|aging|ageing)",
      "(?:[占佔].{0,12}(?:比例|百分比)|proportion\\s+of|percentage\\s+of)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cp_current_ltr_rp",
@@ -34034,7 +34180,9 @@
      "(?:账龄|賬齡|帳齡|aging|ageing)",
      "(?:[占佔].{0,12}(?:比例|百分比)|proportion\\s+of|percentage\\s+of)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cp_current_loans_advances_rp",
@@ -34091,7 +34239,9 @@
      "(?:账龄|賬齡|帳齡|aging|ageing)",
      "(?:[占佔].{0,12}(?:比例|百分比)|proportion\\s+of|percentage\\s+of)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cp_funds_placed_rp",
@@ -34148,7 +34298,9 @@
      "(?:账龄|賬齡|帳齡|aging|ageing)",
      "(?:[占佔].{0,12}(?:比例|百分比)|proportion\\s+of|percentage\\s+of)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   },
   {
    "key": "sub__cp_current_account_rp",
@@ -34205,7 +34357,9 @@
      "(?:账龄|賬齡|帳齡|aging|ageing)",
      "(?:[占佔].{0,12}(?:比例|百分比)|proportion\\s+of|percentage\\s+of)"
     ]
-   }
+   },
+   "statement": null,
+   "section_scope": []
   }
  ]
 }
