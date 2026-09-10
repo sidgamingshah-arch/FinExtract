@@ -7,14 +7,14 @@ results are available (`app/core/pipeline.py::Pipeline.run`).
 
 ## Stages
 
-**Eighteen stages, assembled by `app/core/pipeline.py::default_pipeline()`.** That
+**Nineteen stages, assembled by `app/core/pipeline.py::default_pipeline()`.** That
 function is the only place the order is stated; `api/routes/extractions.py::pipeline_stage_names`
 reads the list off it rather than keeping a copy, and the run row records the list it was
 queued with. Do not add a third copy — the list below names each stage and its file, and
 its order is `default_pipeline()`'s:
 
 `ingest · integrity · language_detect · classify · extract · map_line_items · residual ·
-normalize · link_notes · contingent_liabilities · assemble_components · reconcile · prune_notes · confidence ·
+normalize · link_notes · note_sourced · contingent_liabilities · assemble_components · reconcile · prune_notes · confidence ·
 gap_closing · face_mapping_contract · structural · segment`
 
 **Why the list is four stages shorter, and why six output lines are now blank.** Five
@@ -165,7 +165,34 @@ The face and its cited notes are processed in this order:
    numbered `16` is the common HK house style, and the citation as printed matches nothing. The
    fallback applies only when the citation itself names no table, so no row is ever tied to both
    a sub-note and its parent — the reconciliation would subtract the same detail twice.
-10. **Contingent liabilities** (`stages/contingent_liabilities.py` +
+10. **Note-sourced fills** (`stages/note_sourced.py` + `services/note_sourced.py`) — fills every
+    line item that declares WHERE IN THE NOTES its figure lives. `LineItemDef.note_source` names
+    regexes for the note's title, for the row captions that COUNT, and for the captions that must
+    be EXCLUDED even when a counting pattern claimed them (which is how "depreciation" stops
+    picking up "accumulated depreciation" and a fixed-asset table's movement rows).
+
+    *What it replaces.* Thirteen shipped sub-line items author ~650 such patterns, in English,
+    Traditional and Simplified Chinese. Nothing read them: the five removed derivation services
+    did, and no generic reader took over — so every pattern was authored, versioned, shown on the
+    configuration screen and consulted on no run. This reads the DECLARATION, so it serves the
+    thirteen that exist and the seventieth nobody has authored yet, with no code change.
+
+    *The two arithmetics, which are not the same question.* WITHIN one note the matched rows are
+    components and are summed. ACROSS notes the children are alternative disclosures of one figure,
+    and the PARENT's `rollup` decides: `alternatives` takes the first in declared `order`,
+    `sum` adds them, `none` carries nothing. Reading the child's rollup instead (which this stage
+    first did) makes every parent a summing one, and turns twelve disclosures of one depreciation
+    charge into a cost twelve times too large on a statement that still balances.
+
+    *A printed parent always wins.* A parent the filing printed is the filing stating the amount; a
+    note-derived one is an inference from a breakdown. The printed figure stands and the
+    disagreement is flagged, rather than the inference silently replacing the better number.
+
+    *Position.* After `normalize`, where the removed derivations ran — so a note-derived figure is
+    not put through the unsigned-expense cohort vote, which would flip the sign of every expense on
+    the statement.
+
+11. **Contingent liabilities** (`stages/contingent_liabilities.py` +
     `services/contingent_liabilities.py`) — **a disclosure stage: it writes narrative, and only
     narrative.** The one output is `DocumentModel.contingent_liabilities` — per
     "basis:period", a summary paragraph plus the classified tables (Letters of Credit,
@@ -186,7 +213,7 @@ The face and its cited notes are processed in this order:
     blank, deliberately. Specification for the tuning:
     `docs/PRC_Contingent_Liabilities_Extraction_Logic_Revised.md`.
 
-11. **Assemble components** (`stages/assemble_components.py` +
+12. **Assemble components** (`stages/assemble_components.py` +
     `services/assemble_components.py`) — SEVERAL PRINTED ROWS MAY BE ONE LINE ITEM'S FIGURE. A
     note that splits a total by function prints four rows that all belong on one line; before
     this, two rows on one concept was an `ambiguous_mapping` and the line went unfilled, because
@@ -203,21 +230,21 @@ The face and its cited notes are processed in this order:
     enumerates a caption:** which rows are components was decided by the configuration and the
     model. Runs after `normalize` (components must share a scale and sign before they are added)
     and before `reconcile` (which checks the assembled figure against a printed subtotal).
-12. **Reconcile** (`stages/reconcile.py` + `services/reconcile.py`) — the §20 subtraction
+13. **Reconcile** (`stages/reconcile.py` + `services/reconcile.py`) — the §20 subtraction
     and the note→face tie grading (see [03-reconciliation](03-reconciliation.md)).
-13. **Prune notes** (`stages/prune_notes.py`) — publishes only the notes a face line
+14. **Prune notes** (`stages/prune_notes.py`) — publishes only the notes a face line
     actually references; accounting policies, governance tables and subsequent events are
     noise in the notes index, the export and the review queue. Runs *after* reconcile,
     which needs every extracted note to check the ties. Nothing is deleted from the source
     or from provenance — the log records exactly what was dropped.
-14. **Confidence** (`stages/confidence.py`) — sets the `validation` sub-signal on extracted
+15. **Confidence** (`stages/confidence.py`) — sets the `validation` sub-signal on extracted
     values from the checks available at this point (the balance-sheet identity per
     (basis, period), and the note→face tie from the reconcile report), so
     `ConfidenceVector.overall` is capped by participation in a failed check rather than
     reporting a clean OCR/mapping as confident. The row-based rule catalog that populates
     the review queue runs at the API layer instead — see
     [02-data-model-and-schemas](02-data-model-and-schemas.md#validation-engine-feeds-the-review-queue).
-15. **Gap closing** (`stages/gap_closing.py` + `services/gap_closing.py`) — a subtotal that
+16. **Gap closing** (`stages/gap_closing.py` + `services/gap_closing.py`) — a subtotal that
     still does not tie may be missing a line the mapper could not place. **Arithmetic
     proposes and the model disposes**: only a subset of leftovers that closes the gap in
     *both* periods within tolerance is offered (one period is a coincidence, two is
@@ -228,7 +255,7 @@ The face and its cited notes are processed in this order:
     and on a non-`stub` provider; with neither, the gap stays a review item, which is the
     honest outcome. Confirmed routings are kept on `DocumentModel.gap_routings` so the
     decision is inspectable rather than an unexplained change of mapping.
-16. **Face mapping contract** (`stages/face_mapping_contract.py`) — the final mapping
+17. **Face mapping contract** (`stages/face_mapping_contract.py`) — the final mapping
    invariant for a run carrying a line-item set. Every face row with a value must either have
    a canonical key or be a verified non-additive aggregate replaced by mapped components.
    Anything else receives a unique `engine_unclassified_face` key outside every line-item and
@@ -236,7 +263,7 @@ The face and its cited notes are processed in this order:
    any calculation. It is never assigned a neighbouring real line item merely to make the
    unmapped count zero. Extraction-only runs that carry no line-item set skip this gate because
    they are not mapping runs.
-17. **Structural** (`stages/structural.py` + `services/structural_checks.py`) — runs the
+18. **Structural** (`stages/structural.py` + `services/structural_checks.py`) — runs the
     arithmetic the template and the rulebook *declare*: template `rollup`s and statement
     `identities`, the rulebook's `validation.identities`, its
     `validation.cross_concept_guards` and its `validation.section_reconciliation`. Every
@@ -244,7 +271,7 @@ The face and its cited notes are processed in this order:
     carrying a classifiable `reason` (`services/coverage.py`), so partial coverage is
     visible rather than implied. A failure flags the participating line items and values.
 
-18. **Segment** (`stages/segment.py` + `services/buckets.py`) — files every face row and
+19. **Segment** (`stages/segment.py` + `services/buckets.py`) — files every face row and
     every note into the **thirteen face sections** an analyst reads a filing in, plus Others:
     the balance sheet's five (current / non-current assets, current / non-current
     liabilities, equity & reserves), the income statement's four (income, expenses,

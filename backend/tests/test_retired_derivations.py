@@ -306,12 +306,19 @@ def test_the_four_derivation_stages_left_the_pipeline_and_the_disclosure_stage_d
         assert retired not in names, (
             f"stage {retired!r} is back in the pipeline. Nothing computes these figures now — "
             f"they come from the line-item configuration.")
-    # 18, NOT 17. `assemble_components` was added after this test was written, and it is the
-    # opposite of what the four retired stages were: it enumerates no caption and computes no
-    # figure of its own — it adds up the rows the CONFIGURATION and the model between them
-    # identified as components of one line, which is how a line whose amount is printed as several
-    # rows gets filled without a service written for it.
-    assert len(names) == 18, names
+    # 19, NOT 17. Two stages were added after this test was written, and BOTH are the opposite of
+    # what the four retired ones were — neither enumerates a caption or computes a figure of its
+    # own:
+    #
+    #   * `assemble_components` adds up the rows the CONFIGURATION and the model between them
+    #     identified as components of one line, which is how a line whose amount is printed as
+    #     several rows gets filled without a service written for it.
+    #   * `note_sourced` fills a line from the note rows ITS OWN CONFIGURATION names
+    #     (`LineItemDef.note_source`). This is the mechanism the retired services took with them:
+    #     they read those declarations, and after the removal ~650 authored patterns across 13
+    #     sub-line items were read by nothing at all. The replacement enumerates no concept, so it
+    #     serves an item nobody has authored yet — which is the distinction this test is guarding.
+    assert len(names) == 19, names
     assert "assemble_components" in names, (
         "the component assembly is gone, so a line item printed as several rows cannot be filled "
         "at all — that is not a return to the derivations, it is the loss of their replacement")

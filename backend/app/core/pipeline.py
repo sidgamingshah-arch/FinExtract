@@ -47,6 +47,7 @@ def default_pipeline() -> Pipeline:
     from app.stages.assemble_components import AssembleComponentsStage
     from app.stages.normalize import NormalizeStage
     from app.stages.link_notes import LinkNotesStage
+    from app.stages.note_sourced import NoteSourcedStage
     from app.stages.contingent_liabilities import ContingentLiabilitiesStage
     from app.stages.reconcile import ReconcileStage
     from app.stages.confidence import ConfidenceStage
@@ -72,6 +73,12 @@ def default_pipeline() -> Pipeline:
         ResidualStage(),
         NormalizeStage(),
         LinkNotesStage(),
+        # WHERE THE REMOVED DERIVATIONS RAN, and the position is load-bearing: `normalize` has
+        # already run, so a note-derived figure is not put through the unsigned-expense cohort
+        # vote — one filing's note breakdown would otherwise flip the sign of every expense on its
+        # income statement. Unlike those five services this one enumerates no concepts: it reads
+        # `LineItemDef.note_source` for whatever declares it.
+        NoteSourcedStage(),
         # REMOVED: four derivation stages used to run here, between LinkNotesStage and
         # ContingentLiabilitiesStage — deprec_impairment (532 lines, ~208 enumerated entries),
         # secur_fincl_assets (619 lines, ~91), related_party_receivables (690 lines, ~73) and

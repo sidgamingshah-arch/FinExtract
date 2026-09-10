@@ -1299,6 +1299,10 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
         # ``run_extraction(ontology=...)``, an internal parameter name), but its INPUT is now the
         # line-item set — see ``services.working_view`` for the parity measurements.
         working_view = None
+        # Initialised beside `working_view` because the two are set together and used together: a
+        # run with no pinned configuration has neither, and `line_items=st` below would otherwise
+        # be a NameError on exactly the path that has the least to say for itself.
+        st = None
         lid = options.get("line_item_version_id")
         if lid:
             cfg_row = session.get(LineItemVersion, lid)
@@ -1334,10 +1338,13 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
         # matcher's working view. Internal and left alone on purpose: what it is HANDED is the view
         # built from the line-item set above, and renaming three thousand lines of matcher was
         # never the point.
+        # `line_items=st` is the SAME set the working view was built from, handed over whole.
+        # It was loaded here already and then dropped, which is why the 13 sub-line items and their
+        # ~650 authored note patterns reached no stage on any run.
         doc_model, ctx = run_extraction(data, filename=filename, ontology=working_view,
                                         included_pages=included_pages, template=template,
                                         progress_cb=progress, context_cb=progress.observe,
-                                        step_cb=progress.step)
+                                        step_cb=progress.step, line_items=st)
         run = session.get(ExtractionRun, run_id)
         if run is None:
             return

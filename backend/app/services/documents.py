@@ -24,13 +24,21 @@ def content_hash(data: bytes) -> str:
 
 
 def _context(data: bytes, object_store=None, ontology=None,
-             progress_cb=None, included_pages=None, template=None) -> PipelineContext:
+             progress_cb=None, included_pages=None, template=None,
+             line_items=None) -> PipelineContext:
     ctx = PipelineContext(raw_bytes=data, object_store=object_store,
                           progress_cb=progress_cb)
     if ontology is not None:
         ctx.ontology = ontology  # attribute read by MapOntologyStage
     if template is not None:
         ctx.template = template  # attribute read by StructuralStage
+    if line_items is not None:
+        # THE WHOLE CONFIGURED SET, which the working view above is a PROJECTION of and not a
+        # replacement for. `build_working_view` produces the 462 matchable concepts and drops the
+        # 13 internal sub-line items entirely, and `OntologyMapping` carries neither `note_source`
+        # nor `parent` nor `rollup` — so a stage that reads where in the NOTES a figure lives
+        # cannot get it from `ctx.ontology`. Attribute read by NoteSourcedStage.
+        ctx.line_items = line_items
     if included_pages is not None:
         ctx.included_pages = set(included_pages)
     return ctx
@@ -49,10 +57,11 @@ def analyze_document(data: bytes, filename: str = "") -> tuple[DocumentModel, Pi
 def run_extraction(data: bytes, filename: str = "", ontology=None,
                    progress_cb=None, included_pages=None,
                    template=None, context_cb=None,
-                   step_cb=None) -> tuple[DocumentModel, PipelineContext]:
+                   step_cb=None, line_items=None) -> tuple[DocumentModel, PipelineContext]:
     doc = DocumentModel(filename=filename, content_hash=content_hash(data))
     ctx = _context(data, ontology=ontology, progress_cb=progress_cb,
-                   included_pages=included_pages, template=template)
+                   included_pages=included_pages, template=template,
+                   line_items=line_items)
     # Progress reported from INSIDE a stage. `progress_cb` fires only between stages, and
     # `map_ontology` is one stage that makes many LLM calls — so without this the percentage, the
     # stage counter and the log tail all sit frozen for the longest part of a run.
