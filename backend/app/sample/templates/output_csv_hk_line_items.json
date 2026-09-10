@@ -2300,7 +2300,7 @@
    ],
    "label": "Due from Related Parties(LTP)",
    "description": "The largest valid of three searches — the receivable notes, the related-party grouping, and the related-party transactions note.",
-   "definition": "Computed with an English-alias fallback: services.related_party_receivables takes the highest of three independent PRC-note-based related-party measurements (face/statement-linked disclosures, the receivable notes, the related-party note), excluding entrusted loans; if that PRC-specific logic finds nothing (e.g. an English-language filing with no matching Chinese note headings), an ordinary alias-matched face/note value is used instead. See docs/PRC_Related_Party_and_Other_Receivables_Extraction_Logic.md.",
+   "definition": "Amounts receivable from related parties that are NOT due within one year — balances owed by fellow subsidiaries, the immediate and ultimate holding company, shareholders, directors, associates, joint ventures and other related parties, including entrusted loans routed through a bank. Excludes trade receivables from related parties and any portion due within one year.",
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract_or_derive",
    "aliases": [
@@ -2744,7 +2744,7 @@
    ],
    "label": "Secur & Other Fincl Assets(LTP)",
    "description": "The long-term portion, plus any negative current-portion carryforward.",
-   "definition": "Computed, never alias-matched: services.secur_fincl_assets sums in-scope non-current financial-asset note totals, less derivatives/other receivables/related-party/associate/JV investments proven included in those totals, plus the unabsorbed Level 3 amount carried forward from Secur & Other Fincl Assets(CP). See docs/HKEX_Securities_Other_Financial_Assets_Extraction_Logic_Clean.md.",
+   "definition": "Securities and other financial assets held as NON-CURRENT assets — the same classes of investment as the current portion (fair value through profit or loss or other comprehensive income, equity and debt securities, bonds, funds, wealth management products) but not expected to be realised within one year, including the non-current portion of a holding a note splits between current and non-current. Excludes derivatives, other receivables, and investments in related parties, associates and joint ventures.",
    "value_scope": "exclusive_leaf",
    "extraction_mode": "derive",
    "aliases": [
@@ -4912,7 +4912,7 @@
    ],
    "label": "Secur & Other Fincl Assets(CP)",
    "description": "Current-portion securities and other financial assets, net of the pools carved out of it.",
-   "definition": "Computed, never alias-matched: services.secur_fincl_assets sums in-scope current financial-asset note totals, less derivatives/other receivables proven included in those totals, less the Level 3 fair-value-hierarchy amount; a shortfall reports zero and carries forward (negative) into Secur & Other Fincl Assets(LTP). See docs/HKEX_Securities_Other_Financial_Assets_Extraction_Logic_Clean.md.",
+   "definition": "Securities and other financial assets held as CURRENT assets — financial assets at fair value through profit or loss and through other comprehensive income, listed and unlisted equity and debt securities, corporate and government bonds, investment and money market funds, wealth management products, structured deposits and certificates of deposit, expected to be realised within one year. Excludes derivative assets, other receivables, and cash and cash equivalents.",
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract_or_derive",
    "aliases": [
@@ -6733,7 +6733,7 @@
    ],
    "label": "Other Receivables(CP)",
    "description": "Gross other receivables less the related-party amount carved out of them.",
-   "definition": "Computed, never alias-matched: services.related_party_receivables sums the in-scope current-portion receivable classes, less the related-party amount proven included in that same gross pool (never the full Due from Related Parties(LTP) total). See docs/PRC_Related_Party_and_Other_Receivables_Extraction_Logic.md.",
+   "definition": "Receivables due within one year OTHER THAN TRADE — deposits paid, prepayments, tax recoverable other than income tax, staff advances, interest and dividends receivable and other debtors, stated net of the loss allowance or impairment provision against them. Excludes trade receivables and amounts due from related parties.",
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract_or_derive",
    "aliases": [
@@ -13677,7 +13677,7 @@
    ],
    "label": "Sales(Revenues)",
    "description": "The top line. Priority 1 is the face caption the spec accepts; Priority 2 is the revenue note's own total.",
-   "definition": "Extract the reported value for 'Sales(Revenues)' from the face of the income statement (English: Revenue/Turnover/Sales; PRC: 主营业务/主营业务收入). When the face carries no value, services.sales_revenues falls back to the 主营业务/主营业务收入 row of a 营业收入 note, never the note's own combined total. See docs/PRC_Sales_Revenues_Extraction_Logic_Simplified.md.",
+   "definition": "Revenue from the ordinary course of business — turnover from the sale of goods and the rendering of services, before cost of sales and excluding other income, finance income and gains. This is the top line of the income statement, and a revenue note disaggregates the same figure by product, service line, geography, segment or timing of transfer.",
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
    "aliases": [
@@ -14326,7 +14326,7 @@
    ],
    "label": "Deprec & Impairment(COS)",
    "description": "Depreciation charged to cost of sales. Read from the cost-of-sales note.",
-   "definition": "Computed, never alias-matched: services.deprec_impairment resolves this from cost-of-sales-note depreciation directly (COS_P1), falling back to PBT-note depreciation less the resolved Deprec & Impairment(Oper Exp) (COS_P2). See docs/HKEX_Depreciation_Extraction_Logic_Revised.md.",
+   "definition": "Depreciation, amortisation and impairment charged to COST OF SALES — the part of the period's depreciation and amortisation borne by the cost of goods sold or of services rendered, rather than by operating expenses. A filing states it either as a depreciation row inside the cost of sales note, or as a footnote saying that depreciation charges are included in cost of sales.",
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract_or_derive",
    "aliases": [
@@ -16014,7 +16014,7 @@
    ],
    "label": "Deprec & Impairment(Oper Exp)",
    "description": "Depreciation charged to operating expenses. Never printed as one caption — assembled from the notes and resolved by trying the rungs in order.",
-   "definition": "Computed, never alias-matched: services.deprec_impairment resolves this by trying, in order, direct operating-expense-note depreciation (P1), PBT-note depreciation less cost-of-sales depreciation (P2), asset-note depreciation less cost-of-sales depreciation (P3), then cash-flow depreciation less cost-of-sales depreciation (P4). See docs/HKEX_Depreciation_Extraction_Logic_Revised.md.",
+   "definition": "Depreciation, amortisation and impairment charged to OPERATING EXPENSES — the part of the period's depreciation and amortisation borne by administrative, general, selling, distribution, marketing or research and development expenses, rather than by cost of sales. A filing states it either as a depreciation and amortisation row inside one of those expense notes, or as a footnote saying that depreciation charges are included in other operating expenses on the face of the income statement.",
    "value_scope": "exclusive_leaf",
    "extraction_mode": "derive",
    "aliases": [
@@ -27391,7 +27391,7 @@
    ],
    "label": "Contingent liabilities",
    "description": "Guarantees, letters of credit, performance bonds and bank guarantees, summed by type.",
-   "definition": "Structured narrative disclosure, not a single figure: services.contingent_liabilities classifies each item from the identified notes into Letters of Credit / Performance bonds / Bank guarantees / Corporate guarantees / Unclassified, in that priority order, and returns a summary paragraph plus classified and unclassified tables (see DocumentModel.contingent_liabilities). The quantifiable total across classified types is also stored here for grid/export consistency. See docs/PRC_Contingent_Liabilities_Extraction_Logic_Revised.md.",
+   "definition": "Contingent liabilities disclosed in the notes — possible obligations that are not recognised on the balance sheet: corporate and bank guarantees given, performance bonds, letters of credit, litigation and claims outstanding, and tax disputes. Disclosed only in the notes, so the amount guaranteed and the amount utilised are stated there and are different figures.",
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract_or_derive",
    "aliases": [

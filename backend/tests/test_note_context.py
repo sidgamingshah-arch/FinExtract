@@ -171,23 +171,58 @@ def test_every_face_row_is_reachable_and_not_one_per_statement():
     assert len({u["rows"][0] for u in got}) == len(got) >= 2, got
 
 
-def test_the_pool_reads_note_rows_rather_than_the_page_dump():
-    """`source_text` is the page the note was parsed from — mostly accounting-policy narrative,
-    which shares high-IDF words with everything. `items` are the note's own rows, which is what a
-    breakdown consists of. The fallback exists for a note that produced no rows."""
+def test_a_note_contributes_its_ROWS_and_its_PROSE_as_separate_units():
+    """The design this replaced read rows and used `source_text` only as a fallback, whole.
+
+    Both halves of that were wrong for the case that matters. A footnote states figures no row
+    carries — measured on laisun.pdf, the operating-expense share of the depreciation charge is in
+    prose and the string 529841 appears in no extracted row anywhere in the filing — so prose has
+    to be a unit in its own right rather than a fallback. And as ONE unit the whole narrative scored
+    0.123 against a 0.22 threshold, because the score divides by the unit's own length: split into
+    sentences the same footnote reaches 0.323 and rank 3 of 1,200.
+
+    So a note now yields its rows AND one unit per sentence of its narrative, and the two are told
+    apart by `prose` so the model can weigh a printed row differently from a statement about one.
+    """
     doc = SimpleNamespace(
-        notes=[
-            SimpleNamespace(note_number="12", title="Receivables",
-                            items=[SimpleNamespace(raw_label="Trade receivables")],
-                            source_text="pages of policy narrative " * 40),
-            SimpleNamespace(note_number="13", title="Inventories", items=[],
-                            source_text="Raw materials\nFinished goods"),
-        ],
+        notes=[SimpleNamespace(
+            note_number="12", title="Receivables",
+            items=[SimpleNamespace(raw_label="Trade receivables")],
+            source_text="Trade receivables are stated net of loss allowance. "
+                        "The Group holds no collateral over these balances.")],
         line_items=[])
     pool = build_pool(doc)
-    by_ref = {u.ref: u for u in pool.units}
-    assert by_ref["12"].captions == ("Trade receivables",)
-    assert by_ref["13"].captions == ("Raw materials", "Finished goods")
+
+    rows = [u for u in pool.units if not u.prose]
+    prose = [u for u in pool.units if u.prose]
+    assert [u.captions for u in rows] == [("Trade receivables",)], "the rows unit lost its rows"
+    assert len(prose) == 2, [u.captions for u in prose]
+    assert all(len(u.captions) == 1 for u in prose), "a sentence per unit, not the narrative"
+    assert all(u.ref == "12" for u in pool.units)
+
+
+def test_a_prose_fragment_too_short_to_carry_a_subject_is_not_a_unit():
+    """"(continued)", a page header, a bare figure — a unit that matches nothing and only dilutes
+    the IDF of the words that do."""
+    doc = SimpleNamespace(
+        notes=[SimpleNamespace(note_number="9", title="Borrowings", items=[],
+                               source_text="(continued). 2024. "
+                                           "Bank loans are secured by the Group's properties.")],
+        line_items=[])
+    kept = [u.captions[0] for u in build_pool(doc).units if u.prose]
+    assert kept == ["Bank loans are secured by the Group's properties."], kept
+
+
+def test_a_prose_unit_says_it_is_prose_in_the_payload():
+    """A footnote saying where a figure is included is evidence of a different KIND from the figure
+    itself, and the model is told which it is looking at."""
+    doc = SimpleNamespace(
+        notes=[SimpleNamespace(note_number="7", title="Operating loss", items=[],
+                               source_text="Depreciation charges are included in other operating "
+                                           "expenses on the face of the income statement.")],
+        line_items=[])
+    unit = next(u for u in build_pool(doc).units if u.prose)
+    assert unit.payload()["prose"] is True
 
 
 def test_the_pool_reads_the_real_document_models():

@@ -74,6 +74,20 @@ _SECTION_OVERRIDE = ("is_pl__minority_interests_pl", "section_scope")
 # it is the seed leading it, and the divergence is intended to persist until the rulebook agrees.
 _NOTE_USE_DECISION = ("notes__contingent_liabilities", "note_use")
 
+# AND THE EIGHT FOCUS CONCEPTS' DEFINITIONS, rewritten in the seed and not in the rulebook.
+# Every one of them described a DELETED service — "Computed, never alias-matched:
+# services.deprec_impairment resolves this by trying, in order…" — and that text is what the
+# semantic tier reasons over, so the probe built from it was half implementation jargon. Measured:
+# the footnote stating one of those figures went from rank 33 to rank 3 once the definition said
+# what the line MEANS. Like the `note_use` decision above this is the seed LEADING the rulebook,
+# so it is named rather than folded into `_SEED_LAG`, which is for the seed trailing it.
+_DEFINITION_DECISIONS = frozenset({
+    "is_pl__deprec_and_impairment_oper_exp", "is_pl__deprec_and_impairment_cos",
+    "bs_ca__secur_and_other_fincl_assets_cp", "bs_nca__secur_and_other_fincl_assets_ltp",
+    "notes__contingent_liabilities", "bs_nca__due_from_related_parties_ltp",
+    "bs_ca__other_receivables_cp", "is_pl__sales_revenues",
+})
+
 # Fields on which the SHIPPED seed may lag the rulebook — see the module docstring. `description`
 # is by design (the 8 merged keys keep the configurator's prose); the rest are staleness, and the
 # assertion is that the divergence goes no wider than these names.
@@ -210,8 +224,15 @@ def test_shipped_set_diverges_only_in_the_known_classes():
     diff = _field_diff(build_working_view(load_shipped_set()), _rulebook())
     allowed_single = {(_SECTION_OVERRIDE[1], (_SECTION_OVERRIDE[0],)),
                       (_NOTE_USE_DECISION[1], (_NOTE_USE_DECISION[0],))}
-    unexpected = {f: keys for f, keys in diff.items()
-                  if f not in _SEED_LAG and (f, tuple(keys)) not in allowed_single}
+    unexpected = {}
+    for field, keys in diff.items():
+        if field in _SEED_LAG or (field, tuple(keys)) in allowed_single:
+            continue
+        # `definition` diverges on exactly the eight concepts whose definitions were rewritten —
+        # named, so a NINTH would still fail here.
+        if field == "definition" and set(keys) <= _DEFINITION_DECISIONS:
+            continue
+        unexpected[field] = keys
     assert not unexpected, (
         "the shipped set and the rulebook disagree on a field neither the configurator merge nor "
         f"a stale seed explains: { {f: len(k) for f, k in unexpected.items()} }")

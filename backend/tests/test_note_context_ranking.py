@@ -184,3 +184,73 @@ def test_the_boilerplate_filter_catches_the_template_sentence_and_nothing_else()
     # And no word that names a subject is.
     assert not (drop & {"receivables", "inventories", "payables", "cash", "revenue", "tax",
                         "borrowings", "depreciation", "equity", "balance", "sheet", "income"})
+
+
+# ── the definition IS the semantic index ───────────────────────────────────────────────────────
+
+def test_no_definition_describes_the_implementation():
+    """A DEFINITION THAT DESCRIBES CODE CANNOT IDENTIFY A SUBJECT, and all eight focus concepts
+    used to.
+
+    `is_pl__deprec_and_impairment_oper_exp` read "Computed, never alias-matched:
+    services.deprec_impairment resolves this by trying, in order, direct operating-expense-note
+    depreciation (P1)…" — a description of a module that has since been DELETED. The probe built
+    from it was half implementation jargon (`services`, `alias`, `matched`, `computed`, `resolves`,
+    `docs`, `hkex`, `logic`), and those words survive the boilerplate filter precisely because they
+    are unique to one concept: the filter strips what is common to most concepts, so the words that
+    identify a concept LEAST are the ones that survive best.
+
+    Measured consequence: the footnote stating that concept's figure scored 0.130 and ranked 33 of
+    1,466. With a definition that says what the line MEANS it scores 0.323 and ranks 3 of 1,200 —
+    same algorithm, same pool, different prose.
+    """
+    import re
+
+    raw = json.loads(SEED.read_text(encoding="utf-8"))
+    banned = re.compile(
+        r"services\.[a-z_]+"          # a module, deleted or not
+        r"|alias.matched"
+        r"|Computed, never"
+        r"|resolves this"
+        r"|\bdocs/"
+        r"|\.md\b"
+        r"|\((?:P|COS_P|LTP_P|CP_P|CL_P)\d\)",   # cascade rung ids belong on the cascade
+        re.IGNORECASE)
+    offenders = [(i["key"], banned.search(i.get("definition") or "").group(0))
+                 for i in raw["items"] if banned.search(i.get("definition") or "")]
+    assert not offenders, (
+        "a definition describes how a figure is computed rather than what it is — that text is what "
+        f"the semantic tier reasons over: {offenders[:5]}")
+
+
+def test_the_footnote_that_states_a_figure_is_reachable_semantically():
+    """THE WHOLE CLAIM, on the real prose. The operating-expense share of laisun.pdf's depreciation
+    charge is stated in a footnote and in no extracted row. It has to be reachable by MEANING —
+    not only by the identified-notes block, which passes such notes in full and costs ~38k tokens a
+    request.
+
+    Asserted on a hand-built pool rather than by running the filing, so the test is fast and states
+    exactly which two properties carry it: a sentence-level unit, and a definition about the
+    subject.
+    """
+    from app.services.note_context import ContextPool, ContextUnit
+
+    footnote = ("^ Depreciation charges of approximately HK$529,841,000 (2024: HK$665,553,000) are "
+                "included in \u201cother operating expenses\u201d on the face of the consolidated "
+                "income statement.")
+    pool = ContextPool([
+        ContextUnit(kind="note", ref="7", title="LOSS FROM OPERATING ACTIVITIES",
+                    captions=(footnote,), prose=True),
+        ContextUnit(kind="note", ref="13", title="Inventories",
+                    captions=("Raw materials", "Finished goods")),
+        ContextUnit(kind="note", ref="16", title="Right-of-use assets",
+                    captions=("Depreciation charge of right-of-use assets",)),
+    ])
+    by_key = _by_key()
+    definition = by_key["is_pl__deprec_and_impairment_oper_exp"].meaning() or ""
+    assert "operating expenses" in definition.lower(), \
+        "the definition no longer names the expense category the footnote routes to"
+
+    got = pool.select(probe_text=definition, notes_cap=2, face_cap=0, char_budget=4000)
+    assert any("529,841,000" in json.dumps(u, ensure_ascii=False) for u in got), \
+        [u["ref"] for u in got]

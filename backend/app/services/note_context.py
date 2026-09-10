@@ -62,6 +62,10 @@ from dataclasses import dataclass, field
 # different as evidence.
 _WORD = re.compile(r"[a-z]{3,}")
 
+# Below this a note's "sentence" is a fragment — "(continued)", a stray figure, a page header —
+# which matches nothing and only dilutes the IDF of the words that do.
+_MIN_PROSE_SENTENCE = 26
+
 
 def subject_tokens(text: str) -> list[str]:
     """The words a subject is compared on. PUBLIC because `services.mapping` builds the probe
@@ -88,6 +92,11 @@ class ContextUnit:
     amount: str = ""                            # one representative figure, for face rows
     section: str = ""
     row_id: str = ""                            # so a row is never offered as context for itself
+    # True for a unit that is a SENTENCE of a note's narrative rather than a row of its table.
+    # Carried into the payload so the model can tell a printed row from a statement about one —
+    # a footnote saying where a figure is included is evidence of a different kind from the
+    # figure itself.
+    prose: bool = False
     tokens: tuple[str, ...] = field(default=(), compare=False)
 
     def probe_text(self) -> str:
@@ -117,6 +126,8 @@ class ContextUnit:
         if cited:
             # WHY IT IS HERE, so the model can weigh a printed reference above a resemblance.
             out["cited"] = True
+        if self.prose:
+            out["prose"] = True
         return out
 
 
@@ -242,23 +253,50 @@ def build_pool(doc, stmt_by_page: dict[int, str] | None = None, *,
                captions_per_unit: int = 8) -> ContextPool:
     """Every note and face row of one document, as context units.
 
-    NOTE CAPTIONS COME FROM ``NotesTable.items``, NOT ``source_text``. ``source_text`` is the page
-    dump the note was parsed out of — unbounded, and mostly narrative accounting policy that shares
-    high-IDF words with everything and so scores noisily against every row. ``items`` are the note's
-    own reconstructed rows, which is what a breakdown actually consists of. ``source_text`` is used
-    only as a fallback for a note that produced no rows, and truncated when it is.
+    A NOTE CONTRIBUTES TWO KINDS OF UNIT, and it used to contribute only the first.
+
+    * ITS ROWS, from ``NotesTable.items`` — the note's own reconstructed breakdown, which is what a
+      table of figures consists of.
+    * ITS PROSE, from ``source_text``, ONE SENTENCE PER UNIT. This was previously a fallback used
+      only when a note produced no rows, and the whole narrative arrived as a single unit when it
+      was used at all. Both choices hid the thing this exists for.
+
+    WHY A SENTENCE RATHER THAN THE NARRATIVE. A footnote states figures no row carries — measured on
+    laisun.pdf, "^ Depreciation charges of approximately HK$529,841,000 … are included in 'other
+    operating expenses'" is the operating-expense share of the depreciation charge, and 529841
+    appears in no extracted row anywhere in that filing. As one 1,238-character unit that sentence
+    scored 0.123 against a 0.22 threshold, because the score divides by the unit's own length and a
+    long narrative shares words with everything. Split, the same sentence scores 0.137 on the
+    shipped configuration and 0.352 once the concept's definition says what the line MEANS — rank 3
+    of 1,466 units rather than 33.
+
+    So the split is necessary and not sufficient: it makes a footnote reachable, and the
+    definition decides whether anything reaches it.
+
+    THE POOL GROWS — 404 units to about 1,466 on that filing — and the IDF is computed over the
+    pool, so every score moves. That is the point rather than a side effect: a word common to a
+    thousand policy sentences should weigh less than one that appears in three.
     """
+    import re as _re
+
     units: list[ContextUnit] = []
     for table in getattr(doc, "notes", None) or ():
-        captions = [i.raw_label for i in (getattr(table, "items", None) or ())
-                    if getattr(i, "raw_label", "")][:captions_per_unit]
-        if not captions and getattr(table, "source_text", ""):
-            captions = [ln.strip() for ln in table.source_text.splitlines()
-                        if ln.strip()][:captions_per_unit]
-        if not (captions or getattr(table, "title", "")):
-            continue
-        units.append(ContextUnit(kind="note", ref=str(table.note_number),
-                                 title=table.title or "", captions=tuple(captions)))
+        rows = [i.raw_label for i in (getattr(table, "items", None) or ())
+                if getattr(i, "raw_label", "")][:captions_per_unit]
+        if rows or getattr(table, "title", ""):
+            units.append(ContextUnit(kind="note", ref=str(table.note_number),
+                                     title=table.title or "", captions=tuple(rows)))
+        # THE PROSE, one sentence per unit. Sentences shorter than this carry no subject — a
+        # fragment like "(continued)" or a bare figure would add a unit that matches nothing and
+        # dilute the IDF of the words that do.
+        prose = getattr(table, "source_text", "") or ""
+        for sentence in _re.split(r"(?<=[.;])\s+|\n{2,}", prose):
+            sentence = sentence.strip()
+            if len(sentence) < _MIN_PROSE_SENTENCE:
+                continue
+            units.append(ContextUnit(kind="note", ref=str(table.note_number),
+                                     title=table.title or "", captions=(sentence,),
+                                     prose=True))
 
     pages = stmt_by_page or {}
     for li in getattr(doc, "line_items", None) or ():
