@@ -109,6 +109,50 @@ def build(runs: list[dict], out: pathlib.Path) -> int:
                              "yes" if i["deducted"] else "", i.get("note") or ""],
                         mono=(5,), nums=(6,))
 
+    # ── 2b. deterministic vs LLM, per concept ────────────────────────────────────────────────
+    #
+    # WHY THIS SHEET EXISTS. It is what found the defect worth knowing about: on laisun.pdf the
+    # deterministic tiers map the face revenue to 4,995,768 and the LLM run does not map it at all,
+    # so a low-precedence segment rung filled the line with 2,609,259 instead. The model is being
+    # asked about rows the alias tier already answered correctly, and answering worse. A single
+    # column of "the figure" would have hidden that.
+    pairs: dict[str, dict[str, dict]] = {}
+    for r in runs:
+        name = r["filing"].replace(".pdf", "")
+        mode = "llm" if (r.get("llm_calls") or 0) else "deterministic"
+        pairs.setdefault(name, {})[mode] = r
+    both = {n: m for n, m in pairs.items() if len(m) == 2}
+    if both:
+        cs = sheet("2b. Deterministic vs LLM", [
+            ("Filing", 16), ("Concept", 42), ("Deterministic", 18), ("With LLM", 18),
+            ("Agree?", 12), ("What it means", 56)])
+        for name, modes in sorted(both.items()):
+            det, llm = modes["deterministic"], modes["llm"]
+            by = {c["key"]: c for c in llm["concepts"]}
+            for c in det["concepts"]:
+                o = by.get(c["key"], {})
+                a = next((f["value"] for f in c["figures"] if f["period"] == "current"), None)
+                b = next((f["value"] for f in (o.get("figures") or [])
+                          if f["period"] == "current"), None)
+                if a is None and b is None:
+                    verdict, meaning, fill = "both empty", "", None
+                elif a == b:
+                    verdict, meaning, fill = "same", "", GOT
+                elif a is not None and b is None:
+                    verdict, meaning, fill = ("LLM LOST it",
+                        "the deterministic tiers reached this concept and the LLM run did not — "
+                        "the model was asked about a row the alias tier already answered", EMPTY)
+                elif a is None:
+                    verdict, meaning, fill = ("LLM found it",
+                        "only the model reached this concept", GOT)
+                else:
+                    verdict, meaning, fill = ("DISAGREE",
+                        "two different figures for one line. The deterministic one comes off the "
+                        "face; the LLM one came from a cascade rung after the face mapping was "
+                        "lost. Trust the face.", EMPTY)
+                put(cs, [name, c["key"], a or "", b or "", verdict, meaning],
+                    fill=fill, nums=(3, 4))
+
     # ── 3. the runs themselves ────────────────────────────────────────────────────────────────
     rs = sheet("3. Runs", [("Filing", 20), ("Pages", 8), ("Notes", 8), ("Rows", 8),
                             ("Seconds", 9), ("LLM calls", 10), ("Tokens in", 12),
