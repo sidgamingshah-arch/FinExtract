@@ -725,6 +725,11 @@ class MapOntologyStage:
         det_matcher = (OntologyMatcher(ontology, locale=doc.locale, settings=ctx.settings)
                        if focus_keys else None)
         focus_det = focus_llm = focus_sections_skipped = 0
+        # item_id -> the deterministic answer a row forwarded to the model already had, so that a
+        # model which answers nothing (or a batch the provider refuses outright) cannot leave the
+        # row worse off than if no provider had been configured at all. Applied after the batch
+        # loop; see the row gate below for the two figures whose loss this exists to prevent.
+        det_fallback: dict[str, object] = {}
         # PROSE CAPTIONS (extraction.skip_prose_captions, DEFAULT OFF). The per-line note pass
         # below runs over every LINE row of every extracted note, and on a real filing that means
         # sentences — 587 of 627 note rows on the reference English filing reached no concept,
@@ -887,6 +892,25 @@ class MapOntologyStage:
                             focus_det += 1
                         else:
                             llm_rows.append(li)
+                            # KEEP THE DETERMINISTIC ANSWER AS THE FALLBACK, do not discard it.
+                            #
+                            # This row is forwarded to CONFIRM OR CORRECT a focus-concept answer
+                            # the deterministic tiers already have. If the model answers, its
+                            # answer wins — that is the point of asking. But if it answers NOTHING
+                            # the row must keep what the caption tier gave it, and until now the
+                            # `res` computed one line above was simply dropped on the floor.
+                            #
+                            # MEASURED, and it is why a configured-but-failing provider produced
+                            # figures BELOW the deterministic path rather than equal to it. On
+                            # laisun, with every batch call refused 413 by the free tier's 8,000
+                            # tokens-per-minute limit (requests are ~40,000), `llm_calls` was 0 and
+                            # two figures the deterministic run had right were lost outright:
+                            # Sales(Revenues) 4,995,768 -> 2,609,259 (the face mapping vanished and
+                            # the parent fell through to a low-precedence segment rung) and Secur &
+                            # Other Fincl Assets (CP) 174,822 -> empty. Reproduced with a stub that
+                            # only ever raises, so it is the DISCARD and not anything the model did.
+                            if res and res.canonical_key:
+                                det_fallback[str(li.id)] = res
                     if llm_rows:
                         tasks.append((statement, llm_rows, cited_notes))
                         focus_llm += len(llm_rows)
@@ -974,6 +998,26 @@ class MapOntologyStage:
                     ctx.log(f"map_line_items:llm_batch {finished}/{len(tasks)}"
                             f" calls={made}/{max(planned, made)} rows={len(subgroup)}"
                             f" mapped_so_far={mapped}")
+            # THE FALLBACK THE ROW GATE KEPT. Every forwarded row that the model did not answer
+            # gets back the deterministic answer it arrived with, so a configured-but-failing
+            # provider degrades to the deterministic path rather than below it. Runs AFTER the whole
+            # batch loop because a row may be answered by any chunk, and only rows still carrying no
+            # concept are touched — a model answer always wins, which is what asking was for.
+            recovered = 0
+            for iid, res in det_fallback.items():
+                li = by_id.get(iid)
+                if li is None or getattr(li, "canonical_key", None):
+                    continue
+                if _apply(li, res):
+                    mapped += 1
+                    recovered += 1
+            if recovered:
+                # Said out loud: these rows were paid for and came back unanswered, and the figure
+                # they carry is the lexical one rather than a judged one.
+                ctx.log(f"map_line_items:deterministic_fallback_applied rows={recovered} "
+                        f"(forwarded to the model, unanswered, restored to the caption tier's "
+                        f"answer)")
+
             # How the document was actually cut up, so "one statement, two pages, one call" is
             # verifiable from the run record instead of asserted in a docstring.
             ctx.log(f"map_line_items:groups={len(groups)} batched_rows={batched}"

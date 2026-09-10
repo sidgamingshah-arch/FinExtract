@@ -2740,7 +2740,25 @@ class OntologyMatcher:
             if exact:
                 if exact.rerouted_from:
                     self._record_route(exact.rerouted_from, exact.canonical_key)
-                if not self.llm_enabled:
+                # DO NOT SPEND A CALL ASKING ABOUT A CONCEPT THE MODEL MAY NOT NAME.
+                #
+                # An exact alias hit normally falls through to the semantic tier, which is right
+                # when the model could name the same concept: it may know better, and the alias may
+                # be a false hit. But when the hit names something in `_llm_withheld` the model
+                # CANNOT return it — the key is off the candidate list and an answer naming it is
+                # refused — so the call can only end in the same answer, a different one, or none.
+                # For `extract_or_derive` in particular the printed row is exactly what must be
+                # read, so locking in the alias is the intended outcome rather than a compromise.
+                #
+                # SCOPE, stated because it was originally mis-stated here: this is a cost-and-
+                # coherence guard, NOT the fix for the lost-figure regression. That regression was
+                # in the focus-routing ROW GATE (`stages.map_ontology`), which computed a row's
+                # deterministic answer and then discarded it when forwarding the row to the model —
+                # so a refused batch left the row unmapped. It is fixed there, by keeping that
+                # answer as the fallback, and measured there. This guard is the same principle one
+                # layer down, and it matters on the paths the row gate does not cover: a run with
+                # `llm_focus_only` off sends every row through here.
+                if not self.llm_enabled or exact.canonical_key in self._llm_withheld:
                     return MappingResult(exact.canonical_key, exact.method, 1.0, [exact], False,
                                          {"exact": 1.0}, allocation_status="direct_exclusive",
                                          rerouted_from=exact.rerouted_from)
@@ -2831,9 +2849,16 @@ class OntologyMatcher:
                         + ([rule.canonical_key] if rule else [])
                         + self._by_priority(all_keys)))[: s.extraction.llm_candidate_cap]
                 # Offered in descending match_priority, so the long specific concept is read before
-                # the short generic one it collides with on token overlap ("Total assets less
-                # current liabilities", 86, ahead of "Total current liabilities", 82 — the pair the
-                # rulebook's own note on match_priority calls out). Applied AFTER the cap on
+                # the short generic one it collides with on token overlap: "Current portion of
+                # long-term debt" (68) ahead of "Borrowings (current)" (60), a mutually
+                # `confusable_with` pair the file happens to DECLARE the wrong way round, so
+                # priority is doing real work here rather than agreeing with insertion order.
+                #
+                # The rulebook's own note on match_priority names a different pair ("Total assets
+                # less current liabilities", 86, over "Total current liabilities", 82). That one can
+                # no longer both be offered — every `*_top_level` total is `extract_or_derive` and
+                # so withheld from the model by `_llm_withheld` — which is why the example here is
+                # an in-section `extract` pair instead. Applied AFTER the cap on
                 # purpose: priority decides what the model reads first, never which concepts it is
                 # allowed to see, so a high-priority concept with no evidence behind it cannot evict
                 # an evidenced one.
@@ -3107,9 +3132,11 @@ class OntologyMatcher:
         # with `llm_calls: 0` — a full-capability extraction silently degraded to the weaker path
         # with nothing in the output saying the model had never been asked.
         #
-        # The bound already existed. `extraction.llm_candidate_cap` (40) was applied in `match`
-        # alone, so the path that decides essentially every statement row was the one path running
-        # unbounded, and the size of the request scaled with the filing: the bigger the document,
+        # The bound already existed. `extraction.llm_candidate_cap` — code default 40, though this
+        # deployment runs it at 16 from `.env` (`FINEX_EXTRACTION__LLM_CANDIDATE_CAP`), so do not
+        # read 40 as the number in force — was applied in `match` alone, so the path that decides
+        # essentially every statement row was the one path running unbounded, and the size of the
+        # request scaled with the filing: the bigger the document,
         # the more certain it was to lose the LLM path entirely.
         #
         # SEEDS ARE NEVER EVICTED. A chunk carries up to BATCH_MAX_ITEMS captions, so capping by

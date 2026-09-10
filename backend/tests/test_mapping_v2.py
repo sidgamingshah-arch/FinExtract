@@ -219,6 +219,23 @@ def test_the_colliding_pair_is_offered_in_the_order_the_rulebook_declares(v2):
 
     The deterministic tiers still rank it: `_by_priority` and `_priority_of` read the rulebook, not
     the offer rule, so a filing that PRINTS the subtotal still has it read at the right priority.
+
+    A LIVE COLLIDING PAIR REPLACES THE WITHDRAWN ONE, in the same call, because "no pair inverts" is
+    also satisfiable by a list nothing ordered — an aggregate property alone would let the sort be
+    deleted and still ship green. Measured on this file: "Current portion of long-term debt"
+    (`match_priority` 68, declaration index 45) and "Borrowings (current)" (60, index 44) are both
+    `extraction_mode: extract` and so both offered; each names the other in `confusable_with` (which
+    the payload carries); and the long specific caption is DECLARED AFTER the short generic one, so a
+    list read in declaration order puts the pair the wrong way round. That is the same shape the
+    rulebook's own note describes, with a pair that survives the extract-only rule.
+
+    WHY THIS CALL AND NOT A WIDER ONE. 12 candidates is under `llm_candidate_cap` (16), so
+    `shortlist = all_keys` reaches the sort in DECLARATION order and `_by_priority` is the ONLY sort
+    in the path — measured with that sort removed, the offered priorities come out
+    [62, 62, 64, 56, 68, 60, 62, 60, 68, 54, 64, 82] and the pair inverts to 8 before 7, so both
+    assertions below fail. A probe with no `section` would offer 32 and take the over-cap branch,
+    whose expression already contains `_by_priority(all_keys)`; with the sort deleted such a probe
+    still passes. Keep the section.
     """
     spy = Spy(single="")
     m = _matcher(v2, spy)
@@ -226,12 +243,23 @@ def test_the_colliding_pair_is_offered_in_the_order_the_rulebook_declares(v2):
             statement="balance_sheet", section="CURRENT LIABILITIES 流動負債")
     offered = spy.offered()
 
-    specific = "bs_total_assets_less_current_liabilities"
-    assert m._by_key[specific].extraction_mode == "extract_or_derive"
-    assert specific in m._llm_withheld and specific not in offered
-    # Still ranked for the tiers that CAN bind it, which is what makes withholding it safe.
-    assert m._priority_of(specific) > m._priority_of(
+    withheld = "bs_total_assets_less_current_liabilities"
+    assert m._by_key[withheld].extraction_mode == "extract_or_derive"
+    assert withheld in m._llm_withheld and withheld not in offered
+    # Still ranked, and still MATCHABLE, by the tiers that CAN bind it — which is what makes
+    # withholding it from the OFFER safe rather than a concept lost to every tier.
+    assert withheld in m._mappable_keys()
+    assert m._priority_of(withheld) > m._priority_of(
         "bs_current_liabilities__total_current_liabilities")
+    # The pair that IS still offered: priority, not declaration order, decides the reading order.
+    specific = offered.index("bs_current_liabilities__current_portion_of_long_term_debt")   # 68
+    generic = offered.index("bs_current_liabilities__current_borrowings")                   # 60
+    assert specific < generic, list(zip(offered, [m._priority_of(k) for k in offered]))
+    # …and the file declares them the wrong way round, which is the thing priority overrides. Without
+    # this the assertion above would also pass on a list that was never sorted.
+    decl = {mm.canonical_key: i for i, mm in enumerate(v2.mappings)}
+    assert decl["bs_current_liabilities__current_portion_of_long_term_debt"] > decl[
+        "bs_current_liabilities__current_borrowings"]
     # The whole list, not just one pair: descending declared priority.
     priorities = [m._priority_of(k) for k in offered]
     assert priorities == sorted(priorities, reverse=True), list(zip(offered, priorities))

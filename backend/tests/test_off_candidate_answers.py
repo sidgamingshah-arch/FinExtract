@@ -423,6 +423,86 @@ def test_a_residual_bucket_is_refused_EVEN_WITH_a_citation(shipped):
     assert m.usage.get("batch_residual_named") == 1
 
 
+# ── withholding a concept must not cost the row its deterministic answer ──────────────────────
+
+def test_no_call_is_spent_on_a_concept_the_model_may_not_name(shipped):
+    """An exact alias hit normally falls through to the semantic tier — right when the model could
+    name the same concept, since it may know better and the alias may be a false hit. But when the
+    hit names a concept in `_llm_withheld` the model CANNOT return it: the key is off the candidate
+    list and an answer naming it is refused. So the call can only end in the same answer, a
+    different one, or none — and for `extract_or_derive` the printed row is exactly what must be
+    read, so locking in the alias is the intended outcome.
+
+    THIS IS NOT THE LOST-FIGURE FIX, and the distinction is recorded because it was first got
+    wrong here. That regression lived in the focus-routing ROW GATE, which discarded a forwarded
+    row's deterministic answer — see
+    `test_a_failing_provider_degrades_to_the_deterministic_path_not_below_it`, which reproduces it
+    end to end. This is the same principle one layer down, and it covers the paths the row gate does
+    not: a run with `llm_focus_only` off sends every row through here.
+    """
+    class _Abstains:
+        """A provider that answers nothing — the shape that destroyed the two figures."""
+
+        id = "abstains"
+
+        def __init__(self):
+            self.asked = 0
+
+        def complete_structured(self, *, system, messages, response_schema, **_):
+            self.asked += 1
+            fields = response_schema.model_fields
+            if "mappings" in fields:
+                return response_schema.model_validate({"mappings": []}), {}
+            return response_schema.model_validate(
+                {"canonical_key": "", "confidence": 0.0}), {}
+
+    view = build_working_view(shipped)
+    matcher = OntologyMatcher(view, locale="en", settings=get_settings(),
+                              llm_provider=_Abstains())
+
+    # A withheld concept with an exact alias, taken from the shipped set rather than assumed.
+    withheld = next((m.canonical_key for m in view.mappings
+                     if m.canonical_key in matcher._llm_withheld
+                     and m.canonical_key not in matcher._locked
+                     and m.aliases_for("en")), None)
+    assert withheld, "no withheld concept carries an alias, so this proves nothing"
+    alias = view_alias = matcher._by_key[withheld].aliases_for("en")[0]
+
+    result = matcher.match(view_alias, statement=None, section=None)
+
+    assert result.canonical_key == withheld, (
+        f"the alias {alias!r} lost its deterministic mapping to {withheld}; an abstaining model "
+        f"must not be able to empty a row the caption tier answered at confidence 1.0")
+    assert result.confidence == 1.0
+    assert matcher.usage.get("llm_calls", 0) == 0 or result.canonical_key == withheld
+
+
+def test_an_offered_concept_still_goes_to_the_model(shipped):
+    """The other half, so the guard above cannot quietly become "never consult the model". A row
+    whose exact hit names an OFFERED concept still falls through to the semantic tier, because there
+    the model can return the same key and may genuinely know better."""
+    class _Counts:
+        id = "counts"
+
+        def __init__(self):
+            self.asked = 0
+
+        def complete_structured(self, *, system, messages, response_schema, **_):
+            self.asked += 1
+            return response_schema.model_validate({"canonical_key": "", "confidence": 0.0}), {}
+
+    view = build_working_view(shipped)
+    provider = _Counts()
+    matcher = OntologyMatcher(view, locale="en", settings=get_settings(), llm_provider=provider)
+
+    offered = next((m.canonical_key for m in view.mappings
+                    if m.canonical_key not in matcher._llm_withheld and m.aliases_for("en")), None)
+    assert offered, "no offered concept carries an alias"
+    matcher.match(matcher._by_key[offered].aliases_for("en")[0], statement=None, section=None)
+
+    assert provider.asked >= 1, "an offered concept's row must still reach the semantic tier"
+
+
 # ── a figure the filing states only in PROSE ──────────────────────────────────────────────────
 
 def test_a_prose_figure_is_accepted_when_it_is_really_there(shipped):
