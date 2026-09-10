@@ -267,3 +267,55 @@ def test_the_stage_is_registered_in_the_one_pipeline_registry():
     # AFTER normalize, deliberately: a note-derived figure must not be put through the
     # unsigned-expense cohort vote, which would flip the sign of every expense on the statement.
     assert names.index("note_sourced") > names.index("normalize"), names
+
+
+def test_a_concept_the_configuration_marks_evidence_only_is_not_filled_from_a_note(shipped):
+    """THE SET'S OWN RULE, enforced: "Notes are evidence for a face amount, never an independent
+    source of one, unless note_use is decomposition_allowed" (`global_rules.face_only_default`).
+
+    `notes__contingent_liabilities` is one of the eight focus concepts and is `evidence_only`, so a
+    note may corroborate it and must not supply it. Asserted here because the rule lives in prose
+    in the configuration, and prose is not enforcement — and because the refusal must be LOUD: a
+    line left empty for a stated reason and a line left empty because nothing matched are
+    different facts, and only one of them is a decision.
+    """
+    from app.schemas.line_items import NoteSource
+
+    edited = shipped.model_copy(deep=True)
+    by_key = {i.key: i for i in edited.items}
+    assert by_key["notes__contingent_liabilities"].note_use == "evidence_only"
+
+    # Give it a child that WOULD match, so the refusal is the only thing standing in the way.
+    child = by_key["sub__cos_depreciation"].model_copy(deep=True)
+    child.key = "sub__probe_guarantees"
+    child.parent = "notes__contingent_liabilities"
+    child.note_source = NoteSource(note_title_any=["contingent"],
+                                   row_caption_any=["guarantee"], row_caption_none=[])
+    edited.items.append(child)
+
+    doc = DocumentModel(filename="f.pdf")
+    doc.notes = [NotesTable(note_number="31", title="Contingent liabilities",
+                            items=[_note_row("Corporate guarantees given", "8000")])]
+    ctx = PipelineContext(settings=get_settings())
+    ctx.line_items = edited
+    doc = NoteSourcedStage().run(doc, ctx)
+
+    # The CHILD is still filled — the selection worked, and the trail is worth having.
+    assert _figure(doc, "sub__probe_guarantees") == Decimal("8000")
+    # The PARENT is not, and the log says why in the configuration's own terms.
+    assert _figure(doc, "notes__contingent_liabilities") is None
+    assert any("REFUSED as a note source" in line and "evidence_only" in line
+               for line in ctx.logs), ctx.logs
+
+
+def test_the_seven_concepts_that_permit_decomposition_are_not_blocked_by_the_gate(shipped):
+    """The gate must refuse only what the configuration marks, or it would quietly disable the
+    mechanism for the other seven focus concepts."""
+    permits = {i.key: i.note_use for i in shipped.items}
+    assert permits["is_pl__deprec_and_impairment_oper_exp"] == "decomposition_allowed"
+    assert permits["is_pl__deprec_and_impairment_cos"] == "decomposition_allowed"
+    # And the shipped depreciation fill still happens, which is the same assertion end to end.
+    doc, _ctx = _run(shipped, [NotesTable(
+        note_number="8", title="Research and development expenses",
+        items=[_note_row("Depreciation of property, plant and equipment", "1200")])])
+    assert _figure(doc, OPER_EXP) == Decimal("1200")

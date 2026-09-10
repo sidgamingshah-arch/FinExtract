@@ -88,7 +88,8 @@ class NoteSourcedStage(Stage):
         # fell back to `sum`, which summed twelve disclosures of one depreciation charge into a cost
         # twelve times too large. The fallback was the bug, not the lookup.
         parents = _fill_parents(children_of, by_key, doc, ctx,
-                                _parent_rollup(getattr(line_item_set, "items", None)))
+                                _parent_rollup(getattr(line_item_set, "items", None)),
+                                _note_permission(getattr(line_item_set, "items", None)))
         ctx.log(f"note_sourced: {touched} item(s) filled from notes, {filled} figure(s), "
                 f"{parents} parent(s) resolved")
         return doc
@@ -154,8 +155,25 @@ def _parent_rollup(all_items) -> dict[str, str]:
     return {i.key: str(getattr(i, "rollup", None) or "sum") for i in all_items or ()}
 
 
+def _note_permission(all_items) -> dict[str, str]:
+    """Each configured key -> its `note_use`, which decides whether a NOTE may fill it at all.
+
+    THE SET'S OWN RULE, quoted from `global_rules.face_only_default`: "Notes are evidence for a face
+    amount, never an independent source of one, unless note_use is decomposition_allowed." So a
+    concept marked `evidence_only` may be CORROBORATED by a note and must not be FILLED from one —
+    and `notes__contingent_liabilities`, one of the eight focus concepts, is exactly that.
+
+    Read off the PARENT, because the parent is the concept being filled. The thirteen children all
+    resolve to `evidence_only` themselves, inherited from the `notes` section they live in, which
+    says where the selection machinery sits rather than what may be concluded from it. Gating on
+    the child would refuse every fill in the set.
+    """
+    return {i.key: str(getattr(i, "note_use", "") or "") for i in all_items or ()}
+
+
 def _fill_parents(children_of: dict[str, list], by_key: dict, doc: DocumentModel,
-                  ctx: PipelineContext, declared: dict[str, str]) -> int:
+                  ctx: PipelineContext, declared: dict[str, str],
+                  permitted: dict[str, str]) -> int:
     """Combine each parent's note-sourced children the way the PARENT declares.
 
     * ``alternatives`` — the children are the same figure disclosed in different notes, so ONE is
@@ -172,6 +190,15 @@ def _fill_parents(children_of: dict[str, list], by_key: dict, doc: DocumentModel
     resolved = 0
     for parent_key, kids in sorted(children_of.items()):
         if not parent_key:
+            continue
+        # THE PERMISSION GATE, before the arithmetic. A concept the configuration marks
+        # `evidence_only` is one the notes may corroborate and must not supply — see
+        # `_note_permission`. Refused out loud, because a line left empty for a stated reason and
+        # a line left empty because nothing matched are different facts.
+        use = permitted.get(parent_key, "")
+        if use and use != "decomposition_allowed":
+            ctx.log(f"note_sourced:{parent_key}: REFUSED as a note source — its note_use is "
+                    f"`{use}`, so a note is evidence for this line and never the source of it")
             continue
         rollup = declared.get(parent_key, "sum")
         if rollup == "none":
