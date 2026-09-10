@@ -62,16 +62,44 @@ from dataclasses import dataclass, field
 # different as evidence.
 _WORD = re.compile(r"[a-z]{3,}")
 
+# HAN RUNS, AS OVERLAPPING CHARACTER BIGRAMS. Without this the tokeniser was `[a-z]{3,}` and
+# nothing else, so 固定资产折旧 produced NO tokens and every Chinese heading scored exactly 0.000
+# against every probe — including a Chinese one. Measured before the change: on suncreate, 0 of 120
+# authored (line item, note) pairs were found at ANY rank, which is not a threshold that needs
+# tuning but a script the scorer could not see.
+#
+# BIGRAMS RATHER THAN A SEGMENTER, deliberately. Chinese is written without spaces, so a word-level
+# split needs a dictionary and a model, and a wrong split is silent. Overlapping 2-character
+# shingles need neither and cannot mis-segment: 固定资产折旧 yields 固定/定资/资产/产折/折旧, which
+# contains the real words 固定/资产/折旧 among near-misses that no other heading shares either. The
+# IDF weighting then does what it does for English — a shingle in every heading contributes nothing,
+# one in a single heading contributes the most — so the near-misses cost precision, not correctness.
+#
+# A ONE-CHARACTER RUN yields that character, because a lone 现 or 税 is a real subject word and a
+# bigram cannot be formed from it.
+_HAN = re.compile(r"[㐀-䶿一-鿿豈-﫿]+")
+
 # Below this a note's "sentence" is a fragment — "(continued)", a stray figure, a page header —
 # which matches nothing and only dilutes the IDF of the words that do.
 _MIN_PROSE_SENTENCE = 26
 
 
 def subject_tokens(text: str) -> list[str]:
-    """The words a subject is compared on. PUBLIC because `services.mapping` builds the probe
-    and this module scores it: two different splits would let the boilerplate filter strip
-    tokens the scorer still counts."""
-    return _WORD.findall((text or "").lower())
+    """The words a subject is compared on, in both scripts.
+
+    PUBLIC because `services.mapping` builds the probe and this module scores it: two different
+    splits would let the boilerplate filter strip tokens the scorer still counts. That is also why
+    the Han handling lives HERE rather than in the line-item selector — one split, or the two sides
+    of every comparison stop agreeing.
+    """
+    lowered = (text or "").lower()
+    out = _WORD.findall(lowered)
+    for run in _HAN.findall(lowered):
+        if len(run) == 1:
+            out.append(run)
+            continue
+        out.extend(run[i:i + 2] for i in range(len(run) - 1))
+    return out
 
 
 _tokens = subject_tokens          # the name used inside this module

@@ -1459,6 +1459,7 @@ export type LineItemType = "extracted" | "calculated" | "intermediate" | "derive
  *  Only legal on an `extracted` line: no arithmetic produces a sentence, and the server refuses
  *  the pair. `prose` additionally requires a prompt, which is the only thing it is written from. */
 export type OutputStructure = "value" | "phrase" | "prose";
+export type NoteSelection = "semantic" | "patterns";
 /** Where a caption may be READ FROM, in search order — not a gate. The tokens are
  *  `StatementType`'s own: this list once said `income_statement` and `changes_in_equity`, neither
  *  of which the backend knows (it says `profit_and_loss` and `equity_changes`), so a scope sent
@@ -1616,6 +1617,9 @@ export interface LineItemDef {
    *  and where it prints none, report 0 (or "" for a text line) rather than leaving it blank.
    *  `extraction_mode: extract` only; the server refuses it elsewhere. */
   llm_only_if_note_tagged: boolean;
+  /** How this line's notes are found: `semantic` scores its meaning against each note's header,
+   *  `patterns` matches the authored `note_source.note_title_any` regexes. Semantic by default. */
+  note_selection: NoteSelection;
   aliases: string[];
   /** Per-locale aliases; the matcher folds every locale into one index. */
   aliases_i18n: Record<string, string[]>;
@@ -1778,6 +1782,7 @@ export interface LineItemEdit {
    *  "Cash" once resolved to an overdraft. */
   allow_contra?: boolean;
   llm_only_if_note_tagged?: boolean;
+  note_selection?: NoteSelection;
   /** `null` disables note sourcing for this line entirely. */
   note_source?: NoteSource | null;
   note_use?: LineItemNoteUse | null;
@@ -1863,6 +1868,7 @@ export interface LineItemVocab {
   namespaces: LineItemNamespace[];
   types: LineItemType[];
   output_structures: OutputStructure[];
+  note_selections: NoteSelection[];
   value_scopes: ValueScope[];
   extraction_modes: LineItemExtractionMode[];
   alias_matching: LineItemAliasMatching[];

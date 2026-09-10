@@ -76,7 +76,7 @@ from app.schemas.line_items import (
     LineItemDef,
     LineItemSet,
     LineItemType,
-    OutputStructure,
+    NoteSelection, OutputStructure,
     MappingVocabulary,
     Namespace,
     NoteSource,
@@ -348,6 +348,7 @@ def _vocabulary(st: LineItemSet) -> dict:
         "types": _literal_values(LineItemType),
         # The three output structures, so the control cannot offer a fourth.
         "output_structures": _literal_values(OutputStructure),
+        "note_selections": _literal_values(NoteSelection),
         "value_scopes": _literal_values(ValueScope),
         "extraction_modes": _literal_values(ExtractionMode),
         "alias_matching": _literal_values(AliasMatching),
@@ -899,6 +900,7 @@ class ItemEdit(BaseModel):
     side: Side | None = None
     allow_contra: bool | None = None
     llm_only_if_note_tagged: bool | None = None
+    note_selection: NoteSelection | None = None
     note_source: NoteSource | None = None
     note_use: NoteUse | None = None
     face_only: bool | None = None
@@ -986,6 +988,7 @@ _EDIT_SCALARS: dict[str, str] = {
     "side": "side",
     "allow_contra": "allow_contra",
     "llm_only_if_note_tagged": "llm_only_if_note_tagged",
+    "note_selection": "note_selection",
     "note_use": "note_use",
     "face_only": "face_only",
     "is_gross_parent": "is_gross_parent",

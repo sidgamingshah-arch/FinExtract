@@ -101,6 +101,11 @@ LineItemType = Literal["extracted", "calculated", "intermediate", "derived"]
 # still balance and nothing would say the line had been skipped.
 OutputStructure = Literal["value", "phrase", "prose"]
 
+# HOW THIS LINE'S NOTES ARE FOUND. `semantic` scores the line's own meaning against each note's
+# HEADER (`services.line_item_notes`); `patterns` matches the authored `note_source.note_title_any`
+# regexes against the same headers (`note_context.identified_notes`).
+NoteSelection = Literal["semantic", "patterns"]
+
 # Where a caption may be READ FROM, in the order they are searched — a search ORDER, not a gate.
 # `notes` leads by default: a note states the figure the face only summarises, and for the eight
 # output lines the note IS the authoritative source, which is why the derivation services read
@@ -214,6 +219,29 @@ class NoteSource(BaseModel):
     note_title_any: list[str] = Field(default_factory=list)
     row_caption_any: list[str] = Field(default_factory=list)
     row_caption_none: list[str] = Field(default_factory=list)
+    # THE SEMANTIC HALF, and the two levels are the SAME two levels as the patterns above. That
+    # parallel is the whole design: which note, then which rows inside it, are different questions
+    # searched against different text, and they need different vocabularies.
+    #
+    #     note_terms      what the NOTE is about   -> scored against note HEADERS
+    #     row_terms       what the ROW is called   -> scored against ROW CAPTIONS
+    #     row_terms_none  captions that must not count
+    #
+    # WHY BOTH LEVELS NEED THEIR OWN TERMS, measured. A note's heading names the CONTAINER and a
+    # row names the CONTENT: `sub__ga_depreciation` is disclosed in the note headed 管理费用
+    # (administrative expenses) as a row reading 固定资产折旧 (depreciation of fixed assets). A single
+    # blended probe scored 0.000 against that heading, because every one of its Han tokens was a
+    # depreciation word and none was an administrative-expenses word. One term set cannot do both
+    # jobs, and the failure is silent: a wrong vocabulary scores zero exactly like an absent note.
+    #
+    # THESE ARE TERMS, NOT PATTERNS — plain vocabulary, scored by IDF-weighted cosine
+    # (`services.line_item_notes`) rather than matched. So they are not compiled, an unanticipated
+    # phrasing still scores instead of not firing, and they carry no regex syntax to get wrong.
+    # They are authored in every script the filings print: the tokeniser emits Han character
+    # bigrams, so a Chinese term matches a Chinese heading without a segmenter.
+    note_terms: list[str] = Field(default_factory=list)
+    row_terms: list[str] = Field(default_factory=list)
+    row_terms_none: list[str] = Field(default_factory=list)
     # WHICH TEXT THESE PATTERNS ARE AUTHORED AGAINST. The shipped patterns were lifted out of
     # code that matched RAW captions, so folding them through `normalize_label` would stop some of
     # them matching. `mapping_v1` says the opposite — author against normalised text, as the
@@ -410,6 +438,29 @@ class LineItemDef(BaseModel):
     # arithmetic, so a note reference beside a printed row says nothing about whether that
     # arithmetic should run; `_coherent` refuses the combination rather than ignoring it.
     llm_only_if_note_tagged: bool = False
+    # HOW THE NOTES FOR THIS LINE ARE FOUND. `semantic` by default: the line's own meaning scored
+    # against each note's header, which needs no pattern per phrasing and degrades to a low score
+    # rather than to silence where a regex would simply not fire.
+    #
+    # MEASURED ON THE TWO REFERENCE FILINGS, against the authored regexes as ground truth (they are
+    # what produced every figure in the focus runs, so the notes they match are notes the line
+    # really is in) — `scripts/calibrate_line_item_notes.py`:
+    #
+    #     laisun (English)      41 (line, note) pairs    95.1% found within the top 10
+    #     suncreate (Chinese)  120 pairs                  40.0% within the top 10
+    #
+    # THE GAP IS NOT THE METHOD, IT IS WHAT THE LINES SAY ABOUT THEMSELVES. A header names the
+    # CONTAINER and a line item names the CONTENT: `sub__ga_depreciation` belongs in the note headed
+    # 管理费用 (administrative expenses) and `sub__ppe_depreciation` in the one headed PROPERTY,
+    # PLANT AND EQUIPMENT. Both are correct pairings that score ~0, because nothing in either line's
+    # prose names the container it is disclosed inside — the authored regexes carried that knowledge
+    # instead. Naming the container in `description` is what closes it, and unlike a regex that text
+    # also reaches the model.
+    #
+    # SO `patterns` IS NOT DEPRECATED. Set it on a line whose disclosure the regexes already pin and
+    # whose prose does not yet name it; the two selectors answer the same question and the choice is
+    # per line rather than per run.
+    note_selection: NoteSelection = "semantic"
     aliases: list[str] = Field(default_factory=list)
     # Per-locale aliases. A single flat list cannot hold the Han half as data: the shipped
     # rulebook carries 473 distinct zh aliases and the matcher folds EVERY locale into one index,
@@ -505,6 +556,15 @@ class LineItemDef(BaseModel):
         # refusal to a control by finding the field name as a substring
         # (`routes/line_items.py` `_EDITABLE_FIELDS`), and a refusal an author cannot pin to a
         # control is a refusal they cannot act on.
+        # Same reasoning as the flag below, and the same first-of-its-kind test on
+        # `extraction_mode`: note selection decides what CONTEXT a line's request carries, and a
+        # line the model is never asked about has no request. Refused rather than ignored.
+        if self.note_selection != "semantic" and self.extraction_mode != "extract":
+            raise ValueError(
+                f"{self.key}: `note_selection` chooses how a line's notes are found for its own "
+                f"request, and this one is `{self.extraction_mode}` — its figure comes from "
+                f"declared arithmetic, so no request is built for it and no notes are selected. "
+                f"Leave the selection at `semantic`, or set the extraction mode to `extract`.")
         if self.llm_only_if_note_tagged and self.extraction_mode != "extract":
             raise ValueError(
                 f"{self.key}: `llm_only_if_note_tagged` only applies to a line the model is "

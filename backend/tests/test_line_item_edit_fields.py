@@ -123,7 +123,8 @@ _SET = {
 # note printed beside a row says nothing about whether that arithmetic should run.
 #
 # All three are proved authorable by their own tests below.
-_NOT_COHERENT_WITH_THE_REST = {"prompt", "output_structure", "llm_only_if_note_tagged"}
+_NOT_COHERENT_WITH_THE_REST = {"prompt", "output_structure", "llm_only_if_note_tagged",
+                               "note_selection"}
 
 _ROUND_TRIP: dict[str, tuple[str, object]] = {
     # meaning — the four the user named, plus the label
@@ -177,15 +178,29 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
     # item is (the default), so it round-trips; the refusal on the other two modes is a validator
     # and is tested in test_note_tag_gate.py because it is a refusal rather than a write.
     "llm_only_if_note_tagged": ("llm_only_if_note_tagged", True),
+    # How this line's notes are found: its meaning scored against note headers (`semantic`, the
+    # default) or the authored `note_title_any` regexes (`patterns`). Legal only on `extract`, so
+    # it joins `_NOT_COHERENT_WITH_THE_REST` for the same reason the flag above does — the combined
+    # body round-trips `extraction_mode: "extract_or_derive"`.
+    "note_selection": ("note_selection", "patterns"),
     "note_use": ("note_use", "decomposition_allowed"),
     "face_only": ("face_only", True),
     # THE OBJECT THAT REPLACED THE 162-ALTERNATIVE WHITELIST (`_QUALIFYING_RE`, which refused a
     # filing writing "Depreciation charge for the year"). Widening it is the single edit this
     # screen was built to make possible, and it was reachable from nowhere.
+    #
+    # THE FULL SUB-MODEL, every key. A partially-sent object comes back with its own defaults
+    # filled in, so the comparison would be against this table's idea of them rather than the
+    # model's — which is why the three semantic groups are here even though they are empty. They
+    # are the SAME TWO LEVELS as the patterns beside them, in terms rather than regexes: which note
+    # (scored against headers), then which rows inside it (scored against row captions).
     "note_source": ("note_source", {
         "note_title_any": [r"^cash and cash equivalents"],
         "row_caption_any": [r"bank balances?"],
         "row_caption_none": [r"restricted"],
+        "note_terms": ["cash and cash equivalents", "现金及现金等价物"],
+        "row_terms": ["bank balances", "银行存款"],
+        "row_terms_none": ["restricted"],
         "caption_normalization": "mapping_v1"}),
     # recognition
     "aliases": ("aliases", ["Cash at bank", "Bank balances"]),
@@ -731,6 +746,29 @@ def test_the_note_tag_threshold_is_refused_with_a_message_naming_its_own_control
     error = r.json()["detail"]["errors"][0]
     assert error["field"] == "llm_only_if_note_tagged", r.json()["detail"]
     assert "llm_only_if_note_tagged" in error["message"]
+
+
+def test_the_note_selection_round_trips_on_an_extract_line(client, probe):
+    """A line can be told to find its notes by authored pattern instead of by meaning.
+
+    Excluded from the combined patch because that body sets `extraction_mode: "extract_or_derive"`
+    — see `_NOT_COHERENT_WITH_THE_REST`. Proved authorable here, on the mode it is legal for.
+    """
+    _tpl, cfg = probe
+
+    new_id = _saved(client, cfg["id"], {"key": _EDITED, "extraction_mode": "extract",
+                                       "note_selection": "patterns"})
+
+    assert _stored(client, new_id)["note_selection"] == "patterns"
+
+
+def test_note_selection_defaults_to_semantic_so_no_line_needs_a_pattern(client, probe):
+    """THE DEFAULT IS THE POLICY. Semantic selection needs no pattern per phrasing, so a line
+    nobody has authored regexes for still gets notes — which is the whole reason it is the default
+    rather than an opt-in."""
+    from app.schemas.line_items import LineItemDef
+
+    assert LineItemDef(key="x").note_selection == "semantic"
 
 
 def test_every_line_defaults_to_a_number_so_existing_configuration_is_unchanged(client, probe):

@@ -61,7 +61,7 @@ import type {
   LineItemSide, LineItemTemporality, LineItemType, LineItemUnitOfAccount, LineItemVocab,
   NoteSource, ResidualPolicy, SearchScope, SignExpectation, SignRuleConvention, StatementToken,
   ValueScope,
-  OutputStructure,} from "../types";
+  OutputStructure, NoteSelection,} from "../types";
 
 const TYPE_TONE: Record<LineItemType, { bg: string; fg: string; label: string }> = {
   extracted: { bg: color.greenBg, fg: color.greenFg, label: "Extracted" },
@@ -417,6 +417,9 @@ function withheldReason(name: string, sel: {
   // is what decides that — a derivable line takes its figure from declared arithmetic, so a note
   // printed beside a row says nothing about whether that arithmetic should run. The server raises
   // rather than ignoring, so the control is withheld here rather than left on to be refused.
+  if (name === "note_selection" && extractionMode !== "extract") {
+    return `this chooses how a line's notes are found for its own request, and a ${extractionMode} line has no request — its figure comes from declared arithmetic`;
+  }
   if (name === "llm_only_if_note_tagged" && extractionMode !== "extract") {
     return `this asks whether the model is consulted, and a ${extractionMode} line takes its figure from declared arithmetic — the model is never asked about it`;
   }
@@ -478,7 +481,7 @@ function requiredNow(name: string, sel: { type: string; outputStructure: string 
 const CONDITIONAL_FIELDS = [
   "prompt", "in_output", "terms", "cascade", "implemented_by",
   // withheld unless the line is `extract` — see withheldReason
-  "llm_only_if_note_tagged",
+  "llm_only_if_note_tagged", "note_selection",
   "aliases", "pattern", "regex_hints", "keyword_hints", "exclude_hints",
   "confusable_with", "section_disambiguation",
   // withheld once the line outputs text rather than a number
@@ -1047,7 +1050,7 @@ function Detail(p: EditorProps) {
           claimed by more than one line item and some of those claims span different statements,
           so the gate is what settles which line a caption reaches. Nearly all of it arrives by
           INHERITANCE from a `section_defaults` entry — hence the badges. */}
-      <Group visible={anyOf("inherits", "statement", "section_scope", "scopes", "side", "allow_contra", "llm_only_if_note_tagged", "match_priority", "extraction_mode", "face_only", "note_use", "note_source")} question="Where may it be claimed from?"
+      <Group visible={anyOf("inherits", "statement", "section_scope", "scopes", "side", "allow_contra", "llm_only_if_note_tagged", "note_selection", "match_priority", "extraction_mode", "face_only", "note_use", "note_source")} question="Where may it be claimed from?"
              note="The gate is authored once per section and claimed by `inherits`; editing a
                    gate field here overrides the section for this line only.">
         {fld("inherits", (e) => (
@@ -1117,6 +1120,25 @@ function Detail(p: EditorProps) {
                      value={g("allow_contra", item.allow_contra)}
                      onChange={(v) => patch({ allow_contra: v })}
                      error={e} inherited={inh("allow_contra", item.allow_contra)} />
+        ))}
+        {fld("note_selection", (e) => (
+          <SelectField<NoteSelection>
+            label="How this line's notes are found" testid="note_selection" editable={editable}
+            reason={lockReason} options={vocab?.note_selections ?? []}
+            labelOf={(o) => (o === "semantic" ? "By meaning (semantic)" : "By authored pattern")}
+            help="Semantic by default: this line's own meaning is scored against each note's
+                  heading, so a phrasing nobody wrote a pattern for still scores instead of
+                  simply not matching. Measured on the two reference filings against the authored
+                  patterns, it finds 95% of the right notes in the top ten on the English filing
+                  and 40% on the Chinese one — the gap is lines whose prose does not name the note
+                  they sit inside (a depreciation line disclosed under “administrative expenses”
+                  shares no words with that heading). Naming that container in the description
+                  closes it, and unlike a pattern the description also reaches the model. Choose
+                  the authored pattern for a line whose regexes already pin its note and whose
+                  prose does not yet name it."
+            value={g("note_selection", item.note_selection) ?? "semantic"}
+            onChange={(v) => patch({ note_selection: v ?? "semantic" })}
+            error={e} />
         ))}
         {fld("llm_only_if_note_tagged", (e) => (
           <BoolField label="Only ask the model when the face prints a note reference"
