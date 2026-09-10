@@ -237,3 +237,51 @@ def test_a_model_that_does_answer_still_wins(shipped):
     # would be overwriting judged answers with lexical ones.
     assert not any("deterministic_fallback_applied" in line for line in ctx.logs), (
         "the deterministic fallback fired even though the model answered the row")
+
+
+# ── what the focus log claims about a run's reach ─────────────────────────────────────────────
+
+def test_the_focus_log_measures_what_the_MODEL_can_name(shipped):
+    """A NUMBER THAT LIED IN THE DIRECTION THAT MATTERS.
+
+    `_focus_answerability` reports how many configured focus concepts a run could actually come
+    back with. It measured `_unmatchable`, which was the whole story until the extract-only rule
+    landed — after which `_concept_payload` withholds `_llm_withheld`, a strictly larger set. On the
+    shipped configuration `_unmatchable` catches 4 of the 8 focus keys, so the line reported
+    "answerable=4" on a run where exactly ONE (`is_pl__sales_revenues`) could be named.
+
+    That is not cosmetic. A live 45-call run against gemini-flash-lite-latest returned no change to
+    any of the eight figures, and one nameable concept out of eight is precisely what predicts
+    that — while the log had advertised four times the reach. Both counts are now reported, because
+    "no tier can bind it" and "the model is not offered it" are different facts.
+    """
+    from app.services.mapping import OntologyMatcher
+    from app.stages.map_ontology import _focus_answerability
+
+    matcher = OntologyMatcher(build_working_view(shipped), locale="en", settings=get_settings())
+    focus = set(get_settings().extraction.llm_focus_keys or ())
+    line = _focus_answerability(matcher, focus)
+
+    nameable = {k for k in focus if k not in matcher._llm_withheld}
+    assert f"focus_keys_nameable_by_model={len(nameable)}" in line, line
+    # The claim must be about the model's own gate, so it moves when that gate moves.
+    assert "focus_keys_withheld_from_model=" in line
+    assert "focus_keys_unmatchable_by_any_tier=" in line
+    # And it must not overstate: every key it calls nameable really is on the offer.
+    offered = {c["canonical_key"]
+               for c in matcher._concept_payload(matcher._by_priority(list(matcher._by_key)))}
+    assert nameable <= offered | {k for k in nameable if k not in matcher._by_key}, sorted(nameable)
+
+
+def test_the_focus_reach_is_one_of_eight_on_the_shipped_config(shipped):
+    """The measured consequence of the extract-only rule, stated as a number so that a change to
+    either the rule or the focus list has to come past it. Seven of the eight focus concepts are
+    withheld from the model; the run's whole LLM budget can only affect the eighth."""
+    from app.services.mapping import OntologyMatcher
+
+    matcher = OntologyMatcher(build_working_view(shipped), locale="en", settings=get_settings())
+    focus = set(get_settings().extraction.llm_focus_keys or ())
+    nameable = sorted(k for k in focus if k not in matcher._llm_withheld)
+
+    assert len(focus) == 8, sorted(focus)
+    assert nameable == ["is_pl__sales_revenues"], nameable

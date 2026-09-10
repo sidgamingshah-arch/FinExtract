@@ -525,24 +525,35 @@ def _apply_result(li, result) -> bool:
 
 
 def _focus_answerability(matcher, focus_keys: set[str]) -> str:
-    """The focus keys the loaded rulebook CANNOT return, as log fields. Observation only.
+    """The focus keys the MODEL cannot return, as log fields. Observation only.
 
-    A key in ``matcher._unmatchable`` — a locked residual (``alias_matching: disabled``) or a
-    computed concept (``extraction_mode: derive``) — is unreachable by every deterministic tier AND
-    absent from the LLM candidate payload (``_candidate_specs`` skips the same set). It still passes
-    the section gate in `run`, so its rows are forwarded to the provider and paid for, and the answer
-    the focus run was configured to get can never come back.
+    A focus row is forwarded to the provider and paid for whichever concept it resolved to, so a
+    focus key the model has no way of naming is a key whose rows cost money and can never come back
+    with the answer the focus run was configured to get. That was invisible: the log reported
+    ``keys=8`` and nothing else.
 
-    That was invisible: the focus log reported ``keys=8`` and nothing else. Measured against the
-    shipped ``output_csv_hk_ontology.json`` and the eight keys in ``config.toml``, four of them are
-    unmatchable, so a run advertising eight focus concepts could return four.
+    THE SET TO MEASURE IS ``_llm_withheld``, NOT ``_unmatchable``, and reading the wrong one made
+    this line lie in the direction that matters. ``_unmatchable`` (a locked residual, or
+    ``extraction_mode: derive``) was the whole story until the extract-only rule landed; now
+    ``_llm_withheld`` is what ``_concept_payload`` actually withholds — every concept whose
+    ``extraction_mode`` is not ``extract``, plus the locked residuals. Measured against the shipped
+    rulebook and the eight keys in ``config.toml``: ``_unmatchable`` catches 4 of them, so the line
+    said "answerable=4" on a run where only ONE (``is_pl__sales_revenues``) could be named. A live
+    45-call run then returned no change to any of the eight figures, which is exactly what one
+    nameable concept out of eight predicts — and the log had said the reach was four times that.
 
-    ``_unmatchable`` is read directly (a private attribute) rather than reimplemented from the
-    definition, so this reports what the MATCHER actually excluded and cannot drift from it.
+    Both counts are reported, because they answer different questions: ``unmatchable`` is a concept
+    no tier can bind, while ``withheld`` includes concepts the DETERMINISTIC tiers still bind
+    happily and only the model is not offered.
+
+    The matcher's own sets are read directly (private attributes) rather than reimplemented from
+    their definitions, so this reports what the matcher actually excluded and cannot drift from it.
     """
+    withheld = sorted(k for k in focus_keys if k in matcher._llm_withheld)
     unmatchable = sorted(k for k in focus_keys if k in matcher._unmatchable)
-    return (f"focus_keys_unmatchable={unmatchable}"
-            f" focus_keys_answerable={len(focus_keys) - len(unmatchable)}")
+    return (f"focus_keys_withheld_from_model={withheld}"
+            f" focus_keys_nameable_by_model={len(focus_keys) - len(withheld)}"
+            f" focus_keys_unmatchable_by_any_tier={unmatchable}")
 
 
 def _alias_locale_coverage(matcher, locale: str | None) -> tuple[int, int, int]:
