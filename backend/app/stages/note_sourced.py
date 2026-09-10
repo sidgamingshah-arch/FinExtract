@@ -87,9 +87,10 @@ class NoteSourcedStage(Stage):
         # parent declares none — so looking the parent's rollup up in that list found nothing and
         # fell back to `sum`, which summed twelve disclosures of one depreciation charge into a cost
         # twelve times too large. The fallback was the bug, not the lookup.
+        all_items = getattr(line_item_set, "items", None) or []
         parents = _fill_parents(children_of, by_key, doc, ctx,
-                                _parent_rollup(getattr(line_item_set, "items", None)),
-                                _note_permission(getattr(line_item_set, "items", None)))
+                                _parent_rollup(all_items), _note_permission(all_items),
+                                {i.key: i for i in all_items})
         ctx.log(f"note_sourced: {touched} item(s) filled from notes, {filled} figure(s), "
                 f"{parents} parent(s) resolved")
         return doc
@@ -173,7 +174,7 @@ def _note_permission(all_items) -> dict[str, str]:
 
 def _fill_parents(children_of: dict[str, list], by_key: dict, doc: DocumentModel,
                   ctx: PipelineContext, declared: dict[str, str],
-                  permitted: dict[str, str]) -> int:
+                  permitted: dict[str, str], defs: dict) -> int:
     """Combine each parent's note-sourced children the way the PARENT declares.
 
     * ``alternatives`` — the children are the same figure disclosed in different notes, so ONE is
@@ -200,10 +201,29 @@ def _fill_parents(children_of: dict[str, list], by_key: dict, doc: DocumentModel
             ctx.log(f"note_sourced:{parent_key}: REFUSED as a note source — its note_use is "
                     f"`{use}`, so a note is evidence for this line and never the source of it")
             continue
+        parent_def = defs.get(parent_key)
+        # A DECLARED CASCADE IS THE ANSWER, and `rollup` is only the summary of it.
+        #
+        # `is_pl__deprec_and_impairment_oper_exp` declares five rungs: sum the four
+        # operating-expense notes; failing that the PBT note's own callout; failing that total
+        # depreciation LESS the cost-of-sales share; and so on. `rollup: "alternatives"` says
+        # roughly "the children are not addends", which is true and far too coarse — reading it
+        # instead of the cascade takes the first child on its own (1,200) where the configuration
+        # says to sum four notes. The cascade also carries what a rollup cannot express at all:
+        # optional terms (`any_of`), signed deductions (`adjustment`, `sign: -1`), and a refusal to
+        # accept a negative candidate.
+        #
+        # Evaluated by `services.line_items.evaluate`, which already implements all of it — a
+        # second copy here would be the two-places-computing-one-quantity bug on the arithmetic
+        # that decides a published figure.
+        if parent_def is not None and (getattr(parent_def, "cascade", None)
+                                       or getattr(parent_def, "terms", None)):
+            resolved += _fill_by_cascade(parent_def, kids, by_key, doc, ctx)
+            continue
         rollup = declared.get(parent_key, "sum")
         if rollup == "none":
-            ctx.log(f"note_sourced:{parent_key}: {len(kids)} child(ren) filled, and its rollup is "
-                    f"`none` — nothing carried up")
+            ctx.log(f"note_sourced:{parent_key}: {len(kids)} child(ren) filled, its rollup is "
+                    f"`none` and it declares no cascade — nothing carried up")
             continue
         parent = by_key.get(parent_key)
         if parent is None:
@@ -247,6 +267,70 @@ def _fill_parents(children_of: dict[str, list], by_key: dict, doc: DocumentModel
                 parent.confidence.flags.append(f"note_sourced_sum_of:{len(offers)}")
             resolved += 1
     return resolved
+
+
+def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
+                     ctx: PipelineContext) -> int:
+    """Evaluate the parent's declared cascade against its note-sourced children, per column.
+
+    PER (BASIS, PERIOD), because a rung is only an arithmetic within one column: mixing the current
+    year's notes with the prior year's would compute a figure the filing states in neither.
+
+    The trail records WHICH RUNG ANSWERED and which were passed over — a depreciation charge that
+    came from "total less the cost-of-sales share" rather than from the four operating-expense
+    notes is a materially different provenance, and a reviewer cannot see it in the number.
+    """
+    from app.services.line_items import evaluate as evaluate_line
+
+    parent = by_key.get(parent_def.key)
+    if parent is None:
+        parent = LineItem(source_label=parent_def.label or parent_def.key,
+                          canonical_key=parent_def.key)
+        doc.line_items.append(parent)
+        by_key[parent_def.key] = parent
+
+    slots: dict[tuple[str, str], dict] = {}
+    for _item, child in kids:
+        for ev in (child.values or {}).values():
+            if ev.value is None:
+                continue
+            slot = (_basis(ev), str(getattr(ev, "period_label", "") or ""))
+            slots.setdefault(slot, {})[child.canonical_key] = ev.value
+
+    filled = 0
+    for (basis, period), known in sorted(slots.items()):
+        got = evaluate_line(parent_def, known)
+        if not got.resolved:
+            ctx.log(f"note_sourced:{parent_def.key}[{basis}:{period}]: no cascade rung resolved "
+                    f"from {len(known)} child figure(s)"
+                    + (f"; refused {got.refused_rungs}" if got.refused_rungs else ""))
+            continue
+        existing = _slot(parent, basis, period)
+        if existing is not None and existing.value is not None:
+            if existing.value != got.value:
+                parent.confidence.flags.append("note_sourced_differs_from_printed:cascade")
+                ctx.log(f"note_sourced:{parent_def.key}: printed {existing.value} kept over "
+                        f"cascade {got.rung_used}={got.value}")
+            continue
+        _write(parent, basis, period, got.value)
+        parent.derivation = note_sourced.derivation.record(
+            parent.derivation, basis=basis, period_label=period,
+            derivation=note_sourced.derivation.build(
+                method=f"cascade:{got.rung_used}",
+                formula=" + ".join(
+                    f"{'-' if i['sign'] < 0 else ''}{i['ref']}" for i in got.inputs),
+                inputs=[{"label": i["ref"], "value": i["value"], "counted": True,
+                         "deducted": i["sign"] < 0, "excerpt": f"role={i['role']}"}
+                        for i in got.inputs],
+                result=got.value,
+                flags=[f"rung:{got.rung_used}"]
+                     + ([f"rungs_refused:{len(got.refused_rungs)}"] if got.refused_rungs else [])
+                     + ([f"terms_missing:{len(got.missing)}"] if got.missing else [])))
+        parent.confidence.flags.append(f"cascade_rung:{got.rung_used}")
+        ctx.log(f"note_sourced:{parent_def.key}[{basis}:{period}]: rung {got.rung_used} "
+                f"-> {got.value} from {len(got.inputs)} term(s)")
+        filled += 1
+    return filled
 
 
 def _slot(row: LineItem, basis: str, period: str):

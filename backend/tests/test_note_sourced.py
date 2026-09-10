@@ -136,27 +136,37 @@ def test_a_note_whose_title_does_not_match_is_not_read(shipped):
     assert _figure(doc, "sub__rd_depreciation") is None
 
 
-def test_two_notes_disclosing_the_same_charge_give_the_parent_ONE_of_them(shipped):
-    """THE BUG THIS TEST CAUGHT, and the reason the roll-up reads the PARENT's declaration.
+def test_alternatives_takes_one_child_when_the_parent_declares_no_cascade(shipped):
+    """THE ROLLUP PATH, tested where it actually applies.
 
-    `is_pl__deprec_and_impairment_oper_exp` declares `rollup: "alternatives"` over twelve children:
-    they are twelve places one depreciation charge might be disclosed, not twelve charges. The
-    first implementation looked the rollup up among the items that DECLARE a note_source — and a
-    parent declares none, so the lookup missed and fell back to `sum`, turning 1,200 and 1,350 into
-    2,550. A cost twelve times too large, on a statement that still balances.
+    `rollup: "alternatives"` is the coarse statement "these children are not addends", and it
+    governs only a parent that declares no cascade. Where a cascade IS declared it wins — the
+    shipped depreciation parents declare one, and the test below this asserts that instead.
+
+    This test previously asserted the rollup behaviour on a depreciation parent and passed for the
+    wrong reason: the stage was reading the rollup and ignoring the five rungs beside it. Once the
+    cascade was read, the same inputs correctly summed to 2,550 and this assertion failed — which
+    is how the defect was found.
     """
-    doc, ctx = _run(shipped, [
+    edited = shipped.model_copy(deep=True)
+    parent = next(i for i in edited.items if i.key == OPER_EXP)
+    parent.cascade = []                 # leave only the rollup to speak
+    parent.rollup = "alternatives"
+
+    doc = DocumentModel(filename="f.pdf")
+    doc.notes = [
         NotesTable(note_number="8", title="Research and development expenses",
                    items=[_note_row("Depreciation of property, plant and equipment", "1200")]),
         NotesTable(note_number="9", title="General and administrative expenses",
                    items=[_note_row("Depreciation of property, plant and equipment", "1350")]),
-    ])
-    assert _figure(doc, "sub__rd_depreciation") == Decimal("1200")
-    assert _figure(doc, "sub__ga_depreciation") == Decimal("1350")
-    parent = _figure(doc, OPER_EXP)
-    assert parent in (Decimal("1200"), Decimal("1350")), parent
-    assert parent != Decimal("2550"), "twelve disclosures of one charge were summed"
-    # And the alternative that was NOT taken is recorded, so a reviewer can see there was a choice.
+    ]
+    ctx = PipelineContext(settings=get_settings())
+    ctx.line_items = edited
+    doc = NoteSourcedStage().run(doc, ctx)
+
+    taken = _figure(doc, OPER_EXP)
+    assert taken in (Decimal("1200"), Decimal("1350")), taken
+    assert taken != Decimal("2550"), "alternatives summed what it should have chosen between"
     row = next(li for li in doc.line_items if li.canonical_key == OPER_EXP)
     assert any("alternatives_available" in f for f in row.confidence.flags), row.confidence.flags
 
@@ -319,3 +329,91 @@ def test_the_seven_concepts_that_permit_decomposition_are_not_blocked_by_the_gat
         note_number="8", title="Research and development expenses",
         items=[_note_row("Depreciation of property, plant and equipment", "1200")])])
     assert _figure(doc, OPER_EXP) == Decimal("1200")
+
+
+# ── the declared cascade, which is the aggregation `rollup` can only summarise ────────────────
+
+def test_the_declared_cascade_decides_the_parent_not_the_rollup(shipped):
+    """THE DEFECT THIS FIXED, and it was in the first version of this stage.
+
+    `is_pl__deprec_and_impairment_oper_exp` declares FIVE cascade rungs. P1 is "the four
+    operating-expense notes, summed — any subset a filing discloses is still a sum". Its `rollup`
+    is `alternatives`, which says roughly "the children are not addends": true, and far too coarse.
+    Reading the rollup instead of the cascade took the FIRST child on its own — 1,200 where the
+    configuration says 1,200 + 1,350.
+
+    The cascade also carries what a rollup cannot express at all: optional terms (`any_of`), signed
+    deductions (`adjustment`, `sign: -1`), and a refusal to accept a negative candidate.
+    """
+    doc, ctx = _run(shipped, [
+        NotesTable(note_number="8", title="Research and development expenses",
+                   items=[_note_row("Depreciation of property, plant and equipment", "1200")]),
+        NotesTable(note_number="9", title="General and administrative expenses",
+                   items=[_note_row("Depreciation of property, plant and equipment", "1350")]),
+    ])
+    assert _figure(doc, OPER_EXP) == Decimal("2550"), "P1 did not sum the disclosed subset"
+    assert any("rung P1" in line for line in ctx.logs), ctx.logs
+
+
+def test_an_absent_any_of_term_does_not_kill_the_rung(shipped):
+    """P1's four terms are all `any_of`: a filing disclosing one of the four operating-expense
+    notes still has a sum. A `required` reading would refuse the rung and fall through to a
+    materially different provenance."""
+    doc, ctx = _run(shipped, [NotesTable(
+        note_number="9", title="General and administrative expenses",
+        items=[_note_row("Depreciation of property, plant and equipment", "1350")])])
+    assert _figure(doc, OPER_EXP) == Decimal("1350")
+    assert any("rung P1" in line for line in ctx.logs)
+
+
+def test_the_trail_names_which_rung_answered(shipped):
+    """A charge that came from "total less the cost-of-sales share" rather than from the four
+    operating-expense notes has a materially different provenance, and a reviewer cannot see that
+    in the number. The rung is recorded on the figure."""
+    doc, _ctx = _run(shipped, [NotesTable(
+        note_number="8", title="Research and development expenses",
+        items=[_note_row("Depreciation of property, plant and equipment", "1200")])])
+    row = next(li for li in doc.line_items if li.canonical_key == OPER_EXP)
+    assert row.derivation, "the cascade wrote no trail"
+    trail = next(iter(row.derivation.values()))
+    assert trail["method"] == "cascade:P1", trail["method"]
+    assert any(f.startswith("cascade_rung:") for f in row.confidence.flags), row.confidence.flags
+
+
+def test_a_cost_of_sales_deduction_is_subtracted_not_added(shipped):
+    """Rungs P3, P4 and P5 all carry `sub__cos_depreciation` with `sign: -1` and
+    `role: "adjustment"` — the operating-expense charge is the total LESS the cost-of-sales share.
+    A sign read the wrong way would overstate an expense by twice the deduction, and the statement
+    would still balance."""
+    from app.services.line_items import evaluate as evaluate_line
+
+    parent = next(i for i in shipped.items if i.key == OPER_EXP)
+    # P1 and P2's inputs deliberately absent, so the cascade reaches P3.
+    known = {"sub__pbt_depreciation": Decimal("5000"),
+             "sub__cos_depreciation": Decimal("1800")}
+    got = evaluate_line(parent, known)
+    assert got.rung_used == "P3", got.rung_used
+    assert got.value == Decimal("3200"), got.value
+
+
+def test_an_adjustment_on_its_own_is_not_an_answer(shipped):
+    """A rung whose only figure is a deduction has nothing to deduct it from. Before the roles were
+    separated this published a NEGATIVE depreciation charge."""
+    from app.services.line_items import evaluate as evaluate_line
+
+    parent = next(i for i in shipped.items if i.key == OPER_EXP)
+    got = evaluate_line(parent, {"sub__cos_depreciation": Decimal("1800")})
+    assert got.value is None or got.value >= 0, got.value
+
+
+def test_the_cascade_does_not_overwrite_the_figure_the_filing_printed(shipped):
+    """Same rule as the rollup path: a printed parent is the filing stating the amount."""
+    printed = LineItem(source_label="Depreciation and impairment", canonical_key=OPER_EXP)
+    printed.set_value(ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current",
+                                     value=Decimal("9000"), value_raw=Decimal("9000")))
+    doc, ctx = _run(shipped, [NotesTable(
+        note_number="8", title="Research and development expenses",
+        items=[_note_row("Depreciation of property, plant and equipment", "1200")])],
+        rows=[printed])
+    assert _figure(doc, OPER_EXP) == Decimal("9000")
+    assert any("kept over cascade" in line for line in ctx.logs), ctx.logs
