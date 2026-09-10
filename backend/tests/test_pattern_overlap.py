@@ -126,7 +126,7 @@ def test_the_shipped_set_loads_with_the_patterns_declared():
     """475 definitions, 2,006 captions, the three rules declared over them."""
     st = load_line_item_set(_with_transforms(_seed(), SHIPPED))
 
-    assert len(st.items) == 476
+    assert len(st.items) == 539
     assert len(st.vocabulary.caption_transforms) == 3
     assert st.vocabulary.transform_order_check(st.caption_corpus()).overlaps == []
 
@@ -213,7 +213,7 @@ def test_the_shipped_seed_declares_none_and_still_loads():
 
     assert st.vocabulary.caption_transforms == []
     assert st.order_sensitive_probes == []
-    assert len(st.items) == 476
+    assert len(st.items) == 539
 
 
 def test_a_single_transform_has_no_order_to_be_dependent_on():

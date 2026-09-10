@@ -530,7 +530,7 @@ def test_declared_fields_is_what_the_item_declared_not_what_it_inherited(client)
     # silent about it — the resolved payload alone cannot say which of the two happened, and an
     # editor that saved the resolved value back would turn the section's gate into the item's own.
     inherited = [k for k, d in resolved.items() if d.inherits and "statement" not in declared[k]]
-    assert len(inherited) == 14, \
+    assert len(inherited) == 77, \
         f"the shipped set inherits 13 gates rather than declaring them; found {len(inherited)}"
     for key in inherited:
         item = resolved[key]
@@ -547,4 +547,7 @@ def test_declared_fields_is_what_the_item_declared_not_what_it_inherited(client)
     dropped = {f for fields in declared.values() for f in fields} - set(LineItemDef.model_fields)
     assert dropped == {"note_use_rationale"}, \
         f"a stored key the model no longer drops, or a new one it does: {sorted(dropped)}"
-    assert sum(1 for f in declared.values() if "note_use_rationale" in f) == 394
+    # 395: `notes__contingent_liabilities` gained one when its `note_use` was changed to
+    # `decomposition_allowed` — a contingent liability is disclosed only in the notes, so
+    # `evidence_only` made the concept unfillable by any route, and the rationale records why.
+    assert sum(1 for f in declared.values() if "note_use_rationale" in f) == 395

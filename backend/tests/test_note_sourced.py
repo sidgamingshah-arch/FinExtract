@@ -293,12 +293,17 @@ def test_a_concept_the_configuration_marks_evidence_only_is_not_filled_from_a_no
 
     edited = shipped.model_copy(deep=True)
     by_key = {i.key: i for i in edited.items}
-    assert by_key["notes__contingent_liabilities"].note_use == "evidence_only"
+    # `notes__pledged_assets`, not `notes__contingent_liabilities`: the latter was moved to
+    # `decomposition_allowed` because a contingent liability is disclosed ONLY in the notes, so
+    # `evidence_only` made it unfillable by any route. The other seven `notes__` concepts keep
+    # the section default, and the rule under test is unchanged.
+    PROBE = "notes__pledged_assets"
+    assert by_key[PROBE].note_use == "evidence_only"
 
     # Give it a child that WOULD match, so the refusal is the only thing standing in the way.
     child = by_key["sub__cos_depreciation"].model_copy(deep=True)
     child.key = "sub__probe_guarantees"
-    child.parent = "notes__contingent_liabilities"
+    child.parent = PROBE
     child.note_source = NoteSource(note_title_any=["contingent"],
                                    row_caption_any=["guarantee"], row_caption_none=[])
     edited.items.append(child)
@@ -313,7 +318,7 @@ def test_a_concept_the_configuration_marks_evidence_only_is_not_filled_from_a_no
     # The CHILD is still filled — the selection worked, and the trail is worth having.
     assert _figure(doc, "sub__probe_guarantees") == Decimal("8000")
     # The PARENT is not, and the log says why in the configuration's own terms.
-    assert _figure(doc, "notes__contingent_liabilities") is None
+    assert _figure(doc, PROBE) is None
     assert any("REFUSED as a note source" in line and "evidence_only" in line
                for line in ctx.logs), ctx.logs
 
@@ -483,3 +488,94 @@ def test_the_cos_cascade_order_is_p1_then_the_new_p2_then_the_subtraction(shippe
     # COS_P3 is still the subtraction, and still last.
     refs = [(t.ref, t.sign) for t in cos.cascade[2].terms]
     assert ("is_pl__deprec_and_impairment_oper_exp", -1) in refs, refs
+
+
+def test_a_matrix_column_is_not_a_period(shipped):
+    """MEASURED ON laisun.pdf, before this guard existed.
+
+    `ExtractedValue.column_index` is set only for a fact printed in a NAMED COMPONENT column — an
+    industry segment, a class of equity. That axis is decomposition, not time. The revenue
+    segment note gave `is_pl__sales_revenues` twelve figures keyed `col2` … `col11` beside
+    `current`/`prior`, and the value that reached the CURRENT slot was ONE SEGMENT's revenue
+    (2,609,259) instead of the total the face prints (4,995,768).
+
+    A per-segment figure published as the year's revenue is the worst shape of this defect: the
+    line looks populated, the number is plausible, and it reconciles against nothing.
+    """
+    from app.core.models.line_item import NoteItem
+    from app.services import note_sourced as svc
+
+    row = NoteItem(raw_label="Depreciation of property, plant and equipment")
+    # A period fact and a matrix-column fact on the same row.
+    row.values["p"] = ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current",
+                                     value=Decimal("1200"), value_raw=Decimal("1200"))
+    row.values["m"] = ExtractedValue(basis=Basis.CONSOLIDATED, period_label="col3",
+                                     value=Decimal("400"), value_raw=Decimal("400"),
+                                     column_index=3)
+    note = NotesTable(note_number="8", title="Research and development expenses", items=[row])
+
+    sub = next(i for i in shipped.items if i.key == "sub__rd_depreciation")
+    hits = svc.select_rows(sub, [note])
+
+    assert [h.period for h in hits] == ["current"], [h.period for h in hits]
+    assert [str(h.amount) for h in hits] == ["1200"]
+
+
+def test_a_note_column_the_statements_do_not_use_is_not_a_period(shipped):
+    """MEASURED ON suncreate.pdf. The 营业收入和营业成本 note prints revenue and COST side by side, and
+    the cost column arrived as a slot named `current:cost` carrying 2,239,996,631.60 onto the
+    REVENUE line — a cost of sales published as revenue, on a line that reconciles against nothing.
+
+    The allowlist is the set of period labels the FACE declares, derived from the document rather
+    than hardcoded to current/prior, so a filing presenting three columns still works.
+    """
+    from app.core.models.line_item import NoteItem
+    from app.services import note_sourced as svc
+
+    row = NoteItem(raw_label="Depreciation of property, plant and equipment")
+    row.values["a"] = ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current",
+                                     value=Decimal("1200"), value_raw=Decimal("1200"))
+    row.values["b"] = ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current:cost",
+                                     value=Decimal("999"), value_raw=Decimal("999"))
+    note = NotesTable(note_number="8", title="Research and development expenses", items=[row])
+    sub = next(i for i in shipped.items if i.key == "sub__rd_depreciation")
+
+    kept = svc.select_rows(sub, [note], {"current", "prior"})
+    assert [(h.period, str(h.amount)) for h in kept] == [("current", "1200")]
+
+    # No allowlist means no filtering — a document whose face declares no periods must not lose
+    # every note figure.
+    both = svc.select_rows(sub, [note], None)
+    assert len(both) == 2
+
+
+def test_the_allowlist_comes_from_the_face_not_from_a_literal(shipped):
+    """A filing presenting three columns must not have its third silently dropped, which is what a
+    hardcoded {current, prior} would do."""
+    from app.core.models.line_item import NoteItem
+    from app.core.stage import PipelineContext
+    from app.stages.note_sourced import NoteSourcedStage
+
+    face = LineItem(source_label="Revenue", canonical_key="is_pl__sales_revenues")
+    for label in ("current", "prior", "prior_2"):
+        face.set_value(ExtractedValue(basis=Basis.CONSOLIDATED, period_label=label,
+                                      value=Decimal("1"), value_raw=Decimal("1")))
+    row = NoteItem(raw_label="Depreciation of property, plant and equipment")
+    for label, amount in (("current", "10"), ("prior", "20"), ("prior_2", "30"),
+                          ("current:cost", "99")):
+        row.values[label] = ExtractedValue(basis=Basis.CONSOLIDATED, period_label=label,
+                                           value=Decimal(amount), value_raw=Decimal(amount))
+    doc = DocumentModel(filename="f.pdf")
+    doc.line_items = [face]
+    doc.notes = [NotesTable(note_number="8", title="Research and development expenses",
+                            items=[row])]
+    ctx = PipelineContext(settings=get_settings())
+    ctx.line_items = shipped
+    NoteSourcedStage().run(doc, ctx)
+
+    assert any("face periods" in line and "prior_2" in line for line in ctx.logs), ctx.logs
+    got = {f["period"]: f["value"] for f in
+           [{"period": str(ev.period_label or ""), "value": str(ev.value)}
+            for li in doc.line_items if li.canonical_key == "sub__rd_depreciation"
+            for ev in li.values.values() if ev.value is not None]}
+    assert got == {"current": "10", "prior": "20", "prior_2": "30"}, got

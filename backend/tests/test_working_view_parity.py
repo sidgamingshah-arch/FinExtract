@@ -56,7 +56,7 @@ RULEBOOK = TEMPLATES / "output_csv_hk_ontology.json"
 PROJECTED = sorted(set(SAME) | set(RENAMED))
 
 CONCEPTS = 462                 # the rulebook's concepts, and the set's `namespace == "template"`
-ITEMS = 476                    # …plus the 14 `sub__*` note-level parts, which are not concepts
+ITEMS = 539                    # …plus the 77 `sub__*` note-level parts, which are not concepts
 RESIDUALS = 11                 # concepts carrying a `residual_policy` (all `exclusive_residual`)
 
 # The one concept whose working view deliberately DISAGREES with the rulebook, because the
@@ -64,6 +64,15 @@ RESIDUALS = 11                 # concepts carrying a `residual_policy` (all `exc
 # `is_pl` namespace, the row really sits in the profit-attribution tail, and `_sections_of` used to
 # override the declaration from a table in code where no reviewer could see it.
 _SECTION_OVERRIDE = ("is_pl__minority_interests_pl", "section_scope")
+
+# ONE MORE DELIBERATE DIVERGENCE, and unlike the section override it is a CONFIGURATION decision
+# rather than a projection artefact: `notes__contingent_liabilities` was moved off the `notes`
+# section default of `evidence_only`. A contingent liability is disclosed ONLY in the notes, so
+# there is no face amount for a note to corroborate and `evidence_only` made the concept
+# unfillable by any route — `stages/note_sourced` refuses a note as a source for such a line.
+# Named here rather than added to `_SEED_LAG`, because it is not the seed lagging the rulebook:
+# it is the seed leading it, and the divergence is intended to persist until the rulebook agrees.
+_NOTE_USE_DECISION = ("notes__contingent_liabilities", "note_use")
 
 # Fields on which the SHIPPED seed may lag the rulebook — see the module docstring. `description`
 # is by design (the 8 merged keys keep the configurator's prose); the rest are staleness, and the
@@ -199,9 +208,10 @@ def test_shipped_set_projects_462_concepts_not_475():
 def test_shipped_set_diverges_only_in_the_known_classes():
     """See the module docstring: the shipped seed lags the rulebook, and this bounds the lag."""
     diff = _field_diff(build_working_view(load_shipped_set()), _rulebook())
+    allowed_single = {(_SECTION_OVERRIDE[1], (_SECTION_OVERRIDE[0],)),
+                      (_NOTE_USE_DECISION[1], (_NOTE_USE_DECISION[0],))}
     unexpected = {f: keys for f, keys in diff.items()
-                  if f not in _SEED_LAG
-                  and (f, tuple(keys)) != (_SECTION_OVERRIDE[1], (_SECTION_OVERRIDE[0],))}
+                  if f not in _SEED_LAG and (f, tuple(keys)) not in allowed_single}
     assert not unexpected, (
         "the shipped set and the rulebook disagree on a field neither the configurator merge nor "
         f"a stale seed explains: { {f: len(k) for f, k in unexpected.items()} }")

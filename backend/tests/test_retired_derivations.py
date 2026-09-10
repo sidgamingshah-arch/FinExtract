@@ -396,7 +396,7 @@ def test_no_shipped_line_item_names_a_deleted_service_as_its_implementer():
     """
     raw = json.loads(_LINE_ITEMS_JSON.read_text(encoding="utf-8"))
     items = raw["items"]
-    assert len(items) == 476, f"the shipped set changed size ({len(items)}) — re-read this test"
+    assert len(items) == 539, f"the shipped set changed size ({len(items)}) — re-read this test"
 
     offenders = [
         (i.get("key"), i.get("implemented_by")) for i in items

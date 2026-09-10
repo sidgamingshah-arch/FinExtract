@@ -48,11 +48,26 @@ class NoteSourcedStage(Stage):
             for bad in note_sourced.bad_patterns(item):
                 ctx.log(f"note_sourced:REFUSED {bad} does not compile")
 
+        # THE STATEMENT'S OWN PERIODS, taken from the face rather than assumed. A note-sourced
+        # figure belongs in a column the STATEMENTS use; a note's other columns are a different
+        # axis, and a figure from one of those published as the year's amount reconciles against
+        # nothing. Derived rather than hardcoded to `current`/`prior`, so a filing presenting three
+        # columns still works.
+        periods = {str(getattr(ev, "period_label", "") or "")
+                   for li in doc.line_items for ev in (li.values or {}).values()
+                   if getattr(ev, "column_index", None) is None
+                   and getattr(ev, "period_label", None)}
+        if not periods:
+            periods = None                      # nothing to filter against; do not filter
+            ctx.log("note_sourced: the face declares no period labels — every note column allowed")
+        else:
+            ctx.log(f"note_sourced: face periods {sorted(periods)}")
+
         by_key = {li.canonical_key: li for li in doc.line_items if li.canonical_key}
         children_of: dict[str, list] = {}
         filled = touched = 0
         for item in items:
-            hits = note_sourced.select_rows(item, doc.notes)
+            hits = note_sourced.select_rows(item, doc.notes, periods)
             if not hits:
                 continue
             # WITHIN ONE NOTE the rows are components: a note that splits depreciation across

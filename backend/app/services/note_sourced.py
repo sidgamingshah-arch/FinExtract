@@ -106,7 +106,7 @@ class NoteRowHit:
         self.period = period
 
 
-def select_rows(item, notes) -> list[NoteRowHit]:
+def select_rows(item, notes, periods: set[str] | None = None) -> list[NoteRowHit]:
     """The note rows THIS item's `note_source` declares, across every note whose title matches.
 
     Three gates, in the order the declaration reads: the note's title must match, the row's caption
@@ -140,6 +140,26 @@ def select_rows(item, notes) -> list[NoteRowHit]:
             if _matches_any(caption, vetoes):
                 continue
             for value in (getattr(row, "values", None) or {}).values():
+                # A MATRIX COLUMN IS NOT A PERIOD. `ExtractedValue.column_index` is set only for a
+                # fact printed in a NAMED COMPONENT column — an industry segment, a class of
+                # equity — and those columns are an axis of decomposition, not of time.
+                #
+                # Measured on laisun.pdf before this guard: the revenue segment note gave
+                # `is_pl__sales_revenues` twelve figures keyed `col2` … `col11` alongside
+                # `current`/`prior`, and the value that landed in the CURRENT slot was one
+                # segment's revenue (2,609,259) rather than the total the face prints
+                # (4,995,768). A per-segment figure published as the year's revenue, on a line
+                # that then reconciles against nothing.
+                if getattr(value, "column_index", None) is not None:
+                    continue
+                # AND THE COLUMN MUST BE ONE THE STATEMENTS USE. A note prints columns that are not
+                # periods at all: measured on suncreate.pdf, the 营业收入和营业成本 note prints revenue
+                # and COST side by side, and the cost column arrived as a slot named
+                # `current:cost` carrying 2,239,996,631.60 onto the REVENUE line. `periods` is the
+                # set the face declares — see the stage, which derives it from the document.
+                label = str(getattr(value, "period_label", "") or "")
+                if periods is not None and label not in periods:
+                    continue
                 amount = _num(getattr(value, "value", None)
                               if getattr(value, "value", None) is not None
                               else getattr(value, "value_raw", None))
