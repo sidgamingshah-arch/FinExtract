@@ -232,10 +232,11 @@ _LLM_REPLY_CONTRACT = (
     "rows to recover the page and the figure, so a paraphrase cannot be resolved, and a page "
     "or a figure you state from memory would look authoritative and point at the wrong "
     "place.\n"
-    "- SOME LINES ARE COMPUTED AND ARE NOT YOURS TO ANSWER. A line whose figure comes from "
-    "a declared calculation over its own sub-lines is worked out from those sub-lines, so "
-    "naming it is refused. Answer with the SUB-LINE the note actually prints — each "
-    "`identified_notes` entry names the sub-lines it was identified for, in "
+    "- EVERY LINE YOU MAY ANSWER WITH IS IN THE CANDIDATES OR IN `identified_for`. Lines "
+    "whose figures this framework works out for itself — from a declared calculation over "
+    "their own sub-lines — are deliberately not offered, and naming one is refused however "
+    "well you cite it. Where a note prints such a breakdown, answer with the SUB-LINE it "
+    "prints: each `identified_notes` entry names the sub-lines it was identified for, in "
     "`identified_for`, and those are the keys to use.\n"
     "- Cite the item by the `item_id` you were given, and the concept by its exact "
     "`canonical_key`. Never return an item_id that was not given to you.\n"
@@ -1660,6 +1661,23 @@ class OntologyMatcher:
         # One set for every index and payload below: a concept no printed caption may reach,
         # whether because it is a swept residual or because it is computed.
         self._unmatchable: set[str] = self._locked | self._computed_only
+        # ONLY `extraction_mode: extract` IS PUT IN FRONT OF THE MODEL. A concept the framework can
+        # work out for itself is not the model's to guess at: if a line can be DERIVED, the declared
+        # arithmetic derives it, and asking as well only creates a second answer that can disagree
+        # with the first. Measured on laisun: the deterministic tiers read revenue off the face as
+        # 4,995,768 and the LLM run mapped that row to nothing, so a low-precedence rung filled the
+        # line with 2,609,259 instead — the model was asked about a row the alias tier had already
+        # answered correctly, and answered worse.
+        #
+        # THIS IS NARROWER THAN `_unmatchable` AND IT IS AN LLM-ONLY BOUNDARY. It withholds the 38
+        # `extract_or_derive` concepts too, and those must stay fully matchable by the DETERMINISTIC
+        # tiers — `extract_or_derive` means the subtotal is sometimes printed and sometimes left to
+        # arithmetic, so a filing that does print it must have the printed row read (see
+        # `_computed_claim`). That is why this set is applied where candidates are offered rather
+        # than folded into `_mappable_keys`, which the rule tier also reads: the printed row is
+        # still read, just by the tier that reads captions instead of by the model.
+        self._llm_withheld: set[str] = {m.canonical_key for m in ontology.mappings
+                                        if m.extraction_mode != "extract"} | self._locked
         # `binding.order` is a v2 declaration, and step 6 below (a tie between mutually-confusable
         # concepts is emitted for review, never picked by declaration order) is an implementation OF
         # it — so it is enabled by its presence. A v1 rulebook declares no binding order and no
@@ -2178,12 +2196,15 @@ class OntologyMatcher:
             m = self._by_key.get(k)
             if m is None or m.extraction_mode == "do_not_extract":
                 continue
-            # Also the choke point for the residual lock and the `derive` lock, not only
-            # `_extractable_keys`/`_mappable_keys`: the capped shortlist in `match` is assembled from
-            # the rule tier's keys rather than from either list, so a concept kept out of one
-            # route has to be kept out of the other as well. A concept the model cannot see is a
-            # concept the model cannot pick.
-            if k in self._unmatchable:
+            # Also the choke point for the residual lock, the `derive` lock and the extract-only
+            # rule, not only `_extractable_keys`/`_mappable_keys`: the capped shortlist in `match` is
+            # assembled from the rule tier's keys rather than from either list, so a concept kept
+            # out of one route has to be kept out of the other as well. A concept the model cannot
+            # see is a concept the model cannot pick.
+            #
+            # `_llm_withheld` is a superset of `_unmatchable` (a locked residual is in it by
+            # construction, and `derive` is not `extract`), so this one test does all three jobs.
+            if k in self._llm_withheld:
                 continue
             entry: dict = {
                 "canonical_key": k,
@@ -2781,7 +2802,11 @@ class OntologyMatcher:
         #    deterministic shortlist, or the whole RESTRICTED set for a small ontology, plus each
         #    concept's criteria. Never the full ontology: the restriction is step 3's, applied above.
         if self.llm_enabled:
-            all_keys = [k for k in self._mappable_keys() if k in allowed_keys]
+            # `_llm_withheld` and not `allowed_keys`: the deterministic tiers above ran on the full
+            # restricted set, so a printed `extract_or_derive` subtotal has already had its chance
+            # to be matched by caption. Only the OFFER to the model is narrowed.
+            all_keys = [k for k in self._mappable_keys()
+                        if k in allowed_keys and k not in self._llm_withheld]
             # Policy restriction (`extraction.llm_only_keys`): a row none of whose candidates are on
             # the allow-list is never OFFERED to the model at all — which must fall through to the
             # deterministic tiers below exactly as an unconfigured LLM would, not be reported as the
@@ -2974,8 +2999,7 @@ class OntologyMatcher:
                     cited_notes: dict[str, set[str]] | None = None,
                     identified_notes: list[dict] | None = None,
                     notes=None,
-                    sub_item_keys: set[str] | None = None,
-                    computed_keys: set[str] | None = None) -> dict[str, MappingResult]:
+                    sub_item_keys: set[str] | None = None) -> dict[str, MappingResult]:
         """Batch mapping: decide many captions in one grounded LLM call so cross-line judgements
         (containment, residual, 'Others') have context. The model references the provided item_ids
         and candidate keys — it never invents a value; values/provenance stay on the deterministic
@@ -3019,7 +3043,7 @@ class OntologyMatcher:
                 chunk, statement, sec, preliminary or {}, require_complete=require_complete,
                 context_pool=context_pool, cited_notes=cited_notes,
                 identified_notes=identified_notes, notes=notes,
-                sub_item_keys=sub_item_keys, computed_keys=computed_keys))
+                sub_item_keys=sub_item_keys))
         return out
 
     def _match_chunk(self, items: list[tuple[str, str]], statement: str | None,
@@ -3031,8 +3055,7 @@ class OntologyMatcher:
                      cited_notes: dict[str, set[str]] | None = None,
                      identified_notes: list[dict] | None = None,
                      notes=None,
-                     sub_item_keys: set[str] | None = None,
-                     computed_keys: set[str] | None = None) -> dict[str, MappingResult]:
+                     sub_item_keys: set[str] | None = None) -> dict[str, MappingResult]:
         """One provider call over at most ``BATCH_MAX_ITEMS`` captions. See :meth:`match_batch`."""
         # `binding.order` step 3, on the batch path: RESTRICT the offered concepts before the call.
         # Only concepts from THIS statement, and only from the sections this chunk was actually
@@ -3043,7 +3066,11 @@ class OntologyMatcher:
         # candidate list under.
         tokens = {tok for iid, _ in items if (tok := section_of_banner(sec.get(iid)))}
         unresolved = any(section_of_banner(sec.get(iid)) is None for iid, _ in items)
-        keys = [k for k in self._mappable_keys() if self._in_statement(k, statement)]
+        # Narrowed before the CAP, not only inside `_concept_payload`: the cap seeds itself from each
+        # row's deterministic suggestion, so filtering only at payload time would let a withheld
+        # concept take a seat in the shortlist and then be dropped, spending a slot on nothing.
+        keys = [k for k in self._mappable_keys()
+                if self._in_statement(k, statement) and k not in self._llm_withheld]
         if tokens and not unresolved:
             # One unresolvable banner and the restriction is off for the chunk: that row is
             # unconstrained by the gate (see `_in_section`), so narrowing the list would refuse it a
@@ -3186,13 +3213,28 @@ class OntologyMatcher:
             # THE EVIDENCE BEFORE THE CLOSED LIST. `source_items` and their context are read first
             # and `candidates` last, because the question is what each row means and the candidate
             # list is only the vocabulary the answer must be expressed in.
+            # THE SUGGESTION IS FILTERED BY THE SAME SET AS THE CANDIDATE LIST. `deterministic` comes
+            # from the provider-less `fallback` matcher above, whose tiers exclude only
+            # `_unmatchable` — so without this it names concepts the candidate list withholds and
+            # the refusal below would reject, which is the worst of the three states: the request
+            # INVITES an answer it will then discard, and the model has no way to tell that the key
+            # it was just shown is not one it may use.
+            #
+            # NOT HYPOTHETICAL, measured on the shipped config: "Total current assets", "Total
+            # current liabilities", "Gross profit", "Profit before taxation", "Profit for the year"
+            # and "Inventories" all resolve to a withheld concept, so a balance-sheet or P&L chunk
+            # carrying any subtotal row hit this. Those rows lose nothing by the omission — a
+            # concept is withheld precisely because the framework works it out for itself, and the
+            # deterministic tier that produced the suggestion has already filed the figure.
             "source_items": [
                 {"item_id": iid, "caption": label,
                  **({"section": tok} if (tok := _sec_token(iid)) else {}),
-                 **({"deterministic_suggestion": deterministic[iid].canonical_key}
-                    if deterministic[iid].canonical_key else {}),
+                 **({"deterministic_suggestion": suggestion}
+                    if (suggestion := deterministic[iid].canonical_key)
+                    and suggestion not in self._llm_withheld else {}),
                  "deterministic_candidates": [candidate.canonical_key
-                                              for candidate in deterministic[iid].candidates[:_det_cap(self.settings)]],
+                                              for candidate in deterministic[iid].candidates[:_det_cap(self.settings)]
+                                              if candidate.canonical_key not in self._llm_withheld],
                  **({"context": context[iid]} if context.get(iid) else {})}
                 for iid, label in items
             ],
@@ -3302,31 +3344,11 @@ class OntologyMatcher:
             # integrity rather than an opinion about the answer: a key the configuration does not
             # carry cannot be stored, exported or reviewed.
             #
-            # `_unmatchable` IS NO LONGER REFUSED HERE. It used to be — a locked residual or a
-            # `derive` concept was dropped the moment the model named it, which is why the two
-            # depreciation concepts could never be answered however clearly the filing stated them.
-            # Those are now handled by the off-candidate block below, which requires a citation and
-            # sends every one of them to review.
+            # WHAT IS WITHHELD FROM THE CANDIDATE LIST IS WHAT IS REFUSED AS AN ANSWER, and the two
+            # are the same set (`_unmatchable`) on purpose — see the cited-off-candidate branch
+            # below, which is where the refusal now lives because a citation is the only thing that
+            # could otherwise have unlocked it.
             if not key:
-                continue
-            # A DERIVED PARENT IS NOT THE MODEL'S TO ANSWER — THERE IS NO LLM CALL FOR IT.
-            #
-            # Its figure is COMPUTED, by a declared cascade over its sub-line items: rung P1 sums
-            # the four operating-expense notes, P2 takes the profit-before-tax callout, P3 is the
-            # total less the cost-of-sales share. Accepting a figure onto the parent bypasses all
-            # of that — the rung never runs, so the record loses WHICH of the filing's several
-            # disclosures the number came from, and the arithmetic that would have cross-checked it
-            # against the other rungs is skipped. The number arrives looking identical either way.
-            #
-            # This was a real hole rather than a hypothetical: the prose path first wrote 529,841
-            # straight onto `is_pl__deprec_and_impairment_oper_exp`. The right answer is the
-            # SUB-ITEM (`sub__pbt_oper_exp_depreciation`), which is what P2 reads, and the refusal
-            # says so.
-            if key in (computed_keys or frozenset()):
-                with self._usage_lock:
-                    self.usage["batch_refused"] += 1
-                    self.usage["batch_computed_parent_named"] = self.usage.get(
-                        "batch_computed_parent_named", 0) + 1
                 continue
             sub_keys = sub_item_keys or frozenset()
             if key not in self._by_key and key not in sub_keys:
@@ -3410,17 +3432,45 @@ class OntologyMatcher:
                         self.usage["batch_refused"] += 1
                     continue
             if off_candidate and (d.sources or ()):
-                # A RESIDUAL BUCKET IS REFUSED EVEN WITH A CITATION, and it is the one exception to
-                # the latitude above. `_locked` holds the section residuals, whose whole purpose is
-                # to carry the UNEXPLAINED remainder — so a figure filed there does not merely risk
-                # a wrong mapping, it makes the reconciliation that would have reported the gap tie
-                # instead. That is not the model choosing where to pick a figure from; it is
-                # writing into the mechanism that audits the choice.
-                if key in self._locked:
+                # WHAT IS WITHHELD FROM THE CANDIDATE LIST IS REFUSED AS AN ANSWER, and this is the
+                # one boundary the latitude above does not cross. The test is `_llm_withheld` —
+                # exactly the set `_concept_payload` withholds — so the list the model is shown and
+                # the answers it may give are ONE decision rather than two that drift apart. A
+                # citation buys latitude about WHERE a figure came from; it does not buy a line the
+                # framework was never going to ask about.
+                #
+                # Three reasons, counted separately because they mean different things to whoever
+                # reads the counters:
+                #
+                #   * `_locked` — the section residuals, whose purpose is to carry the UNEXPLAINED
+                #     remainder. A figure filed there does not merely risk a wrong mapping, it makes
+                #     the reconciliation that would have REPORTED the gap tie instead. That is not
+                #     the model saying where a figure came from; it is writing into the mechanism
+                #     that audits the saying.
+                #   * `extraction_mode: derive` — THERE IS NO LLM CALL FOR A COMPUTED LINE. Its
+                #     figure comes from a declared cascade over its sub-line items: rung P1 sums the
+                #     four operating-expense notes, P2 takes the profit-before-tax callout, P3 is
+                #     the total less the cost-of-sales share. A figure accepted onto the parent
+                #     bypasses all of it — the rung never runs, so the record loses WHICH of the
+                #     filing's several disclosures the number came from, and the cross-check against
+                #     the other rungs is skipped. The number arrives looking identical either way,
+                #     which is why this is refused rather than merely deprioritised. It was a real
+                #     hole: the prose path first wrote 529,841 straight onto
+                #     `is_pl__deprec_and_impairment_oper_exp`. The answer is the SUB-ITEM
+                #     (`sub__pbt_oper_exp_depreciation`), which is what P2 reads.
+                #   * `extraction_mode: extract_or_derive` — derivable, so not the model's to guess
+                #     at. The printed row is still read; the DETERMINISTIC tiers read it, and they
+                #     ran on the full set before this point.
+                if key in self._llm_withheld:
                     with self._usage_lock:
                         self.usage["batch_refused"] += 1
-                        self.usage["batch_residual_named"] = self.usage.get(
-                            "batch_residual_named", 0) + 1
+                        if key in self._locked:
+                            counter = "batch_residual_named"
+                        elif key in self._computed_only:
+                            counter = "batch_computed_parent_named"
+                        else:
+                            counter = "batch_derivable_named"
+                        self.usage[counter] = self.usage.get(counter, 0) + 1
                     continue
                 resolved, unresolved = note_sourced.resolve_sources(d.sources, notes_for_sources)
                 with self._usage_lock:
@@ -3504,7 +3554,7 @@ class OntologyMatcher:
                 require_complete=True, retry_depth=retry_depth + 1,
                 context_pool=context_pool, cited_notes=cited_notes,
                 identified_notes=identified_notes, notes=notes,
-                sub_item_keys=sub_item_keys, computed_keys=computed_keys))
+                sub_item_keys=sub_item_keys))
 
         # Section-level proposals may be incomplete; the required statement pass above corrects
         # them. No deterministic result is substituted for an omitted LLM decision.

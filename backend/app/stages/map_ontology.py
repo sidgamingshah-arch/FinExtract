@@ -804,10 +804,6 @@ class MapOntologyStage:
             # `identified_for`.
             _cfg_items = getattr(getattr(ctx, "line_items", None), "items", None) or ()
             sub_item_keys = {i.key for i in _cfg_items if getattr(i, "parent", "")}
-            # COMPUTED PARENTS, off the configuration: a declared cascade IS the statement that
-            # this line's figure is arithmetic over its sub-lines, so the model is not asked about
-            # it and an answer naming it is refused.
-            computed_keys = {i.key for i in _cfg_items if getattr(i, "cascade", None)}
             if identified:
                 ctx.log(f"map_line_items: {len(identified)} note(s) identified by configuration "
                         f"passed in full "
@@ -927,7 +923,7 @@ class MapOntologyStage:
                     chunk_size=chunk,
                     context_pool=context_pool, cited_notes=cited_notes,
                     identified_notes=identified, notes=doc.notes,
-                    sub_item_keys=sub_item_keys, computed_keys=computed_keys)
+                    sub_item_keys=sub_item_keys)
 
             max_workers = max(1, ctx.settings.extraction.llm_max_concurrency)
             # REPORT BEFORE THE FIRST CALL, so a reader learns how many there will be rather than

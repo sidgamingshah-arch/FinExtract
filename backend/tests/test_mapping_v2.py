@@ -86,17 +86,34 @@ def test_the_thirteen_residual_buckets_are_locked_out_of_every_matching_index(v2
 
 
 def test_a_balance_sheet_batch_stops_offering_the_five_asset_and_liability_buckets(v2):
-    """Measured: 77 concepts were offered for a balance-sheet page, 72 now. The five removed are
-    exactly the bs "Others" buckets — nothing else lost a candidate."""
+    """Measured: of 78 balance-sheet concepts, 68 are offered. TWO declared reasons account for all
+    ten that are not, and the last assertion is what pins that — a concept missing for a third
+    reason would fail it.
+
+      * FIVE ARE LOCKED: the bs "Others" buckets (`alias_matching: disabled`). All five declare
+        `extraction_mode: extract`, so it is the lock and not the extract-only rule that withholds
+        them — the residual's caption is the most attractive one in the ontology and a model offered
+        a bucket will use it for a row it cannot place.
+      * FIVE ARE DERIVABLE: the statement's `extract_or_derive` subtotals. A line the declared
+        arithmetic can work out is not the model's to guess at. They stay fully matchable by the
+        DETERMINISTIC tiers, which is why the boundary is applied where candidates are offered
+        rather than in `_mappable_keys` — see
+        `test_the_deterministic_tiers_still_reach_a_derivable_concept`.
+    """
     m = _matcher(v2)
     bs = [c.canonical_key for c in v2.mappings if c.canonical_key.startswith("bs_")]
     offered = {e["canonical_key"] for e in m._concept_payload(bs)}
 
-    assert len(bs) == 78 and len(offered) == 73
-    assert {k for k in bs if k not in offered} == {
-        "bs_non_current_assets__others", "bs_current_assets__others", "bs_equity__others",
-        "bs_non_current_liabilities__others", "bs_current_liabilities__others",
-    }
+    buckets = {"bs_non_current_assets__others", "bs_current_assets__others", "bs_equity__others",
+               "bs_non_current_liabilities__others", "bs_current_liabilities__others"}
+    derivable = {c.canonical_key for c in v2.mappings
+                 if c.canonical_key.startswith("bs_") and c.extraction_mode != "extract"}
+
+    assert len(bs) == 78 and len(offered) == 68
+    assert buckets <= m._locked, "the buckets are withheld by the LOCK, not by the offer rule"
+    assert all(m._by_key[k].extraction_mode == "extract" for k in buckets)
+    assert len(derivable) == 5, sorted(derivable)
+    assert {k for k in bs if k not in offered} == buckets | derivable
 
 
 def test_a_residual_bucket_cannot_win_however_its_hints_are_authored():
@@ -188,18 +205,34 @@ def test_the_sweep_still_reaches_a_bucket_the_matcher_cannot(v2):
 def test_the_colliding_pair_is_offered_in_the_order_the_rulebook_declares(v2):
     """`binding.match_priority`: "Long specific captions rank above short generic ones so 'Total
     assets less current liabilities' cannot be pre-empted by 'Total current liabilities' on token
-    overlap." Both reach the shortlist for a current-liabilities row, and the order they are read
-    in was the order an editor happened to add them to the file (71 before 73)."""
+    overlap." The order the list is read in was once the order an editor happened to add them to
+    the file (71 before 73), and priority is what replaced that.
+
+    THE ORIGINAL PAIR IS NO LONGER BOTH OFFERED. 'Total assets less current liabilities' is
+    `extract_or_derive` — the framework can work it out — so the extract-only offer rule withholds
+    it and the collision it guarded against can no longer arise in the CANDIDATE LIST at all. Both
+    facts are asserted rather than the pair probe simply deleted: the concept's absence is pinned to
+    its declared mode, so a future change that puts it back in front of the model re-arms the
+    ordering question instead of silently dropping it. The ordering property itself is unchanged and
+    still checked across the whole offered list, which is the stronger claim — it fails if ANY pair
+    inverts, not only that one.
+
+    The deterministic tiers still rank it: `_by_priority` and `_priority_of` read the rulebook, not
+    the offer rule, so a filing that PRINTS the subtotal still has it read at the right priority.
+    """
     spy = Spy(single="")
     m = _matcher(v2, spy)
     m.match("Total current liabilites",           # OCR typo → no exact hit, so the LLM is consulted
             statement="balance_sheet", section="CURRENT LIABILITIES 流動負債")
     offered = spy.offered()
 
-    specific = offered.index("bs_total_assets_less_current_liabilities")          # priority 86
-    generic = offered.index("bs_current_liabilities__total_current_liabilities")  # priority 82
-    assert specific < generic
-    # The whole list, not just that pair: descending declared priority.
+    specific = "bs_total_assets_less_current_liabilities"
+    assert m._by_key[specific].extraction_mode == "extract_or_derive"
+    assert specific in m._llm_withheld and specific not in offered
+    # Still ranked for the tiers that CAN bind it, which is what makes withholding it safe.
+    assert m._priority_of(specific) > m._priority_of(
+        "bs_current_liabilities__total_current_liabilities")
+    # The whole list, not just one pair: descending declared priority.
     priorities = [m._priority_of(k) for k in offered]
     assert priorities == sorted(priorities, reverse=True), list(zip(offered, priorities))
 
@@ -552,26 +585,43 @@ def test_an_exact_canonical_label_beats_a_higher_priority_borrowed_alias(v2):
 def test_the_criteria_the_rulebook_wrote_for_the_decision_reach_the_decider(v2):
     """`section_disambiguation`, `derivation`, `is_gross_parent`/`children_if_decomposed` and
     `equivalence` were authored for a reader and read by nobody. They are prose (or a graph over
-    keys), so the reader that can act on them is the semantic tier — which means the payload."""
+    keys), so the reader that can act on them is the semantic tier — which means the payload.
+
+    THE COUNTS MOVED WITH THE EXTRACT-ONLY OFFER RULE, and one of them moved to zero. Only
+    `extraction_mode: extract` concepts are put in front of the model now, so authored prose on a
+    derivable concept no longer reaches it: `section_disambiguation` went 18 -> 16, and `derivation`
+    — which is authored ONLY on concepts the framework can compute, i.e. exactly the withheld ones —
+    went to 0. That is consistent rather than a loss (there is no point telling the model how a line
+    is computed when the model is not asked about that line), but it does mean the `derivation`
+    field is now dead weight in the payload, and it is asserted here so the day it stops being
+    empty someone has to say why.
+    """
     m = _matcher(v2)
     entries = {e["canonical_key"]: e
                for e in m._concept_payload([c.canonical_key for c in v2.mappings])}
 
-    # 18 concepts carry the sentence that separates two look-alike captions.
-    assert sum(1 for e in entries.values() if "section_disambiguation" in e) == 18
+    # 16 concepts carry the sentence that separates two look-alike captions.
+    assert sum(1 for e in entries.values() if "section_disambiguation" in e) == 16
     assert "printed section only" in (
         entries["bs_current_liabilities__current_lease_liabilities"]["section_disambiguation"])
-    # A subtotal the framework can compute says how, and says which mode it is in.
-    oci = entries["pl_other_comprehensive_income_for_the_year"]
-    assert oci["derivation"].startswith("pl_total_comprehensive_income_for_the_year")
-    assert oci["extraction_mode"] == "extract_or_derive"
+    # THE DERIVATION PROSE NO LONGER REACHES ANY DECIDER, because every concept carrying it is
+    # withheld. Both halves are asserted: the payload is empty of it, AND the concept it used to be
+    # probed on is absent for the declared reason rather than by accident.
+    assert not [k for k, e in entries.items() if "derivation" in e]
+    assert "pl_other_comprehensive_income_for_the_year" not in entries
+    assert m._by_key["pl_other_comprehensive_income_for_the_year"].extraction_mode \
+        == "extract_or_derive"
     # Containment, so the model does not propose the parent for a filing that prints the children.
     reserves = entries["bs_equity__reserves"]
     assert reserves["is_gross_parent"] is True
     assert "bs_equity__share_premium" in reserves["children_if_decomposed"]
-    # One fact under two captions, so the twin is not read as a rival answer.
-    assert entries["bs_net_assets"]["same_fact_as"]["canonical_key"] == "bs_equity__total_equity"
-    assert "route to review" in entries["bs_net_assets"]["same_fact_as"]["rule"]
+    # One fact under two captions, so the twin is not read as a rival answer. Probed from the
+    # `extract` side of the pair: `bs_net_assets` is `extract_or_derive` and so is withheld, which
+    # leaves exactly one concept in the payload carrying `same_fact_as`.
+    twin = entries["bs_equity__total_equity"]["same_fact_as"]
+    assert twin["canonical_key"] == "bs_net_assets"
+    assert "route to review" in twin["rule"]
+    assert [k for k, e in entries.items() if "same_fact_as" in e] == ["bs_equity__total_equity"]
 
 
 def test_the_sections_residual_expectations_are_offered_without_naming_the_bucket(v2):

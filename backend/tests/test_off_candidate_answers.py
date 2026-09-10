@@ -53,7 +53,8 @@ SEED = (pathlib.Path(__file__).resolve().parent.parent
 # The three kinds of key. That they differ is the whole subject of the file.
 SUB = "sub__pbt_oper_exp_depreciation"                    # the model's proper answer
 COMPUTED = "is_pl__deprec_and_impairment_oper_exp"        # derived: never the model's to answer
-ORDINARY_OFF = "bs_ca__net_trade_receivables"             # a real concept, just not offered here
+ORDINARY_OFF = "bs_nca__land"                             # `extract`, just not offered for THIS row
+DERIVABLE = "bs_ca__net_trade_receivables"                # `extract_or_derive`: withheld from the LLM
 
 _PROSE = ("^ Depreciation charges of approximately HK$529,841,000 (2024: HK$665,553,000) are "
           "included in “other operating expenses” on the face of the consolidated income "
@@ -98,20 +99,20 @@ class _Answers:
         return response_schema.model_validate({"mappings": self.mappings}), {}
 
 
-def _key_sets(shipped):
-    """The two sets `stages.map_ontology` supplies: sub-line items, and computed parents."""
-    return ({i.key for i in shipped.items if getattr(i, "parent", "")},
-            {i.key for i in shipped.items if getattr(i, "cascade", None)})
+def _sub_item_keys(shipped):
+    """The set `stages.map_ontology` supplies. Which concepts are WITHHELD from the model is the
+    matcher's own decision (`_llm_withheld`), read off the declared `extraction_mode` — not
+    something the caller passes, so the offer and the refusal cannot drift apart."""
+    return {i.key for i in shipped.items if getattr(i, "parent", "")}
 
 
 def _decide(shipped, mappings, *, notes=None, caption="Depreciation charge for the year"):
     provider = _Answers(mappings)
     matcher = OntologyMatcher(build_working_view(shipped), locale="en",
                               settings=get_settings(), llm_provider=provider)
-    subs, computed = _key_sets(shipped)
     out = matcher.match_batch([("r1", caption)], statement="profit_and_loss",
                               sections={"r1": None}, notes=notes or _rows_note(),
-                              sub_item_keys=subs, computed_keys=computed)
+                              sub_item_keys=_sub_item_keys(shipped))
     return out["r1"], matcher, provider
 
 
@@ -162,6 +163,108 @@ def test_neither_the_parent_nor_the_sub_item_is_ever_offered(shipped):
     assert COMPUTED not in offered and SUB not in offered
 
 
+def test_only_extract_mode_concepts_are_put_in_front_of_the_model(shipped):
+    """THE RULE THIS PAYLOAD OBEYS: a line the framework can work out for itself is not the model's
+    to guess at. `extraction_mode` is the declared switch — `extract` is offered, `derive` and
+    `extract_or_derive` are not — and it is read at the ONE choke point every candidate list comes
+    through, so the offer cannot disagree with the refusal.
+
+    NOT the presence of a cascade, which looked equivalent and is not: 8 concepts declare a cascade
+    but only 3 declare `derive`, so a cascade-based rule would withhold `is_pl__sales_revenues`
+    (declared `extract`, and printed on the face of every HK filing) while a mode-based rule offers
+    it.
+    """
+    view = build_working_view(shipped)
+    matcher = OntologyMatcher(view, locale="en", settings=get_settings())
+    mode = {m.canonical_key: m.extraction_mode for m in view.mappings}
+
+    offered = {c["canonical_key"]
+               for c in matcher._concept_payload(matcher._by_priority(list(matcher._by_key)))}
+    assert offered, "no candidate survived the filter, so the test proves nothing"
+    off_mode = {mode.get(k) for k in offered}
+    assert off_mode == {"extract"}, f"a non-extract concept is offered: {off_mode}"
+
+    # And the withholding is real rather than vacuous: there ARE derivable concepts to withhold.
+    assert sum(1 for v in mode.values() if v == "extract_or_derive") >= 30
+    assert all(k in matcher._llm_withheld for k, v in mode.items() if v != "extract")
+
+
+def test_nothing_in_the_request_names_a_key_the_model_may_not_use(shipped):
+    """THE COHERENCE INVARIANT, over the WHOLE request rather than the candidate list alone.
+
+    Three separate places can put a canonical_key in front of the model: `candidates`,
+    `source_items[].deterministic_suggestion` and `source_items[].deterministic_candidates`. The
+    last two come from the provider-less `fallback` matcher, whose tiers exclude only
+    `_unmatchable` — so filtering the candidate list alone left them naming concepts the list
+    withholds and the refusal rejects. That is worse than either offering or withholding
+    consistently: the request INVITES an answer it will then discard, and the model cannot tell
+    that the key it was just shown is one it may not use.
+
+    Measured before the fix: "Total current assets", "Gross profit", "Profit before taxation",
+    "Profit for the year" and "Inventories" all resolve to a withheld concept, so any chunk
+    carrying a subtotal row hit it.
+    """
+    provider = _Answers([])
+    matcher = OntologyMatcher(build_working_view(shipped), locale="en",
+                              settings=get_settings(), llm_provider=provider)
+    rows = [("r1", "Total current assets"), ("r2", "Gross profit"),
+            ("r3", "Profit before taxation"), ("r4", "Inventories"),
+            ("r5", "Bank balances and cash")]
+    matcher.match_batch(rows, statement="balance_sheet",
+                        sections={iid: None for iid, _ in rows},
+                        sub_item_keys=_sub_item_keys(shipped))
+
+    payload = json.loads(provider.user)
+    named = {c["canonical_key"] for c in payload["candidates"]}
+    for item in payload["source_items"]:
+        if item.get("deterministic_suggestion"):
+            named.add(item["deterministic_suggestion"])
+        named.update(item.get("deterministic_candidates") or ())
+    assert named, "no key reached the request, so the test proves nothing"
+
+    leaked = sorted(named & matcher._llm_withheld)
+    assert not leaked, f"the request names keys the model may not answer with: {leaked}"
+
+
+def test_the_suggestion_is_dropped_rather_than_the_whole_row(shipped):
+    """The row is still ASKED about — only the unusable key is withheld. Dropping the row instead
+    would be a different decision (and a defensible one), but it would silently stop the model
+    seeing captions it may have something to say about, so it is not made here by accident."""
+    provider = _Answers([])
+    matcher = OntologyMatcher(build_working_view(shipped), locale="en",
+                              settings=get_settings(), llm_provider=provider)
+    matcher.match_batch([("r1", "Gross profit")], statement="profit_and_loss",
+                        sections={"r1": None}, sub_item_keys=_sub_item_keys(shipped))
+
+    payload = json.loads(provider.user)
+    assert [i["caption"] for i in payload["source_items"]] == ["Gross profit"]
+    assert "deterministic_suggestion" not in payload["source_items"][0]
+
+
+def test_a_derivable_concept_is_refused_even_when_cited(shipped):
+    """The refusal side of the same rule. `extract_or_derive` means the subtotal is sometimes
+    printed and sometimes arithmetic — so if it IS printed the DETERMINISTIC tiers read the printed
+    row, and the model is not asked. A citation does not reopen a line the framework was never
+    going to ask about; it is counted separately from a computed parent because the two mean
+    different things to whoever reads the counters."""
+    r, m, _p = _decide(shipped, _answer(DERIVABLE, _ROW_CITE, confidence=1.0))
+
+    assert r.canonical_key is None
+    assert m.usage.get("batch_derivable_named") == 1
+
+
+def test_the_deterministic_tiers_still_reach_a_derivable_concept(shipped):
+    """THE HALF THAT MUST NOT BREAK. Withholding these from the model is only safe because the
+    caption tiers still bind them — otherwise a printed subtotal would stop being read at all,
+    which is a far worse failure than the model guessing at it. So the narrowing is applied where
+    candidates are OFFERED, not in `_mappable_keys`, which the rule tier reads too."""
+    matcher = OntologyMatcher(build_working_view(shipped), locale="en", settings=get_settings())
+
+    assert DERIVABLE in matcher._llm_withheld, "the premise: withheld from the model"
+    assert DERIVABLE in matcher._mappable_keys(), "but still bindable by a printed caption"
+    assert DERIVABLE not in matcher._unmatchable
+
+
 # ── a derived parent: no LLM answer, ever ─────────────────────────────────────────────────────
 
 def test_a_derived_parent_is_never_the_models_to_answer(shipped):
@@ -195,7 +298,8 @@ def test_the_contract_tells_the_model_to_answer_at_the_sub_line_instead(shipped)
     the sub-line keys."""
     _r, _m, provider = _decide(shipped, _answer(SUB, _ROW_CITE))
 
-    assert "COMPUTED AND ARE NOT YOURS TO ANSWER" in provider.system
+    assert "deliberately not offered" in provider.system
+    assert "answer with the SUB-LINE it prints" in provider.system
     assert "identified_for" in provider.system
     assert "SUGGESTIONS, NOT A MENU" in provider.system
     assert "not offered, answer with it" in provider.system

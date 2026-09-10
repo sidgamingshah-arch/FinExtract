@@ -99,15 +99,26 @@ def _matcher(ontology, provider=None, locale="zh") -> OntologyMatcher:
 
 def test_the_batch_offers_only_the_sections_the_chunk_was_printed_under(v2):
     """Measured: a current-liabilities chunk used to be offered all 72 mappable balance-sheet
-    concepts. It is now offered 17 — the 12 scoped to that section plus the 5 statement-level totals,
-    which belong to no section and must stay reachable for a subtotal printed anywhere.
+    concepts. It is now offered 12 — exactly the concepts scoped to that section.
 
-    THE COUNT IS NOW `min(17, llm_candidate_cap)`, because `_match_chunk` gained the request-size
-    bound it had always been missing (`extraction.llm_candidate_cap`, previously applied on the
-    per-line path only). A bare `== 17` made this test depend on ambient configuration without
-    saying so: it passed at the shipped cap of 40 and failed at 16, which is a legitimate value to
-    run at and which is what a constrained provider needs. The property under test is which
-    SECTIONS may be offered, and that is asserted below independently of how many survive the cap.
+    IT WAS 17, AND THE FIVE THAT LEFT ARE NOT THIS RESTRICTION'S DOING. The extra five were the
+    statement-level totals, which belong to no section; `_match_chunk`'s `not self._sections_of(k)`
+    clause is untouched and would still admit them. They are gone because of a SECOND and narrower
+    boundary — `_llm_withheld`: only `extraction_mode: extract` is put in front of the model, and
+    all five of this statement's section-less concepts declare `extract_or_derive`. A subtotal a
+    filing DOES print is still read, by the deterministic tiers, because `_mappable_keys` is
+    deliberately not narrowed — which is why `whole_statement` below is still 73.
+
+    So this test no longer exercises unscoped reachability, and on this rulebook it cannot: every
+    section-less concept on every statement is `extract_or_derive`. The loop below is written to
+    ALLOW an unscoped concept rather than to require one, so the day an `extract` statement-level
+    total is declared it is offered and this test still passes.
+
+    THE COUNT IS `min(12, llm_candidate_cap)`, because `_match_chunk` gained the request-size bound
+    it had always been missing (`extraction.llm_candidate_cap`, previously applied on the per-line
+    path only). A bare `== 12` would make this test depend on ambient configuration without saying
+    so. The property under test is which SECTIONS may be offered, and that is asserted below
+    independently of how many survive the cap.
     """
     spy = Spy(items=[])
     m = _matcher(v2, spy)
@@ -120,7 +131,10 @@ def test_the_batch_offers_only_the_sections_the_chunk_was_printed_under(v2):
     whole_statement = [k for k in m._mappable_keys() if m._in_statement(k, "balance_sheet")]
     cap = get_settings().extraction.llm_candidate_cap
     assert len(whole_statement) == 73, len(whole_statement)
-    assert len(offered) == min(17, cap), (len(offered), cap)
+    # The five that left, pinned to their declared reason rather than to a number.
+    sectionless = [k for k in whole_statement if not m._sections_of(k)]
+    assert len(sectionless) == 5 and all(k in m._llm_withheld for k in sectionless)
+    assert len(offered) == min(12, cap), (len(offered), cap)
     # The restriction itself, which no cap may widen: every offered concept is either scoped to the
     # section the chunk was printed under, or scoped to no section at all.
     for k in offered:
@@ -155,9 +169,23 @@ def test_one_unresolvable_banner_turns_the_restriction_off_for_that_chunk(v2):
     offered = spy.offered()
     assert "bs_current_liabilities__current_trade_payables" in offered
 
+    # THE REFERENCE POPULATION IS WHAT MAY BE OFFERED, not what may be MATCHED. Those diverged when
+    # the extract-only rule landed (`_llm_withheld`): `_mappable_keys()` is the deterministic
+    # population and still carries every `extract_or_derive` concept, because a filing that DOES
+    # print such a subtotal must have the printed row read. Measured on this rulebook, all five of
+    # the balance sheet's section-less concepts are `extract_or_derive` — so comparing against
+    # `_mappable_keys()` asked the offered list to span a `None` bucket that is WITHHELD from the
+    # offer rather than RESTRICTED out of it, which is a different mechanism and not this one's job.
+    # The narrowing is checked rather than assumed, so it cannot quietly grow to hide a real gap.
+    offerable = [k for k in m._mappable_keys()
+                 if m._in_statement(k, "balance_sheet") and k not in m._llm_withheld]
+    assert {frozenset(m._sections_of(k)) or None
+            for k in m._mappable_keys() if m._in_statement(k, "balance_sheet")} \
+        - {frozenset(m._sections_of(k)) or None for k in offerable} == {None}, \
+        "the extract-only rule withheld more than the section-less bucket on this statement"
+
     reachable = {frozenset(m._sections_of(k)) or None for k in offered}
-    every_section = {frozenset(m._sections_of(k)) or None
-                     for k in m._mappable_keys() if m._in_statement(k, "balance_sheet")}
+    every_section = {frozenset(m._sections_of(k)) or None for k in offerable}
     assert reachable == every_section, (
         f"the restriction did not come off: {sorted(str(s) for s in every_section - reachable)} "
         f"unreachable for a chunk carrying an unresolvable banner")

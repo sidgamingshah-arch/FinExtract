@@ -305,8 +305,15 @@ def test_the_alias_cap_default_preserves_shipped_behaviour(shipped_matcher):
 
     assert cap == 4, "the shipped default is the literal `[:4]` this replaced"
 
-    longest = max((matcher._by_key[k] for k in matcher._mappable_keys()
-                   if k in matcher._by_key),
+    # THE PROBE MUST COME FROM WHAT IS OFFERED, not from `_mappable_keys()`. The two diverged when
+    # the extract-only rule landed: `_mappable_keys()` is the DETERMINISTIC population (it still
+    # carries every `extract_or_derive` concept, because a filing that prints such a subtotal must
+    # have the printed row read), while `_concept_payload` emits only `extract` ones. The
+    # most-aliased concept in the wider set is withheld, so the probe produced no entry at all and
+    # the test failed for a reason that had nothing to do with the alias cap it exists to check.
+    offerable = [k for k in matcher._mappable_keys()
+                 if k in matcher._by_key and k not in matcher._llm_withheld]
+    longest = max((matcher._by_key[k] for k in offerable),
                   key=lambda m: len(m.aliases_for(matcher.locale)), default=None)
     if longest is None or len(longest.aliases_for(matcher.locale)) <= cap:
         pytest.skip("no concept in this ontology has more aliases than the cap")
