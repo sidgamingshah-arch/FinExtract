@@ -387,6 +387,35 @@ class ExtractionSettings(BaseModel):
     # Lowering this is therefore a mapping change, not a plumbing change. Re-baseline the
     # deployment that lowers it rather than assuming the same answers at a smaller size.
     llm_batch_max_items: int = 25
+    # HOW LINE ITEMS ARE GROUPED INTO REQUESTS, when requests are driven by the line item rather
+    # than by the printed row.
+    #
+    #   "none"      one request per line item. The baseline, and the only mode whose answers are
+    #               attributable to a single line: nothing else shares the call, so nothing else can
+    #               have influenced the answer.
+    #   "identical" line items sharing the EXACT SAME selected note set share one request. Safe by
+    #               construction — no line item ever receives a note it did not ask for, which is
+    #               how a wrong answer acquires a plausible-looking source.
+    #   "similar"   line items whose note sets OVERLAP enough share one request
+    #               (`llm_group_similarity`). Bigger savings, and the trade is real: some line items
+    #               then see notes they did not select.
+    #
+    # WHY GROUPING SAVES ANYTHING AT ALL. The note context is what a request pays for — measured,
+    # `identified_notes` was 22,597 of a 30,407-token request, 74% of it. So line items needing the
+    # same notes amortise one copy of that block instead of paying for it each. Measured on the 12
+    # depreciation parts that all resolve to one note: 12 separate calls carry ~125,000 characters,
+    # one batch of 12 carries ~22,000 — about 5.7x.
+    #
+    # DEFAULT "none", DELIBERATELY. Grouping has a real hazard beyond cost: line items sharing a
+    # call can influence each other's answers, which sometimes helps (a subtotal and its components
+    # seen together) and sometimes bleeds (one figure reused for two questions). Without the
+    # per-line-item baseline there is no way to tell which happened, so the cheap mode is not the
+    # default until there is something to compare it against.
+    llm_request_grouping: Literal["none", "identical", "similar"] = "none"
+    # The overlap two note sets need to share a request under "similar", as a Jaccard index. 0.8
+    # means they must be nearly the same set; 1.0 is "identical" by another name. Read only in
+    # "similar" mode.
+    llm_group_similarity: float = 0.8
     # THERE IS NO REGISTRY SWITCH HERE ANY MORE. `mapping_engine` used to stand at this spot,
     # a Literal["ontology", "line_items"] defaulting to "ontology", and it selected between two
     # registries: the ontology rulebook and the merged line-item configuration. The line-item set

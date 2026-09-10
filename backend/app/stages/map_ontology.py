@@ -36,7 +36,7 @@ from app.core.models.enums import (AllocationStatus, Basis, LineRole, MappingMet
                                    PrintedIn)
 from app.core.models.line_item import ExtractedValue, LineItem
 from app.core.stage import PipelineContext
-from app.services import note_context
+from app.services import line_item_notes, note_context
 from app.services.caption_shape import prose_reasons
 from app.services.mapping import (
     OntologyMatcher,
@@ -737,6 +737,7 @@ class MapOntologyStage:
                        if focus_keys else None)
         focus_det = focus_llm = focus_sections_skipped = 0
         note_tag_skipped = 0
+        row_terms_refused = 0
         # item_id -> the deterministic answer a row forwarded to the model already had, so that a
         # model which answers nothing (or a batch the provider refuses outright) cannot leave the
         # row worse off than if no provider had been configured at all. Applied after the batch
@@ -827,6 +828,9 @@ class MapOntologyStage:
             # flag on anything but `extraction_mode: extract`, so this set needs no mode test.
             _note_tag_only = {i.key for i in _cfg_items
                               if getattr(i, "llm_only_if_note_tagged", False)}
+            # Every definition by key, so the model's answer can be checked against the line's own
+            # `row_terms` before it is written. Built once per group rather than per row.
+            _cfg_by_key = {i.key: i for i in _cfg_items}
             if identified:
                 ctx.log(f"map_line_items: {len(identified)} note(s) identified by configuration "
                         f"passed in full "
@@ -1012,7 +1016,34 @@ class MapOntologyStage:
                         if iid not in in_group:
                             ctx.log(f"map_line_items:foreign_item_id_ignored({iid})")
                             continue
-                        if _apply(by_id[iid], res):
+                        # LEVEL 2, AS A CHECK ON THE MODEL'S ANSWER. A line that declares
+                        # `row_terms` has said what its ROW is called, and a caption sharing no
+                        # subject word with those terms is not that row — it is almost always the
+                        # note or expense TOTAL the line is a component of.
+                        #
+                        # MEASURED, on the run that made this necessary: the model mapped the face
+                        # row "Other operating expenses" (1,026,959, a real income-statement total)
+                        # to `sub__operating_expense_depreciation`, whose meaning is the
+                        # depreciation CHARGED TO those expenses. It matched the container's name.
+                        # That answer fed cascade rung P1 — the FIRST rung — and only
+                        # `refuse_negative` kept it out of the published figure, which held solely
+                        # because the wrong number happened to be negative.
+                        #
+                        # Refused rather than flagged: the same mistake with a positive figure
+                        # publishes, and a component that is really the total is the one error the
+                        # arithmetic downstream cannot see.
+                        row = by_id[iid]
+                        target = _cfg_by_key.get(res.canonical_key or "")
+                        if target is not None:
+                            ok, why = line_item_notes.caption_agrees_with_row_terms(
+                                target, row.source_label or "")
+                            if not ok:
+                                row_terms_refused += 1
+                                ctx.log(f"map_line_items:row_terms_refused "
+                                        f"{res.canonical_key} <- {(row.source_label or '')[:60]!r} "
+                                        f"({why})")
+                                continue
+                        if _apply(row, res):
                             mapped += 1
                     # `pool.map` yields in the order the tasks were submitted, so this counts
                     # COMPLETED calls and not merely dispatched ones — the number the reader is
@@ -1063,6 +1094,10 @@ class MapOntologyStage:
                 # `keys=` counts what was CONFIGURED; the answerability fields say how many of those
                 # the rulebook can actually return (see `_focus_answerability`). Without them the
                 # line overstated the run's reach — 8 configured, 4 reachable, on the shipped pair.
+                if row_terms_refused:
+                    ctx.log(f"map_line_items:row_terms_refused_answers={row_terms_refused} "
+                            f"(the model named a line whose own row terms the caption shares no "
+                            f"word with — most often the total the line is a component of)")
                 if note_tag_skipped:
                     ctx.log(f"map_line_items:note_tag_gate_skipped_calls={note_tag_skipped} "
                             f"(rows whose line declares llm_only_if_note_tagged and that carry no "

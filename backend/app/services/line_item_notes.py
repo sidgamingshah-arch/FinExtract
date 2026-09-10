@@ -194,3 +194,104 @@ def note_sets(items, notes, *, min_score: float = 0.30, cap: int = 4) -> dict[st
         if hits:
             out[item.key] = hits
     return out
+
+
+def caption_agrees_with_row_terms(item, caption: str) -> tuple[bool, str]:
+    """Does this caption look like the ROW this line item is, at all? `(ok, why_not)`.
+
+    LEVEL 2 AS A CHECK RATHER THAN A SEARCH, and the cheapest useful form of it: the caption must
+    share at least ONE subject token with `row_terms`. Not a cosine and not a threshold, because
+    there is nothing here to calibrate — the question is whether the two texts are about the same
+    thing at all, and zero shared tokens answers it.
+
+    WHAT IT CATCHES, measured on a live run. The model mapped the face row "Other operating
+    expenses" (1,026,959, a real income-statement total) to `sub__operating_expense_depreciation`,
+    whose meaning is the depreciation CHARGED TO those expenses. It matched on the container's name.
+    That caption shares no token with the line's row terms — every one of which is a depreciation
+    phrase — so this refuses it. Only a cascade guard (`refuse_negative`) stopped that figure
+    reaching the output, and that guard held only because the wrong number happened to be negative.
+
+    WHY ONE TOKEN IS ENOUGH, and why it does not refuse legitimate phrasings. Measured against the
+    same line's terms: "Depreciation charge for the year" shares `depreciation`; 折旧及摊销 shares
+    折旧 and 摊销; "Depreciation of right-of-use assets" shares four. All 77 parts carry Han terms as
+    well as English, so a Chinese caption is not refused for being Chinese — which was the failure
+    mode to avoid, since a false refusal here loses a figure silently.
+
+    A LINE WITH NO ROW TERMS IS NOT JUDGED. Absent configuration is not a negative finding, and
+    refusing on it would make the check punish the lines nobody has authored yet.
+    """
+    source = getattr(item, "note_source", None)
+    terms = list(getattr(source, "row_terms", None) or ())
+    if not terms:
+        return True, ""
+    wanted = {t for term in terms for t in subject_tokens(str(term))}
+    if not wanted:
+        return True, ""
+    got = set(subject_tokens(caption or ""))
+    if got & wanted:
+        return True, ""
+    return False, (
+        f"the caption shares no subject word with this line's row terms, so it names something "
+        f"else — most often the note or expense TOTAL this line is a component of")
+
+
+def group_by_note_set(sets: dict[str, list[NoteHit]], *, mode: str = "none",
+                      similarity: float = 0.8) -> list[list[str]]:
+    """Line items grouped into requests by the notes they need. One list per request.
+
+    WHAT IS BEING SAVED, and why the grouping key is the note set rather than anything else. The
+    note context is what a request pays for — measured, 22,597 of a 30,407-token request, 74% of
+    it — so line items needing the SAME notes amortise one copy of that block instead of paying for
+    it each. Grouping on any other property would save nothing.
+
+    THREE MODES, and the default is the expensive one on purpose:
+
+      * "none"      — one line item per request. The baseline, and the only mode whose answer is
+                      attributable to a single line: nothing else shares the call, so nothing else
+                      can have influenced it.
+      * "identical" — the exact same note set, so no line item ever receives a note it did not ask
+                      for. That matters beyond tidiness: an unasked-for note is how a wrong answer
+                      acquires a plausible-looking source.
+      * "similar"   — note sets whose Jaccard index reaches `similarity`. Bigger savings, and the
+                      trade is that some line items see notes they did not select.
+
+    A LINE ITEM WHOSE SET MATCHES NOTHING GETS ITS OWN REQUEST, in every mode. The grouping degrades
+    to "none" for it rather than forcing it into the nearest group, because a forced group is
+    exactly the case where a line item receives evidence for a different question.
+
+    DETERMINISTIC ORDER, so the same filing produces the same requests: groups are keyed on the
+    sorted note set and emitted in sorted key order, and members are sorted within a group. A
+    rerun that regrouped would make two runs incomparable for no reason.
+    """
+    keyed = {key: tuple(sorted(h.note for h in hits)) for key, hits in sets.items()}
+    if mode == "none" or not keyed:
+        return [[key] for key in sorted(keyed)]
+
+    if mode == "identical":
+        buckets: dict[tuple, list[str]] = {}
+        for key, notes in keyed.items():
+            buckets.setdefault(notes, []).append(key)
+        return [sorted(members) for _notes, members in sorted(buckets.items())]
+
+    if mode != "similar":
+        raise ValueError(f"unknown grouping mode {mode!r}; expected none, identical or similar")
+
+    # GREEDY, AGAINST THE GROUP'S FIRST MEMBER rather than against its running union. Comparing to
+    # the union lets a group drift: each new member need only resemble what the group has already
+    # accumulated, so a chain of pairwise-similar sets ends up in one request with the first and
+    # last sharing almost nothing. Comparing to the seed keeps every member within `similarity` of
+    # the same set.
+    remaining = sorted(keyed)
+    groups: list[list[str]] = []
+    while remaining:
+        seed = remaining.pop(0)
+        want = set(keyed[seed])
+        members = [seed]
+        for key in list(remaining):
+            have = set(keyed[key])
+            union = want | have
+            if union and len(want & have) / len(union) >= similarity:
+                members.append(key)
+                remaining.remove(key)
+        groups.append(sorted(members))
+    return sorted(groups)
