@@ -305,7 +305,7 @@ def test_an_exclusion_vetoes_the_rule_tier_too():
 # ── the shipped set as a whole ───────────────────────────────────────────────────────────────────
 
 def test_the_shipped_set_carries_the_whole_rulebook(shipped):
-    assert len(shipped.by_key) == 475
+    assert len(shipped.by_key) == 476
     assert len(shipped._alias_index) > 1900, "the alias vocabulary did not survive the merge"
 
 

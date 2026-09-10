@@ -272,7 +272,7 @@ def test_provisioning_reproduces_the_shipped_configuration_exactly():
     """The strongest available check that this is the SAME rule the shipped pair was built by.
 
     Run over the shipped template with the shipped set as the existing configuration, provisioning
-    must be lossless and idempotent: same 475 items, the same 462/13 namespace split, and not one
+    must be lossless and idempotent: same 476 items, the same 462/14 namespace split, and not one
     authored field altered. If this rule were even slightly different from the one the build script
     used, this is where it would show.
     """
@@ -290,12 +290,12 @@ def test_provisioning_reproduces_the_shipped_configuration_exactly():
     before = {i["key"]: i for i in shipped["items"]}
     after = {i["key"]: i for i in merged["items"]}
     assert set(after) == set(before), "provisioning added or lost an item"
-    assert len(after) == 475, len(after)
+    assert len(after) == 476, len(after)
 
     namespaces: dict[str, int] = {}
     for item in merged["items"]:
         namespaces[item["namespace"]] = namespaces.get(item["namespace"], 0) + 1
-    assert namespaces == {"template": 462, "internal": 13}, namespaces
+    assert namespaces == {"template": 462, "internal": 14}, namespaces
     assert len(protected_keys(merged)) == 462
 
     for key, item in before.items():

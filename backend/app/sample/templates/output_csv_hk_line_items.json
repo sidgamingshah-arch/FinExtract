@@ -13796,6 +13796,18 @@
      "id": "COS_P2",
      "terms": [
       {
+       "ref": "sub__pbt_cos_depreciation",
+       "role": "required",
+       "sign": 1
+      }
+     ],
+     "note": "The profit-before-tax note's own cost-of-sales depreciation callout. Already means this line, so nothing is deducted. Above the subtraction below because a stated figure beats one inferred by difference.",
+     "refuse_negative": true
+    },
+    {
+     "id": "COS_P3",
+     "terms": [
+      {
        "ref": "sub__pbt_depreciation"
       },
       {
@@ -27750,7 +27762,7 @@
   {
    "key": "sub__pbt_oper_exp_depreciation",
    "label": "PBT note — operating-expense depreciation callout",
-   "description": "The one dataset that already means operating-expense depreciation, which is why it needs no deduction.",
+   "description": "The operating-expense depreciation callout inside the profit-before-tax note. Identified by the QUALIFIER in the caption (administrative, selling, distribution, operating, R&D) rather than by the note alone — three children read this note and identical patterns would make them one figure under three names.",
    "in_output": false,
    "parent": "is_pl__deprec_and_impairment_oper_exp",
    "order": 11,
@@ -27761,31 +27773,12 @@
      "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额"
     ],
     "row_caption_any": [
-     "depreciation\\s+of\\s+investment\\s+propert",
-     "depreciation\\s+of\\s+fixed\\s+assets",
-     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
-     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
-     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
-     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "^\\s*depreciation\\s*$",
-     "投資物業折舊",
-     "固定資產折舊",
-     "物業[,、]?\\s*廠房及設備折舊",
-     "在建工程折舊",
-     "使用權資產折舊",
-     "預付租賃款項攤銷",
-     "預付租賃款項轉出",
-     "^折舊$",
-     "投资性房地产折旧",
-     "投资物业折旧",
-     "固定资产折旧",
-     "在建工程折旧",
-     "使用权资产折旧",
-     "预付租赁款项摊销",
-     "^折旧$",
-     "^折旧费$",
-     "折旧费用"
+     "(?:depreciation|amortisation|amortization).{0,40}(?:(?:general\\s+and\\s+)?administrative(?:\\s+expenses?)?|selling(?:\\s+and\\s+(?:distribution|marketing))?(?:\\s+expenses?)?|distribution(?:\\s+expenses?|\\s+costs?)?|marketing(?:\\s+expenses?)?|operating\\s+(?:expenses?|costs?)|research\\s+and\\s+development|r\\s*&\\s*d)",
+     "(?:(?:general\\s+and\\s+)?administrative(?:\\s+expenses?)?|selling(?:\\s+and\\s+(?:distribution|marketing))?(?:\\s+expenses?)?|distribution(?:\\s+expenses?|\\s+costs?)?|marketing(?:\\s+expenses?)?|operating\\s+(?:expenses?|costs?)|research\\s+and\\s+development|r\\s*&\\s*d).{0,40}(?:depreciation|amortisation|amortization)",
+     "(?:行政|銷售(?:及分銷)?|分銷|市場推廣|經營|研究及開發|研發).{0,12}(?:開支|費用|成本)?.{0,6}(?:折舊|攤銷)",
+     "(?:折舊|攤銷).{0,12}(?:計入|列入)?(?:行政|銷售|分銷|經營|研發)",
+     "(?:行政|销售|分销|营销|经营|研发).{0,12}(?:费用|开支|成本)?.{0,6}(?:折旧|摊销)",
+     "(?:折旧|摊销).{0,12}(?:计入|列入)?(?:行政|销售|分销|经营|研发)"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -27827,7 +27820,7 @@
   {
    "key": "sub__pbt_depreciation",
    "label": "PBT note — total depreciation",
-   "description": "Depreciation rows inside the note that PBT note names.",
+   "description": "The TOTAL depreciation row inside the profit-before-tax note. Vetoes the cost-of-sales and operating-expense callouts, because a caption qualified by either is a share of the total and not the total.",
    "in_output": false,
    "parent": "is_pl__deprec_and_impairment_oper_exp",
    "order": 12,
@@ -27897,7 +27890,19 @@
      "外币折算",
      "到期",
      "账面原值",
-     "账面价值"
+     "账面价值",
+     "(?:depreciation|amortisation|amortization).{0,40}cost\\s+of\\s+(?:sales|revenue|revenues|goods\\s+sold|services|inventories)",
+     "cost\\s+of\\s+(?:sales|revenue|revenues|goods\\s+sold|services|inventories).{0,40}(?:depreciation|amortisation|amortization)",
+     "(?:銷售|銷貨|服務)成本.{0,12}(?:折舊|攤銷)",
+     "(?:折舊|攤銷).{0,12}(?:計入|列入|包括(?:於|在))?(?:銷售|銷貨|服務)成本",
+     "(?:销售|营业|主营业务|服务)成本.{0,12}(?:折旧|摊销)",
+     "(?:折旧|摊销).{0,12}(?:计入|列入|包括在)?(?:销售|营业|主营业务|服务)成本",
+     "(?:depreciation|amortisation|amortization).{0,40}(?:(?:general\\s+and\\s+)?administrative(?:\\s+expenses?)?|selling(?:\\s+and\\s+(?:distribution|marketing))?(?:\\s+expenses?)?|distribution(?:\\s+expenses?|\\s+costs?)?|marketing(?:\\s+expenses?)?|operating\\s+(?:expenses?|costs?)|research\\s+and\\s+development|r\\s*&\\s*d)",
+     "(?:(?:general\\s+and\\s+)?administrative(?:\\s+expenses?)?|selling(?:\\s+and\\s+(?:distribution|marketing))?(?:\\s+expenses?)?|distribution(?:\\s+expenses?|\\s+costs?)?|marketing(?:\\s+expenses?)?|operating\\s+(?:expenses?|costs?)|research\\s+and\\s+development|r\\s*&\\s*d).{0,40}(?:depreciation|amortisation|amortization)",
+     "(?:行政|銷售(?:及分銷)?|分銷|市場推廣|經營|研究及開發|研發).{0,12}(?:開支|費用|成本)?.{0,6}(?:折舊|攤銷)",
+     "(?:折舊|攤銷).{0,12}(?:計入|列入)?(?:行政|銷售|分銷|經營|研發)",
+     "(?:行政|销售|分销|营销|经营|研发).{0,12}(?:费用|开支|成本)?.{0,6}(?:折旧|摊销)",
+     "(?:折旧|摊销).{0,12}(?:计入|列入)?(?:行政|销售|分销|经营|研发)"
     ]
    }
   },
@@ -27940,6 +27945,64 @@
      "^折旧$",
      "^折旧费$",
      "折旧费用"
+    ],
+    "row_caption_none": [
+     "^\\s*at\\s+\\d",
+     "^\\s*at\\s+(?:1|31)",
+     "opening",
+     "closing",
+     "disposal",
+     "write.?off",
+     "transfer",
+     "reclassif",
+     "exchange\\s+difference",
+     "acquisition",
+     "impairment",
+     "累計",
+     "期初",
+     "期末",
+     "處置",
+     "轉撥",
+     "滙兌",
+     "匯兌",
+     "收購",
+     "減值",
+     "累计",
+     "期初",
+     "期末",
+     "处置",
+     "转拨",
+     "转出",
+     "汇兑",
+     "收购",
+     "减值",
+     "外币折算",
+     "到期",
+     "账面原值",
+     "账面价值"
+    ]
+   }
+  },
+  {
+   "key": "sub__pbt_cos_depreciation",
+   "label": "PBT note — cost-of-sales depreciation callout",
+   "description": "The cost-of-sales depreciation callout inside the profit-before-tax note. The second place a filing states the cost-of-sales share: many disclose it here and nowhere else, having no separate cost-of-sales note.",
+   "in_output": false,
+   "parent": "is_pl__deprec_and_impairment_cos",
+   "order": 14,
+   "namespace": "internal",
+   "inherits": "notes",
+   "note_source": {
+    "note_title_any": [
+     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额"
+    ],
+    "row_caption_any": [
+     "(?:depreciation|amortisation|amortization).{0,40}cost\\s+of\\s+(?:sales|revenue|revenues|goods\\s+sold|services|inventories)",
+     "cost\\s+of\\s+(?:sales|revenue|revenues|goods\\s+sold|services|inventories).{0,40}(?:depreciation|amortisation|amortization)",
+     "(?:銷售|銷貨|服務)成本.{0,12}(?:折舊|攤銷)",
+     "(?:折舊|攤銷).{0,12}(?:計入|列入|包括(?:於|在))?(?:銷售|銷貨|服務)成本",
+     "(?:销售|营业|主营业务|服务)成本.{0,12}(?:折旧|摊销)",
+     "(?:折旧|摊销).{0,12}(?:计入|列入|包括在)?(?:销售|营业|主营业务|服务)成本"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",

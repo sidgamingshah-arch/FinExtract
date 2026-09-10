@@ -56,7 +56,7 @@ RULEBOOK = TEMPLATES / "output_csv_hk_ontology.json"
 PROJECTED = sorted(set(SAME) | set(RENAMED))
 
 CONCEPTS = 462                 # the rulebook's concepts, and the set's `namespace == "template"`
-ITEMS = 475                    # …plus the 13 `sub__*` note-level parts, which are not concepts
+ITEMS = 476                    # …plus the 14 `sub__*` note-level parts, which are not concepts
 RESIDUALS = 11                 # concepts carrying a `residual_policy` (all `exclusive_residual`)
 
 # The one concept whose working view deliberately DISAGREES with the rulebook, because the

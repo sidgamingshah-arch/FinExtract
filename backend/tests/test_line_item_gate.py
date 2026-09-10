@@ -225,7 +225,10 @@ def test_the_note_level_parts_are_off_template():
     st = _seed()
     subs = [d for d in st.items if d.key.startswith("sub__")]
 
-    assert len(subs) == 13
+    # 14 since the profit-before-tax note's COST-OF-SALES depreciation callout was added on
+    # review — a third reader of that note, distinguished from the other two by the qualifier
+    # in its caption. See `is_pl__deprec_and_impairment_cos`'s COS_P2 rung.
+    assert len(subs) == 14
     assert all(d.namespace == "internal" for d in subs)
     assert all(d.namespace == "template" for d in st.items if d.in_output)
 
@@ -323,7 +326,10 @@ def test_the_cost_of_sales_line_kept_both_of_its_rungs():
     """
     cos = {d.key: d for d in _seed().items}["is_pl__deprec_and_impairment_cos"]
 
-    assert [r.id for r in cos.cascade] == ["COS_P1", "COS_P2"]
+    # THREE RUNGS since review. COS_P2 is new — the profit-before-tax note's own cost-of-sales
+    # callout, which many filings state there and nowhere else. It sits ABOVE the subtraction
+    # (now COS_P3) because a figure the filing STATES beats one inferred by difference.
+    assert [r.id for r in cos.cascade] == ["COS_P1", "COS_P2", "COS_P3"]
 
 
 # ── containment: the discriminator the first pass omitted ────────────────────────────────────────
