@@ -27027,7 +27027,12 @@
      "预付租赁款项摊销",
      "^折旧$",
      "^折旧费$",
-     "折旧费用"
+     "折旧费用",
+     "^\\s*折旧[及与和]?摊销\\s*$",
+     "^\\s*折舊[及與和]?攤銷\\s*$",
+     "^\\s*摊销\\s*$",
+     "^\\s*攤銷\\s*$",
+     "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -27104,7 +27109,12 @@
      "预付租赁款项摊销",
      "^折旧$",
      "^折旧费$",
-     "折旧费用"
+     "折旧费用",
+     "^\\s*折旧[及与和]?摊销\\s*$",
+     "^\\s*折舊[及與和]?攤銷\\s*$",
+     "^\\s*摊销\\s*$",
+     "^\\s*攤銷\\s*$",
+     "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -27181,7 +27191,12 @@
      "预付租赁款项摊销",
      "^折旧$",
      "^折旧费$",
-     "折旧费用"
+     "折旧费用",
+     "^\\s*折旧[及与和]?摊销\\s*$",
+     "^\\s*折舊[及與和]?攤銷\\s*$",
+     "^\\s*摊销\\s*$",
+     "^\\s*攤銷\\s*$",
+     "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -27258,7 +27273,12 @@
      "预付租赁款项摊销",
      "^折旧$",
      "^折旧费$",
-     "折旧费用"
+     "折旧费用",
+     "^\\s*折旧[及与和]?摊销\\s*$",
+     "^\\s*折舊[及與和]?攤銷\\s*$",
+     "^\\s*摊销\\s*$",
+     "^\\s*攤銷\\s*$",
+     "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -27335,7 +27355,12 @@
      "预付租赁款项摊销",
      "^折旧$",
      "^折旧费$",
-     "折旧费用"
+     "折旧费用",
+     "^\\s*折旧[及与和]?摊销\\s*$",
+     "^\\s*折舊[及與和]?攤銷\\s*$",
+     "^\\s*摊销\\s*$",
+     "^\\s*攤銷\\s*$",
+     "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -27412,7 +27437,12 @@
      "预付租赁款项摊销",
      "^折旧$",
      "^折旧费$",
-     "折旧费用"
+     "折旧费用",
+     "^\\s*折旧[及与和]?摊销\\s*$",
+     "^\\s*折舊[及與和]?攤銷\\s*$",
+     "^\\s*摊销\\s*$",
+     "^\\s*攤銷\\s*$",
+     "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -27489,7 +27519,12 @@
      "预付租赁款项摊销",
      "^折旧$",
      "^折旧费$",
-     "折旧费用"
+     "折旧费用",
+     "^\\s*折旧[及与和]?摊销\\s*$",
+     "^\\s*折舊[及與和]?攤銷\\s*$",
+     "^\\s*摊销\\s*$",
+     "^\\s*攤銷\\s*$",
+     "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -27566,7 +27601,12 @@
      "预付租赁款项摊销",
      "^折旧$",
      "^折旧费$",
-     "折旧费用"
+     "折旧费用",
+     "^\\s*折旧[及与和]?摊销\\s*$",
+     "^\\s*折舊[及與和]?攤銷\\s*$",
+     "^\\s*摊销\\s*$",
+     "^\\s*攤銷\\s*$",
+     "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -27643,7 +27683,12 @@
      "预付租赁款项摊销",
      "^折旧$",
      "^折旧费$",
-     "折旧费用"
+     "折旧费用",
+     "^\\s*折旧[及与和]?摊销\\s*$",
+     "^\\s*折舊[及與和]?攤銷\\s*$",
+     "^\\s*摊销\\s*$",
+     "^\\s*攤銷\\s*$",
+     "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -27720,7 +27765,12 @@
      "预付租赁款项摊销",
      "^折旧$",
      "^折旧费$",
-     "折旧费用"
+     "折旧费用",
+     "^\\s*折旧[及与和]?摊销\\s*$",
+     "^\\s*折舊[及與和]?攤銷\\s*$",
+     "^\\s*摊销\\s*$",
+     "^\\s*攤銷\\s*$",
+     "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -27855,7 +27905,12 @@
      "预付租赁款项摊销",
      "^折旧$",
      "^折旧费$",
-     "折旧费用"
+     "折旧费用",
+     "^\\s*折旧[及与和]?摊销\\s*$",
+     "^\\s*折舊[及與和]?攤銷\\s*$",
+     "^\\s*摊销\\s*$",
+     "^\\s*攤銷\\s*$",
+     "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -27944,7 +27999,12 @@
      "预付租赁款项摊销",
      "^折旧$",
      "^折旧费$",
-     "折旧费用"
+     "折旧费用",
+     "^\\s*折旧[及与和]?摊销\\s*$",
+     "^\\s*折舊[及與和]?攤銷\\s*$",
+     "^\\s*摊销\\s*$",
+     "^\\s*攤銷\\s*$",
+     "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
