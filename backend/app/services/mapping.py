@@ -232,6 +232,11 @@ _LLM_REPLY_CONTRACT = (
     "rows to recover the page and the figure, so a paraphrase cannot be resolved, and a page "
     "or a figure you state from memory would look authoritative and point at the wrong "
     "place.\n"
+    "- SOME LINES ARE COMPUTED AND ARE NOT YOURS TO ANSWER. A line whose figure comes from "
+    "a declared calculation over its own sub-lines is worked out from those sub-lines, so "
+    "naming it is refused. Answer with the SUB-LINE the note actually prints — each "
+    "`identified_notes` entry names the sub-lines it was identified for, in "
+    "`identified_for`, and those are the keys to use.\n"
     "- Cite the item by the `item_id` you were given, and the concept by its exact "
     "`canonical_key`. Never return an item_id that was not given to you.\n"
     "- Do not output values, figures or amounts — you are deciding which line a caption is, "
@@ -2968,7 +2973,9 @@ class OntologyMatcher:
                     context_pool=None,
                     cited_notes: dict[str, set[str]] | None = None,
                     identified_notes: list[dict] | None = None,
-                    notes=None) -> dict[str, MappingResult]:
+                    notes=None,
+                    sub_item_keys: set[str] | None = None,
+                    computed_keys: set[str] | None = None) -> dict[str, MappingResult]:
         """Batch mapping: decide many captions in one grounded LLM call so cross-line judgements
         (containment, residual, 'Others') have context. The model references the provided item_ids
         and candidate keys — it never invents a value; values/provenance stay on the deterministic
@@ -3011,7 +3018,8 @@ class OntologyMatcher:
             out.update(self._match_chunk(
                 chunk, statement, sec, preliminary or {}, require_complete=require_complete,
                 context_pool=context_pool, cited_notes=cited_notes,
-                identified_notes=identified_notes, notes=notes))
+                identified_notes=identified_notes, notes=notes,
+                sub_item_keys=sub_item_keys, computed_keys=computed_keys))
         return out
 
     def _match_chunk(self, items: list[tuple[str, str]], statement: str | None,
@@ -3022,7 +3030,9 @@ class OntologyMatcher:
                      context_pool=None,
                      cited_notes: dict[str, set[str]] | None = None,
                      identified_notes: list[dict] | None = None,
-                     notes=None) -> dict[str, MappingResult]:
+                     notes=None,
+                     sub_item_keys: set[str] | None = None,
+                     computed_keys: set[str] | None = None) -> dict[str, MappingResult]:
         """One provider call over at most ``BATCH_MAX_ITEMS`` captions. See :meth:`match_batch`."""
         # `binding.order` step 3, on the batch path: RESTRICT the offered concepts before the call.
         # Only concepts from THIS statement, and only from the sections this chunk was actually
@@ -3299,10 +3309,32 @@ class OntologyMatcher:
             # sends every one of them to review.
             if not key:
                 continue
-            if key not in self._by_key:
+            # A DERIVED PARENT IS NOT THE MODEL'S TO ANSWER — THERE IS NO LLM CALL FOR IT.
+            #
+            # Its figure is COMPUTED, by a declared cascade over its sub-line items: rung P1 sums
+            # the four operating-expense notes, P2 takes the profit-before-tax callout, P3 is the
+            # total less the cost-of-sales share. Accepting a figure onto the parent bypasses all
+            # of that — the rung never runs, so the record loses WHICH of the filing's several
+            # disclosures the number came from, and the arithmetic that would have cross-checked it
+            # against the other rungs is skipped. The number arrives looking identical either way.
+            #
+            # This was a real hole rather than a hypothetical: the prose path first wrote 529,841
+            # straight onto `is_pl__deprec_and_impairment_oper_exp`. The right answer is the
+            # SUB-ITEM (`sub__pbt_oper_exp_depreciation`), which is what P2 reads, and the refusal
+            # says so.
+            if key in (computed_keys or frozenset()):
                 with self._usage_lock:
+                    self.usage["batch_refused"] += 1
+                    self.usage["batch_computed_parent_named"] = self.usage.get(
+                        "batch_computed_parent_named", 0) + 1
+                continue
+            sub_keys = sub_item_keys or frozenset()
+            if key not in self._by_key and key not in sub_keys:
+                with self._usage_lock:
+                    self.usage["batch_refused"] += 1
                     self.usage["batch_unknown_key"] = self.usage.get("batch_unknown_key", 0) + 1
                 continue
+            is_sub_item = key not in self._by_key
             # A concept from a different section than the row's banner is refused here for the
             # same reason it is refused in `match`. The model is now TOLD the section, so this is
             # a backstop rather than the only line of defence — and it still carries the two arms
@@ -3327,6 +3359,34 @@ class OntologyMatcher:
             # A cited off-candidate answer therefore SKIPS the statement/section gate and is flagged
             # for review instead, with the rows its citation resolved to.
             off_candidate = key not in offered_keys
+            if is_sub_item:
+                # A SUB-LINE ITEM IS A LEGITIMATE ANSWER, and on this configuration it is usually
+                # the RIGHT one: it is the layer that corresponds to something a note actually
+                # prints, and it is what the refused parent's cascade reads. The model can see
+                # them even though the working view cannot — every identified note carries
+                # `identified_for`, naming the sub-items it was identified for.
+                #
+                # It is never on the candidate list (it is not in the working view at all) and
+                # every gate below indexes `_by_key`, so it is decided here, on the same terms as
+                # any other answer past the offered list: cited, resolved, and reviewed.
+                if not (d.sources or ()):
+                    with self._usage_lock:
+                        self.usage["batch_refused"] += 1
+                        self.usage["batch_uncited_off_candidate"] = self.usage.get(
+                            "batch_uncited_off_candidate", 0) + 1
+                    continue
+                resolved, unresolved = note_sourced.resolve_sources(d.sources, notes_for_sources)
+                conf = max(0.0, min(1.0, d.confidence))
+                with self._usage_lock:
+                    self.usage["batch_sub_item"] = self.usage.get("batch_sub_item", 0) + 1
+                out[d.item_id] = MappingResult(
+                    key, MappingMethod.LLM, conf,
+                    candidates=[Candidate(key, MappingMethod.LLM, conf, reason=d.reason)],
+                    needs_review=True, scores={"llm": conf},
+                    allocation_status=(d.allocation_status or "").strip() or None,
+                    agreement=["llm"], reason=d.reason, role=d.role, sign=d.sign,
+                    sources=resolved, unresolved_sources=unresolved, off_candidate=True)
+                continue
             # ONLY A CITED OFF-CANDIDATE ANSWER TAKES THE NEW PATH. An UNCITED one falls through to
             # the gates below exactly as it always did — and that is not merely conservative, it
             # preserves a correction this branch had quietly disabled: `_family_route` takes an
@@ -3443,7 +3503,8 @@ class OntologyMatcher:
                 missing, statement, sec, preliminary,
                 require_complete=True, retry_depth=retry_depth + 1,
                 context_pool=context_pool, cited_notes=cited_notes,
-                identified_notes=identified_notes, notes=notes))
+                identified_notes=identified_notes, notes=notes,
+                sub_item_keys=sub_item_keys, computed_keys=computed_keys))
 
         # Section-level proposals may be incomplete; the required statement pass above corrects
         # them. No deterministic result is substituted for an omitted LLM decision.

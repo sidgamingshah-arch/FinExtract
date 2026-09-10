@@ -63,6 +63,7 @@ class NoteSourcedStage(Stage):
         else:
             ctx.log(f"note_sourced: face periods {sorted(periods)}")
 
+        all_items = getattr(line_item_set, "items", None) or []
         by_key = {li.canonical_key: li for li in doc.line_items if li.canonical_key}
         children_of: dict[str, list] = {}
         filled = touched = 0
@@ -95,6 +96,34 @@ class NoteSourcedStage(Stage):
                     f"{len(resolved)} slot(s), {rollup} within the note")
             children_of.setdefault(str(getattr(item, "parent", "") or ""), []).append((item, row))
 
+        # CHILDREN FILLED BY ANYTHING ELSE COUNT TOO, and this is the difference between solving
+        # the sub-line items and solving the parents. All eight focus concepts are `derived`: the
+        # parent is computed by cascade over its sub-items, and a sub-item is what corresponds to a
+        # printed note row. A sub-item filled by the MODEL — naming it and citing the row or the
+        # footnote it came from — must feed the same cascade as one filled by a `note_source`
+        # declaration, or the model's answer would sit on a row nothing reads while the parent
+        # stayed empty.
+        #
+        # Collected from the document rather than from this stage's own walk, because "which
+        # children have a figure" is a property of the document at this point in the pipeline and
+        # not of how each figure arrived.
+        for parent_key, kid_keys in _children_by_parent(all_items).items():
+            for kid in kid_keys:
+                row = by_key.get(kid)
+                if row is None or not any(ev.value is not None
+                                          for ev in (row.values or {}).values()):
+                    continue
+                already = {c.key for _i, c in children_of.get(parent_key, [])
+                           if getattr(c, "key", None)}
+                if kid in already:
+                    continue
+                item = next((i for i in all_items if i.key == kid), None)
+                if item is not None and not any(
+                        r is row for _i, r in children_of.get(parent_key, [])):
+                    children_of.setdefault(parent_key, []).append((item, row))
+                    ctx.log(f"note_sourced:{parent_key}: child {kid} was filled elsewhere "
+                            f"(model or earlier stage) and joins the cascade")
+
         # THE PARENT IS FILLED IN A SECOND PASS, once all its children are known — because how they
         # combine is the PARENT's declaration, and answering it while walking the children would
         # mean deciding on the first one before the rest existed.
@@ -102,7 +131,6 @@ class NoteSourcedStage(Stage):
         # parent declares none — so looking the parent's rollup up in that list found nothing and
         # fell back to `sum`, which summed twelve disclosures of one depreciation charge into a cost
         # twelve times too large. The fallback was the bug, not the lookup.
-        all_items = getattr(line_item_set, "items", None) or []
         parents = _fill_parents(children_of, by_key, doc, ctx,
                                 _parent_rollup(all_items), _note_permission(all_items),
                                 {i.key: i for i in all_items})
@@ -353,3 +381,17 @@ def _slot(row: LineItem, basis: str, period: str):
         if _basis(ev) == basis and str(getattr(ev, "period_label", "") or "") == period:
             return ev
     return None
+
+
+def _children_by_parent(all_items) -> dict[str, list[str]]:
+    """parent key -> the keys of its sub-line items, from the configuration.
+
+    Needed because a cascade term names a child by key, and a child filled by the model arrives as
+    a row with that key and no other connection to its parent.
+    """
+    out: dict[str, list[str]] = {}
+    for item in all_items or ():
+        parent = str(getattr(item, "parent", "") or "")
+        if parent:
+            out.setdefault(parent, []).append(item.key)
+    return out
