@@ -53,7 +53,11 @@ def _money(v):
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("pdfs", nargs="+", type=pathlib.Path)
+    ap.add_argument("pdfs", nargs="*", type=pathlib.Path)
+    # EVERY FILING IN THE STORE, not the two the config was authored against. The whole point of
+    # judging a `note_source` value is whether it fires on a filing nobody tuned it for, and the
+    # store holds seven — two HK/English, five including a STAR-market A-share.
+    ap.add_argument("--all", action="store_true", help="every document in the object store")
     args = ap.parse_args()
 
     from app.api.routes.extractions import _serialize_rows
@@ -69,8 +73,20 @@ def main() -> int:
     settings.extraction.llm_mapping = False
     defs = {i.key: i for i in cfg.items}
 
-    for pdf in args.pdfs:
-        doc, _ctx = run_extraction(pdf.read_bytes(), filename=pdf.name, ontology=view,
+    targets: list[tuple[str, bytes]] = [(p.name, p.read_bytes()) for p in args.pdfs]
+    if args.all:
+        import sqlite3
+        store = pathlib.Path(__file__).resolve().parent.parent / "_object_store"
+        db = pathlib.Path(__file__).resolve().parent.parent / "finex.db"
+        seen: dict[str, str] = {}
+        with sqlite3.connect(f"file:{db}?mode=ro", uri=True) as con:
+            for name, digest in con.execute("select filename, content_hash from documents"):
+                seen.setdefault(str(digest), str(name))
+        targets = [(n, (store / d).read_bytes()) for d, n in seen.items() if (store / d).exists()]
+
+    for pdf_name, blob in targets:
+        pdf = pathlib.Path(pdf_name)
+        doc, _ctx = run_extraction(blob, filename=pdf.name, ontology=view,
                                    template=None, line_items=cfg)
         rows = _serialize_rows(doc, view)
         print("\n" + "=" * 100)

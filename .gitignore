@@ -73,3 +73,11 @@ _scratch/
 # origin/claude/cas-face-remaining-defects), so the token needs ROTATING; untracking it here does
 # not unpublish it.
 test.py
+
+# THE FILING CORPUS AND WHAT IS DERIVED FROM IT. `_filings/` holds real annual reports — client
+# documents, tens of megabytes each, and not ours to redistribute. `_vocab/` is everything built
+# from them: the extracted note headings and row captions, the coverage and mixing audits, and the
+# authoring workbooks. Both are REPRODUCIBLE from the filings by `scripts/vocab_corpus.py`, so
+# nothing is lost by keeping them out of the history — and a note caption is filing content.
+_filings/
+_vocab/

@@ -1,0 +1,280 @@
+{
+ "kept": [
+  {
+   "key": "sub__rp_lt_receivables_note",
+   "field": "note_source.note_title_any",
+   "whats_wrong": "Reaches one filing. `长期应收款` — the PRC long-term receivables schedule — is unclaimed in the filings that print it.",
+   "add": [
+    "長期應收款|长期应收款"
+   ],
+   "evidence": "'、长期应收款' (4 rows) and '、 长期应收款' (3 rows) appear in the corpus unclaimed.",
+   "must_not_claim": "GENERIC 长期应收款 IS NOT NECESSARILY RELATED-PARTY. Measured earlier in this work, a fuzzy tier bound 长期应收款 (203,287,842.45) onto this line on suncreate and the caption appears in neither the 23 English nor the 11 Chinese aliases — a probable mis-binding. Claiming the NOTE is safe because the row rule still has to find a related-party row inside it; claiming the FACE caption would not be.",
+   "proposed": [
+    "^\\s*(?:\\d+[\\.、)]?\\s*)?长期应收款|^\\s*(?:\\d+[\\.、)]?\\s*)?長期應收款|^\\s*(?:\\d+[\\.、)]?\\s*)?long.?term\\s+receivables?",
+    "長期應收款|长期应收款"
+   ]
+  },
+  {
+   "key": "sub__revenue_note_principal_revenue",
+   "field": "note_source.note_title_any",
+   "whats_wrong": "Misses the COMPOUND heading HK filings actually use. 'TURNOVER AND OTHER REVENUE AND GAINS' and 'REVENUE, OTHER INCOME AND GAINS' are the real headings, and their (CONTINUED) fragments carry most of the rows — 82 in one filing.",
+   "add": [
+    "turnover\\s+and\\s+other\\s+revenue",
+    "revenue,?\\s+other\\s+income\\s+and\\s+gains?",
+    "revenue\\s+and\\s+other\\s+income\\s+and\\s+gains?",
+    "收益[、，]?\\s*其他收入及收益|收入[、，]?\\s*其他收入及收",
+    "營業額及其他收入|营业额及其他收入",
+    "收入與成本|收入与成本"
+   ],
+   "evidence": "'TURNOVER AND OTHER REVENUE AND GAINS' (17 rows) and its '(CONTINUED)' (82 rows); 'REVENUE, OTHER INCOME AND GAINS 6. 收益、其他收入及收益（續）' (21 rows); 'REVENUE, OTHER INCOME AND GAINS (Continued) 5. 收入、其他收入及收' (19 rows); 'REVENUE AND OTHER INCOME AND GAINS/ 7. 收益及其他收入及收益╱（虧損）淨' (16 rows); '、收入与成本' (36 rows).",
+   "must_not_claim": "The row rule must still separate revenue from OTHER income inside the note — the heading bundles them, so the note gate alone cannot.",
+   "proposed": [
+    "(?:营业收入|營業收入)(?:\\s*[和及与與、]\\s*(?:营业成本|營業成本|成本))?|(?:营业收入|營業收入)和成本|revenue\\s+and\\s+cost\\s+of\\s+(?:sales|revenue|sales\\s+and\\s+services)",
+    "turnover\\s+and\\s+other\\s+revenue",
+    "revenue,?\\s+other\\s+income\\s+and\\s+gains?",
+    "revenue\\s+and\\s+other\\s+income\\s+and\\s+gains?",
+    "收益[、，]?\\s*其他收入及收益|收入[、，]?\\s*其他收入及收",
+    "營業額及其他收入|营业额及其他收入",
+    "收入與成本|收入与成本"
+   ]
+  },
+  {
+   "key": "sub__prepaid_lease_depreciation",
+   "field": "note_source.note_title_any",
+   "whats_wrong": "Reaches NOTHING in any of the 18 filings. The part is named for 'prepaid lease payments', which is the pre-IFRS-16 caption; every filing that adopted IFRS 16 renamed it RIGHT-OF-USE ASSETS, and the PRC analogue is 长期待摊费用. Neither is claimed.",
+   "add": [
+    "right.of.use\\s+assets?",
+    "使用權資產|使用权资产",
+    "長期待攤費用|长期待摊费用",
+    "prepaid\\s+lease|預付租賃|预付租赁|租賃土地|租赁土地"
+   ],
+   "evidence": "'RIGHT-OF-USE ASSETS' (6 rows) and its '(continued)' (4 rows); '长期待摊费用' at 七、28 (5 rows), 十七、28 (2 rows), 四、28 (3 rows), 十七、14 (2 rows).",
+   "must_not_claim": "The POLICY notes of the same subject are titled by the policy question — '摊销方法', '摊销年限', '无形资产的初始计量', '长期资产减值' — and carry 0 rows, so they contribute nothing even where a pattern touches them. That is why no policy-marker word appears above.",
+   "proposed": [
+    "prepaid\\s+land\\s+lease\\s+payments?|prepaid\\s+lease\\s+payments?|預付土地租賃款項|預付租賃款項",
+    "right.of.use\\s+assets?",
+    "使用權資產|使用权资产",
+    "長期待攤費用|长期待摊费用",
+    "prepaid\\s+lease|預付租賃|预付租赁|租賃土地|租赁土地"
+   ]
+  },
+  {
+   "key": "sub__ltp_other_fincl_assets_note_total",
+   "field": "note_source.note_title_any",
+   "whats_wrong": "Reaches nothing. `其他非流动金融资产` is the PRC heading for exactly this part's subject and is unclaimed.",
+   "add": [
+    "其他非流動金融資產|其他非流动金融资产",
+    "other\\s+non.current\\s+financial\\s+assets?"
+   ],
+   "evidence": "'其他非流动金融资产' (3 rows) unclaimed.",
+   "must_not_claim": "FAIR-VALUE notes are NOT added — 'FAIR VALUE MEASUREMENTS' (85 rows), 'FAIR VALUE HIERARCHY OF FINANCIAL INSTRUMENTS' (52 rows), 'Fair value estimation' (66 rows). Those level the same assets by Level 1/2/3 and claiming them would restate the balance a second time. They belong only to `sub__fa_cp_level_3_total`, which asks specifically for the Level 3 figure.",
+   "proposed": [
+    "other\\s+(?:non-?current\\s+)?financial\\s+assets?|其他金融資產|其他非流動金融資產|其他金融资产|其他非流动金融资产",
+    "其他非流動金融資產|其他非流动金融资产",
+    "other\\s+non.current\\s+financial\\s+assets?"
+   ]
+  },
+  {
+   "key": "sub__revenue_note_principal_revenue",
+   "field": "note_source.row_caption_any",
+   "whats_wrong": "The widened gate admits 'TURNOVER AND OTHER REVENUE AND GAINS' — a note that bundles revenue WITH other income and gains. The heading cannot discriminate, so the row must: the note's own total of revenue is what this part wants, not the bundled total.",
+   "proposed": [
+    "^\\s*主营业务收入(?!\\s*成本)",
+    "^\\s*主营业务(?!\\s*成本)",
+    "^\\s*其中\\s*[:：]?\\s*主营业务(?:收入)?(?!\\s*成本)",
+    "^\\s*主营业务(?:营业)?收入(?:合计|总计|小计|总额|净额)",
+    "^\\s*主營業務收入(?!\\s*成本)",
+    "^\\s*主營業務(?!\\s*成本)",
+    "^\\s*其中\\s*[:：]?\\s*主營業務(?:收入)?(?!\\s*成本)",
+    "^\\s*主營業務(?:營業)?收入(?:合計|總計|小計|總額|淨額)",
+    "^\\s*(?:主营业务|主營業務)收入\\s*[（(][^)）]{0,30}[)）]",
+    "^\\s*(?:revenue|revenues)\\s*$",
+    "^\\s*turnover\\s*$",
+    "^\\s*sales\\s*$",
+    "^\\s*(?:net\\s+)?sales\\s+(?:revenue|revenues)\\s*$",
+    "^\\s*(?:revenue|revenues|turnover|sales)\\s*[（(][^)）]{0,30}[)）]\\s*$",
+    "^\\s*revenue\\s+from\\s+principal\\s+(?:operations|operating\\s+activities|activities|business)\\s*$",
+    "^\\s*principal\\s+(?:operations|operating|business|activities)\\s+(?:revenue|revenues|income)\\s*$",
+    "^\\s*revenue\\s+from\\s+(?:the\\s+)?(?:main|core)\\s+(?:operations|business|activities)\\s*$",
+    "^\\s*(?:main|core)\\s+(?:business|operating)\\s+(?:revenue|revenues|income)\\s*$",
+    "^\\s*revenue\\s+from\\s+contracts\\s+with\\s+customers\\s*$",
+    "^\\s*revenue\\s+from\\s+external\\s+customers\\s*$",
+    "^\\s*(?:營業額|营业额)\\s*$",
+    "^\\s*(?:对外|對外)(?:交易)?收入\\s*$",
+    "^\\s*(?:来自|來自)客[户戶]合同的?收入\\s*$",
+    "^\\s*客[户戶]合同收入\\s*$",
+    "^\\s*total\\s+turnover\\b",
+    "total\\s+turnover\\s+from\\s+contracts\\s+with\\s+customers",
+    "revenue\\s+from\\s+contracts\\s+with\\s+customers\\s*(?:總計|总计)?\\s*$",
+    "營業額總計|营业额总计|收入合計|收入合计"
+   ],
+   "add": [
+    "^\\s*total\\s+turnover\\b",
+    "total\\s+turnover\\s+from\\s+contracts\\s+with\\s+customers",
+    "revenue\\s+from\\s+contracts\\s+with\\s+customers\\s*(?:總計|总计)?\\s*$",
+    "營業額總計|营业额总计|收入合計|收入合计"
+   ],
+   "evidence": "Inside the admitted notes: 'Total turnover' (7 filings), 'Total turnover from contracts with customers' (6), 'Total 總計' (5)."
+  },
+  {
+   "key": "sub__revenue_note_principal_revenue",
+   "field": "note_source.row_caption_none",
+   "whats_wrong": "Nothing vetoes the OTHER-income rows the bundled note prints beside the revenue rows, and those are exactly what must not be summed into the top line.",
+   "proposed": [
+    "(?:分|按)(?:行业|行業|业务|業務|产品|產品|地区|地區|区域|區域|[销銷]售模式|[销銷]售渠道|[销銷]售方式|渠道|管道)",
+    "by\\s+(?:product|segment|region|geograph\\w*|channel|market|business\\s+line|industry|location)",
+    "(?:行业|行業|产品|產品|地区|地區|区域|區域|渠道)(?:分[类類])?\\s*(?:小计|小計|合计|合計)",
+    "from\\s+other\\s+source",
+    "\\brental\\s+income\\b|租金收入",
+    "\\bother\\s+income\\b|其他收入(?!及)",
+    "\\bgains?\\s+on\\b|\\bdividend\\s+income\\b|\\binterest\\s+income\\b"
+   ],
+   "add": [
+    "from\\s+other\\s+source",
+    "\\brental\\s+income\\b|租金收入",
+    "\\bother\\s+income\\b|其他收入(?!及)",
+    "\\bgains?\\s+on\\b|\\bdividend\\s+income\\b|\\binterest\\s+income\\b"
+   ],
+   "evidence": "Inside the admitted notes: 'Turnover from other source — rental income' (6 filings) sits beside the revenue rows, and the heading itself is 'TURNOVER AND OTHER REVENUE AND GAINS'."
+  },
+  {
+   "key": "sub__prepaid_lease_depreciation",
+   "field": "note_source.row_caption_any",
+   "whats_wrong": "The widened gate admits the right-of-use / 长期待摊费用 schedule, which is a MOVEMENT table: opening balance, additions, decreases, closing balance. This part wants the CHARGE for the period, and taking a balance row instead would publish the asset as if it were the expense.",
+   "proposed": [
+    "depreciation\\s+of\\s+investment\\s+propert",
+    "depreciation\\s+of\\s+fixed\\s+assets",
+    "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
+    "depreciation\\s+of\\s+construction\\s+in\\s+progress",
+    "depreciation\\s+of\\s+right.?of.?use\\s+assets",
+    "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
+    "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
+    "^\\s*depreciation\\s*$",
+    "投資物業折舊",
+    "固定資產折舊",
+    "物業[,、]?\\s*廠房及設備折舊",
+    "在建工程折舊",
+    "使用權資產折舊",
+    "預付租賃款項攤銷",
+    "預付租賃款項轉出",
+    "^折舊$",
+    "投资性房地产折旧",
+    "投资物业折旧",
+    "固定资产折旧",
+    "在建工程折旧",
+    "使用权资产折旧",
+    "预付租赁款项摊销",
+    "^折旧$",
+    "^折旧费$",
+    "折旧费用",
+    "^\\s*折旧[及与和]?摊销\\s*$",
+    "^\\s*折舊[及與和]?攤銷\\s*$",
+    "^\\s*摊销\\s*$",
+    "^\\s*攤銷\\s*$",
+    "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$",
+    "depreciation\\s+charge",
+    "（1）計提|（1）计提|本期計提|本期计提",
+    "本期折舊|本期折旧|本期攤銷|本期摊销",
+    "charge\\s+for\\s+the\\s+(?:year|period)"
+   ],
+   "add": [
+    "depreciation\\s+charge",
+    "（1）計提|（1）计提|本期計提|本期计提",
+    "本期折舊|本期折旧|本期攤銷|本期摊销",
+    "charge\\s+for\\s+the\\s+(?:year|period)"
+   ],
+   "evidence": "Inside the admitted notes: '（1）计提' (4 filings), 'Depreciation charge' (2), against the balance rows '1.期初余额' (8), '4.期末余额' (10), '2.本期增加金额' (11), '3.本期减少金额' (10)."
+  },
+  {
+   "key": "sub__cl_reported_total",
+   "field": "note_source.note_title_any",
+   "whats_wrong": "Knows only the CONTINGENT LIABILITIES / 或有负债 / 或有事项 family, so it claims nothing in 11 of 18 filings. Missing: 或然負債 (the HK-Chinese term), FINANCIAL GUARANTEES / 財務擔保 (the ENTIRE contingency disclosure in 2024042503547), FINANCIAL GUARANTEE CONTRACTS AND CONTINGENT LIABILITIES, COMMITMENTS AND CONTINGENCIES as a compound heading, 重大担保 (the A-share heading, 102 rows in d84d0937), 开出保函、信用证, and 未决诉讼-based contingencies.",
+   "proposed": [
+    "contingent\\s+liabilit(?:y|ies)",
+    "\\bcontingencies\\b",
+    "commitments\\s+and\\s+contingen",
+    "financial\\s+guarantee(?:s|\\s+contracts?)?",
+    "或有負債|或有负债",
+    "或有事項|或有事项",
+    "或然負債|或然负债",
+    "財務擔保|财务担保",
+    "重大擔保|重大担保",
+    "對外擔保|对外担保",
+    "開出保函|开出保函",
+    "未決訴訟|未决诉讼"
+   ],
+   "evidence": "CLAIMS, quoted from the corpus: 2025111900987 note 45 'CONTINGENT LIABILITIES'; 2024_Annual_Report note 42 'CONTINGENT LIABILITIES'; 2026042201878 note 34 'CONTINGENT LIABILITIES'; 2025042402029 note 32 'CONTINGENT LIABILITIES 32. 或然負債'; 2026072300867 note 32 'CONTINGENT LIABILITIES 32. 或然負債'; 2025032802704 note 19 'COMMITMENTS AND CONTINGENCIES'; 2024042503547 note 41 'FINANCIAL GUARANTEES 41. 財務擔保'; 2025041600195 note 40 'FINANCIAL GUARANTEE CONTRACTS AND CONTINGENT LIABILITIES'; 11077098 note 十七、2 '．开出保函、信用证' and 十六、1 '． 未决诉讼或仲裁形成的或有事项及其财务影响'; 8ad0c02c note 十七、2 '、或有事项'; d84d0937 note 十五、2 '、重大担保'; dc90a2bb note 十六、2 '、重大担保'; ee164920 note 十七、2 '、重大担保'.",
+   "must_not_claim": "DELIBERATELY EXCLUDED, each a false friend present in this corpus: 'GUARANTEED NOTES' (2025111900987 note 36, 34 rows) is a DEBT INSTRUMENT the group issued, not an exposure it carries — a bare `guarantee` stem would swallow it; 'PLEDGE OF ASSETS 42. 資產抵押' and 'RESTRICTED AND PLEDGED DEPOSITS' are encumbrances on owned assets, not contingencies; 'COMMITMENTS' / 'CAPITAL COMMITMENTS 31. 資本承擔' / 688008 十八、1 '重要承诺事项' / 十五、7 '关联方承诺' are commitments and belong to a different template line, which is why `commitments` appears only in the COMPOUND `commitments and contingen`; d84d0937 十七、6 '、担保情况、偿债计划及其他偿债保障措施…' is a BOND repayment disclosure; d84d0937 十五、21 '公司预计2024 年与中山银达融资担保投资有限公司的日常关联交易…' is a related-party transaction that merely names a guarantee COMPANY. The last two are why the bare stems 擔保|担保 are not used and every Chinese alternative is a bounded compound.",
+   "fires_on": [
+    "18-filing corpus — measured by scripts/check_proposals.py"
+   ]
+  },
+  {
+   "key": "sub__cl_reported_total",
+   "field": "note_source.note_terms",
+   "whats_wrong": "MEASURED MIXED at 73 headings against 666 row captions — a 9x wrong-level ratio. The terms were written as ROW content ('guarantee', 'letter of credit', 'performance bond'), which is what a row caption says, while this field is scored against note HEADINGS. A note heading names the container: 或有負債, 財務擔保, 重大担保.",
+   "proposed": [
+    "contingent liabilities",
+    "contingencies",
+    "commitments and contingencies",
+    "financial guarantees",
+    "financial guarantee contracts",
+    "或有負債",
+    "或有负债",
+    "或有事項",
+    "或有事项",
+    "或然負債",
+    "或然负债",
+    "財務擔保",
+    "财务担保",
+    "重大擔保",
+    "重大担保",
+    "對外擔保",
+    "对外担保"
+   ],
+   "evidence": "Every term is a note HEADING that appears verbatim in the corpus (see the note_title_any evidence above). Row-content words — guarantee, letter of credit, performance bond, 保函, 信用证 — are deliberately absent from this field and belong in row_terms.",
+   "fires_on": [
+    "scored field — reach not measurable by regex; judged on level, not hit count"
+   ]
+  },
+  {
+   "key": "sub__cl_reported_total",
+   "field": "note_source.row_caption_any",
+   "whats_wrong": "Not a defect in what it claims — a GAP in what it reaches. The shipped patterns are correct and stay: inside a note the gate has already narrowed to contingencies, a bare 'Total' is the right row and is what most HK filings print. What is missing is the PRC A-share side. The 重大担保 table is column-shredded (28 of 32 rows in d84d0937 are fragments like '水务有限', '限公司日两年东安县名'), so no counterparty row is reachable; the only durable rows are the CSRC-mandated summary labels, which are long and formulaic, and the total among them — 公司担保总额（A3+B3+C3） — is reached by nothing today.",
+   "proposed": [
+    "^\\s*total\\b|\\btotal\\s+(?:contingent\\s+liabilit(?:y|ies)|guarantees?|amount\\s+of\\s+guarantees?|letters?\\s+of\\s+credit)",
+    "擔保金額合計|擔保餘額合計|總擔保金額|擔保總額|或有負債合計|合計擔保",
+    "担保金额合计|担保余额合计|总担保金额|担保总额|或有负债合计|合计担保|担保合计",
+    "公司擔保總額|公司担保总额",
+    "A3\\s*\\+\\s*B3\\s*\\+\\s*C3"
+   ],
+   "evidence": "ADDED patterns only. 公司担保总额（A3+B3+C3） is the CSRC-mandated total of the A-share 重大担保 disclosure; its sibling labels appear verbatim in d84d0937 note 十五、2: '为股东、实际控制人及其关联方提供担保的余额（D） 直接或间接为资产负债率超过70%的被担保对象提供的债务担保余额（E） 担保总额超过净资产50%部分的金额（F） 上述三项担保金额合计（D+E+F）'. DELIBERATELY NOT TAKEN AS THE TOTAL: （D+E+F） is a SUBSET — shareholder-and-affiliate guarantees, plus high-leverage obligors, plus the excess over 50% of net assets — so reading it as the reported total would misstate the exposure.",
+   "fires_on": [
+    "row-level — measured against row captions by scripts/check_proposals.py"
+   ]
+  },
+  {
+   "key": "sub__cl_related_party_guarantee_balance",
+   "field": "note_source.row_caption_any",
+   "whats_wrong": "No row pattern reaches the one line in the CSRC block that IS the related-party guarantee balance. This is the (D) line, and it is a fixed regulatory label rather than a wording that varies by issuer.",
+   "proposed": [
+    "為股東、實際控制人及其關聯方提供擔保的餘額|为股东、实际控制人及其关联方提供担保的余额",
+    "為股東.{0,16}關聯方提供擔保|为股东.{0,16}关联方提供担保"
+   ],
+   "evidence": "d84d0937 note 十五、2 row, verbatim: '为股东、实际控制人及其关联方提供担保的余额（D） 直接或间接为资产负债率超过70%的被担保对象提供的债务担保余额（E） 担保总额超过净资产50%部分的金额（F） 上述三项担保金额合计（D+E+F）'. The bracketed code is offered as a separate, weaker alternative because the shred can split the label away from its code. THE BRACKETED-CODE FALLBACK WAS REMOVED: measured, it matched the row '(d) On' — a sub-paragraph marker. A one-letter pattern cannot discriminate.",
+   "fires_on": [
+    "row-level — measured"
+   ]
+  }
+ ],
+ "withdrawn": [
+  {
+   "key": "sub__rp_note_by_counterparty",
+   "why": "The 296 rows in that note are 150 distinct COUNTERPARTY NAMES; receivable versus payable is a COLUMN and this layer selects ROWS. No row rule can discriminate, so the note would feed a receivable line with payables. Needs column-aware selection, which does not exist."
+  },
+  {
+   "key": "sub__ltp_included_equity_method_investments",
+   "why": "WITHDRAWN AFTER MEASUREMENT. The widening pointed a DEDUCTION part at the standalone interests-in-associates / 长期股权投资 note, which carries the WHOLE equity-method balance. But the part means the slice of equity-method investments INCLUDED IN the in-scope financial-asset notes — a different quantity, and on a different balance-sheet line. Measured on laisun it read 3,179,316 where it had read nothing, so LTP_P1 computed 788,507 - 3,179,316 = negative, refuse_negative refused the rung, and the line went from 788,507 to EMPTY. THE RULE THIS TEACHES: a deduction part’s note gate must stay inside the notes its PARENT reads; it must not wander to the note of the thing being deducted."
+  }
+ ]
+}
