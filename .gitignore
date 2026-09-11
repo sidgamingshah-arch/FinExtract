@@ -67,3 +67,9 @@ _audit/
 _run8/
 _run9/
 _scratch/
+
+# Holds a live gateway bearer token. Untracked so the branch tip does not carry it — note that
+# the blob is already reachable in history (commit 8683066, also on origin/China_specific and
+# origin/claude/cas-face-remaining-defects), so the token needs ROTATING; untracking it here does
+# not unpublish it.
+test.py

@@ -220,17 +220,133 @@ llm_only_keys = []
 # rows to the model with a candidate list that cannot hold their answer. Focus routing restricts
 # the ROWS instead and leaves each forwarded row's candidates untouched.
 llm_focus_only = true
+# THE PARTS ARE NAMED TOO, NOT ONLY THE EIGHT WHOLES, and that is the whole point of this list
+# being longer than it looks. Seven of the eight are `derived` or `extract_or_derive`, so the model
+# is not offered them at all (`_llm_withheld`) — forwarding a row whose deterministic answer is one
+# of those spends a call on a concept the run cannot come back with. Measured before this:
+# `focus_keys_nameable_by_model` was 1 of 8, and a live 45-call run changed none of the eight
+# figures.
+#
+# Their PARTS are `extract`, carry no alias (so no deterministic tier competes for them), and are
+# the layer a note actually prints — so they are what a call can usefully answer. Naming them here
+# is what puts their rows in front of the model.
 llm_focus_keys = [
   "is_pl__deprec_and_impairment_oper_exp",
+  "sub__cfo_depreciation",
+  "sub__cip_depreciation",
+  "sub__fixed_asset_depreciation",
+  "sub__ga_depreciation",
+  "sub__investment_property_depreciation",
+  "sub__operating_expense_depreciation",
+  "sub__pbt_depreciation",
+  "sub__pbt_oper_exp_depreciation",
+  "sub__ppe_depreciation",
+  "sub__prepaid_lease_depreciation",
+  "sub__rd_depreciation",
+  "sub__selling_marketing_depreciation",
+
   "is_pl__deprec_and_impairment_cos",
+  "sub__cos_depreciation",
+  "sub__pbt_cos_depreciation",
+
   "bs_ca__secur_and_other_fincl_assets_cp",
+  "sub__fa_cp_afs_htm_note_total",
+  "sub__fa_cp_debt_investments_note_total",
+  "sub__fa_cp_fvtoci_note_total",
+  "sub__fa_cp_fvtpl_note_total",
+  "sub__fa_cp_included_derivatives",
+  "sub__fa_cp_included_other_receivables",
+  "sub__fa_cp_investment_and_money_market_securities_note_total",
+  "sub__fa_cp_level_3_total",
+  "sub__fa_cp_noncurrent_split_of_note_total",
+  "sub__fa_cp_other_fincl_assets_note_total",
+
   "bs_nca__secur_and_other_fincl_assets_ltp",
+  "sub__ltp_afs_htm_note_total",
+  "sub__ltp_debt_investments_note_total",
+  "sub__ltp_fincl_assets_note_total",
+  "sub__ltp_fvtoci_note_total",
+  "sub__ltp_fvtpl_note_total",
+  "sub__ltp_included_derivatives",
+  "sub__ltp_included_equity_method_investments",
+  "sub__ltp_included_other_receivables",
+  "sub__ltp_investment_securities_note_total",
+  "sub__ltp_nc_portion_of_fincl_asset_notes",
+  "sub__ltp_other_fincl_assets_note_total",
+  "sub__ltp_structured_deposits_note_total",
+
   "notes__contingent_liabilities",
+  "sub__cl_bank_guarantees",
+  "sub__cl_corporate_guarantees",
+  "sub__cl_guarantee_note_amount",
+  "sub__cl_guarantee_note_balance",
+  "sub__cl_guarantee_released_repaid",
+  "sub__cl_letters_of_credit",
+  "sub__cl_performance_bonds",
+  "sub__cl_related_party_guarantee_amount",
+  "sub__cl_related_party_guarantee_balance",
+  "sub__cl_reported_total",
+  "sub__cl_unclassified_matters",
+
   "bs_nca__due_from_related_parties_ltp",
+  "sub__rp_bs_face_receivables",
+  "sub__rp_current_portion_ltr_note",
+  "sub__rp_due_from_note_noncurrent",
+  "sub__rp_loans_and_advances_note",
+  "sub__rp_lt_receivables_note",
+  "sub__rp_note_by_counterparty",
+  "sub__rp_note_by_receivable_class",
+  "sub__rp_note_entrusted_loans",
+  "sub__rp_note_umbrella_total",
+  "sub__rp_other_receivables_note",
+
   "bs_ca__other_receivables_cp",
+  "sub__cp_current_account_net",
+  "sub__cp_current_account_rp",
+  "sub__cp_current_loans_advances_net",
+  "sub__cp_current_loans_advances_rp",
+  "sub__cp_current_ltr_net",
+  "sub__cp_current_ltr_rp",
+  "sub__cp_funds_placed_net",
+  "sub__cp_funds_placed_rp",
+  "sub__cp_other_receivables_gross",
+  "sub__cp_other_receivables_loss_allowance",
+  "sub__cp_other_receivables_net",
+  "sub__cp_other_receivables_rp",
+
   "is_pl__sales_revenues",
+  "sub__contract_revenue_note_revenue",
+  "sub__face_principal_revenue",
+  "sub__principal_operations_note_revenue",
+  "sub__principal_revenue_by_geography",
+  "sub__principal_revenue_by_industry_segment",
+  "sub__principal_revenue_by_product",
+  "sub__principal_revenue_by_sales_channel",
+  "sub__revenue_note_principal_revenue",
 ]
-llm_max_concurrency = 6          # concurrent LLM batch calls during map_ontology
+# CONCURRENT MAPPING CALLS. Raised 6 -> 10 for a provider with no per-minute cap, which is what
+# the committed configuration now assumes.
+#
+# WHAT WAS THROTTLING AND WHERE IT LIVED, so nobody re-throttles the wrong file. Every limit met
+# while developing against free tiers was a LOCAL `.env` override, and `.env` is gitignored — so a
+# fresh checkout has never had them:
+#
+#   * Groq's free tier caps at 8,000 tokens per MINUTE against requests of 30,000-40,000, so it
+#     refuses every mapping call at any concurrency. Not a setting; that provider cannot serve this
+#     pipeline.
+#   * Gemini's free tier depletes a DAILY quota — measured across three runs of one filing, 30 then
+#     23 then 16 of 45 calls succeeded — and concurrency 1 was set locally to make the 429 backoff
+#     legible, not because the pipeline needs it.
+#   * OpenRouter's configured key has a zero credit balance (`limit: 0`, `usage: 0`), so paid models
+#     return 403 and the `:free` variants each fail differently — schema non-compliance, an
+#     agentic-harness gate, an output budget burned on reasoning tokens, 429, and an invalid body.
+#
+# SO THESE TWO ARE QUALITY SETTINGS, NOT THROTTLE SETTINGS, and lowering either to fit a provider
+# is the wrong lever — `llm_candidate_cap` (60) decides how much of the vocabulary a call may
+# choose from, and `llm_batch_max_items` (25) decides how much cross-line context one call sees.
+# Both were measured, not tuned to a limit. If a provider cannot take the request, change the
+# provider.
+llm_max_concurrency = 10         # concurrent LLM batch calls during map_ontology
 # Publish every extracted note regardless of face citation — set per-run via the
 # FINEX_EXTRACTION__PRUNE_UNREFERENCED_NOTES env var instead of here, since a checked-in
 # change here affects every test and script that reads settings.

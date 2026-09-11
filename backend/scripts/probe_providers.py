@@ -44,20 +44,19 @@ def load_env() -> None:
 # base_url / api_key_env / model. All three are OpenAI-compatible, which is why one adapter serves
 # them; Gemini exposes its compatibility layer under /v1beta/openai/.
 _GEMINI = "https://generativelanguage.googleapis.com/v1beta/openai/"
+_OR = "https://openrouter.ai/api/v1"
+# OPENROUTER ON A ZERO-BALANCE KEY. Measured from /api/v1/key: limit 0, limit_remaining 0, usage 0,
+# is_free_tier true — so the key has spent nothing and can spend nothing, which is why every paid
+# model returns 403 "Key limit exceeded". The  variants do not draw credit, so they are the
+# only OpenRouter route open without a top-up.
 CANDIDATES = [
-    ("groq / gpt-oss-120b", "https://api.groq.com/openai/v1", "GROQ_API_KEY",
-     "openai/gpt-oss-120b"),
-    # Model names matter more than they look: `gemini-2.5-flash` and `gemini-2.0-flash` are BOTH
-    # rejected 404 by the compatibility layer for this key ("no longer available to new users"),
-    # even though the native `v1beta/models` listing still returns 2.5-flash. So the candidates are
-    # taken from that listing, newest first, and the `-latest` alias is included because it is the
-    # one name that does not rot.
-    ("gemini / flash-latest", _GEMINI, "GEMINI_API_KEY", "gemini-flash-latest"),
-    ("gemini / 3.5-flash", _GEMINI, "GEMINI_API_KEY", "gemini-3.5-flash"),
-    ("gemini / 3-flash-preview", _GEMINI, "GEMINI_API_KEY", "gemini-3-flash-preview"),
     ("gemini / flash-lite-latest", _GEMINI, "GEMINI_API_KEY", "gemini-flash-lite-latest"),
-    ("openrouter / minimax-m2", "https://openrouter.ai/api/v1", "OPENROUTER_API_KEY",
-     "minimax/minimax-m2"),
+    ("or / nemotron-3.5-lite:free", _OR, "OPENROUTER_API_KEY", "nvidia/nemotron-3.5-lightning:free"),
+    ("or / inkling-small:free", _OR, "OPENROUTER_API_KEY", "thinkingmachines/inkling-small:free"),
+    ("or / nex-n2.5-mini:free", _OR, "OPENROUTER_API_KEY", "nex-agi/nex-n2.5-mini:free"),
+    ("or / gemma-4-26b:free", _OR, "OPENROUTER_API_KEY", "google/gemma-4-26b-a4b-it:free"),
+    ("or / ling-3.0-flash-fin:free", _OR, "OPENROUTER_API_KEY", "inclusionai/ling-3.0-flash-fin:free"),
+    ("or / minimax-m2 (paid)", _OR, "OPENROUTER_API_KEY", "minimax/minimax-m2"),
 ]
 
 

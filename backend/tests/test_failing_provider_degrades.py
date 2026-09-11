@@ -273,15 +273,32 @@ def test_the_focus_log_measures_what_the_MODEL_can_name(shipped):
     assert nameable <= offered | {k for k in nameable if k not in matcher._by_key}, sorted(nameable)
 
 
-def test_the_focus_reach_is_one_of_eight_on_the_shipped_config(shipped):
-    """The measured consequence of the extract-only rule, stated as a number so that a change to
-    either the rule or the focus list has to come past it. Seven of the eight focus concepts are
-    withheld from the model; the run's whole LLM budget can only affect the eighth."""
+def test_the_focus_list_names_the_parts_and_not_only_the_wholes(shipped):
+    """THE NUMBER THIS TEST EXISTS TO MAKE SOMEONE JUSTIFY, and it has now moved once.
+
+    It used to assert the reach was exactly `["is_pl__sales_revenues"]` — 1 nameable concept out of
+    8 configured — which was the measured consequence of the extract-only rule: seven of the eight
+    focus concepts are `derived` or `extract_or_derive`, so the model is not offered them, and
+    forwarding a row whose deterministic answer is one of those spends a call on a concept the run
+    cannot come back with. A live 45-call run changed none of the eight figures, which is exactly
+    what 1-of-8 predicts.
+
+    `config.toml` now names the 77 PARTS as well as the 8 wholes. A part is `extract`, carries no
+    alias, and is the layer a note actually prints, so it is what a call can usefully answer. The
+    reach is 78 of 85, and the 7 that remain unreachable are precisely the wholes — which is
+    correct, because a whole's figure is computed by its cascade and is not the model's to give.
+    """
     from app.services.mapping import OntologyMatcher
 
     matcher = OntologyMatcher(build_working_view(shipped), locale="en", settings=get_settings())
     focus = set(get_settings().extraction.llm_focus_keys or ())
-    nameable = sorted(k for k in focus if k not in matcher._llm_withheld)
+    withheld = sorted(k for k in focus if k in matcher._llm_withheld)
+    nameable = [k for k in focus if k not in matcher._llm_withheld]
 
-    assert len(focus) == 8, sorted(focus)
-    assert nameable == ["is_pl__sales_revenues"], nameable
+    assert len(focus) == 85, len(focus)
+    assert len(nameable) == 78, len(nameable)
+    # THE UNREACHABLE ONES ARE THE WHOLES, every one of them — a part that turned up in this list
+    # would mean the layer meant to be answerable had been withheld.
+    by_key = {i.key: i for i in shipped.items}
+    assert all(not getattr(by_key[k], "parent", "") for k in withheld), withheld
+    assert len(withheld) == 7, withheld
