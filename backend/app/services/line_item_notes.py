@@ -197,11 +197,41 @@ def _blended(item, parent=None) -> str:
 
 def notes_for_line_item(item, pool: ContextPool, *, min_score: float = MIN_SCORE,
                         cap: int = 4, parent=None) -> list[NoteHit]:
-    """The notes this line item is in, best first.
+    """The notes this line item is in, best first — ONE HIT PER NOTE NUMBER.
 
     `cap` bounds the request rather than the judgement: a line item genuinely spread over more
     notes than this is a configuration fact worth seeing, so `calibrate_line_item_notes.py` reports
     the rank of every authored note and not merely whether it survived the cap.
+
+    THE CAP COUNTS NOTES, NOT FRAGMENTS, AND IT DID NOT USE TO. A note printed across several pages
+    arrives as several tables all carrying its number — measured, laisun's note 1 arrives as 32
+    fragments and 41 as 22; suncreate's 五、1 as 28 and 五、2 as 18 — and each becomes its own
+    header unit. The slice ran over those units, so four hits were routinely one note seen four
+    times, and `line_item_requests._note_keys` then deduplicated what was left. The line had
+    already been charged four slots for one note.
+
+    MEASURED, AND IT WAS THE BINDING CONSTRAINT — bigger than any threshold. Authored notes
+    actually DELIVERED to a request, against the regexes as ground truth
+    (`scripts/calibrate_line_item_notes.py` measures REACHABILITY, uncapped; this is delivery):
+
+                            laisun (EN)      suncreate (PRC)
+        cap over fragments  34 / 42  81.0%   60 / 125  48.0%
+        cap over notes      42 / 42 100.0%   74 / 125  59.2%
+
+    So the fragmentation was costing 8 of laisun's 42 authored notes and 14 of suncreate's 125 —
+    lines whose figure was in a note the request never carried, which a model cannot cite and the
+    deterministic route then had to find or leave empty. Distinct notes per line went 1.99 -> 2.34
+    (laisun) and 1.03 -> 1.25 (suncreate) against a cap of 4.
+
+    WHY IT HURTS THE PRC FILING TWICE. A CAS filing itemises far more (167 distinct note numbers
+    against laisun's 52) with far shorter headings (median 8 characters against 32), so more of its
+    units are continuation fragments of one note AND each carries less text to score on. The
+    fragment that wins is then often a policy or judgement paragraph rather than the disclosure —
+    which is the same failure `scripts/why_zero_score.py` reports from the other side.
+
+    `_note_keys` still deduplicates, and that is deliberate rather than redundant: it is the one
+    place the grouping modes compare note SETS, and two line items whose hits are fragments of one
+    note must be seen to need the same note.
     """
     probe = set(subject_tokens(note_probe(item, parent)))
     if not probe:
@@ -215,8 +245,19 @@ def notes_for_line_item(item, pool: ContextPool, *, min_score: float = MIN_SCORE
     # Descending score, document order breaking ties, so a rerun of the same filing selects the
     # same notes in the same order.
     scored.sort(key=lambda t: (-t[0], t[1]))
-    return [NoteHit(note=u.ref, title=u.title, score=round(s, 4))
-            for s, _i, u in scored[:cap]]
+    # THEN one hit per note number, keeping the BEST-SCORING fragment of each — which is also the
+    # one whose title is most likely to be the note's real heading rather than a continuation
+    # line — and only then the cap.
+    out: list[NoteHit] = []
+    seen: set[str] = set()
+    for score, _index, unit in scored:
+        if unit.ref in seen:
+            continue
+        seen.add(unit.ref)
+        out.append(NoteHit(note=unit.ref, title=unit.title, score=round(score, 4)))
+        if len(out) == cap:
+            break
+    return out
 
 
 def note_sets(items, notes, *, min_score: float = MIN_SCORE,
