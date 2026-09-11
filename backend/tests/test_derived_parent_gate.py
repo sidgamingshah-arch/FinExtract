@@ -84,13 +84,31 @@ def test_every_definitions_type_is_carried_into_the_working_view(shipped):
 
 
 def test_the_types_the_shipped_set_declares(shipped):
-    """The population the gate acts on, counted so a change to it is a decision."""
+    """The population the gate acts on, counted so a change to it is a decision.
+
+    THE COUNT MOVED, AND THIS IS THE DECISION IT RECORDS. 33 lines were `extracted` while three
+    other declarations said they were subtotals — `role: subtotal`/`total` with a template
+    `rollup` naming 2 to 34 children each, `unit_of_account: "subtotal"` on exactly those 33, and
+    `extraction_mode: extract_or_derive`. They are `calculated` now, so the three-value type means
+    what it says: read off the page, worked out by arithmetic, or produced by a declared cascade.
+
+    Measured before the flip: every one of the 66 published subtotal cells across the two
+    reference filings is unchanged, because `evaluate` reports the document's figure for a
+    computed line that names no terms and the template's own rollup check is what compares it
+    against the components.
+    """
     from collections import Counter
     counts = Counter(str(i.type) for i in shipped.items)
 
     assert counts["derived"] == 9, counts
-    assert counts["extracted"] == 530, counts
+    assert counts["calculated"] == 33, counts
+    assert counts["extracted"] == 497, counts
     assert sum(counts.values()) == 539
+    # AND THE DISCRIMINATOR THE SECTION ROLL-UPS READ IS UNTOUCHED. `rollups.section_members` keys
+    # on `unit_of_account == "subtotal"` and nothing else; flattening it alongside the type takes
+    # all 20 sections to `no_reported_subtotal`, so the two must not move together.
+    assert sum(1 for i in shipped.items
+               if str(getattr(i, "unit_of_account", "") or "") == "subtotal") == 33
 
 
 # ── the gate ──────────────────────────────────────────────────────────────────────────────────

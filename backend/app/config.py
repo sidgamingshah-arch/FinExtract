@@ -366,10 +366,32 @@ class ExtractionSettings(BaseModel):
     #               components, or two lines whose DISTINCTION is what the model keeps
     #               getting wrong. Read by `services.line_item_requests.plan_requests`.
     llm_request_grouping: Literal["none", "identical", "similar", "manual"] = "none"
-    # The overlap two note sets need to share a request under "similar", as a Jaccard index. 0.8
-    # means they must be nearly the same set; 1.0 is "identical" by another name. Read only in
-    # "similar" mode.
-    llm_group_similarity: float = 0.8
+    # The overlap two note sets need to share a request under "similar", as a Jaccard index —
+    # |A n B| / |A u B|. 1.0 is "identical" by another name. Read only in "similar" mode.
+    #
+    # 0.70, DOWN FROM 0.80, BECAUSE 0.80 MADE THE MODE INERT. Swept over both reference filings
+    # (`scripts/sweep_group_similarity.py`), every value from 0.80 to 1.00 produces grouping
+    # byte-identical to `identical` — so an operator choosing "similar" and expecting a saving got
+    # none, and nothing said so. The reason is the shape of the real sets: after
+    # `notes_for_line_item`'s cap a line carries one to three notes, and Jaccard on small sets is
+    # coarse — {7} vs {7,12} is 0.50, {7,12} vs {7,19} is 0.33. No such pair ever reaches 0.80, so
+    # at 0.80 only IDENTICAL sets merge, which is the other mode.
+    #
+    # 0.70 IS THE FIRST VALUE THAT BINDS, AND THE ONLY ONE THAT HELPS FOR FREE. Measured on laisun
+    # over all 518 asked-about lines:
+    #
+    #                requests   ~tokens   LARGEST request
+    #   identical         214   810,058            74,750
+    #   similar 0.70      195   760,996            74,750     -9% requests, -6% tokens
+    #   similar 0.60      144   635,872           113,254     largest +51%
+    #   similar 0.30       42   547,255           261,113
+    #
+    # THE LARGEST REQUEST IS THE CONSTRAINT, not the total, because a gateway refuses per request
+    # and a refused request loses its lines to the deterministic route. At 0.70 it does not move at
+    # all while the request count falls; below 0.70 every further saving is bought by making one
+    # request bigger, which is the wrong trade. suncreate behaves the same way with smaller
+    # margins (445 -> 439 requests, largest unchanged).
+    llm_group_similarity: float = 0.70
     # THERE IS NO REGISTRY SWITCH HERE ANY MORE. `mapping_engine` used to stand at this spot,
     # a Literal["ontology", "line_items"] defaulting to "ontology", and it selected between two
     # registries: the ontology rulebook and the merged line-item configuration. The line-item set

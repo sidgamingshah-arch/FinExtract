@@ -241,9 +241,43 @@ def test_an_intermediate_can_never_reach_the_output():
     assert d.in_output is False
 
 
-def test_a_computed_line_with_no_terms_is_refused_at_load():
+def test_a_calculated_line_may_name_no_terms_and_an_intermediate_may_not():
+    """THIS USED TO REFUSE BOTH, and the asymmetry is the point.
+
+    `terms` is one of TWO places a line's arithmetic can be declared. For a SUBTOTAL the other one
+    is authoritative: the template's `rollup: {op: "sum", children: [...]}`, which all 33 shipped
+    `calculated` lines carry with 2 to 34 children each. Requiring `terms` as well would put a
+    second copy of the components in the configuration, free to drift from the template that
+    actually evaluates them — and `evaluate` reads the absence the same way, reporting the
+    document's figure and leaving `check_rollups` to compare it against the components.
+
+    An INTERMEDIATE line is different: it exists only to be an input to something else, appears in
+    no template and no export, so `terms` is the only place its arithmetic could live and their
+    absence is still an error.
+    """
+    calculated = LineItemDef(key="m", type="calculated")
+    assert calculated.terms == []
+
     with pytest.raises(ValidationError, match="needs at least one term"):
-        LineItemDef(key="m", type="calculated")
+        LineItemDef(key="m", type="intermediate")
+
+
+def test_a_calculated_line_with_no_terms_reports_what_the_document_gave_it():
+    """The other half, and the half that would have lost 33 figures. `evaluate` branches on type,
+    so a `calculated` line used to take the `_apply_terms` route unconditionally and resolve to
+    nothing when it named none — which on the shipped set is Total Assets and Profit for the Year
+    going blank."""
+    from app.services.line_items import evaluate
+
+    got = evaluate(LineItemDef(key="bs_ca__total_assets", type="calculated"),
+                   {"bs_ca__total_assets": Decimal("1234")})
+    assert got.value == Decimal("1234")
+
+    # …and a calculated line that DOES name terms still computes them rather than reading the row.
+    with_terms = LineItemDef(key="s", type="calculated",
+                             terms=[{"ref": "a"}, {"ref": "b"}])
+    summed = evaluate(with_terms, {"a": Decimal("2"), "b": Decimal("3"), "s": Decimal("99")})
+    assert summed.value == Decimal("5"), "a declared term list must beat the printed row"
 
 
 def test_a_term_needs_exactly_one_of_a_reference_or_a_number():

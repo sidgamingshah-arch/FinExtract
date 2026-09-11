@@ -191,6 +191,20 @@ def evaluate(d: LineItemDef, known: dict[str, Decimal | None]) -> Evaluation:
     its dependent is reached.
     """
     if d.type in COMPUTED_TYPES:
+        # NO TERMS MEANS THE ARITHMETIC IS DECLARED SOMEWHERE ELSE, not that there is none.
+        #
+        # The 33 subtotals are `calculated` and name no `terms`, because their components are the
+        # TEMPLATE's `rollup: {op: "sum", children: [...]}` — measured, all 33 carry them, 2 to 34
+        # children each. Putting a second copy in `terms` would be two places computing one
+        # quantity, which is the failure this codebase warns about repeatedly.
+        #
+        # So this layer reports what the document supplied, exactly as it does for an `extracted`
+        # line, and the template's own `check_rollups` compares that printed figure against the
+        # components and raises a finding when they disagree. That comparison is the whole reason a
+        # printed subtotal is worth reading, and returning None here would discard the figure it
+        # needs: Total Assets and Profit for the Year are both in this set.
+        if not d.terms:
+            return Evaluation(_dec(known.get(d.key)))
         return _apply_terms(d.terms, known)
 
     if d.type == "derived":

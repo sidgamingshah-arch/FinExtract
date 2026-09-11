@@ -559,8 +559,23 @@ class LineItemDef(BaseModel):
     def _coherent(self):
         if self.type == "intermediate":
             self.in_output = False
-        if self.type in ("calculated", "intermediate") and not self.terms:
-            raise ValueError(f"{self.key}: a {self.type} line needs at least one term")
+        # A `calculated` LINE MAY NAME NO TERMS, and 33 shipped lines do exactly that.
+        #
+        # It used to be refused. The reason it is not is that `terms` is one of TWO places the
+        # arithmetic can be declared, and for a subtotal the other one is authoritative: the
+        # template's `rollup: {op: "sum", children: [...]}`, which all 33 carry with 2 to 34
+        # children each. Requiring `terms` as well would put a second copy of the components in the
+        # configuration, free to drift from the template that actually evaluates them.
+        #
+        # `services.line_items.evaluate` reads the absence the same way: no terms, so report what
+        # the document supplied and let the template's `check_rollups` compare it against the
+        # components. An `intermediate` line is different — it exists only to be an input to
+        # something else, appears in no template and no export, so terms are the only place its
+        # arithmetic could live and their absence is still an error.
+        if self.type == "intermediate" and not self.terms:
+            raise ValueError(f"{self.key}: an intermediate line needs at least one term — it "
+                             f"appears in no template, so `terms` is the only place its "
+                             f"arithmetic can be declared")
         if self.type == "derived" and not (self.cascade or self.implemented_by):
             raise ValueError(f"{self.key}: a derived line needs a cascade or `implemented_by`")
         # A PROMPT ON A LINE NOTHING IS ASKED ABOUT would never be sent. Only an `extracted` line

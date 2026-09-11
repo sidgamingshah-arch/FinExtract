@@ -137,31 +137,64 @@ the rows a line wants, ranked by how many filings agree),
 
 ---
 
-## 5. `similar` grouping is inert — find a threshold that binds
+## 5. `similar` grouping — DONE, threshold is 0.70
 
-**DECIDED:** look at what threshold would help.
+**DECIDED:** look at what threshold would help. Swept, and 0.70 is the answer
+(`scripts/sweep_group_similarity.py`).
 
 **What breaks.** Choose `llm_request_grouping = "similar"` expecting a saving over `identical` and
 get byte-identical output — 34 requests on laisun, 49 on suncreate. At the shipped
 `llm_group_similarity = 0.8` no additional pair of line items ever merges, and nothing says so.
 
-**Solution.** Sweep the threshold over the corpus and report, per value, request count and total
-tokens against `identical`. If no value binds, the mode is not a mode and should say so.
+**Why 0.80 could never bind.** After `notes_for_line_item`'s cap a line carries one to three
+notes, and Jaccard on small sets is coarse: {7} vs {7,12} is 0.50, {7,12} vs {7,19} is 0.33. No
+such pair reaches 0.80, so only IDENTICAL sets merged — which is the other mode.
+
+**Measured on laisun, all 518 asked-about lines:**
+
+| | requests | ~tokens | **largest request** |
+|---|---|---|---|
+| `identical` | 214 | 810,058 | 74,750 |
+| **`similar` 0.70** | **195** (−9%) | **760,996** (−6%) | **74,750** (flat) |
+| `similar` 0.60 | 144 | 635,872 | 113,254 (+51%) |
+| `similar` 0.30 | 42 | 547,255 | 261,113 |
+
+The LARGEST request is the constraint, not the total — a gateway refuses per request, and a refused
+request loses its lines to the deterministic route. 0.70 is the only value that cuts the count
+without moving it. Below 0.70 every further saving is bought by making one request bigger.
 
 ---
 
-## 6. The 33 subtotals → `calculated`
+## 6. The 33 subtotals → `calculated` — DONE
 
-**DECIDED:** move them.
+**DECIDED:** move them. Moved: the type split is now 497 `extracted` / 33 `calculated` / 9
+`derived`.
 
 **Example.** `Total assets` is typed `extracted` while three other declarations say it is computed:
 `role: subtotal` with a `rollup` in the template, `unit_of_account: "subtotal"`, and
 `extraction_mode: extract_or_derive`. The export already treats a contradicting printed figure as a
 FINDING rather than the answer.
 
-**The one trap, recorded so it is not walked into.** `unit_of_account` must **not** be flattened in
-the same change: `services/rollups.py:125` is the sole discriminator in `section_members`, and
-removing it takes all 20 sections to `no_reported_subtotal` — 12 tied become 0 tied.
+**Two things had to move first, and the second would have lost 33 figures.**
+
+1. `_coherent` refused a `calculated` line with no terms. Relaxed — `terms` is one of TWO places
+   the arithmetic can be declared and for a subtotal the template's `rollup` is authoritative (all
+   33 carry children, 2 to 34 each). Populating `terms` instead would put a second copy of the
+   components in the configuration, free to drift. An `intermediate` line is still refused: it
+   appears in no template, so `terms` is the only place its arithmetic could live.
+2. `services.line_items.evaluate` branches on type, so a `calculated` line took the
+   `_apply_terms` route unconditionally and would have resolved to **None** for all 33 — Total
+   Assets and Profit for the Year going blank. It now reports the document's figure when a computed
+   line names no terms, which is the honest reading: no terms means the arithmetic lives elsewhere,
+   and `check_rollups` is what compares the printed figure against the components.
+
+**Verified:** all **66** published subtotal cells across the two reference filings are byte-identical
+before and after (`scratchpad/subtotals_published.py`) — the focus report is blind to this set, so
+it needed its own check.
+
+**The trap was avoided, not disarmed.** `unit_of_account: "subtotal"` stays on all 33.
+`services/rollups.py:125` is the sole discriminator in `section_members`, and flattening it in the
+same change takes all 20 sections to `no_reported_subtotal` — 12 tied become 0 tied.
 
 ---
 

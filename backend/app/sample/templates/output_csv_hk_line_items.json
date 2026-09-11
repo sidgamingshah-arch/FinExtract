@@ -1228,7 +1228,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -1324,7 +1324,7 @@
    "alias_matching": "enabled",
    "is_gross_parent": false,
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -1854,7 +1854,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -4090,7 +4090,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -4361,7 +4361,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -6265,7 +6265,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -6937,7 +6937,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -6998,7 +6998,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -7352,7 +7352,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -7664,7 +7664,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -8167,7 +8167,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -10220,7 +10220,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -13061,7 +13061,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -13119,7 +13119,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -13182,7 +13182,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -13946,7 +13946,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -14005,7 +14005,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -15864,7 +15864,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -16746,7 +16746,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -17496,7 +17496,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -17969,7 +17969,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -18043,7 +18043,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -18269,7 +18269,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -18320,7 +18320,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -18559,7 +18559,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -19047,7 +19047,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Income Statement / is_oci.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -21232,7 +21232,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -21536,7 +21536,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_direct.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -22771,7 +22771,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -23567,7 +23567,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -23744,7 +23744,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -23799,7 +23799,7 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
@@ -23848,7 +23848,7 @@
    "is_gross_parent": true,
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "type": "extracted",
+   "type": "calculated",
    "namespace": "template"
   },
   {
