@@ -46,16 +46,17 @@ def _rows(scope: str) -> dict:
 
 def test_an_extraction_threshold_survives_a_restart(client):
     client.patch("/api/v1/settings", headers=_admin(client),
-                 json={"extraction": {"evidence_floor": 0.62, "mapping_scope": "per_line"}})
+                 json={"extraction": {"evidence_floor": 0.62,
+                                      "llm_request_grouping": "identical"}})
     assert get_settings().extraction.evidence_floor == 0.62
 
     _restart()
 
     assert get_settings().extraction.evidence_floor == 0.62
-    assert get_settings().extraction.mapping_scope == "per_line"
+    assert get_settings().extraction.llm_request_grouping == "identical"
     # …and the API reports the same thing a fresh client would read.
     live = client.get("/api/v1/settings", headers=_admin(client)).json()["extraction"]
-    assert live["evidence_floor"] == 0.62 and live["mapping_scope"] == "per_line"
+    assert live["evidence_floor"] == 0.62 and live["llm_request_grouping"] == "identical"
 
 
 def test_the_llm_configuration_survives_a_restart(client):

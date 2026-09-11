@@ -199,11 +199,19 @@ def test_it_runs_after_every_stage_that_writes_a_figure():
 
 # ── the call that is not spent ────────────────────────────────────────────────────────────────
 
-def test_no_provider_call_is_spent_on_a_row_with_no_note_tag():
-    """The first half of the flag. A row whose line declares the threshold and which carries no note
-    reference is decided deterministically and never forwarded — the model would be reading the
-    caption and nothing else."""
-    from app.stages.map_ontology import MapOntologyStage
+def test_no_request_is_spent_on_a_line_with_no_note_tag():
+    """The first half of the flag, and it MOVED WITH THE REQUEST IT SAVES.
+
+    It used to skip forwarding a printed ROW whose own caption carried no note reference — the
+    model would have been reading the caption and nothing else. Rows are not forwarded to a model
+    at all now (`stages.map_ontology` makes no provider call), so the saving is where the request
+    is: `stages.line_item_llm` skips a LINE when no face row cites any note that line selected.
+    The author's judgement is the same and the cost it avoids is the same; the unit is the line
+    rather than the row, which is the level the question is now asked at.
+
+    The zero is still `stages.note_tag_gate`'s to write, whether or not a request was made.
+    """
+    from app.stages.line_item_llm import LineItemLlmStage
 
     class Counts:
         id = "counts"
@@ -213,50 +221,45 @@ def test_no_provider_call_is_spent_on_a_row_with_no_note_tag():
 
         def complete_structured(self, *, system, messages, response_schema, **_):
             self.asked += 1
-            return response_schema.model_validate({"mappings": []}), {}
+            return response_schema.model_validate({"answers": []}), {}
 
-    settings = get_settings()
-    focus = set(settings.extraction.llm_focus_keys or ())
-    if not focus:
-        pytest.skip("focus routing is off, so no row reaches the gate under test")
-
-    # THE FOCUS KEY MUST BE ONE THE MODEL IS ACTUALLY ASKED ABOUT, AND CARRY AN ALIAS — discovered
-    # rather than assumed. The eight wholes are all withheld from the model anyway, so picking one
-    # would make this pass for the wrong reason, proving only that a withheld concept is not asked
-    # about. `_never_asked` is the predicate for "withheld", not `extraction_mode` alone: the
-    # derived parents now declare `extract` (so a printed subtotal is still read) and are withheld
-    # by their TYPE, which is the same test `LineItemDef._coherent` applies to the flag itself.
     shipped = load_line_item_set(json.loads(SEED.read_text(encoding="utf-8")), resolve=True)
     by_shipped = {i.key: i for i in shipped.items}
-    key = next((k for k in sorted(focus)
-                if by_shipped.get(k) is not None
-                and by_shipped[k]._never_asked() is None
-                and any((a or "").strip() for a in (by_shipped[k].aliases or []))), None)
+    # A LINE THE MODEL IS ACTUALLY ASKED ABOUT, discovered rather than assumed: picking a line
+    # that is withheld anyway would make this pass for the wrong reason, proving only that a
+    # withheld line is not asked about. `line_item_requests.asked_about` is that predicate — the
+    # same boundary the stage itself uses — and the line must declare a `note_source`, or it
+    # selects no notes and the gate has nothing to test.
+    from app.services.line_item_requests import asked_about
+    key = next((i.key for i in shipped.items
+                if asked_about(i) and getattr(i, "note_source", None) is not None), None)
     if key is None:
-        pytest.skip("no focus key is a line the model is asked about AND carries an alias")
+        pytest.skip("no asked-about line declares a note source")
 
     cfg = _set_with_flag(key=key)
-    by_key = {i.key: i for i in cfg.items}
-    alias = next(a for a in by_key[key].aliases if (a or "").strip())
 
     provider = Counts()
     doc = DocumentModel(filename="f.pdf")
     doc.pages = [PageSource(index=0, statement="profit_and_loss")]
-    row = LineItem(source_label=alias, role=LineRole.LINE)
+    # A face row with a FIGURE and NO note reference, which is the condition under test.
+    row = LineItem(source_label="Some printed caption", role=LineRole.LINE)
     row.set_value(ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current",
                                  value=Decimal("500"), value_raw=Decimal("500"),
                                  provenance=Provenance(page_index=0)))
     doc.line_items = [row]
+    assert not row.note_refs and not row.note_number, "the premise: nothing cites a note"
 
     ctx = PipelineContext(raw_bytes=b"", settings=get_settings())
     ctx.ontology = build_working_view(cfg)
     ctx.line_items = cfg
     ctx.settings.extraction.llm_mapping = True
+    ctx.settings.extraction.llm_focus_only = True
+    ctx.settings.extraction.llm_focus_keys = [key]
     ctx.registry.register("llm", "counts", lambda: provider)
     ctx.settings.llm.provider = "counts"
-    MapOntologyStage().run(doc, ctx)
+    LineItemLlmStage().run(doc, ctx)
 
     assert provider.asked == 0, (
-        f"a call was spent on a row for {key}, which declares llm_only_if_note_tagged and carries "
-        f"no note reference")
-    assert any("note_tag_gate_skipped_calls=" in line for line in ctx.logs), ctx.logs[-6:]
+        f"a request was spent on {key}, which declares llm_only_if_note_tagged while no face row "
+        f"cites a note it selected")
+    assert any("note_tag_gate_skipped_lines=" in line for line in ctx.logs), ctx.logs[-6:]

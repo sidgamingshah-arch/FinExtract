@@ -10,7 +10,7 @@ a BOUNDARY:
   its section from a cash-flow subtotal on a later sheet.
 * ``residual._route_by_template`` is keyed by statement type outright, so it placed no Excel row at
   all.
-* ``map_ontology.batch_groups`` had nothing to batch by, so every spreadsheet row was mapped with the
+* the mapping stage had no statement to scope a row's candidate list by, so every spreadsheet row was mapped with the
   whole ontology in front of it instead of one statement's concepts.
 
 The title vocabulary is not duplicated for spreadsheets: ``statement_of_sheet`` feeds the sheet name
@@ -31,7 +31,6 @@ from app.core.models.document import DocumentModel, PageSource
 from app.core.models.enums import DocFormat, PageKind, PageSourceKind
 from app.core.stage import PipelineContext
 from app.stages.classify import ClassifyStage, statement_of_sheet
-from app.stages.map_ontology import batch_groups
 from app.services.excel_extract import extract_workbook
 
 
@@ -165,10 +164,27 @@ def test_a_workbook_that_cannot_be_reopened_does_not_fail_the_run():
 
 
 # ── the payoff: the boundary reaches the code that needs it ────────────────────────────────────
-def test_rows_from_different_sheets_are_no_longer_one_batch():
-    """What the statement is FOR. ``batch_groups`` keys on it, so with every sheet unclassified the
-    whole workbook was one undifferentiated group per page and no row got a statement-scoped
-    candidate list. Two classified sheets must now be two batches, each naming its statement."""
+def _statement_by_row(doc, stmt_by_page):
+    """Each row's statement, read the way the mapping stage reads it (``_statement_of``)."""
+    out = []
+    for li in doc.line_items:
+        page = next((ev.provenance.page_index for ev in li.values.values()
+                     if ev.provenance is not None), None)
+        out.append((li, stmt_by_page.get(page) if page is not None else None))
+    return out
+
+
+def test_rows_from_different_sheets_get_different_statements():
+    """What the statement is FOR. The mapping stage scopes every row's candidate list by the
+    statement of the page it was printed on (``map_ontology._statement_of``), so with every sheet
+    unclassified no row got a statement-scoped list at all. Two classified sheets must now yield
+    two statements across the workbook's rows.
+
+    This used to be asserted through ``map_ontology.batch_groups``, which grouped rows by
+    (statement, basis, period) so a batched LLM call could see a whole statement at once. That
+    call is gone — rows are mapped one at a time and deterministically — so the boundary is
+    observed where it is now actually read: per row.
+    """
     doc, data = _classified(SHEETS)
     doc.line_items = extract_workbook(data, document_id="d1")
     assert doc.line_items, "the workbook produced no rows"
@@ -176,30 +192,31 @@ def test_rows_from_different_sheets_are_no_longer_one_batch():
     stmt_by_page = {p.index: p.statement for p in doc.pages if p.statement}
     assert stmt_by_page, "no sheet carried a statement, so the boundary is still absent"
 
-    groups = batch_groups(doc, stmt_by_page)
-    named = sorted({stmt for stmt, _items in groups if stmt})
+    by_row = _statement_by_row(doc, stmt_by_page)
+    named = sorted({stmt for _li, stmt in by_row if stmt})
     assert named == ["balance_sheet", "cash_flow"], (
-        f"rows were not batched by statement: {[s for s, _ in groups]}")
+        f"rows were not scoped by statement: {sorted({s for _l, s in by_row}, key=str)}")
 
-    # And no batch mixes the two, which is the cross-sheet walk the guard exists to stop.
-    for stmt, items in groups:
+    # And no row takes its statement from a sheet it was not printed on, which is the cross-sheet
+    # walk the guard exists to stop.
+    for li, stmt in by_row:
         if not stmt:
             continue
-        pages = {ev.provenance.page_index for li in items for ev in li.values.values()
+        pages = {ev.provenance.page_index for ev in li.values.values()
                  if ev.provenance is not None}
-        assert len(pages) == 1, f"batch {stmt} spans sheets {pages}"
+        assert len(pages) == 1, f"row {li.source_label!r} spans sheets {pages}"
+        assert stmt_by_page[next(iter(pages))] == stmt
 
 
-def test_a_sheet_with_no_statement_keeps_its_rows_out_of_a_named_batch():
-    """An unclassified sheet's rows must not be swept into a neighbouring statement's batch — they
-    fall back to the per-page group, which is what a row we cannot place is supposed to get."""
+def test_a_sheet_with_no_statement_leaves_its_rows_unscoped():
+    """An unclassified sheet's rows must not borrow a neighbouring statement — they resolve to
+    ``None``, which is what a row we cannot place is supposed to get: an unconstrained match."""
     doc, data = _classified(SHEETS)
     doc.line_items = extract_workbook(data, document_id="d1")
     stmt_by_page = {p.index: p.statement for p in doc.pages if p.statement}
     unclassified = {p.index for p in doc.pages if not p.statement}
-    for stmt, items in batch_groups(doc, stmt_by_page):
-        if not stmt:
-            continue
-        pages = {ev.provenance.page_index for li in items for ev in li.values.values()
+    for li, stmt in _statement_by_row(doc, stmt_by_page):
+        pages = {ev.provenance.page_index for ev in li.values.values()
                  if ev.provenance is not None}
-        assert not (pages & unclassified), f"batch {stmt} pulled in an unclassified sheet"
+        if pages & unclassified:
+            assert stmt is None, f"a row on an unclassified sheet was scoped to {stmt}"

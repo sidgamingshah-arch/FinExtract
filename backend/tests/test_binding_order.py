@@ -31,9 +31,7 @@ from app.config import Settings, get_settings
 from app.core.models.enums import MappingMethod
 from app.schemas.loader import load_ontology
 from app.schemas.ontology import OntologyDefinition, OntologyMapping
-from app.services.mapping import (
-    LlmBatchDecision, LlmBatchItem, LlmMappingDecision, OntologyMatcher, section_of_key,
-)
+from app.services.mapping import OntologyMatcher, section_of_key
 
 TEMPLATES = Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
 V2_JSON = (TEMPLATES / "hkfrs_hk_china_ontology.json").read_text(encoding="utf-8")
@@ -48,149 +46,9 @@ def v2():
     return load_ontology(json.loads(V2_JSON), resolve=True)
 
 
-class Spy:
-    """Records every request (payload, system, response cap) and answers as instructed."""
-
-    id = "fake"
-
-    def __init__(self, items: list[LlmBatchItem] | None = None, single: str = "",
-                 confidence: float = 0.95):
-        self._items = items or []
-        self._single = single
-        self._confidence = confidence
-        self.payloads: list[dict] = []
-        self.caps: list[int] = []
-        # Batch requests only. A batch that answers nothing falls back per line THROUGH THE SAME
-        # provider, so `payloads` mixes the two shapes and counting calls would count both.
-        self.batch_payloads: list[dict] = []
-        self.batch_caps: list[int] = []
-
-    @property
-    def batches(self) -> int:
-        return len(self.batch_payloads)
-
-    def complete_structured(self, *, system, messages, response_schema, temperature=0.0,
-                            max_tokens=2048):
-        payload = json.loads(messages[-1]["content"])
-        self.payloads.append(payload)
-        self.caps.append(max_tokens)
-        meta = {"model": "fake-llm", "input_tokens": 10, "output_tokens": 5}
-        if response_schema is LlmBatchDecision:
-            self.batch_payloads.append(payload)
-            self.batch_caps.append(max_tokens)
-            mappings = list(self._items) or [
-                LlmBatchItem(item_id=item["item_id"], canonical_key="", confidence=0.0)
-                for item in payload["source_items"]
-            ]
-            return LlmBatchDecision(mappings=mappings), meta
-        return LlmMappingDecision(canonical_key=self._single,
-                                  confidence=self._confidence if self._single else 0.0), meta
-
-    def offered(self, call: int = 0) -> list[str]:
-        return [c["canonical_key"] for c in self.payloads[call]["candidates"]]
-
-
 def _matcher(ontology, provider=None, locale="zh") -> OntologyMatcher:
     return OntologyMatcher(ontology, locale=locale, settings=get_settings(),
                            llm_provider=provider)
-
-
-# --- step 3: restrict, then match ---------------------------------------------------------------
-
-def test_the_batch_offers_only_the_sections_the_chunk_was_printed_under(v2):
-    """Measured: a current-liabilities chunk used to be offered all 72 mappable balance-sheet
-    concepts. It is now offered 12 — exactly the concepts scoped to that section.
-
-    IT WAS 17, AND THE FIVE THAT LEFT ARE NOT THIS RESTRICTION'S DOING. The extra five were the
-    statement-level totals, which belong to no section; `_match_chunk`'s `not self._sections_of(k)`
-    clause is untouched and would still admit them. They are gone because of a SECOND and narrower
-    boundary — `_llm_withheld`: only `extraction_mode: extract` is put in front of the model, and
-    all five of this statement's section-less concepts declare `extract_or_derive`. A subtotal a
-    filing DOES print is still read, by the deterministic tiers, because `_mappable_keys` is
-    deliberately not narrowed — which is why `whole_statement` below is still 73.
-
-    So this test no longer exercises unscoped reachability, and on this rulebook it cannot: every
-    section-less concept on every statement is `extract_or_derive`. The loop below is written to
-    ALLOW an unscoped concept rather than to require one, so the day an `extract` statement-level
-    total is declared it is offered and this test still passes.
-
-    THE COUNT IS `min(12, llm_candidate_cap)`, because `_match_chunk` gained the request-size bound
-    it had always been missing (`extraction.llm_candidate_cap`, previously applied on the per-line
-    path only). A bare `== 12` would make this test depend on ambient configuration without saying
-    so. The property under test is which SECTIONS may be offered, and that is asserted below
-    independently of how many survive the cap.
-    """
-    spy = Spy(items=[])
-    m = _matcher(v2, spy)
-    m.match_batch([("a", "Trade and bills payables"), ("b", "Contract liabilities")],
-                  statement="balance_sheet",
-                  sections={"a": "CURRENT LIABILITIES 流動負債",
-                            "b": "CURRENT LIABILITIES 流動負債"})
-
-    offered = spy.offered()
-    whole_statement = [k for k in m._mappable_keys() if m._in_statement(k, "balance_sheet")]
-    cap = get_settings().extraction.llm_candidate_cap
-    assert len(whole_statement) == 73, len(whole_statement)
-    # The five that left, pinned to their declared reason rather than to a number.
-    sectionless = [k for k in whole_statement if not m._sections_of(k)]
-    assert len(sectionless) == 5 and all(k in m._llm_withheld for k in sectionless)
-    assert len(offered) == min(12, cap), (len(offered), cap)
-    # The restriction itself, which no cap may widen: every offered concept is either scoped to the
-    # section the chunk was printed under, or scoped to no section at all.
-    for k in offered:
-        scope = m._sections_of(k)
-        assert not scope or "current_liabilities" in scope, k
-
-
-def test_one_unresolvable_banner_turns_the_restriction_off_for_that_chunk(v2):
-    """A row whose banner names no section we recognise is unconstrained by the gate, so narrowing
-    the list would refuse it a concept the gate would have allowed — the more expensive mistake.
-
-    REWRITTEN when `_match_chunk` gained the request-size cap it had always been missing
-    (`extraction.llm_candidate_cap`, applied on the per-line path only — an uncapped balance-sheet
-    chunk shipped all 202 shipped-rulebook concepts, ~49k tokens, and two real filings came back
-    413/429 with `llm_calls: 0`). The property this test defends is unchanged and still checked:
-    with one banner unresolvable the offered list must still SPAN THE WHOLE STATEMENT'S SECTIONS,
-    where a resolvable chunk is held to its own.
-
-    What changed is the probe. It asserted that `bs_current_assets__inventories` specifically was
-    offered — and that concept ranks 58th of 73 by `match_priority`, the bottom fifth of its own
-    section, so no size bound of any kind can keep it and the assertion had become a test that no
-    cap exists rather than a test that the restriction is off. Asserting the reachable SECTIONS
-    says what the docstring says, and it is the stronger claim: it fails if the cap starts
-    correlating with section, which a single-concept probe cannot detect.
-    """
-    spy = Spy(items=[])
-    m = _matcher(v2, spy)
-    m.match_batch([("a", "Trade and bills payables"), ("b", "Some heading we do not know")],
-                  statement="balance_sheet",
-                  sections={"a": "CURRENT LIABILITIES 流動負債", "b": "ADJUSTMENTS FOR:"})
-
-    offered = spy.offered()
-    assert "bs_current_liabilities__current_trade_payables" in offered
-
-    # THE REFERENCE POPULATION IS WHAT MAY BE OFFERED, not what may be MATCHED. Those diverged when
-    # the extract-only rule landed (`_llm_withheld`): `_mappable_keys()` is the deterministic
-    # population and still carries every `extract_or_derive` concept, because a filing that DOES
-    # print such a subtotal must have the printed row read. Measured on this rulebook, all five of
-    # the balance sheet's section-less concepts are `extract_or_derive` — so comparing against
-    # `_mappable_keys()` asked the offered list to span a `None` bucket that is WITHHELD from the
-    # offer rather than RESTRICTED out of it, which is a different mechanism and not this one's job.
-    # The narrowing is checked rather than assumed, so it cannot quietly grow to hide a real gap.
-    offerable = [k for k in m._mappable_keys()
-                 if m._in_statement(k, "balance_sheet") and k not in m._llm_withheld]
-    assert {frozenset(m._sections_of(k)) or None
-            for k in m._mappable_keys() if m._in_statement(k, "balance_sheet")} \
-        - {frozenset(m._sections_of(k)) or None for k in offerable} == {None}, \
-        "the extract-only rule withheld more than the section-less bucket on this statement"
-
-    reachable = {frozenset(m._sections_of(k)) or None for k in offered}
-    every_section = {frozenset(m._sections_of(k)) or None for k in offerable}
-    assert reachable == every_section, (
-        f"the restriction did not come off: {sorted(str(s) for s in every_section - reachable)} "
-        f"unreachable for a chunk carrying an unresolvable banner")
-    # And specifically the section the resolvable banner does NOT name, which is the whole point.
-    assert any("current_assets" in (m._sections_of(k) or ()) for k in offered)
 
 
 def test_the_deterministic_tiers_score_only_the_restricted_set():
@@ -264,28 +122,18 @@ def test_an_exclude_hint_is_a_veto_and_not_a_score_penalty():
         "pl_non_operating_expenses__finance_costs")
 
 
-# --- step 5: the semantic tier, over the restricted set only ------------------------------------
-
-def test_the_semantic_tier_is_never_shown_a_concept_from_another_section():
-    """Step 5: "Semantic tier over the restricted set only … Never over the full ontology."."""
-    ont = OntologyDefinition(
-        ontology_key="k", target_template_key="t",
-        mappings=[
-            OntologyMapping(canonical_key="bs_current_assets__inventories", label="Inventories",
-                            definition="goods held for sale"),
-            OntologyMapping(canonical_key="bs_current_liabilities__current_trade_payables",
-                            label="Trade payables", definition="amounts owed to suppliers"),
-            OntologyMapping(canonical_key="bs_total_assets", label="Total assets",
-                            definition="the sum of all assets"),
-        ],
-    )
-    spy = Spy(single="")
-    _matcher(ont, spy).match("Stock in trade", statement="balance_sheet", section="CURRENT ASSETS")
-
-    offered = spy.offered()
-    assert "bs_current_liabilities__current_trade_payables" not in offered
-    # The statement-level total belongs to no section, so it stays reachable.
-    assert set(offered) == {"bs_current_assets__inventories", "bs_total_assets"}
+# `test_editing_section_disambiguation_changes_what_the_decider_is_told` STOOD BELOW, and moved.
+#
+# It edited a concept's `section_disambiguation` and read the sentence back out of the candidate
+# payload a per-caption call was handed — the field's only reader, because prose needs a reader
+# that reads and the semantic tier was the only one. That tier is gone: a confusable tie is now
+# REPORTED rather than resolved (both concepts emitted, the row routed to review), which the tests
+# in this section cover.
+#
+# The prose still reaches a reader, from the LINE ITEM rather than from the concept —
+# `LineItemDef.section_disambiguation` travels into a line-item request as `how_to_tell_it_apart`
+# (`services.line_item_llm.line_item_payload`) — so the round trip is asserted there:
+# `tests/test_line_item_requests_run.py::test_the_lines_own_disambiguation_prose_reaches_the_request`.
 
 
 # --- step 6: a confusable tie is never broken by declaration order ------------------------------
@@ -319,46 +167,6 @@ def test_the_banner_still_settles_the_pair_outright(v2):
                       section=banner)
         assert got.canonical_key == expect and got.method is MappingMethod.EXACT
     assert m.usage["confusable_ties"] == 0
-
-
-def test_the_tie_is_handed_to_the_semantic_tier_with_its_section_disambiguation(v2):
-    """"resolve with section_disambiguation" — prose, so the only reader that can act on it is the
-    semantic tier. It is offered exactly the tied pair, and each entry carries the sentence the
-    rulebook wrote for this decision."""
-    spy = Spy(single=BORROWINGS[1])
-    m = _matcher(v2, spy)
-    got = m.match("Interest-bearing bank and other borrowings", statement="balance_sheet")
-
-    assert got.canonical_key == BORROWINGS[1] and got.method is MappingMethod.LLM
-    assert set(spy.offered()) == set(BORROWINGS)
-    for entry in spy.payloads[0]["candidates"]:
-        assert "printed section only" in entry["section_disambiguation"]
-    assert m.usage["confusable_ties"] == 0
-
-
-def test_editing_section_disambiguation_changes_what_the_decider_is_told(v2):
-    """The field is consumed, not decorative: the prose in the rulebook is the prose in the prompt."""
-    edited = _v2()
-    for c in edited["mappings"]:
-        if c["canonical_key"] == BORROWINGS[1]:
-            c["section_disambiguation"] = "MARKER: the current one is the one due within a year."
-    spy = Spy(single="")
-    _matcher(load_ontology(edited, resolve=True), spy).match(
-        "Interest-bearing bank and other borrowings", statement="balance_sheet")
-
-    prose = {e["canonical_key"]: e.get("section_disambiguation")
-             for e in spy.payloads[0]["candidates"]}
-    assert prose[BORROWINGS[1]].startswith("MARKER:")
-
-
-def test_an_answer_outside_the_tied_pair_is_not_accepted(v2):
-    """The pair is the question. A model answering something else has not resolved the tie, so the
-    row goes to review with both candidates rather than to a third concept nobody proposed."""
-    spy = Spy(single="bs_current_assets__inventories")
-    m = _matcher(v2, spy)
-    got = m.match("Interest-bearing bank and other borrowings", statement="balance_sheet")
-
-    assert got.canonical_key is None and m.usage["confusable_ties"] == 1
 
 
 def test_a_tie_the_evidence_only_scores_equally_is_also_emitted_for_review(v2):
@@ -448,176 +256,6 @@ def _doc(pages: list[tuple[int, str | None]], rows: list[tuple[int, str, list[tu
 
 
 CURRENT = [("consolidated", "current"), ("consolidated", "prior")]
-
-
-def test_a_statement_spanning_two_pages_gets_section_and_statement_passes(v2):
-    """The reason the unit changed. Grouped by page, a balance sheet printed across two pages was
-    two calls, so a section cut in half by the page break had its subtotal in one call and the lines
-    it is made of in the other — the cross-line judgement the batch exists for."""
-    from app.core.stage import PipelineContext
-    from app.stages.map_ontology import MapOntologyStage, batch_groups
-
-    doc = _doc([(0, "balance_sheet"), (1, "balance_sheet")],
-               [(0, "Trade and bills payables", CURRENT), (1, "Contract liabilities", CURRENT)])
-    assert len(batch_groups(doc, {0: "balance_sheet", 1: "balance_sheet"})) == 1
-
-    spy = Spy(items=[])
-    ctx = PipelineContext(raw_bytes=b"")
-    ctx.ontology = v2                                      # type: ignore[attr-defined]
-    ctx.registry.register("llm", "fake", lambda: spy)      # type: ignore[attr-defined]
-    ctx.settings.llm.provider = "fake"
-    MapOntologyStage().run(doc, ctx)
-
-    assert spy.batches == 2
-    assert {i["item_id"] for i in spy.payloads[-1]["source_items"]} == {
-        str(li.id) for li in doc.line_items}
-
-
-def test_two_statements_are_never_merged_into_one_call(v2):
-    from app.stages.map_ontology import batch_groups
-
-    doc = _doc([(0, "balance_sheet"), (1, "profit_and_loss")],
-               [(0, "Inventories", CURRENT), (1, "Revenue", CURRENT)])
-    groups = batch_groups(doc, {0: "balance_sheet", 1: "profit_and_loss"})
-
-    assert sorted(st for st, _ in groups) == ["balance_sheet", "profit_and_loss"]
-
-
-def test_a_second_column_block_is_a_second_statement(v2):
-    """An annual report prints the consolidated balance sheet and the company balance sheet under the
-    same classifier verdict, in different column blocks. Merged, the model is shown each caption
-    twice and asked to map both rows to one concept — which is why basis and period are in the key."""
-    from app.stages.map_ontology import batch_groups
-
-    doc = _doc([(0, "balance_sheet"), (1, "balance_sheet")],
-               [(0, "Inventories", CURRENT),
-                (1, "Inventories", [("standalone", "current"), ("standalone", "prior")])])
-    assert len(batch_groups(doc, {0: "balance_sheet", 1: "balance_sheet"})) == 2
-
-
-def test_a_row_printing_no_prior_figure_is_not_split_into_a_call_of_its_own():
-    """The columns are a property of the page's header bands, so they are read per PAGE. Read per
-    row, every line that happens to print only a current-period figure — a newly acquired lease, a
-    one-off charge — would become its own batch, which is the fragmentation this replaces."""
-    from app.stages.map_ontology import batch_groups
-
-    doc = _doc([(0, "balance_sheet")],
-               [(0, "Inventories", CURRENT),
-                (0, "Contract liabilities", [("consolidated", "current")])])
-    groups = batch_groups(doc, {0: "balance_sheet"})
-
-    assert len(groups) == 1 and len(groups[0][1]) == 2
-
-
-def test_a_page_the_classifier_could_not_place_is_routed_per_line(v2):
-    """A group with no statement is not a statement: it gets no statement-scoped candidate list, so
-    batching it would put the whole ontology in front of the model for the rows we are least able to
-    place. Page is still the grouping key, so the run record reports them together."""
-    from app.core.stage import PipelineContext
-    from app.stages.map_ontology import MapOntologyStage, batch_groups
-
-    doc = _doc([(0, "balance_sheet"), (1, None)],
-               [(0, "Trade and bills payables", CURRENT), (1, "Inventories", CURRENT)])
-    groups = batch_groups(doc, {0: "balance_sheet"})
-    assert sorted((st or "-") for st, _ in groups) == ["-", "balance_sheet"]
-
-    spy = Spy(items=[])
-    ctx = PipelineContext(raw_bytes=b"")
-    ctx.ontology = v2                                      # type: ignore[attr-defined]
-    ctx.registry.register("llm", "fake", lambda: spy)      # type: ignore[attr-defined]
-    ctx.settings.llm.provider = "fake"
-    # THIS TEST IS ABOUT UNFOCUSED ROUTING, so it says so rather than inheriting whichever way the
-    # deployment default happens to point. Focus routing decides most rows deterministically and
-    # forwards only those that could be a focus concept, which is a different question from the one
-    # asserted here — and with it on, "Inventories" is answered by the deterministic tiers instead
-    # of being offered per line, so the assertions below describe a run that did not happen.
-    ctx.settings.extraction.llm_focus_only = False
-    MapOntologyStage().run(doc, ctx)
-
-    batched = {i["item_id"] for p in spy.batch_payloads for i in p["source_items"]}
-    unplaced = next(li for li in doc.line_items if li.source_label == "Inventories")
-    assert str(unplaced.id) not in batched
-    # The per-line provider abstained, so its exact deterministic evidence is not accepted as an
-    # LLM-refined mapping.
-    assert unplaced.canonical_key is None
-
-
-# --- chunking and the response budget -----------------------------------------------------------
-
-def test_a_large_statement_is_chunked_and_each_chunk_carries_its_own_budget(v2):
-    """One unbounded call is not the alternative to one call per page. A 170-row statement is cut
-    into contiguous slices of print order, so a chunk boundary is the only place cross-line context
-    is lost instead of every page break."""
-    spy = Spy(items=[])
-    m = _matcher(v2, spy)
-    items = [(str(uuid4()), f"Caption {i}") for i in range(170)]
-    m.match_batch(items, statement="balance_sheet")
-
-    assert [len(p["source_items"]) for p in spy.batch_payloads] == [25, 25, 25, 25, 25, 25, 20]
-    assert spy.batch_caps == [m._effective_batch_max_tokens(len(p["source_items"]))
-                              for p in spy.batch_payloads]
-    assert m.usage["batch_chunks"] == 7 and m.usage["batch_max_items"] == 25
-    # Print order is preserved across the cut, so a chunk is a window on the statement and not a
-    # random sample of it.
-    seen = [i["item_id"] for p in spy.batch_payloads for i in p["source_items"]]
-    assert seen == [iid for iid, _ in items]
-
-
-def test_the_response_budget_is_measured_from_the_response_envelope(v2):
-    """The budget is derived from what the answer costs, not from `settings.llm.max_tokens` — a
-    request cap shared with every other call in the app, whose 4096 truncates a batch of ~48 long
-    keys. A truncated batch response is not a partial answer: the JSON fails to parse, the chunk
-    falls back per line, and the run still reports itself as LLM-mapped."""
-    longest = max((c.canonical_key for c in v2.mappings), key=len)
-    # THE ENVELOPE CARRIES CITATIONS, because a decision now can. The candidates are suggestions
-    # and an answer past them MUST name the row or rows the figure is printed on
-    # (`LlmBatchItem.sources`) — so an envelope without them measures a shape the contract no
-    # longer describes, and would leave the slope covering the cheapest possible reply. Two
-    # citations, which is what a figure stated across two printed rows costs; measured, the same
-    # decision is ~84 tokens uncited, ~112 with one and ~139 with two.
-    envelope = LlmBatchDecision(mappings=[
-        LlmBatchItem(item_id=str(uuid4()), canonical_key=longest, confidence=0.95,
-                     allocation_status="parent_gross_evidence_only",
-                     sources=[{"note": "7",
-                               "caption": "Depreciation of property, plant and equipment^"},
-                              {"note": "7", "caption": "Depreciation of right-of-use assets^"}])
-        for _ in range(OntologyMatcher.BATCH_MAX_ITEMS)]).model_dump_json()
-
-    # ~3 characters per token for JSON of UUIDs and long snake_case identifiers.
-    assert len(envelope) / 3 <= OntologyMatcher._batch_max_tokens(OntologyMatcher.BATCH_MAX_ITEMS)
-    # The floor is `extraction.llm_batch_response_floor_tokens` now, so this reads it off a FRESH
-    # `Settings()` and not `get_settings()`: the admin settings screen mutates the cached object in
-    # place (services.settings_state), and a value another test left on it would read here as a
-    # change to the shipped allocation.
-    floor = Settings().extraction.llm_batch_response_floor_tokens
-    matcher = OntologyMatcher(v2, locale="zh", settings=Settings(), llm_provider=Spy(items=[]))
-    assert floor == 8192, "the shipped batch response floor moved"
-    assert matcher._effective_batch_max_tokens(25) == floor
-    assert matcher._effective_batch_max_tokens(15) == floor
-    assert matcher._effective_batch_max_tokens(80) < get_settings().llm.max_tokens
-    # AND THE PER-ITEM SLOPE COVERS WHAT ONE DECISION ACTUALLY COSTS — derived from the envelope
-    # above, not hardcoded.
-    #
-    # It read `== 80` and that is what made this test wrong when the reply schema grew: `role` and
-    # `sign` added ~26 characters a decision, so a full 25-item batch needed about 2,288 tokens
-    # against the 2,256 the 80 allowed. The measurement above caught the shortfall and this line
-    # then failed for the opposite reason — it required the slope to stay at the number that no
-    # longer fit. A test that measures the cost and then pins the allowance to a literal only
-    # agrees with itself until the schema moves.
-    slope = OntologyMatcher._batch_max_tokens(2) - OntologyMatcher._batch_max_tokens(1)
-    per_item = (len(envelope) / 3) / OntologyMatcher.BATCH_MAX_ITEMS
-    assert slope >= per_item, (
-        f"the slope allows {slope} tokens a decision and one costs about {per_item:.0f} — a full "
-        f"batch would truncate, and a truncated reply does not parse")
-    # …and is not wildly generous either, since the slope is also what sizes the request.
-    assert slope <= per_item * 1.5, (slope, per_item)
-
-
-def test_small_batch_budget_is_measured_from_the_response_not_the_global_cap(v2):
-    # Fresh `Settings()` for the reason above: the floor is a setting, and get_settings() is mutable.
-    m = OntologyMatcher(v2, locale="zh", settings=Settings(), llm_provider=Spy(items=[]))
-    assert m._effective_batch_max_tokens(15) == 8192
-    assert m._effective_batch_max_tokens(15) < get_settings().llm.max_tokens
 
 
 # --- a computed concept is out of every tier, and its caption is refused not re-homed -----------
@@ -711,21 +349,6 @@ def test_a_computed_row_is_marked_a_subtotal_so_the_sweep_cannot_re_add_it(v2):
     assert row.role is LineRole.SUBTOTAL
     assert f"computed_concept_printed:{DERIVED}" in row.confidence.flags
     assert "low_mapping_confidence" in row.confidence.flags
-
-
-def test_the_model_may_not_name_a_concept_the_payload_withheld(v2):
-    """The batch path validated the model's answer against `_by_key`, which contains every concept —
-    including the ones deliberately kept out of the candidate list. A model naming a locked residual
-    put the figure in the bucket that is supposed to be the section's UNEXPLAINED remainder, and the
-    reconciliation that would have reported the gap then tied."""
-    spy = Spy(items=[LlmBatchItem(item_id="a", canonical_key="bs_current_liabilities__others",
-                                 confidence=0.99)])
-    m = _matcher(v2, spy)
-    got = m.match_batch([("a", "Some caption with no concept")], statement="balance_sheet",
-                        sections={"a": "CURRENT LIABILITIES 流動負債"})
-
-    assert "bs_current_liabilities__others" in m._locked
-    assert got["a"].canonical_key != "bs_current_liabilities__others"
 
 
 # --- global_rules on the deterministic path ------------------------------------------------------

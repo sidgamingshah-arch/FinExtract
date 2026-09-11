@@ -66,20 +66,6 @@ from app.core.models.enums import MappingMethod
 from app.schemas.ontology import OntologyDefinition, OntologyMapping
 from app.services.han import has_han, to_simplified
 from app.services import note_sourced
-from app.services.note_context import subject_tokens as _context_tokens
-
-
-class LlmMappingDecision(BaseModel):
-    """Structured output for a single description-based mapping decision."""
-
-    canonical_key: str = Field(description="the chosen canonical key, or \"\" if none fits")
-    confidence: float = Field(ge=0, le=1)
-    allocation_status: str = Field(
-        default="",
-        description="how the value relates to others: direct_exclusive | child_component | "
-                    "parent_gross_evidence_only | calculated_residual | fallback_combined | unmapped_review",
-    )
-    reason: str = Field(default="", description="brief justification grounded in meaning/criteria")
 
 
 class SourceRef(BaseModel):
@@ -116,153 +102,22 @@ class SourceRef(BaseModel):
                                                "appear verbatim in the note text you quote")
 
 
-class LlmBatchItem(BaseModel):
-    item_id: str
-    canonical_key: str = Field(description="chosen key, or \"\" if none fits")
-    # WHERE IT CAME FROM, required whenever the answer is not one of the offered candidates.
-    #
-    # The candidates are suggestions and the model may answer past them — deliberately, because
-    # that is what lets a caption reach the concept its section did not predict. What makes it safe
-    # is traceability: an off-candidate answer is worth exactly as much as the printed row behind
-    # it, so the model names the row and the framework resolves the row itself.
-    sources: list[SourceRef] = Field(
-        default_factory=list,
-        description="required when canonical_key was NOT among the candidates: the note and row "
-                    "caption(s) the figure is printed on. One entry per row; several are expected "
-                    "when a figure is stated across more than one row.")
-    confidence: float = Field(ge=0, le=1)
-    allocation_status: str = ""
-    reason: str = Field(default="", description="brief justification grounded in meaning/criteria")
-    # IS THIS ROW THE WHOLE FIGURE, OR ONE PART OF IT?
-    #
-    # WHY THE MODEL HAS TO SAY. A line item's figure is often the SUM of several printed rows — a
-    # note that splits depreciation by function prints four, and all four belong on the operating
-    # expense line. But a face line repeating a note total is the SAME figure printed twice, and
-    # adding those two overstates the line. Both cases look identical afterwards: a bigger number,
-    # on a statement that still balances because the parent's own row was consumed. Nothing
-    # downstream can tell them apart, which is why this is declared rather than inferred from "two
-    # rows share a key".
-    #
-    # `whole` is the default and the conservative answer: two rows both claiming to be the whole
-    # figure stay an `ambiguous_mapping`, which is the protection that already exists. `component`
-    # is what licenses the sum, and it commits the model to a claim the reconciliation can then
-    # check — a component set whose total does not tie to the printed subtotal shows up.
-    role: Literal["whole", "component"] = Field(
-        default="whole",
-        description='"whole" if this row IS the figure for that concept; "component" if it is one '
-                    'part of it and other rows supply the rest')
-    # THE ARITHMETIC, for a component. A cascade spelled "the wider disclosure less the
-    # cost-of-sales share" consumes one of its inputs negatively, and a contributions list that
-    # shows it positive does not add up to the figure above it.
-    sign: Literal[-1, 1] = Field(
-        default=1,
-        description="+1 if this component is added, -1 if it is subtracted; ignored for `whole`")
-
-
-class LlmBatchDecision(BaseModel):
-    """Per-statement decision over many captions at once, so cross-line judgements
-    (parent/child containment, residualisation, 'Others') have full context."""
-
-    mappings: list[LlmBatchItem] = Field(default_factory=list)
-
-    @field_validator("mappings", mode="before")
-    @classmethod
-    def _unwrap_schema_envelope(cls, value):
-        """Accept ``{"items": [...]}`` where the schema asks for ``[...]``.
-
-        Structured output here is obtained model-agnostically: the response model's JSON Schema is
-        embedded in the system prompt and the reply is validated with Pydantic. Some models echo
-        the SCHEMA NODE for an array field — ``{"type": "array", "items": [...]}`` or just
-        ``{"items": [...]}`` — instead of the array the node describes. The decisions are all
-        present and correct; only the envelope is wrong.
-
-        MEASURED: one of six mapping calls on the 四创电子 filing came back this way and raised
-
-            ValidationError: mappings — Input should be a valid array [type=list_type]
-
-        which discarded a whole chunk of 6 captions. The chunk then fell back per line, so the
-        cost was silent — the run reported a successful LLM strategy while a sixth of its
-        decisions had been thrown away on a wrapper.
-
-        Narrow on purpose: only a mapping whose payload is a list under a schema-envelope key is
-        unwrapped, and anything else is passed through untouched so the real validation error is
-        still raised. This never invents an entry — an envelope with no list stays invalid.
-        """
-        if isinstance(value, dict):
-            for envelope in ("items", "mappings"):
-                inner = value.get(envelope)
-                if isinstance(inner, list):
-                    return inner
-        return value
-
-
-# THE SYSTEM PROMPT IS TWO THINGS, and they are separated because only one of them is safe to
-# configure.
+# THE ROW REPLY CONTRACT STOOD HERE (`_LLM_REPLY_CONTRACT`) AND IS RETIRED.
 #
-# _LLM_REPLY_CONTRACT is how the answer must be SHAPED and how it must cite what it decided. The
-# reply parser, the per-item attribution and the audit trail all depend on it: an answer that
-# names an item_id nobody asked about, omits one that was asked, or returns a figure instead of a
-# key is not a worse answer — it is an unusable one, and the failure surfaces as "the model
-# returned nothing usable" rather than as a configuration mistake. So it is NOT editable, and it
-# is always sent first.
+# It told the model it was given "a raw line-item caption ... and candidate concepts", and how to
+# answer: one `canonical_key` per `item_id`, cite anything off the candidate list, never invent a
+# figure. Every clause of it presumed the question "WHICH LINE IS THIS PRINTED ROW?" — and that
+# question is no longer asked of a model. Concept mapping is settled by the deterministic ensemble
+# (`match` below), and the model is asked about LINE ITEMS: where in the notes a named line's
+# figure is printed. Its contract is `services.line_item_llm.REPLY_CONTRACT`, which is a different
+# shape rather than a reworded one — there is no candidate list to choose from, so there is nothing
+# for an "off-candidate" clause to be about.
 #
-# The judgement half — map by meaning rather than by shared words, respect the exclusions, prefer
-# the definition — is a deployment's opinion about how captions should be read, and lives in
-# configuration as `LineItemSet.prompt`. DEFAULT_MAPPING_GUIDANCE below is the wording that ships;
-# it is seeded into the configuration file rather than being a fallback here, so that editing it in
-# one place is the whole story and an empty prompt means "no guidance beyond the contract" rather
-# than "quietly restore whatever the code used to say".
-_LLM_REPLY_CONTRACT = (
-    "You are given a raw line-item caption from a financial statement (with any context) and "
-    "candidate concepts, each with: canonical_key, a definition, inclusion criteria (include), "
-    "exclusion criteria (exclude), concepts it is easily confused with, and its value_scope.\n"
-    "HOW TO ANSWER — this part is fixed and must be followed exactly:\n"
-    "- Choose at most ONE canonical_key per item.\n"
-    "- THE CANDIDATES AND THEIR ALIASES ARE SUGGESTIONS, NOT A MENU. They are the concepts "
-    "this row's statement and section make likely, and the aliases are examples of how each "
-    "is usually printed. You are NOT required to use either. If the right concept for a "
-    "caption is one that was not offered, answer with it.\n"
-    "- WHENEVER YOUR ANSWER IS NOT ONE OF THE OFFERED CANDIDATES, you MUST say where in the "
-    "document you took it from, in `sources`: the note number and the row caption(s), as "
-    "printed. One entry PER ROW — several are expected where a figure is stated across more "
-    "than one row, and each row you name is traced separately. An off-candidate answer with "
-    "no `sources` is discarded, because a mapping nobody can trace to a printed row is not "
-    "reviewable.\n"
-    "- Quote a caption as the document prints it. It is matched back against the extracted "
-    "rows to recover the page and the figure, so a paraphrase cannot be resolved, and a page "
-    "or a figure you state from memory would look authoritative and point at the wrong "
-    "place.\n"
-    "- EVERY LINE YOU MAY ANSWER WITH IS IN THE CANDIDATES OR IN `identified_for`. Lines "
-    "whose figures this framework works out for itself — from a declared calculation over "
-    "their own sub-lines — are deliberately not offered, and naming one is refused however "
-    "well you cite it. Where a note prints such a breakdown, answer with the SUB-LINE it "
-    "prints: each `identified_notes` entry names the sub-lines it was identified for, in "
-    "`identified_for`, and those are the keys to use.\n"
-    "- Cite the item by the `item_id` you were given, and the concept by its exact "
-    "`canonical_key`. Never return an item_id that was not given to you.\n"
-    "- Do not output values, figures or amounts — you are deciding which line a caption is, "
-    "not what it is worth. THE ONE EXCEPTION is a figure stated in PROSE: where a note's "
-    "narrative states an amount that appears in no table row ('Depreciation charges of "
-    "approximately HK$529,841,000 are included in other operating expenses'), give that "
-    "amount in the matching `sources` entry's `amount`, with the sentence in `quote`. It is "
-    "checked against the note's own text and refused if it is not there, so give it exactly "
-    "as printed and never round, convert or infer one.\n"
-    "- If no candidate genuinely fits, return an empty canonical_key. That is a valid answer.\n"
-    "- Return calibrated confidence in [0,1] (high only when unambiguous), and when it is clear, "
-    "an allocation_status describing how the value relates to parents/children.\n"
-    "- SEVERAL ROWS MAY BELONG ON ONE CONCEPT, and you must say which case you are in. Set "
-    "`role` to \"component\" when this row is one PART of that concept's figure and other rows "
-    "supply the rest — a note that splits a total by function prints several rows and all of them "
-    "belong on the one line. Set `role` to \"whole\" (the default) when this row IS the figure. "
-    "Do NOT mark a row as a component when it repeats an amount another row already accounts for: "
-    "a face line and the note total behind it are the same figure printed twice, and adding them "
-    "overstates the line. If you are unsure, answer \"whole\" — a duplicate declared whole is "
-    "caught, a duplicate declared component is added silently.\n"
-    "- For a component, set `sign` to -1 when it is SUBTRACTED and +1 when it is added, and give "
-    "`reason` for that row specifically — which criterion or wording makes it part of this "
-    "concept. Each component's own page, note and caption are already recorded, so `reason` is "
-    "the one part of the trace only you can supply."
-)
+# WHAT DID NOT GO WITH IT is the half below. A deployment's opinion about how a statement should be
+# READ — map by meaning rather than shared words, respect the exclusions, prefer the definition —
+# plus the rulebook's own global policies and worked examples, is about financial judgement and not
+# about a reply's shape, so it is as relevant to a line-item request as it was to a row one. It is
+# now `authored_guidance` (below the matcher), reachable by both.
 
 # The shipped judgement wording, seeded into `LineItemSet.prompt`. Kept here as the source of that
 # seed — and referenced by the test that holds the two in step — not as a runtime fallback.
@@ -270,30 +125,6 @@ DEFAULT_MAPPING_GUIDANCE = (
     "Map each caption to the concept whose definition and criteria best match what the caption "
     "REPRESENTS. Rely on financial meaning, not string similarity or shared words. Respect the "
     "exclusion criteria and the confusable-with warnings."
-)
-
-# Appended for the BATCH path only. The base instruction opens "You map a single raw line-item
-# caption", which is false when several are decided at once, and it never says what a section is —
-# so a model told an item's section had no way to know the word was binding. Kept separate from
-# the contract so correcting the batch framing cannot silently rewrite the reply rules.
-_LLM_BATCH_ADDENDUM = (
-    "\n\nThis request carries SEVERAL captions from one statement at once, in the order they are "
-    "printed in the document. Decide them together: a caption's meaning is often fixed by the "
-    "lines around it — a parent and the children that make it up, a subtotal and the lines above "
-    "it, a residual 'Others' that is whatever the section's named lines do not account for.\n"
-    "An item may carry a `section`: the normalised heading it was printed under (for example "
-    "`current_assets`, `equity`, `current_liabilities`). It is BINDING — choose a concept whose "
-    "canonical_key belongs to that section. It is what separates captions the document prints "
-    "identically in more than one place: an 'Others' line, or the 'Non-controlling interests' "
-    "printed once under the profit split and again under the total-comprehensive split. An item "
-    "with no `section` is unconstrained: decide it on meaning alone.\n"
-    "`residual_expectations` lists, per section, the kinds of caption that section is EXPECTED to "
-    "have no dedicated concept for. When an item's caption is one of those, return an empty "
-    "canonical_key instead of the nearest candidate: a later deterministic step files it in that "
-    "section's remainder, itemised under its own label. Choosing the nearest concept instead puts "
-    "the figure on a specific wrong line and the section still adds up, which is the one error "
-    "nothing downstream can detect.\n"
-    "Return one entry per item_id you were given, and never an item_id that was not given to you."
 )
 
 
@@ -914,22 +745,25 @@ class MappingResult:
     rerouted_from: str | None = None                        # see Candidate.rerouted_from
     # See Candidate.reason. Set only when the winning method is LLM.
     reason: str | None = None
-    # WHETHER THIS ROW IS THE WHOLE FIGURE FOR ITS CONCEPT, OR ONE PART OF IT — the model's own
-    # declaration (`LlmBatchItem.role`), carried through so `_apply_result` can act on it. Only
-    # ever "component" when the semantic tier said so: the deterministic tiers answer "which
-    # concept is this caption", which is not a claim about completeness, so they leave it "whole"
-    # and two of them on one key stay the `ambiguous_mapping` they have always been.
+    # WHETHER THIS ROW IS THE WHOLE FIGURE FOR ITS CONCEPT, OR ONE PART OF IT.
+    #
+    # `_apply_result` acts on it. The deterministic tiers NEVER set it to "component": they answer
+    # "which concept is this caption", which is not a claim about completeness, so they leave it
+    # "whole" and two of them on one key stay the `ambiguous_mapping` they have always been. It
+    # used to be the row-level model's own declaration; that call is gone, and the field is now
+    # the contract a LINE-ITEM answer fills (`services.line_item_requests`).
     role: str = "whole"
     # +1 added, -1 subtracted. Meaningless unless `role` is "component".
     sign: int = 1
     # WHAT THE MODEL CITED, AND WHAT THAT CITATION RESOLVED TO.
     #
-    # The candidates offered are suggestions, so the model may answer past them — which is what
-    # lets a caption reach the concept its section never predicted. Such an answer is worth
-    # precisely as much as the printed row behind it, so `sources` carries the rows
-    # `note_sourced.resolve_sources` matched (each with the page and figure taken OFF THE ROW), and
-    # `unresolved_sources` carries the citations that matched nothing — a figure stated in prose
-    # belongs to no row, and saying so is more useful than dropping it.
+    # An answer is worth precisely as much as the printed row behind it, so `sources` carries the
+    # rows `note_sourced.resolve_sources` matched (each with the page and figure taken OFF THE
+    # ROW), and `unresolved_sources` carries the citations that matched nothing — a figure stated
+    # in prose belongs to no row, and saying so is more useful than dropping it.
+    #
+    # Filled by the LINE-ITEM request path, never by the deterministic tiers: a caption match is
+    # its own evidence and cites nothing. `SourceRef` above is the shape the citation arrives in.
     sources: list[dict] = field(default_factory=list)
     unresolved_sources: list[dict] = field(default_factory=list)
     # True when the answer was NOT one of the concepts offered for this row. Not an error: it is
@@ -1116,16 +950,6 @@ def _review_cap(settings) -> int:
     """
     cap = getattr(getattr(settings, "extraction", None), "review_candidate_cap", 5)
     return max(0, int(cap if cap is not None else 5))
-
-
-def _det_cap(settings) -> int:
-    """How many deterministic candidates are named to the model —
-    ``extraction.llm_deterministic_candidate_cap``. Separate from `_review_cap` because one is a
-    UI budget and the other is a request-payload budget; they were both 3-to-5 literals and are
-    not the same decision."""
-    cap = getattr(getattr(settings, "extraction", None),
-                  "llm_deterministic_candidate_cap", 3)
-    return max(0, int(cap if cap is not None else 3))
 
 
 def section_of_banner(text: str | None) -> str | None:
@@ -1557,11 +1381,10 @@ class OntologyMatcher:
         # Description-based LLM mapping is the primary strategy when a provider is present
         # and not disabled in config.
         self.llm_enabled = bool(llm_provider) and self.settings.extraction.llm_mapping
-        # When set, only these canonical_keys may be offered to the LLM; every other row is
-        # decided by the deterministic ensemble alone (see `_llm`/`_match_chunk`).
-        self._llm_only_keys = set(self.settings.extraction.llm_only_keys)
-        # Guards `self.usage` mutations, which happen from worker threads when map_ontology runs
-        # batch chunks concurrently (see stages/map_ontology.py).
+        # Guards `self.usage` mutations. The batch chunks that used to run concurrently in
+        # map_ontology are gone, so nothing in THIS class is threaded any more — the lock stays
+        # because the counters it guards are read by the run record and a later line-item request
+        # path is the obvious candidate to fan out again.
         self._usage_lock = threading.Lock()
         # Token/usage accounting for the audit log (read by the mapping stage).
         # `failures`/`last_error` exist so a run whose LLM calls all failed can report itself
@@ -1612,12 +1435,6 @@ class OntologyMatcher:
                       #    `computed_index_skipped_locked` counts exactly that overlap.
                       "equal_priority_no_confusable": 0, "exact_ties_seen": 0,
                       "computed_index_skipped_locked": 0}
-        # System prompt = the base instruction + the ontology's own extraction policies and
-        # worked examples, so the LLM follows one consistent, auditable rulebook.
-        self._system = self._build_system()
-        # The batch path decides many captions at once and is told each row's section, neither of
-        # which the base instruction describes. Additive, so the per-line prompt is unchanged.
-        self._batch_system = self._system + _LLM_BATCH_ADDENDUM
 
         # Precompute normalized alias → key index for the exact tier, and a concept
         # index (key → mapping) for description lookups.
@@ -1692,30 +1509,27 @@ class OntologyMatcher:
         # whether because it is a swept residual, because it is computed, or because it is a
         # derived parent whose only source is its cascade.
         self._unmatchable: set[str] = self._locked | self._computed_only | self._computed_parent
-        # WHAT THE MODEL IS OFFERED: everything except the residual buckets and the derived parents.
+        # `_llm_withheld` STOOD HERE AND IS RETIRED. It named what the model was OFFERED —
+        # everything except the residual buckets and the derived parents — and it had exactly two
+        # readers: the candidate payload a printed row was shown, and the shortlist the per-caption
+        # call was given. Both went with the row request, and a set nothing consults is a boundary
+        # nobody can rely on.
         #
-        # THE RULE USED TO BE NARROWER — `extraction_mode == "extract"` only — and that was wrong in
-        # the other direction. It withheld the 38 `extract_or_derive` concepts, which mean "printed
-        # on some filings, arithmetic on others", and the 14 concepts whose `alias_matching` is
-        # disabled, which is the test for "no printed CAPTION may reach this" and says nothing
-        # about whether the model may ANSWER. Measured on the shipped set, that swept in two derived
-        # focus lines and `bs_equity__equity_and_reserves`, leaving 50 concepts unofferable where
-        # only 20 should be. Some of a filing's addition and subtraction IS the model's to do — it
-        # can read four note rows and say they are one subtotal, which no declared cascade
-        # anticipated — so the offer is now everything the two exclusions below do not name.
+        # THE BOUNDARY ITSELF DID NOT GO, it moved to where the question is now asked:
+        # `services.line_item_requests.asked_about`, which decides whether a LINE ITEM is in any
+        # request at all. Two things kept it out here and keep it out there, for different reasons:
+        # a RESIDUAL BUCKET exists to carry a section's unexplained remainder, so a figure filed in
+        # one makes the reconciliation that would have REPORTED the gap tie instead — it writes
+        # into the mechanism that audits the answer rather than into the answer; and a DERIVED
+        # PARENT's figure is its declared cascade's, so a number written straight onto it skips
+        # every rung and the run loses which disclosure it came from.
         #
-        # THE TWO EXCLUSIONS, and they are exclusions for different reasons:
-        #
-        #   * `_computed_parent` — the derived parents. Locked by instruction, see above.
-        #   * the RESIDUAL BUCKETS, keyed on `value_scope == "exclusive_residual"` rather than on
-        #     `_locked`, for the reason given above: a bucket's purpose is to carry a section's
-        #     UNEXPLAINED remainder, so a figure filed there makes the reconciliation that would
-        #     have REPORTED the gap tie instead. That writes into the mechanism that audits the
-        #     answer rather than into the answer, and none of the arithmetic the model is being
-        #     asked to do lives in a bucket.
-        self._llm_withheld: set[str] = (
-            {m.canonical_key for m in ontology.mappings
-             if m.value_scope == "exclusive_residual"} | self._computed_parent)
+        # WHAT CHANGED IN MEANING is the `extract_or_derive` line. This set withheld it, correctly,
+        # because a model shown a candidate list and a caption would GUESS at a line the framework
+        # can work out for itself. A line-item request asks something else — where is this line's
+        # figure printed — and a figure sitting in a note is answerable whether or not the
+        # arithmetic could also reach it. So `asked_about` admits it, and `test_off_candidate_
+        # answers.py` records that difference rather than leaving it to be rediscovered.
         # `binding.order` is a v2 declaration, and step 6 below (a tie between mutually-confusable
         # concepts is emitted for review, never picked by declaration order) is an implementation OF
         # it — so it is enabled by its presence. A v1 rulebook declares no binding order and no
@@ -2052,19 +1866,6 @@ class OntologyMatcher:
         coverage = self._alias_coverage(norm, alias)
         return base * (0.4 + 0.6 * coverage)
 
-    def _alias_evidence(self, canonical_key: str, norm_segments: list[str]) -> float:
-        """How well the caption explains any ONE alias of a concept — 1.0 for exact identity.
-
-        One scale for every alias claim, so two concepts' claims on one caption are comparable.
-        """
-        best = 0.0
-        for alias in self._alias_by_key.get(canonical_key) or []:
-            for norm in norm_segments:
-                if not alias or not norm:
-                    continue
-                score = 1.0 if alias == norm else self._alias_similarity(norm, alias)
-                best = max(best, score)
-        return best
 
     def _computed_claim(self, norm_segments: list[str], statement: str | None = None,
                         section: str | None = None) -> tuple[str, float] | None:
@@ -2158,328 +1959,36 @@ class OntologyMatcher:
             self.usage["computed_refused"] += 1
         return claim[0]
 
-    def _build_system(self) -> str:
-        """The fixed reply contract, then the configured guidance, then the global policies.
 
-        THE ORDER IS THE POINT. `_LLM_REPLY_CONTRACT` is first and is not configurable: it states
-        how the answer must be shaped and cited, which the reply parser and the per-item
-        attribution depend on. Everything after it is a deployment's opinion about how captions
-        should be READ, and all of it comes from configuration — so an admin can change any rule
-        of judgement without being able to produce a reply the system cannot use.
-        """
-        g = self.ontology.global_rules
-        lines: list[str] = [_LLM_REPLY_CONTRACT]
-        # THE CONFIGURED GUIDANCE (`LineItemSet.prompt`, carried here by `working_view`). The
-        # shipped wording lives in the configuration file, seeded from
-        # `DEFAULT_MAPPING_GUIDANCE` — so editing it there is the whole story, and an empty
-        # prompt means "no guidance beyond the contract" rather than quietly restoring a literal.
-        if getattr(self.ontology, "prompt", ""):
-            lines.append("\n" + self.ontology.prompt.strip())
-        policies: list[str] = []
-        policies += list(g.parent_child_allocation)
-        if g.duplicate_fact_rule:
-            policies.append(g.duplicate_fact_rule)
-        if g.other_income_rule:
-            policies.append(g.other_income_rule)
-        policies += list(g.others_policy)
-        if g.totals_policy:
-            policies.append(g.totals_policy)
-        if g.no_fabricated_split:
-            policies.append(g.no_fabricated_split)
-        if policies:
-            lines.append("\nPolicies to follow:")
-            lines += [f"- {p}" for p in policies]
-        if self.ontology.worked_examples:
-            lines.append("\nWorked examples:")
-            # Also the configured cap rather than a literal — `llm_worked_examples_cap` was the
-            # third payload knob declared in config and read by nothing. Its own note records why
-            # the default is the literal it replaces and not `len(examples)`: raising it changes
-            # what the rulebook tells the model, so that is a decision, not a default.
-            for ex in self.ontology.worked_examples[
-                    : max(0, int(getattr(self.settings.extraction,
-                                         "llm_worked_examples_cap", 6) or 0))]:
-                lines.append("- " + json.dumps(ex.model_dump(exclude_defaults=True), ensure_ascii=False))
-        return "\n".join(lines)
+    # `_FOLDABLE_FIELDS`, `_FOLD_MIN_CANDIDATES` and `_fold_shared_fields` ARE RETIRED with the
+    # candidate block they compressed. When a row request offered forty concepts at once, prose
+    # every one of them repeated (`decomposition_rule`, `section_disambiguation`, `value_scope`)
+    # could be stated once as a default with the exceptions left inline — a size optimisation on
+    # the largest part of the request, guarded by a whole test file because the way it goes wrong
+    # is not by crashing but by handing a concept a policy its author never wrote.
+    #
+    # There is no candidate block. A line-item request describes ONE line (or the handful in an
+    # authored group), so nothing repeats forty times and there is nothing to fold; what a request
+    # now spends its size on is the NOTES, and that is amortised by grouping instead
+    # (`extraction.llm_request_grouping`).
 
-    def _stratified_fill(self, keys: list[str]) -> list[str]:
-        """``keys`` reordered so that a cut at ANY length keeps every section represented.
 
-        A plain ``_by_priority`` fill is correct on the per-line path, where the shortlist has
-        already been narrowed to the one row's section. It is wrong on the batch path. When a chunk
-        carries an unresolvable banner the section restriction above is deliberately OFF, so the
-        key set spans the whole statement — and ``match_priority`` correlates with statement-level
-        totals, so a priority-ordered cut fills the list with ``bs_total_assets``-shaped concepts
-        and evicts every ordinary leaf. Measured on the shipped balance sheet: a top-40-by-priority
-        cut dropped ``bs_current_assets__inventories`` entirely.
-
-        That would make the cap a second, quieter section restriction — precisely the refusal the
-        unresolvable-banner rule exists to prevent, and it would arrive without the gate ever
-        saying no. A bound on request size must not decide meaning.
-
-        So the cut is spread instead: concepts bucketed by declared section, ordered by priority
-        WITHIN each bucket, taken round-robin. If concepts have to be dropped, dropping them evenly
-        is the honest way to do it.
-        """
-        buckets: dict[frozenset | None, list[str]] = {}
-        for k in self._by_priority(keys):
-            sections = self._sections_of(k)
-            buckets.setdefault(frozenset(sections) if sections else None, []).append(k)
-        # Statement-level concepts (those declaring no section) are taken first in each round: a
-        # subtotal can be printed under any banner, which is the same reason they survive the
-        # section restriction above.
-        order = sorted(buckets, key=lambda b: (b is not None, sorted(b) if b else []))
-        out: list[str] = []
-        while any(buckets[b] for b in order):
-            for b in order:
-                if buckets[b]:
-                    out.append(buckets[b].pop(0))
-        return out
-
-    def _concept_payload(self, keys: list[str]) -> list[dict]:
-        """Candidate concepts with the criteria the LLM reasons over — definition, include/
-        exclude, confusable-with (as labels), value_scope. Non-extracted headings skipped."""
-        out = []
-        for k in keys:
-            m = self._by_key.get(k)
-            if m is None or m.extraction_mode == "do_not_extract":
-                continue
-            # Also the choke point for the residual lock, the `derive` lock and the extract-only
-            # rule, not only `_extractable_keys`/`_mappable_keys`: the capped shortlist in `match` is
-            # assembled from the rule tier's keys rather than from either list, so a concept kept
-            # out of one route has to be kept out of the other as well. A concept the model cannot
-            # see is a concept the model cannot pick.
-            #
-            # `_llm_withheld` is a superset of `_unmatchable` (a locked residual is in it by
-            # construction, and `derive` is not `extract`), so this one test does all three jobs.
-            if k in self._llm_withheld:
-                continue
-            entry: dict = {
-                "canonical_key": k,
-                "label": m.label or k.replace("_", " "),
-                "definition": m.meaning(),
-                "value_scope": m.value_scope,
-                # THE CAP IS THE CONFIGURED ONE, not a literal 4. `llm_example_aliases_cap` was
-                # declared with a measured justification ("4 truncates 4 of the 40 candidates'
-                # alias lists … 1,774 of the payload's 37,781 characters") and then read by
-                # nothing, so the number in config governed no request and turning the knob did
-                # nothing at all. The default is the literal it replaces, so shipped behaviour is
-                # unchanged — what changes is that the setting now reaches the payload it
-                # describes. Same liveness defect as the candidate cap in `_match_chunk`.
-                "example_aliases": m.aliases_for(self.locale)[
-                    : max(0, int(getattr(self.settings.extraction,
-                                         "llm_example_aliases_cap", 4) or 0))],
-            }
-            # THIS CONCEPT'S OWN INSTRUCTION, beside its definition. Carried in the candidate
-            # entry rather than appended to the system prompt because a call offers up to
-            # `llm_candidate_cap` concepts: appending would stack forty instructions on one
-            # request, most of them about concepts the caption is not, and the model would have no
-            # way to tell which applied to what.
-            if getattr(m, "prompt", ""):
-                entry["instruction"] = m.prompt
-            if m.include:
-                entry["include"] = m.include
-            if m.exclude:
-                entry["exclude"] = m.exclude
-            if m.confusable_with:
-                entry["confusable_with"] = [
-                    (self._by_key[c].label or c) for c in m.confusable_with if c in self._by_key
-                ]
-            if m.decomposition_rule:
-                entry["decomposition_rule"] = m.decomposition_rule
-            # The rulebook's own prose about the decisions this tier is here to make. "Sparse" was
-            # an `hkfrs_hk_china_ontology.json` census and belongs to that file only: 18 / 8 / 7 of
-            # its 183 concepts carry `section_disambiguation` / `derivation` / `is_gross_parent`
-            # (the third was recorded as 2 and measures 7). On `output_csv_hk_ontology.json` — the
-            # rulebook that drives the output CSV — the same three census as 395 / 0 / 32 of 462, so
-            # the first is not sparse there at all: 395 concepts across 13 distinct sentences ("Bind
-            # only to Balance Sheet / bs_ca."). Cheap on one file, a sentence per concept on the
-            # other; either way it costs nothing where the editor wrote nothing, which is all the
-            # guards below claim.
-            if m.section_disambiguation:
-                # WHICH of two look-alike captions this is. The semantic tier is the only reader
-                # that can act on it: the deterministic tiers compare strings, and step 6 hands a
-                # tie between two mutually-confusable concepts here precisely because the answer is
-                # in this sentence ("Bind by printed section only", "adjacent to trade payables").
-                entry["section_disambiguation"] = m.section_disambiguation
-            if m.derivation:
-                # How the concept is computed when the face does not print it. For an
-                # `extract_or_derive` subtotal that is the difference between "this row IS the
-                # subtotal" and "the subtotal is arithmetic and this row is one of its components".
-                entry["derivation"] = m.derivation
-                entry["extraction_mode"] = m.extraction_mode
-            if m.is_gross_parent:
-                # Containment, stated to the model as well as enforced after it
-                # (stages.map_ontology): a gross parent may not be filed alongside the children it
-                # contains, so a filing that prints the components must not also claim this concept.
-                entry["is_gross_parent"] = True
-                entry["children_if_decomposed"] = list(m.children_if_decomposed)
-            if m.equivalence is not None and m.equivalence.with_:
-                # One economic fact under two captions ("Net assets" / "Total equity"). Named so the
-                # model does not treat the twin as a rival reading of the caption.
-                entry["same_fact_as"] = {"canonical_key": m.equivalence.with_,
-                                         "relation": m.equivalence.relation,
-                                         "rule": m.equivalence.rule}
-            out.append(entry)
-        return out
-
-    # Per-candidate PROSE that is policy when every candidate says it, and a discriminator when
-    # they disagree. Only prose fields are eligible: an identifying fact (`canonical_key`,
-    # `definition`, `include`, `exclude`) belongs to its concept whatever the rest of the list
-    # says, and folding one would state a concept's own criteria as though they governed the
-    # others.
-    _FOLDABLE_FIELDS = ("decomposition_rule", "section_disambiguation", "value_scope")
-    # Below three candidates a fold saves nothing and costs locality, so it is not attempted.
-    _FOLD_MIN_CANDIDATES = 3
-
-    @classmethod
-    def _fold_shared_fields(cls, candidates: list[dict]) -> tuple[list[dict], dict]:
-        """State each policy field's prevailing value once, and keep it inline only where it differs.
-
-        WHY. The candidate block exists to let the model DISCRIMINATE between concepts, and it is
-        60% of the request. A policy field whose value is the same on most of the offered concepts
-        discriminates almost nothing there: paying for it once per candidate buys repetition, not
-        information about which candidate to choose. Measured on the shipped rulebook,
-        `decomposition_rule` has 3 distinct values across 391 items — 358 of them the same sentence,
-        which is `global_rules.no_fabricated_split` restated — and all 13 distinct
-        `section_disambiguation` values are "Bind only to <statement> / <section>", which restates
-        the `section` the source_item already carries and the instruction already enforces.
-
-        IT IS A DEFAULT WITH EXCEPTIONS, SO NOTHING IS LOST. The prevailing value is stated once and
-        every candidate that disagrees keeps its own inline, which overrides. Each concept's
-        effective value is exactly what the rulebook authored, and the contingent-liabilities
-        sentence that genuinely applies to one concept stays on that concept.
-
-        TWO PRECONDITIONS, both about not asserting more than the rulebook says:
-
-        * EVERY candidate must declare the field. A default lifted over a candidate that is SILENT
-          would hand it a policy its author never wrote — the one way a size optimisation could
-          change a decision. So silence anywhere in the block disables the fold for that field.
-        * The prevailing value must be strictly more common than any other. Two values at four
-          apiece have no default between them; naming one would be arbitrary.
-
-        MEASURED PER REQUEST rather than listed in code, because the test is "does this field
-        separate THESE candidates" — a property of the call. A batch scoped to one section folds its
-        section sentence; a batch spanning five sections keeps all five inline, where they do
-        discriminate.
-        """
-        if len(candidates) < cls._FOLD_MIN_CANDIDATES:
-            return candidates, {}
-        defaults: dict = {}
-        for field in cls._FOLDABLE_FIELDS:
-            values = [c.get(field) for c in candidates]
-            if not all(values):                      # silence anywhere: no default may be asserted
-                continue
-            counts = Counter(values).most_common()
-            if len(counts) > 1 and counts[0][1] == counts[1][1]:
-                continue                             # no clear prevailing value
-            if counts[0][1] < 2:
-                continue
-            defaults[field] = counts[0][0]
-        if not defaults:
-            return candidates, {}
-        trimmed = [{k: v for k, v in c.items()
-                    if not (k in defaults and v == defaults[k])}
-                   for c in candidates]
-        return trimmed, defaults
-
-    def _criteria_boilerplate(self) -> frozenset[str]:
-        """Words that appear in so many concepts' criteria that they cannot identify a subject.
-
-        THE MIRROR OF THE POOL'S IDF, applied to the other side of the comparison.
-        `note_context` discounts words this FILING prints everywhere; this discounts words this
-        RULEBOOK writes everywhere. Both rest on the same argument — a word shared by everything
-        distinguishes nothing — and the second is needed because the shipped criteria are machine
-        generated: 462 of 462 definitions are the sentence "Extract the reported value for '<label>'
-        from the stated section. Do not calculate or replace it, because the revised template does
-        not designate this field as formula-driven."
-
-        WITHOUT THIS FILTER THAT BOILERPLATE IS THE PROBE. Measured before it existed, the probe for
-        `cf_financing__translation_adj_relating_to_cash` selected the trade-receivables note at
-        0.381 on three shared words — `amounts`, `from`, `other` — every one of them from the
-        template sentence and none of them from the concept. A context block about receivables was
-        being attached to a cash-flow translation adjustment, and the request would have looked
-        perfectly reasonable.
-
-        THE FRACTION IS MEASURED, not chosen. Concept frequency over the shipped rulebook has a
-        sharp cliff: 25 tokens appear in 76%-99.6% of the 462 concepts (the template sentence), and
-        the next most common word is `balance` at 47%. Any threshold between 50% and 70% isolates
-        exactly the boilerplate, so the default sits in the middle of that gap and no real financial
-        vocabulary is near it.
-        """
-        cached = getattr(self, "_criteria_boilerplate_cache", None)
-        if cached is not None:
-            return cached
-        fraction = float(getattr(self.settings.extraction,
-                                 "llm_context_criteria_boilerplate_fraction", 0.6) or 0.0)
-        concepts = list(self._by_key.values())
-        if not concepts or fraction <= 0:
-            self._criteria_boilerplate_cache = frozenset()
-            return self._criteria_boilerplate_cache
-        seen: Counter = Counter()
-        for m in concepts:
-            seen.update(set(_context_tokens(" ".join([
-                m.label or "", m.meaning() or "", *(m.include or ()),
-                *m.aliases_for(self.locale)[:4]]))))
-        floor = fraction * len(concepts)
-        self._criteria_boilerplate_cache = frozenset(t for t, c in seen.items() if c >= floor)
-        return self._criteria_boilerplate_cache
-
-    def _context_probe(self, caption: str, result: MappingResult) -> str:
-        """The text a note or face row is scored against: what this caption might MEAN.
-
-        The caption alone is too short to be a meaning — "Others", "Deferred taxation" and a wrapped
-        fragment all share almost no content words with the note that explains them. So the probe
-        adds the authored criteria of the concepts the deterministic tiers already consider possible
-        for this row: their labels, definitions and include lists. Those sentences are the only
-        written statement of what each concept means, which is what makes the resulting selection a
-        judgement about subject matter rather than a caption-to-title string comparison.
-
-        Deliberately the DETERMINISTIC candidates and not the whole offered list: scoring against
-        all forty concepts of a statement would make every row's probe nearly the same text, and
-        every row would then receive the same notes.
-        """
-        parts: list[str] = [caption]
-        keys = [result.canonical_key] + [c.canonical_key for c in result.candidates]
-        for key in list(dict.fromkeys(k for k in keys if k))[:_det_cap(self.settings) + 1]:
-            m = self._by_key.get(key)
-            if m is None:
-                continue
-            parts.append(m.label or key.replace("_", " "))
-            parts.append(m.meaning() or "")
-            parts.extend(m.include or ())
-            parts.extend(m.aliases_for(self.locale)[:4])
-        # The rulebook's own boilerplate removed, so what is left is the subject — see
-        # `_criteria_boilerplate`.
-        drop = self._criteria_boilerplate()
-        return " ".join(t for t in _context_tokens(" ".join(p for p in parts if p))
-                        if t not in drop)
-
-    def _residual_expectations(self, statement: str | None,
-                               sections: set[str] | None = None) -> list[dict]:
-        """What each section's residual is EXPECTED to absorb — ``expected_components``.
-
-        The buckets themselves are locked out of every candidate list, which leaves the model with
-        no licence to answer "none of these" for the captions the rulebook already knows have no
-        dedicated concept ("Bank overdrafts", "Contract assets", "Club memberships"). Offered a list
-        of concepts and a caption, a model picks the nearest one; the figure then lands on a specific
-        wrong line instead of in the section remainder, and the section still ties.
-
-        So the expectations are handed over WITHOUT naming the bucket's canonical_key: the answer
-        being licensed is an empty key, which routes the row to the sweep that owns those buckets.
-        """
-        out: list[dict] = []
-        for key in sorted(self._locked):
-            m = self._by_key.get(key)
-            if m is None or not m.expected_components:
-                continue
-            if statement and not self._in_statement(key, statement):
-                continue
-            tokens = self._sections_of(key)
-            if sections is not None and not (tokens & sections):
-                continue
-            out.append({"section": ", ".join(sorted(tokens)) or "statement",
-                        "captions_with_no_dedicated_concept": list(m.expected_components)})
-        return out
+    # `_concept_payload` AND `_context_probe` STOOD HERE AND ARE RETIRED.
+    #
+    # `_concept_payload` built the candidate list a row request offered: each concept's label,
+    # definition, include/exclude, `section_disambiguation`, `value_scope`, `is_gross_parent`,
+    # `same_fact_as` and up to `llm_example_aliases_cap` example aliases — everything needed to
+    # CHOOSE a line for a caption. `_context_probe` built the text a row was scored against when
+    # selecting which notes to attach to it, assembled from the deterministic candidates' criteria.
+    #
+    # Both answered the row question. What replaces the payload is
+    # `services.line_item_llm.line_item_payload`, which describes ONE LINE rather than a menu of
+    # concepts — and reaches further than the concept payload could: the working view is a
+    # projection of the MATCHABLE concepts and drops all 77 sub-line items, so a PART, the layer
+    # that corresponds to a printed note row, had no entry here to be described by at all.
+    # `section_disambiguation` travels with it (as `how_to_tell_it_apart`) rather than being lost.
+    # Note selection is `services.line_item_notes`, which scores a LINE's own authored prose
+    # against the note headings and needs no probe assembled from a row's rival candidates.
 
     def _extractable_keys(self) -> list[str]:
         """The concepts the framework may EXTRACT — by matching a caption or by computing.
@@ -2506,61 +2015,6 @@ class OntologyMatcher:
         index). A key absent from only some of them still binds through the rest.
         """
         return [k for k in self._extractable_keys() if k not in self._unmatchable]
-
-    def _llm(self, raw: str, context: str | None, keys: list[str]) -> Candidate | None:
-        """Description/criteria-based decision — the key driver in the ensemble."""
-        if self.llm_provider is None:
-            return None
-        if self._llm_only_keys:
-            keys = [k for k in keys if k in self._llm_only_keys]
-        candidates = self._concept_payload(keys)
-        if not candidates:
-            return None
-        user = json.dumps({"caption": raw, "context": context or "", "candidates": candidates},
-                          ensure_ascii=False, indent=2)
-        try:
-            decision, meta = self.llm_provider.complete_structured(
-                system=self._system,
-                messages=[{"role": "user", "content": user}],
-                response_schema=LlmMappingDecision,
-                # `extraction.llm_line_max_tokens`, not the 512 literal that stood here: the
-                # setting shipped declared and read by nothing, so the deployment number documented
-                # in config.py (a model whose reasoning cannot be disabled spends the completion
-                # budget thinking and returns empty content with finish_reason=length) could not
-                # actually be moved. Default equals the literal, so this is a no-op until set.
-                max_tokens=int(getattr(self.settings.extraction, "llm_line_max_tokens", 512)
-                               or 512),
-            )
-        except Exception as exc:  # noqa: BLE001
-            # Provider unreachable/misconfigured (commonly a missing API key) → the
-            # deterministic ensemble decides. Record WHY: a run that silently degrades and
-            # still reports itself as LLM-mapped overstates the quality of its own output.
-            with self._usage_lock:
-                self.usage["failures"] += 1
-                if not self.usage["last_error"]:
-                    self.usage["last_error"] = f"{type(exc).__name__}: {exc}"[:200]
-            print(f"[mapping] llm call FAILED: {type(exc).__name__}: {exc}", flush=True)
-            return None
-        with self._usage_lock:
-            self.usage["calls"] += 1
-            self.usage["input_tokens"] += int(meta.get("input_tokens") or 0)
-            self.usage["output_tokens"] += int(meta.get("output_tokens") or 0)
-            self.usage["model"] = meta.get("model", self.usage["model"])
-            call_no = self.usage["calls"]
-        # Printed live (not just recorded) so a run in progress is visible in the server console
-        # without waiting for the audit log entry the run writes only at the end.
-        print(f"[mapping] llm call #{call_no} ok caption={raw[:60]!r} "
-              f"in={meta.get('input_tokens')} out={meta.get('output_tokens')}", flush=True)
-        key = (decision.canonical_key or "").strip()
-        # `_unmatchable` as well as unknown: a concept was kept out of the payload precisely because
-        # no printed caption may be bound to it, and a model naming one anyway is not a licence to
-        # file the row there. A locked residual named by the model would put the figure in the
-        # bucket that is supposed to be the section's UNEXPLAINED remainder.
-        if not key or key not in self._by_key or key in self._unmatchable:
-            return None
-        return Candidate(key, MappingMethod.LLM, max(0.0, min(1.0, decision.confidence)),
-                         allocation_status=(decision.allocation_status or "").strip() or None,
-                         reason=(decision.reason or "").strip() or None)
 
     # -- orchestration ----------------------------------------------------
 
@@ -2690,28 +2144,18 @@ class OntologyMatcher:
                 and not (caption and _names_a_different_class(
                     canonical_key, caption, self._sections_of(canonical_key))))
 
-    def _answer_confusable_tie(self, raw_label: str, context: str | None,
-                               tied: list[str]) -> MappingResult:
-        """``binding.order`` step 6: resolve a mutual-``confusable_with`` tie, or emit both.
+    def _answer_confusable_tie(self, raw_label: str, tied: list[str]) -> MappingResult:
+        """``binding.order`` step 6: a mutual-``confusable_with`` tie — emit BOTH, never pick.
 
-        The semantic tier is offered exactly the tied concepts, so the decision is made on the one
-        piece of evidence that can settle it — each concept's ``section_disambiguation``, which
-        `_concept_payload` carries. With no provider, or when the model abstains or answers outside
-        the pair, both are emitted as candidates and the row is routed to review. Never a pick by
-        declaration order, which is what "highest priority, ties to the first declared" was for the
-        38 shared aliases in the shipped file whose claimants sit at equal priority.
+        Two concepts that claim this alias, sit at the same priority and name each other as
+        confusable are a tie the rulebook forbids breaking by declaration order, and no
+        deterministic method can separate them. Nothing is asked to settle it either: concept
+        mapping is decided by the deterministic ensemble alone (the model is asked about LINE
+        ITEMS, not about printed rows), so the tie is REPORTED rather than resolved — both are
+        emitted as candidates and the row is routed to review. Never a pick by declaration order,
+        which is what "highest priority, ties to the first declared" was for the 38 shared aliases
+        in the shipped file whose claimants sit at equal priority.
         """
-        llm = self._llm(raw_label, context, self._by_priority(tied)) if self.llm_enabled else None
-        if llm is not None and llm.canonical_key in tied:
-            alloc = llm.allocation_status or (
-                "direct_exclusive"
-                if self._by_key[llm.canonical_key].value_scope == "exclusive_leaf" else None)
-            return MappingResult(
-                canonical_key=llm.canonical_key, method=MappingMethod.LLM, confidence=llm.score,
-                candidates=[llm], needs_review=llm.score < self.settings.extraction.auto_accept_confidence,
-                scores={"exact": 1.0, "llm": llm.score}, allocation_status=alloc,
-                agreement=["llm", "exact"],
-            )
         with self._usage_lock:
             self.usage["confusable_ties"] += 1
         # DELIBERATELY NOT CAPPED, unlike the review shortlists on the other exits from `match`
@@ -2726,25 +2170,21 @@ class OntologyMatcher:
                               for k in self._by_priority(tied)],
                              True, {"exact": 1.0}, allocation_status="unmapped_review")
 
-    @staticmethod
-    def _best_per_key(cands: list[Candidate]) -> list[Candidate]:
-        """Highest-scoring candidate per concept, best first (segments can both propose one)."""
-        best: dict[str, Candidate] = {}
-        for c in cands:
-            cur = best.get(c.canonical_key)
-            if cur is None or c.score > cur.score:
-                best[c.canonical_key] = c
-        return sorted(best.values(), key=lambda c: c.score, reverse=True)
 
-    def match(self, raw_label: str, context: str | None = None,
+    def match(self, raw_label: str,
               statement: str | None = None, section: str | None = None) -> MappingResult:
-        """A COMBINATION of methods — no single one is authoritative:
+        """A COMBINATION of DETERMINISTIC methods — no single one is authoritative:
 
-        exact identity is deterministic evidence; when an LLM is configured it still refines
-        that evidence and may confirm or replace it. The rule tier and the model each contribute
-        candidate evidence, the LLM makes the semantic, criteria-based call (the key driver), and
-        cross-method agreement adjusts confidence and review routing. Falls back to the
-        deterministic margin policy only when no LLM is configured.
+        exact normalised-alias identity is free and unambiguous; the rule tier's authored hints
+        contribute candidate evidence; the margin policy below decides confidence and review
+        routing. There is no semantic tier. Concept mapping is settled by this ensemble alone,
+        because the model is asked about LINE ITEMS and the notes they name
+        (`services.line_item_requests`) and never about a printed row — so nothing here confirms,
+        refines or replaces the lexical evidence, and a caption the ensemble cannot place is
+        routed to review instead of being guessed at.
+
+        The ``context`` parameter is gone with that tier: it existed only to give the per-caption
+        call something to read besides the caption, and no caller ever passed it.
 
         ``statement`` is the statement the caption was printed on (``balance_sheet``,
         ``profit_and_loss``, ``cash_flow``, ``changes_in_equity``) when the page classifier
@@ -2764,7 +2204,6 @@ class OntologyMatcher:
         norm_segments = [n for n in (normalize_label(seg) for seg in segments) if n]
         s = self.settings
         scores: dict[str, float] = {}
-        exact_candidate: Candidate | None = None
 
         def _ok(k: str) -> bool:
             return self._allowed(k, statement, section, raw_label)
@@ -2780,7 +2219,7 @@ class OntologyMatcher:
             # tier, or it abstains, both are emitted and the row goes to review.
             tied = self._exact_tie(seg_norm, allowed=_ok)
             if tied:
-                return self._answer_confusable_tie(raw_label, context, tied)
+                return self._answer_confusable_tie(raw_label, tied)
             # The scoping gate is handed to the alias lookup rather than applied after it: when
             # two concepts claim the same alias, the one that fits where this caption was printed
             # has to be the one returned.
@@ -2795,31 +2234,20 @@ class OntologyMatcher:
             if exact:
                 if exact.rerouted_from:
                     self._record_route(exact.rerouted_from, exact.canonical_key)
-                # DO NOT SPEND A CALL ASKING ABOUT A CONCEPT THE MODEL MAY NOT NAME.
+                # AN EXACT ALIAS HIT IS THE ANSWER, and it returns here.
                 #
-                # An exact alias hit normally falls through to the semantic tier, which is right
-                # when the model could name the same concept: it may know better, and the alias may
-                # be a false hit. But when the hit names something in `_llm_withheld` the model
-                # CANNOT return it — the key is off the candidate list and an answer naming it is
-                # refused — so the call can only end in the same answer, a different one, or none.
-                # For `extract_or_derive` in particular the printed row is exactly what must be
-                # read, so locking in the alias is the intended outcome rather than a compromise.
+                # It used to fall through to a semantic tier that could confirm or replace it.
+                # There is no such tier: concept mapping is decided by the deterministic ensemble
+                # alone, and the model is asked about LINE ITEMS and the notes they name
+                # (`services.line_item_requests`) rather than about printed rows. So an alias hit
+                # is not carried down as one more piece of evidence for a call nobody makes.
                 #
-                # SCOPE, stated because it was originally mis-stated here: this is a cost-and-
-                # coherence guard, NOT the fix for the lost-figure regression. That regression was
-                # in the focus-routing ROW GATE (`stages.map_ontology`), which computed a row's
-                # deterministic answer and then discarded it when forwarding the row to the model —
-                # so a refused batch left the row unmapped. It is fixed there, by keeping that
-                # answer as the fallback, and measured there. This guard is the same principle one
-                # layer down, and it matters on the paths the row gate does not cover: a run with
-                # `llm_focus_only` off sends every row through here.
-                if not self.llm_enabled or exact.canonical_key in self._llm_withheld:
-                    return MappingResult(exact.canonical_key, exact.method, 1.0, [exact], False,
-                                         {"exact": 1.0}, allocation_status="direct_exclusive",
-                                         rerouted_from=exact.rerouted_from)
-                exact_candidate = exact
-                scores["exact"] = 1.0
-                break
+                # For `extract_or_derive` in particular this was always the intended outcome
+                # rather than a compromise — the printed row is exactly what must be read — and it
+                # is now simply what happens for every concept.
+                return MappingResult(exact.canonical_key, exact.method, 1.0, [exact], False,
+                                     {"exact": 1.0}, allocation_status="direct_exclusive",
+                                     rerouted_from=exact.rerouted_from)
 
         # 2. `binding.order` step 3 — RESTRICT the candidate set to the concepts the rulebook lets a
         #    row printed here be bound to, BEFORE any matching runs. It used to be a filter applied
@@ -2835,9 +2263,6 @@ class OntologyMatcher:
         rule = next((r for r in (self._rule(seg, allowed_keys) for seg in segments) if r), None)
         by_method: dict[str, set[str]] = {}
         pool: list[Candidate] = []
-        if exact_candidate:
-            by_method["exact"] = {exact_candidate.canonical_key}
-            pool.append(exact_candidate)
         if rule:
             scores["rule"] = rule.score
             by_method["rule"] = {rule.canonical_key}
@@ -2870,90 +2295,6 @@ class OntologyMatcher:
         if computed is not None:
             return MappingResult(None, MappingMethod.UNMATCHED, 0.0, ranked[:_review_cap(self.settings)], True, scores,
                                  allocation_status="unmapped_review", computed_claim=computed)
-
-        # 4. LLM semantic decision (`binding.order` step 5) — the key driver, shown the
-        #    deterministic shortlist, or the whole RESTRICTED set for a small ontology, plus each
-        #    concept's criteria. Never the full ontology: the restriction is step 3's, applied above.
-        if self.llm_enabled:
-            # `_llm_withheld` and not `allowed_keys`: the deterministic tiers above ran on the full
-            # restricted set, so a printed `extract_or_derive` subtotal has already had its chance
-            # to be matched by caption. Only the OFFER to the model is narrowed.
-            all_keys = [k for k in self._mappable_keys()
-                        if k in allowed_keys and k not in self._llm_withheld]
-            # Policy restriction (`extraction.llm_only_keys`): a row none of whose candidates are on
-            # the allow-list is never OFFERED to the model at all — which must fall through to the
-            # deterministic tiers below exactly as an unconfigured LLM would, not be reported as the
-            # model having seen the row and abstained (the abstention branch just below).
-            restricted_out = bool(self._llm_only_keys) and not any(
-                k in self._llm_only_keys for k in all_keys)
-            if restricted_out:
-                llm = None
-            else:
-                if len(all_keys) <= s.extraction.llm_candidate_cap:
-                    shortlist = all_keys
-                else:
-                    # Deterministic evidence first, then the rest of the RESTRICTED set to fill the
-                    # cap. The fill is not padding: with the fuzzy tier gone the evidence here is a
-                    # rule hit or nothing at all, and a section whose concepts merely have no hints
-                    # authored on them would otherwise reach the model as a shortlist of one — or of
-                    # none, which would leave the model to answer about a set it was never shown. The
-                    # restriction to the section (step 3) is what keeps the fill honest;
-                    # ``_by_priority`` below decides the reading order within it.
-                    shortlist = list(dict.fromkeys(
-                        ([exact_candidate.canonical_key] if exact_candidate else [])
-                        + ([rule.canonical_key] if rule else [])
-                        + self._by_priority(all_keys)))[: s.extraction.llm_candidate_cap]
-                # Offered in descending match_priority, so the long specific concept is read before
-                # the short generic one it collides with on token overlap: "Current portion of
-                # long-term debt" (68) ahead of "Borrowings (current)" (60), a mutually
-                # `confusable_with` pair the file happens to DECLARE the wrong way round, so
-                # priority is doing real work here rather than agreeing with insertion order.
-                #
-                # The rulebook's own note on match_priority names a different pair ("Total assets
-                # less current liabilities", 86, over "Total current liabilities", 82). That one can
-                # no longer both be offered — every `*_top_level` total is `extract_or_derive` and
-                # so withheld from the model by `_llm_withheld` — which is why the example here is
-                # an in-section `extract` pair instead. Applied AFTER the cap on
-                # purpose: priority decides what the model reads first, never which concepts it is
-                # allowed to see, so a high-priority concept with no evidence behind it cannot evict
-                # an evidenced one.
-                shortlist = self._by_priority(shortlist)
-                llm = self._llm(raw_label, context, shortlist)
-            if llm is not None:
-                scores["llm"] = llm.score
-                # Corroboration across methods — agreement raises confidence, a strong
-                # lexical disagreement lowers it and flags review.
-                agreement = [meth for meth, keys in by_method.items() if llm.canonical_key in keys]
-                conf = llm.score
-                if agreement:
-                    conf = min(1.0, llm.score + 0.10 * (1.0 - llm.score))
-                elif det_top is not None and det_top.score >= s.extraction.evidence_floor:
-                    conf = llm.score * 0.85
-                needs_review = (
-                    conf < s.extraction.auto_accept_confidence
-                    or (not agreement and det_top is not None
-                        and det_top.score >= s.extraction.evidence_floor)
-                )
-                alloc = llm.allocation_status
-                if alloc is None:
-                    scope = self._by_key[llm.canonical_key].value_scope
-                    alloc = "direct_exclusive" if scope == "exclusive_leaf" else None
-                return MappingResult(
-                    canonical_key=llm.canonical_key, method=MappingMethod.LLM, confidence=conf,
-                    candidates=[llm] + ranked[:max(0, _review_cap(self.settings) - 1)], needs_review=needs_review, scores=scores,
-                    allocation_status=alloc, agreement=["llm", *agreement], reason=llm.reason,
-                )
-            # A real provider failure or request error should not wipe out deterministic evidence.
-            # Only a deliberate abstention (empty canonical_key) is a review-worthy no-answer — and
-            # only when the row was actually offered to the model. Restricted out by policy, it was
-            # never asked, and falls through to the deterministic tiers below like an unconfigured
-            # LLM would.
-            if restricted_out or self.usage["failures"] > 0:
-                # Continue into the deterministic fallback below.
-                pass
-            else:
-                return MappingResult(None, MappingMethod.UNMATCHED, 0.0, ranked[:_review_cap(self.settings)], True, scores,
-                                     allocation_status="unmapped_review")
 
         # 5. Deterministic decision when no LLM is configured, or when the configured LLM failed.
         #    If a configured LLM abstained, the row is left UNMAPPED for a human rather than
@@ -2998,640 +2339,52 @@ class OntologyMatcher:
         return MappingResult(None, MappingMethod.UNMATCHED, 0.0, ranked[:_review_cap(self.settings)], True, scores,
                              allocation_status="unmapped_review")
 
-    # One batch call's RESPONSE budget, and the chunk size it implies.
-    #
-    # Measured from the response envelope rather than guessed: `LlmBatchDecision` serialises one
-    # decision as {"item_id": "<uuid>", "canonical_key": "…", "confidence": 0.95,
-    # "allocation_status": "…"}, which is 238 characters for this file's longest canonical_key (101
-    # chars) with an allocation_status set — measured by dumping the model, not estimated from the
-    # schema. JSON made of UUIDs and long snake_case identifiers tokenises at roughly three
-    # characters per token, so one decision costs about 80 response tokens.
-    #
-    # RAISED FROM 80 TO 95 when `role` and `sign` were added to the reply, and the test that
-    # measures the envelope is what caught it: a 25-item batch serialises to 6,864 characters —
-    # about 2,288 tokens — against the 2,256 the old slope allowed. Thirty-two tokens short of a
-    # full batch, which does not degrade gracefully. A truncated reply is not a partial answer: the
-    # JSON fails to parse, the whole chunk falls back to per-line matching, the cross-line context
-    # the batch existed for is lost, and the run still reports itself as LLM-mapped. `"role":
-    # "whole","sign":1` is ~26 characters, so the slope has to move with the schema — which is
-    # exactly why that test measures rather than asserting a number.
-    # 170, RAISED WITH THE SCHEMA AGAIN. `sources` is the third field to move this number, and it
-    # moves it furthest because it is a LIST: an off-candidate answer cites the row or rows the
-    # figure is printed on, and each entry carries a note, a caption as printed and sometimes the
-    # sentence it came from. Measured on the real envelope — 84 tokens a decision with no citation,
-    # 112 with one, 139 with two, 167 with three. A batch is 25 decisions, so a slope that assumed
-    # the uncited case would truncate any reply where the model exercised the latitude the contract
-    # now gives it, and a truncated reply does not parse: the whole chunk drops to the weaker
-    # per-line path on a run that still calls itself LLM-mapped.
-    #
-    # Sized for THREE citations a decision rather than the average, because the cost of over-
-    # reserving is a slightly smaller batch and the cost of under-reserving is a lost chunk.
-    _BATCH_RESPONSE_TOKENS_PER_ITEM = 170
-    _BATCH_RESPONSE_RESERVE = 256          # the envelope itself, plus a margin against truncation
-    # A transport chunk, not a semantic boundary: section results are carried into the second-level
-    # statement pass as preliminary mappings. This only bounds one structured response's size.
-    BATCH_MAX_ITEMS = 25
 
-    @classmethod
-    def _batch_max_tokens(cls, n_items: int) -> int:
-        """The response budget for a chunk of ``n_items`` decisions.
+def authored_guidance(ontology, settings=None) -> str:
+    """The CONFIGURED half of any request's system prompt: guidance, policies, worked examples.
 
-        Derived from the chunk instead of reusing ``settings.llm.max_tokens`` (or the 4096 constant
-        that stood here), because that number is a REQUEST cap shared with every other call in the
-        app and has nothing to do with how many decisions were asked for. At 80 tokens a decision it
-        truncates a batch of ~48 items, and a truncated batch response is not a partial answer: the
-        JSON fails to parse, the whole chunk falls back to per-line matching, and the cross-line
-        context the batch existed for is lost silently — the run still reports itself as LLM-mapped.
-        """
-        return cls._BATCH_RESPONSE_RESERVE + n_items * cls._BATCH_RESPONSE_TOKENS_PER_ITEM
+    Everything here comes from configuration or from the rulebook, and none of it describes a
+    reply's shape — which is the split that lets an admin change any rule of judgement without
+    being able to produce a reply the system cannot use. The reply contract is the caller's, and
+    is not editable (`services.line_item_llm.REPLY_CONTRACT`).
 
-    def _effective_batch_max_tokens(self, n_items: int) -> int:
-        """Visible JSON budget for this mapping response.
+    MOVED OUT OF `OntologyMatcher._build_system` AND MADE PUBLIC. It was a private method on the
+    matcher because the matcher was the only thing that made calls; the matcher now makes none, and
+    the caller that does is a stage over line items. It reads the ontology and one cap, so a
+    matcher was never what it needed.
 
-        ``llm.max_tokens`` is the global ceiling for free-form calls. Sending that ceiling as the
-        requested completion allocation for a small structured mapping response makes compatible
-        gateways reserve millions of tokens and time out before they answer. The batch envelope
-        itself determines the only budget this call needs.
-
-        The FLOOR half of that comes from `extraction.llm_batch_response_floor_tokens`, because how
-        much headroom a reply needs is a fact about the gateway and not about this vocabulary (the
-        slope in :meth:`_batch_max_tokens` is the half that is, so it stays in code). It was the
-        literal 8192 here while the setting was read by nothing: with
-        FINEX_EXTRACTION__LLM_BATCH_RESPONSE_FLOOR_TOKENS=1234 the setting reported 1234 and this
-        method still returned 8192 for both 1 and 25 items, so the declared control was inert and
-        the operator had no lever on the documented silent failure (a truncated batch reply does not
-        parse, the chunk falls back to the weaker per-line path, and the run still reports itself as
-        LLM-mapped). ``or 0`` and not ``or 8192``: a configured 0 means "no floor, use the
-        derivation", which is a real answer for a gateway that needs no headroom — restoring the
-        default there would make 0 unsettable.
-        """
-        return max(int(getattr(self.settings.extraction, "llm_batch_response_floor_tokens", 8192)
-                       or 0),
-                   self._batch_max_tokens(n_items))
-
-    def match_batch(self, items: list[tuple[str, str]],
-                    statement: str | None = None,
-                    sections: dict[str, str | None] | None = None,
-                    preliminary: dict[str, MappingResult] | None = None,
-                    require_complete: bool = False,
-                    chunk_size: int | None = None,
-                    context_pool=None,
-                    cited_notes: dict[str, set[str]] | None = None,
-                    identified_notes: list[dict] | None = None,
-                    notes=None,
-                    ) -> dict[str, MappingResult]:
-        """Batch mapping: decide many captions in one grounded LLM call so cross-line judgements
-        (containment, residual, 'Others') have context. The model references the provided item_ids
-        and candidate keys — it never invents a value; values/provenance stay on the deterministic
-        LineItems. Falls back to per-line matching for anything the batch call can't resolve, or
-        entirely when no LLM is configured.
-
-        The batch is ONE STATEMENT — the caller groups by (statement, basis, period) and no longer
-        by source page (``stages.map_ontology``), so a statement printed across two pages is decided
-        whole. That is what the judgements above need: a subtotal and the lines it is made of, or a
-        section and its residual, routinely straddle the page break.
-
-        Large statements are CHUNKED at ``BATCH_MAX_ITEMS`` rather than sent as one unbounded call,
-        each chunk with its own derived response budget (:meth:`_batch_max_tokens`). Chunks are
-        contiguous slices of print order, so a chunk boundary is the only place cross-line context
-        is lost, instead of every page boundary.
-
-        ``items`` is a list of (item_id, source_label). ``sections`` maps an item_id to the
-        section banner that item was printed under; a batch spans several sections, so the banner
-        is per item, not per batch.
-
-        The banner is given to the MODEL as well as being enforced after it answers. It used to
-        be enforcement only: the model decided blind to the banner and a cross-section answer was
-        then discarded, dropping the row to the weaker per-line path. Withholding the one piece of
-        context the answer is graded on is how a caption that only its banner can disambiguate
-        ("Others", the two "Non-controlling interests" of a comprehensive-income statement) got
-        decided wrong and then thrown away.
-
-        A refused answer inside a declared collision family (``CONCEPT_FAMILIES``) is now RE-ROUTED
-        rather than discarded, because the banner already says which sibling was meant. Every other
-        refusal — wrong statement, the concept's own exclusions, a caption naming a mutually
-        exclusive class — still stands and is still counted as ``batch_refused``."""
-        sec = sections or {}
-        if not self.llm_enabled or not items:
-            return {iid: self.match(label, statement=statement, section=sec.get(iid))
-                    for iid, label in items}
-        out: dict[str, MappingResult] = {}
-        size = chunk_size or self.BATCH_MAX_ITEMS
-        for start in range(0, len(items), size):
-            chunk = items[start:start + size]
-            out.update(self._match_chunk(
-                chunk, statement, sec, preliminary or {}, require_complete=require_complete,
-                context_pool=context_pool, cited_notes=cited_notes,
-                identified_notes=identified_notes, notes=notes,
-                ))
-        return out
-
-    def _match_chunk(self, items: list[tuple[str, str]], statement: str | None,
-                     sec: dict[str, str | None],
-                     preliminary: dict[str, MappingResult],
-                     require_complete: bool = False,
-                     retry_depth: int = 0,
-                     context_pool=None,
-                     cited_notes: dict[str, set[str]] | None = None,
-                     identified_notes: list[dict] | None = None,
-                     notes=None,
-                     ) -> dict[str, MappingResult]:
-        """One provider call over at most ``BATCH_MAX_ITEMS`` captions. See :meth:`match_batch`."""
-        # `binding.order` step 3, on the batch path: RESTRICT the offered concepts before the call.
-        # Only concepts from THIS statement, and only from the sections this chunk was actually
-        # printed under — plus the statement-level concepts, which belong to no section and must stay
-        # reachable for a subtotal printed anywhere. Until now the whole statement was offered and a
-        # wrong-section answer was refused AFTER the model gave it, which spends the call, drops the
-        # row to the per-line path, and grades the model on a constraint it was never given a
-        # candidate list under.
-        tokens = {tok for iid, _ in items if (tok := section_of_banner(sec.get(iid)))}
-        unresolved = any(section_of_banner(sec.get(iid)) is None for iid, _ in items)
-        # Narrowed before the CAP, not only inside `_concept_payload`: the cap seeds itself from each
-        # row's deterministic suggestion, so filtering only at payload time would let a withheld
-        # concept take a seat in the shortlist and then be dropped, spending a slot on nothing.
-        keys = [k for k in self._mappable_keys()
-                if self._in_statement(k, statement) and k not in self._llm_withheld]
-        if tokens and not unresolved:
-            # One unresolvable banner and the restriction is off for the chunk: that row is
-            # unconstrained by the gate (see `_in_section`), so narrowing the list would refuse it a
-            # concept the gate would have allowed — a worse error than offering too much.
-            #
-            # GIVING A SCOPE A REAL TOKEN CAN COST IT ITS PLACE HERE, because a concept whose only
-            # token no banner phrase can produce would be narrowed out of every chunk. Measured when
-            # `notes` gained its token (see `SECTION_WORDS`): on a notes chunk the banner resolves to
-            # `notes`, the list goes 445 -> 70 keys and all 8 notes__* concepts survive — including
-            # `notes__contingent_liabilities`, a declared `llm_focus_key`. On the four classifier
-            # statements they were never in `keys` to begin with: they declare `statement: notes`, so
-            # `_in_statement` drops them one line above. No exemption is needed; a NEW token whose
-            # banner phrases are absent from this table would need one.
-            keys = [k for k in keys
-                    if not self._sections_of(k) or (self._sections_of(k) & tokens)]
-        if self._llm_only_keys:
-            keys = [k for k in keys if k in self._llm_only_keys]
-
-        fallback = OntologyMatcher(self.ontology, locale=self.locale, settings=self.settings)
-        deterministic = {
-            iid: preliminary.get(iid) or fallback.match(
-                label, statement=statement, section=sec.get(iid))
-            for iid, label in items
-        }
-
-        # …AND BOUND THE LIST, which the per-line path in `match` has always done and this one
-        # never did. `_concept_payload` costs roughly 970 characters per concept, so an uncapped
-        # balance-sheet chunk offers all 202 of that statement's concepts — 196,607 characters,
-        # about 49k tokens — in EVERY call, whatever the chunk is asking about.
-        #
-        # MEASURED ON TWO REAL FILINGS. The provider refused the request outright (413
-        # `request_too_large`) or rate-limited it on tokens-per-minute (429 "Requested 15931"),
-        # every mapping call failed, and both runs completed reporting `strategy: "deterministic"`
-        # with `llm_calls: 0` — a full-capability extraction silently degraded to the weaker path
-        # with nothing in the output saying the model had never been asked.
-        #
-        # The bound already existed. `extraction.llm_candidate_cap` — code default 40, though this
-        # deployment runs it at 16 from `.env` (`FINEX_EXTRACTION__LLM_CANDIDATE_CAP`), so do not
-        # read 40 as the number in force — was applied in `match` alone, so the path that decides
-        # essentially every statement row was the one path running unbounded, and the size of the
-        # request scaled with the filing: the bigger the document,
-        # the more certain it was to lose the LLM path entirely.
-        #
-        # SEEDS ARE NEVER EVICTED. A chunk carries up to BATCH_MAX_ITEMS captions, so capping by
-        # priority alone could drop the very concept a row's own deterministic tier proposed —
-        # which would grade the model on a list its answer was excluded from, the same defect the
-        # section restriction above exists to prevent. Every row's suggestion and its top
-        # candidates go in first and the cap bounds only the FILL, so the effective size is a
-        # FLOOR of `llm_candidate_cap` rather than a ceiling on the evidence.
-        cap = int(getattr(self.settings.extraction, "llm_candidate_cap", 0) or 0)
-        if cap > 0 and len(keys) > cap:
-            in_scope = set(keys)
-            seeded = [
-                k for iid, _ in items
-                for k in ([deterministic[iid].canonical_key]
-                          + [c.canonical_key for c in deterministic[iid].candidates[:_det_cap(self.settings)]])
-                if k and k in in_scope
-            ]
-            seeded = list(dict.fromkeys(seeded))
-            # The FILL is spread across sections, not taken in priority order — see
-            # `_stratified_fill` for why priority order would turn the cap into a second, quieter
-            # section restriction. `_by_priority` is applied again below to decide the reading
-            # order, so the cap never chooses what the model may see when evidence points at it.
-            keys = list(dict.fromkeys(
-                seeded + self._stratified_fill(keys)))[:max(cap, len(seeded))]
-        # Descending match_priority, for the reason the per-line shortlist is ordered that way: one
-        # batch offers a whole statement, so the order the model reads the list in is the only
-        # ranking it gets.
-        candidates = self._concept_payload(self._by_priority(keys))
-        # No candidate to choose from is not a question worth asking. `_llm` already guards this;
-        # the batch path did not, so a statement the ontology covers no concepts for (changes in
-        # equity against the shipped ontology) spent a real provider call on an empty candidate
-        # list and then fell back per line anyway.
-        if not candidates:
-            return {iid: self.match(label, statement=statement, section=sec.get(iid))
-                    for iid, label in items}
-        # WHAT WAS ACTUALLY OFFERED for this chunk. The gate below compares the model's answer
-        # against this rather than against the whole configuration: answering past the offered set
-        # is allowed and is the case that needs a citation.
-        offered_keys = {c["canonical_key"] for c in candidates}
-        # The rows a citation is resolved against — real extracted rows, so the page and figure come
-        # off the document and never from the model.
-        notes_for_sources = notes or ()
-        caption_by_id = dict(items)
-        # The section given to the model is the NORMALISED token, not the raw banner: the gate
-        # downstream compares `section_of_key` against `section_of_banner`, so naming the raw text
-        # would hand the model a vocabulary its answer is not judged in. A banner that normalises
-        # to nothing — an umbrella ("EQUITY AND LIABILITIES"), a group heading ("Adjustments
-        # for:"), anything unrecognised — is omitted rather than passed through, because the gate
-        # lets those rows go anywhere and the prompt must not imply a constraint that is not real.
-        def _sec_token(iid: str) -> str | None:
-            return section_of_banner(sec.get(iid))
-
-        # `deterministic` is built ABOVE, before the candidate cap: the cap is seeded from each
-        # row's own deterministic evidence, so that evidence has to exist before the list is cut.
-
-        # WHAT THE DOCUMENT SAYS ABOUT EACH ROW — several notes AND face rows from elsewhere in the
-        # filing, chosen because they discuss the row's subject (`services.note_context`). This
-        # replaces a field that carried only the note a row explicitly CITED, which supplied nothing
-        # at all for the majority of face rows and could not show the relationship between two
-        # printed rows that the `role` decision (whole vs component) is entirely about.
-        #
-        # Selected HERE rather than by the caller because the probe is built from each row's own
-        # deterministic candidates, and those exist only inside this method.
-        own_rows = {iid for iid, _ in items}
-        context: dict[str, list[dict]] = {}
-        if context_pool is not None and len(context_pool):
-            ex = self.settings.extraction
-            for iid, label in items:
-                found = context_pool.select(
-                    probe_text=self._context_probe(label, deterministic[iid]),
-                    cited_refs=(cited_notes or {}).get(iid) or set(),
-                    exclude_row_ids=own_rows,
-                    notes_cap=int(getattr(ex, "llm_context_notes_cap", 3) or 0),
-                    face_cap=int(getattr(ex, "llm_context_face_cap", 3) or 0),
-                    char_budget=int(getattr(ex, "llm_context_char_budget", 1200) or 0),
-                    min_score=float(getattr(ex, "llm_context_min_score", 0.35) or 0.0))
-                if found:
-                    context[iid] = found
-
-        # THE PREVAILING VALUE OF EACH POLICY FIELD, stated once instead of once per candidate.
-        # A candidate that disagrees keeps its own inline and that overrides, so no concept's
-        # effective policy changes — see `_fold_shared_fields`.
-        candidates, shared = self._fold_shared_fields(candidates)
-
-        payload: dict = {
-            "instruction": "Confirm or correct the deterministic evidence for every source_item, "
-                           "then map it to exactly one candidate canonical_key by meaning and the "
-                           "policies. Reference item_id and canonical_key; "
-                           "do not output values. source_items are in the order they are printed "
-                           "in the document. When an item carries a `section`, the concept you "
-                           "choose must belong to that section. Each item's `context` is what this "
-                           "filing says elsewhere about the same subject: a `note` is a breakdown "
-                           "and a `face` row is a printed statement line, `cited: true` marks a "
-                           "note the item's own text references, and an `amount` larger than the "
-                           "item's own is the evidence that the item is a component rather than a "
-                           "whole figure. `identified_notes` are the notes this filing's "
-                           "configuration names as the source for a line, given in full with "
-                           "their prose — a figure stated only in a footnote is found there and "
-                           "nowhere else. `candidate_policy_defaults` applies to every candidate "
-                           "except one that states its own value for the same field.",
-            # THE EVIDENCE BEFORE THE CLOSED LIST. `source_items` and their context are read first
-            # and `candidates` last, because the question is what each row means and the candidate
-            # list is only the vocabulary the answer must be expressed in.
-            # THE SUGGESTION IS FILTERED BY THE SAME SET AS THE CANDIDATE LIST. `deterministic` comes
-            # from the provider-less `fallback` matcher above, whose tiers exclude only
-            # `_unmatchable` — so without this it names concepts the candidate list withholds and
-            # the refusal below would reject, which is the worst of the three states: the request
-            # INVITES an answer it will then discard, and the model has no way to tell that the key
-            # it was just shown is not one it may use.
-            #
-            # NOT HYPOTHETICAL, measured on the shipped config: "Total current assets", "Total
-            # current liabilities", "Gross profit", "Profit before taxation", "Profit for the year"
-            # and "Inventories" all resolve to a withheld concept, so a balance-sheet or P&L chunk
-            # carrying any subtotal row hit this. Those rows lose nothing by the omission — a
-            # concept is withheld precisely because the framework works it out for itself, and the
-            # deterministic tier that produced the suggestion has already filed the figure.
-            "source_items": [
-                {"item_id": iid, "caption": label,
-                 **({"section": tok} if (tok := _sec_token(iid)) else {}),
-                 **({"deterministic_suggestion": suggestion}
-                    if (suggestion := deterministic[iid].canonical_key)
-                    and suggestion not in self._llm_withheld else {}),
-                 "deterministic_candidates": [candidate.canonical_key
-                                              for candidate in deterministic[iid].candidates[:_det_cap(self.settings)]
-                                              if candidate.canonical_key not in self._llm_withheld],
-                 **({"context": context[iid]} if context.get(iid) else {})}
-                for iid, label in items
-            ],
-        }
-        # What each section's residual is expected to absorb (`expected_components`), so "none of
-        # these" is a licensed answer for the captions the rulebook already knows have no concept.
-        expectations = self._residual_expectations(statement, tokens or None)
-        if expectations:
-            payload["residual_expectations"] = expectations
-        # THE NOTES THE CONFIGURATION IDENTIFIES, in full and once per request.
-        #
-        # Not a similarity guess: an author declared in `note_source` that this note is where a
-        # line's figure lives, which outranks any score — so the note is passed whole, every row
-        # AND the surrounding prose. The prose is the reason: on laisun.pdf the operating-expense
-        # share of depreciation is disclosed only in a footnote ("HK$529,841,000 … included in
-        # 'other operating expenses'"), and 529841 appears in no row value anywhere in the
-        # document, so neither a row-caption regex nor the row-based per-item context could reach
-        # it.
-        #
-        # BESIDE `source_items`, NOT INSIDE EACH ONE. This is document-level evidence and it is
-        # large — 24,910 characters on laisun. Repeating it per source item would be roughly a
-        # megabyte on a 43-row request and would fail the provider rather than merely cost more.
-        if identified_notes:
-            payload["identified_notes"] = identified_notes
-        if shared:
-            payload["candidate_policy_defaults"] = shared
-        # LAST, deliberately. Everything above is the question — the rows, what the filing says
-        # about them, and the policies that govern the answer. This is the vocabulary the answer has
-        # to be expressed in, and it is the largest block in the request; reading it first invites
-        # the model to shop the list for a near-enough label instead of deciding what the row means.
-        payload["candidates"] = candidates
-        user = json.dumps(payload, ensure_ascii=False, indent=2)
-        with self._usage_lock:
-            self.usage["batch_chunks"] += 1
-            self.usage["batch_max_items"] = max(self.usage["batch_max_items"], len(items))
-        try:
-            decision, meta = self.llm_provider.complete_structured(
-                system=self._batch_system,
-                messages=[{"role": "user", "content": user}],
-                response_schema=LlmBatchDecision,
-                max_tokens=self._effective_batch_max_tokens(len(items)),
-            )
-        except Exception as exc:  # noqa: BLE001
-            # Record WHY, as `_llm` does. A truncated or refused batch used to fall back per line
-            # in complete silence, so a run whose every batch failed still reported itself as
-            # LLM-mapped with no error to point at.
-            with self._usage_lock:
-                self.usage["failures"] += 1
-                if not self.usage["last_error"]:
-                    self.usage["last_error"] = f"{type(exc).__name__}: {exc}"[:200]
-                last_error = self.usage["last_error"]
-            print(f"[mapping] batch llm call FAILED ({len(items)} items): "
-                  f"{type(exc).__name__}: {exc}", flush=True)
-            # DEGRADE LOUDLY, DO NOT DISCARD THE RUN.
-            #
-            # This used to raise, and the raise propagated out of Pipeline.run and failed the whole
-            # extraction at stage 6 of 21. That was a deliberate choice, and the comment above says
-            # what it was guarding: a batch that fell back "in complete silence", leaving a run
-            # reporting itself as LLM-mapped with no error to point at. The concern was SILENCE,
-            # not continuation — and silence is now impossible, because usage["failures"] and
-            # usage["last_error"] are recorded here and map_ontology reports both onto the run's
-            # mapping strategy and reason.
-            #
-            # What made the trade untenable: a real 210-page run died having completed twenty
-            # stages, because one 18-row batch came back cut at column 5000. On a rate-limited free
-            # tier a 429 does the same. Discarding a whole filing's work to avoid overstating the
-            # confidence of a few rows is the wrong way round — the rows can be marked, the work
-            # cannot be recovered.
-            #
-            # Returning {} hands these item_ids back UNANSWERED, which is a path match_batch
-            # already has and already handles: its caller falls back to the deterministic tiers for
-            # anything the batch did not resolve. Those rows get the lexical answer rather than a
-            # judged one, every one of them carries LLM_BATCH_FAILED, and the run says so.
-            return {iid: MappingResult(
-                canonical_key=None, method="llm_batch_failed", confidence=0.0,
-                candidates=[], needs_review=True,
-                reason=f"batch of {len(items)} rows was not answered ({last_error}); "
-                       f"this row fell back to the deterministic tiers",
-            ) for iid, _ in items}
-        with self._usage_lock:
-            self.usage["calls"] += 1
-            self.usage["input_tokens"] += int(meta.get("input_tokens") or 0)
-            self.usage["output_tokens"] += int(meta.get("output_tokens") or 0)
-            self.usage["model"] = meta.get("model", self.usage["model"])
-            call_no = self.usage["calls"]
-        # Printed live so a batch run's progress is visible in the server console as it happens.
-        print(f"[mapping] batch llm call #{call_no} ok items={len(items)} "
-              f"in={meta.get('input_tokens')} out={meta.get('output_tokens')}", flush=True)
-
-        acc = self.settings.extraction.auto_accept_confidence
-        out: dict[str, MappingResult] = {}
-        answered_ids: set[str] = set()
-        for d in decision.mappings:
-            # An item_id we did not ask about is not a decision about anything. Unchecked, it
-            # reached the caller and crashed the stage (`by_id[iid]` → KeyError, killing the whole
-            # extraction), and an id that happened to be another group's real row silently applied
-            # this statement's decision to that one. It also defeated the gate: the caption lookup
-            # returned "" for an unknown id, and both caption-dependent arms of `_allowed` are
-            # skipped when the caption is empty.
-            if d.item_id not in caption_by_id:
-                with self._usage_lock:
-                    self.usage["batch_unknown_ids"] += 1
-                continue
-            answered_ids.add(d.item_id)
-            key = (d.canonical_key or "").strip()
-            # NO ANSWER, or a key that names no concept at all. The second is referential
-            # integrity rather than an opinion about the answer: a key the configuration does not
-            # carry cannot be stored, exported or reviewed.
-            #
-            # WHAT IS WITHHELD FROM THE CANDIDATE LIST IS WHAT IS REFUSED AS AN ANSWER, and the two
-            # are the same set (`_unmatchable`) on purpose — see the cited-off-candidate branch
-            # below, which is where the refusal now lives because a citation is the only thing that
-            # could otherwise have unlocked it.
-            if not key:
-                continue
-            # ONE MEMBERSHIP TEST, because there is one kind of concept. This carried a second set
-            # (`sub_item_keys`) and an `is_sub_item` branch below it, for the 77 definitions the
-            # working view used to drop for being off-template. They are ordinary concepts in
-            # `_by_key` now — see `working_view._definition_of` — so admitting them needs no channel
-            # of its own, and the branch that used to decide them separately is gone with it.
-            if key not in self._by_key:
-                with self._usage_lock:
-                    self.usage["batch_refused"] += 1
-                    self.usage["batch_unknown_key"] = self.usage.get("batch_unknown_key", 0) + 1
-                continue
-            # A concept from a different section than the row's banner is refused here for the
-            # same reason it is refused in `match`. The model is now TOLD the section, so this is
-            # a backstop rather than the only line of defence — and it still carries the two arms
-            # that have nothing to do with sections: the concept's own exclusion criteria, and a
-            # caption naming a mutually exclusive class.
-            caption = caption_by_id[d.item_id]
-            banner = sec.get(d.item_id)
-            # AN ANSWER PAST THE OFFERED CANDIDATES IS ALLOWED, and traceability is what pays for
-            # it. The candidates are the concepts this row's statement and section made likely;
-            # the model is told they are suggestions, so a caption whose real concept was never
-            # offered can still reach it. Two things are still required, and neither is a
-            # constraint on the model's judgement:
-            #
-            #   * THE KEY MUST EXIST in the configuration. A key that names no concept cannot be
-            #     stored, cannot be exported and cannot be reviewed — that is referential
-            #     integrity, not an opinion about the answer.
-            #   * IT MUST BE CITED. An off-candidate answer with no `sources` is discarded, because
-            #     a mapping nobody can trace to a printed row is not reviewable — and the statement
-            #     and section gates that would otherwise have caught a wrong one are deliberately
-            #     not applied to it.
-            #
-            # A cited off-candidate answer therefore SKIPS the statement/section gate and is flagged
-            # for review instead, with the rows its citation resolved to.
-            off_candidate = key not in offered_keys
-            # ONLY A CITED OFF-CANDIDATE ANSWER TAKES THE NEW PATH. An UNCITED one falls through to
-            # the gates below exactly as it always did — and that is not merely conservative, it
-            # preserves a correction this branch had quietly disabled: `_family_route` takes an
-            # answer that is right about WHAT KIND of thing the row is and wrong only about which
-            # section variant, and corrects it to the sibling the banner names. That answer is
-            # off-candidate by definition (its section was not the row's), so refusing every
-            # off-candidate answer here threw away every reroute — measured by
-            # `test_a_banner_naming_two_leaves_of_a_family_refuses_rather_than_guessing`, which went
-            # from a corrected mapping to none.
-            if off_candidate and not (d.sources or ()):
-                with self._usage_lock:
-                    self.usage["batch_uncited_off_candidate"] = self.usage.get(
-                        "batch_uncited_off_candidate", 0) + 1
-                # A CONCEPT NO CAPTION MAY REACH is refused here — named without a citation there
-                # is nothing to weigh against the refusal. Anything else falls through to the gates
-                # below, which is what keeps `_family_route` working: an answer right about WHAT
-                # the row is and wrong only about its section variant is off-candidate by
-                # definition, and correcting it is better than losing it.
-                #
-                # `_computed_parent` WAS ALSO REFUSED HERE AND IS NOT ANY MORE. A derived parent is
-                # now offered to the model on purpose, so that some of a filing's addition and
-                # subtraction can be the model's to do; refusing the answer it gives would offer
-                # the concept and then discard the reply. What protects the declared cascade is no
-                # longer a refusal but precedence — `stages.note_sourced._fill_by_cascade` leaves
-                # an LLM-sourced figure alone rather than the mapper forbidding one.
-                if key in self._unmatchable:
-                    with self._usage_lock:
-                        self.usage["batch_refused"] += 1
-                    continue
-            if off_candidate and (d.sources or ()):
-                # WHAT IS WITHHELD FROM THE CANDIDATE LIST IS REFUSED AS AN ANSWER, and this is
-                # the one boundary the latitude above does not cross. The test is `_llm_withheld` —
-                # exactly the set `_concept_payload` withholds — so the list the model is shown and
-                # the answers it may give are ONE decision rather than two that drift apart. A
-                # citation buys latitude about WHERE a figure came from; it does not buy a line the
-                # framework was never going to ask about.
-                #
-                # THAT SET IS NOW THE SECTION RESIDUALS AND NOTHING ELSE, and the two reasons that
-                # used to be here are gone on purpose:
-                #
-                #   * `_locked`, the residuals, REMAINS. Its purpose is to carry a section's
-                #     UNEXPLAINED remainder, so a figure filed there does not merely risk a wrong
-                #     mapping — it makes the reconciliation that would have REPORTED the gap tie
-                #     instead. That is writing into the mechanism that audits the answer rather
-                #     than into the answer, and none of the arithmetic the model is being asked to
-                #     do lives in a residual bucket.
-                #   * `extraction_mode: derive` / `extract_or_derive` and the derived parents are
-                #     NO LONGER REFUSED. They are offered now, so that some of a filing's addition
-                #     and subtraction can be the model's to do: it can read four note rows and say
-                #     they are one subtotal, which no declared cascade anticipated. Refusing the
-                #     reply would offer the concept and then discard the answer. The declared
-                #     cascade is protected by PRECEDENCE instead — `note_sourced._fill_by_cascade`
-                #     leaves an LLM-sourced figure alone and fills only what the model left empty.
-                if key in self._llm_withheld:
-                    with self._usage_lock:
-                        self.usage["batch_refused"] += 1
-                        if key in self._locked:
-                            counter = "batch_residual_named"
-                        elif key in self._computed_only or key in self._computed_parent:
-                            counter = "batch_computed_parent_named"
-                        else:
-                            counter = "batch_derivable_named"
-                        self.usage[counter] = self.usage.get(counter, 0) + 1
-                    continue
-                resolved, unresolved = note_sourced.resolve_sources(d.sources, notes_for_sources)
-                with self._usage_lock:
-                    self.usage["batch_off_candidate"] = self.usage.get("batch_off_candidate", 0) + 1
-                conf = max(0.0, min(1.0, d.confidence))
-                out[d.item_id] = MappingResult(
-                    key, MappingMethod.LLM, conf,
-                    candidates=[Candidate(key, MappingMethod.LLM, conf, reason=d.reason)],
-                    # ALWAYS reviewed: the gate that would have checked it was skipped, so a human
-                    # sees every one of these rather than the engine deciding it is fine.
-                    needs_review=True, scores={"llm": conf},
-                    allocation_status=(d.allocation_status or "").strip() or None,
-                    agreement=["llm"], reason=d.reason,
-                    role=d.role, sign=d.sign,
-                    sources=resolved, unresolved_sources=unresolved, off_candidate=True)
-                continue
-            # The same refusal `match` makes, for the same reason: a caption that names a concept the
-            # framework COMPUTES is not the model's to re-home, and the model was never offered that
-            # concept to name. The model reports no score on the deterministic scale, so what the
-            # claim is weighed against is the caption's own alias evidence for the concept it chose.
-            norm_segments = [n for n in (normalize_label(seg)
-                                         for seg in label_segments(caption)) if n]
-            # Scoped on this path too, and not only in `match`: the rival here is the caption's own
-            # alias evidence for the concept the model chose, which is WEAKER than a deterministic
-            # hit — measured 0.54 for "Depreciation of property, plant and equipment" against
-            # `cf_oper_indirect__depreciation` — so an out-of-section computed claim at 1.0 wins by
-            # more here than it does per-line. Gating one path and not the other would leave the
-            # batch call, which decides essentially every statement row, refusing them.
-            computed = self._refused_as_computed(
-                norm_segments, self._alias_evidence(key, norm_segments), statement, banner)
-            if computed is not None:
-                out[d.item_id] = MappingResult(
-                    None, MappingMethod.UNMATCHED, 0.0, [], True, {"llm": 0.0},
-                    allocation_status="unmapped_review", computed_claim=computed)
-                continue
-            rerouted_from: str | None = None
-            if not self._allowed(key, statement, banner, caption):
-                # Before discarding it: when the answer is right about WHAT KIND of thing the row is
-                # and wrong only about which section variant, the banner names the sibling and the
-                # answer is corrected rather than lost. Discarding drops the row to the per-line
-                # path, which sees one caption with no neighbours and is exactly why the batch call
-                # exists — and for a bottom line whose caption arrives as a wrapped fragment there
-                # is nothing left for that path to work from.
-                target = self._family_route(key, statement, banner, caption)
-                if target is None:
-                    with self._usage_lock:
-                        self.usage["batch_refused"] += 1
-                    continue
-                self._record_route(key, target)
-                rerouted_from, key = key, target
-            conf = max(0.0, min(1.0, d.confidence))
-            alloc = (d.allocation_status or "").strip() or (
-                "direct_exclusive" if self._by_key[key].value_scope == "exclusive_leaf" else None)
-            reason = (d.reason or "").strip() or None
-            # THE MODEL'S COMPLETENESS DECLARATION, carried through unchanged. `role` is only ever
-            # "component" because the model said so — a component licenses the sum and, unlike
-            # "whole", is a claim the reconciliation can check. Read defensively: an older model
-            # or a reply that omits the field is "whole", which is the conservative answer and
-            # keeps the pre-existing `ambiguous_mapping` protection in force.
-            role = getattr(d, "role", "whole") or "whole"
-            sign = -1 if int(getattr(d, "sign", 1) or 1) < 0 else 1
-            with self._usage_lock:
-                if role == "component":
-                    self.usage["components_declared"] = (
-                        self.usage.get("components_declared", 0) + 1)
-            # A CITATION IS EVIDENCE, NOT A PENALTY, so it is resolved wherever it is given.
-            #
-            # `resolve_sources` used to be called in the off-candidate branch and nowhere else, so
-            # an ON-candidate answer that cited its rows had them silently dropped: no page, no
-            # figure, nothing for a reviewer to click. That was invisible while the only cited
-            # answers were off-candidate ones, and it became load-bearing the moment the parts of a
-            # line became ordinary candidates — the prose path (a figure stated only in a footnote,
-            # verified against the note's own text) runs entirely on `sources`, and for an in-scope
-            # part it was being thrown away.
-            resolved, unresolved = ([], [])
-            if d.sources:
-                resolved, unresolved = note_sourced.resolve_sources(d.sources, notes_for_sources)
-            out[d.item_id] = MappingResult(
-                canonical_key=key, method=MappingMethod.LLM, confidence=conf,
-                candidates=[Candidate(key, MappingMethod.LLM, conf, rerouted_from=rerouted_from,
-                                      reason=reason)],
-                needs_review=conf < acc, scores={"llm": conf},
-                allocation_status=alloc, agreement=["llm"], rerouted_from=rerouted_from,
-                reason=reason, role=role, sign=sign,
-                sources=resolved, unresolved_sources=unresolved,
-            )
-        missing = [(iid, label) for iid, label in items if iid not in answered_ids]
-        if missing and require_complete:
-            if retry_depth:
-                raise RuntimeError(
-                    f"LLM omitted {len(missing)} required mapping rows after batch retry")
-            out.update(self._match_chunk(
-                missing, statement, sec, preliminary,
-                require_complete=True, retry_depth=retry_depth + 1,
-                context_pool=context_pool, cited_notes=cited_notes,
-                identified_notes=identified_notes, notes=notes,
-                ))
-
-        # Section-level proposals may be incomplete; the required statement pass above corrects
-        # them. No deterministic result is substituted for an omitted LLM decision.
-        for iid, label in items:
-            if iid not in out:
-                out[iid] = MappingResult(
-                    None, MappingMethod.UNMATCHED, 0.0, [], True, {"llm": 0.0},
-                    allocation_status="unmapped_review")
-        return out
+    `ontology.prompt` is `LineItemSet.prompt` — the master prompt — carried here by
+    `services.working_view`. The shipped wording is seeded into the configuration file from
+    `DEFAULT_MAPPING_GUIDANCE`, so editing it there is the whole story, and an empty prompt means
+    "no guidance beyond the contract" rather than quietly restoring a literal.
+    """
+    settings = settings or get_settings()
+    g = ontology.global_rules
+    lines: list[str] = []
+    if getattr(ontology, "prompt", ""):
+        lines.append(ontology.prompt.strip())
+    policies: list[str] = []
+    policies += list(g.parent_child_allocation)
+    if g.duplicate_fact_rule:
+        policies.append(g.duplicate_fact_rule)
+    if g.other_income_rule:
+        policies.append(g.other_income_rule)
+    policies += list(g.others_policy)
+    if g.totals_policy:
+        policies.append(g.totals_policy)
+    if g.no_fabricated_split:
+        policies.append(g.no_fabricated_split)
+    if policies:
+        lines.append("\nPolicies to follow:")
+        lines += [f"- {p}" for p in policies]
+    if ontology.worked_examples:
+        lines.append("\nWorked examples:")
+        # The configured cap rather than a literal — `llm_worked_examples_cap` was declared in
+        # config and read by nothing. Its own note records why the default is the literal it
+        # replaces and not `len(examples)`: raising it changes what the rulebook tells the model,
+        # so that is a decision, not a default.
+        for ex in ontology.worked_examples[
+                : max(0, int(getattr(settings.extraction, "llm_worked_examples_cap", 6) or 0))]:
+            lines.append("- " + json.dumps(ex.model_dump(exclude_defaults=True),
+                                           ensure_ascii=False))
+    return "\n".join(lines)

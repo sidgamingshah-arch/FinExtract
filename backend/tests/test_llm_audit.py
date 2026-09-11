@@ -53,17 +53,24 @@ def test_openai_provider_reads_the_completion_ceiling_from_gateway_errors():
 
 
 def test_mapping_json_does_not_request_reasoning_tokens(monkeypatch):
-    """A mapping batch must reserve its small completion budget for JSON, not hidden reasoning."""
+    """A structured mapping reply must reserve its small completion budget for JSON, not hidden
+    reasoning.
+
+    The schema is `line_item_llm.LineItemReply` — one citation list per line item — where it used
+    to be the row batch's `LlmBatchDecision`. Same property, and it matters for the same measured
+    reason: a model whose reasoning cannot be disabled spends the completion budget thinking and
+    returns empty content with finish_reason=length.
+    """
     from app.adapters.openai_llm import OpenAiLlmProvider
     from app.config import LlmSettings, Settings
-    from app.services.mapping import LlmBatchDecision
+    from app.services.line_item_llm import LineItemReply
 
     settings = Settings()
     settings.llm = LlmSettings(provider="openai", model="reasoning-model",
                                reasoning_effort="medium")
     provider = OpenAiLlmProvider(settings)
     body = provider.build_body(system="SYS", messages=[{"role": "user", "content": "hi"}],
-                               response_schema=LlmBatchDecision, temperature=0.0, max_tokens=1456)
+                               response_schema=LineItemReply, temperature=0.0, max_tokens=1456)
 
     assert "reasoning_effort" not in body
 

@@ -7,14 +7,14 @@ results are available (`app/core/pipeline.py::Pipeline.run`).
 
 ## Stages
 
-**Twenty stages, assembled by `app/core/pipeline.py::default_pipeline()`.** That
+**Twenty-one stages, assembled by `app/core/pipeline.py::default_pipeline()`.** That
 function is the only place the order is stated; `api/routes/extractions.py::pipeline_stage_names`
 reads the list off it rather than keeping a copy, and the run row records the list it was
 queued with. Do not add a third copy — the list below names each stage and its file, and
 its order is `default_pipeline()`'s:
 
 `ingest · integrity · language_detect · classify · extract · map_line_items · residual ·
-normalize · link_notes · note_sourced · contingent_liabilities · assemble_components · reconcile · prune_notes · confidence ·
+normalize · link_notes · line_item_llm · note_sourced · contingent_liabilities · assemble_components · reconcile · prune_notes · confidence ·
 gap_closing · face_mapping_contract · note_tag_gate · structural · segment`
 
 **Why the list is four stages shorter, and why six output lines are now blank.** Five
@@ -165,7 +165,50 @@ The face and its cited notes are processed in this order:
    numbered `16` is the common HK house style, and the citation as printed matches nothing. The
    fallback applies only when the citation itself names no table, so no row is ever tied to both
    a sub-note and its parent — the reconciliation would subtract the same detail twice.
-10. **Note-sourced fills** (`stages/note_sourced.py` + `services/note_sourced.py`) — fills every
+10. **Line-item requests** (`stages/line_item_llm.py` + `services/line_item_llm.py`) — **the
+    only place a model is asked anything about a figure.** For a line item the configuration
+    already names, it asks WHERE IN ITS SELECTED NOTES that figure is printed. The answer is a
+    CITATION — a note number and a row caption, quoted as the document prints it — and
+    `note_sourced.resolve_sources` matches it back against the extracted rows, taking the page and
+    the figure OFF THE ROW. The model is given no page index, no bbox and no licence to state an
+    amount.
+
+    *What it replaces, and why it is not the same question.* A BATCHED ROW request used to run
+    inside `map_line_items`: printed captions grouped by (statement, basis, period), each call
+    asking the model to pick a concept from a candidate list. That needed a candidate list, a
+    statement/section gate to grade the answer against, a cap on how many concepts fit in one
+    call, a thread pool, and a deterministic fallback for every row it forwarded — all of it
+    because THE LINE WAS THE UNKNOWN. Here the line is given, so there is nothing to force-fit:
+    an answer is a citation, or an empty `sources` meaning "this filing does not state it", which
+    is a real answer rather than a failure. Concept mapping is now settled by the deterministic
+    ensemble alone and `map_line_items` makes no provider call at all.
+
+    *The one figure the model may state* is an amount disclosed in PROSE and in no table row
+    ("Depreciation charges of approximately HK$529,841,000 are included in other operating
+    expenses"). It is verified against the note's own text before it is accepted — so the model is
+    LOCATING a printed number rather than supplying one — and it is divided by
+    `unit_context.scale_factor`, because a sentence states its amount in full where a table states
+    it in the statement's units.
+
+    *Which lines are asked about.* `line_item_requests.asked_about` is the boundary: a DERIVED
+    PARENT is never asked, because its figure is its declared cascade's and a number written
+    straight onto it skips every rung, losing which disclosure it came from and the cross-check
+    between rungs. A residual bucket is never asked either — it carries a section's unexplained
+    remainder, so a figure filed there makes the reconciliation that would have REPORTED the gap
+    tie instead.
+
+    *Which lines share a request.* `extraction.llm_request_grouping` — `none` (one per line, the
+    baseline and the only mode whose answer is attributable to one line), `identical`, `similar`
+    (`llm_group_similarity`) or `manual` (the groups authored on the set). What grouping buys is
+    the NOTE BLOCK: measured at 95,188 of a ~196,000-character request, byte-identical in every
+    call of a run, so lines needing the same notes can amortise one copy.
+
+    *Position.* Immediately before `note_sourced`, the deterministic reader of the same
+    `note_source` declarations. Every site that stage writes a figure asks `_llm_holds` first, so a
+    line answered here keeps its answer and the declared route fills what was left empty — neither
+    route overwrites the other.
+
+11. **Note-sourced fills** (`stages/note_sourced.py` + `services/note_sourced.py`) — fills every
     line item that declares WHERE IN THE NOTES its figure lives. `LineItemDef.note_source` names
     regexes for the note's title, for the row captions that COUNT, and for the captions that must
     be EXCLUDED even when a counting pattern claimed them (which is how "depreciation" stops
@@ -192,7 +235,7 @@ The face and its cited notes are processed in this order:
     not put through the unsigned-expense cohort vote, which would flip the sign of every expense on
     the statement.
 
-11. **Contingent liabilities** (`stages/contingent_liabilities.py` +
+12. **Contingent liabilities** (`stages/contingent_liabilities.py` +
     `services/contingent_liabilities.py`) — **a disclosure stage: it writes narrative, and only
     narrative.** The one output is `DocumentModel.contingent_liabilities` — per
     "basis:period", a summary paragraph plus the classified tables (Letters of Credit,
@@ -213,7 +256,7 @@ The face and its cited notes are processed in this order:
     blank, deliberately. Specification for the tuning:
     `docs/PRC_Contingent_Liabilities_Extraction_Logic_Revised.md`.
 
-12. **Assemble components** (`stages/assemble_components.py` +
+13. **Assemble components** (`stages/assemble_components.py` +
     `services/assemble_components.py`) — SEVERAL PRINTED ROWS MAY BE ONE LINE ITEM'S FIGURE. A
     note that splits a total by function prints four rows that all belong on one line; before
     this, two rows on one concept was an `ambiguous_mapping` and the line went unfilled, because
@@ -230,21 +273,21 @@ The face and its cited notes are processed in this order:
     enumerates a caption:** which rows are components was decided by the configuration and the
     model. Runs after `normalize` (components must share a scale and sign before they are added)
     and before `reconcile` (which checks the assembled figure against a printed subtotal).
-13. **Reconcile** (`stages/reconcile.py` + `services/reconcile.py`) — the §20 subtraction
+14. **Reconcile** (`stages/reconcile.py` + `services/reconcile.py`) — the §20 subtraction
     and the note→face tie grading (see [03-reconciliation](03-reconciliation.md)).
-14. **Prune notes** (`stages/prune_notes.py`) — publishes only the notes a face line
+15. **Prune notes** (`stages/prune_notes.py`) — publishes only the notes a face line
     actually references; accounting policies, governance tables and subsequent events are
     noise in the notes index, the export and the review queue. Runs *after* reconcile,
     which needs every extracted note to check the ties. Nothing is deleted from the source
     or from provenance — the log records exactly what was dropped.
-15. **Confidence** (`stages/confidence.py`) — sets the `validation` sub-signal on extracted
+16. **Confidence** (`stages/confidence.py`) — sets the `validation` sub-signal on extracted
     values from the checks available at this point (the balance-sheet identity per
     (basis, period), and the note→face tie from the reconcile report), so
     `ConfidenceVector.overall` is capped by participation in a failed check rather than
     reporting a clean OCR/mapping as confident. The row-based rule catalog that populates
     the review queue runs at the API layer instead — see
     [02-data-model-and-schemas](02-data-model-and-schemas.md#validation-engine-feeds-the-review-queue).
-16. **Gap closing** (`stages/gap_closing.py` + `services/gap_closing.py`) — a subtotal that
+17. **Gap closing** (`stages/gap_closing.py` + `services/gap_closing.py`) — a subtotal that
     still does not tie may be missing a line the mapper could not place. **Arithmetic
     proposes and the model disposes**: only a subset of leftovers that closes the gap in
     *both* periods within tolerance is offered (one period is a coincidence, two is
@@ -255,7 +298,7 @@ The face and its cited notes are processed in this order:
     and on a non-`stub` provider; with neither, the gap stays a review item, which is the
     honest outcome. Confirmed routings are kept on `DocumentModel.gap_routings` so the
     decision is inspectable rather than an unexplained change of mapping.
-17. **Face mapping contract** (`stages/face_mapping_contract.py`) — the final mapping
+18. **Face mapping contract** (`stages/face_mapping_contract.py`) — the final mapping
    invariant for a run carrying a line-item set. Every face row with a value must either have
    a canonical key or be a verified non-additive aggregate replaced by mapped components.
    Anything else receives a unique `engine_unclassified_face` key outside every line-item and
@@ -263,7 +306,7 @@ The face and its cited notes are processed in this order:
    any calculation. It is never assigned a neighbouring real line item merely to make the
    unmapped count zero. Extraction-only runs that carry no line-item set skip this gate because
    they are not mapping runs.
-18. **Note-tag gate** (`stages/note_tag_gate.py`) — a line declaring
+19. **Note-tag gate** (`stages/note_tag_gate.py`) — a line declaring
     `llm_only_if_note_tagged` reports **0** (or `""` for a phrase/prose line) where the face
     printed no note reference beside its row. Absence of the tag is a statement of
     non-disclosure, not a gap: a blank says "we did not find it", a zero says "the filing does
@@ -275,7 +318,7 @@ The face and its cited notes are processed in this order:
     by nothing; and it is above the structural checks, so a reconciliation cannot report a tie
     against a figure this stage removed. Its other half lives in `map_line_items`, which spends no
     provider call on such a row.
-19. **Structural** (`stages/structural.py` + `services/structural_checks.py`) — runs the
+20. **Structural** (`stages/structural.py` + `services/structural_checks.py`) — runs the
     arithmetic the template and the rulebook *declare*: template `rollup`s and statement
     `identities`, the rulebook's `validation.identities`, its
     `validation.cross_concept_guards` and its `validation.section_reconciliation`. Every
@@ -283,7 +326,7 @@ The face and its cited notes are processed in this order:
     carrying a classifiable `reason` (`services/coverage.py`), so partial coverage is
     visible rather than implied. A failure flags the participating line items and values.
 
-20. **Segment** (`stages/segment.py` + `services/buckets.py`) — files every face row and
+21. **Segment** (`stages/segment.py` + `services/buckets.py`) — files every face row and
     every note into the **thirteen face sections** an analyst reads a filing in, plus Others:
     the balance sheet's five (current / non-current assets, current / non-current
     liabilities, equity & reserves), the income statement's four (income, expenses,
@@ -330,11 +373,11 @@ shared `row_reconstruct` path.
 of methods, none forced out**; the LLM is a *key driver*, not the sole authority. Each
 method contributes and they corroborate one another:
 
-1. **Exact / normalized lexical** — identity alias match; short-circuits (free, no tokens).
-2. **Rule / fuzzy** — every method runs and contributes candidate evidence (and
+2. **Exact / normalized lexical** — identity alias match; short-circuits (free, no tokens).
+3. **Rule / fuzzy** — every method runs and contributes candidate evidence (and
    pre-shortlists candidates for the LLM when the line-item set exceeds
    `extraction.llm_candidate_cap`, default 40).
-3. **LLM semantic decision** (`extraction.llm_mapping`, default on) — the driver: shown
+4. **LLM semantic decision** (`extraction.llm_mapping`, default on) — the driver: shown
    the caption plus candidate concepts *with their criteria* (definition, include /
    exclude, confusable-with, value_scope) and the set's global policies + worked
    examples, it chooses by **meaning**. So "Amounts due from customers" → `trade_receivables`

@@ -1,4 +1,4 @@
-"""`row_terms` as a floor on the model's answer: does the caption name this line's ROW at all?
+"""`row_terms` as a floor on a mapping answer: does the caption name this line's ROW at all?
 
 THE FAILURE THIS EXISTS FOR, from a live run. The model mapped the face row "Other operating
 expenses" — 1,026,959, a real income-statement total — to `sub__operating_expense_depreciation`,
@@ -107,45 +107,59 @@ def test_every_part_carries_terms_in_both_scripts(shipped):
 
 # ── the floor applied to a real mapping decision ──────────────────────────────────────────────
 
-def test_the_stage_refuses_the_answer_rather_than_writing_it(shipped):
-    """END TO END, on the row that caused it: the model names the part for the expense total, and
-    the row is left unmapped instead of feeding rung P1."""
-    from app.services.mapping import LlmBatchDecision
+def test_the_stage_refuses_the_answer_rather_than_writing_it(shipped, monkeypatch):
+    """END TO END: when the ensemble names a line whose own row terms the caption contradicts, the
+    stage leaves the row UNMAPPED instead of writing it — and says so in the run log.
 
-    class Insists:
-        """A provider that makes exactly the mistake the live run made."""
+    It used to be driven through a provider that insisted on the wrong key, because the answer
+    being checked was a model's answer to "which concept is this printed row?". That call is gone:
+    rows are mapped deterministically, one at a time. So the refusal is exercised where it now
+    lives — the gate the stage consults after every match, whatever tier produced it. The gate's
+    own judgement is covered by the cases above; what this pins is that the stage HONOURS it,
+    which is the half that was only ever asserted through the provider.
+    """
+    from app.services import line_item_notes as _notes
 
-        id = "insists"
+    # A CAPTION THE ENSEMBLE ACTUALLY RESOLVES TO A CONFIGURED LINE THAT DECLARES `row_terms`,
+    # discovered rather than assumed. The gate only has something to judge when a match reached a
+    # configured line — with no match there is no answer to refuse, and the test would pass by
+    # doing nothing. Measured on the shipped set: two lines carry both `row_terms` and an alias,
+    # which are exactly the two face parts recognition was moved down onto.
+    sub = next((i for i in shipped.items
+                if getattr(getattr(i, "note_source", None), "row_terms", None)
+                and any((a or "").strip() for a in (i.aliases or []))), None)
+    if sub is None:
+        pytest.skip("no configured line carries both row terms and an alias")
+    caption = next(a for a in sub.aliases if (a or "").strip())
 
-        def complete_structured(self, *, system, messages, response_schema, **_):
-            payload = json.loads(messages[-1]["content"])
-            if response_schema is LlmBatchDecision:
-                return response_schema.model_validate({"mappings": [
-                    {"item_id": item["item_id"], "canonical_key": PART, "confidence": 0.9,
-                     "reason": "matched on the words operating expenses"}
-                    for item in payload["source_items"]]}), {}
-            return response_schema.model_validate(
-                {"canonical_key": PART, "confidence": 0.9}), {}
-
-    row = LineItem(source_label="Other operating expenses", role=LineRole.LINE)
+    row = LineItem(source_label=caption, role=LineRole.LINE)
     row.set_value(ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current",
                                  value=Decimal("-1026959"), value_raw=Decimal("-1026959"),
                                  provenance=Provenance(page_index=0)))
     doc = DocumentModel(filename="f.pdf")
-    doc.pages = [PageSource(index=0, statement="profit_and_loss")]
+    doc.pages = [PageSource(index=0, statement=sub.statement or "profit_and_loss")]
     doc.line_items = [row]
+
+    # Whatever the ensemble answers, the gate refuses it. The stage must not write it anyway.
+    asked: list[str] = []
+
+    def _always_refuse(item, caption):
+        asked.append(caption)
+        return False, "no shared subject word"
+
+    monkeypatch.setattr(_notes, "caption_agrees_with_row_terms", _always_refuse)
 
     ctx = PipelineContext(raw_bytes=b"", settings=get_settings())
     ctx.ontology = build_working_view(shipped)
     ctx.line_items = shipped
-    ctx.settings.extraction.llm_mapping = True
-    ctx.registry.register("llm", "insists", lambda: Insists())
-    ctx.settings.llm.provider = "insists"
     MapOntologyStage().run(doc, ctx)
 
-    assert row.canonical_key != PART, (
-        "the expense total was written onto a depreciation component; only refuse_negative stood "
-        "between that and the published figure, and it held on the SIGN rather than on the error")
+    assert caption in asked, (
+        f"the stage never consulted the gate for {caption!r} — the ensemble reached no configured "
+        f"line, so this test is no longer exercising the refusal (asked: {asked})")
+    assert row.canonical_key is None, (
+        "a refused answer was written to the row anyway; only refuse_negative stood between the "
+        "expense total and the published figure, and it held on the SIGN rather than on the error")
     assert any("row_terms_refused" in line for line in ctx.logs), ctx.logs[-8:]
 
 

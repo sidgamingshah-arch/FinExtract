@@ -335,12 +335,29 @@ def resolve(hits: list[NoteRowHit], rollup: str) -> dict[tuple[str, str], tuple[
 
 
 def method_of(rollup: str, count: int) -> str:
+    """How a figure was reached, as the audit trail and the export name it.
+
+    THE LINE-ITEM REQUEST GETS ITS OWN PREFIX, not `note_sourced:`. The rows behind it were named
+    by a model and RESOLVED here (`resolve_sources`), not selected by a declared pattern — so a
+    reader asking "where did this number come from" must be able to tell the two apart. Both read
+    the same notes and both take the figure off a printed row, which is exactly why the trail has
+    to say which route ran rather than leaving them indistinguishable.
+    """
+    if rollup == "line_item_llm":
+        return f"line_item_llm:{count}_cited_row{'s' if count != 1 else ''}"
     if rollup == "alternatives":
         return f"note_sourced:first_of_{count}_alternatives"
     return f"note_sourced:sum_of_{count}_rows"
 
 
 def trail(*, rollup: str, item_label: str, amount: Decimal, inputs: list[dict]) -> dict:
+    # A CITED ROW IS ALWAYS COUNTED. `counted` marks which of a declared selection's candidate rows
+    # were actually added (`_trail_input`), a distinction the row route needs because a
+    # `alternatives` rollup offers several and takes one. A citation carries no such candidacy: the
+    # model named these rows and `figures_of` already decided how they combine, so every input here
+    # is part of the answer and a formula that listed none of them would read as an empty trail.
+    if rollup == "line_item_llm":
+        inputs = [{**i, "counted": True} for i in inputs]
     counted = [i for i in inputs if i.get("counted")]
     formula = (" + ".join(i["label"] for i in counted) if rollup != "alternatives"
                else (counted[0]["label"] if counted else None))

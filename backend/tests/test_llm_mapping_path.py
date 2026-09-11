@@ -1,11 +1,21 @@
-"""The LLM mapping path, exercised with a fake provider.
+"""WHAT A RUN REPORTS ABOUT ITS OWN MAPPING STRATEGY.
 
-Mapping by MEANING is the intended primary strategy; the deterministic ensemble is the
-fallback when no provider is configured. Without an API key in CI we cannot measure the real
-model's judgement, so these tests prove the *wiring* instead: that a configured provider is
-actually consulted, that its decision wins, that the statement constraint still applies to
-what it is offered, and — importantly — that a run WITHOUT a provider is recorded as the
-weaker strategy rather than passing silently for a full-capability run.
+CONCEPT MAPPING IS DETERMINISTIC, and the strategy the run record names has to say so. Which
+concept a printed caption is, is decided by exact normalised alias and the rule tier's authored
+hints — no provider is consulted, whatever is configured. `stages.map_ontology` therefore reports
+`deterministic` unconditionally, which is a change: it used to report `llm_description` whenever a
+provider merely CONSTRUCTED, a claim about the stage that was never the same question as whether
+the provider decided anything.
+
+WHAT THIS FILE USED TO COVER, and where it went. Five tests exercised the row request with a fake
+provider — a configured provider is consulted, its decision wins, the statement constraint narrows
+what it is offered, an exact alias is still refined by it, and a batch respects the statement.
+Every one of them is about a call that asked "which concept is this printed row?", and no such
+call is made. The requests a run does make are about LINE ITEMS, and their wiring is
+`tests/test_line_item_requests_run.py`.
+
+WHAT REMAINS HERE is the half that was always about the RECORD rather than the call: a run says
+which strategy it used, and it says why when a provider was configured and decided nothing.
 """
 from __future__ import annotations
 
@@ -54,58 +64,6 @@ def _matcher(provider):
 
     return OntologyMatcher(load_ontology(ONTOLOGY), locale="en",
                            settings=get_settings(), llm_provider=provider)
-
-
-def test_a_configured_provider_is_consulted_and_decides():
-    llm = FakeLlm("pl_income__other_income")
-    m = _matcher(llm)
-    # A caption no alias matches, so only the LLM can resolve it.
-    res = m.match("Sundry receipts not otherwise classified", statement="profit_and_loss")
-    assert llm.calls, "the provider should have been consulted"
-    assert res.canonical_key == "pl_income__other_income"
-    assert res.method.value == "llm"
-
-
-def test_the_llm_is_only_offered_concepts_from_the_caption_s_statement():
-    """The statement constraint must apply to the candidate list too — otherwise the model
-    can place a P&L caption in the cash-flow statement however good its reasoning is."""
-    llm = FakeLlm("pl_income__other_income")
-    m = _matcher(llm)
-    m.match("Some unmatched caption", statement="profit_and_loss")
-    offered = llm.calls[0]["candidates"]
-    keys = [c["canonical_key"] if isinstance(c, dict) else c for c in offered]
-    assert keys, "candidates should be offered"
-    assert all(k.startswith("pl_") for k in keys), f"non-P&L concepts offered: {keys[:5]}"
-
-
-def test_usage_is_reported_for_the_audit_log():
-    llm = FakeLlm("pl_income__other_income")
-    m = _matcher(llm)
-    m.match("Another unmatched caption", statement="profit_and_loss")
-    assert m.usage["calls"] >= 1
-    assert m.usage["input_tokens"] >= 1 and m.usage["output_tokens"] >= 1
-    assert m.usage["model"] == "fake-model"
-
-
-def test_exact_alias_is_still_refined_by_the_llm():
-    """A deterministic exact hit is evidence, not a reason to bypass semantic refinement."""
-    llm = FakeLlm("pl_income__other_income")
-    m = _matcher(llm)
-    res = m.match("REVENUE 收益", statement="profit_and_loss")
-    assert res.canonical_key == "pl_income__other_income"
-    assert res.method.value == "llm"
-    assert llm.calls
-
-
-def test_batch_mapping_uses_the_provider_and_respects_the_statement():
-    llm = FakeLlm("cf_cash_flow_from_operating_activities__interest_income")
-    m = _matcher(llm)
-    out = m.match_batch([("a", "Unmatched caption one"), ("b", "Unmatched caption two")],
-                        statement="cash_flow")
-    assert set(out) == {"a", "b"}
-    keys = [c["canonical_key"] if isinstance(c, dict) else c
-            for c in llm.calls[0]["candidates"]]
-    assert all(k.startswith("cf_") for k in keys)
 
 
 def test_without_a_provider_the_matcher_reports_deterministic():

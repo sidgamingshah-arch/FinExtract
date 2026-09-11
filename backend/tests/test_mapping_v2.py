@@ -27,7 +27,7 @@ from app.core.models.enums import LineRole, MappingMethod
 from app.schemas.loader import load_ontology
 from app.schemas.ontology import OntologyDefinition, OntologyMapping
 from app.services.mapping import (
-    LlmBatchDecision, LlmBatchItem, LlmMappingDecision, OntologyMatcher,
+    OntologyMatcher, normalize_label,
 )
 
 TEMPLATES = Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
@@ -42,29 +42,6 @@ def v2():
 def _matcher(ontology, provider=None, locale="zh") -> OntologyMatcher:
     return OntologyMatcher(ontology, locale=locale, settings=get_settings(),
                            llm_provider=provider)
-
-
-class Spy:
-    """Answers with fixed batch items (or abstains per line) and keeps every payload it was sent."""
-
-    id = "fake"
-
-    def __init__(self, items: list[LlmBatchItem] | None = None, single: str = ""):
-        self._items = items or []
-        self._single = single
-        self.payloads: list[dict] = []
-
-    def complete_structured(self, *, system, messages, response_schema, temperature=0.0,
-                            max_tokens=2048):
-        self.payloads.append(json.loads(messages[-1]["content"]))
-        meta = {"model": "fake-llm", "input_tokens": 10, "output_tokens": 5}
-        if response_schema is LlmBatchDecision:
-            return LlmBatchDecision(mappings=list(self._items)), meta
-        return LlmMappingDecision(canonical_key=self._single,
-                                  confidence=0.95 if self._single else 0.0), meta
-
-    def offered(self, call: int = 0) -> list[str]:
-        return [c["canonical_key"] for c in self.payloads[call]["candidates"]]
 
 
 # --- 1. the residual lock ----------------------------------------------------------------------
@@ -85,35 +62,42 @@ def test_the_thirteen_residual_buckets_are_locked_out_of_every_matching_index(v2
     assert not (locked & set(m._extractable_keys()))
 
 
-def test_a_balance_sheet_batch_stops_offering_the_five_asset_and_liability_buckets(v2):
-    """Measured: of 78 balance-sheet concepts, 68 are offered. TWO declared reasons account for all
-    ten that are not, and the last assertion is what pins that — a concept missing for a third
-    reason would fail it.
+def test_the_balance_sheet_payload_omits_the_five_asset_and_liability_buckets(v2):
+    """Measured: of 78 balance-sheet concepts, 73 are bindable by a printed caption, and the five
+    that are not are the bs "Others" buckets (`alias_matching: disabled`). All five declare
+    `extraction_mode: extract`, so it is the LOCK that puts them out of reach and not anything
+    about how they are extracted — a residual's caption is the most attractive one in the
+    ontology, and a row filed in a bucket lands in what is supposed to be the section's
+    UNEXPLAINED remainder, so the reconciliation that would have reported the gap ties instead.
 
-      * FIVE ARE LOCKED: the bs "Others" buckets (`alias_matching: disabled`). All five declare
-        `extraction_mode: extract`, so it is the lock and not the extract-only rule that withholds
-        them — the residual's caption is the most attractive one in the ontology and a model offered
-        a bucket will use it for a row it cannot place.
-      * FIVE ARE DERIVABLE: the statement's `extract_or_derive` subtotals. A line the declared
-        arithmetic can work out is not the model's to guess at. They stay fully matchable by the
-        DETERMINISTIC tiers, which is why the boundary is applied where candidates are offered
-        rather than in `_mappable_keys` — see
-        `test_the_deterministic_tiers_still_reach_a_derivable_concept`.
+    IT USED TO BE 68 OF 78, and the other five were the statement's `extract_or_derive` subtotals.
+    They were withheld from the CANDIDATE LIST a printed row was shown — a line the declared
+    arithmetic can work out was not the model's to guess at — while staying fully matchable by the
+    deterministic tiers, which is why the narrowing was applied where candidates were offered
+    rather than in `_mappable_keys`. There is no candidate list: nothing asks a model which concept
+    a printed row is. So the only boundary left here is the one that was never about offering, and
+    the last two assertions pin both halves — the buckets are out, the derivables are in.
     """
     m = _matcher(v2)
     bs = [c.canonical_key for c in v2.mappings if c.canonical_key.startswith("bs_")]
-    offered = {e["canonical_key"] for e in m._concept_payload(bs)}
+    mappable = {k for k in m._mappable_keys() if k.startswith("bs_")}
 
     buckets = {"bs_non_current_assets__others", "bs_current_assets__others", "bs_equity__others",
                "bs_non_current_liabilities__others", "bs_current_liabilities__others"}
     derivable = {c.canonical_key for c in v2.mappings
                  if c.canonical_key.startswith("bs_") and c.extraction_mode != "extract"}
 
-    assert len(bs) == 78 and len(offered) == 68
-    assert buckets <= m._locked, "the buckets are withheld by the LOCK, not by the offer rule"
+    assert len(bs) == 78
+    assert buckets <= m._locked, "the buckets are out by the LOCK, not by any offer rule"
     assert all(m._by_key[k].extraction_mode == "extract" for k in buckets)
     assert len(derivable) == 5, sorted(derivable)
-    assert {k for k in bs if k not in offered} == buckets | derivable
+    # THE FIVE BUCKETS ARE THE WHOLE DIFFERENCE NOW. 78 balance-sheet concepts, 73 bindable — and
+    # the five that are not are exactly the locked residuals.
+    assert {k for k in bs if k not in mappable} == buckets
+    # …and the five DERIVABLE subtotals are IN, which is the half that must not break. A printed
+    # `extract_or_derive` subtotal has to be read off the page whatever the arithmetic could also
+    # do, and it is a caption tier that reads it.
+    assert derivable <= mappable, sorted(derivable - mappable)
 
 
 def test_a_residual_bucket_cannot_win_however_its_hints_are_authored():
@@ -147,18 +131,12 @@ def test_a_residual_bucket_cannot_win_however_its_hints_are_authored():
     assert "bs_current_liabilities__others" not in m._mappable_keys()
 
 
-def test_the_model_is_never_offered_a_bucket_on_either_llm_path(v2):
-    """`_llm` and `match_batch` build their candidate lists differently — one from the
-    deterministic shortlist, one from every concept on the statement — so the lock has to hold in
-    the payload builder they share."""
-    spy = Spy(items=[], single="")
-    m = _matcher(v2, spy)
-
-    m.match("A caption no concept covers at all", statement="balance_sheet")
-    m.match_batch([("a", "Another caption no concept covers")], statement="cash_flow")
-
-    for call in range(len(spy.payloads)):
-        assert not [k for k in spy.offered(call) if k.endswith("__others")], spy.offered(call)
+# `test_the_model_is_never_offered_a_bucket` STOOD HERE. It checked that the lock held in the
+# PAYLOAD BUILDER as well as in the matching indexes, because a candidate list was assembled from
+# the rule tier's keys rather than from `_mappable_keys` and a concept kept out of one route had to
+# be kept out of the other. There is one route: no payload offers a concept to be chosen from, so
+# `test_the_thirteen_residual_buckets_are_locked_out_of_every_matching_index` above is the whole
+# check.
 
 
 def test_the_sweep_still_reaches_a_bucket_the_matcher_cannot(v2):
@@ -202,7 +180,7 @@ def test_the_sweep_still_reaches_a_bucket_the_matcher_cannot(v2):
 
 # --- 2. match_priority ordering ------------------------------------------------------------------
 
-def test_the_colliding_pair_is_offered_in_the_order_the_rulebook_declares(v2):
+def test_the_colliding_pair_is_read_in_the_order_the_rulebook_declares(v2):
     """`binding.match_priority`: "Long specific captions rank above short generic ones so 'Total
     assets less current liabilities' cannot be pre-empted by 'Total current liabilities' on token
     overlap." The order the list is read in was once the order an editor happened to add them to
@@ -237,26 +215,35 @@ def test_the_colliding_pair_is_offered_in_the_order_the_rulebook_declares(v2):
     whose expression already contains `_by_priority(all_keys)`; with the sort deleted such a probe
     still passes. Keep the section.
     """
-    spy = Spy(single="")
-    m = _matcher(v2, spy)
-    m.match("Total current liabilites",           # OCR typo → no exact hit, so the LLM is consulted
-            statement="balance_sheet", section="CURRENT LIABILITIES 流動負債")
-    offered = spy.offered()
+    m = _matcher(v2)
+    # The concepts a caption printed under this banner may be bound to, in the reading order the
+    # rulebook declares. Read off `_by_priority` over the scoped set, which is what `match` ranks
+    # with — it used to be read off the candidate list a provider spy had been handed, and that
+    # list is gone with the row request.
+    section = m._section_of("CURRENT LIABILITIES 流動負債")
+    scoped = [k for k in m._mappable_keys()
+              if m._in_statement(k, "balance_sheet")
+              and (not m._sections_of(k) or section in m._sections_of(k))]
+    offered = m._by_priority(scoped)
 
-    withheld = "bs_total_assets_less_current_liabilities"
-    assert m._by_key[withheld].extraction_mode == "extract_or_derive"
-    assert withheld in m._llm_withheld and withheld not in offered
-    # Still ranked, and still MATCHABLE, by the tiers that CAN bind it — which is what makes
-    # withholding it from the OFFER safe rather than a concept lost to every tier.
-    assert withheld in m._mappable_keys()
-    assert m._priority_of(withheld) > m._priority_of(
+    # THE DERIVABLE SUBTOTAL IS IN THE LIST NOW, and that is the change. It used to be withheld
+    # from the OFFER — `extract_or_derive` means "printed on some filings, arithmetic on others",
+    # and a model shown a candidate list would guess at it — while staying matchable by the tiers
+    # that CAN bind it. Nothing is offered to be chosen from any more, so the only question left is
+    # whether a printed caption can reach it, and it must be able to.
+    derivable = "bs_total_assets_less_current_liabilities"
+    assert m._by_key[derivable].extraction_mode == "extract_or_derive"
+    assert derivable in m._mappable_keys()
+    assert m._priority_of(derivable) > m._priority_of(
         "bs_current_liabilities__total_current_liabilities")
-    # The pair that IS still offered: priority, not declaration order, decides the reading order.
+
+    # The pair the rulebook's own note is about: priority, not declaration order, decides which is
+    # read first.
     specific = offered.index("bs_current_liabilities__current_portion_of_long_term_debt")   # 68
     generic = offered.index("bs_current_liabilities__current_borrowings")                   # 60
     assert specific < generic, list(zip(offered, [m._priority_of(k) for k in offered]))
-    # …and the file declares them the wrong way round, which is the thing priority overrides. Without
-    # this the assertion above would also pass on a list that was never sorted.
+    # …and the file declares them the wrong way round, which is the thing priority overrides.
+    # Without this the assertion above would also pass on a list that was never sorted.
     decl = {mm.canonical_key: i for i, mm in enumerate(v2.mappings)}
     assert decl["bs_current_liabilities__current_portion_of_long_term_debt"] > decl[
         "bs_current_liabilities__current_borrowings"]
@@ -265,13 +252,12 @@ def test_the_colliding_pair_is_offered_in_the_order_the_rulebook_declares(v2):
     assert priorities == sorted(priorities, reverse=True), list(zip(offered, priorities))
 
 
-def test_priority_orders_the_batch_candidates_too(v2):
-    """One batch call offers the whole statement at once, so the order the list is written in is the
-    only ranking the model gets."""
-    spy = Spy(items=[])
-    m = _matcher(v2, spy)
-    m.match_batch([("a", "Some caption")], statement="balance_sheet")
-    priorities = [m._priority_of(k) for k in spy.offered()]
+def test_by_priority_orders_a_statements_concepts(v2):
+    """`_by_priority` is the reading order the rulebook declares, and it is what settles a tie the
+    evidence rates equally — see `match`'s ranking, where score comes first and priority second."""
+    m = _matcher(v2)
+    bs = [k for k in m._mappable_keys() if m._in_statement(k, "balance_sheet")]
+    priorities = [m._priority_of(k) for k in m._by_priority(bs)]
 
     assert priorities == sorted(priorities, reverse=True)
     assert priorities[0] > priorities[-1], "the statement's concepts should not all tie"
@@ -313,11 +299,16 @@ def test_priority_orders_candidates_and_does_not_score_them(v2):
     # file absorbing it.
     assert m.match("Inventorys").canonical_key is None
 
-    # And on the real file, the model's answer still wins over the order it was offered in.
-    spy = Spy(single="bs_current_liabilities__total_current_liabilities")
-    got = _matcher(v2, spy).match("Total current liabilites", statement="balance_sheet",
-                                  section="CURRENT LIABILITIES 流動負債")
-    assert got.canonical_key == "bs_current_liabilities__total_current_liabilities"
+    # AND ON THE REAL FILE, the same thing: the highest-priority concept on the statement does not
+    # absorb a caption no alias and no rule claims. The second half of this test used to hand a
+    # provider spy the same misspelling and assert that the MODEL's answer beat the order the list
+    # was offered in; there is no list and no call, so what is asserted instead is the property
+    # that mattered — a priority is not a score, and an unrecognised caption is a visible gap.
+    top = max(m._mappable_keys(), key=_matcher(v2)._priority_of)
+    got = _matcher(v2).match("Total current liabilites", statement="balance_sheet",
+                             section="CURRENT LIABILITIES 流動負債")
+    assert got.canonical_key != top
+    assert got.canonical_key is None or got.needs_review
 
 
 def test_a_tie_on_token_overlap_is_settled_by_priority(v2):
@@ -378,25 +369,6 @@ def test_a_tie_inside_the_rule_tier_is_settled_by_priority_and_routed_to_review(
 BOTTOM_LINE = "pl_total_comprehensive_income_for_the_year"
 
 
-def test_the_wrapped_bottom_line_is_rerouted_instead_of_discarded(v2):
-    """The motivating case. A bilingual filing prints "TOTAL COMPREHENSIVE LOSS FOR THE YEAR"
-    wrapped, so the banner row carries "TOTAL COMPREHENSIVE" and the caption reaching the matcher is
-    the bare fragment "LOSS FOR THE YEAR" — an alias of the OTHER bottom line. The model answers
-    `pl_profit_for_the_year`: right that the row is a bottom line, wrong about which. The banner
-    identifies exactly one leaf of the family, so the answer is corrected."""
-    spy = Spy(items=[LlmBatchItem(item_id="a", canonical_key="pl_profit_for_the_year",
-                                  confidence=0.94)])
-    m = _matcher(v2, spy)
-    out = m.match_batch([("a", "LOSS FOR THE YEAR")], statement="profit_and_loss",
-                        sections={"a": "TOTAL COMPREHENSIVE"})
-
-    assert out["a"].canonical_key == BOTTOM_LINE
-    assert out["a"].rerouted_from == "pl_profit_for_the_year"     # auditable, not silent
-    assert m.usage["family_resolved"] == 1
-    assert m.usage["family_routes"] == [f"pl_profit_for_the_year->{BOTTOM_LINE}"]
-    assert m.usage["batch_refused"] == 0, "a re-route is preferred over a refusal"
-
-
 def test_the_deterministic_path_resolves_the_same_row(v2):
     """The per-line path is all there is when no provider is configured, and the alias hit on the
     wrong leaf is real evidence of what the row is. Left alone it filed the largest figure on the
@@ -412,100 +384,6 @@ def test_the_deterministic_path_resolves_the_same_row(v2):
         "pl_profit_for_the_year")
     assert m.match("LOSS FOR THE YEAR", statement="profit_and_loss",
                    section="EXPENSES").canonical_key == "pl_profit_for_the_year"
-
-
-def test_a_reroute_never_rewrites_an_answer_the_gate_accepted(v2):
-    """Re-routing lives on the refusal branch only. An accepted answer — including the family leaf
-    the banner does name — comes back exactly as the model gave it."""
-    spy = Spy(items=[LlmBatchItem(item_id="a", canonical_key=BOTTOM_LINE, confidence=0.9),
-                     LlmBatchItem(item_id="b", canonical_key="pl_profit_for_the_year",
-                                  confidence=0.9)])
-    m = _matcher(v2, spy)
-    out = m.match_batch([("a", "Total comprehensive loss for the year"), ("b", "Loss for the year")],
-                        statement="profit_and_loss", sections={"a": "TOTAL COMPREHENSIVE"})
-
-    assert out["a"].canonical_key == BOTTOM_LINE and out["a"].rerouted_from is None
-    assert out["b"].canonical_key == "pl_profit_for_the_year"      # no banner → nothing to settle
-    assert m.usage["family_resolved"] == 0
-
-
-def test_a_cross_section_answer_outside_any_family_is_still_refused(v2):
-    """The gate's other arms are untouched: a current-liability concept for a row printed under
-    current ASSETS is not a variant of the same fact, and no family covers it."""
-    spy = Spy(items=[LlmBatchItem(item_id="a",
-                                  canonical_key="bs_current_liabilities__current_trade_payables",
-                                  confidence=0.99)])
-    m = _matcher(v2, spy)
-    out = m.match_batch([("a", "Trade and bills receivables")], statement="balance_sheet",
-                        sections={"a": "CURRENT ASSETS 流動資產"})
-
-    assert out["a"].canonical_key != "bs_current_liabilities__current_trade_payables"
-    assert m.usage["batch_refused"] == 1 and m.usage["family_resolved"] == 0
-
-
-def test_a_banner_naming_two_leaves_of_a_family_refuses_rather_than_guessing(v2):
-    """A banner that settles nothing must not be treated as evidence.
-
-    This used to be exercised via bonds payable, which shared the notes family and gave
-    "NON-CURRENT LIABILITIES" two candidate leaves. Bonds has since been removed from the family
-    outright — the template has no current-bonds node, so "CURRENT LIABILITIES" named exactly one
-    leaf and a row printed "Bonds payable" was re-routed onto current NOTES payable, a different
-    instrument, at confidence 1.0. So the ambiguity is now tested where it still exists: a banner
-    naming a section no leaf of the family sits in.
-    """
-    spy = Spy(items=[LlmBatchItem(
-        item_id="a", canonical_key="bs_current_liabilities__current_notes_payable",
-        confidence=0.95)])
-    m = _matcher(v2, spy)
-    out = m.match_batch([("a", "Senior notes 優先票據")], statement="balance_sheet",
-                        sections={"a": "NON-CURRENT ASSETS 非流動資產"})
-    # The banner names a section the family has no leaf in, so nothing is corrected and the
-    # answer is refused rather than moved somewhere the evidence does not point.
-    assert out["a"].canonical_key != "bs_current_liabilities__current_notes_payable"
-    assert m.usage["family_resolved"] == 0 and m.usage["batch_refused"] == 1
-
-    # And with bonds out of the family, the non-current NOTES leaf is now unambiguous, so the
-    # ordinary current/non-current correction this family exists for does fire.
-    ok = Spy(items=[LlmBatchItem(
-        item_id="a", canonical_key="bs_current_liabilities__current_notes_payable",
-        confidence=0.95)])
-    m3 = _matcher(v2, ok)
-    out3 = m3.match_batch([("a", "Senior notes 優先票據")], statement="balance_sheet",
-                          sections={"a": "NON-CURRENT LIABILITIES 非流動負債"})
-    assert out3["a"].canonical_key == "bs_non_current_liabilities__non_current_notes_payable"
-    assert m3.usage["family_resolved"] == 1
-
-    resolvable = Spy(items=[LlmBatchItem(
-        item_id="a", canonical_key="bs_non_current_liabilities__non_current_notes_payable",
-        confidence=0.95)])
-    m2 = _matcher(v2, resolvable)
-    out2 = m2.match_batch([("a", "Senior notes and domestic bonds 優先票據及境內債券")],
-                          statement="balance_sheet",
-                          sections={"a": "CURRENT LIABILITIES 流動負債"})
-    assert out2["a"].canonical_key == "bs_current_liabilities__current_notes_payable"
-    assert m2.usage["family_resolved"] == 1
-
-
-def test_a_reroute_target_goes_through_the_same_gate(v2):
-    """Re-routing may correct which variant of a fact was chosen; it may not smuggle a concept past
-    the gate's other arms. "Interest received on financing balances" names a member of the cash-flow
-    activity vocabulary that neither leaf of the interest_received family is in, so the
-    exclusive-vocabulary arm refuses the destination and the refusal stands."""
-    operating = "cf_cash_flow_from_operating_activities__interest_received"
-    spy = Spy(items=[LlmBatchItem(item_id="a", canonical_key=operating, confidence=0.9)])
-    m = _matcher(v2, spy)
-    out = m.match_batch([("a", "Interest received on financing balances")], statement="cash_flow",
-                        sections={"a": "CASH FLOWS FROM INVESTING ACTIVITIES 投資活動"})
-
-    assert out["a"].canonical_key != "cf_cash_flow_from_investing_activities__interest_received"
-    assert m.usage["family_resolved"] == 0 and m.usage["batch_refused"] == 1
-
-    # The same family, same banner, a caption that names nothing: re-routed.
-    spy2 = Spy(items=[LlmBatchItem(item_id="a", canonical_key=operating, confidence=0.9)])
-    m2 = _matcher(v2, spy2)
-    out2 = m2.match_batch([("a", "Interest received 已收利息")], statement="cash_flow",
-                          sections={"a": "CASH FLOWS FROM INVESTING ACTIVITIES 投資活動"})
-    assert out2["a"].canonical_key == "cf_cash_flow_from_investing_activities__interest_received"
 
 
 def test_a_reroute_is_recorded_on_the_row_it_moved(v2):
@@ -550,7 +428,7 @@ def test_a_derive_concept_is_computed_and_never_bound_to_a_printed_caption(v2):
     assert DERIVED not in m._mappable_keys()         # …and not by a caption
     assert not [k for keys in m._alias_index.values() for k in keys if k == DERIVED]
     assert DERIVED not in m._alias_by_key
-    assert not m._concept_payload([DERIVED])
+    assert DERIVED in m._unmatchable
     assert m.match("Profit before exceptional items and tax",
                    statement="profit_and_loss").canonical_key != DERIVED
 
@@ -610,83 +488,58 @@ def test_an_exact_canonical_label_beats_a_higher_priority_borrowed_alias(v2):
 
 # --- 5. the per-concept rulebook prose the decider is given --------------------------------------
 
-def test_the_criteria_the_rulebook_wrote_for_the_decision_reach_the_decider(v2):
+def test_the_criteria_the_rulebook_wrote_are_read_by_the_passes_that_can_act_on_them(v2):
     """`section_disambiguation`, `derivation`, `is_gross_parent`/`children_if_decomposed` and
-    `equivalence` were authored for a reader and read by nobody. They are prose (or a graph over
-    keys), so the reader that can act on them is the semantic tier — which means the payload.
+    `equivalence` were authored for a reader. This pins WHICH reader each one actually has, which
+    changed when the row request went — and two of the four now have none here.
 
-    THE COUNTS MOVED WITH THE EXTRACT-ONLY OFFER RULE, and one of them moved to zero. Only
-    `extraction_mode: extract` concepts are put in front of the model now, so authored prose on a
-    derivable concept no longer reaches it: `section_disambiguation` went 18 -> 16, and `derivation`
-    — which is authored ONLY on concepts the framework can compute, i.e. exactly the withheld ones —
-    went to 0. That is consistent rather than a loss (there is no point telling the model how a line
-    is computed when the model is not asked about that line), but it does mean the `derivation`
-    field is now dead weight in the payload, and it is asserted here so the day it stops being
-    empty someone has to say why.
+    IT USED TO BE ONE READER FOR ALL FOUR: `_concept_payload`, the candidate list a printed row was
+    shown, because they are prose (or a graph over keys) and the only thing that could act on prose
+    was the semantic tier. That tier is gone. What is left splits in two:
+
+      * CONTAINMENT AND EQUIVALENCE ARE READ DETERMINISTICALLY, by whole-document passes over the
+        mapped rows (`stages.map_ontology._enforce_containment` / `_check_equivalence`). A gross
+        parent is still not filed alongside the children it contains, and two captions the rulebook
+        declares to be one fact still may not disagree in silence. Those are graphs over keys, and
+        arithmetic can act on them.
+      * `section_disambiguation` AND `derivation` ARE PROSE, and prose needs a reader that reads.
+        On the ONTOLOGY they now have none: a confusable tie is REPORTED rather than resolved (both
+        concepts emitted, the row routed to review), so nothing consults the sentence that would
+        have separated them. The prose is not lost — `LineItemDef.section_disambiguation` travels
+        into a line-item request as `how_to_tell_it_apart`
+        (`services.line_item_llm.line_item_payload`) — but it gets there from the LINE ITEM, not
+        from a concept, which is why this file can no longer assert it.
+
+    Asserted as counts as well as behaviour so that the day either of those two acquires a reader
+    again, someone has to come here and say so.
     """
     m = _matcher(v2)
-    entries = {e["canonical_key"]: e
-               for e in m._concept_payload([c.canonical_key for c in v2.mappings])}
+    by_key = {mm.canonical_key: mm for mm in v2.mappings}
 
-    # 16 concepts carry the sentence that separates two look-alike captions.
-    assert sum(1 for e in entries.values() if "section_disambiguation" in e) == 16
-    assert "printed section only" in (
-        entries["bs_current_liabilities__current_lease_liabilities"]["section_disambiguation"])
-    # THE DERIVATION PROSE NO LONGER REACHES ANY DECIDER, because every concept carrying it is
-    # withheld. Both halves are asserted: the payload is empty of it, AND the concept it used to be
-    # probed on is absent for the declared reason rather than by accident.
-    assert not [k for k, e in entries.items() if "derivation" in e]
-    assert "pl_other_comprehensive_income_for_the_year" not in entries
-    assert m._by_key["pl_other_comprehensive_income_for_the_year"].extraction_mode \
-        == "extract_or_derive"
-    # Containment, so the model does not propose the parent for a filing that prints the children.
-    reserves = entries["bs_equity__reserves"]
-    assert reserves["is_gross_parent"] is True
-    assert "bs_equity__share_premium" in reserves["children_if_decomposed"]
-    # One fact under two captions, so the twin is not read as a rival answer. Probed from the
-    # `extract` side of the pair: `bs_net_assets` is `extract_or_derive` and so is withheld, which
-    # leaves exactly one concept in the payload carrying `same_fact_as`.
-    twin = entries["bs_equity__total_equity"]["same_fact_as"]
-    assert twin["canonical_key"] == "bs_net_assets"
-    assert "route to review" in twin["rule"]
-    assert [k for k, e in entries.items() if "same_fact_as" in e] == ["bs_equity__total_equity"]
+    # The prose is still AUTHORED, on the same concepts as before — this is not a data loss.
+    disambiguated = [k for k, mm in by_key.items() if getattr(mm, "section_disambiguation", "")]
+    assert len(disambiguated) >= 16, len(disambiguated)
+    assert any("printed section only" in (by_key[k].section_disambiguation or "")
+               for k in disambiguated), "the shipped wording is no longer authored anywhere"
 
+    # CONTAINMENT: read by the deterministic pass, and the declaration is intact.
+    reserves = by_key["bs_equity__reserves"]
+    assert reserves.is_gross_parent is True
+    assert "bs_equity__share_premium" in reserves.children_if_decomposed
 
-def test_the_sections_residual_expectations_are_offered_without_naming_the_bucket(v2):
-    """`expected_components` lists the captions a section is EXPECTED to have no concept for. The
-    buckets are locked out of every candidate list, which left the model with no licence to answer
-    "none of these" — and a model offered concepts and a caption picks the nearest one, putting the
-    figure on a specific wrong line while the section still ties. So the expectations are handed over
-    and the bucket's own key is not."""
-    spy = Spy(items=[])
-    m = _matcher(v2, spy)
-    m.match_batch([("a", "Bank overdrafts")], statement="balance_sheet",
-                  sections={"a": "CURRENT LIABILITIES 流動負債"})
+    # EQUIVALENCE: one fact under two captions, so the twin is not read as a rival answer. The
+    # field is `equivalence` on the concept; `same_fact_as` was the name the retired PAYLOAD gave
+    # it, which is exactly the kind of coupling this rewrite removes.
+    twin = by_key["bs_equity__total_equity"].equivalence
+    assert twin is not None and twin.with_ == "bs_net_assets"
+    assert "route to review" in twin.rule
 
-    payload = spy.payloads[0]
-    expectations = payload["residual_expectations"]
-    assert [e["section"] for e in expectations] == ["current_liabilities"]
-    assert "Bank overdrafts" in expectations[0]["captions_with_no_dedicated_concept"]
-    # The bucket itself is still unnameable: the expectations carry no canonical_key, and no
-    # candidate the model may choose from is a residual.
-    assert set(expectations[0]) == {"section", "captions_with_no_dedicated_concept"}
-    assert not [c for c in payload["candidates"] if c["canonical_key"].endswith("__others")]
-    assert "empty canonical_key" in m._batch_system
-
-
-def test_editing_expected_components_changes_what_the_decider_is_told(v2):
-    edited = json.loads(json.dumps(V2))
-    for c in edited["mappings"]:
-        if c["canonical_key"] == "bs_current_liabilities__others":
-            c["expected_components"] = ["MARKER: a caption with no concept"]
-    spy = Spy(items=[])
-    _matcher(load_ontology(edited, resolve=True), spy).match_batch(
-        [("a", "Anything")], statement="balance_sheet",
-        sections={"a": "CURRENT LIABILITIES 流動負債"})
-
-    assert spy.payloads[0]["residual_expectations"][0][
-        "captions_with_no_dedicated_concept"] == ["MARKER: a caption with no concept"]
-
+    # …and the tie the disambiguation prose was for is REPORTED, not resolved — which is the
+    # behaviour that replaced the reader.
+    tied = m._exact_tie(normalize_label("Total equity"), allowed=lambda _k: True)
+    if tied:
+        got = m.match("Total equity", statement="balance_sheet")
+        assert got.needs_review, "a confusable tie must be emitted for review, never picked"
 
 # --- 5b/6. containment: a gross parent is not filed alongside its mapped children ---------------
 

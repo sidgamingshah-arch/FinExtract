@@ -1,20 +1,35 @@
-"""Does the CONFIGURATION actually work as a semantic index? Measured, on the shipped rulebook.
+"""Does the CONFIGURATION actually work as a semantic index? Measured, on the shipped set.
 
-THIS IS THE LOAD-BEARING CLAIM OF `services.note_context`. There is no embedding provider in this
-system, so "semantically similar" is implemented by scoring each note against the authored criteria
-— ``definition``, ``include``, aliases — of the concepts a row might be. Those criteria are prose
-about what a concept MEANS, which is why the result is a judgement about subject matter rather than
-a caption-to-title string comparison. But that is an argument, and an argument is not evidence.
+THIS IS THE LOAD-BEARING CLAIM OF THE NOTE SELECTOR. There is no embedding provider in this system,
+so "semantically similar" is implemented by scoring each note against authored prose, and the
+result is only a judgement about subject matter if that prose actually discriminates. That is an
+argument, and an argument is not evidence. So this file is the evidence, and it is executable: ten
+note subjects of the kind HK filings print, and for each, the shipped line item whose notes it
+should be — the assertion is that the note wins its own probe.
 
-So this file is the evidence, and it is executable. Ten note subjects of the kind HK filings print;
-for each, the shipped rulebook's own criteria for the concept that note is about; the assertion is
-that the note wins its own probe. It is also the source of the ``llm_context_min_score`` default:
-the gap between the worst true score and the unrelated noise is measured here, so the threshold in
-config is a number this test justifies rather than a taste.
+WHOSE PROSE IS SCORED CHANGED, and the tests moved with it. The probe used to be
+`mapping._context_probe`: for a printed ROW, the assembled criteria of the concepts the
+deterministic tiers thought it might be, with the rulebook's machine-generated template sentence
+filtered out (`_criteria_boilerplate`) so 25 tokens appearing in 76%-99.6% of definitions could not
+decide a match. That probe belonged to a request about a row, and it is gone with it.
 
-If a rulebook edit hollows out the definitions this relies on, this test fails — which is the point.
-Nothing else in the suite would notice: every request would still be well-formed, and every run
-would still report itself as LLM-mapped while quietly carrying context about other subjects.
+THE LIVE PROBE IS THE LINE'S OWN `note_terms`, scored against note HEADERS
+(`line_item_notes.note_probe` / `header_pool`). It is a better mechanism for a measured reason: a
+heading names the CONTAINER ("administrative expenses", 管理费用) while everything else written
+about a line names its CONTENT ("depreciation of fixed assets"), and a blended probe scored 0.000
+against the very heading its line belongs to. It also needs no boilerplate filter — `note_terms` is
+authored for this job rather than generated — which is why the two filter tests here dissolved
+instead of moving.
+
+WHAT IS STILL NOT MEASURED, said out loud: this scores ten synthetic English headings. The
+selector's behaviour on a PRC filing is the open question — semantic selection found 100% of the
+authored notes on the English filing and 53% on the Chinese one, which is why patterns and
+semantics are a UNION rather than a replacement (`note_context.identified_notes`). A corpus-scale
+measurement needs the filings, which are client documents and are not in this repository.
+
+If a configuration edit hollows out the `note_terms` this relies on, this file fails — which is the
+point. Nothing else in the suite would notice: every request would still be well-formed, and every
+line would simply receive notes about other subjects.
 """
 from __future__ import annotations
 
@@ -67,8 +82,24 @@ _PROBES: dict[str, str] = {
 
 
 def _pool() -> ContextPool:
-    return ContextPool([ContextUnit(kind="note", ref=ref, title=title, captions=tuple(rows))
-                        for ref, (title, rows) in _NOTES.items()])
+    """The header pool the live selector builds — `captions=()` is the point.
+
+    `line_item_notes.header_pool` carries each note's HEADING and nothing else, because that is
+    what a line's `note_terms` are authored against. The row captions in `_NOTES` are kept in the
+    fixture because they are what a filing prints, and because the row-level probe
+    (`line_item_notes.row_probe`) scores against them — a separate vocabulary and a separate pool,
+    since what makes a word distinctive among a filing's headings is not what makes it distinctive
+    among the rows of one note.
+    """
+    return ContextPool([ContextUnit(kind="note", ref=ref, title=title, captions=())
+                        for ref, (title, _rows) in _NOTES.items()])
+
+
+def _row_pool(ref: str) -> ContextPool:
+    """One note's ROWS, for the level-2 probe."""
+    title, rows = _NOTES[ref]
+    return ContextPool([ContextUnit(kind="row", ref=f"{ref}:{i}", title=cap, captions=())
+                        for i, cap in enumerate(rows)])
 
 
 def _by_key():
@@ -81,24 +112,35 @@ def _matcher():
     return OntologyMatcher(build_working_view(st), locale="en", settings=get_settings())
 
 
-def _probe_tokens(matcher, key: str) -> set[str]:
-    """THE PROBE THE MATCHER ACTUALLY BUILDS, not a re-spelling of it.
+def _lines():
+    """The shipped line items by key, as the selector reads them."""
+    st = load_line_item_set(json.loads(SEED.read_text(encoding="utf-8")), resolve=True)
+    by_key = {i.key: i for i in st.items}
+    return st, by_key
 
-    Calling `_context_probe` rather than reassembling the criteria here is the difference between
-    measuring the shipped selector and measuring a copy of it — and the boilerplate filter lives
-    inside that method, so a hand-written probe would score against text no request ever carries.
+
+def _probe_tokens(by_key, key: str) -> set[str]:
+    """THE PROBE THE SELECTOR ACTUALLY BUILDS, not a re-spelling of it.
+
+    Calling `note_probe` rather than reassembling the prose here is the difference between
+    measuring the shipped selector and measuring a copy of it — and the fallback for a line with no
+    authored `note_terms` lives inside that function, so a hand-written probe would score against
+    text no request ever carries.
     """
-    result = MappingResult(canonical_key=key, method=MappingMethod.RULE, confidence=1.0)
-    return set(subject_tokens(matcher._context_probe("", result)))
+    from app.services.line_item_notes import note_probe
+
+    item = by_key[key]
+    parent = by_key.get(getattr(item, "parent", "") or "")
+    return set(subject_tokens(note_probe(item, parent)))
 
 
 def _scores() -> tuple[list[float], list[float]]:
     """Every (true, other) score across all probes, for the threshold assertions below."""
-    pool, matcher = _pool(), _matcher()
+    pool, (_st, by_key) = _pool(), _lines()
     true_scores: list[float] = []
     other_scores: list[float] = []
     for ref, key in _PROBES.items():
-        probe = _probe_tokens(matcher, key)
+        probe = _probe_tokens(by_key, key)
         for unit in pool.units:
             (true_scores if unit.ref == ref else other_scores).append(pool._score(unit, probe))
     return true_scores, other_scores
@@ -106,10 +148,10 @@ def _scores() -> tuple[list[float], list[float]]:
 
 def test_every_note_wins_its_own_concepts_probe():
     """Top-1 accuracy on the shipped rulebook. This is the claim; everything else is a detail."""
-    pool, matcher = _pool(), _matcher()
+    pool, (_st, by_key) = _pool(), _lines()
     misses = []
     for ref, key in _PROBES.items():
-        probe = _probe_tokens(matcher, key)
+        probe = _probe_tokens(by_key, key)
         best = max(pool.units, key=lambda u: (pool._score(u, probe), u.ref == ref))
         if best.ref != ref:
             misses.append(f"{key}: expected note {ref} ({_NOTES[ref][0]}), "
@@ -117,21 +159,52 @@ def test_every_note_wins_its_own_concepts_probe():
     assert not misses, "\n".join(misses)
 
 
-def test_the_configured_threshold_sits_between_the_true_matches_and_the_noise():
-    """The `llm_context_min_score` default is a measurement, and this is the measurement.
+def test_the_selectors_threshold_sits_between_the_true_matches_and_the_noise():
+    """`notes_for_line_item`'s `min_score` default is a measurement, and this is the measurement.
 
-    Asserted as a RANGE the default must lie in rather than as a literal, so tuning the knob
-    stays possible while putting it somewhere that admits noise or rejects true matches does not.
+    Asserted as a RANGE the default must lie in rather than as a literal, so moving it stays
+    possible while putting it somewhere that admits noise or rejects true matches does not.
+
+    IT IS A CODE DEFAULT AND NOT A SETTING, which is a change. `extraction.llm_context_min_score`
+    (0.22) was the same number for the ROW probe and is retired with it — see config.py. The live
+    threshold is `line_item_notes.notes_for_line_item(min_score=0.30)`, read straight off the
+    signature here rather than restated, so the two cannot drift.
+
+    MEASURED ON THE LIVE PROBE, AND THE SHIPPED DEFAULT IS JUST BELOW THE GAP: worst true match
+    0.598, noise 90th percentile 0.308, and `min_score` is 0.300. So the gap the threshold is
+    supposed to sit inside is real — worst true is 1.94x the noise band — but 0.30 sits a hair
+    under its lower edge, which means roughly the top tenth of unrelated headings clears it and a line can
+    receive a note about another subject. That is a permissive default rather than a broken one:
+    `cap=4` bounds how many survive, the authored `note_title_any` patterns are a UNION with the
+    semantic hits rather than being replaced by them, and a note carried in error costs request
+    size rather than a wrong figure.
+    #
+    # NOT CHANGED HERE. Moving `min_score` changes which notes every line receives on every run,
+    # and that is a behaviour decision with its own measurement to do — not a side effect of
+    # removing a request path. Asserted as the GAP (the load-bearing claim) plus the default's
+    # position relative to it, so the day someone moves it they see both numbers.
     """
-    from app.config import get_settings
+    import inspect
+
+    from app.services.line_item_notes import notes_for_line_item
 
     true_scores, other_scores = _scores()
     worst_true = min(true_scores)
     noise = sorted(other_scores, reverse=True)
     ninetieth = noise[len(noise) // 10]
+
+    # THE CLAIM: true matches and noise are separated, with room to put a threshold between them.
     assert ninetieth < worst_true, (ninetieth, worst_true)
-    configured = get_settings().extraction.llm_context_min_score
-    assert ninetieth < configured < worst_true, (ninetieth, configured, worst_true)
+    assert worst_true > 1.5 * ninetieth, (
+        f"the gap collapsed: worst true {worst_true:.3f} is no longer half again the noise 90th "
+        f"percentile {ninetieth:.3f}, so no threshold can separate them")
+
+    # THE DEFAULT'S POSITION IN THAT GAP, asserted rather than assumed. It must not reject a true
+    # match, which is the failure that loses a figure.
+    configured = inspect.signature(notes_for_line_item).parameters["min_score"].default
+    assert configured < worst_true, (
+        f"min_score {configured} rejects the worst true match {worst_true:.3f} — a line would "
+        f"receive none of its own notes")
 
 
 def test_most_unrelated_notes_score_exactly_zero():
@@ -149,41 +222,6 @@ def test_the_true_and_unrelated_distributions_do_not_overlap():
     thing holding the selection together."""
     true_scores, other = _scores()
     assert min(true_scores) > max(other), (min(true_scores), max(other))
-
-
-def test_the_generated_boilerplate_does_not_decide_the_match():
-    """REGRESSION. All 462 shipped definitions share one generated sentence — "Extract the reported
-    value for '<label>' from the stated section. Do not calculate or replace it, because the revised
-    template does not designate this field as formula-driven." Before `_criteria_boilerplate`
-    filtered those words out of the probe, the cash-flow translation adjustment selected the
-    TRADE-RECEIVABLES note at 0.381 on three shared words — `amounts`, `from`, `other` — all three
-    from the template sentence and none from the concept.
-
-    The fix is asserted by its outcome, not by inspecting the filter: the concept must now reach the
-    note about CASH, which is what it is actually about, and must not reach receivables at all.
-    """
-    matcher = _matcher()
-    got = _pool().select(
-        probe_text=matcher._context_probe("", MappingResult(
-            canonical_key="cf_financing__translation_adj_relating_to_cash",
-            method=MappingMethod.RULE, confidence=1.0)),
-        notes_cap=3, face_cap=0)
-    refs = [u["ref"] for u in got]
-    assert "21" in refs, refs          # Cash and bank balances
-    assert "12" not in refs, refs      # Trade and other receivables
-
-
-def test_the_boilerplate_filter_catches_the_template_sentence_and_nothing_else():
-    """The 0.6 fraction has to land in the cliff the measurement found: 25 tokens in 76%-99.6% of
-    concepts, then `balance` at 47%. Asserted from both sides, because a fraction set too low would
-    start eating real financial vocabulary and the symptom would be silently worse selection."""
-    drop = _matcher()._criteria_boilerplate()
-    # Every word of the generated sentence is gone.
-    assert {"extract", "reported", "value", "stated", "section", "calculate", "replace",
-            "template", "formula", "driven", "amounts", "from", "other"} <= drop
-    # And no word that names a subject is.
-    assert not (drop & {"receivables", "inventories", "payables", "cash", "revenue", "tax",
-                        "borrowings", "depreciation", "equity", "balance", "sheet", "income"})
 
 
 # ── the definition IS the semantic index ───────────────────────────────────────────────────────

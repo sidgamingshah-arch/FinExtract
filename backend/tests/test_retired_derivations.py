@@ -306,7 +306,7 @@ def test_the_four_derivation_stages_left_the_pipeline_and_the_disclosure_stage_d
         assert retired not in names, (
             f"stage {retired!r} is back in the pipeline. Nothing computes these figures now — "
             f"they come from the line-item configuration.")
-    # 20, NOT 17. Three stages were added after this test was written, and ALL THREE are the
+    # 21, NOT 17. Four stages were added after this test was written, and ALL FOUR are the
     # opposite of what the four retired ones were — not one enumerates a caption or computes a
     # figure of its own:
     #
@@ -323,7 +323,13 @@ def test_the_four_derivation_stages_left_the_pipeline_and_the_disclosure_stage_d
     #     either: it reads one boolean off each line's own definition and acts on the row's own
     #     citations, so a line nobody has flagged is untouched — the whole stage is a no-op on the
     #     shipped seed, which turns the flag on for nothing.
-    assert len(names) == 20, names
+    #   * `line_item_llm` asks a model WHERE a named line's figure is printed, and the answer is a
+    #     citation resolved against the extracted rows (`note_sourced.resolve_sources`) — the page
+    #     and the figure come off the ROW. It enumerates nothing: it reads each line's own
+    #     definition, aliases, row terms and selected notes. IT IS ALSO A REMOVAL, not only an
+    #     addition — the batched ROW request it replaces lived inside `map_line_items`, which now
+    #     makes no provider call at all, and the ~1,300 lines that served it are gone.
+    assert len(names) == 21, names
     assert "assemble_components" in names, (
         "the component assembly is gone, so a line item printed as several rows cannot be filled "
         "at all — that is not a return to the derivations, it is the loss of their replacement")

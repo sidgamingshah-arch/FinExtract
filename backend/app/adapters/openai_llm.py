@@ -127,7 +127,14 @@ class OpenAiLlmProvider:
         # mapping batch before it emits any JSON at all (finish_reason=length, empty content).
         # Two provider-dependent knobs express opposite intents: OpenRouter's
         # `reasoning.max_tokens` BOUNDS reasoning, while `reasoning_effort` ASKS for it.
-        is_mapping_response = response_schema.__module__ == "app.services.mapping"
+        # WHICH REPLIES MUST KEEP THEIR WHOLE BUDGET FOR JSON, asked of the SCHEMA rather than of
+        # its module path. It used to be `response_schema.__module__ == "app.services.mapping"`,
+        # and that broke silently the moment the request moved: the row batch's reply schema lived
+        # in `services.mapping`, the line-item request's lives in `services.line_item_llm`, and a
+        # module-name match on a file that no longer defines a response schema is a test that can
+        # only ever answer False. The schema now SAYS so (`compact_json_reply = True`), which
+        # travels with it wherever it is declared.
+        is_mapping_response = bool(getattr(response_schema, "compact_json_reply", False))
         if cap > 0:
             # A CAP is not a request: it BOUNDS reasoning the model would do anyway, which is what
             # keeps a mandatory-reasoning model from spending the mapping budget on hidden tokens.

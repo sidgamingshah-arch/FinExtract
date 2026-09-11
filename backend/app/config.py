@@ -194,16 +194,6 @@ class ExtractionSettings(BaseModel):
     # description), not string similarity. The lexical/fuzzy tiers only pre-shortlist
     # candidates. Set false to force the deterministic ensemble even with an LLM present.
     llm_mapping: bool = True
-    # RAISED 40 -> 60 when the parts of a line became recognisable concepts. There are 77 of them
-    # and they sort at `match_priority` 80 against a median of 81, so at the old bound they took
-    # 7-8 of the offered slots on a face chunk and displaced that statement's own concepts.
-    #
-    # THE BOUND EXISTS TO FIT A PROVIDER LIMIT, and the limit that forced a low value is gone. The
-    # Groq free tier caps at 8,000 tokens per minute and cannot serve this pipeline at ANY cap (one
-    # request is 30,000-40,000); the Gemini endpoint accepted a 42,736-token request in 7.2s. So
-    # this is now a quality setting rather than a feasibility one. Measured at 60: a balance-sheet
-    # chunk offers roughly 44 template concepts alongside 16 parts, instead of 8 and 8.
-    llm_candidate_cap: int = 60   # max candidate concepts shown to the LLM per line
     # How many candidate concepts a REVIEWED row carries, and how many of them are named to the
     # model as the deterministic tiers' own reading.
     #
@@ -218,79 +208,62 @@ class ExtractionSettings(BaseModel):
     # THAT DAY ARRIVED when `confusable_with` was authored on output_csv_hk (40 mutual pairs over
     # the measured equal-priority collisions, including a 5-concept `is_oci__*` clique). A refused
     # confusable tie returns every tied concept as a candidate, so the pool now reaches 8 and the
-    # slices truncate: `review_candidate_cap` decides what a reviewer sees, and
-    # `llm_deterministic_candidate_cap` decides how much of the deterministic reading the model is
-    # shown — at 3 of 8 it was dropping five of the very concepts the tie is about, on the one
-    # call that could have resolved it.
+    # slice truncates — and `review_candidate_cap` decides what a reviewer sees of it.
     #
-    # Defaults are the literals they replace, so shipped behaviour is unchanged.
+    # ITS TWIN IS RETIRED. `llm_deterministic_candidate_cap` (3) decided how much of that same
+    # deterministic reading was NAMED TO THE MODEL, on the one call that could have resolved the
+    # tie. There is no such call: a confusable tie is now reported rather than resolved (both
+    # concepts emitted, the row routed to review), so the only consumer of the shortlist is the
+    # reviewer, and one cap serves them.
+    #
+    # The default is the literal it replaces, so shipped behaviour is unchanged.
     review_candidate_cap: int = 5
-    llm_deterministic_candidate_cap: int = 3
-    # The other two REQUEST-PAYLOAD caps, declared next to the candidate cap because they are the
-    # same species: how much of the rulebook fits in one call, which is a context/cost budget the
-    # deployment pays and not a number the vocabulary calibrated. Each caps HOW MANY; the rulebook's
-    # own authoring order decides WHICH survive, so lowering either drops authored content off the
-    # tail rather than choosing better content. Config-file only, like the cap above — a provider
-    # budget is a deployment fact, not an operator's risk appetite, so neither is an admin knob
-    # (see services.settings_state.EXTRACTION_KNOBS).
-    #
-    # Worked examples ride in the SYSTEM message, so every call of a run pays for them. The cap
+    # Worked examples ride in the SYSTEM message, so every request of a run pays for them. The cap
     # bites on exactly one shipped rulebook: hkfrs_hk_china authors 8 (the two this drops are 1,023
     # characters, 16% of that ontology's 6,389-character system prompt) and output_csv_hk authors
     # none. So 6 is not the authored length of anything — raising it to 8 changes what one rulebook
     # tells the model, which is why the default is the literal it replaces and not len(examples).
+    #
+    # THE ONE PAYLOAD CAP THAT SURVIVED THE ROW REQUEST, because it was never about a row: worked
+    # examples are the rulebook's own judgement, they ride in the system prompt, and
+    # `services.mapping.authored_guidance` still assembles that for every line-item request.
     llm_worked_examples_cap: int = 6
-    # Example aliases shown per candidate concept, i.e. paid once per candidate per call. Measured
-    # on a balance-sheet payload at the shipped candidate cap: 4 truncates 4 of the 40 candidates'
-    # alias lists and the aliases are 1,774 of the payload's 37,781 characters (5%) — against a
-    # vocabulary whose median concept has 3 aliases and whose longest has 23. It therefore bounds
-    # the long tail and leaves the typical concept's list intact.
-    llm_example_aliases_cap: int = 4
-    # DOCUMENT CONTEXT per source item (services.note_context). Notes and face rows are capped
-    # separately on purpose: one cap over both lets a filing with forty notes crowd out the face
-    # rows, and the face rows are what carry the whole-vs-component evidence the `role` decision
-    # needs. `llm_context_char_budget` is the backstop — it cuts the already-ranked list, so what
-    # it drops is always the least relevant unit and never whatever happened to be last.
-    llm_context_notes_cap: int = 3
-    llm_context_face_cap: int = 3
-    llm_context_char_budget: int = 1200
-    # Below this similarity a unit is not offered at all. A row whose subject appears nowhere else
-    # in the filing should carry NO context rather than the three least-unrelated notes — padding
-    # the request with material about other subjects is worse than sending none.
+    # ── THE REQUEST-PAYLOAD CAPS WENT WITH THE ROW REQUEST ──────────────────────────────────────
     #
-    # THE NUMBER IS MEASURED. The score is an IDF-weighted cosine in 0..1, so it means the same
-    # thing on a three-note extract as on a forty-note filing (verified in
-    # `test_note_context_ranking`: 0.711 vs 0.697 for one probe against one note). Measured over ten
-    # note subjects scored against the shipped rulebook's own criteria for the concept each note is
-    # about, the CORRECT note ranked first 7 times out of 7 and scored 0.451 at worst / 0.605 at the
-    # median, while unrelated pairs scored exactly 0.000 in 43 of 63 cases, 0.109 at the 90th
-    # percentile and 0.448 at the very worst — so the two distributions do not overlap at all. 0.22
-    # sits in that gap, near the noise end so a weak-but-real subject match is still offered. Raise
-    # it to require strong matches; lower it to accept more, bounded by the caps above either way.
-    llm_context_min_score: float = 0.22
-    # A word appearing in at least this FRACTION of the rulebook's concepts is dropped from the
-    # probe — the mirror of the pool's IDF, applied to the configuration side. It matters because
-    # the shipped criteria are machine generated: all 462 definitions share one template sentence,
-    # and without this filter the probe for a cash-flow translation adjustment selected the
-    # trade-receivables note at 0.381 on `amounts`, `from` and `other`, every one of them from the
-    # template and none from the concept. Concept frequency has a sharp cliff — 25 tokens in
-    # 76%-99.6% of concepts (the sentence), then `balance` at 47% — so anything from 0.5 to 0.7
-    # isolates exactly the boilerplate. 0 disables the filter.
-    llm_context_criteria_boilerplate_fraction: float = 0.6
-    # Restrict LLM disambiguation to these canonical_keys only; every other row is decided by the
-    # deterministic ensemble (rule/alias tiers), never sent to the model. Empty = no restriction
-    # (the default: LLM considered for any row the ensemble can't otherwise resolve).
-    llm_only_keys: list[str] = Field(default_factory=list)
-    # TEMPORARY (focus-run routing) — remove with the block it drives in stages/map_line_items.py.
+    # Seven settings stood here. `llm_deterministic_candidate_cap` (3) decided how much of the
+    # deterministic reading a row was shown; `llm_example_aliases_cap` (4) how many of each
+    # candidate concept's aliases travelled with it; and the five `llm_context_*` settings —
+    # `notes_cap` (3), `face_cap` (3), `char_budget` (1200), `min_score` (0.22) and
+    # `criteria_boilerplate_fraction` (0.6) — chose which notes and face rows to attach to each
+    # printed row, by IDF-weighted cosine against a probe assembled from that row's rival
+    # candidates.
     #
-    # Restrict the LLM to the ROWS that could be one of these concepts, instead of restricting the
-    # CANDIDATE LIST the way ``llm_only_keys`` does. That distinction is the whole point:
-    # ``llm_only_keys`` leaves every other row in the request with a candidate list that cannot
-    # contain its answer (so the model force-fits it onto one of the listed keys) and drops the
-    # deterministic exact/alias answer those rows would otherwise have had. This instead decides
-    # each row deterministically FIRST and only forwards the ones that are plausibly in focus —
-    # with their candidate list untouched, so a forwarded row is still judged against the full
-    # statement/section scope. Empty (the default) = no routing, i.e. today's behaviour exactly.
+    # EVERY ONE WAS A BUDGET FOR A ROW'S SHARE OF A CALL, and a row no longer has one. The model is
+    # asked about LINE ITEMS, and the notes a line carries are the ones ITS OWN CONFIGURATION
+    # selected — `note_source.note_title_any` plus, where `note_selection` is `semantic`, the notes
+    # its authored prose scores against the headings (`services.line_item_notes`). That is a
+    # stronger statement of relevance than any per-row score, so there is nothing for a cap to
+    # ration: a request carries a handful of named lines and the notes they asked for.
+    #
+    # THE MEASUREMENTS ARE WORTH KEEPING EVEN THOUGH THE KNOBS ARE NOT, and they are in git
+    # history in full: 0.22 sat in a measured gap (correct notes 0.451 worst / 0.605 median,
+    # unrelated pairs 0.000 in 43 of 63 cases), and 0.6 isolated the 25 tokens that appear in
+    # 76%-99.6% of the shipped rulebook's machine-generated definitions. Both describe scoring a
+    # ROW against notes. `ContextPool.select` and `note_context.build_pool` still implement it and
+    # are now read by tests only — if a line-item request ever needs to widen beyond what its
+    # configuration named, that is the mechanism, and it will need its own measurement rather than
+    # these numbers.
+    # WHICH LINE ITEMS A RUN ASKS ABOUT. Empty (the default) = all of them.
+    #
+    # It used to name concepts whose ROWS were forwarded to the model while every other row kept
+    # its deterministic answer — a routing gate over printed rows, with a deterministic fallback
+    # underneath it for the rows it forwarded. None of that survives: rows are not offered to a
+    # model at all (see the retired settings above), so there is nothing to route.
+    #
+    # What the setting means now is the thing a focus run was always trying to say — ASK ABOUT
+    # THESE LINE ITEMS AND NOT THE OTHERS — and it is read at that level, beside
+    # `llm_request_grouping`, by `services.line_item_requests`. The shipped list in config.toml
+    # carries the 8 focus concepts and needs no change: a key names a line item either way.
     llm_focus_keys: list[str] = Field(default_factory=list)
     # …and the switch that turns the above on, separated from it because the two answer different
     # questions and belong to different people. WHICH concepts are in focus is a deployment
@@ -363,30 +336,6 @@ class ExtractionSettings(BaseModel):
     # Publish only notes a face row cites (see stages/prune_notes.py). False publishes every
     # extracted note table regardless of whether any face figure references it.
     prune_unreferenced_notes: bool = True
-    # Concurrent LLM batch calls during map_line_items' per-statement pass (see stages/map_line_items
-    # + services.mapping._match_chunk). Each chunk is an independent provider call; running several
-    # in parallel is what turns a run's LLM time from "sum of every call" into "the slowest one",
-    # bounded so a large filing does not open dozens of connections to the gateway at once.
-    llm_max_concurrency: int = 6
-    # ── ONE BATCH CALL'S SIZE: ITS RESPONSE ALLOCATION *AND* ITS VOCABULARY ─────────────────────
-    #
-    # How many captions travel in one structured request. What decides the number from the
-    # gateway's side is how many decisions a given model returns as parseable JSON in one go — a
-    # truncated batch is not a partial answer, the JSON fails to parse and the whole chunk silently
-    # falls back to the weaker per-line path, on a run that still reports itself LLM-mapped.
-    #
-    # BUT IT IS NOT A PURE TRANSPORT NUMBER, and the comment that used to stand here said it was
-    # ("the chunk bounds one RESPONSE's size and nothing about the vocabulary"). That is false.
-    # `services.mapping._match_chunk` derives the section tokens from the rows IN THIS CHUNK and
-    # narrows the offered candidate list by them, and it seeds the never-evicted keys from this
-    # chunk's own rows before `llm_candidate_cap` bounds the fill. So the chunk boundary decides
-    # WHICH concepts the model may choose from on each call: a smaller chunk carries fewer banners,
-    # which is a narrower vocabulary — and it is also where cross-line context (a subtotal and the
-    # lines it is made of, a section and its residual) is cut.
-    #
-    # Lowering this is therefore a mapping change, not a plumbing change. Re-baseline the
-    # deployment that lowers it rather than assuming the same answers at a smaller size.
-    llm_batch_max_items: int = 25
     # HOW LINE ITEMS ARE GROUPED INTO REQUESTS, when requests are driven by the line item rather
     # than by the printed row.
     #
@@ -429,37 +378,28 @@ class ExtractionSettings(BaseModel):
     # switch is what let the merged configuration ship inert, with what a user configured on the
     # Line Items screen affecting nothing.
 
-    # Floor under a batch call's requested completion allocation. services.mapping also DERIVES a
-    # budget from the response envelope (a reserve plus ~80 tokens a decision); that derivation
-    # stays in code because it is measured against THIS vocabulary's longest canonical_key, and the
-    # floor is the half that answers to the gateway instead. At the shipped chunk size the floor is
-    # in fact the only number in play — derived(25) = 2,256 tokens, and the floor wins for every
-    # chunk up to 99 items (crossover at 100) — so this is the batch response budget in practice.
-    # It exists because sending `llm.max_tokens` (a request ceiling shared with every other call in
-    # the app) makes compatible gateways reserve millions of tokens for a small structured reply and
-    # time out before answering. How much headroom a reply needs is a fact about the gateway.
-    # Bounded here and not in `services.settings_state`: this is not an EXTRACTION_KNOBS entry, so
-    # `set_extraction_config`'s min/max refusal never sees it and a negative value would be sent
-    # straight to the provider as the requested allocation. 0 is admitted deliberately — it means
-    # "no floor, use the envelope derivation" (see services.mapping._effective_batch_max_tokens).
-    llm_batch_response_floor_tokens: int = Field(8192, ge=0)
-    # …and the same allocation for the per-line call, which answers with one decision. Measured:
-    # an `LlmMappingDecision` carrying the rulebook's longest canonical_key and a 200-char reason
-    # serialises to 371 characters ≈ 124 tokens, so 512 is roughly 4× headroom on the envelope. It
-    # is a deployment number for the reason `llm.reasoning_max_tokens` documents: a model whose
-    # reasoning cannot be disabled spends the completion budget thinking and returns empty content
-    # with finish_reason=length, and how much budget that takes is a property of the model.
-    # `ge=1` for the reason the floor above is bounded — no EXTRACTION_KNOBS entry, so nothing else
-    # refuses a range — and 1 rather than 0 because this is the whole allocation and not a floor:
-    # 0 asks the provider for a zero-token completion, which is not a configuration anyone wants.
-    llm_line_max_tokens: int = Field(512, ge=1)
-    # Mapping granularity. "per_statement" (default, most accurate) batches lines into ONE LLM
-    # call so cross-line judgements — parent/child containment, residualisation, "Others"
-    # handling — have context. The batch is one SOURCE PAGE in practice, so a statement spanning
-    # two pages is decided in two calls; the name states the intent rather than the unit (see
-    # services.mapping.match_batch). "per_line" maps each line independently (cheaper, less
-    # context-aware).
-    mapping_scope: Literal["per_statement", "per_line"] = "per_statement"
+    # ── SEVEN SETTINGS STOOD HERE AND ARE RETIRED WITH THE ROW-DRIVEN LLM PATH ──────────────────
+    #
+    # `mapping_scope` ("per_statement" | "per_line") chose between batching printed rows into one
+    # call and asking about them one at a time. `llm_batch_max_items` (25) cut a batch into chunks
+    # and, because `_match_chunk` derived its section tokens from the rows in the chunk, also
+    # decided how much vocabulary each call could choose from. `llm_batch_response_floor_tokens`
+    # (8192) and `llm_line_max_tokens` (512) were the completion allocations for a batch reply and
+    # a single-caption reply. `llm_candidate_cap` (60) bounded how many concepts one row was
+    # offered. `llm_max_concurrency` (6) sized the thread pool the chunks were dispatched on.
+    # `llm_only_keys` restricted the candidate list to named concepts.
+    #
+    # EVERY ONE OF THEM DESCRIBED A CALL ABOUT A PRINTED ROW, and no such call is made. Concept
+    # mapping is settled by the deterministic ensemble (`services.mapping.match` — exact
+    # normalised alias, then the rule tier); the model is asked about LINE ITEMS and the notes
+    # they name, planned and grouped by `services.line_item_requests` under
+    # `llm_request_grouping` below. A chunk size, a per-row candidate cap and a batch response
+    # floor have no meaning at that level: the unit is a line item and the payload is its notes.
+    #
+    # Do NOT reinstate one of these to size a line-item request. The numbers were measured against
+    # row payloads (a 25-decision envelope, a 60-concept shortlist for one caption) and carrying
+    # them over would put a row-shaped bound on a differently shaped request while looking
+    # justified. Declare what the line-item path actually needs, with its own measurement.
     # `llm_note_structuring` STOOD HERE AND WAS DELETED. It declared that "multi-column notes are
     # structured by the configured LLM before they can enter ontology mapping", it shipped `true`
     # in config.toml, and it had ZERO readers — no stage among the 21 in app/stages, no service, no

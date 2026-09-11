@@ -47,6 +47,7 @@ def default_pipeline() -> Pipeline:
     from app.stages.assemble_components import AssembleComponentsStage
     from app.stages.normalize import NormalizeStage
     from app.stages.link_notes import LinkNotesStage
+    from app.stages.line_item_llm import LineItemLlmStage
     from app.stages.note_sourced import NoteSourcedStage
     from app.stages.contingent_liabilities import ContingentLiabilitiesStage
     from app.stages.reconcile import ReconcileStage
@@ -74,6 +75,17 @@ def default_pipeline() -> Pipeline:
         ResidualStage(),
         NormalizeStage(),
         LinkNotesStage(),
+        # WHERE A MODEL IS ASKED ANYTHING ABOUT A FIGURE, and the only place. It asks about LINE
+        # ITEMS — for a line the configuration names, which row of its selected notes holds the
+        # number — and never about a printed row. The row-driven path it replaces ran inside
+        # `MapOntologyStage` above (one batched call per statement, asking which concept each
+        # printed caption was) and is gone; mapping makes no provider call at all.
+        #
+        # Immediately before `NoteSourcedStage` on purpose: that stage reads the same
+        # `note_source` declarations deterministically, and every site it writes a figure asks
+        # `_llm_holds` first — so a line answered here keeps its answer and the declared route
+        # fills what was left empty. Neither route overwrites the other.
+        LineItemLlmStage(),
         # WHERE THE REMOVED DERIVATIONS RAN, and the position is load-bearing: `normalize` has
         # already run, so a note-derived figure is not put through the unsigned-expense cohort
         # vote — one filing's note breakdown would otherwise flip the sign of every expense on its
@@ -102,10 +114,15 @@ def default_pipeline() -> Pipeline:
         # concept was an `ambiguous_mapping` and the line went unfilled, because that flag cannot
         # tell a genuine component set from a face line repeating the note total behind it.
         #
-        # THE MODEL DECLARES WHICH IT IS (`LlmBatchItem.role`), the mapper marks the row, and this
-        # adds up only what was declared — so a duplicate stays ambiguous while a component set
-        # sums, and each contribution carries its page, its caption and the model's reason for
-        # including it. Nothing here enumerates a caption; the rows come from configuration.
+        # THE MODEL DECLARES WHICH IT IS (`line_item_llm.LineItemAnswer.role`), and this adds up
+        # only what was declared — so a duplicate stays ambiguous while a component set sums, and
+        # each contribution carries its page, its caption and the model's reason for including it.
+        # Nothing here enumerates a caption; the rows come from configuration.
+        #
+        # The declaration used to arrive per printed ROW, from the batched mapping call
+        # (`LlmBatchItem.role`). It now arrives per LINE ITEM, with the citations that make it up,
+        # so "these four note rows are one line" is stated where the line is named rather than
+        # inferred from four separate row answers that happened to agree.
         #
         # AFTER normalize (components must share a scale and sign before they are added) and
         # BEFORE reconcile (which has to check the assembled figure against a printed subtotal).

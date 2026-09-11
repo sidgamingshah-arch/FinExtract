@@ -1,29 +1,29 @@
-"""``expected_components`` on the shipped output-CSV rulebook: the payload block must not be empty.
+"""``expected_components`` on the shipped output-CSV rulebook: the authored prose, checked.
 
-THE DEFECT THIS FILE EXISTS FOR. ``services.mapping._residual_expectations`` iterates the LOCKED
-residual buckets and publishes each one's ``expected_components`` as the batch payload field
-"captions_with_no_dedicated_concept" — the list that licenses the model to answer with an EMPTY
-canonical_key, which is what routes a row to the section sweep. On
-``output_csv_hk_ontology.json`` all 16 locked concepts carried zero ``expected_components``, so the
-consumer returned ``[]`` for every statement and every section: the block never appeared in a
-single request. ``_batch_system`` still described it, and the model was handed a candidate list and
-a caption with no licensed way to say "none of these" — so it picked the nearest concept, the
-figure landed on a specific wrong line, and the section still tied because the sweep never saw the
-row. (The sibling ``hkfrs_hk_china_ontology.json`` has carried the prose on its 13 residuals all
-along, which is why the mechanism was unit-tested and shipped inert — see
-``tests/test_mapping_v2.py`` for the tests written against that file.)
+WHAT THIS FIELD IS. Each LOCKED residual bucket names the kinds of caption its section is expected
+to have no dedicated concept for — "Bank overdrafts", "Contract assets", "Club memberships". A row
+matching one of those is supposed to reach NO concept and be swept into the section remainder,
+itemised under its own label, rather than being filed on the nearest specific line (which puts the
+figure on a wrong line while the section still ties — the one error nothing downstream detects).
 
-The wording is NOT shared between the two rulebooks and must not be copied across: hkfrs names
-"Bank overdrafts", which here is ``bs_cl__overdrafts``. `test_no_phrase_is_another_concepts_caption`
-is that check, made executable.
+ITS CONSUMER IS RETIRED, AND THE TESTS THAT MEASURED IT ARE GONE WITH IT.
+``services.mapping._residual_expectations`` published the list as a batch payload field
+("captions_with_no_dedicated_concept") that licensed the model to answer with an EMPTY
+canonical_key. There is no such answer to license: nothing asks a model which concept a printed
+row is, so a row the deterministic tiers cannot place is already unmapped and the sweep already
+sees it — which is the outcome the prose existed to obtain.
 
-WHICH FILE GOVERNS. Line items is the single configuration engine — ``extraction.mapping_engine``
-is deleted — so what a run publishes as that payload block comes from the ``line_item_versions``
-row seeded from ``output_csv_hk_line_items.json``. The rulebook JSON read below is the GENERATOR
-INPUT that set is projected from (``scripts/build_line_items.py``); the tests over it hold the
-source the definitions come from, and
-``test_the_configuration_licenses_the_empty_answer_on_every_bucket`` holds the file that actually
-answers.
+WHY THE FIELD AND THESE TESTS STAY. The wording is authored VOCABULARY about what each section
+legitimately leaves unexplained, and it is worth keeping correct: it documents the sweep's own
+boundary for whoever reads the configuration, and it is the content any future reader would want.
+What the tests below hold is its HYGIENE — no entry is key-shaped, every bucket carries prose, each
+list stays narrow, and no phrase is another concept's caption. That last one is not shared between
+the two shipped rulebooks and must not be copied across: hkfrs names "Bank overdrafts", which here
+is ``bs_cl__overdrafts``.
+
+WHICH FILE GOVERNS. Line items is the single configuration engine, so what a run reads comes from
+the ``line_item_versions`` row seeded from ``output_csv_hk_line_items.json``. The rulebook JSON
+read below is the GENERATOR INPUT that set is projected from (``scripts/build_line_items.py``).
 """
 from __future__ import annotations
 
@@ -60,29 +60,6 @@ def matcher(ontology):
 @pytest.fixture(scope="module")
 def residuals(ontology):
     return [m for m in ontology.mappings if m.value_scope == "exclusive_residual"]
-
-
-# ── the block reaches the request ────────────────────────────────────────────────────────────────
-
-@pytest.mark.parametrize("statement", STATEMENTS)
-def test_every_statement_offers_its_residual_expectations(matcher, statement):
-    """0 blocks on 3 statements was the shipped state. A statement-wide call must offer some."""
-    expectations = matcher._residual_expectations(statement)
-
-    assert expectations, f"{statement} hands the model no licensed empty answer"
-    for entry in expectations:
-        assert entry["captions_with_no_dedicated_concept"], entry["section"]
-
-
-def test_the_bucket_is_never_named_to_the_model(matcher):
-    """The answer being licensed is an EMPTY key. Naming the bucket would invite the model to file
-    the figure IN the bucket instead, which is the section's unexplained remainder."""
-    keys = {m.canonical_key for m in matcher.ontology.mappings}
-    for statement in STATEMENTS:
-        for entry in matcher._residual_expectations(statement):
-            assert "canonical_key" not in entry
-            for phrase in entry["captions_with_no_dedicated_concept"]:
-                assert phrase not in keys
 
 
 def test_no_entry_is_key_shaped(residuals):

@@ -136,10 +136,10 @@ model = "azure-openai/gpt5.4-mini"  # gateway model id: "<vendor>/<deployment na
 # Per-call completion ceiling, shared by every FREE-FORM call — it is passed through verbatim as
 # the requested allocation by the gap-routing, contingent-liabilities, commentary/analysis and
 # netting paths, so it overrides each callee's own default rather than capping it. Mapping does NOT
-# use it: services/mapping.py `_effective_batch_max_tokens` derives a budget from the batch
-# envelope instead, for the reason config.py's `llm_batch_response_floor_tokens` comment records —
-# sending a request ceiling of millions makes compatible gateways reserve millions of tokens for a
-# small structured reply and time out before answering.
+# use it: mapping makes no provider call at all, and any line-item request declares its own
+# allocation for the reason the retired `llm_batch_response_floor_tokens` recorded — sending a
+# request ceiling of millions makes compatible gateways reserve millions of tokens for a small
+# structured reply and time out before answering.
 # This shipped as 4096000, which is exactly that failure: the gateway's own answer was
 # "max_tokens is too large: 4096000. This model supports at most 128000 completion tokens"
 # (recorded in tests/test_llm_audit.py). The adapter's adaptive 400 loop recovered it at the cost
@@ -192,11 +192,6 @@ auto_accept_confidence = 0.80   # combined confidence at/above which a line auto
 recon_corroboration_rel = 0.05  # how near a note total must be to the face figure to count as its breakdown
 recon_abs_tolerance = 1.0       # absolute tolerance (in base units) for reconciliation ties
 recon_rel_tolerance = 0.005     # relative tolerance (fraction of the face value)
-# Restrict LLM disambiguation to specific canonical_keys (everything else decided
-# deterministically). Left empty here (no restriction) — set per-run via the
-# FINEX_EXTRACTION__LLM_ONLY_KEYS env var instead, since a checked-in restriction here would
-# also apply to every test and script that reads settings.
-llm_only_keys = []
 
 # FOCUS RUN — spend the provider budget on the lines under review instead of the whole filing.
 # `llm_focus_keys` names WHICH concepts (a deployment decision, and a list, so it cannot travel
@@ -214,11 +209,9 @@ llm_only_keys = []
 # It now pins `llm_focus_only = False` itself, which is where that precondition belongs — a test
 # about unfocused routing should say so rather than inherit whichever way a deployment points.
 #
-# Do NOT confuse this with `llm_only_keys` above, which restricts the CANDIDATE LIST and is not
-# safe: measured on this rulebook it destroys the deterministic answer for every row it does not
-# name ("Trade receivables" resolves EXACT 1.0 without it, UNMATCHED with it) and still sends those
-# rows to the model with a candidate list that cannot hold their answer. Focus routing restricts
-# the ROWS instead and leaves each forwarded row's candidates untouched.
+# WHAT IT MEANS NOW: which LINE ITEMS the run asks about. It used to name concepts whose printed
+# ROWS were forwarded to the model; rows are no longer offered to a model, so there is nothing to
+# route. The list below needs no change — a key names a line item either way.
 llm_focus_only = true
 # THE PARTS ARE NAMED TOO, NOT ONLY THE EIGHT WHOLES, and that is the whole point of this list
 # being longer than it looks. Seven of the eight are `derived` or `extract_or_derive`, so the model
@@ -324,29 +317,15 @@ llm_focus_keys = [
   "sub__principal_revenue_by_sales_channel",
   "sub__revenue_note_principal_revenue",
 ]
-# CONCURRENT MAPPING CALLS. Raised 6 -> 10 for a provider with no per-minute cap, which is what
-# the committed configuration now assumes.
+# THE ROW-LEVEL LLM SETTINGS THAT STOOD HERE ARE RETIRED.
 #
-# WHAT WAS THROTTLING AND WHERE IT LIVED, so nobody re-throttles the wrong file. Every limit met
-# while developing against free tiers was a LOCAL `.env` override, and `.env` is gitignored — so a
-# fresh checkout has never had them:
-#
-#   * Groq's free tier caps at 8,000 tokens per MINUTE against requests of 30,000-40,000, so it
-#     refuses every mapping call at any concurrency. Not a setting; that provider cannot serve this
-#     pipeline.
-#   * Gemini's free tier depletes a DAILY quota — measured across three runs of one filing, 30 then
-#     23 then 16 of 45 calls succeeded — and concurrency 1 was set locally to make the 429 backoff
-#     legible, not because the pipeline needs it.
-#   * OpenRouter's configured key has a zero credit balance (`limit: 0`, `usage: 0`), so paid models
-#     return 403 and the `:free` variants each fail differently — schema non-compliance, an
-#     agentic-harness gate, an output budget burned on reasoning tokens, 429, and an invalid body.
-#
-# SO THESE TWO ARE QUALITY SETTINGS, NOT THROTTLE SETTINGS, and lowering either to fit a provider
-# is the wrong lever — `llm_candidate_cap` (60) decides how much of the vocabulary a call may
-# choose from, and `llm_batch_max_items` (25) decides how much cross-line context one call sees.
-# Both were measured, not tuned to a limit. If a provider cannot take the request, change the
-# provider.
-llm_max_concurrency = 10         # concurrent LLM batch calls during map_ontology
+# `llm_max_concurrency` (10) sized the thread pool a statement's row chunks were dispatched on;
+# `llm_only_keys` restricted the candidate list one row was offered. Both described a call about a
+# printed ROW, and no such call is made — concept mapping is deterministic, and the model is asked
+# about LINE ITEMS and the notes they name (`llm_request_grouping`). The measured provider notes
+# that used to sit here (Groq's 8,000-token minute against 30,000-40,000-token requests; Gemini's
+# daily quota; OpenRouter's zero balance) were about those row requests and are kept in git
+# history rather than reprinted against a request shape they were never measured on.
 # Publish every extracted note regardless of face citation — set per-run via the
 # FINEX_EXTRACTION__PRUNE_UNREFERENCED_NOTES env var instead of here, since a checked-in
 # change here affects every test and script that reads settings.

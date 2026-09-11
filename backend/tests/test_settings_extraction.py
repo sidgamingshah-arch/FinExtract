@@ -148,7 +148,8 @@ def test_the_reconciliation_tolerances_reach_the_reconcile_stage(client):
     ({"evidence_floor": 1.4}, "evidence_floor"),
     ({"evidence_floor": -0.1}, "evidence_floor"),
     ({"auto_accept_confidence": 2}, "auto_accept_confidence"),
-    ({"mapping_scope": "nonsense"}, "mapping_scope"),
+    ({"llm_request_grouping": "nonsense"}, "llm_request_grouping"),
+    ({"llm_group_similarity": 1.4}, "llm_group_similarity"),
 ])
 def test_an_out_of_range_value_is_refused_and_names_the_field(client, payload, expect):
     """Clamping would be worse than refusing: the screen would then show a threshold the

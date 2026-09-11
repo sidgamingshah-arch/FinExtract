@@ -168,18 +168,35 @@ class Knob(NamedTuple):
 # Every extraction setting an admin may change from the Settings screen. Changing one affects
 # FUTURE extractions; it never rewrites a run that already happened.
 EXTRACTION_KNOBS: tuple[Knob, ...] = (
-    Knob("llm_mapping", "bool", "Map by meaning (LLM)",
-         "When an LLM provider is configured, concepts are chosen by MEANING from each "
-         "candidate's definition and criteria, and the lexical tiers only shortlist. Turn this "
-         "off to force the deterministic ensemble even with a provider available."),
-    Knob("llm_focus_only", "bool", "Ask the model only about focus concepts",
-         "Restrict the model to the rows that could be one of the concepts named by "
-         "extraction.llm_focus_keys; every other row keeps the answer the deterministic tiers "
-         "already gave it. Rows that ARE forwarded are still judged against the full candidate "
-         "list for their statement and section, so nothing is force-fit onto a focus concept. Use "
-         "it to spend a small provider budget on the lines under review instead of on the whole "
-         "filing — on a 367-page filing it was 45 rows to the model rather than 285. With no "
-         "focus keys configured this does nothing and says so in the run log."),
+    Knob("llm_mapping", "bool", "Ask the model about line items",
+         "Which CONCEPT a printed caption is, is always decided deterministically — by exact "
+         "alias and the rule tier's authored hints — and this switch does not change that. What "
+         "it controls is whether the configured provider is asked about LINE ITEMS and the notes "
+         "they name: which printed row inside a claimed note holds the figure. Off, or with no "
+         "provider, the note-sourced tiers decide that too."),
+    Knob("llm_focus_only", "bool", "Ask the model only about focus line items",
+         "Restrict the run's requests to the line items named by extraction.llm_focus_keys; every "
+         "other line keeps what the deterministic tiers gave it. Use it to spend a small provider "
+         "budget on the lines under review instead of on the whole filing. With no focus keys "
+         "configured this does nothing and says so in the run log."),
+    Knob("llm_request_grouping", "choice", "How line items share a request",
+         "Each request carries the NOTES its line items asked for, and that note block is almost "
+         "all of what a request costs — measured at 95,188 of a ~196,000-character request, going "
+         "out byte-identical in every call of a run. Grouping lets line items needing the same "
+         "notes pay for one copy. \"none\" is one request per line item: the baseline, and the "
+         "only mode whose answer is attributable to a single line, because nothing else shared "
+         "the call. \"identical\" groups lines whose selected note sets match exactly — safe by "
+         "construction, since no line receives a note it did not ask for. \"similar\" groups "
+         "lines whose note sets overlap by at least the threshold below, which saves more and can "
+         "bleed: lines sharing a call can influence each other's answers. \"manual\" uses the "
+         "groups authored on the line-item set and asks about everything else one line at a time.",
+         choices=("none", "identical", "similar", "manual")),
+    Knob("llm_group_similarity", "number", "How much note overlap counts as similar",
+         "Only read when grouping is \"similar\". The fraction of two line items' selected notes "
+         "that must be the same (Jaccard overlap) before they share a request. 1.0 is the same "
+         "thing as \"identical\"; lower it to group more aggressively and pay for fewer copies "
+         "of the note block, at the cost of lines receiving notes they did not ask for.",
+         minimum=0.0, maximum=1.0, step=0.05),
     Knob("llm_gap_routing", "bool", "Close subtotal gaps (LLM)",
          "When a section subtotal computed from the template's lines differs from the printed "
          "one, offer the model the extracted lines that reached no statement and ask which "
@@ -190,11 +207,6 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "filing's own figures. Enabled, the model rewrites the summary paragraph and each "
          "unclassified item's short statement in clearer English, grounded only in the supplied "
          "facts. Off, or with no provider configured, the deterministic prose is shown."),
-    Knob("mapping_scope", "choice", "Mapping granularity",
-         "per_statement decides all of a statement's captions in one call, so cross-line "
-         "judgements (parent/child containment, residuals, 'Others') have full context. "
-         "per_line is cheaper and less context-aware.",
-         choices=("per_statement", "per_line")),
     Knob("evidence_floor", "number", "Alias evidence floor",
          "How nearly a printed caption must BE one of a concept's authored aliases before that "
          "counts as evidence. Nothing maps a row on wording alone — there is no string-similarity "
