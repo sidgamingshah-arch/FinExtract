@@ -45,6 +45,7 @@ import {
   BoolField, InfoToggle, KeyPicker, LockedRow, NumberField, OrderedMultiSelect, RungCards,
   SelectField, StringListEditor, TermRows, TextArea, TextField, TriBoolField, type KeyOption,
 } from "../components/configFields";
+import { RequestGroups } from "../components/RequestGroups";
 import { Button, Card } from "../components/ui";
 import { useT } from "../i18n";
 import { ApiError, refusalText } from "../lib/api";
@@ -2314,6 +2315,13 @@ export default function LineItemsScreen() {
   // Every key of this set, as the pickers offer them: `parent`, `confusable_with`, `terms[].ref`
   // and the rest all name one, and the publish gate refuses a name that is not one.
   const keyOptions: KeyOption[] = flat.map((d) => ({ key: d.key, label: d.label }));
+  // THE LINES A REQUEST GROUP MAY NAME — the ones the model is actually asked about. Mirrors
+  // `services.line_item_requests.asked_about`, and the server refuses a group naming anything
+  // else, so filtering here keeps the picker from offering a member the save would reject.
+  // A `derived` parent's figure is its declared cascade's and a residual bucket's is the sweep's.
+  const groupable = flat.filter(
+    (d) => String(d.type) !== "derived" && String(d.value_scope) !== "exclusive_residual");
+  const groupableKeys: KeyOption[] = groupable.map((d) => ({ key: d.key, label: d.label }));
 
   // Where each item sits, so a filtered hit can show its parent — a child key on its own ("P2")
   // says nothing about which line it belongs to, and the tree indentation that used to convey it
@@ -2574,6 +2582,16 @@ export default function LineItemsScreen() {
           rules the parser depends on — is deliberately NOT here and is not editable. */}
       {inForce?.id && (
         <MasterPrompt versionId={inForce.id} served={set.prompt ?? ""} canEdit={canEdit} />
+      )}
+
+      {/* WHICH LINES SHARE A MODEL REQUEST. Set-level for the same reason the master prompt is: a
+          group is a relationship BETWEEN line items, so a per-item field would let two lines
+          disagree about which group they are in and there would be nowhere to read the grouping
+          off. Read only when the run's grouping mode is `manual` (Settings -> LLM); the card says
+          so, because a master nothing reads is worse than no master. */}
+      {inForce?.id && (
+        <RequestGroups versionId={inForce.id} set={set} eligible={groupableKeys}
+                       ineligible={flat.length - groupable.length} canEdit={canEdit} />
       )}
 
       {/* ADD A LINE ITEM. The template provisions an item for every line it carries, and an author

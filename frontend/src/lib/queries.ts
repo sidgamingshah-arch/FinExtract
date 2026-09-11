@@ -4,8 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 
 import type {
   Basis, FxRateInput, LineItemEdit, LineItemVersionRef, Locale, SettingsPatch, StatementKey,
-  TemplateRef,
-} from "../types";
+  RequestGroup, TemplateRef } from "../types";
 import { useUI } from "../store";
 import { api } from "./api";
 
@@ -697,11 +696,16 @@ function invalidateConfiguration(qc: ReturnType<typeof useQueryClient>) {
   return qc.invalidateQueries({ queryKey: ["line-items"] });
 }
 
-/** Edit the configuration's own settings (the master prompt). */
+/** Edit the configuration's own settings — the things true of the SET rather than of a line.
+ *
+ *  Two so far, and both are set-level for the same reason: the master prompt belongs to the
+ *  configuration and not to any line, and a REQUEST GROUP is a relationship BETWEEN lines, so a
+ *  per-item field would let two lines disagree about which group they are in. */
 export function useEditLineItemSet() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { lineItemVersionId: string; edit: { prompt?: string } }) =>
+    mutationFn: (vars: { lineItemVersionId: string;
+                         edit: { prompt?: string; request_groups?: RequestGroup[] } }) =>
       api.editLineItemSet(vars.lineItemVersionId, vars.edit),
     onSuccess: () => invalidateConfiguration(qc),
   });

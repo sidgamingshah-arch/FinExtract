@@ -411,7 +411,12 @@ class ExtractionSettings(BaseModel):
     # seen together) and sometimes bleeds (one figure reused for two questions). Without the
     # per-line-item baseline there is no way to tell which happened, so the cheap mode is not the
     # default until there is something to compare it against.
-    llm_request_grouping: Literal["none", "identical", "similar"] = "none"
+    #   "manual"    the groups the line-item set declares in `request_groups`, and one
+    #               request each for every asked-about line the master does not name. For
+    #               the cases a score cannot see: a subtotal better judged beside its
+    #               components, or two lines whose DISTINCTION is what the model keeps
+    #               getting wrong. Read by `services.line_item_requests.plan_requests`.
+    llm_request_grouping: Literal["none", "identical", "similar", "manual"] = "none"
     # The overlap two note sets need to share a request under "similar", as a Jaccard index. 0.8
     # means they must be nearly the same set; 1.0 is "identical" by another name. Read only in
     # "similar" mode.

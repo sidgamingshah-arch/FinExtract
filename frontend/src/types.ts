@@ -1951,6 +1951,17 @@ export interface LineItemProblem {
 /** What is true of the SET rather than of an item. A bare JSON array had nowhere to say which
  *  template these keys bind to — which is the whole reason the set carries a header: the publish
  *  gate holds every key in the set against `target_template_key`. */
+/** Line items an author has declared should share ONE model request.
+ *
+ *  SET-LEVEL, because a group is a relationship BETWEEN line items: a per-item "group" field would
+ *  let two items disagree about which group they are in, and there would be no single place to
+ *  read the grouping off. Read only when `extraction.llm_request_grouping` is "manual". */
+export interface RequestGroup {
+  name: string;
+  members: string[];
+  note: string;
+}
+
 export interface LineItemSetInfo {
   schema_version: number;
   line_items_key: string;
@@ -1965,6 +1976,9 @@ export interface LineItemSetInfo {
    *  the global policies. A line's own `prompt` is added on top of this, inside that line's
    *  candidate entry — so this is what a per-line prompt is adding to. */
   prompt: string;
+  /** The manual grouping master. Empty is the normal state of one being built: the master says
+   *  which lines SHARE a request, never which lines get one. */
+  request_groups: RequestGroup[];
   /** The gate, authored once per section and claimed by `inherits`. */
   section_defaults: Record<string, Partial<{
     statement: StatementToken; section_scope: string[]; scopes: SearchScope[];

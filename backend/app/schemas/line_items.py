@@ -57,7 +57,7 @@ import itertools
 import re
 from typing import Callable, Iterable, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.core.models.enums import StatementType
 from app.schemas.ontology import (
@@ -1510,6 +1510,31 @@ class MappingVocabulary(BaseModel):
         return self
 
 
+class RequestGroup(BaseModel):
+    """Line items an author has declared should share ONE model request.
+
+    A GROUP IS A RELATIONSHIP BETWEEN LINE ITEMS, so it cannot be a field on one of them. A
+    per-item "group name" would let two items disagree about which group they are in, and there
+    would be no single place to read the grouping off — the same reason `prompt` and
+    `section_defaults` are set-level rather than repeated per item.
+
+    WHAT IT IS FOR. `extraction.llm_request_grouping` can group line items by the note set they
+    computed ("identical"/"similar"), which is cheap and mechanical. This is the fourth mode: the
+    author says which lines belong together, for the cases a score cannot see — a subtotal better
+    judged beside the lines it is made of, or two lines whose DISTINCTION is the thing the model
+    keeps getting wrong and is best asked about once.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Names the group in the run log and on the screen. An authored name is the point:
+    # "Depreciation, one note" in a log is a decision a reader can check, "group 3" is not.
+    name: str = ""
+    members: list[str] = Field(default_factory=list)
+    # Why these belong together, for the next author. Nothing matches on it.
+    note: str = ""
+
+
 class LineItemSet(BaseModel):
     """A whole set of definitions, with the things that are true of the set rather than an item.
 
@@ -1572,6 +1597,11 @@ class LineItemSet(BaseModel):
     # EMPTY MEANS NOTHING IS ADDED — it does not restore some built-in wording, in keeping with
     # every other block here.
     prompt: str = ""
+    # THE MANUAL GROUPING MASTER — read only when `extraction.llm_request_grouping` is "manual".
+    # Empty is the normal state of one being built and is not an error: the master says which lines
+    # SHARE a request, never which lines GET one, so an unnamed line still gets its own
+    # (`services.line_item_requests._manual_plans`).
+    request_groups: list[RequestGroup] = Field(default_factory=list)
     global_rules: GlobalRules = Field(default_factory=GlobalRules)
     # Which pages/statements the run is allowed to search in the first place.
     scope_selection: ScopeSelection | None = None
@@ -1608,6 +1638,54 @@ class LineItemSet(BaseModel):
     # same reason every block above is declared here explicitly rather than left to `extra`.
     residual_framework: ResidualFramework | None = None
     items: list[LineItemDef] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _request_groups_are_answerable(self):
+        """A declared request group must name lines that exist, once each, and that get asked.
+
+        THREE REFUSALS, each excluding a failure the others would swallow:
+
+          * AN UNKNOWN MEMBER. A typo would silently shrink the group, so an author would see a
+            group of four asking about three with nothing saying which one was dropped.
+          * A KEY IN TWO GROUPS. Both requests would claim the same line and the second answer
+            would overwrite the first, with nothing recording that a contest happened.
+          * A MEMBER THE MODEL IS NEVER ASKED ABOUT. A derived parent's figure is its declared
+            cascade's and a residual bucket's is the sweep's, so a group holding either carries a
+            line no request can answer. Refused rather than dropped, for the reason
+            `llm_only_if_note_tagged` is refused rather than ignored: a member that silently does
+            nothing is worse than a message.
+
+        EMPTY IS NOT AN ERROR. It is the state of every set today, and "manual" over an empty
+        master degrades to one request per line item, which is what "none" does.
+        """
+        if not self.request_groups:
+            return self
+        by_key = {i.key: i for i in self.items}
+        seen: dict[str, str] = {}
+        for group in self.request_groups:
+            named = group.name or "(unnamed)"
+            unknown = [m for m in group.members if m not in by_key]
+            if unknown:
+                raise ValueError(
+                    f"request group {named!r} names line items that do not exist: {unknown}")
+            for member in group.members:
+                if member in seen:
+                    raise ValueError(
+                        f"{member} is in two request groups ({seen[member]!r} and {named!r}); a "
+                        f"line item shares exactly one request")
+                seen[member] = named
+                item = by_key[member]
+                if str(item.type) == "derived":
+                    raise ValueError(
+                        f"request group {named!r} names {member}, which is `derived` — its figure "
+                        f"comes from its declared cascade and the model is never asked about it. "
+                        f"Name one of its parts instead.")
+                if str(item.value_scope) == "exclusive_residual":
+                    raise ValueError(
+                        f"request group {named!r} names {member}, which is a section residual — it "
+                        f"carries the unexplained remainder and is filled by the sweep, not by an "
+                        f"answer.")
+        return self
 
     @model_validator(mode="after")
     def _record_dangling_families(self):

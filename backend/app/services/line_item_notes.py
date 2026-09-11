@@ -201,7 +201,14 @@ def note_sets(items, notes, *, min_score: float = 0.30, cap: int = 4) -> dict[st
     by_key = {i.key: i for i in items}
     out: dict[str, list[NoteHit]] = {}
     for item in items:
-        if str(getattr(item, "extraction_mode", "extract")) != "extract":
+        # THE BOUNDARY MOVED, and reading the mode is now wrong in BOTH directions.
+        # `extract_or_derive` means the subtotal is printed on some filings and arithmetic on
+        # others, and those ARE asked about; a DERIVED PARENT declares `extract` on eight of the
+        # nine shipped items and is never asked about. So the mode built note sets for lines no
+        # request can answer and skipped lines that now have one.
+        # `line_item_requests.asked_about` is the one place that boundary is spelled.
+        from app.services.line_item_requests import asked_about
+        if not asked_about(item):
             continue
         parent = by_key.get(getattr(item, "parent", "") or "")
         hits = notes_for_line_item(item, pool, min_score=min_score, cap=cap, parent=parent)
