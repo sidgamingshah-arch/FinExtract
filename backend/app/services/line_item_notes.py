@@ -15,35 +15,48 @@ median of 2,547 — a threefold advantage that has nothing to do with what the n
 are comparable in length to each other, so a threshold over them means the same thing for every
 note.
 
-THIS DOES NOT REPLACE THE AUTHORED REGEXES. That was the hope when this module was written and the
-measurement refuted it. `scripts/calibrate_line_item_notes.py` scores every line item's probe
-against the notes its own `note_source.note_title_any` patterns match — patterns that demonstrably
-work, since they produced every figure in the focus runs — and the result on the two reference
-filings is:
+THIS DOES NOT REPLACE THE AUTHORED REGEXES, and it is measured rather than argued.
+`scripts/calibrate_line_item_notes.py` scores every line item's probe against the notes its own
+`note_source.note_title_any` patterns match — patterns that demonstrably work, since they produced
+every figure in the focus runs — and reports the RANK of each authored note.
 
-    laisun (English)     41 authored (line item, note) pairs   80.5% within the top 4, 92.7% top 10
-    suncreate (Chinese)  120 pairs                             0% at ANY rank, every score 0.000
+    laisun (English)     42 authored (line item, note) pairs   42/42 delivered at cap 4
+    suncreate (Chinese) 123 pairs                              75/123 delivered, 71.5% in the top 10
 
-TWO SEPARATE FAILURES, and neither is a threshold that needs tuning.
+THE CHINESE NUMBER USED TO READ "0% at ANY rank, every score 0.000", AND THAT IS WORTH RECORDING
+because the reason was never a threshold and was twice misdiagnosed:
 
-  1. IT IS BLIND TO HAN SCRIPT, structurally. `subject_tokens` is `[a-z]{3,}`, so 固定资产折旧
-     yields NO tokens at all and a Chinese heading scores 0.000 against every probe — including a
-     Chinese one. suncreate's 0 of 120 is by construction, not by weak overlap, which is why no
-     `min_score` recovers it. Authoring Chinese descriptions would not help until the tokeniser
-     emits something for Han runs (character bigrams are the usual answer); the 473 zh aliases the
-     configuration already carries are the only Chinese text available today, and this probe
-     deliberately excludes aliases.
-  2. A HEADER NAMES THE ASSET; A LINE ITEM NAMES THE CHARGE. `sub__ppe_depreciation` belongs in
-     note 14, "PROPERTY, PLANT AND EQUIPMENT", and the only token they share is "and" — which has
-     near-zero IDF by design. Measured rank: 77 of 190, score 0.013. That is not a vocabulary gap a
-     better threshold closes: depreciation being disclosed inside the fixed-asset schedule is
-     domain knowledge, and no bag-of-words similarity holds it. It is also exactly the reading the
-     authored patterns were written for.
+  1. HAN USED TO YIELD NO TOKENS. `subject_tokens` was `[a-z]{3,}`, so 固定资产折旧 produced
+     nothing and a Chinese heading scored 0.000 against every probe, including a Chinese one.
+     THAT IS FIXED — it now emits Latin words and Han character BIGRAMS
+     (`note_context.subject_tokens`), which was the answer this docstring used to name as future
+     work. Authoring Chinese `note_terms` therefore does help, and on the one line whose terms were
+     Traditional-only while its patterns carried Simplified, adding them is most of what took
+     suncreate's zero-scoring pairs to none. A consequence worth knowing: Traditional and
+     Simplified share no bigram unless the characters are identical, so 預付租賃款項 cannot score
+     against 预付租赁款项 — BOTH spellings have to be authored, and
+     `scripts/audit_script_coverage.py` is what checks that they are.
+
+  2. A NOTE ARRIVES IN FRAGMENTS, AND THE CAP USED TO COUNT THEM. laisun's note 1 arrives as 32
+     tables and suncreate's 五、1 as 28, each its own header unit, and `cap` sliced those units —
+     so four hits were one note seen four times. Fixed in `notes_for_line_item`, which keeps the
+     best-scoring fragment per note number BEFORE the cap. That alone took delivery from 81% to
+     100% on laisun and 48% to 59% on suncreate, and it had been masking the vocabulary question
+     entirely: a measurement comparing a regex hit on one fragment against a score on another
+     reported 42 of 125 pairs as unreachable when 4 were.
+
+  3. WHAT REMAINS IS REAL. A HEADER NAMES THE ASSET; A LINE ITEM NAMES THE CHARGE.
+     `sub__ppe_depreciation` belongs in note 14, "PROPERTY, PLANT AND EQUIPMENT", and the only
+     token they share is "and", which has near-zero IDF by design. Depreciation being disclosed
+     inside the fixed-asset schedule is domain knowledge, and no bag-of-words similarity holds it.
+     That is exactly the reading the authored patterns were written for, which is why the two are a
+     UNION and not a replacement. 44 of suncreate's 123 authored notes still score below the 0.25
+     floor, worst 0.077 — vocabulary the terms do not carry yet, and every one of them is ranked by
+     the calibration script.
 
 WHAT IT IS GOOD FOR, on the evidence. An in-language SUPPLEMENT: a phrasing no pattern anticipated
-still scores, so it degrades to a ranked guess where a regex degrades to silence. At `min_score`
-0.30 on laisun it keeps 37 of 41 authored notes at 3.7 notes per line item, which is a usable
-request. It is not a replacement, and `identified_notes` stays the primary selector.
+still scores, so it degrades to a ranked guess where a regex degrades to silence. `identified_notes`
+stays the primary selector and passes a pattern-matched note unconditionally.
 
 IT ALSO DOES NOT TOUCH THE ROW-LEVEL PATTERNS. `row_caption_any` decides which rows INSIDE a chosen
 note count, and `row_caption_none` vetoes rows that must not — a different job from finding the
