@@ -143,8 +143,22 @@ def _blended(item, parent=None) -> str:
     if hasattr(by_locale, "items"):
         for _locale, values in by_locale.items():
             parts.extend(str(a) for a in (values or ()))
-    if parent is not None:
-        parts.append(_blended(parent))
+    # A LINE'S PROBE IS BUILT FROM ITS OWN PROSE AND NOTHING ELSE.
+    #
+    # This used to append `_blended(parent)` — the parent's label, description, definition, include
+    # criteria and every locale's aliases — to a child's probe, on the reasoning that a part with
+    # thin prose could borrow its whole's. That is inference, and it is the wrong kind: it makes a
+    # part score against notes its PARENT is about rather than notes IT is about, and the twelve
+    # depreciation parts differ from one another only in the container each sits in, which is
+    # precisely the distinction the parent's text cannot carry and drowns out.
+    #
+    # A part that scores nothing now is telling the truth: nothing written about it names the note
+    # it lives in. The fix for that is `note_terms` on the part — the field authored for this job,
+    # which `note_probe` prefers over this blend entirely — not a borrowed identity.
+    #
+    # `parent` is kept in the signature and ignored, so the several callers that thread it do not
+    # all have to change in the same commit as the behaviour.
+    _ = parent
     return " ".join(p for p in parts if p.strip())
 
 

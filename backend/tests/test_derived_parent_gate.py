@@ -154,13 +154,56 @@ def test_the_two_model_facing_flags_are_refused_on_a_derived_line(field, value):
     assert "derived" in str(exc.value)
 
 
-def test_the_shipped_derived_lines_declare_extract_except_the_two_measured_cases(shipped):
+def test_the_shipped_derived_lines_declare_extract_except_the_one_measured_case(shipped):
     """`extraction_mode` on a derived line decides only whether a PRINTED row may fill it where no
-    rung resolves, and the answer is yes — so the expectation is `extract`. Two exceptions, each
-    with a measured reason recorded in `scripts/mark_derived_extract.py`: flipping
-    `bs_nca__secur_and_other_fincl_assets_ltp` publishes 128,412 where the cascade publishes
-    788,507, and `PERIODS` is the priority-90 control above."""
-    modes = {i.key: str(i.extraction_mode) for i in shipped.items if str(i.type) == "derived"}
-    exceptions = {"bs_nca__secur_and_other_fincl_assets_ltp", PERIODS}
+    rung resolves, and the answer is yes — so the expectation is `extract`. One exception, with its
+    measured reason in `scripts/mark_derived_extract.py`: `PERIODS` is the priority-90 control
+    whose keyword hints are words half an income statement contains.
 
-    assert {k for k, v in modes.items() if v != "extract"} == exceptions, modes
+    `bs_nca__secur_and_other_fincl_assets_ltp` was the second exception until its rungs declared
+    `outranks_printed` — see `test_a_reconstructing_rung_outranks_a_printed_figure`."""
+    modes = {i.key: str(i.extraction_mode) for i in shipped.items if str(i.type) == "derived"}
+
+    assert {k for k, v in modes.items() if v != "extract"} == {PERIODS}, modes
+
+
+# ── which figure wins: the printed row or the resolved rung ────────────────────────────────────
+
+def test_a_reconstructing_rung_outranks_a_printed_figure_and_a_restating_one_does_not(shipped):
+    """THE DECLARATION THAT SETTLES THE CONTEST, and why it is per RUNG rather than per line.
+
+    Both of these are `type: derived` and they want opposite answers, measured on the reference
+    filings:
+
+      * every `LTP_*` rung computes the non-current portion of the in-scope financial-asset notes
+        less derivatives, less other receivables, less equity-method investments. No balance sheet
+        prints that subtraction, so a caption binding this line found a different quantity —
+        128,412 against the rung's 788,507 — and the rung is the answer.
+      * revenue's `P1` IS the face ("主营业务收入 reported on the face of the income statement"), and
+        `P5`-`P8` are axis reconstructions that should SUM to it. A printed figure here is what the
+        cascade's own top rung was looking for; letting `P6` displace it published 2,609,259 — one
+        industry segment — over the face's 4,995,768.
+
+    Rung ORDER and rung MAGNITUDE each separate those two cases on these two filings and neither
+    means anything, which is the whole reason this is authored rather than inferred.
+    """
+    by_key = {i.key: i for i in shipped.items}
+
+    ltp = by_key["bs_nca__secur_and_other_fincl_assets_ltp"]
+    assert ltp.cascade, "the line under test has no cascade"
+    assert all(r.outranks_printed for r in ltp.cascade), [r.id for r in ltp.cascade]
+
+    revenue = by_key[REVENUE]
+    assert revenue.cascade
+    assert not any(r.outranks_printed for r in revenue.cascade), [
+        r.id for r in revenue.cascade if r.outranks_printed]
+
+
+def test_outranking_is_off_by_default_so_an_unexamined_cascade_changes_nothing(shipped):
+    """Off is the behaviour that was in force, so a cascade nobody has read the rungs of keeps it.
+    Only the four `LTP_*` rungs are on, out of every rung in the set."""
+    from app.schemas.line_items import CascadeRung
+    assert CascadeRung(id="X").outranks_printed is False
+
+    on = [(i.key, r.id) for i in shipped.items for r in (i.cascade or []) if r.outranks_printed]
+    assert on == [("bs_nca__secur_and_other_fincl_assets_ltp", f"LTP_P{n}") for n in (1, 2, 3, 4)], on

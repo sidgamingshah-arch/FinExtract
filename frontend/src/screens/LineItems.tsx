@@ -228,11 +228,35 @@ function Patterns({ label, values, tone }: { label: string; values: string[]; to
  *  still shows every control, and `requiredNow` still forces a control the server would refuse
  *  the save without.
  */
-const COMMON_SIMPLE = ["label", "type", "in_output", "output_structure", "sign_expectation"];
+/** WHAT EVERY LINE ITEM ANSWERS, whatever its type — the v2 spec's universal three.
+ *
+ *  `in_output`, `output_structure` and `sign_expectation` were here and are gone: delivery is the
+ *  template's decision, `output_structure` was declared by 0 of 539 items while sitting on the
+ *  SIMPLE form, and the sign never varies inside a section so it is section policy. */
+const COMMON_SIMPLE = ["label", "statement", "type"];
 
 /** What the line is, in words, plus the captions that reach it. Read by the matcher and the model,
  *  and therefore simple ONLY for a line either of them can reach. */
-const MEANING_SIMPLE = ["definition", "include_criteria", "exclude_criteria", "aliases"];
+const MEANING_SIMPLE = [
+  "definition",               // 539 of 539, 539 distinct — the most-authored field in the set
+  "include_criteria",         // 462 of 539, 417 distinct — the second, and it was NOT on the form
+  "exclude_criteria",         // 462 of 539, 31 distinct
+  // THE THREE RECOGNITION LISTS, which are not interchangeable. `aliases` are captions folded
+  // through `normalize_label` and matched exactly; `regex_hints` are patterns matched against the
+  // raw caption AND the normalised one; `keyword_hints` require every word to be present rather
+  // than matching a shape. A filing wording a row unexpectedly is caught by the second or third
+  // where the first cannot reach it.
+  "aliases",                  // 462 of 539, 461 distinct
+  "regex_hints",              // 393 of 539, 393 distinct
+  "keyword_hints",            // 461 of 539, 461 distinct
+  // PER-LANGUAGE CAPTIONS. Not a separate control — the `aliases` editor is locale-scoped and
+  // writes `aliases_i18n[locale]`, with the locale selector above it. 395 items declare it and the
+  // shipped set carries 473 distinct Chinese captions, which a single flat list cannot hold
+  // because the matcher folds every locale into one index.
+  // THE LINE'S OWN INSTRUCTION to the model, on the simple form because the model is only ever
+  // asked about an extracted line — so this is the one type where it does anything.
+  "prompt",                   // 77 of 539, 77 distinct
+];
 
 /** WHERE A FIGURE MAY BE READ FROM — the note-sourcing block, simple for an extracted line because
  *  reading a figure out of a note is what most of the set's parts do.
@@ -268,21 +292,53 @@ const NOTE_SOURCE_SIMPLE = [
 function simpleFieldsFor(type: string): Set<string> {
   const out = [...COMMON_SIMPLE];
   if (type === "derived") {
-    // THE CASCADE, AND HOW A PRINTED ROW MAY REACH IT. `extraction_mode` is the one declaration
-    // that decides whether a derived line may ALSO be filled by a printed caption where no rung
-    // resolves, and `aliases` are what a caption is matched against — which is not academic:
-    // `is_pl__sales_revenues` publishes 4,995,768 off the face of the reference filing by its
-    // alias, with no rung firing at all.
+    // THE CASCADE, AND NOTHING THAT MATCHES A CAPTION. A derived line's figure is its cascade's:
+    // no caption, alias, regex or semantic probe reaches it, and the model is never offered it.
+    // So the simple form is the rungs and where they may read from, and every recognition field is
+    // not merely advanced but WITHHELD with a reason (see `withheldReason`).
     //
-    // `definition` AND THE CRITERIA STAY ADVANCED, and that is the difference between them and
-    // the aliases. Their readers are the description-matching tier and the model, and the model is
-    // never asked about a derived line — so on these nine lines four prose boxes were the first
-    // thing the form showed and the cascade that decides the figure was behind a toggle.
-    out.push("cascade", "implemented_by", "inherits", "extraction_mode", "aliases");
-  } else if (type === "calculated" || type === "intermediate") {
+    // `aliases` WAS HERE AND IS GONE. It was added on the measurement that
+    // `is_pl__sales_revenues` publishes 4,995,768 off the face by its alias with no rung firing —
+    // which was true, and was the short-circuit worth removing rather than a route worth keeping:
+    // a figure that arrives on the parent means no rung ran, so the record loses which of the
+    // filing's disclosures it came from. The face figure now enters through rung P1, whose part
+    // carries the recognition.
+    //
+    // `definition` and the criteria stay advanced for the same reason they always did: their
+    // readers are the description tier and the model, and neither sees a derived line.
+    //
+    // `extraction_mode` WAS HERE AND IS RETIRED: `type` is now the only field saying how a figure
+    // is obtained, and this control was the other half of the crossed naming that caused it to be
+    // read for the wrong question.
+    //
+    // `note_use` IS HERE, AND A CASCADE IS NOT SUFFICIENT WITHOUT IT. The permission is read off
+    // the PARENT, not the part — `stages/note_sourced._note_permission`, "Read off the PARENT,
+    // because the parent is the concept being filled" — and the gate refuses the whole fill when
+    // it is not `decomposition_allowed`. Measured, exactly ONE item in the set overrides its
+    // section default for this field: `notes__contingent_liabilities` declares
+    // `decomposition_allowed` where the `notes` section says `evidence_only`. Without that
+    // override its six-rung cascade publishes blank on every filing. So "a derived line only needs
+    // its rule" is false by one item, and that item is one of the eight focus lines.
+    out.push("cascade", "implemented_by", "inherits", "note_use");
+  } else if (type === "calculated") {
+    // A SUBTOTAL NEEDS NOTHING BUT ITS TYPE. Its components are named by the template's
+    // `rollup: {op: "sum", children: [...]}`, and `services/export.py` evaluates them from there —
+    // so the config asserts nothing about the arithmetic and there is nothing to author. `terms`
+    // is on the form for the arithmetic line that names its own inputs instead of inheriting the
+    // template's, which is what `requiredNow` still forces.
     out.push("terms");
   } else {
-    out.push(...MEANING_SIMPLE, ...NOTE_SOURCE_SIMPLE, "inherits");
+    out.push(...MEANING_SIMPLE, ...NOTE_SOURCE_SIMPLE, "inherits", "section_scope",
+             // TO BE SOURCED FROM A NOTE OR THE FACE — the one gate switch the spec keeps per
+             // line. `face_only` is retired beside it: 462 of 539 items declare it with ONE
+             // distinct value and it never varies inside a section, so it is section policy.
+             "note_use",
+             // WHICH OF TWO LOOK-ALIKE CAPTIONS THIS IS. 395 of 539 items, 13 distinct, and it
+             // resolves the collisions where the printed BANNER is the only discriminator —
+             // "Others", or the two different "Non-controlling interests" of a
+             // comprehensive-income statement. It is what settles a contested caption now that
+             // `match_priority` is retired.
+             "section_disambiguation");
   }
   return new Set(out);
 }
@@ -342,7 +398,68 @@ const RETIRED_FIELDS = new Set([
   "decomposition_rule",      // 391 of 475 but only THREE distinct values, 358 of them restating
                              //   `global_rules.no_fabricated_split`, which the system prompt
                              //   already carries. A set-level policy copied onto every row.
+
+  // ── RETIRED BY THE v2 CONFIG SPEC ────────────────────────────────────────────────────────────
+  // A third class, and the distinction from the two above is worth keeping. Those were retired for
+  // being unused or for surface area. These are retired because something ELSE is now the single
+  // place the question is answered — so leaving a control here would be a second place to answer
+  // it, which is how the two places come to disagree. Measured over the 539 shipped items.
+
+  // `type` IS NOW THE ONLY FIELD DESCRIBING HOW A FIGURE IS OBTAINED. The two fields between them
+  // represented 16 combinations and the set used 4 — ('extracted','extract') 497,
+  // ('extracted','extract_or_derive') 33, ('derived','extract') 8, ('derived','derive') 1 — and
+  // the unused twelve were not harmless: ('derived','extract') is the state that silently offered
+  // revenue to the model, and relying on ('derived','derive') to protect a cascade is what made
+  // the long-term financial assets line publish 1,705,426 against its rung's 788,507.
+  "extraction_mode",
+
+  // `in_output`, `namespace` AND `order` ARE NOT RETIRED, and the reasoning that nearly retired
+  // them is worth recording. "The template decides delivery" holds for the 462 template lines and
+  // fails for the 77 note-level PARTS: measured, all 77 declare `namespace: internal` and
+  // `in_output: false`, and ZERO of them appear anywhere in the template. So the template cannot
+  // decide a part's delivery or its display order, and refusing these would make a part
+  // unauthorable — which is exactly the surface someone extending the eight focus lines needs.
+
+  // RESIDUAL IS NOT CONFIGURED HERE. The sweep already has a template-driven path —
+  // `stages/residual.py:74`, "Without a v2 rulebook … the template-driven routing below is used
+  // unchanged: the template's `__others` keys", routed by `_sections_from_template` (:107) — and
+  // these four fields are v2 OVERRIDES layered on it, not the path itself. So the sweep, the
+  // buckets and the reconciliation that depends on them all keep working; what goes is the
+  // per-section tuning and the itemisation record.
+  "value_scope",             // 462 of 539, 2 distinct — the marker that makes a line a bucket
+  "residual_policy",
+  "residual_policy.framework", "residual_policy.section_scope", "residual_policy.population",
+  "residual_policy.cross_section", "residual_policy.notes_as_source", "residual_policy.plug",
+  "residual_policy.itemise",
+  "never_sweep",             // 7 of 539
+
+  // SECTION POLICY STORED 462 TIMES EACH. Measured across the 18 sections, none of these varies
+  // WITHIN one, so they describe the section rather than the line and belong on `section_defaults`.
+  "temporality",             // 462 of 539, 2 distinct, 0 of 18 sections vary
+  "sign_expectation",        // `sign_convention` on the wire — 462 of 539, 2 distinct, 0 vary
+
+  // DECLARED BY NOTHING, and `output_structure` was on the SIMPLE form — every author met a
+  // control no item has ever set.
+  "output_structure",        // 0 of 539
+  "others_rule",             // 0 of 539
+  "derivation",              // 0 of 539
+  "notes_as_source_rationale",  // 0 of 539 — read if set, and never set
 ]);
+
+/** The three types the v2 spec keeps, in the order an author meets them.
+ *
+ *  `intermediate` IS GONE and `calculated` STAYS THOUGH NOTHING DECLARES IT — which looks backwards
+ *  until you count what `extract_or_derive` actually was. All 33 items declaring it are SUBTOTALS
+ *  (`total_assets`, `gross_profit`, `profit_loss_before_tax`, …), 32 of them `role: subtotal`/`total`
+ *  in the template with their own `rollup: {op: "sum", children: [...]}`. The template's rollup is
+ *  already what fills them — `services/export.py` evaluates the template's calculated lines from
+ *  their components and puts the printed figure in a CELL COMMENT, "a subtotal that contradicts its
+ *  own components is a finding, not the figure to hand to a reader". So those 33 are `calculated`,
+ *  and `calculated` is the type they are migrating to rather than a speculative future value.
+ *
+ *  `intermediate` by contrast is declared by no item and means only "calculated, and never
+ *  delivered" — which is now the template's decision, not a type. */
+const SPEC_TYPES = ["extracted", "calculated", "derived"] as const;
 
 /** THE MASTER PROMPT, edited in place — the one instruction that applies to every mapping call.
  *
@@ -522,6 +639,17 @@ function withheldReason(name: string, sel: {
     if (extractionMode === "derive") {
       return "a derive-only line is never offered to the matcher, so nothing here is ever consulted";
     }
+    // A DERIVED PARENT IS REACHED BY NOTHING — not the model, not an alias, not a regex, not a
+    // semantic probe. Its figure is its declared cascade's, and four separate indexes in the
+    // backend now agree on it (`mapping._unmatchable`, the alias index, `_mappable_keys`, and
+    // `line_item_matching._unmatchable`). The shipped set still DECLARES aliases on these nine —
+    // 9 to 23 each — which is exactly why the control has to say so: offering an editor for a
+    // list nothing reads is how an author spends an afternoon widening a match that cannot fire.
+    // Whatever a caption has to say about a derived line belongs on one of its PARTS.
+    if (type === "derived") {
+      return "a derived line's figure is its cascade's, and no caption, alias or semantic probe "
+           + "may reach it — put the recognition on the part whose rung reads that source";
+    }
   }
   return null;
 }
@@ -576,12 +704,18 @@ const GROUP_FIELDS = {
                "note_source.row_caption_none", "note_source.note_terms", "note_source.row_terms",
                "note_source.row_terms_none", "note_source.prose_any",
                "note_source.caption_normalization"],
-  structure: ["type", "in_output", "parent", "rollup", "order", "namespace", "value_scope",
+  structure: ["in_output", "parent", "rollup", "order", "namespace", "value_scope",
               "is_gross_parent", "children_if_decomposed", "sole_component_of",
               "expected_components", "never_sweep", "residual_policy"],
   measurement: ["output_structure", "temporality", "unit_of_account", "sign_expectation",
                 "sign_rule.convention", "sign_rule.flip_if_label_matches", "analyst_bucket"],
-  assembly: ["terms", "cascade", "implemented_by"],
+  // `type` FIRST, because it selects which of the other three applies. It used to sit in
+  // `structure`, one group away from the fields it governs and under a question about hierarchy
+  // ("How does it sit among the other lines?") — while the field LABELLED "How the figure is
+  // obtained" was `extraction_mode`, which decided something else entirely. That crossed naming is
+  // not cosmetic: it is what let the LLM gate key on the wrong field and offer revenue to the
+  // model, and what made a cascade's protection depend on a mode value.
+  assembly: ["type", "terms", "cascade", "implemented_by"],
   prose: ["decomposition_rule", "others_rule", "derivation", "notes_as_source_rationale"],
 } as const;
 
@@ -1581,31 +1715,6 @@ function Detail(p: EditorProps) {
           otherwise have summed the twelve alternative restatements of the depreciation line. */}
       <Group {...band(4, GROUP_FIELDS.structure)}
              question="How does it sit among the other lines?">
-        {fld("type", (e) => (
-          <SelectField<LineItemType>
-            label="Type" testid="type" editable={editable} reason={lockReason}
-            help="How this line gets its figure, and therefore which sections below apply: read off
-                  the page, added up from parts, or worked out by a rule. A line
-                  that says it is calculated but lists no parts cannot produce
-                  anything, so that is refused when you save."
-            options={vocab?.types ?? []} labelOf={(v) => TYPE_TONE[v].label}
-            helpOf={(v) => ({
-              extracted: "recognised from a printed caption",
-              calculated: "summed from the terms below",
-              intermediate: "summed from the terms below, and never reaches the output",
-              derived: "assembled by the cascade below, or by the service that computes it today",
-            } as Record<string, string>)[v]}
-            value={type}
-            onChange={(v) => {
-              if (!v) return;
-              patch({ type: v });
-              // `_coherent` FORCES `in_output` false for an intermediate. Dropping a drafted
-              // `in_output` here rather than sending false keeps the edit honest: the author has
-              // not declared anything about the output, the type has.
-              if (v === "intermediate") drop("in_output");
-            }}
-            error={e} />
-        ))}
         {fld("in_output", (e) => (
           <BoolField label="Reaches the output template" testid="in_output" editable={editable}
                      help="Whether the line reaches the statement screens and the export."
@@ -1912,9 +2021,42 @@ function Detail(p: EditorProps) {
           the one that does not apply is how a type change makes a group vanish and an author
           concludes the field was taken away — and both are needed while a line is being moved
           from one type to the other. */}
-      <Group {...band(6, GROUP_FIELDS.assembly)} question="How is its value assembled?"
+      <Group {...band(6, GROUP_FIELDS.assembly)} question="How is its figure obtained?"
              note="A calculated or intermediate line is a signed sum of terms; a derived line is
                    an ordered cascade of attempts, the first that resolves winning.">
+        {fld("type", (e) => (
+          <SelectField<LineItemType>
+            label="Type" testid="type" editable={editable} reason={lockReason}
+            help="How this line gets its figure, and therefore which sections below apply: read off
+                  the page, added up from parts, or worked out by a rule. A line
+                  that says it is calculated but lists no parts cannot produce
+                  anything, so that is refused when you save."
+            // THE THREE THE SPEC KEEPS, intersected with what the server will accept. Filtered
+            // rather than replaced: a deployment whose vocabulary lacks one of them must not be
+            // offered it, and one that still serves `intermediate` must not show it.
+            options={(vocab?.types ?? []).filter((t) => (SPEC_TYPES as readonly string[])
+              .includes(String(t)))}
+            labelOf={(v) => TYPE_TONE[v].label}
+            helpOf={(v) => ({
+              extracted: "read off a printed caption — the only type the model is ever asked about",
+              calculated: "summed from its components, which the template's rollup names. Computed "
+                        + "whether or not the filing prints the subtotal; a printed figure that "
+                        + "disagrees is recorded as a finding rather than used",
+              derived: "assembled by the cascade below — ordered rungs over its own parts. Reached "
+                     + "by nothing else: no caption, no alias, no semantic probe, and never the "
+                     + "model",
+            } as Record<string, string>)[v]}
+            value={type}
+            onChange={(v) => {
+              if (!v) return;
+              patch({ type: v });
+              // `_coherent` FORCES `in_output` false for an intermediate. Dropping a drafted
+              // `in_output` here rather than sending false keeps the edit honest: the author has
+              // not declared anything about the output, the type has.
+              if (v === "intermediate") drop("in_output");
+            }}
+            error={e} />
+        ))}
         <details open={type === "calculated" || type === "intermediate"}>
           <summary style={{ cursor: "pointer", fontSize: 11.5, fontWeight: 600,
                              color: color.ink2, marginBottom: 9 }}>

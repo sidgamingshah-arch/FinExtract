@@ -112,6 +112,14 @@ class NoteSourcedStage(Stage):
                     # all. Scaled down, 529,841 is less than the 587,417 total, which is the check
                     # a SHARE of that total has to pass.
                     amount = hit.amount / scale if scale and scale != 1 else hit.amount
+                    # THE MODEL'S ANSWER STANDS HERE TOO — see `_llm_holds`. Prose is already a
+                    # fallback for a row route that found nothing; it is not a correction of an
+                    # answer the model gave from the same notes.
+                    if _llm_holds(row, basis, hit.period):
+                        row.confidence.flags.append(f"prose_deferred_to_llm:{amount}")
+                        ctx.log(f"note_sourced:{item.key}[{basis}:{hit.period}]: prose {amount} "
+                                f"NOT written — the model answered this row")
+                        continue
                     _write(row, basis, hit.period, amount)
                     row.derivation = note_sourced.derivation.record(
                         row.derivation, basis=basis, period_label=hit.period,
@@ -150,6 +158,15 @@ class NoteSourcedStage(Stage):
                 by_key[item.key] = row
             touched += 1
             for (basis, period), (amount, inputs) in sorted(resolved.items()):
+                # THE MODEL'S ANSWER STANDS — see `_llm_holds`. A `note_source` declaration is one
+                # route to this row's figure and the model's reading of the notes is another; where
+                # the model has answered, this fills nothing and the figure it gave feeds the
+                # cascade below exactly as a note-sourced one would.
+                if _llm_holds(row, basis, period):
+                    row.confidence.flags.append(f"note_source_deferred_to_llm:{amount}")
+                    ctx.log(f"note_sourced:{item.key}[{basis}:{period}]: {amount} NOT written — "
+                            f"the model answered this row; its figure joins the cascade instead")
+                    continue
                 _write(row, basis, period, amount)
                 row.derivation = note_sourced.derivation.record(
                     row.derivation, basis=basis, period_label=period,
@@ -252,6 +269,26 @@ def _basis(ev) -> str:
     return str(getattr(b, "value", b) or "")
 
 
+def _llm_holds(row: LineItem, basis: str, period: str) -> bool:
+    """Whether the MODEL already answered this row in this column.
+
+    THE NON-INTERFERENCE RULE BETWEEN THE TWO ROUTES, asked at every site this stage writes a
+    figure. Every concept is offered to the model now — derived parents included — so that some of
+    a filing's addition and subtraction can be the model's to do: it can read four note rows and
+    say they are one subtotal, which no `note_source` declaration and no cascade rung anticipated.
+    Where it has done that, a declared route is the OTHER way of reaching the figure rather than a
+    correction of it, so this stage fills what the model left empty and leaves the rest alone.
+
+    `confidence.method` is the test because it is what the mapper stamps when a concept came from
+    the model, and the same field the review queue and the export read to say where a figure came
+    from — so "the model answered this" has one spelling rather than a flag invented here.
+    """
+    if not str(getattr(row.confidence, "method", "") or "").lower().endswith("llm"):
+        return False
+    ev = _slot(row, basis, period)
+    return ev is not None and ev.value is not None
+
+
 def _parent_rollup(all_items) -> dict[str, str]:
     """Each configured key -> the rollup IT declares for its own children.
 
@@ -319,6 +356,48 @@ def _prose_basis(doc) -> str:
         return "consolidated"
     return max(seen.items(), key=lambda kv: kv[1])[0]
 
+def _in_dependency_order(children_of: dict[str, list], defs: dict) -> list[tuple[str, list]]:
+    """The parents, each after any parent its own cascade depends on.
+
+    WHY THE ORDER MATTERS. A rung term may name another PARENT rather than a part: the shipped set
+    has one, `is_pl__deprec_and_impairment_cos`'s COS_P3, which is
+    `sub__pbt_depreciation - is_pl__deprec_and_impairment_oper_exp`. Evaluated before the
+    operating-expense parent has been written, that term is missing and — being role `required` —
+    the rung cannot resolve. Sorted alphabetically, which is what this replaced, `cos` came first
+    every time, so COS_P3 was unreachable by construction.
+
+    A SORT AND NOT A FULL TOPOLOGICAL WALK, deliberately. `services.line_items.build` already does
+    the real ordering for the registry, and duplicating it here would be a second implementation of
+    the same graph. What this needs is narrower: one pass placing each parent after the parents it
+    names, with alphabetical order as the tiebreak so the result is stable. A CYCLE cannot hang it
+    — the iteration is bounded by the number of parents and anything still unplaced is emitted in
+    declared order, which is the same behaviour as before for a set that has no cross-parent terms
+    at all (every other parent in the shipped set).
+    """
+    parents = sorted(children_of)
+    depends: dict[str, set[str]] = {}
+    for key in parents:
+        definition = defs.get(key)
+        refs = {t.ref for rung in (getattr(definition, "cascade", None) or ())
+                for t in (getattr(rung, "terms", None) or ()) if getattr(t, "ref", None)}
+        depends[key] = {r for r in refs if r in children_of and r != key}
+
+    out: list[str] = []
+    placed: set[str] = set()
+    for _pass in range(len(parents)):
+        progressed = False
+        for key in parents:
+            if key in placed or depends[key] - placed:
+                continue
+            out.append(key)
+            placed.add(key)
+            progressed = True
+        if not progressed:
+            break
+    out.extend(k for k in parents if k not in placed)      # a cycle, or a ref outside the set
+    return [(k, children_of[k]) for k in out]
+
+
 def _fill_parents(children_of: dict[str, list], by_key: dict, doc: DocumentModel,
                   ctx: PipelineContext, declared: dict[str, str],
                   permitted: dict[str, str], defs: dict) -> int:
@@ -336,7 +415,7 @@ def _fill_parents(children_of: dict[str, list], by_key: dict, doc: DocumentModel
     nothing behind to review.
     """
     resolved = 0
-    for parent_key, kids in sorted(children_of.items()):
+    for parent_key, kids in _in_dependency_order(children_of, defs):
         if not parent_key:
             continue
         # THE PERMISSION GATE, before the arithmetic. A concept the configuration marks
@@ -429,20 +508,73 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
     """
     from app.services.line_items import evaluate as evaluate_line
 
-    parent = by_key.get(parent_def.key)
+    # EVERY ROW CARRYING THE KEY, IN DOCUMENT ORDER — not `by_key`, which is built as
+    # `{li.canonical_key: li for li in doc.line_items}` and therefore keeps the LAST of however
+    # many rows share a key.
+    #
+    # THE BUG THAT MADE THIS NECESSARY, measured on laisun. Four rows carry
+    # `bs_nca__secur_and_other_fincl_assets_ltp` — two financial-asset classes on the consolidated
+    # face and the same two standalone — and the mapper says so
+    # (`map_line_items:split_declined(...): 4 rows carry it`). `by_key` handed back the fourth,
+    # whose consolidated slot was EMPTY, so the rung wrote there: no contest with the printed
+    # figures ever happened, and `_write` created the value with no provenance. `periods.summable`
+    # deduplicates a fact printed twice only when the caption, the amount AND the page all match,
+    # so a provenance-less duplicate cannot be recognised — and `concept_value`, which is what the
+    # grid, the checks and the export all read, ADDED all three: 128,412 + 788,507 + 788,507 =
+    # 1,705,426 published for a line whose rung computes 788,507.
+    carriers = [li for li in doc.line_items if li.canonical_key == parent_def.key]
+    parent = carriers[0] if carriers else by_key.get(parent_def.key)
     if parent is None:
         parent = LineItem(source_label=parent_def.label or parent_def.key,
                           canonical_key=parent_def.key)
         doc.line_items.append(parent)
+        carriers = [parent]
         by_key[parent_def.key] = parent
 
+    # THE CASCADE SEES EVERY FIGURE IN THE COLUMN, not only this parent's own children.
+    #
+    # THE BUG THIS FIXES, measured. `known` was built from `kids` alone, so a rung term naming a key
+    # outside the parent's children was invisible — and five shipped terms are exactly that, all
+    # between the two depreciation parents:
+    #
+    #   oper_exp P3/P4/P5  deduct `sub__cos_depreciation`, a child of the COS parent
+    #   cos      COS_P3    needs `sub__pbt_depreciation` (a child of oper_exp) and the oper_exp
+    #                      parent itself
+    #
+    # The two failed differently and the first is the dangerous one. `sub__cos_depreciation` is
+    # role `adjustment`, so `_apply_terms` treats its absence as "does not apply" and the rung
+    # STILL RESOLVES — without the deduction. Reproduced against the shipped set: P3 publishes
+    # 587,417 where 529,841 is correct, a 57,576 overstatement on the income statement, and the
+    # only trace is a `terms_missing:1` flag nothing distinguishes from a filing that genuinely
+    # disclosed no cost-of-sales depreciation. COS_P3's two terms are role `required`, so it simply
+    # never resolved at all.
+    #
+    # `evaluate`'s own contract is "`known` maps key -> value for everything evaluated so far",
+    # which is what this now supplies. Keyed by canonical_key across every row, because a cascade
+    # term names a concept and not a parenthood — and `_children_by_parent` is still what decides
+    # which children a parent OWNS, which is a different question.
     slots: dict[tuple[str, str], dict] = {}
-    for _item, child in kids:
-        for ev in (child.values or {}).values():
+    for row in doc.line_items:
+        key = row.canonical_key
+        if not key:
+            continue
+        for ev in (row.values or {}).values():
             if ev.value is None:
                 continue
             slot = (_basis(ev), str(getattr(ev, "period_label", "") or ""))
-            slots.setdefault(slot, {})[child.canonical_key] = ev.value
+            # FIRST WRITER WINS per (key, slot): several printed rows can carry one concept, and
+            # `concept_value` is what resolves that for publication. A cascade term wants one
+            # number, and taking the first in document order is at least deterministic — where it
+            # matters the contest has already been settled onto a single carrier above.
+            slots.setdefault(slot, {}).setdefault(key, ev.value)
+    # A COLUMN WITH NO CHILD FIGURE AT ALL IS NOT THIS PARENT'S TO FILL. Widening `known` above
+    # also widened the set of columns this loop would attempt, which would have it evaluate a
+    # cascade in a column where none of its own parts appear — so the columns are still taken from
+    # the children, and only the VALUES visible within them are widened.
+    child_slots = {(_basis(ev), str(getattr(ev, "period_label", "") or ""))
+                   for _item, child in kids
+                   for ev in (child.values or {}).values() if ev.value is not None}
+    slots = {slot: known for slot, known in slots.items() if slot in child_slots}
 
     filled = 0
     for (basis, period), known in sorted(slots.items()):
@@ -452,16 +584,103 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
                     f"from {len(known)} child figure(s)"
                     + (f"; refused {got.refused_rungs}" if got.refused_rungs else ""))
             continue
-        existing = _slot(parent, basis, period)
+        # THE MODEL'S ANSWER IS NOT THE CASCADE'S TO OVERRULE, and this is the whole of the
+        # non-interference rule between the two routes.
+        #
+        # Every concept is now offered to the model, derived parents included, precisely so that
+        # some of a filing's addition and subtraction can be the model's to do — it can read four
+        # note rows and say they are one subtotal, which no cascade rung anticipated. Where it has
+        # done that, the declared cascade is the OTHER way of reaching the same figure, not a
+        # correction of it: so this stage fills what the model left empty and leaves what it
+        # answered exactly as it is.
+        #
+        # THE TEST IS THE ROW'S MAPPING METHOD, not a flag on the value: `confidence.method` is
+        # what the mapper stamps when a concept came from the model (`MappingMethod.LLM`), and it
+        # is the same field the review queue and the export read to say where a figure came from.
+        llm_answered = [li for li in carriers
+                        if str(getattr(li.confidence, "method", "") or "").lower().endswith("llm")
+                        and (ev := _slot(li, basis, period)) is not None and ev.value is not None]
+        if llm_answered:
+            ctx.log(f"note_sourced:{parent_def.key}[{basis}:{period}]: cascade "
+                    f"{got.rung_used}={got.value} NOT applied — the model answered this line "
+                    f"({len(llm_answered)} row(s)); the declared cascade does not overrule it")
+            for li in llm_answered:
+                li.confidence.flags.append(f"cascade_deferred_to_llm:{got.rung_used}:{got.value}")
+            continue
+        # THE CONTEST IS ACROSS EVERY CARRIER, because the figure a reader sees is
+        # `concept_value` over all of them — deciding it against one row would leave the others
+        # adding underneath. `held` is every (row, slot) already carrying a figure in this column.
+        held = [(li, ev) for li in carriers
+                if (ev := _slot(li, basis, period)) is not None and ev.value is not None]
+        # WRITE INTO AN EXISTING SLOT WHERE THERE IS ONE, so the figure keeps that slot's
+        # provenance. A fresh slot would have none, and a provenance-less value is exactly what
+        # `summable` cannot deduplicate.
+        target_row, existing = held[0] if held else (parent, _slot(parent, basis, period))
+        displaced = None
         if existing is not None and existing.value is not None:
-            if existing.value != got.value:
+            if existing.value == got.value and len(held) == 1:
+                continue
+            # WHICH WINS — THE PRINTED FIGURE OR THE RESOLVED RUNG. Two conditions, and both are
+            # declarations rather than heuristics:
+            #
+            #   `type: derived`          the line's figure is assembled at all
+            #   `rung.outranks_printed`  THIS rung reconstructs something the face does not state
+            #
+            # THE SECOND IS THE LOAD-BEARING ONE and it has to be per RUNG, not per line. Measured
+            # on the reference filings, one cascade wants each answer:
+            #
+            #   LTP_P1 computes the non-current portion of the financial-asset notes less three
+            #   classes of inclusion plus a carry-forward — 788,507, where a caption binds 128,412
+            #   for a different quantity. The rung must win, or the arithmetic the author wrote
+            #   decides nothing whenever the matcher happens to bind a row.
+            #
+            #   Revenue's P6 reconstructs the top line from ONE axis of a segment table, and this
+            #   cascade's P1 is the face itself. A printed figure here is exactly what the top rung
+            #   was looking for, so letting P6 displace it published 2,609,259 — one industry
+            #   segment — over the 4,995,768 the face prints.
+            #
+            # Rung ORDER and rung MAGNITUDE both separate those two cases on these two filings, and
+            # neither means anything: the real difference is whether the rung restates the face or
+            # computes past it, which only the cascade's author knows. Hence the declaration.
+            #
+            # `calculated`/`intermediate` lines reach this function too (it is entered for
+            # `cascade` OR `terms`) and keep the printed figure unconditionally — their `terms` are
+            # a sum over other lines, not a judgement about which disclosure to believe.
+            rung = next((r for r in (getattr(parent_def, "cascade", None) or ())
+                         if str(getattr(r, "id", "")) == str(got.rung_used)), None)
+            if (str(getattr(parent_def, "type", "") or "") != "derived"
+                    or not getattr(rung, "outranks_printed", False)):
                 parent.confidence.flags.append("note_sourced_differs_from_printed:cascade")
                 ctx.log(f"note_sourced:{parent_def.key}: printed {existing.value} kept over "
                         f"cascade {got.rung_used}={got.value}")
-            continue
-        _write(parent, basis, period, got.value)
-        parent.derivation = note_sourced.derivation.record(
-            parent.derivation, basis=basis, period_label=period,
+                continue
+            # THE DISPLACED FIGURES TRAVEL. A published number that replaced others must be
+            # auditable against them — the same rule `stages.note_tag_gate` follows when it zeroes a
+            # printed figure — so each goes in a flag, `value_raw` keeps it on its own row, and the
+            # list goes into the trail below.
+            displaced = ", ".join(str(ev.value) for _li, ev in held)
+            target_row.confidence.flags.append(f"cascade_over_printed:{displaced}")
+            ctx.log(f"note_sourced:{parent_def.key}[{basis}:{period}]: cascade "
+                    f"{got.rung_used}={got.value} TAKEN OVER printed {displaced} "
+                    f"({len(held)} row(s)) — a derived line's figure is its cascade's")
+            # EVERY OTHER CARRIER STOPS CONTRIBUTING. Writing the rung onto one row and leaving the
+            # rest is what produced 1,705,426: `concept_value` sums the carriers, so a figure that
+            # is meant to BE the line rather than to join it has to silence the others. The printed
+            # amount stays on the row in `value_raw`, as the row is real printed evidence and a
+            # reader must still be able to see it.
+            for other, ev in held[1:]:
+                if ev.value_raw is None:
+                    ev.value_raw = ev.value
+                other.confidence.flags.append(
+                    f"superseded_by_cascade:{parent_def.key}:{ev.value}")
+                ev.value = None
+        _write(target_row, basis, period, got.value)
+        # THE TRAIL GOES ON THE ROW THAT CARRIES THE FIGURE. `parent` is the first carrier and
+        # `target_row` is the one whose slot the rung wrote into; where a line is carried by
+        # several printed rows those differ, and a trail on a row with no figure is a trail
+        # nobody opening the number can find.
+        target_row.derivation = note_sourced.derivation.record(
+            target_row.derivation, basis=basis, period_label=period,
             derivation=note_sourced.derivation.build(
                 method=f"cascade:{got.rung_used}",
                 formula=" + ".join(
@@ -472,8 +691,12 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
                 result=got.value,
                 flags=[f"rung:{got.rung_used}"]
                      + ([f"rungs_refused:{len(got.refused_rungs)}"] if got.refused_rungs else [])
-                     + ([f"terms_missing:{len(got.missing)}"] if got.missing else [])))
-        parent.confidence.flags.append(f"cascade_rung:{got.rung_used}")
+                     + ([f"terms_missing:{len(got.missing)}"] if got.missing else [])
+                     # The figure this rung replaced, in the trail and not only in a flag: the
+                     # trail is what a reviewer opens to ask why a number is what it is, and
+                     # "it displaced 128,412" is the first thing they need to see.
+                     + ([f"displaced_printed:{displaced}"] if displaced is not None else [])))
+        target_row.confidence.flags.append(f"cascade_rung:{got.rung_used}")
         ctx.log(f"note_sourced:{parent_def.key}[{basis}:{period}]: rung {got.rung_used} "
                 f"-> {got.value} from {len(got.inputs)} term(s)")
         filled += 1

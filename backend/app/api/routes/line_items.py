@@ -1049,6 +1049,63 @@ _EDITABLE_FIELDS: set[str] = set(ItemEdit.model_fields) - {"key", "locale"}
 # control — a different question on a different row of the screen.
 _MODEL_TO_EDIT_FIELD: dict[str, str] = {"sign_convention": "sign_expectation"}
 
+# FIELDS NO CONFIGURATION SURFACE OFFERS, and therefore no longer writable here — field -> why,
+# because a refusal that does not say what decides the question instead is a dead end.
+#
+# Applied where every edit passes through (see the loop in the apply below). The reason strings are
+# the whole value of this table: an author who sent one of these was answering a question the
+# console has stopped asking, and the useful reply is not "refused" but "X decides that now".
+#
+# NOT HERE, DELIBERATELY, and each is a case the obvious rule would have got wrong:
+#   * `value_scope`, `confusable_with`, `exclude_hints` — `screens/Template.tsx` writes them
+#     through this endpoint, so they are authorable, just not from the Line Items screen.
+#   * `cascade`, `implemented_by`, `terms` — `requiredNow` forces them onto the form for a derived
+#     or calculated line, so they are authorable there.
+#   * `sign_convention` — the legacy 3-token sign RULE the Template screen sends, which is a
+#     different question from `sign_expectation` below. One of these is retired and one is not,
+#     and reading the names too quickly is how the wrong one gets refused.
+_NOT_CONFIGURABLE: dict[str, str] = {
+    # `type` is now the only field describing how a figure is obtained.
+    "extraction_mode": "`type` says how a figure is obtained — extracted, calculated or derived",
+    #
+    # `in_output`, `namespace` AND `order` WERE HERE AND ARE NOT, and the reason is worth keeping
+    # because the argument for refusing them was sound for most of the set and wrong where it
+    # mattered. "The uploaded template decides which lines are delivered" holds for the 462
+    # template lines. It does not hold for the 77 note-level PARTS: measured, all 77 declare
+    # `namespace: internal` and `in_output: false`, and ZERO of them appear anywhere in the
+    # template. The template has no row for a part, so it cannot decide a part's delivery or its
+    # display order — and with these refused, a newly authored part would default to
+    # `in_output: true` and publish as a spurious export row, which is to say parts would not be
+    # authorable at all. That is exactly the surface someone extending the eight focus lines needs.
+    # Residual is template-routed; these were v2 overrides on a path that works without them.
+    "residual_policy": "the residual sweep is routed by the template's own `__others` keys",
+    "never_sweep": "the residual sweep is routed by the template's own `__others` keys",
+    "expected_components": "the residual sweep is routed by the template's own `__others` keys",
+    # Section policy. Measured over the 18 sections, none of these varies inside one.
+    "temporality": "this never varies inside a section — set it on the section",
+    "sign_expectation": "this never varies inside a section — set it on the section",
+    "face_only": "this never varies inside a section — set it on the section",
+    # Parenthood the template already declares through its rollups.
+    "is_gross_parent": "the template's `rollup.children` declares what a subtotal contains",
+    "children_if_decomposed": "the template's `rollup.children` declares what a subtotal contains",
+    "rollup": "the template's `rollup` declares how a subtotal combines its children",
+    # Contested captions are settled by `section_disambiguation` instead.
+    "match_priority": "`section_disambiguation` settles a contested caption",
+    # Declared by no item in the shipped set, and read by nothing that matters.
+    "output_structure": "no line item declares this",
+    "others_rule": "no line item declares this",
+    "derivation": "no line item declares this — the cascade's own rung notes record the reasoning",
+    "notes_as_source_rationale": "no line item declares this",
+    "sole_component_of": "no line item declares this",
+    "scopes": "the section decides where a caption is looked for",
+    "side": "the section banner the caption was printed under decides this",
+    "allow_contra": "no line item declares this",
+    "analyst_bucket": "no line item declares this",
+    "pattern": "`regex_hints` is the list form and is what the matcher reads",
+    "description": "`definition` is the prose the matcher and the model actually read",
+    "decomposition_rule": "`global_rules.no_fabricated_split` carries this for the whole set",
+}
+
 # Validator messages that name no field of their own, and the control each one is really about.
 # `_coherent`'s `from_section` refusal is the case that forces this table: its remedy sentence
 # mentions `scopes` and `section_scope`, so a scan for field names in the text would land on
@@ -1271,6 +1328,32 @@ def edit_line_item(version_id: str, body: ItemEdit,
     known = {d.get("key") for d in items if isinstance(d, dict)}
     sent = body.model_fields_set
     errors: list[dict] = []
+
+    # A FIELD NO SCREEN CAN AUTHOR IS NOT WRITABLE THROUGH THE API EITHER.
+    #
+    # WHY THIS EXISTS. Retiring a control used to mean only that the invitation to set it here was
+    # gone: the field kept working, the shipped values kept driving extraction, and the endpoint
+    # kept ACCEPTING it. That is a half-measure, and the half that is left is the dangerous one — a
+    # field writable by an API call and visible on no screen is a value nobody can see, review, or
+    # explain, and the next author reading the configuration finds a figure driven by something the
+    # console says is not configurable.
+    #
+    # THE RULE IS "NO SURFACE OFFERS IT", not "the Line Items screen retired it", and the
+    # difference is load-bearing in two directions:
+    #
+    #   * `value_scope`, `confusable_with` and `exclude_hints` are retired on the Line Items screen
+    #     and are STILL WRITABLE, because `screens/Template.tsx` sends all three through this very
+    #     endpoint (`api.editLineItem`). Refusing them would break that screen's save.
+    #   * `cascade`, `implemented_by` and `terms` are retired there too and are still writable,
+    #     because `requiredNow` FORCES them back onto the form for a derived or calculated line —
+    #     without them the save is refused with no control on screen to answer the refusal.
+    #
+    # THE SHIPPED VALUES ARE UNTOUCHED. This refuses a WRITE; it does not delete a field, and the
+    # pipeline goes on reading whatever the stored set declares. What can no longer happen is a NEW
+    # value arriving for a question the configuration surface no longer asks.
+    for field in sorted(sent & set(_NOT_CONFIGURABLE)):
+        errors.append(_err(field, f"`{field}` is no longer configurable — "
+                                  f"{_NOT_CONFIGURABLE[field]}"))
     # EVERY PROBLEM IN ONE PASS, and NOTHING WRITTEN UNTIL THERE ARE NONE. The writes are staged
     # here and applied to `target` at the end, so a refused edit leaves the definition exactly as
     # it was — the property `test_the_controls_the_screen_withholds_are_the_ones_the_server_refuses`

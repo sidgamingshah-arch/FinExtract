@@ -2250,77 +2250,6 @@
    "definition": "Amounts receivable from related parties that are NOT due within one year — balances owed by fellow subsidiaries, the immediate and ultimate holding company, shareholders, directors, associates, joint ventures and other related parties, including entrusted loans routed through a bank. Excludes trade receivables from related parties and any portion due within one year.",
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
-   "aliases": [
-    "Due from Related Parties(LTP)",
-    "Amount owning by related companies",
-    "Due from related parties",
-    "Due from related companies",
-    "Related companies current account",
-    "Loan to/Loan receivables from/Other receivables from related companies/ affiliates",
-    "Related companies C/A",
-    "Due from Associates/ affiliates",
-    "Loan to/Loan receivables from/Other receivables from Associates",
-    "Due from JV",
-    "Loan to/Loan receivables from/Other receivables from JV",
-    "Due from Joint Ventures",
-    "Loan to/Loan receivables from/Other receivables from Joint Ventures",
-    "Due from Jointly controlled entities",
-    "Loan to/Loan receivables from/Other receivables from Jointly controlled entities",
-    "Due from fellow subsidiaries",
-    "Loan to/Loan receivables from/Other receivables from fellow subsidiaries",
-    "Directors current account",
-    "Loan to/Loan receivables from/Other receivables from Directors",
-    "Directors' C/A",
-    "Subsidiaries current account",
-    "Loans to/Loan receivables from/Other receivables from Subsidiaries",
-    "Subsidiaries' C/A"
-   ],
-   "aliases_i18n": {
-    "en": [
-     "Due from Related Parties(LTP)",
-     "Amount owning by related companies",
-     "Due from related parties",
-     "Due from related companies",
-     "Related companies current account",
-     "Loan to/Loan receivables from/Other receivables from related companies/ affiliates",
-     "Related companies C/A",
-     "Due from Associates/ affiliates",
-     "Loan to/Loan receivables from/Other receivables from Associates",
-     "Due from JV",
-     "Loan to/Loan receivables from/Other receivables from JV",
-     "Due from Joint Ventures",
-     "Loan to/Loan receivables from/Other receivables from Joint Ventures",
-     "Due from Jointly controlled entities",
-     "Loan to/Loan receivables from/Other receivables from Jointly controlled entities",
-     "Due from fellow subsidiaries",
-     "Loan to/Loan receivables from/Other receivables from fellow subsidiaries",
-     "Directors current account",
-     "Loan to/Loan receivables from/Other receivables from Directors",
-     "Directors' C/A",
-     "Subsidiaries current account",
-     "Loans to/Loan receivables from/Other receivables from Subsidiaries",
-     "Subsidiaries' C/A"
-    ],
-    "zh": [
-     "应收关联公司款项",
-     "应收关联方款项",
-     "应收关连人士款项",
-     "应收同系附属公司款项",
-     "应收董事款项",
-     "关联方资金往来",
-     "关联方往来款",
-     "其他应收关联方款项",
-     "一年内到期的长期应收款",
-     "长期应收款",
-     "发放贷款及垫款"
-    ]
-   },
-   "keyword_hints": [
-    "Due from Related Parties(LTP)"
-   ],
-   "regex_hints": [
-    "^Due\\s+from\\s+Related\\s+Parties\\(LTP\\)$"
-   ],
    "exclude_hints": [
     "委托贷款",
     "委托借款",
@@ -2340,7 +2269,6 @@
    "note_use": "decomposition_allowed",
    "note_use_rationale": "A cited note may supply dedicated template concepts before the face aggregate, but only when same-subsection detail and residual rows reconcile to the face amount.",
    "sign_convention": "positive_expected",
-   "match_priority": 79,
    "alias_matching": "enabled",
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
@@ -2683,7 +2611,7 @@
    "description": "The long-term portion, plus any negative current-portion carryforward.",
    "definition": "Securities and other financial assets held as NON-CURRENT assets — the same classes of investment as the current portion (fair value through profit or loss or other comprehensive income, equity and debt securities, bonds, funds, wealth management products) but not expected to be realised within one year, including the non-current portion of a holding a note splits between current and non-current. Excludes derivatives, other receivables, and investments in related parties, associates and joint ventures.",
    "value_scope": "exclusive_leaf",
-   "extraction_mode": "derive",
+   "extraction_mode": "extract",
    "aliases": [
     "Secur & Other Fincl Assets(LTP)",
     "Financial asset at FVTPL",
@@ -2786,7 +2714,8 @@
       }
      ],
      "note": "Primary. Find_1_LTP from the rows the in-scope notes themselves classify as non-current, less Find_2_LTP, plus the CP carry-forward. This rung leads because spec 6.1 admits only amounts classified under Non-current Assets, so where a note analyses its own total into current and non-current that analysis IS the figure. The three deductions are adjustments at sign -1 and are optional: spec 6.3 lets Find_2_LTP be zero when the notes were found and no component is included in their totals, and a deduction can never make this rung resolvable on its own. The last term is the CP carry-forward: spec 6.4 - 'LTP_candidate = LTP_base + CP_negative_carryforward_to_LTP'. It is zero or negative, so sign +1 ADDS it and it reduces LTP by the Level 3 amount CP could not absorb; role adjustment keeps a carry-forward from resolving this rung on its own, since there would be nothing to add it to. The evaluator must hand over the CARRY-FORWARD (zero, or the negative CP candidate) - not the clamped CP output, which spec 5.4 sets to zero in exactly the case where the carry-forward is non-zero. refuse_negative is spec 6.4's 'LTP_final = LTP_base if LTP_candidate < 0': a negative candidate is skipped and LTP_P2, the same Find_1 source without the carry-forward, supplies LTP_base.  [The spec's CP negative carry-forward term is OMITTED: it is min(CP_candidate, 0) and the only available reference holds CP_final, which the spec clamps to >= 0. Adding that would fold the whole current figure into this line. This rung therefore computes the spec's LTP_base.]",
-     "refuse_negative": true
+     "refuse_negative": true,
+     "outranks_printed": true
     },
     {
      "id": "LTP_P2",
@@ -2813,7 +2742,8 @@
       }
      ],
      "note": "LTP_base from the same rows, with no carry-forward applied - 'LTP_base = Find_1_LTP - Find_2_LTP'. Both of the spec's escape hatches land here: the carry-forward is unavailable (MISSING_CP_CARRYFORWARD_TO_LTP), or applying it made the candidate negative and LTP_P1 was refused (NEGATIVE_LTP_ADJUSTMENT_REVERSED - 'when applying the negative CP carry-forward would make LTP negative, do not apply the carry-forward. Use the unadjusted LTP_base as the final LTP value'). refuse_negative because LTP is a carrying amount: a negative result would mean the deductions were not the components this rung assumed.",
-     "refuse_negative": true
+     "refuse_negative": true,
+     "outranks_printed": true
     },
     {
      "id": "LTP_P3",
@@ -2875,7 +2805,8 @@
       }
      ],
      "note": "The same arithmetic where the in-scope notes are wholly non-current and print a total rather than a current/non-current split, so Find_1_LTP is 'SUM(unique note_total across all identified Non-current Asset notes)'. The eight note children are any_of because that SUM takes whatever subset of the 6.1 dictionary a filing happens to disclose, and each of them owns one note heading, so no note total is added twice. Deductions and the CP carry-forward behave exactly as in LTP_P1, including refuse_negative for 6.4's reversal rule, which drops to LTP_P4.  [The spec's CP negative carry-forward term is OMITTED: it is min(CP_candidate, 0) and the only available reference holds CP_final, which the spec clamps to >= 0. Adding that would fold the whole current figure into this line. This rung therefore computes the spec's LTP_base.]",
-     "refuse_negative": true
+     "refuse_negative": true,
+     "outranks_printed": true
     },
     {
      "id": "LTP_P4",
@@ -2937,7 +2868,8 @@
       }
      ],
      "note": "LTP_base for the note-total source: the same eight notes less Find_2_LTP, with no carry-forward - reached when the carry-forward is unavailable (MISSING_CP_CARRYFORWARD_TO_LTP) or when applying it turned LTP_P3 negative (NEGATIVE_LTP_ADJUSTMENT_REVERSED). refuse_negative because LTP is a carrying amount.",
-     "refuse_negative": true
+     "refuse_negative": true,
+     "outranks_printed": true
     }
    ]
   },
@@ -13266,36 +13198,6 @@
    "definition": "Revenue from the ordinary course of business — turnover from the sale of goods and the rendering of services, before cost of sales and excluding other income, finance income and gains. This is the top line of the income statement, and a revenue note disaggregates the same figure by product, service line, geography, segment or timing of transfer.",
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
-   "aliases": [
-    "Sales(Revenues)",
-    "Turnover/Sales/Revenues",
-    "Turnover",
-    "Revenue",
-    "Sales",
-    "Principal operations revenue",
-    "Revenue from principal operations"
-   ],
-   "aliases_i18n": {
-    "en": [
-     "Sales(Revenues)",
-     "Turnover/Sales/Revenues",
-     "Turnover",
-     "Revenue",
-     "Sales",
-     "Principal operations revenue",
-     "Revenue from principal operations"
-    ],
-    "zh": [
-     "主营业务收入",
-     "主营业务"
-    ]
-   },
-   "keyword_hints": [
-    "Sales(Revenues)"
-   ],
-   "regex_hints": [
-    "^Sales\\(Revenues\\)$"
-   ],
    "exclude_hints": [
     "营业收入",
     "营业总收入",
@@ -13313,7 +13215,6 @@
    "note_use": "decomposition_allowed",
    "note_use_rationale": "A cited note may supply dedicated template concepts before the face aggregate, but only when same-subsection detail and residual rows reconcile to the face amount.",
    "sign_convention": "either",
-   "match_priority": 14,
    "alias_matching": "enabled",
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
@@ -29654,7 +29555,79 @@
    "statement": null,
    "section_scope": [],
    "definition": "The carrying amount of balances owed to the reporting entity by its related parties, taken from rows the statement itself labels as related-party within the receivable classes in scope — other receivables, long-term receivables, the current portion of long-term receivables, and loans and advances. It is read off the face of the balance sheet or statement of financial position (资产负债表 / 財務狀況表), beneath its asset section headings, or off a breakdown printed as part of those statement lines. It is not the whole receivable-class line that the related-party row sits inside, and it is not the mirror-image balance due to related parties (应付 / due to) that the same statement usually shows on the liability side; a row bearing only a counterparty's name, with nothing in the filing calling that counterparty related, is also not this figure.",
-   "prompt": "Take only the statement row the filing itself labels as owed by a related party, never the receivable-class total it sits inside and never the amount due to related parties."
+   "prompt": "Take only the statement row the filing itself labels as owed by a related party, never the receivable-class total it sits inside and never the amount due to related parties.",
+   "aliases": [
+    "Due from Related Parties(LTP)",
+    "Amount owning by related companies",
+    "Due from related parties",
+    "Due from related companies",
+    "Related companies current account",
+    "Loan to/Loan receivables from/Other receivables from related companies/ affiliates",
+    "Related companies C/A",
+    "Due from Associates/ affiliates",
+    "Loan to/Loan receivables from/Other receivables from Associates",
+    "Due from JV",
+    "Loan to/Loan receivables from/Other receivables from JV",
+    "Due from Joint Ventures",
+    "Loan to/Loan receivables from/Other receivables from Joint Ventures",
+    "Due from Jointly controlled entities",
+    "Loan to/Loan receivables from/Other receivables from Jointly controlled entities",
+    "Due from fellow subsidiaries",
+    "Loan to/Loan receivables from/Other receivables from fellow subsidiaries",
+    "Directors current account",
+    "Loan to/Loan receivables from/Other receivables from Directors",
+    "Directors' C/A",
+    "Subsidiaries current account",
+    "Loans to/Loan receivables from/Other receivables from Subsidiaries",
+    "Subsidiaries' C/A"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Due from Related Parties(LTP)",
+     "Amount owning by related companies",
+     "Due from related parties",
+     "Due from related companies",
+     "Related companies current account",
+     "Loan to/Loan receivables from/Other receivables from related companies/ affiliates",
+     "Related companies C/A",
+     "Due from Associates/ affiliates",
+     "Loan to/Loan receivables from/Other receivables from Associates",
+     "Due from JV",
+     "Loan to/Loan receivables from/Other receivables from JV",
+     "Due from Joint Ventures",
+     "Loan to/Loan receivables from/Other receivables from Joint Ventures",
+     "Due from Jointly controlled entities",
+     "Loan to/Loan receivables from/Other receivables from Jointly controlled entities",
+     "Due from fellow subsidiaries",
+     "Loan to/Loan receivables from/Other receivables from fellow subsidiaries",
+     "Directors current account",
+     "Loan to/Loan receivables from/Other receivables from Directors",
+     "Directors' C/A",
+     "Subsidiaries current account",
+     "Loans to/Loan receivables from/Other receivables from Subsidiaries",
+     "Subsidiaries' C/A"
+    ],
+    "zh": [
+     "应收关联公司款项",
+     "应收关联方款项",
+     "应收关连人士款项",
+     "应收同系附属公司款项",
+     "应收董事款项",
+     "关联方资金往来",
+     "关联方往来款",
+     "其他应收关联方款项",
+     "一年内到期的长期应收款",
+     "长期应收款",
+     "发放贷款及垫款"
+    ]
+   },
+   "regex_hints": [
+    "^Due\\s+from\\s+Related\\s+Parties\\(LTP\\)$"
+   ],
+   "keyword_hints": [
+    "Due from Related Parties(LTP)"
+   ],
+   "match_priority": 79
   },
   {
    "key": "sub__rp_lt_receivables_note",
@@ -35304,7 +35277,38 @@
    "statement": null,
    "section_scope": [],
    "definition": "Revenue earned in the period from the entity's principal, ordinary operations, as printed on the face of the income statement itself — the top line, stated before cost of sales and before revenue from any other, non-principal business is added to it. It is read from the consolidated statement of profit or loss, comprehensive income or income statement, and from the group's own statement rather than a parent-company-only one. It is not the wider combined operating revenue total (营业收入, 营业总收入, total revenue), which contains this figure plus other-business revenue; nor is it the cost of sales or gross profit reported next to it, nor a subtotal qualified by product, industry, region or channel.",
-   "prompt": "Take the principal-operations revenue line printed on the face of the consolidated income statement, never the combined operating-revenue total that contains it and never the cost figure reported alongside it."
+   "prompt": "Take the principal-operations revenue line printed on the face of the consolidated income statement, never the combined operating-revenue total that contains it and never the cost figure reported alongside it.",
+   "aliases": [
+    "Sales(Revenues)",
+    "Turnover/Sales/Revenues",
+    "Turnover",
+    "Revenue",
+    "Sales",
+    "Principal operations revenue",
+    "Revenue from principal operations"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Sales(Revenues)",
+     "Turnover/Sales/Revenues",
+     "Turnover",
+     "Revenue",
+     "Sales",
+     "Principal operations revenue",
+     "Revenue from principal operations"
+    ],
+    "zh": [
+     "主营业务收入",
+     "主营业务"
+    ]
+   },
+   "regex_hints": [
+    "^Sales\\(Revenues\\)$"
+   ],
+   "keyword_hints": [
+    "Sales(Revenues)"
+   ],
+   "match_priority": 14
   },
   {
    "key": "sub__revenue_note_principal_revenue",

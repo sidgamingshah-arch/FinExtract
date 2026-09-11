@@ -205,6 +205,32 @@ class CascadeRung(BaseModel):
     # cascade is a charge, a balance or an exposure, none of which can be negative; a definition
     # that genuinely can (a net movement, a carryforward) turns it off.
     refuse_negative: bool = True
+    # MAY THIS RUNG DISPLACE A FIGURE THE FILING PRINTED? Off by default, because the ordinary case
+    # is that a printed row and a cascade are two routes to the SAME number and the printed one is
+    # the filing's own statement of it.
+    #
+    # THE CASE THAT NEEDS IT ON, and it is a distinction between kinds of rung rather than a
+    # preference. Compare the two rungs measured on the reference filings:
+    #
+    #   bs_nca__secur_and_other_fincl_assets_ltp / LTP_P1 — "from the rows the in-scope notes
+    #     themselves classify as non-current, less derivatives, less other receivables, less
+    #     equity-method investments, plus the CP carry-forward". NO PRINTED ROW CAN STATE THAT. It
+    #     computes 788,507 while a caption binds 128,407 — a different quantity, not a worse
+    #     reading of the same one. Keeping the printed figure meant the rung the author wrote
+    #     decided nothing whenever the matcher happened to bind a row.
+    #
+    #   is_pl__sales_revenues / P6 — "alternative reconstruction from the INDUSTRY /
+    #     OPERATING-SEGMENT axis", reached only after every route the spec describes. This line's
+    #     P1 IS the face ("主营业务收入 reported on the face of the income statement"), so a printed
+    #     figure here is precisely what the cascade's own top rung was looking for. Measured:
+    #     letting P6 displace it published 2,609,259 — one industry segment — in place of the
+    #     4,995,768 the face prints as TURNOVER.
+    #
+    # So the question is whether the rung RECONSTRUCTS something the face does not state, or
+    # RESTATES something it does. Only the author of the cascade knows, which is why this is a
+    # declaration and not a heuristic over rung order or magnitude — both of which fit these two
+    # filings and neither of which means anything.
+    outranks_printed: bool = False
 
 
 class NoteSource(BaseModel):
@@ -563,32 +589,17 @@ class LineItemDef(BaseModel):
                 f"`{self.type}` — its figure comes from arithmetic, so the model is never asked "
                 f"about it. Clear the prompt, or change the type if the line is in fact read off "
                 f"the page.")
-        # THE TWO REFUSALS BELOW SHARE ONE QUESTION — is the model ever asked about this line? —
-        # and they read it off `_never_asked`, which is the configuration-side spelling of
-        # `_llm_withheld` in `services.mapping`. Both axes answer it and both have to be tested:
-        # `type: derived` fills the line from its cascade (`services.line_items.evaluate` branches
-        # on `type`, not on the mode) and `extraction_mode` other than `extract` withholds the
-        # offer. Refused rather than ignored, because a flag silently doing nothing on 41 of the
-        # shipped concepts is worse than a message: the author would set it, see no effect, and
-        # have nothing to read.
+        # NEITHER OF THESE IS REFUSED ANY MORE, and the reason is that the question they turned
+        # on no longer has a false answer. Both asked "is the model ever asked about this line?" —
+        # `note_selection` chooses what note context its request carries, `llm_only_if_note_tagged`
+        # whether a request is spent at all — and the answer used to be no for 41 concepts, so
+        # setting either on one of those would have been a flag that silently did nothing.
         #
-        # The messages name `note_selection` and `llm_only_if_note_tagged` verbatim, because the
-        # edit door attributes a refusal to a control by finding the field name as a substring
-        # (`routes/line_items.py` `_EDITABLE_FIELDS`), and a refusal an author cannot pin to a
-        # control is a refusal they cannot act on.
-        never_asked = self._never_asked()
-        if self.note_selection != "semantic" and never_asked:
-            raise ValueError(
-                f"{self.key}: `note_selection` chooses how a line's notes are found for its own "
-                f"request, and {never_asked} — so no request is built for it and no notes are "
-                f"selected. Leave the selection at `semantic`, or make the line one the model is "
-                f"asked about.")
-        if self.llm_only_if_note_tagged and never_asked:
-            raise ValueError(
-                f"{self.key}: `llm_only_if_note_tagged` only applies to a line the model is "
-                f"actually asked about, and {never_asked} — so a note reference printed beside a "
-                f"row says nothing about whether that arithmetic should run. Turn the flag off, "
-                f"or make the line one the model is asked about.")
+        # Every concept is now offered (`mapping._llm_withheld` is the residual locks and nothing
+        # else), because some of a filing's addition and subtraction is the model's to do. So every
+        # line has a request, and both fields apply to every line. `_never_asked` is kept — the
+        # residual locks are still never asked, and a caller that wants to know reads it — but it
+        # is no longer a refusal.
         if self.side == "from_section" and not self._can_read_a_section():
             raise ValueError(
                 f"{self.key}: `from_section` needs a statement that prints section banners — "
@@ -610,25 +621,25 @@ class LineItemDef(BaseModel):
     def _never_asked(self) -> str | None:
         """Why the model is never asked about this line, or `None` if it is asked.
 
-        THE CONFIGURATION-SIDE SPELLING OF `_llm_withheld` (`services.mapping`), and it has to
-        test both axes because they are independent declarations:
+        THE CONFIGURATION-SIDE SPELLING OF `_llm_withheld` (`services.mapping`), and that set is
+        now the SECTION RESIDUALS and nothing else. Every other concept is offered, derived
+        parents included, because some of a filing's addition and subtraction is the model's to do
+        — it can read four note rows and say they are one subtotal, which no declared cascade
+        anticipated.
 
-          * `type: derived` — `services.line_items.evaluate` branches on `type` and fills the line
-            from its declared cascade. Asking as well only produces a second answer that can
-            disagree with the first.
-          * `extraction_mode` other than `extract` — `extract_or_derive` means the subtotal is
-            printed on some filings and left to arithmetic on others, and those stay fully
-            matchable by the DETERMINISTIC tiers; what is withheld is only the model's offer.
+        A residual is the exception for a reason that is not about arithmetic: its purpose is to
+        carry the UNEXPLAINED remainder, so a figure filed there makes the reconciliation that
+        would have reported the gap tie instead. `alias_matching: "disabled"` is the declared
+        switch that marks one, which is what `mapping._locked` reads.
 
-        Returned as the REASON rather than as a bool so the two refusals that read it can say
-        which declaration withheld the line — an author who is told "this line is never asked
-        about" still has to know which field to change.
+        THIS USED TO ANSWER FOR 41 CONCEPTS — every non-`extract` mode and every `derived` type —
+        and two fields were REFUSED on the strength of it. Both refusals are gone; see
+        `_coherent`. Kept as a question because it still has a true answer for the residuals, and
+        because a caller asking "does this line reach the model" should have one place to ask.
         """
-        if self.type == "derived":
-            return "this one is `derived`, so its figure comes from its declared cascade"
-        if self.extraction_mode != "extract":
-            return (f"this one is `{self.extraction_mode}`, so its figure comes from declared "
-                    f"arithmetic wherever the row is not printed")
+        if str(self.alias_matching) == "disabled":
+            return ("this one is a section residual, which carries a section's unexplained "
+                    "remainder and is filled by the sweep rather than by any answer")
         return None
 
     # ── the gate, as the matcher will ask it ─────────────────────────────────────────────────

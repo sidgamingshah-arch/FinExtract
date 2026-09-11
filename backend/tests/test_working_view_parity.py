@@ -117,14 +117,21 @@ _DEFINITION_DECISIONS = frozenset({
 # made this flip unsafe before. It now rides on the type — `OntologyMapping.item_type`, read by
 # `mapping._llm_withheld` — so it holds for all nine whatever the mode says.
 #
-# TWO OF THE NINE ARE NOT HERE, each for a measured reason (`scripts/mark_derived_extract.py`):
-# `bs_nca__secur_and_other_fincl_assets_ltp` publishes 128,412 instead of 788,507 once a printed
-# caption may reach it, and `statement_setup_controls__periods` is a priority-90 control whose
-# keyword hints are words half the income statement contains.
+# ONE OF THE NINE IS NOT HERE, for a measured reason: `statement_setup_controls__periods` is a
+# priority-90 control whose keyword hints are words half an income statement's captions contain, so
+# `derive` is what keeps every caption off it (`scripts/mark_derived_extract.py`).
+#
+# `bs_nca__secur_and_other_fincl_assets_ltp` WAS THE SECOND EXCEPTION AND IS NOW HERE. It was held
+# at `derive` because `extract` let a caption bind 128,412 in place of its cascade's 788,507 — and
+# what fixed that is `CascadeRung.outranks_printed`, declared on its four rungs
+# (`scripts/declare_outranking_rungs.py`). Each of them computes a non-current portion less three
+# classes of inclusion, which no printed row states, so the rung wins the contest on its own merits
+# and the mode no longer has to hold the figure.
 _EXTRACTION_MODE_DECISIONS = frozenset({
     "is_pl__deprec_and_impairment_oper_exp", "is_pl__deprec_and_impairment_cos",
     "bs_ca__secur_and_other_fincl_assets_cp", "notes__contingent_liabilities",
     "bs_nca__due_from_related_parties_ltp", "bs_ca__other_receivables_cp",
+    "bs_nca__secur_and_other_fincl_assets_ltp",
 })
 
 # Fields on which the SHIPPED seed may lag the rulebook — see the module docstring. `description`

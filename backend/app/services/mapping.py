@@ -1658,51 +1658,64 @@ class OntologyMatcher:
         # matchable, since a filing that does print the subtotal must have the printed row read.
         self._computed_only: set[str] = {m.canonical_key for m in ontology.mappings
                                          if m.extraction_mode == "derive"}
-        # A DERIVED PARENT — a concept whose figure a declared CASCADE produces. Separate from
-        # `_computed_only` and deliberately NOT part of `_unmatchable`: a derived parent may well
-        # be printed, and where it is, the printed row must be read. `is_pl__sales_revenues` is
-        # that case, and it publishes 4,995,768 off the face of laisun's income statement.
+        # A DERIVED PARENT — a concept whose figure a declared CASCADE produces. IT IS REACHED BY
+        # NOTHING ELSE: not by the model, not by an alias, not by a semantic probe, not by a
+        # printed caption. Its figure is its cascade's, full stop.
         #
-        # WHAT IT IS FOR is the model's answers. The cascade is the record of WHICH of the filing's
-        # several disclosures a figure came from — rung P1 sums four operating-expense notes, P2
-        # takes the profit-before-tax callout, P3 is the total less the cost-of-sales share — and a
-        # figure accepted straight onto the parent bypasses all of it: no rung runs, so the record
-        # loses which disclosure was used and the cross-check against the other rungs is skipped.
-        # The number arrives looking identical either way, which is why an answer naming one of
-        # these is refused rather than deprioritised. The answer wanted is the PART.
+        # THIS IS SETTLED BY INSTRUCTION AND IS NOT A TRADE-OFF TO BE REOPENED. It has been
+        # reasoned in both directions during development and the answer is fixed: "derived parents
+        # will never be offered to LLM - for one last time - this is locked forever. Even on
+        # deterministic route there is no semantic needed on them or aliases or anything at all."
+        # So a future reader finding aliases, regex hints or a competitive `match_priority` still
+        # declared on one of these nine should read them as unused history, not as a signal that
+        # matching was intended.
+        #
+        # WHY IT IS RIGHT, and the mechanism is worth stating because the shipped data argues the
+        # other way. A cascade is the record of WHICH of a filing's several disclosures a figure
+        # came from — for depreciation, rung P1 sums four operating-expense notes, P2 takes the
+        # profit-before-tax callout, P3 is the total less the cost-of-sales share. A figure that
+        # arrives on the parent by any other route bypasses all of it: no rung runs, the record
+        # loses which disclosure was used, and the cross-check against the other rungs is skipped.
+        # The number looks identical either way, which is what makes it worth forbidding rather
+        # than deprioritising. Whatever a caption or a model has to say belongs on the PART.
+        #
+        # MEASURED, both directions of the mistake. Offered to the model, revenue's printed row was
+        # mapped to nothing and a low-precedence rung filled the line with 2,609,259 against the
+        # 4,995,768 the face prints. Left matchable by caption, four printed rows bound to
+        # `bs_nca__secur_and_other_fincl_assets_ltp` and `concept_value` summed them to 1,705,426
+        # against its rung's 788,507.
         self._computed_parent: set[str] = {
             m.canonical_key for m in ontology.mappings
             if getattr(m, "item_type", "extracted") == "derived"
         }
         # One set for every index and payload below: a concept no printed caption may reach,
-        # whether because it is a swept residual or because it is computed.
-        self._unmatchable: set[str] = self._locked | self._computed_only
-        # ONLY `extraction_mode: extract` IS PUT IN FRONT OF THE MODEL. A concept the framework can
-        # work out for itself is not the model's to guess at: if a line can be DERIVED, the declared
-        # arithmetic derives it, and asking as well only creates a second answer that can disagree
-        # with the first. Measured on laisun: the deterministic tiers read revenue off the face as
-        # 4,995,768 and the LLM run mapped that row to nothing, so a low-precedence rung filled the
-        # line with 2,609,259 instead — the model was asked about a row the alias tier had already
-        # answered correctly, and answered worse.
+        # whether because it is a swept residual, because it is computed, or because it is a
+        # derived parent whose only source is its cascade.
+        self._unmatchable: set[str] = self._locked | self._computed_only | self._computed_parent
+        # WHAT THE MODEL IS OFFERED: everything except the residual buckets and the derived parents.
         #
-        # THIS IS NARROWER THAN `_unmatchable` AND IT IS AN LLM-ONLY BOUNDARY. It withholds the 38
-        # `extract_or_derive` concepts too, and those must stay fully matchable by the DETERMINISTIC
-        # tiers — `extract_or_derive` means the subtotal is sometimes printed and sometimes left to
-        # arithmetic, so a filing that does print it must have the printed row read (see
-        # `_computed_claim`). That is why this set is applied where candidates are offered rather
-        # than folded into `_mappable_keys`, which the rule tier also reads: the printed row is
-        # still read, just by the tier that reads captions instead of by the model.
-        # BOTH AXES, because they are independent declarations and each one alone leaves a hole.
-        # `item_type: derived` is the one the mode cannot express: `is_pl__sales_revenues` is a
-        # derived parent with an eight-rung cascade AND `extraction_mode: extract`, because a
-        # filing that prints the subtotal must have the printed row read. Keyed on the mode alone
-        # it was OFFERED to the model — which is exactly the case measured above, where the model
-        # answered worse than the alias tier had already answered. `services.line_items.evaluate`
-        # branches on `type`, so a derived line's published figure is its cascade's whatever the
-        # model says; asking only creates a second answer that can disagree with the first.
-        self._llm_withheld: set[str] = ({m.canonical_key for m in ontology.mappings
-                                         if m.extraction_mode != "extract"}
-                                        | self._computed_parent | self._locked)
+        # THE RULE USED TO BE NARROWER — `extraction_mode == "extract"` only — and that was wrong in
+        # the other direction. It withheld the 38 `extract_or_derive` concepts, which mean "printed
+        # on some filings, arithmetic on others", and the 14 concepts whose `alias_matching` is
+        # disabled, which is the test for "no printed CAPTION may reach this" and says nothing
+        # about whether the model may ANSWER. Measured on the shipped set, that swept in two derived
+        # focus lines and `bs_equity__equity_and_reserves`, leaving 50 concepts unofferable where
+        # only 20 should be. Some of a filing's addition and subtraction IS the model's to do — it
+        # can read four note rows and say they are one subtotal, which no declared cascade
+        # anticipated — so the offer is now everything the two exclusions below do not name.
+        #
+        # THE TWO EXCLUSIONS, and they are exclusions for different reasons:
+        #
+        #   * `_computed_parent` — the derived parents. Locked by instruction, see above.
+        #   * the RESIDUAL BUCKETS, keyed on `value_scope == "exclusive_residual"` rather than on
+        #     `_locked`, for the reason given above: a bucket's purpose is to carry a section's
+        #     UNEXPLAINED remainder, so a figure filed there makes the reconciliation that would
+        #     have REPORTED the gap tie instead. That writes into the mechanism that audits the
+        #     answer rather than into the answer, and none of the arithmetic the model is being
+        #     asked to do lives in a bucket.
+        self._llm_withheld: set[str] = (
+            {m.canonical_key for m in ontology.mappings
+             if m.value_scope == "exclusive_residual"} | self._computed_parent)
         # `binding.order` is a v2 declaration, and step 6 below (a tie between mutually-confusable
         # concepts is emitted for review, never picked by declaration order) is an implementation OF
         # it — so it is enabled by its presence. A v1 rulebook declares no binding order and no
@@ -1739,7 +1752,16 @@ class OntologyMatcher:
                 m.aliases_for(self.locale)
                 + [a for locale_aliases in m.aliases_i18n.values() for a in locale_aliases]
             ))
-            if m.canonical_key in self._computed_only:
+            # A CONCEPT NO CAPTION MAY REACH IS NOT IN THE ALIAS INDEX — and this is the place that
+            # actually decides it. `_unmatchable` rather than `_computed_only`, which was narrower
+            # than the set every consumer of this index assumes: a DERIVED PARENT declares aliases
+            # ("Turnover", "Revenue", "Sales" on `is_pl__sales_revenues`) and a competitive
+            # `match_priority`, so indexing them bound the printed top line straight onto the
+            # parent and bypassed the cascade that is its only legitimate source. Its aliases are
+            # kept in `_computed_alias_by_key` exactly as a `derive` concept's are, which is what
+            # `_computed_claim` reads to REFUSE such a caption rather than re-home it on a
+            # neighbour.
+            if m.canonical_key in self._unmatchable:
                 self._computed_alias_by_key[m.canonical_key] = [
                     normalize_label(a) for a in aliases]
                 continue
@@ -2470,12 +2492,20 @@ class OntologyMatcher:
                 if m.extraction_mode != "do_not_extract" and k not in self._locked]
 
     def _mappable_keys(self) -> list[str]:
-        """The concepts a printed CAPTION may be bound to — extractable, minus the computed ones.
+        """The concepts a printed CAPTION may be bound to — extractable, minus the unreachable.
 
-        The narrower of the two sets, and the one every candidate list is built from. A `derive`
-        concept is extractable but not mappable: see `_computed_only`.
+        The narrower of the two sets, and the one every candidate list is built from.
+
+        `_unmatchable` AND NOT `_computed_only`, which is what this subtracted before and was
+        narrower than its own docstring in two ways. It let through the locked residual buckets,
+        and — the one that matters here — the DERIVED PARENTS: a parent's figure is its cascade's
+        and nothing else's, so no caption, alias or semantic probe may reach it. This is the third
+        of three places that had to agree before "TURNOVER" stopped resolving to
+        `is_pl__sales_revenues`; the others are `mapping._unmatchable` (which gates the rule tier
+        and the off-candidate answers) and `line_item_matching._unmatchable` (which owns the alias
+        index). A key absent from only some of them still binds through the rest.
         """
-        return [k for k in self._extractable_keys() if k not in self._computed_only]
+        return [k for k in self._extractable_keys() if k not in self._unmatchable]
 
     def _llm(self, raw: str, context: str | None, keys: list[str]) -> Candidate | None:
         """Description/criteria-based decision — the key driver in the ensemble."""
@@ -3449,51 +3479,46 @@ class OntologyMatcher:
                 with self._usage_lock:
                     self.usage["batch_uncited_off_candidate"] = self.usage.get(
                         "batch_uncited_off_candidate", 0) + 1
-                # A CONCEPT NO CAPTION MAY REACH, OR A DERIVED PARENT, is refused here — named
-                # without a citation there is nothing to weigh against the refusal. Anything else
-                # falls through to the gates below, which is what keeps `_family_route` working: an
-                # answer right about WHAT the row is and wrong only about its section variant is
-                # off-candidate by definition, and correcting it is better than losing it.
+                # A CONCEPT NO CAPTION MAY REACH is refused here — named without a citation there
+                # is nothing to weigh against the refusal. Anything else falls through to the gates
+                # below, which is what keeps `_family_route` working: an answer right about WHAT
+                # the row is and wrong only about its section variant is off-candidate by
+                # definition, and correcting it is better than losing it.
                 #
-                # `_computed_parent` RATHER THAN THE WHOLE OF `_llm_withheld`, and the difference is
-                # the 38 `extract_or_derive` concepts. Those are printed on some filings and left to
-                # arithmetic on others, so they stay reachable by every deterministic tier and a
-                # family reroute onto one is a correction worth keeping. A derived parent is not in
-                # that position: its figure is its cascade's whatever a caption says.
-                if key in self._unmatchable or key in self._computed_parent:
+                # `_computed_parent` WAS ALSO REFUSED HERE AND IS NOT ANY MORE. A derived parent is
+                # now offered to the model on purpose, so that some of a filing's addition and
+                # subtraction can be the model's to do; refusing the answer it gives would offer
+                # the concept and then discard the reply. What protects the declared cascade is no
+                # longer a refusal but precedence — `stages.note_sourced._fill_by_cascade` leaves
+                # an LLM-sourced figure alone rather than the mapper forbidding one.
+                if key in self._unmatchable:
                     with self._usage_lock:
                         self.usage["batch_refused"] += 1
                     continue
             if off_candidate and (d.sources or ()):
-                # WHAT IS WITHHELD FROM THE CANDIDATE LIST IS REFUSED AS AN ANSWER, and this is the
-                # one boundary the latitude above does not cross. The test is `_llm_withheld` —
+                # WHAT IS WITHHELD FROM THE CANDIDATE LIST IS REFUSED AS AN ANSWER, and this is
+                # the one boundary the latitude above does not cross. The test is `_llm_withheld` —
                 # exactly the set `_concept_payload` withholds — so the list the model is shown and
                 # the answers it may give are ONE decision rather than two that drift apart. A
                 # citation buys latitude about WHERE a figure came from; it does not buy a line the
                 # framework was never going to ask about.
                 #
-                # Three reasons, counted separately because they mean different things to whoever
-                # reads the counters:
+                # THAT SET IS NOW THE SECTION RESIDUALS AND NOTHING ELSE, and the two reasons that
+                # used to be here are gone on purpose:
                 #
-                #   * `_locked` — the section residuals, whose purpose is to carry the UNEXPLAINED
-                #     remainder. A figure filed there does not merely risk a wrong mapping, it makes
-                #     the reconciliation that would have REPORTED the gap tie instead. That is not
-                #     the model saying where a figure came from; it is writing into the mechanism
-                #     that audits the saying.
-                #   * `extraction_mode: derive` — THERE IS NO LLM CALL FOR A COMPUTED LINE. Its
-                #     figure comes from a declared cascade over its sub-line items: rung P1 sums the
-                #     four operating-expense notes, P2 takes the profit-before-tax callout, P3 is
-                #     the total less the cost-of-sales share. A figure accepted onto the parent
-                #     bypasses all of it — the rung never runs, so the record loses WHICH of the
-                #     filing's several disclosures the number came from, and the cross-check against
-                #     the other rungs is skipped. The number arrives looking identical either way,
-                #     which is why this is refused rather than merely deprioritised. It was a real
-                #     hole: the prose path first wrote 529,841 straight onto
-                #     `is_pl__deprec_and_impairment_oper_exp`. The answer is the SUB-ITEM
-                #     (`sub__pbt_oper_exp_depreciation`), which is what P2 reads.
-                #   * `extraction_mode: extract_or_derive` — derivable, so not the model's to guess
-                #     at. The printed row is still read; the DETERMINISTIC tiers read it, and they
-                #     ran on the full set before this point.
+                #   * `_locked`, the residuals, REMAINS. Its purpose is to carry a section's
+                #     UNEXPLAINED remainder, so a figure filed there does not merely risk a wrong
+                #     mapping — it makes the reconciliation that would have REPORTED the gap tie
+                #     instead. That is writing into the mechanism that audits the answer rather
+                #     than into the answer, and none of the arithmetic the model is being asked to
+                #     do lives in a residual bucket.
+                #   * `extraction_mode: derive` / `extract_or_derive` and the derived parents are
+                #     NO LONGER REFUSED. They are offered now, so that some of a filing's addition
+                #     and subtraction can be the model's to do: it can read four note rows and say
+                #     they are one subtotal, which no declared cascade anticipated. Refusing the
+                #     reply would offer the concept and then discard the answer. The declared
+                #     cascade is protected by PRECEDENCE instead — `note_sourced._fill_by_cascade`
+                #     leaves an LLM-sourced figure alone and fills only what the model left empty.
                 if key in self._llm_withheld:
                     with self._usage_lock:
                         self.usage["batch_refused"] += 1

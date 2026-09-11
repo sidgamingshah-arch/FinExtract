@@ -229,7 +229,13 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
          "terms": [{"ref": "probe_parent", "const": None, "sign": 1, "abs": False,
                     "role": "required"}],
          "note": "the note's own total, when it states one",
-         "refuse_negative": False}]),
+         "refuse_negative": False,
+         # SENT WHOLE, like every other nested object in this table — the apply dumps a sub-model in
+         # JSON mode, so a rung sent without this comes back carrying the model's default and the
+         # comparison would be against this table's idea of a rung rather than the model's.
+         # `outranks_printed` decides whether a resolved rung may displace a figure the filing
+         # PRINTED, which only a rung that reconstructs something the face does not state should do.
+         "outranks_printed": False}]),
     "implemented_by": ("implemented_by", "probe_service"),
     # prose
     "decomposition_rule": ("decomposition_rule", "= total cash − other"),
@@ -381,6 +387,40 @@ def test_every_field_on_the_schema_is_authorable_or_declared_locked():
     assert accepted - {e for e, _ in _ROUND_TRIP.values()} == {"key", "locale", "sign_convention"}
 
 
+def test_a_field_no_surface_offers_is_refused_rather_than_stored(client, probe):
+    """THE OTHER HALF OF RETIREMENT, and the half that used to be missing.
+
+    Retiring a control removed the invitation to set it on the Line Items screen and nothing else:
+    the endpoint went on accepting the field, so a value could still arrive by API call for a
+    question no screen asks. That value is then driving extraction while the console says the field
+    is not configurable — unreviewable by construction.
+
+    Asserted field by field with its REASON, because a refusal that does not say what decides the
+    question instead leaves the author nowhere to go. `_ROUND_TRIP` still carries an entry for each
+    of these: the wire shape is unchanged, only the permission is.
+    """
+    from app.api.routes.line_items import _NOT_CONFIGURABLE
+
+    _tpl, cfg = probe
+    checked = 0
+    for def_field, (edit_field, value) in sorted(_ROUND_TRIP.items()):
+        if def_field not in _NOT_CONFIGURABLE and edit_field not in _NOT_CONFIGURABLE:
+            continue
+        refused = _NOT_CONFIGURABLE.get(edit_field) or _NOT_CONFIGURABLE[def_field]
+        res = client.patch(f"/api/v1/line-items/versions/{cfg['id']}/items",
+                           json={"key": _EDITED, edit_field: value})
+        assert res.status_code == 422, (
+            f"{edit_field} is declared not configurable and the endpoint accepted it "
+            f"({res.status_code})")
+        detail = res.json()["detail"]
+        named = [e for e in detail["errors"] if e["field"] == edit_field]
+        assert named, f"the refusal of {edit_field} names no field: {detail['errors']}"
+        assert refused in named[0]["message"], (
+            f"{edit_field}'s refusal does not say what decides it instead: {named[0]['message']}")
+        checked += 1
+    assert checked >= 15, f"only {checked} refused fields exercised — the table has 23"
+
+
 def test_the_fields_that_are_not_editable_say_why(client, probe):
     """A field withheld from the form is a defect; read-only with a reason is a decision.
 
@@ -407,17 +447,30 @@ def test_one_patch_round_trips_a_value_for_every_authorable_field(client, probe)
     `calculated` with terms, a residual with a policy, `from_section`'s remedy satisfied. Fifty
     separate patches would each pass on a shape the screen never sends.
     """
+    from app.api.routes.line_items import _NOT_CONFIGURABLE
+
     _tpl, cfg = probe
     body = {"key": _EDITED}
     for _def_field, (edit_field, value) in _ROUND_TRIP.items():
         if _def_field in _NOT_COHERENT_WITH_THE_REST:
+            continue
+        # A FIELD NO SURFACE OFFERS IS NO LONGER WRITABLE, so sending it here would assert that a
+        # refusal is a round-trip. `_ROUND_TRIP` deliberately keeps its entry — the table is the
+        # record of what the WIRE carries, and the exhaustiveness test above still needs one per
+        # schema field — but the combined body sends only what an author can actually author.
+        # Each of these is proved REFUSED, with its reason, by
+        # `test_a_field_no_surface_offers_is_refused_rather_than_stored` below.
+        if _def_field in _NOT_CONFIGURABLE or edit_field in _NOT_CONFIGURABLE:
             continue
         body[edit_field] = value
 
     new_id = _saved(client, cfg["id"], body)
     stored = _stored(client, new_id)
     wrong = {f: (stored.get(f), value) for f, (_e, value) in _ROUND_TRIP.items()
-             if f not in _NOT_COHERENT_WITH_THE_REST and stored.get(f) != value}
+             if f not in _NOT_COHERENT_WITH_THE_REST
+             and f not in _NOT_CONFIGURABLE
+             and _ROUND_TRIP[f][0] not in _NOT_CONFIGURABLE
+             and stored.get(f) != value}
     assert not wrong, f"{len(wrong)} field(s) did not round-trip: {wrong}"
     # A SAVE THAT SILENTLY DOES NOTHING IS THE DEFECT BEING FIXED, so the version is asserted to be
     # a different one and the key it edited is named back.

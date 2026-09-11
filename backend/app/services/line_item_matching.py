@@ -278,7 +278,7 @@ class LineItemMatcher:
         # of leaving it to dict iteration luck.
         self._order: dict[str, int] = {d.key: i for i, d in enumerate(line_items.items)}
 
-        # Unreachable by MATCHING, for two different declared reasons.
+        # Unreachable by MATCHING, for three different declared reasons.
         #
         #   alias_matching == "disabled" — the section "Others" buckets, populated by the residual
         #   sweep alone. A residual's caption is the most attractive one in the rulebook: "Others"
@@ -289,9 +289,21 @@ class LineItemMatcher:
         #   extraction_mode == "derive" — the framework computes it and a filing does not print
         #   it. Offering it as a candidate asserts a row on the page IS the derived subtotal, which
         #   then overwrites the computation with whatever caption happened to match.
+        #
+        #   type == "derived" — A DERIVED PARENT'S FIGURE IS ITS CASCADE'S AND NOTHING ELSE'S: not
+        #   the model's, not an alias's, not a semantic probe's. Settled by instruction and not a
+        #   trade-off to be reopened. THIS SET IS THE ONE THAT MATTERS for that, and the mirror of
+        #   it in `mapping.OntologyMatcher` is not enough on its own: this class owns the alias
+        #   index, the regex tier and the description probe, so a key absent only from the other
+        #   set still binds here. Measured: with the rule in `mapping` alone, "TURNOVER" still
+        #   resolved to `is_pl__sales_revenues`.
+        #
+        #   The nine still DECLARE aliases, regex hints and a competitive `match_priority` — read
+        #   those as unused history rather than as a signal that matching was intended.
         self._unmatchable: set[str] = {
             d.key for d in line_items.items
             if d.alias_matching == "disabled" or d.extraction_mode == "derive"
+            or str(getattr(d, "type", "") or "") == "derived"
         }
 
         # alias -> claimants, insertion-ordered, every locale folded in. `aliases_for(None)` is the
