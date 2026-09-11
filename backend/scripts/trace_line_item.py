@@ -234,8 +234,27 @@ def main() -> int:
         if mine:
             print(f"       rows naming {args.key}:")
             for r in mine[:4]:
-                print(f"           {str(r.get('label'))[:60]!r} "
+                print(f"           {str(r.get('caption'))[:60]!r} "
                       f"suggestion={r.get('deterministic_suggestion')}")
+
+    # WAS THIS LINE'S OWN ROW FORWARDED, and what did it carry? A separate question from whether
+    # the KEY was offered: focus routing forwards a row whose deterministic answer is a focus
+    # concept so the model can confirm or correct it, and `deterministic_suggestion` is then
+    # filtered by `_llm_withheld` — so a withheld key's row goes out with the suggestion STRIPPED.
+    # Which is the case worth seeing: the row is in the request, its answer is not.
+    labels = {(li.source_label or "").strip() for li in doc.line_items
+              if li.canonical_key == args.key}
+    print(f"\n   this line's own rows   {sorted(labels) or 'none'}")
+    for i, call in enumerate(capture.calls, 1):
+        for r in call["payload"].get("source_items") or []:
+            if str(r.get("caption") or "").strip() in labels:
+                print(f"       forwarded in call {i}:  caption={r.get('caption')!r}")
+                print(f"           deterministic_suggestion = "
+                      f"{r.get('deterministic_suggestion')!r}")
+                print(f"           deterministic_candidates = "
+                      f"{r.get('deterministic_candidates')!r}")
+                print(f"           section                  = {r.get('section')!r}")
+                print(f"           keys on the row          = {sorted(r)}")
 
     # ── 5-8. THE ROWS, THE CASCADE, THE PARTS, THE FIGURE ─────────────────────────────────────
     rows = [li for li in doc.line_items if li.canonical_key == args.key]

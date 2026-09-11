@@ -47,11 +47,15 @@ SETS = [pathlib.Path(__file__).resolve().parent.parent / "app" / "sample" / "tem
 # `bs_nca__secur_and_other_fincl_assets_ltp` WAS FLIPPED AND MEASURED, AND THE FIGURE MOVED. Run on
 # laisun, `extract` publishes 128,412 (prior 119,364) where `derive` publishes 788,507 (941,274),
 # and the document yields 296 bound rows instead of 297. The cascade is unaffected — rung LTP_P1
-# still fires and still computes 788,507 from `sub__ltp_nc_portion_of_fincl_asset_notes` — so this
-# is a printed caption reaching the line and TAKING PRECEDENCE over the rung. That is what
-# `extract` means and it is the right behaviour in general; on this line it replaces the figure
-# eight sessions of work settled on, and which figure is correct is a question about the filing,
-# not about the configuration. So the declaration stays as it was until someone answers it.
+# still fires and still computes 788,507 from `sub__ltp_nc_portion_of_fincl_asset_notes`.
+#
+# THE PRECEDENCE IS WHY, and it is worth naming because it is what `extract` BUYS on a derived
+# line: `stages/note_sourced` keeps the PRINTED figure over the cascade and flags the difference
+# (`note_sourced_differs_from_printed:cascade`, written at note_sourced.py:458). So the cascade
+# fills only what a printed row left empty. That is the right behaviour in general — revenue relies
+# on it, publishing 4,995,768 off the face while rung P6 computes 2,609,259 — but on this one line
+# it replaces the figure this work settled on, and which of the two is correct is a question about
+# the filing rather than about the configuration. So the declaration stays as it was.
 #
 # The other derived line whose mode really changed — `is_pl__deprec_and_impairment_oper_exp`,
 # `derive` -> `extract` — was measured the same way and moved nothing: 529,841 before and after,
