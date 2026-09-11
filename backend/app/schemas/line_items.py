@@ -589,17 +589,39 @@ class LineItemDef(BaseModel):
                 f"`{self.type}` — its figure comes from arithmetic, so the model is never asked "
                 f"about it. Clear the prompt, or change the type if the line is in fact read off "
                 f"the page.")
-        # NEITHER OF THESE IS REFUSED ANY MORE, and the reason is that the question they turned
-        # on no longer has a false answer. Both asked "is the model ever asked about this line?" —
-        # `note_selection` chooses what note context its request carries, `llm_only_if_note_tagged`
-        # whether a request is spent at all — and the answer used to be no for 41 concepts, so
-        # setting either on one of those would have been a flag that silently did nothing.
+        # BOTH OF THESE ARE ABOUT WHAT THE MODEL IS ASKED, so both are refused on a line nothing
+        # asks about. `note_selection` chooses what note context a line's request carries and
+        # `llm_only_if_note_tagged` whether a request is spent at all — so on a line with no
+        # request they are controls that silently do nothing, which is worse than a message: the
+        # author sets one, sees no effect, and has nothing to read.
         #
-        # Every concept is now offered (`mapping._llm_withheld` is the residual locks and nothing
-        # else), because some of a filing's addition and subtraction is the model's to do. So every
-        # line has a request, and both fields apply to every line. `_never_asked` is kept — the
-        # residual locks are still never asked, and a caller that wants to know reads it — but it
-        # is no longer a refusal.
+        # REFUSED ON THE NARROW SET. This once refused on every non-`extract` mode and every
+        # `derived` type — 41 concepts — which was too wide, because `extract_or_derive` lines ARE
+        # asked about. Dropping the refusal entirely was the over-correction; `_never_asked` now
+        # names the three declarations that genuinely withhold a line and this refuses on those.
+        never = self._never_asked()
+        if never:
+            for field in ("note_selection", "llm_only_if_note_tagged"):
+                value = getattr(self, field, None)
+                if field == "note_selection" and str(value or "semantic") == "semantic":
+                    continue            # the default says nothing; only an explicit choice does
+                if field == "llm_only_if_note_tagged" and not value:
+                    continue
+                raise ValueError(
+                    f"{self.key}: `{field}` asks what the model is given, and the model is never "
+                    f"asked about this line — {never}. Put it on the part whose rung reads that "
+                    f"source, or change the declaration that withholds the line.")
+        # A `note_source` ON A DERIVED LINE FILLS THE PARENT DIRECTLY AND SKIPS ITS CASCADE.
+        # `stages.note_sourced._declared_items` reads every item that declares one, so this would
+        # WORK — and working is the bug: the figure arrives on the parent, no rung runs, and the
+        # record loses which disclosure it came from. None of the nine shipped derived lines
+        # declares one, which is the behaviour this makes explicit rather than lucky.
+        if self.note_source is not None and str(getattr(self, "type", "")) == "derived":
+            raise ValueError(
+                f"{self.key}: `note_source` names where in the notes a figure is read from, and a "
+                f"`derived` line is not read — its figure is its declared cascade's. A note source "
+                f"here would fill the parent directly and skip every rung. Put it on the PART "
+                f"whose rung reads that note.")
         if self.side == "from_section" and not self._can_read_a_section():
             raise ValueError(
                 f"{self.key}: `from_section` needs a statement that prints section banners — "
@@ -632,14 +654,34 @@ class LineItemDef(BaseModel):
         would have reported the gap tie instead. `alias_matching: "disabled"` is the declared
         switch that marks one, which is what `mapping._locked` reads.
 
-        THIS USED TO ANSWER FOR 41 CONCEPTS — every non-`extract` mode and every `derived` type —
-        and two fields were REFUSED on the strength of it. Both refusals are gone; see
-        `_coherent`. Kept as a question because it still has a true answer for the residuals, and
-        because a caller asking "does this line reach the model" should have one place to ask.
+        THREE DECLARATIONS ANSWER IT, for three different reasons, and the answer NAMES which one
+        so an author can act on it:
+
+          * `type: derived` — its figure is its declared cascade's.
+          * `alias_matching: disabled` — a section residual, filled by the sweep.
+          * `extraction_mode: derive` — the framework computes it; there is no source to locate.
+
+        `extract_or_derive` IS ASKED ABOUT, and that is the boundary that moved. It means "printed
+        on some filings, arithmetic on others", and a request asks WHERE a figure is printed rather
+        than asking the model to work one out — so a figure sitting in a note is locatable whether
+        or not the arithmetic could also reach it.
+
+        THIS ONCE ANSWERED FOR 41 CONCEPTS — every non-`extract` mode and every `derived` type —
+        and the two model-facing flags were refused on the strength of it. That set was too WIDE,
+        and the correction went too far the other way: the refusals were dropped entirely and this
+        was narrowed to the residuals alone, which left `line_item_requests.asked_about` and the
+        config screen disagreeing about the same question. One spelling, narrow set, refusals back.
         """
+        if str(getattr(self, "type", "")) == "derived":
+            return ("this one is `derived`, so its figure is its declared cascade's — a number "
+                    "written straight onto the parent skips every rung, which loses which "
+                    "disclosure it came from and the cross-check between rungs")
         if str(self.alias_matching) == "disabled":
             return ("this one is a section residual, which carries a section's unexplained "
                     "remainder and is filled by the sweep rather than by any answer")
+        if str(getattr(self, "extraction_mode", "")) == "derive":
+            return ("this one is `derive`, so the framework computes it and no printed caption "
+                    "may claim it — there is no source to locate")
         return None
 
     # ── the gate, as the matcher will ask it ─────────────────────────────────────────────────

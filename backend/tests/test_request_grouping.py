@@ -56,6 +56,12 @@ def test_the_population_is_the_lines_the_model_is_asked_about(shipped):
     # …and the mode is not consulted: a derivable line is asked about.
     derivable = [i for i in shipped.items
                  if str(i.extraction_mode) == "extract_or_derive" and str(i.type) != "derived"]
+    # MINUS THE RESIDUAL LOCKS, which are never asked about whatever their mode. Measured on the
+    # shipped set exactly one line is both: `bs_equity__equity_and_reserves` declares
+    # `extract_or_derive` AND `alias_matching: disabled`, so it is a section residual filled by the
+    # sweep — and a residual is the one thing a request must never name, since a figure filed there
+    # makes the reconciliation that would have reported the gap tie instead.
+    derivable = [i for i in derivable if str(i.alias_matching) != "disabled"]
     assert derivable and all(asked_about(i) for i in derivable)
 
 

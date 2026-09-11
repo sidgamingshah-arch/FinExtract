@@ -65,9 +65,19 @@ def asked_about(item) -> bool:
     boundary when that function was written and is no longer: `extract_or_derive` means the subtotal
     is printed on some filings and arithmetic on others, and those ARE asked about.
     """
+    # ONE SPELLING, and it is the schema's. `LineItemDef._never_asked` answers this question for
+    # the configuration side (the edit door and the config screen read it), and two answers to one
+    # question is how the screen came to believe a derived parent was asked about. Read through it
+    # where the object offers it, and fall back to the same three tests for anything that does not
+    # — a working-view projection, or a stub in a test.
+    never = getattr(item, "_never_asked", None)
+    if callable(never):
+        return not never()
     if str(getattr(item, "type", "") or "") == "derived":
         return False
     if str(getattr(item, "value_scope", "") or "") == "exclusive_residual":
+        return False
+    if str(getattr(item, "extraction_mode", "") or "") == "derive":
         return False
     return True
 

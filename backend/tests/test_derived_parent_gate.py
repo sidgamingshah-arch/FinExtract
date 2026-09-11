@@ -17,15 +17,27 @@ one derived parent the model was offered — and the measured consequence is in 
 2,609,259 instead.
 
 SO THE TWO AXES ARE SEPARATED. `OntologyMapping.item_type` carries the configuration's `type` into
-the matcher's view, `_computed_parent` is the set it names, and the offer boundary is the union:
+the matcher's view and `_computed_parent` is the set it names:
 
-    _unmatchable     = _locked | {extraction_mode == "derive"}      no caption may reach it
     _computed_parent = {type == "derived"}                          its figure is its cascade's
-    _llm_withheld    = {extraction_mode != "extract"} | _computed_parent | _locked
+    _unmatchable     = _locked | {extraction_mode == "derive"} | _computed_parent
 
-and the consequence worth stating is that `_computed_parent` is deliberately NOT in `_unmatchable`.
-A derived parent that is printed stays reachable by every deterministic tier; what it is refused is
-the model's answer.
+AND `_computed_parent` IS IN `_unmatchable`, which it deliberately was not when this file was
+written. That changed by instruction: "derived parents will never be offered to LLM — for one last
+time — this is locked forever. Even on deterministic route there is no semantic needed on them or
+aliases or anything at all." So a derived parent is refused the model's answer AND every caption
+tier, and it took four agreeing indexes before `"TURNOVER"` stopped resolving to one.
+
+WHAT THAT COST AND HOW IT WAS PAID. Revenue IS printed on the face of every HK filing, and refusing
+the printed row would have swept the top line of the income statement into a residual — measured,
+4,995,768 became 2,609,259. The answer was not to unlock the parent but to move the RECOGNITION
+down to the part that reads the face: `sub__face_principal_revenue` carries the aliases now, and
+the face figure enters through cascade rung P1 with a trail saying which disclosure it came from.
+
+THE OFFER BOUNDARY IS NO LONGER A MATCHER SET AT ALL. `_llm_withheld` is retired with the row
+request it served; `line_item_requests.asked_about` and `LineItemDef._never_asked` are the one
+spelling, and they answer for three declarations — `type: derived`, `alias_matching: disabled`,
+`extraction_mode: derive`.
 """
 from __future__ import annotations
 
@@ -85,15 +97,19 @@ def test_the_types_the_shipped_set_declares(shipped):
 
 def test_a_derived_parent_is_withheld_from_the_model_whatever_its_mode(shipped, matcher):
     """THE POINT OF THE FILE. All nine, including the one declaring `extract`."""
+    from app.services.line_item_requests import asked_about
+
+    by_key = {i.key: i for i in shipped.items}
     derived = [i.key for i in shipped.items if str(i.type) == "derived"]
     assert REVENUE in derived and DEPREC in derived
 
-    offered = {c["canonical_key"]
-               for c in matcher._concept_payload(matcher._by_priority(list(matcher._by_key)))}
     for key in derived:
         assert key in matcher._computed_parent, key
-        assert key in matcher._llm_withheld, key
-        assert key not in offered, f"{key} is a derived parent and was offered to the model"
+        # NO REQUEST NAMES IT — `asked_about` is where the offer boundary lives now that
+        # `_llm_withheld` and the candidate payload are retired with the row request.
+        assert not asked_about(by_key[key]), f"{key} is a derived parent and is asked about"
+        # …AND NO CAPTION REACHES IT EITHER, which is the half the instruction added.
+        assert key in matcher._unmatchable, key
 
 
 def test_the_mode_alone_would_have_missed_revenue(shipped, matcher):
@@ -102,18 +118,37 @@ def test_the_mode_alone_would_have_missed_revenue(shipped, matcher):
     by_mode = {m.canonical_key for m in build_working_view(shipped).mappings
                if m.extraction_mode != "extract"}
 
+    from app.services.line_item_requests import asked_about
+
+    revenue = next(i for i in shipped.items if i.key == REVENUE)
     assert REVENUE not in by_mode, "revenue declares `extract`, so the mode cannot withhold it"
-    assert REVENUE in matcher._llm_withheld, "…and the type must"
+    assert not asked_about(revenue), "…and the type must"
+    assert "derived" in (revenue._never_asked() or ""), "and the reason must name the type"
 
 
-def test_a_printed_derived_parent_stays_readable_by_the_caption_tiers(matcher):
-    """The other half, and the reason `_computed_parent` is not folded into `_unmatchable`. Revenue
-    IS printed on the face of every HK filing; refusing the printed row would sweep the top line of
-    the income statement into a residual."""
-    assert REVENUE not in matcher._unmatchable
-    assert DEPREC not in matcher._unmatchable
+def test_a_printed_derived_parent_is_refused_and_its_part_reads_the_face_instead(matcher, shipped):
+    """THIS TEST USED TO ASSERT THE OPPOSITE, and the reversal is the instruction: "even on
+    deterministic route there is no semantic needed on them or aliases or anything at all". So a
+    derived parent is refused by every caption tier too, not only by the request.
+
+    THE COST WAS REAL AND IS PAID ELSEWHERE. Revenue is printed on the face of every HK filing, and
+    refusing the printed row on its own swept the top line of the income statement into a residual
+    — measured, 4,995,768 became 2,609,259. The recognition moved DOWN to the part that reads the
+    face rather than the lock being loosened, so the face figure still arrives, through cascade
+    rung P1, with a trail naming the disclosure it came from.
+    """
+    assert REVENUE in matcher._unmatchable
+    assert DEPREC in matcher._unmatchable
     got = matcher.match("Sales(Revenues)", statement="profit_and_loss", section=None)
-    assert got is not None and got.canonical_key == REVENUE
+    assert got is None or got.canonical_key != REVENUE, (
+        "a caption resolved to a derived parent; the lock needs all four indexes to agree")
+
+    # AND THE PART CARRIES IT. Without this the assertion above is just a lost figure.
+    part = next((i for i in shipped.items if i.key == "sub__face_principal_revenue"), None)
+    assert part is not None, "the face-reading part is gone, so nothing reads the printed row"
+    assert any((a or "").strip() for a in (part.aliases or [])), (
+        "the part carries no alias, so the face figure has no route in")
+    assert getattr(part, "parent", "") == REVENUE
 
 
 def test_the_one_derived_line_that_no_caption_may_reach(matcher):
@@ -135,8 +170,17 @@ def test_never_asked_names_the_type_before_the_mode():
     derived = LineItemDef(key="k", type="derived", implemented_by="x")
     assert "derived" in (derived._never_asked() or "")
 
+    # A `derive` MODE is the other true answer: the framework computes the figure and no printed
+    # caption may claim it, so there is no source for a request to locate.
+    computed = LineItemDef(key="k", extraction_mode="derive")
+    assert "derive" in (computed._never_asked() or "")
+
+    # `extract_or_derive` IS ASKED ABOUT, and this assertion used to say the reverse. It means
+    # "printed on some filings, arithmetic on others" — and a request asks WHERE a figure is
+    # printed, so a figure sitting in a note is locatable whether or not the arithmetic could also
+    # reach it. Withholding it was the old, too-wide boundary that answered for 41 concepts.
     derivable = LineItemDef(key="k", extraction_mode="extract_or_derive")
-    assert "extract_or_derive" in (derivable._never_asked() or "")
+    assert derivable._never_asked() is None
 
     plain = LineItemDef(key="k")
     assert plain._never_asked() is None

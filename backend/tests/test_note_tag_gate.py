@@ -97,7 +97,11 @@ def test_the_flag_is_off_by_default_so_no_shipped_line_changes_meaning():
                    f"on a note reference being printed"
 
 
-@pytest.mark.parametrize("mode", ["extract_or_derive", "derive"])
+# `extract_or_derive` WAS IN THIS LIST AND IS NOT. It means "printed on some filings, arithmetic
+# on others", and a request asks WHERE a figure is printed — so such a line IS asked about and the
+# flag applies to it. `derive` stays: the framework computes that figure and no caption may claim
+# it, so there is no source to locate and nothing to spend a request on.
+@pytest.mark.parametrize("mode", ["derive"])
 def test_the_flag_is_refused_on_a_line_the_model_is_not_asked_about(mode):
     """A flag that silently did nothing on 41 of the shipped concepts would be worse than a
     message: the author would set it, see no effect, and have nothing to read. So it is refused,

@@ -595,6 +595,22 @@ function withheldReason(name: string, sel: {
   if (["cascade", "implemented_by"].includes(name) && type !== "derived") {
     return `only a derived line is filled this way; this one is ${type}`;
   }
+  // `_coherent`: A NOTE SOURCE ON A DERIVED LINE FILLS THE PARENT AND SKIPS ITS CASCADE.
+  //
+  // This one is not inert — it WORKS, and working is the bug.
+  // `stages/note_sourced.py::_declared_items` reads every item declaring a `note_source`, so a
+  // derived parent with one gets filled straight from those note rows: no rung runs, the record
+  // loses which of the filing's disclosures the number came from, and the arithmetic that would
+  // have cross-checked it against the other rungs never happens. The figure looks identical
+  // either way, which is why the server refuses it rather than leaving it to be noticed.
+  //
+  // None of the nine shipped derived lines declares one. That was luck rather than a rule, and
+  // this is the rule.
+  if ((name === "note_source" || name.startsWith("note_source.")) && type === "derived") {
+    return "a note source names where in the notes a figure is READ from, and a derived line is "
+         + "not read — its figure is its cascade's. Declaring one here would fill the parent "
+         + "directly and skip every rung; put it on the part whose rung reads that note";
+  }
 
   // `_coherent`: both of these are about whether the MODEL is asked, and TWO declarations decide
   // that — the mirror of `LineItemDef._never_asked` and of `mapping._llm_withheld`. A `derived`
@@ -724,6 +740,12 @@ const CONDITIONAL_FIELDS = [
   "prompt", "in_output", "terms", "cascade", "implemented_by",
   // withheld on a line the model is never asked about — see withheldReason
   "llm_only_if_note_tagged", "note_selection",
+  // withheld on a DERIVED line, where a note source would fill the parent and skip its cascade.
+  // The switch and every control under it, so rolling the group open shows the reason once rather
+  // than eight silent inputs.
+  "note_source", "note_source.note_title_any", "note_source.row_caption_any",
+  "note_source.row_caption_none", "note_source.note_terms", "note_source.row_terms",
+  "note_source.row_terms_none", "note_source.prose_any", "note_source.caption_normalization",
   "aliases", "pattern", "regex_hints", "keyword_hints", "exclude_hints",
   "confusable_with", "section_disambiguation",
   // withheld once the line outputs text rather than a number
