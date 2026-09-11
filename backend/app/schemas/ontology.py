@@ -148,6 +148,25 @@ class OntologyMapping(BaseModel):
     confusable_with: list[str] = Field(default_factory=list)  # canonical_keys easy to confuse
     value_scope: ValueScope = "exclusive_leaf"
     extraction_mode: ExtractionMode = "extract"
+    # HOW THE CONFIGURATION SAYS THIS LINE'S FIGURE IS ASSEMBLED — the `LineItemDef.type` the
+    # working view carries through (`services.working_view._concept_of`). Independent of
+    # `extraction_mode`, and both are needed:
+    #
+    #   `extraction_mode`  may a PRINTED ROW fill this line, and may the model be offered it
+    #   `item_type`        does a declared CASCADE fill it instead
+    #                      (`services.line_items.evaluate` branches on this, not on the mode)
+    #
+    # WHY THE MATCHER NEEDS IT. A `derived` line's figure is its cascade's, so asking the model as
+    # well only produces a second answer that can disagree with the first — measured on laisun,
+    # where the deterministic tiers read revenue off the face as 4,995,768 and a live run mapped
+    # that row to nothing, leaving a low-precedence rung to fill the line with 2,609,259.
+    # `is_pl__sales_revenues` is exactly that case and it declares `extraction_mode: extract`,
+    # because a filing that prints the subtotal must have the printed row read — so the mode alone
+    # cannot withhold it and `_llm_withheld` reads this field as well.
+    #
+    # `extracted` by default: a rulebook-only concept declares no type, and `ontology_projection.
+    # TYPE_OF_MODE` is what gives one to a concept the configurator has never seen.
+    item_type: Literal["extracted", "calculated", "intermediate", "derived"] = "extracted"
     # Natural-language residual/decomposition rule for this concept (e.g. "= combined
     # intangible parent − goodwill − IAUD; if reported exclusively, do not subtract").
     decomposition_rule: str | None = None

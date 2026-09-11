@@ -179,7 +179,16 @@ def test_a_part_is_offered_to_the_model_and_its_derived_parent_is_not(shipped):
     offered = {c["canonical_key"]
                for c in matcher._concept_payload(matcher._by_priority(list(matcher._by_key)))}
 
-    assert COMPUTED in matcher._unmatchable, "the parent is computed, so it is withheld"
+    # WITHHELD FROM THE MODEL, NOT FROM THE MATCHER, and the two are now separate declarations.
+    # This line used to assert `_unmatchable`, which was true only because the concept declared
+    # `extraction_mode: derive` — and that mode is also what refused a PRINTED subtotal. A derived
+    # parent that a filing does print must have the printed row read, so the mode is `extract` and
+    # the concept is reachable by every deterministic tier; what withholds it from the model is its
+    # TYPE (`_computed_parent`, read into `_llm_withheld`).
+    assert COMPUTED in matcher._computed_parent, "a derived parent is not the model's to answer"
+    assert COMPUTED in matcher._llm_withheld
+    assert COMPUTED not in matcher._unmatchable, (
+        "a derived parent a filing PRINTS must still be readable by the caption tiers")
     assert COMPUTED not in offered
     assert SUB in offered, "the part a note prints must be offerable"
     assert SUB not in matcher._llm_withheld

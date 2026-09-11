@@ -285,8 +285,16 @@ def test_the_focus_list_names_the_parts_and_not_only_the_wholes(shipped):
 
     `config.toml` now names the 77 PARTS as well as the 8 wholes. A part is `extract`, carries no
     alias, and is the layer a note actually prints, so it is what a call can usefully answer. The
-    reach is 78 of 85, and the 7 that remain unreachable are precisely the wholes — which is
+    reach is 77 of 85, and the 8 that remain unreachable are precisely the wholes — which is
     correct, because a whole's figure is computed by its cascade and is not the model's to give.
+
+    AND THAT COUNT MOVED AGAIN, from 78 to 77, which is the hole this number was always meant to
+    expose. `is_pl__sales_revenues` is a `derived` whole with an eight-rung cascade AND
+    `extraction_mode: extract`, because a filing that prints the subtotal must have the printed row
+    read — so a rule keyed on the mode alone OFFERED it, and it was the one whole the model could
+    name. It is now withheld by its TYPE (`_computed_parent`), so the reach is the 77 parts and
+    nothing else: every whole withheld, every part offered, with no case left where the two
+    declarations disagree.
     """
     from app.services.mapping import OntologyMatcher
 
@@ -296,9 +304,12 @@ def test_the_focus_list_names_the_parts_and_not_only_the_wholes(shipped):
     nameable = [k for k in focus if k not in matcher._llm_withheld]
 
     assert len(focus) == 85, len(focus)
-    assert len(nameable) == 78, len(nameable)
+    assert len(nameable) == 77, len(nameable)
     # THE UNREACHABLE ONES ARE THE WHOLES, every one of them — a part that turned up in this list
     # would mean the layer meant to be answerable had been withheld.
     by_key = {i.key: i for i in shipped.items}
     assert all(not getattr(by_key[k], "parent", "") for k in withheld), withheld
-    assert len(withheld) == 7, withheld
+    assert len(withheld) == 8, withheld
+    # …and the nameable ones are the parts, every one of them. The complement of the assertion
+    # above, and what pins "77" to a fact about the configuration rather than to a tally.
+    assert all(getattr(by_key[k], "parent", "") for k in nameable)

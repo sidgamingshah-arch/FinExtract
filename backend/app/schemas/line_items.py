@@ -563,33 +563,32 @@ class LineItemDef(BaseModel):
                 f"`{self.type}` — its figure comes from arithmetic, so the model is never asked "
                 f"about it. Clear the prompt, or change the type if the line is in fact read off "
                 f"the page.")
-        # THE FIRST REFUSAL IN THIS VALIDATOR THAT TURNS ON `extraction_mode` rather than `type`,
-        # and it has to: the flag's whole subject is whether the MODEL is asked, and
-        # `extraction_mode` is what decides that (`derive` and `extract_or_derive` are withheld —
-        # see `_llm_withheld` in `services.mapping`). Refused rather than ignored, because a flag
-        # silently doing nothing on 41 of the shipped concepts is worse than a message: the author
-        # would set it, see no effect, and have nothing to read.
+        # THE TWO REFUSALS BELOW SHARE ONE QUESTION — is the model ever asked about this line? —
+        # and they read it off `_never_asked`, which is the configuration-side spelling of
+        # `_llm_withheld` in `services.mapping`. Both axes answer it and both have to be tested:
+        # `type: derived` fills the line from its cascade (`services.line_items.evaluate` branches
+        # on `type`, not on the mode) and `extraction_mode` other than `extract` withholds the
+        # offer. Refused rather than ignored, because a flag silently doing nothing on 41 of the
+        # shipped concepts is worse than a message: the author would set it, see no effect, and
+        # have nothing to read.
         #
-        # The message names `llm_only_if_note_tagged` verbatim, because the edit door attributes a
-        # refusal to a control by finding the field name as a substring
+        # The messages name `note_selection` and `llm_only_if_note_tagged` verbatim, because the
+        # edit door attributes a refusal to a control by finding the field name as a substring
         # (`routes/line_items.py` `_EDITABLE_FIELDS`), and a refusal an author cannot pin to a
         # control is a refusal they cannot act on.
-        # Same reasoning as the flag below, and the same first-of-its-kind test on
-        # `extraction_mode`: note selection decides what CONTEXT a line's request carries, and a
-        # line the model is never asked about has no request. Refused rather than ignored.
-        if self.note_selection != "semantic" and self.extraction_mode != "extract":
+        never_asked = self._never_asked()
+        if self.note_selection != "semantic" and never_asked:
             raise ValueError(
                 f"{self.key}: `note_selection` chooses how a line's notes are found for its own "
-                f"request, and this one is `{self.extraction_mode}` — its figure comes from "
-                f"declared arithmetic, so no request is built for it and no notes are selected. "
-                f"Leave the selection at `semantic`, or set the extraction mode to `extract`.")
-        if self.llm_only_if_note_tagged and self.extraction_mode != "extract":
+                f"request, and {never_asked} — so no request is built for it and no notes are "
+                f"selected. Leave the selection at `semantic`, or make the line one the model is "
+                f"asked about.")
+        if self.llm_only_if_note_tagged and never_asked:
             raise ValueError(
                 f"{self.key}: `llm_only_if_note_tagged` only applies to a line the model is "
-                f"actually asked about, and this one is `{self.extraction_mode}` — its figure "
-                f"comes from declared arithmetic, so a note reference printed beside a row says "
-                f"nothing about whether that arithmetic should run. Turn the flag off, or set the "
-                f"extraction mode to `extract` if the line really is read off the page.")
+                f"actually asked about, and {never_asked} — so a note reference printed beside a "
+                f"row says nothing about whether that arithmetic should run. Turn the flag off, "
+                f"or make the line one the model is asked about.")
         if self.side == "from_section" and not self._can_read_a_section():
             raise ValueError(
                 f"{self.key}: `from_section` needs a statement that prints section banners — "
@@ -607,6 +606,30 @@ class LineItemDef(BaseModel):
         return ("balance_sheet" in self.scopes
                 or self.statement == StatementType.BALANCE_SHEET
                 or any(s in SECTION_SIDE for s in self.section_scope))
+
+    def _never_asked(self) -> str | None:
+        """Why the model is never asked about this line, or `None` if it is asked.
+
+        THE CONFIGURATION-SIDE SPELLING OF `_llm_withheld` (`services.mapping`), and it has to
+        test both axes because they are independent declarations:
+
+          * `type: derived` — `services.line_items.evaluate` branches on `type` and fills the line
+            from its declared cascade. Asking as well only produces a second answer that can
+            disagree with the first.
+          * `extraction_mode` other than `extract` — `extract_or_derive` means the subtotal is
+            printed on some filings and left to arithmetic on others, and those stay fully
+            matchable by the DETERMINISTIC tiers; what is withheld is only the model's offer.
+
+        Returned as the REASON rather than as a bool so the two refusals that read it can say
+        which declaration withheld the line — an author who is told "this line is never asked
+        about" still has to know which field to change.
+        """
+        if self.type == "derived":
+            return "this one is `derived`, so its figure comes from its declared cascade"
+        if self.extraction_mode != "extract":
+            return (f"this one is `{self.extraction_mode}`, so its figure comes from declared "
+                    f"arithmetic wherever the row is not printed")
+        return None
 
     # ── the gate, as the matcher will ask it ─────────────────────────────────────────────────
     def claimable_on(self, statement: StatementType | str | None,

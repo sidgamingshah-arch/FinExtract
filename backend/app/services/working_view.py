@@ -124,6 +124,16 @@ def _concept_of(item: LineItemDef) -> dict:
     for field in CARRIED:
         if field in item.model_fields_set:
             out[field] = _jsonable(getattr(item, field))
+    # `type` UNCONDITIONALLY, AND UNDER ITS OWN NAME. It is not in `SAME` because the two models
+    # spell it differently — `LineItemDef.type` against `OntologyMapping.item_type` — and it is
+    # not in `RENAMED` because that map is read in both directions and `project_concept` derives
+    # the type from `extraction_mode` instead, for a rulebook concept that has never had one.
+    #
+    # WRITTEN EVEN WHEN THE ITEM DID NOT DECLARE IT, unlike everything in `CARRIED`: the matcher
+    # reads this to decide whether the model is offered the concept at all (`_llm_withheld`), and
+    # `type` has a real default rather than an absent state — an undeclared `type` IS `extracted`,
+    # so passing the resolved value through says exactly what the configuration means.
+    out["item_type"] = str(item.type)
     return out
 
 

@@ -1537,6 +1537,16 @@ export interface NoteSource {
    *  simply stops excluding — which is why the edit path compiles each one and attributes the
    *  compile error to this list and to the offending index. */
   row_caption_none: string[];
+  /** Regexes over a note's SENTENCES, for a figure stated in prose and tabulated nowhere.
+   *  Optional on the wire: a set written before the field existed carries no value for it, and an
+   *  empty list means no prose route rather than a default one. */
+  prose_any?: string[];
+  /** THE SCORED HALF, at the same two levels as the patterns above: `note_terms` are scored
+   *  against note HEADINGS (which note), `row_terms` against ROW CAPTIONS (which of its rows).
+   *  Terms, not patterns — an unanticipated phrasing still ranks instead of not firing. */
+  note_terms?: string[];
+  row_terms?: string[];
+  row_terms_none?: string[];
   caption_normalization: CaptionNormalization;
 }
 /** Sweep terms for a residual bucket — the section's unexplained remainder. */
@@ -1659,8 +1669,9 @@ export interface LineItemDef {
   /** Which of two look-alike captions this is — resolves 30 of the 420 collisions. */
   section_disambiguation: string | null;
   derivation: string | null;
-  aggregation_note: string | null;
-  template_note: string | null;
+  /** `aggregation_note` and `template_note` were here and are gone from the model: 395 and 391 of
+   *  539 items declared them, 54 KB of prose between them, and nothing in the pipeline read
+   *  either. `notes_as_source_rationale` is kept because it IS read. */
   notes_as_source_rationale: string | null;
 
   terms: LineItemTerm[];
@@ -1848,8 +1859,8 @@ export interface LineItemEdit {
   decomposition_rule?: string | null;
   others_rule?: string | null;
   derivation?: string | null;
-  aggregation_note?: string | null;
-  template_note?: string | null;
+  /** `aggregation_note` and `template_note` are gone from the endpoint as well as the model — an
+   *  edit carrying either is now a refusal naming a field the screen no longer offers. */
   notes_as_source_rationale?: string | null;
 }
 

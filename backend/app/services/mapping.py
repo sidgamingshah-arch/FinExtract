@@ -1658,6 +1658,22 @@ class OntologyMatcher:
         # matchable, since a filing that does print the subtotal must have the printed row read.
         self._computed_only: set[str] = {m.canonical_key for m in ontology.mappings
                                          if m.extraction_mode == "derive"}
+        # A DERIVED PARENT — a concept whose figure a declared CASCADE produces. Separate from
+        # `_computed_only` and deliberately NOT part of `_unmatchable`: a derived parent may well
+        # be printed, and where it is, the printed row must be read. `is_pl__sales_revenues` is
+        # that case, and it publishes 4,995,768 off the face of laisun's income statement.
+        #
+        # WHAT IT IS FOR is the model's answers. The cascade is the record of WHICH of the filing's
+        # several disclosures a figure came from — rung P1 sums four operating-expense notes, P2
+        # takes the profit-before-tax callout, P3 is the total less the cost-of-sales share — and a
+        # figure accepted straight onto the parent bypasses all of it: no rung runs, so the record
+        # loses which disclosure was used and the cross-check against the other rungs is skipped.
+        # The number arrives looking identical either way, which is why an answer naming one of
+        # these is refused rather than deprioritised. The answer wanted is the PART.
+        self._computed_parent: set[str] = {
+            m.canonical_key for m in ontology.mappings
+            if getattr(m, "item_type", "extracted") == "derived"
+        }
         # One set for every index and payload below: a concept no printed caption may reach,
         # whether because it is a swept residual or because it is computed.
         self._unmatchable: set[str] = self._locked | self._computed_only
@@ -1676,8 +1692,17 @@ class OntologyMatcher:
         # `_computed_claim`). That is why this set is applied where candidates are offered rather
         # than folded into `_mappable_keys`, which the rule tier also reads: the printed row is
         # still read, just by the tier that reads captions instead of by the model.
-        self._llm_withheld: set[str] = {m.canonical_key for m in ontology.mappings
-                                        if m.extraction_mode != "extract"} | self._locked
+        # BOTH AXES, because they are independent declarations and each one alone leaves a hole.
+        # `item_type: derived` is the one the mode cannot express: `is_pl__sales_revenues` is a
+        # derived parent with an eight-rung cascade AND `extraction_mode: extract`, because a
+        # filing that prints the subtotal must have the printed row read. Keyed on the mode alone
+        # it was OFFERED to the model — which is exactly the case measured above, where the model
+        # answered worse than the alias tier had already answered. `services.line_items.evaluate`
+        # branches on `type`, so a derived line's published figure is its cascade's whatever the
+        # model says; asking only creates a second answer that can disagree with the first.
+        self._llm_withheld: set[str] = ({m.canonical_key for m in ontology.mappings
+                                         if m.extraction_mode != "extract"}
+                                        | self._computed_parent | self._locked)
         # `binding.order` is a v2 declaration, and step 6 below (a tie between mutually-confusable
         # concepts is emitted for review, never picked by declaration order) is an implementation OF
         # it — so it is enabled by its presence. A v1 rulebook declares no binding order and no
@@ -3424,12 +3449,18 @@ class OntologyMatcher:
                 with self._usage_lock:
                     self.usage["batch_uncited_off_candidate"] = self.usage.get(
                         "batch_uncited_off_candidate", 0) + 1
-                # A WITHHELD CONCEPT NAMED WITHOUT A CITATION is refused exactly as it always was.
-                # Anything else falls through to the gates below, which is what keeps
-                # `_family_route` working: an answer right about WHAT the row is and wrong only
-                # about its section variant is off-candidate by definition, and correcting it is
-                # better than losing it.
-                if key in self._unmatchable:
+                # A CONCEPT NO CAPTION MAY REACH, OR A DERIVED PARENT, is refused here — named
+                # without a citation there is nothing to weigh against the refusal. Anything else
+                # falls through to the gates below, which is what keeps `_family_route` working: an
+                # answer right about WHAT the row is and wrong only about its section variant is
+                # off-candidate by definition, and correcting it is better than losing it.
+                #
+                # `_computed_parent` RATHER THAN THE WHOLE OF `_llm_withheld`, and the difference is
+                # the 38 `extract_or_derive` concepts. Those are printed on some filings and left to
+                # arithmetic on others, so they stay reachable by every deterministic tier and a
+                # family reroute onto one is a correction worth keeping. A derived parent is not in
+                # that position: its figure is its cascade's whatever a caption says.
+                if key in self._unmatchable or key in self._computed_parent:
                     with self._usage_lock:
                         self.usage["batch_refused"] += 1
                     continue
@@ -3468,7 +3499,7 @@ class OntologyMatcher:
                         self.usage["batch_refused"] += 1
                         if key in self._locked:
                             counter = "batch_residual_named"
-                        elif key in self._computed_only:
+                        elif key in self._computed_only or key in self._computed_parent:
                             counter = "batch_computed_parent_named"
                         else:
                             counter = "batch_derivable_named"

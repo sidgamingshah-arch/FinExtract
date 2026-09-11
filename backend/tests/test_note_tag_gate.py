@@ -220,18 +220,20 @@ def test_no_provider_call_is_spent_on_a_row_with_no_note_tag():
     if not focus:
         pytest.skip("focus routing is off, so no row reaches the gate under test")
 
-    # THE FOCUS KEY MUST BE AN `extract` ONE WITH AN ALIAS, discovered rather than assumed. Seven
-    # of the eight are `derived`/`extract_or_derive` and so are withheld from the model anyway —
-    # picking one of those would make this pass for the wrong reason, proving only that a withheld
-    # concept is not asked about.
+    # THE FOCUS KEY MUST BE ONE THE MODEL IS ACTUALLY ASKED ABOUT, AND CARRY AN ALIAS — discovered
+    # rather than assumed. The eight wholes are all withheld from the model anyway, so picking one
+    # would make this pass for the wrong reason, proving only that a withheld concept is not asked
+    # about. `_never_asked` is the predicate for "withheld", not `extraction_mode` alone: the
+    # derived parents now declare `extract` (so a printed subtotal is still read) and are withheld
+    # by their TYPE, which is the same test `LineItemDef._coherent` applies to the flag itself.
     shipped = load_line_item_set(json.loads(SEED.read_text(encoding="utf-8")), resolve=True)
     by_shipped = {i.key: i for i in shipped.items}
     key = next((k for k in sorted(focus)
                 if by_shipped.get(k) is not None
-                and by_shipped[k].extraction_mode == "extract"
+                and by_shipped[k]._never_asked() is None
                 and any((a or "").strip() for a in (by_shipped[k].aliases or []))), None)
     if key is None:
-        pytest.skip("no focus key is an `extract` line carrying an alias")
+        pytest.skip("no focus key is a line the model is asked about AND carries an alias")
 
     cfg = _set_with_flag(key=key)
     by_key = {i.key: i for i in cfg.items}

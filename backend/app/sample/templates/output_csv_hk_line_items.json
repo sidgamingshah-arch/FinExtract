@@ -2249,7 +2249,7 @@
    "description": "The largest valid of three searches — the receivable notes, the related-party grouping, and the related-party transactions note.",
    "definition": "Amounts receivable from related parties that are NOT due within one year — balances owed by fellow subsidiaries, the immediate and ultimate holding company, shareholders, directors, associates, joint ventures and other related parties, including entrusted loans routed through a bank. Excludes trade receivables from related parties and any portion due within one year.",
    "value_scope": "exclusive_leaf",
-   "extraction_mode": "extract_or_derive",
+   "extraction_mode": "extract",
    "aliases": [
     "Due from Related Parties(LTP)",
     "Amount owning by related companies",
@@ -4785,7 +4785,7 @@
    "description": "Current-portion securities and other financial assets, net of the pools carved out of it.",
    "definition": "Securities and other financial assets held as CURRENT assets — financial assets at fair value through profit or loss and through other comprehensive income, listed and unlisted equity and debt securities, corporate and government bonds, investment and money market funds, wealth management products, structured deposits and certificates of deposit, expected to be realised within one year. Excludes derivative assets, other receivables, and cash and cash equivalents.",
    "value_scope": "exclusive_leaf",
-   "extraction_mode": "extract_or_derive",
+   "extraction_mode": "extract",
    "aliases": [
     "Secur & Other Fincl Assets(CP)",
     "Financial asset at FVTPL",
@@ -6551,7 +6551,7 @@
    "description": "Gross other receivables less the related-party amount carved out of them.",
    "definition": "Receivables due within one year OTHER THAN TRADE — deposits paid, prepayments, tax recoverable other than income tax, staff advances, interest and dividends receivable and other debtors, stated net of the loss allowance or impairment provision against them. Excludes trade receivables and amounts due from related parties.",
    "value_scope": "exclusive_leaf",
-   "extraction_mode": "extract_or_derive",
+   "extraction_mode": "extract",
    "aliases": [
     "Other Receivables(CP)",
     "Other receivables",
@@ -13894,7 +13894,7 @@
    "description": "Depreciation charged to cost of sales. Read from the cost-of-sales note.",
    "definition": "Depreciation, amortisation and impairment charged to COST OF SALES — the part of the period's depreciation and amortisation borne by the cost of goods sold or of services rendered, rather than by operating expenses. A filing states it either as a depreciation row inside the cost of sales note, or as a footnote saying that depreciation charges are included in cost of sales.",
    "value_scope": "exclusive_leaf",
-   "extraction_mode": "extract_or_derive",
+   "extraction_mode": "extract",
    "aliases": [
     "Deprec & Impairment(COS)",
     "Depreciation of Property,plant and equipments / fixed assets",
@@ -15528,7 +15528,7 @@
    "description": "Depreciation charged to operating expenses. Never printed as one caption — assembled from the notes and resolved by trying the rungs in order.",
    "definition": "Depreciation, amortisation and impairment charged to OPERATING EXPENSES — the part of the period's depreciation and amortisation borne by administrative, general, selling, distribution, marketing or research and development expenses, rather than by cost of sales. A filing states it either as a depreciation and amortisation row inside one of those expense notes, or as a footnote saying that depreciation charges are included in other operating expenses on the face of the income statement.",
    "value_scope": "exclusive_leaf",
-   "extraction_mode": "derive",
+   "extraction_mode": "extract",
    "aliases": [
     "Deprec & Impairment(Oper Exp)",
     "Depreciation of Investment Property",
@@ -26609,7 +26609,7 @@
    "description": "Guarantees, letters of credit, performance bonds and bank guarantees, summed by type.",
    "definition": "Contingent liabilities disclosed in the notes — possible obligations that are not recognised on the balance sheet: corporate and bank guarantees given, performance bonds, letters of credit, litigation and claims outstanding, and tax disputes. Disclosed only in the notes, so the amount guaranteed and the amount utilised are stated there and are different figures.",
    "value_scope": "exclusive_leaf",
-   "extraction_mode": "extract_or_derive",
+   "extraction_mode": "extract",
    "aliases": [
     "Contingent liabilities",
     "Contingencies",

@@ -139,7 +139,9 @@ const NOTE_USE_HELP: Record<string, string> = {
  *  a half-object the model then refuses. Every list starts EMPTY — a configured empty, which is
  *  what "I have declared this object and not yet its patterns" actually means. */
 const NEW_NOTE_SOURCE: NoteSource = {
-  note_title_any: [], row_caption_any: [], row_caption_none: [], caption_normalization: "none",
+  note_title_any: [], row_caption_any: [], row_caption_none: [],
+  prose_any: [], note_terms: [], row_terms: [], row_terms_none: [],
+  caption_normalization: "none",
 };
 const NEW_RESIDUAL_POLICY: ResidualPolicy = {
   framework: "", section_scope: "", population: "", cross_section: false,
@@ -203,24 +205,87 @@ function Patterns({ label, values, tone }: { label: string; values: string[]; to
  *  `exclude_criteria` sharpen that. `inherits` decides where the line may be found, `type` decides
  *  how it gets a figure, `in_output` whether it is delivered, and `sign_convention` what to flag.
  */
-const SIMPLE_FIELDS = new Set([
-  "label", "aliases", "definition", "include_criteria", "exclude_criteria",
-  "inherits", "type", "in_output", "sign_expectation",
-  // NOTE SOURCING, promoted from advanced on review: reading a figure out of a note is an everyday
-  // authoring decision for the sub-line items, not a specialist one.
-  //
-  // THE THREE PATTERN LISTS COME WITH IT, and that is not a liberty. `note_source` itself is only a
-  // BoolField — the switch that decides whether a note is read at all — and the lists below it are
-  // what say WHICH note and which of its rows. They render only while the switch is on. Promoting
-  // the switch alone would put a control on the simple form that reveals nothing when you use it.
-  "note_source", "note_source.note_title_any", "note_source.row_caption_any",
-  "note_source.row_caption_none",
-  // WHAT THE LINE OUTPUTS. On the simple form because it is the first thing that decides what the
-  // line even is, and because every other control in its group is conditional on it.
-  "output_structure",
-  // `note_source.caption_normalization` deliberately stays advanced: 0 of 475 items declare it, so
+/** SIMPLE IS PER TYPE, NOT ONE LIST FOR EVERY LINE.
+ *
+ *  WHAT WAS WRONG WITH ONE LIST. `definition`, `aliases` and the include/exclude criteria are the
+ *  fields that resolve a PRINTED CAPTION — they are read by the description-matching tier and they
+ *  are the prose the model reasons over. A `derived` line has no caption to resolve: its figure is
+ *  its cascade's, and it is never offered to the model (`_llm_withheld`). So on the nine derived
+ *  lines the simple form opened with four prose boxes that nothing reads, and the one control that
+ *  decides the figure — the cascade — was behind the advanced toggle. The same holds for the
+ *  arithmetic types, whose figure is `terms`.
+ *
+ *  SO THE SPLIT IS A FUNCTION OF `type`, and each type's simple form is the fields that decide
+ *  THAT kind of line:
+ *
+ *      extracted     read off the page      -> meaning, captions, note sourcing
+ *      derived       a declared cascade     -> the cascade, and where it may read a printed row
+ *      calculated /  arithmetic over other
+ *      intermediate  lines                  -> the terms
+ *
+ *  EVERY TYPE KEEPS `COMMON`: what the line is called, what kind of line it is, whether it is
+ *  delivered, and what kind of figure it holds. Nothing is removed from the screen — advanced
+ *  still shows every control, and `requiredNow` still forces a control the server would refuse
+ *  the save without.
+ */
+const COMMON_SIMPLE = ["label", "type", "in_output", "output_structure", "sign_expectation"];
+
+/** What the line is, in words, plus the captions that reach it. Read by the matcher and the model,
+ *  and therefore simple ONLY for a line either of them can reach. */
+const MEANING_SIMPLE = ["definition", "include_criteria", "exclude_criteria", "aliases"];
+
+/** WHERE A FIGURE MAY BE READ FROM — the note-sourcing block, simple for an extracted line because
+ *  reading a figure out of a note is what most of the set's parts do.
+ *
+ *  THE PATTERN AND TERM LISTS COME WITH THE SWITCH, and that is not a liberty. `note_source` is
+ *  only a BoolField — whether a note is read at all — and the lists under it are what say WHICH
+ *  note and which of its rows. They render only while the switch is on, so promoting the switch
+ *  alone would put a control on the simple form that reveals nothing when you use it.
+ *
+ *  Both halves are here because they answer the same two questions in two different ways: the
+ *  `*_any`/`*_none` regexes MATCH, the `*_terms` lists SCORE. A line whose phrasing nobody
+ *  anticipated is reached by the second and not by the first, which is the whole reason the
+ *  semantic half exists. `prose_any` is the third route — a figure the filing states in a sentence
+ *  and tabulates nowhere. */
+const NOTE_SOURCE_SIMPLE = [
+  "note_source",
+  "note_source.note_title_any", "note_source.row_caption_any", "note_source.row_caption_none",
+  "note_source.note_terms", "note_source.row_terms", "note_source.row_terms_none",
+  "note_source.prose_any",
+  // WHETHER THE MODEL IS ASKED, AND WITH WHAT. Both are conditional on `extract`, so on a line
+  // that never reaches the model they are withheld with a reason rather than shown here.
+  "note_selection", "llm_only_if_note_tagged",
+  // `note_source.caption_normalization` deliberately stays advanced: 0 of 539 items declare it, so
   // promoting it would put a control nobody has needed on the form most authors see.
-]);
+];
+
+/** The simple form for one line, by its type.
+ *
+ *  `cascade` and `implemented_by` are already forced onto a derived line's form by `requiredNow`
+ *  — without them the save is refused with no control to answer the refusal. Naming them here is
+ *  what makes them the FIRST thing an author of a derived line sees, rather than controls that
+ *  appear because a validator complained. */
+function simpleFieldsFor(type: string): Set<string> {
+  const out = [...COMMON_SIMPLE];
+  if (type === "derived") {
+    // THE CASCADE, AND HOW A PRINTED ROW MAY REACH IT. `extraction_mode` is the one declaration
+    // that decides whether a derived line may ALSO be filled by a printed caption where no rung
+    // resolves, and `aliases` are what a caption is matched against — which is not academic:
+    // `is_pl__sales_revenues` publishes 4,995,768 off the face of the reference filing by its
+    // alias, with no rung firing at all.
+    //
+    // `definition` AND THE CRITERIA STAY ADVANCED, and that is the difference between them and
+    // the aliases. Their readers are the description-matching tier and the model, and the model is
+    // never asked about a derived line — so on these nine lines four prose boxes were the first
+    // thing the form showed and the cascade that decides the figure was behind a toggle.
+    out.push("cascade", "implemented_by", "inherits", "extraction_mode", "aliases");
+  } else if (type === "calculated" || type === "intermediate") {
+    out.push("terms");
+  } else {
+    out.push(...MEANING_SIMPLE, ...NOTE_SOURCE_SIMPLE, "inherits");
+  }
+  return new Set(out);
+}
 
 /** RETIRED — controls removed rather than demoted, with the measurement that decided each.
  *
@@ -413,15 +478,21 @@ function withheldReason(name: string, sel: {
     return `only a derived line is filled this way; this one is ${type}`;
   }
 
-  // `_coherent`: the note-tag threshold is about whether the MODEL is asked, and `extraction_mode`
-  // is what decides that — a derivable line takes its figure from declared arithmetic, so a note
-  // printed beside a row says nothing about whether that arithmetic should run. The server raises
-  // rather than ignoring, so the control is withheld here rather than left on to be refused.
-  if (name === "note_selection" && extractionMode !== "extract") {
-    return `this chooses how a line's notes are found for its own request, and a ${extractionMode} line has no request — its figure comes from declared arithmetic`;
-  }
-  if (name === "llm_only_if_note_tagged" && extractionMode !== "extract") {
-    return `this asks whether the model is consulted, and a ${extractionMode} line takes its figure from declared arithmetic — the model is never asked about it`;
+  // `_coherent`: both of these are about whether the MODEL is asked, and TWO declarations decide
+  // that — the mirror of `LineItemDef._never_asked` and of `mapping._llm_withheld`. A `derived`
+  // line is filled by its declared cascade whatever the mode says, and a mode other than `extract`
+  // withholds the offer. The server raises rather than ignoring, so the controls are withheld here
+  // rather than left on to be refused.
+  if (["note_selection", "llm_only_if_note_tagged"].includes(name)) {
+    const subject = name === "note_selection"
+      ? "this chooses what note context a line's own request carries"
+      : "this asks whether the model is consulted";
+    if (type === "derived") {
+      return `${subject}, and a derived line's figure comes from its declared cascade — the model is never asked about it`;
+    }
+    if (extractionMode !== "extract") {
+      return `${subject}, and a ${extractionMode} line takes its figure from declared arithmetic wherever the row is not printed — the model is never asked about it`;
+    }
   }
 
   // A TEXT LINE IS NOT A FIGURE. `phrase` and `prose` hold words, so the controls that describe a
@@ -431,7 +502,7 @@ function withheldReason(name: string, sel: {
   // author cannot tell that from one that simply has not fired yet.
   const NUMERIC_ONLY = ["sign_expectation", "unit_of_account", "value_scope", "residual_policy",
                         "never_sweep", "expected_components", "is_gross_parent",
-                        "children_if_decomposed", "rollup", "aggregation_note"];
+                        "children_if_decomposed", "rollup"];
   if (outputStructure !== "value" && NUMERIC_ONLY.includes(name)) {
     return `this line outputs ${outputStructure === "prose" ? "prose" : "a phrase"}, not a number, so it takes no part in totals or sign checks`;
   }
@@ -478,16 +549,51 @@ function requiredNow(name: string, sel: { type: string; outputStructure: string 
  *  form's inventory is a copy that goes stale. Adding a rule above means adding its field here, and
  *  the test below this file's usage asserts the two agree.
  */
+/** THE FORM'S GROUPING, AS DATA — one entry per banner, in the order a line is decided.
+ *
+ *  WHY THE MEMBERSHIP IS A LIST HERE and not implied by where a control sits in the JSX. Each
+ *  banner has to say how many controls are inside it before the controls are rendered (React
+ *  builds the heading first), and it has to know whether the group is worth rendering at all. Both
+ *  answers come from walking the group's field names through the same filter `fld` applies, so the
+ *  names have to exist as a list. Two copies of that list — one for the visibility test, one for
+ *  the count — would drift, and the visible way it drifts is a banner announcing four fields over
+ *  a group showing three.
+ *
+ *  THE ORDER IS THE ARGUMENT. What the line IS comes before which captions reach it, which comes
+ *  before where it may be claimed from — so the numbers on the banners are how far through that
+ *  reasoning the reader has got, rather than decoration.
+ */
+const GROUP_FIELDS = {
+  meaning: ["label", "description", "definition", "prompt", "include_criteria",
+            "exclude_criteria", "confusable_with", "section_disambiguation"],
+  recognition: ["aliases", "pattern", "regex_hints", "keyword_hints", "exclude_hints",
+                "alias_matching"],
+  gate: ["inherits", "statement", "section_scope", "scopes", "side", "allow_contra",
+         "note_selection", "llm_only_if_note_tagged", "match_priority", "extraction_mode",
+         "face_only", "note_use", "note_source"],
+  /** Rendered only while the `note_source` switch is on, so counted only then. */
+  noteSource: ["note_source.note_title_any", "note_source.row_caption_any",
+               "note_source.row_caption_none", "note_source.note_terms", "note_source.row_terms",
+               "note_source.row_terms_none", "note_source.prose_any",
+               "note_source.caption_normalization"],
+  structure: ["type", "in_output", "parent", "rollup", "order", "namespace", "value_scope",
+              "is_gross_parent", "children_if_decomposed", "sole_component_of",
+              "expected_components", "never_sweep", "residual_policy"],
+  measurement: ["output_structure", "temporality", "unit_of_account", "sign_expectation",
+                "sign_rule.convention", "sign_rule.flip_if_label_matches", "analyst_bucket"],
+  assembly: ["terms", "cascade", "implemented_by"],
+  prose: ["decomposition_rule", "others_rule", "derivation", "notes_as_source_rationale"],
+} as const;
+
 const CONDITIONAL_FIELDS = [
   "prompt", "in_output", "terms", "cascade", "implemented_by",
-  // withheld unless the line is `extract` — see withheldReason
+  // withheld on a line the model is never asked about — see withheldReason
   "llm_only_if_note_tagged", "note_selection",
   "aliases", "pattern", "regex_hints", "keyword_hints", "exclude_hints",
   "confusable_with", "section_disambiguation",
   // withheld once the line outputs text rather than a number
   "sign_expectation", "unit_of_account", "value_scope", "residual_policy", "never_sweep",
   "expected_components", "is_gross_parent", "children_if_decomposed", "rollup",
-  "aggregation_note",
 ];
 
 /** What this line's own selections withhold, computed BEFORE the form renders.
@@ -509,34 +615,88 @@ function withheldFields(
   return out;
 }
 
-function Group({ question, note, right, children, visible = true }: {
+/** ONE GROUP, UNDER A BANNER THAT ROLLS WITH THE SCROLL.
+ *
+ *  WHY THE BANNER STICKS. Even cut to one type's simple form the pane is taller than a viewport,
+ *  and the question a control answers is the only thing that says what the control is FOR — an
+ *  author who has scrolled past "Where may it be claimed from?" is looking at eight regex lists
+ *  with no idea which question they answer. The heading therefore stays at the top edge of its own
+ *  group while that group is on screen, and is replaced by the next group's as it arrives.
+ *
+ *  WHY IT COLLAPSES. Eight groups is eight answers to "where do I look", and an author editing one
+ *  line usually needs one of them. Rolling a group shut leaves its banner — so the form still
+ *  reads as eight questions rather than as a shorter form with things missing — and the count on
+ *  the banner says how many controls are inside, because a collapsed group that is EMPTY and a
+ *  collapsed group holding twelve controls must not look identical.
+ *
+ *  OPEN BY DEFAULT, every one. A form that opens mostly shut hides the fields an author came for
+ *  behind a click each, and "what does this line say" stops being answerable by reading.
+ */
+function Group({ question, note, right, children, visible = true, index, count, open, onToggle }: {
   question: string; note?: ReactNode; right?: ReactNode; children: ReactNode;
   /** False when every field inside is filtered out — a heading over nothing is worse than an
    *  absent section, because it reads as a group whose controls failed to load. */
   visible?: boolean;
+  /** Position in the form, shown on the banner. Not decoration: the groups are in the order a
+   *  line is decided — what it is, which captions reach it, where it may be claimed from — so the
+   *  number says how far through that order the reader is. */
+  index: number;
+  /** How many controls this group is showing, for the collapsed state to be legible. */
+  count: number;
+  open: boolean;
+  onToggle: () => void;
 }) {
   if (!visible) return null;
   // The group's own explanation collapses behind the same ⓘ the fields use, for the same reason:
   // seven headings each carrying a paragraph is most of the form's height before a single control.
   const [showNote, setShowNote] = useState(false);
+  const slug = question.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   return (
-    <Card pad={13} style={{ marginBottom: 12 }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between",
-                     gap: 12, flexWrap: "wrap", marginBottom: note && showNote ? 4 : 10 }}>
+    <Card pad={0} style={{ marginBottom: 12, overflow: "visible" }}>
+      {/* `position: sticky` ON THE BANNER, not on a wrapper: the banner scrolls with the page
+          until its own card's top edge reaches the pane's top, then holds there while the rest of
+          the group passes under it. `zIndex` keeps it over the controls it is holding above. */}
+      <div style={{ position: "sticky", top: 0, zIndex: 2, background: color.surface,
+                     borderBottom: open ? `1px solid ${color.hairline}` : "none",
+                     borderRadius: `${radius.card}px ${radius.card}px 0 0`,
+                     display: "flex", alignItems: "baseline", justifyContent: "space-between",
+                     gap: 12, flexWrap: "wrap", padding: "10px 13px" }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
-          <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: color.ink }}>{question}</h3>
+          <button type="button" onClick={onToggle} aria-expanded={open}
+                  data-testid={`li-group-toggle-${slug}`}
+                  style={{ display: "flex", alignItems: "baseline", gap: 7, border: 0,
+                            background: "transparent", padding: 0, cursor: "pointer",
+                            font: "inherit", textAlign: "left" }}>
+            <span style={{ fontSize: 9.5, fontWeight: 700, color: color.muted, letterSpacing: 0.4,
+                            fontFamily: font.mono, transform: "translateY(-1px)" }}>
+              {String(index).padStart(2, "0")}
+            </span>
+            <span aria-hidden style={{ fontSize: 9, color: color.sec2, width: 8,
+                                        transform: open ? "none" : "rotate(-90deg)",
+                                        transition: "transform 120ms" }}>▾</span>
+            <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: color.ink }}>
+              {question}
+            </h3>
+          </button>
+          <span style={{ fontSize: 10, color: color.muted }}>
+            {count === 0 ? "nothing to set here" : `${count} field${count === 1 ? "" : "s"}`}
+          </span>
           {note && <InfoToggle open={showNote} about={question}
                                onToggle={() => setShowNote((v) => !v)} />}
         </div>
         {right}
       </div>
-      {note && showNote && (
-        <p style={{ margin: "0 0 11px", paddingLeft: 9, fontSize: 10.5, color: color.muted,
-                     lineHeight: 1.5, borderLeft: `2px solid ${color.indigoBorder2}` }}>
-          {note}
-        </p>
+      {open && (
+        <div style={{ padding: "11px 13px 1px" }}>
+          {note && showNote && (
+            <p style={{ margin: "0 0 11px", paddingLeft: 9, fontSize: 10.5, color: color.muted,
+                         lineHeight: 1.5, borderLeft: `2px solid ${color.indigoBorder2}` }}>
+              {note}
+            </p>
+          )}
+          {children}
+        </div>
       )}
-      {children}
     </Card>
   );
 }
@@ -633,6 +793,12 @@ function Detail(p: EditorProps) {
   // on the form. The escape hatch exists so the withholding is auditable rather than mysterious —
   // an author who wants to see what was taken away, and why, can.
   const [showInapplicable, setShowInapplicable] = useState(false);
+  // WHICH BANNERS ARE ROLLED SHUT, held here rather than inside each `Group` so that "collapse
+  // all" is one state change and so a group's state survives the re-render a keystroke causes.
+  // A group ABSENT from the map is OPEN — the default has to be "open" for every group including
+  // ones added later, and a set of the shut ones says that without having to enumerate them.
+  const [shut, setShut] = useState<Record<string, boolean>>({});
+  const toggleGroup = (q: string) => setShut((s) => ({ ...s, [q]: !s[q] }));
   // NO VOCABULARY, NO AUTHORING. Every select's options come from what the server served, derived
   // there from the same `Literal[...]` aliases the loader validates with. A control offering a
   // token this deployment's gate refuses is worse than no control: the author authors, saves, and
@@ -671,6 +837,10 @@ function Detail(p: EditorProps) {
   /** What this line's own selections withhold. Derived from `sel`, so it follows the author's
    *  choice of type immediately rather than after a save. */
   const withheld = withheldFields(sel, errors);
+  /** The simple form for THIS line's type, recomputed from the draft so switching the type
+   *  re-cuts the form at once rather than after a save. */
+  const simple = simpleFieldsFor(sel.type);
+  const isSimple = (name: string) => simple.has(name);
 
   const fld = (name: string, render: (error?: string) => ReactNode) => {
     // THE ONE FILTER POINT. Every control on this screen goes through `fld`, so what a reader is
@@ -684,7 +854,7 @@ function Detail(p: EditorProps) {
     if (RETIRED_FIELDS.has(name) && !forced) return null;
     // A field the server refused is shown WHATEVER the mode, because hiding the control a refusal
     // is addressed to leaves an author with a message and nothing to act on.
-    if (mode === "simple" && !SIMPLE_FIELDS.has(name) && !errors[name] && !forced) return null;
+    if (mode === "simple" && !isSimple(name) && !errors[name] && !forced) return null;
     return (
       <div data-testid={`li-field-${name}`} key={name}>
         <div data-testid={errors[name] ? `li-field-error-${name}` : undefined}>
@@ -700,15 +870,42 @@ function Detail(p: EditorProps) {
       </div>
     );
   };
+  /** Whether ONE named control survives every filter — the same order `fld` applies, and the
+   *  single place that answers both "is this group worth a banner" and "how many fields is it
+   *  holding". Two copies of this predicate would drift, and the visible way it would drift is a
+   *  banner announcing four fields over a group showing three. */
+  const shows = (n: string) => {
+    const forced = requiredNow(n, sel);
+    if (withheldReason(n, sel) && !forced && !showInapplicable && !errors[n]) return false;
+    if (RETIRED_FIELDS.has(n) && !forced) return false;
+    return mode === "advanced" || isSimple(n) || !!errors[n] || forced;
+  };
   /** Whether a group has anything to show, so an empty card is not rendered in simple mode. */
-  const anyOf = (...names: string[]) =>
-    names.some((n) => {
-      const forced = requiredNow(n, sel);
-      if (withheldReason(n, sel) && !forced && !showInapplicable && !errors[n]) return false;
-      if (RETIRED_FIELDS.has(n) && !forced) return false;
-      return mode === "advanced" || SIMPLE_FIELDS.has(n) || !!errors[n] || forced;
-    });
+  const anyOf = (...names: string[]) => names.some(shows);
   const idx = (name: string) => indexErrors[name];
+
+  /** ONE BANNER'S FOUR PROPS, from its position and its field list.
+   *
+   *  Spread at the call site (`<Group {...band(3, GROUP_FIELDS.gate)} question=… >`) so that
+   *  adding a group means adding a number and a list, and cannot mean forgetting to wire its
+   *  toggle to the shared state — which would give one group a banner that does not respond. */
+  const band = (index: number, fields: readonly string[]) => {
+    const shown = fields.filter(shows);
+    return {
+      index,
+      count: shown.length,
+      visible: shown.length > 0,
+      // KEYED ON THE QUESTION, not on the index: the numbers shift when a group is added and the
+      // author's collapsed groups would silently move with them.
+      open: !shut[`g${index}`],
+      onToggle: () => toggleGroup(`g${index}`),
+    };
+  };
+  /** Every group shut, or every group open — for a reader who wants the whole form at once, or
+   *  who wants the eight questions with nothing under them as a table of contents. */
+  const BANDS = [1, 2, 3, 4, 5, 6, 7, 8];
+  const allShut = BANDS.every((i) => shut[`g${i}`]);
+  const setAll = (v: boolean) => setShut(Object.fromEntries(BANDS.map((i) => [`g${i}`, v])));
 
   const type = g<LineItemType>("type", item.type);
   const noteSource = g<NoteSource | null>("note_source", item.note_source);
@@ -764,29 +961,51 @@ function Detail(p: EditorProps) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
                      gap: 10, flexWrap: "wrap", margin: "3px 0 10px" }}>
         <span style={{ fontFamily: font.mono, fontSize: 11, color: color.muted }}>{item.key}</span>
-        {/* SIMPLE / ADVANCED. Simple is the eight fields that define a line; advanced is every
-            override and every mechanism. A field the server REFUSED is shown in either mode —
-            hiding the control a refusal is addressed to leaves an author with a message and
-            nothing to act on. */}
-        <div role="group" aria-label="How much configuration to show"
-             style={{ display: "flex", border: `1px solid ${color.cardBorder}`,
-                       borderRadius: radius.control, overflow: "hidden" }}>
-          {(["simple", "advanced"] as const).map((m) => (
-            <button key={m} onClick={() => setMode(m)} aria-pressed={mode === m}
-                    data-testid={`li-mode-${m}`}
-                    style={{ fontSize: 11, cursor: "pointer", padding: "3px 10px", border: 0,
-                              textTransform: "capitalize",
-                              background: mode === m ? color.indigo : "transparent",
-                              color: mode === m ? "#fff" : color.sec2 }}>
-              {m}
-            </button>
-          ))}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* ROLL THE WHOLE FORM UP OR DOWN. Shut, the eight banners are a table of contents for
+              the form; open, it reads as one document. */}
+          <button type="button" data-testid="li-bands-all" onClick={() => setAll(!allShut)}
+                  style={{ fontSize: 11, cursor: "pointer", padding: "3px 9px",
+                            border: `1px solid ${color.cardBorder}`, borderRadius: radius.control,
+                            background: "transparent", color: color.sec2 }}>
+            {allShut ? "Open all sections" : "Collapse all sections"}
+          </button>
+          {/* SIMPLE / ADVANCED. Simple is the fields that decide THIS KIND of line — a different
+              set for an extracted line, a derived one and an arithmetic one; advanced is every
+              override and every mechanism. A field the server REFUSED is shown in either mode —
+              hiding the control a refusal is addressed to leaves an author with a message and
+              nothing to act on. */}
+          <div role="group" aria-label="How much configuration to show"
+               style={{ display: "flex", border: `1px solid ${color.cardBorder}`,
+                         borderRadius: radius.control, overflow: "hidden" }}>
+            {(["simple", "advanced"] as const).map((m) => (
+              <button key={m} onClick={() => setMode(m)} aria-pressed={mode === m}
+                      data-testid={`li-mode-${m}`}
+                      style={{ fontSize: 11, cursor: "pointer", padding: "3px 10px", border: 0,
+                                textTransform: "capitalize",
+                                background: mode === m ? color.indigo : "transparent",
+                                color: mode === m ? "#fff" : color.sec2 }}>
+                {m}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
       {mode === "simple" && (
         <p style={{ margin: "0 0 10px", fontSize: 10.5, color: color.muted }}>
-          The fields that define this line. <b>Advanced</b> adds the section overrides and the
-          assembly rules — needed on a minority of lines, and inherited from the section otherwise.
+          {sel.type === "derived"
+            ? <>The fields that decide a <b>derived</b> line: the cascade that computes it, and
+                whether a printed row may fill it where no rung resolves. Its definition, its
+                aliases and its note patterns are under <b>Advanced</b> — nothing reads them on a
+                line the matcher and the model are both never asked about.</>
+            : sel.type === "calculated" || sel.type === "intermediate"
+              ? <>The fields that decide a <b>{sel.type}</b> line: the signed terms it is summed
+                  from. Its definition and its note patterns are under <b>Advanced</b> — this
+                  line's figure is arithmetic over other lines, not something read off a page.</>
+              : <>The fields that define this line: what it means, which captions reach it, and
+                  which note its figure may be read out of. <b>Advanced</b> adds the section
+                  overrides and the assembly rules — needed on a minority of lines, and inherited
+                  from the section otherwise.</>}
         </p>
       )}
 
@@ -839,7 +1058,7 @@ function Detail(p: EditorProps) {
           description-matching tier (it prefers it over `description`), and the four criteria
           fields are what let a caption be resolved by MEANING rather than by string match — which
           is the difference between widening one line and editing a 162-alternative regex. */}
-      <Group visible={anyOf("label", "description", "definition", "include_criteria", "exclude_criteria", "confusable_with", "section_disambiguation")} question="What is this line, in words?"
+      <Group {...band(1, GROUP_FIELDS.meaning)} question="What is this line, in words?"
              note="What the model reads when the printed caption is not close to any alias.">
         {fld("label", (e) => (
           <TextField label="Label" testid="label" editable={editable} reason={lockReason}
@@ -937,7 +1156,7 @@ function Detail(p: EditorProps) {
           replaces THAT locale's list, and the base list too when the locale is the set default.
           The other locales are read-only beside it and say so. A map-shaped write is precisely how
           editing the Chinese aliases clobbers the English ones. */}
-      <Group visible={anyOf("aliases", "pattern", "regex_hints", "keyword_hints", "exclude_hints", "alias_matching")} question="Which printed captions are this line?"
+      <Group {...band(2, GROUP_FIELDS.recognition)} question="Which printed captions are this line?"
              note={<>Recognition evidence, matched against the caption as printed. Aliases are
                    edited ONE LOCALE AT A TIME — the selector says which.</>}
              right={
@@ -1050,7 +1269,9 @@ function Detail(p: EditorProps) {
           claimed by more than one line item and some of those claims span different statements,
           so the gate is what settles which line a caption reaches. Nearly all of it arrives by
           INHERITANCE from a `section_defaults` entry — hence the badges. */}
-      <Group visible={anyOf("inherits", "statement", "section_scope", "scopes", "side", "allow_contra", "llm_only_if_note_tagged", "note_selection", "match_priority", "extraction_mode", "face_only", "note_use", "note_source")} question="Where may it be claimed from?"
+      <Group {...band(3, [...GROUP_FIELDS.gate,
+                          ...(noteSource ? GROUP_FIELDS.noteSource : [])])}
+             question="Where may it be claimed from?"
              note="The gate is authored once per section and claimed by `inherits`; editing a
                    gate field here overrides the section for this line only.">
         {fld("inherits", (e) => (
@@ -1215,10 +1436,11 @@ function Detail(p: EditorProps) {
             reachable from nowhere. */}
         {fld("note_source", (e) => (
           <BoolField label="Read this line from a NOTE" testid="note_source" editable={editable}
-                     help="Which note a sub-line item is read from and which of its rows count.
+                     help="Which note this line is read from and which of its rows count.
                            Switching it off writes `null` — no note sourcing for this line."
-                     onText="The three pattern groups below decide which note and which of its
-                             rows count."
+                     onText="The controls below decide which note and which of its rows count —
+                             by pattern, by scored terms, and for a figure stated only in a
+                             sentence."
                      offText="No note source declared."
                      value={noteSource !== null}
                      onChange={(v) => patch({ note_source: v ? (item.note_source ?? NEW_NOTE_SOURCE)
@@ -1265,6 +1487,72 @@ function Detail(p: EditorProps) {
                                 onChange={(v) => setNoteSource({ row_caption_none: v })}
                                 error={e} indexErrors={idx("note_source.row_caption_none")} />
             ))}
+            {/* ── THE SEMANTIC HALF ────────────────────────────────────────────────────────────
+                TERMS, NOT PATTERNS, and the distinction is the reason they are separate controls
+                rather than more entries in the lists above. A pattern either fires or it does
+                not; a term SCORES, so a phrasing nobody anticipated still ranks instead of
+                silently matching nothing. They are also the same TWO LEVELS as the patterns: a
+                note's heading names the container, a row's caption names the content, and one
+                vocabulary cannot do both jobs — measured, a single blended probe scored 0.000 on
+                the note headed 管理費用 for a line whose every token is a depreciation word. */}
+            {fld("note_source.note_terms", (e) => (
+              <StringListEditor label="Words describing the NOTE this line sits in"
+                                testid="note_source-note_terms" editable={editable}
+                                help="Plain words, not regexes — scored against each note's
+                                      HEADING. This names the container: the note a figure is
+                                      disclosed inside (“property, plant and equipment”,
+                                      “administrative expenses”), which is often nothing like the
+                                      row's own wording. Leave it empty to score the line's label
+                                      and description instead."
+                                emptyText="Nothing said — the line's own label and description are
+                                           scored against note headings instead."
+                                value={noteSource.note_terms ?? []}
+                                onChange={(v) => setNoteSource({ note_terms: v })}
+                                error={e} indexErrors={idx("note_source.note_terms")} />
+            ))}
+            {fld("note_source.row_terms", (e) => (
+              <StringListEditor label="Words describing the ROW inside that note"
+                                testid="note_source-row_terms" editable={editable}
+                                help="Plain words scored against the note's ROW CAPTIONS — the
+                                      content rather than the container. These reach the model as
+                                      well as the scorer, so a term here both ranks a row and
+                                      tells the model what the line is called; a batch answer
+                                      citing a caption that shares nothing with them is refused."
+                                emptyText="Nothing said."
+                                value={noteSource.row_terms ?? []}
+                                onChange={(v) => setNoteSource({ row_terms: v })}
+                                error={e} indexErrors={idx("note_source.row_terms")} />
+            ))}
+            {fld("note_source.row_terms_none", (e) => (
+              <StringListEditor label="Words that RULE a row OUT"
+                                testid="note_source-row_terms_none" editable={editable}
+                                variant="veto"
+                                help="The veto half of the scored route: a row whose caption
+                                      carries one of these is not this line's, however well it
+                                      scores otherwise."
+                                emptyText="Nothing vetoed."
+                                value={noteSource.row_terms_none ?? []}
+                                onChange={(v) => setNoteSource({ row_terms_none: v })}
+                                error={e} indexErrors={idx("note_source.row_terms_none")} />
+            ))}
+            {fld("note_source.prose_any", (e) => (
+              <StringListEditor label="Sentences that state the figure in words"
+                                testid="note_source-prose_any" editable={editable} variant="mono"
+                                help="Regexes over a note's SENTENCES, for a figure the filing
+                                      states in prose and tabulates nowhere — “Depreciation
+                                      charges of approximately HK$529,841,000 … are included in
+                                      other operating expenses”. Authored for sentence length, not
+                                      caption length: in that footnote the gap between the two
+                                      subjects is 87 characters, so a caption pattern's `.{0,40}`
+                                      does not reach. EMPTY MEANS NO PROSE ROUTE — a line with
+                                      nothing here yields no prose figure rather than a guess, and
+                                      prose is only ever consulted where the row route found
+                                      nothing."
+                                emptyText="No prose route for this line."
+                                value={noteSource.prose_any ?? []}
+                                onChange={(v) => setNoteSource({ prose_any: v })}
+                                error={e} indexErrors={idx("note_source.prose_any")} />
+            ))}
             {fld("note_source.caption_normalization", (e) => (
               <SelectField<CaptionNormalization>
                 label="Match those patterns against"
@@ -1291,7 +1579,8 @@ function Detail(p: EditorProps) {
       {/* ── 4. STRUCTURE ─────────────────────────────────────────────────────────────────────
           The tree, and what a parenthood ASSERTS. `rollup` exists because the rollup check would
           otherwise have summed the twelve alternative restatements of the depreciation line. */}
-      <Group visible={anyOf("type", "in_output", "parent", "rollup", "order", "namespace", "value_scope", "is_gross_parent", "children_if_decomposed", "sole_component_of", "expected_components", "never_sweep", "residual_policy")} question="How does it sit among the other lines?">
+      <Group {...band(4, GROUP_FIELDS.structure)}
+             question="How does it sit among the other lines?">
         {fld("type", (e) => (
           <SelectField<LineItemType>
             label="Type" testid="type" editable={editable} reason={lockReason}
@@ -1524,7 +1813,7 @@ function Detail(p: EditorProps) {
           both is how an author changes the wrong one: `sign_convention` on the item is the sign
           the line is EXPECTED to carry (a review trigger, sent as `sign_expectation`), and
           `sign_rule.convention` is how a value is NORMALISED. */}
-      <Group visible={anyOf("output_structure", "temporality", "unit_of_account", "sign_expectation", "sign_rule.convention", "analyst_bucket")} question="What kind of figure is it?">
+      <Group {...band(5, GROUP_FIELDS.measurement)} question="What kind of figure is it?">
         {fld("output_structure", (e) => (
           <SelectField<OutputStructure>
             label="What this line outputs" testid="output_structure" editable={editable}
@@ -1623,7 +1912,7 @@ function Detail(p: EditorProps) {
           the one that does not apply is how a type change makes a group vanish and an author
           concludes the field was taken away — and both are needed while a line is being moved
           from one type to the other. */}
-      <Group visible={anyOf("terms", "cascade", "implemented_by")} question="How is its value assembled?"
+      <Group {...band(6, GROUP_FIELDS.assembly)} question="How is its value assembled?"
              note="A calculated or intermediate line is a signed sum of terms; a derived line is
                    an ordered cascade of attempts, the first that resolves winning.">
         <details open={type === "calculated" || type === "intermediate"}>
@@ -1676,7 +1965,7 @@ function Detail(p: EditorProps) {
       {/* ── 7. PROSE ─────────────────────────────────────────────────────────────────────────
           Nullable prose: an emptied box yields `null` ("nothing was said"), not `""`. These
           document decisions someone will otherwise re-litigate. */}
-      <Group question="Notes for the next reader"
+      <Group {...band(7, GROUP_FIELDS.prose)} question="Notes for the next reader"
              note="Free prose. Nothing matches on these — they record a decision.">
         {fld("decomposition_rule", (e) => (
           <TextArea label="How a combined parent decomposes" testid="decomposition_rule"
@@ -1699,20 +1988,12 @@ function Detail(p: EditorProps) {
                     onChange={(v) => patch({ derivation: v })} error={e}
                     inherited={inh("derivation", item.derivation)} />
         ))}
-        {fld("aggregation_note", (e) => (
-          <TextArea label="How contributing rows are aggregated" testid="aggregation_note"
-                    editable={editable} rows={2} nullable reason={lockReason}
-                    value={g("aggregation_note", item.aggregation_note)}
-                    onChange={(v) => patch({ aggregation_note: v })} error={e}
-                    inherited={inh("aggregation_note", item.aggregation_note)} />
-        ))}
-        {fld("template_note", (e) => (
-          <TextArea label="Its relationship to the output template" testid="template_note"
-                    editable={editable} rows={2} nullable reason={lockReason}
-                    value={g("template_note", item.template_note)}
-                    onChange={(v) => patch({ template_note: v })} error={e}
-                    inherited={inh("template_note", item.template_note)} />
-        ))}
+        {/* `aggregation_note` and `template_note` HAD CONTROLS HERE AND THE FIELDS ARE GONE.
+            Both were removed from `LineItemDef` after measurement — 395 and 391 of 539 items
+            declared them, 54 KB of prose between them, and NOTHING in the pipeline read either.
+            A control writing a field the endpoint no longer accepts is worse than a missing
+            control: the author types, saves, and gets a refusal naming a field they cannot see.
+            `notes_as_source_rationale` below is deliberately NOT in that group — it is read. */}
         {fld("notes_as_source_rationale", (e) => (
           <TextArea label="Why a note may be the authoritative source" testid="notes_as_source_rationale"
                     editable={editable} rows={2} nullable reason={lockReason}
@@ -1727,7 +2008,11 @@ function Detail(p: EditorProps) {
           `vocab.not_editable` — served rather than restated here, so a field cannot quietly
           disappear from the form with no reason attached, and so a reason this screen does not own
           has exactly one spelling. */}
-      <Group question="Not editable here"
+      {/* THE ONE GROUP WHOSE COUNT IS NOT A FIELD WALK: these rows are served
+          (`vocab.not_editable`), not filtered, so the count is simply how many there are. */}
+      <Group index={8} count={Object.keys(vocab?.not_editable ?? {}).length}
+             open={!shut.g8} onToggle={() => toggleGroup("g8")}
+             question="Not editable here"
              note="Withheld on purpose, each with the reason. Being silently absent and being
                    read-only for a reason look identical on a screen, and only one of them is a
                    decision.">

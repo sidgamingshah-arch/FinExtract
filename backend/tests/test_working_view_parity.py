@@ -101,6 +101,32 @@ _DEFINITION_DECISIONS = frozenset({
     "bs_ca__other_receivables_cp", "is_pl__sales_revenues",
 })
 
+# AND THE SAME CONCEPTS' `extraction_mode`, declared `extract` in the seed — the third case of the
+# seed LEADING the rulebook, and the one with a behavioural consequence, so it is worth stating in
+# full rather than listing.
+#
+# The nine `type: derived` lines carried THREE modes between them (`extract` on revenue, `derive`
+# on two, `extract_or_derive` on the rest) while being the same kind of thing: a parent whose
+# figure a declared cascade produces. What the mode actually decides for such a line is whether a
+# PRINTED ROW may fill it where no rung resolves, and the answer is yes — that is the documented
+# intent of `extract_or_derive` already (`mapping._computed_claim`), and revenue is the proof: it
+# is the one that was already `extract` and the one that publishes 4,995,768 off the face with no
+# rung firing.
+#
+# THE MODEL IS STILL NEVER OFFERED THEM. That guarantee used to ride on the mode, which is what
+# made this flip unsafe before. It now rides on the type — `OntologyMapping.item_type`, read by
+# `mapping._llm_withheld` — so it holds for all nine whatever the mode says.
+#
+# TWO OF THE NINE ARE NOT HERE, each for a measured reason (`scripts/mark_derived_extract.py`):
+# `bs_nca__secur_and_other_fincl_assets_ltp` publishes 128,412 instead of 788,507 once a printed
+# caption may reach it, and `statement_setup_controls__periods` is a priority-90 control whose
+# keyword hints are words half the income statement contains.
+_EXTRACTION_MODE_DECISIONS = frozenset({
+    "is_pl__deprec_and_impairment_oper_exp", "is_pl__deprec_and_impairment_cos",
+    "bs_ca__secur_and_other_fincl_assets_cp", "notes__contingent_liabilities",
+    "bs_nca__due_from_related_parties_ltp", "bs_ca__other_receivables_cp",
+})
+
 # Fields on which the SHIPPED seed may lag the rulebook — see the module docstring. `description`
 # is by design (the 8 merged keys keep the configurator's prose); the rest are staleness, and the
 # assertion is that the divergence goes no wider than these names.
@@ -273,6 +299,11 @@ def test_shipped_set_diverges_only_in_the_known_classes():
         # `definition` diverges on exactly the eight concepts whose definitions were rewritten —
         # named, so a NINTH would still fail here.
         if field == "definition" and set(keys) <= _DEFINITION_DECISIONS:
+            continue
+        # …and `extraction_mode` on the six derived parents the seed declares `extract`. Named the
+        # same way and for the same reason: a SEVENTH still fails here, which is what stops a mode
+        # being flipped without the measurement that justifies it.
+        if field == "extraction_mode" and set(keys) <= _EXTRACTION_MODE_DECISIONS:
             continue
         unexpected[field] = keys
     assert not unexpected, (
