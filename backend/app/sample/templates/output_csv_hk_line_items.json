@@ -27675,7 +27675,7 @@
      "prepaid\\s+land\\s+lease\\s+payments?|prepaid\\s+lease\\s+payments?|預付土地租賃款項|預付租賃款項",
      "right.of.use\\s+assets?",
      "使用權資產|使用权资产",
-     "長期待攤費用|长期待摊费用",
+     "(?:長期待攤費用|长期待摊费用)[^。；;]{0,20}(?:土地|租賃|租赁)|(?:土地|租賃|租赁)[^。；;]{0,20}(?:長期待攤費用|长期待摊费用)",
      "prepaid\\s+lease|預付租賃|预付租赁|租賃土地|租赁土地"
     ],
     "row_caption_any": [
@@ -27753,7 +27753,14 @@
      "prepaid land lease payments",
      "prepaid lease payments",
      "預付土地租賃款項",
-     "預付租賃款項"
+     "預付租賃款項",
+     "预付土地租赁款项",
+     "预付租赁款项",
+     "使用權資產",
+     "使用权资产",
+     "right-of-use assets",
+     "土地使用權",
+     "土地使用权"
     ],
     "row_terms": [
      "depreciation of investment propert",
@@ -38906,7 +38913,11 @@
      "重大擔保",
      "重大担保",
      "對外擔保",
-     "对外担保"
+     "对外担保",
+     "開出保函",
+     "开出保函",
+     "信用證",
+     "信用证"
     ],
     "row_terms": [
      "total",
