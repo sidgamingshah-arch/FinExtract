@@ -68,6 +68,39 @@ class NoteHit:
     score: float
 
 
+# THE FLOOR BELOW WHICH A NOTE IS NOT OFFERED AT ALL. ONE constant, because it was the same literal
+# 0.30 in two signatures and a reader had no way to know they were meant to move together.
+#
+# 0.25, DOWN FROM 0.30, and the trade is measured rather than assumed
+# (`scripts/calibrate_line_item_notes.py`, laisun + suncreate):
+#
+#              authored notes kept                notes per line item (avg)
+#              laisun (EN)      suncreate (PRC)   laisun   suncreate
+#   0.30       42 / 42          68 / 125          6.4      5.6
+#   0.25       42 / 42          69 / 125          7.3      7.3
+#   0.35       34 / 42          63 / 125          3.0      4.4
+#
+# SO LOWERING IT BUYS RECALL ONLY ON THE PRC FILING, AND ONLY ONE NOTE OF 125, for ~30% more notes
+# per line there and ~14% more on the English one. It is chosen anyway, for an asymmetry that the
+# averages do not show: a note MISSED leaves the line empty and loses the figure, because a request
+# cannot cite what it was not shown, while a note carried in error costs request size and nothing
+# else. `cap=4` bounds how many survive, and the authored `note_title_any` patterns are a UNION
+# with these hits rather than being replaced by them, so a wrong hit displaces nothing.
+#
+# RAISING IT IS THE OTHER DEFENSIBLE READING, and the numbers for it are above. Measured on the
+# ten-note fixture in `tests/test_note_context_ranking.py`, true matches score 0.598 at worst and
+# unrelated headings 0.308 at the 90th percentile — so a threshold in 0.31..0.59 admits no noise at
+# all, and 0.35 is the cheapest point in that band. What it costs is 8 of laisun's 42 authored
+# notes, which is the reason it was not taken: on that filing every one of the 42 is reachable, and
+# a threshold that drops 8 of them to save request size is trading a figure for tokens.
+#
+# WHAT NEITHER SETTING FIXES is the 42 of 125 suncreate pairs that score EXACTLY 0.000
+# (`scripts/why_zero_score.py`). Those are not near the floor, they are at zero, and 30 of them are
+# a line's `note_title_any` matching a note it has nothing to do with — `sub__ppe_depreciation`'s
+# pattern claiming 存货 (inventories) and ．会计处理方法 (accounting policy). The probe scoring
+# 0.000 there is CORRECT; the regex is wrong. No floor recovers a bad pattern.
+MIN_SCORE = 0.25
+
 def header_pool(notes) -> ContextPool:
     """One unit per note, carrying its HEADER only.
 
@@ -162,7 +195,7 @@ def _blended(item, parent=None) -> str:
     return " ".join(p for p in parts if p.strip())
 
 
-def notes_for_line_item(item, pool: ContextPool, *, min_score: float = 0.30,
+def notes_for_line_item(item, pool: ContextPool, *, min_score: float = MIN_SCORE,
                         cap: int = 4, parent=None) -> list[NoteHit]:
     """The notes this line item is in, best first.
 
@@ -186,7 +219,8 @@ def notes_for_line_item(item, pool: ContextPool, *, min_score: float = 0.30,
             for s, _i, u in scored[:cap]]
 
 
-def note_sets(items, notes, *, min_score: float = 0.30, cap: int = 4) -> dict[str, list[NoteHit]]:
+def note_sets(items, notes, *, min_score: float = MIN_SCORE,
+              cap: int = 4) -> dict[str, list[NoteHit]]:
     """Every `extract` line item's note set, keyed by line-item key.
 
     THE INPUT TO BATCHING. Two line items may share one request only when they need the same notes,

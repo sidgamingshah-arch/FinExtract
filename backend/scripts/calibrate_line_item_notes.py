@@ -12,9 +12,11 @@ semantic probe rank the regex-matched notes at the top?
 
 WHAT IS BEING CALIBRATED. Two numbers, and neither carries over from the row-driven path:
 
-  * `min_score` — `ContextPool.select` uses 0.22 for a ROW-caption probe against note-plus-rows
-    units. Here both sides differ (a line item's prose, against headers alone), so the score
-    distribution differs with them.
+  * `min_score` — the floor below which a note is not offered at all. `ContextPool.select` used
+    0.22 for a ROW-caption probe against note-plus-rows units; that path is retired, and here both
+    sides differ anyway (a line item's own `note_terms`, against headers alone), so the score
+    distribution differs with them. The table below spans 0.10 to 0.45 so the recall cost of
+    raising it and the request cost of lowering it are visible side by side.
   * `cap` — how many notes one line item's request carries.
 
 RECALL IS THE NUMBER THAT MATTERS, not precision. An extra note in the request costs tokens; a
@@ -131,7 +133,7 @@ def report(pdf: pathlib.Path) -> dict:
               f"p10 {scores[len(scores) // 10]:.3f}  median {scores[len(scores) // 2]:.3f}  "
               f"max {scores[-1]:.3f}")
     print(f"\n  {'threshold':>10s}  {'authored notes kept':>20s}  {'notes per line item (avg)':>26s}")
-    for thr in (0.10, 0.14, 0.18, 0.22, 0.30):
+    for thr in (0.10, 0.14, 0.18, 0.22, 0.25, 0.30, 0.35, 0.45):
         kept = sum(1 for r in found if r["score"] >= thr)
         per = []
         for item in declaring:

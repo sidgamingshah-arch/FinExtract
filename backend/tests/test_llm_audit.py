@@ -74,6 +74,18 @@ def test_mapping_json_does_not_request_reasoning_tokens(monkeypatch):
 
     assert "reasoning_effort" not in body
 
+    # THE CONTROL, and it is what proves the flag is not over-broad. A FREE-FORM call — gap
+    # routing, the commentary, the contingent-liabilities narrative — is judgement written in
+    # prose, and reasoning is exactly what it should be asking for. If the withholding leaked to
+    # every structured schema, those would silently get worse and nothing here would notice.
+    from app.services.gap_closing import OthersRoutingDecision
+
+    free_form = provider.build_body(system="SYS", messages=[{"role": "user", "content": "hi"}],
+                                    response_schema=OthersRoutingDecision, temperature=0.0,
+                                    max_tokens=1456)
+    assert free_form["reasoning_effort"] == "medium"
+    assert not getattr(OthersRoutingDecision, "compact_json_reply", False)
+
 
 # --- audit endpoint: seeded token usage, input/output separate --------------
 def test_audit_endpoint_returns_seeded_token_usage(client):
