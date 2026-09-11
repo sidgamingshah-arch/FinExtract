@@ -239,6 +239,25 @@ class NoteSource(BaseModel):
     # phrasing still scores instead of not firing, and they carry no regex syntax to get wrong.
     # They are authored in every script the filings print: the tokeniser emits Han character
     # bigrams, so a Chinese term matches a Chinese heading without a segmenter.
+    # PROSE NEEDS ITS OWN PATTERNS, and that is measured rather than assumed. A figure a filing
+    # states only in a sentence cannot be reached by either of the two artefacts above:
+    #
+    #   * `row_terms` are too LOOSE. They are `row_caption_any` split on `|`, which turns a
+    #     conjunction — "a depreciation word within forty characters of an expense-function word" —
+    #     into a disjunction: `depreciation` OR `operating expenses`. Measured, a term-based prose
+    #     rule matched any sentence merely mentioning operating expenses and replaced a depreciation
+    #     charge of 587,417 with 36,966,000, inventing two more figures on lines that should have
+    #     stayed empty.
+    #   * `row_caption_any` is too TIGHT. Its proximity bounds are authored for a SHORT caption. In
+    #     the reference footnote the gap between "depreciation" and "operating expenses" is 87
+    #     characters — 61 even with the amounts stripped — because the sentence puts the figure, the
+    #     comparative and a verb phrase in between. Against `.{0,40}` it does not match at all.
+    #
+    # So a prose pattern is authored for sentence-length text: wider bounds, and the connective the
+    # sentence actually uses ("included in", "charged to", 計入). EMPTY MEANS NO PROSE ROUTE for this
+    # line, which is why the field is opt-in rather than defaulted — an unauthored line produces no
+    # prose figure rather than a guess.
+    prose_any: list[str] = Field(default_factory=list)
     note_terms: list[str] = Field(default_factory=list)
     row_terms: list[str] = Field(default_factory=list)
     row_terms_none: list[str] = Field(default_factory=list)
@@ -254,6 +273,7 @@ class NoteSource(BaseModel):
             ("note_title_any", self.note_title_any),
             ("row_caption_any", self.row_caption_any),
             ("row_caption_none", self.row_caption_none),
+            ("prose_any", self.prose_any),
         )
         return self
 

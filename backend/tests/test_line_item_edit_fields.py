@@ -198,6 +198,7 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
         "note_title_any": [r"^cash and cash equivalents"],
         "row_caption_any": [r"bank balances?"],
         "row_caption_none": [r"restricted"],
+        "prose_any": [r"cash[^.]{0,80}?held\s+at\s+bank"],
         "note_terms": ["cash and cash equivalents", "现金及现金等价物"],
         "row_terms": ["bank balances", "银行存款"],
         "row_terms_none": ["restricted"],

@@ -56,9 +56,16 @@ COMPUTED = "is_pl__deprec_and_impairment_oper_exp"        # derived: never the m
 ORDINARY_OFF = "bs_nca__land"                             # `extract`, just not offered for THIS row
 DERIVABLE = "bs_ca__net_trade_receivables"                # `extract_or_derive`: withheld from the LLM
 
-_PROSE = ("^ Depreciation charges of approximately HK$529,841,000 (2024: HK$665,553,000) are "
-          "included in “other operating expenses” on the face of the consolidated income "
-          "statement.")
+# DELIBERATELY A SENTENCE THE DETERMINISTIC PROSE ROUTE DOES NOT MATCH. `note_source.prose_any`
+# now reads footnotes itself (see test_prose_sourced.py), and on the real wording — "…are INCLUDED
+# IN other operating expenses…" — it fills this part with no provider call at all. That is the
+# better outcome in production and it would make every test below pass for the wrong reason: the
+# figure would be there whether the model answered or not. "relates to" is not one of the declared
+# connectives, so `prose_any` stays silent and the model is the only thing that can fill the line —
+# which is what these tests are about. The model can still cite it, because the citation is
+# verified on the DIGITS appearing in the note's text.
+_PROSE = ("^ Depreciation of approximately HK$529,841,000 relates to “other operating expenses” "
+          "on the face of the consolidated income statement.")
 
 
 @pytest.fixture(scope="module")
@@ -114,7 +121,7 @@ def _answer(key, sources, *, confidence=0.9, reason="cited"):
 
 
 _ROW_CITE = [{"note": "7", "caption": "Depreciation of right-of-use assets"}]
-_PROSE_CITE = [{"note": "7", "caption": "Depreciation charges included in other operating expenses",
+_PROSE_CITE = [{"note": "7", "caption": "Depreciation relating to other operating expenses",
                 "quote": _PROSE, "amount": "HK$529,841,000"}]
 
 

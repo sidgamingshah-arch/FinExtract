@@ -23,7 +23,7 @@ nothing" was the answer on every run.
 """
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from app.core.models.document import DocumentModel
 from app.core.models.line_item import ExtractedValue, LineItem
@@ -67,9 +67,75 @@ class NoteSourcedStage(Stage):
         by_key = {li.canonical_key: li for li in doc.line_items if li.canonical_key}
         children_of: dict[str, list] = {}
         filled = touched = 0
+        prose_filled = 0
         for item in items:
             hits = note_sourced.select_rows(item, doc.notes, periods)
             if not hits:
+                # A FIGURE THE FILING STATES ONLY IN PROSE, and this is the one route to it.
+                #
+                # Measured on the reference HK filing: the operating-expense share of the
+                # depreciation charge is disclosed in a footnote and nowhere else — "Depreciation
+                # charges of approximately HK$529,841,000 (2024: HK$665,553,000) are included in
+                # 'other operating expenses'" — and 529841 appears in NO extracted row anywhere in
+                # the document. No row-caption pattern and no row term can reach it, so the line
+                # stayed empty however plainly the filing stated it.
+                #
+                # A FALLBACK, NOT AN ALTERNATIVE, which is why it sits inside `if not hits`. A row
+                # is the filing's own tabulation and a sentence is a narrative restatement of it,
+                # so prose competing with rows would sometimes replace the first with the second.
+                # Here it can only fill what would otherwise be empty.
+                prose = note_sourced.select_prose(item, doc.notes)
+                if not prose:
+                    continue
+                row = by_key.get(item.key)
+                if row is None:
+                    row = LineItem(source_label=item.label or item.key, canonical_key=item.key)
+                    doc.line_items.append(row)
+                    by_key[item.key] = row
+                touched += 1
+                basis = _prose_basis(doc)
+                scale = _prose_scale(doc)
+                for hit in prose:
+                    # A PROSE FIGURE IS STATED IN FULL; A TABLE IS STATED IN THE STATEMENT'S UNITS.
+                    #
+                    # This stage runs at 10 and `normalize` at 8, so nothing scales what is written
+                    # here — and the two routes disagree by exactly the scale factor. Measured on
+                    # the reference filing, whose statements are in HK$'000 (`unit_context`
+                    # scale_factor 1000): the ROW route gives 587,417 for the total depreciation
+                    # charge, while the footnote states "HK$529,841,000" and arrives as
+                    # 529,841,000. Published unscaled that is a THOUSANDFOLD error on the face of
+                    # the income statement.
+                    #
+                    # Prose states the amount in full because that is how prose is written — "HK$
+                    # 529,841,000", never "HK$529,841 thousand" — and the amount pattern requires
+                    # thousands separators, so a "HK$529.8 million" phrasing does not reach here at
+                    # all. Scaled down, 529,841 is less than the 587,417 total, which is the check
+                    # a SHARE of that total has to pass.
+                    amount = hit.amount / scale if scale and scale != 1 else hit.amount
+                    _write(row, basis, hit.period, amount)
+                    row.derivation = note_sourced.derivation.record(
+                        row.derivation, basis=basis, period_label=hit.period,
+                        derivation=note_sourced.trail(
+                            rollup="prose", item_label=item.label or item.key, amount=amount,
+                            inputs=[{"label": f"note {hit.note_number}: {hit.sentence[:160]}",
+                                     # The figure AS THE SENTENCE STATES IT, so the division by the
+                                     # statement's scale is auditable against the words.
+                                     "value": str(hit.amount), "counted": True,
+                                     "deducted": False, "note": hit.note_number}]))
+                    filled += 1
+                    prose_filled += 1
+                row.is_computed = True
+                # SAID ON THE ROW, because a figure read out of a sentence is not the same evidence
+                # as one read off a tabulated row, and a reviewer cannot tell them apart from the
+                # number. The flag names the note so the sentence can be found.
+                row.confidence.flags.append(f"note_sourced_prose:{prose[0].note_number}")
+                if scale and scale != 1:
+                    row.confidence.flags.append(f"prose_scaled_by:{scale}")
+                ctx.log(f"note_sourced:{item.key}: no row matched; {len(prose)} figure(s) taken "
+                        f"from the PROSE of note {prose[0].note_number} "
+                        f"(matched on {prose[0].matched_by!r})")
+                children_of.setdefault(str(getattr(item, "parent", "") or ""), []).append(
+                    (item, row))
                 continue
             # WITHIN ONE NOTE the rows are components: a note that splits depreciation across
             # four assets prints four rows and the note's depreciation IS their sum. The child's
@@ -107,6 +173,10 @@ class NoteSourcedStage(Stage):
         # Collected from the document rather than from this stage's own walk, because "which
         # children have a figure" is a property of the document at this point in the pipeline and
         # not of how each figure arrived.
+        if prose_filled:
+            ctx.log(f"note_sourced:prose_figures={prose_filled} (a figure the filing states in a "
+                    f"sentence rather than a row — see the note_sourced_prose flag on each row)")
+
         for parent_key, kid_keys in _children_by_parent(all_items).items():
             for kid in kid_keys:
                 row = by_key.get(kid)
@@ -214,6 +284,40 @@ def _note_permission(all_items) -> dict[str, str]:
     """
     return {i.key: str(getattr(i, "note_use", "") or "") for i in all_items or ()}
 
+
+
+
+def _prose_scale(doc):
+    """The factor a full prose amount must be divided by to match the statements' units.
+
+    `unit_context.scale_factor` is what `normalize` applies to the face and the note tables, and it
+    is 1000 for a filing presented in thousands. A sentence states its figure in full, so it needs
+    the same division — and it does not get it, because this stage runs after `normalize`.
+    """
+    unit = getattr(doc, "unit_context", None)
+    factor = getattr(unit, "scale_factor", None) if unit is not None else None
+    try:
+        return Decimal(str(factor)) if factor else None
+    except (InvalidOperation, ValueError, TypeError):
+        return None
+
+def _prose_basis(doc) -> str:
+    """The basis a prose figure is filed under.
+
+    A SENTENCE CARRIES NO BASIS COLUMN, unlike a note row, so one has to be chosen. The document's
+    own prevailing basis is the only defensible answer: a footnote in a consolidated filing is
+    describing the consolidated figures, and filing it anywhere else would put it in a slot the
+    face never populates and the reconciliation never reads.
+    """
+    seen: dict[str, int] = {}
+    for li in doc.line_items:
+        for ev in (li.values or {}).values():
+            basis = str(getattr(getattr(ev, "basis", ""), "value", getattr(ev, "basis", "")) or "")
+            if basis:
+                seen[basis] = seen.get(basis, 0) + 1
+    if not seen:
+        return "consolidated"
+    return max(seen.items(), key=lambda kv: kv[1])[0]
 
 def _fill_parents(children_of: dict[str, list], by_key: dict, doc: DocumentModel,
                   ctx: PipelineContext, declared: dict[str, str],

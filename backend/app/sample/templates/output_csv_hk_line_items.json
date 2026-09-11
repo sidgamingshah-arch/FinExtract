@@ -27852,6 +27852,12 @@
      "到期",
      "账面原值",
      "账面价值"
+    ],
+    "prose_any": [
+     "(?:depreciation|amortisation|amortization)[^.。]{0,200}?(?:included\\s+in|charged\\s+to|recognised\\s+in|recognized\\s+in|borne\\s+by|allocated\\s+to|presented\\s+in|reported\\s+(?:in|within))[^.。]{0,80}?(?:research\\s+and\\s+development\\s+(?:expenses?|costs?)|r\\s*&\\s*d\\s+(?:expenses?|costs?))",
+     "(?:research\\s+and\\s+development\\s+(?:expenses?|costs?)|r\\s*&\\s*d\\s+(?:expenses?|costs?))[^.。]{0,120}?(?:depreciation|amortisation|amortization)",
+     "(?:折旧|折舊|摊销|攤銷)[^。]{0,80}?(?:计入|計入|列入|包括(?:于|於|在)|计提(?:于|於)|归属于|歸屬於|分[摊攤][至于於])[^。]{0,40}?(?:(?:研发|研發|研究(?:及|与|與)开发|研究(?:及|与|與)開發)(?:开支|開支|费用|費用))",
+     "(?:(?:研发|研發|研究(?:及|与|與)开发|研究(?:及|与|與)開發)(?:开支|開支|费用|費用))[^。]{0,40}?(?:折旧|折舊|摊销|攤銷)"
     ]
    },
    "statement": null,
@@ -28022,6 +28028,12 @@
      "到期",
      "账面原值",
      "账面价值"
+    ],
+    "prose_any": [
+     "(?:depreciation|amortisation|amortization)[^.。]{0,200}?(?:included\\s+in|charged\\s+to|recognised\\s+in|recognized\\s+in|borne\\s+by|allocated\\s+to|presented\\s+in|reported\\s+(?:in|within))[^.。]{0,80}?(?:selling\\s+(?:and\\s+(?:distribution|marketing)\\s+)?expenses?|distribution\\s+costs?|marketing\\s+expenses?)",
+     "(?:selling\\s+(?:and\\s+(?:distribution|marketing)\\s+)?expenses?|distribution\\s+costs?|marketing\\s+expenses?)[^.。]{0,120}?(?:depreciation|amortisation|amortization)",
+     "(?:折旧|折舊|摊销|攤銷)[^。]{0,80}?(?:计入|計入|列入|包括(?:于|於|在)|计提(?:于|於)|归属于|歸屬於|分[摊攤][至于於])[^。]{0,40}?(?:(?:销售|銷售)(?:及(?:分销|分銷|推广|推廣))?(?:开支|開支|费用|費用))",
+     "(?:(?:销售|銷售)(?:及(?:分销|分銷|推广|推廣))?(?:开支|開支|费用|費用))[^。]{0,40}?(?:折旧|折舊|摊销|攤銷)"
     ]
    },
    "statement": null,
@@ -28188,6 +28200,12 @@
      "到期",
      "账面原值",
      "账面价值"
+    ],
+    "prose_any": [
+     "(?:depreciation|amortisation|amortization)[^.。]{0,200}?(?:included\\s+in|charged\\s+to|recognised\\s+in|recognized\\s+in|borne\\s+by|allocated\\s+to|presented\\s+in|reported\\s+(?:in|within))[^.。]{0,80}?(?:(?:general\\s+and\\s+)?administrative\\s+expenses?)",
+     "(?:(?:general\\s+and\\s+)?administrative\\s+expenses?)[^.。]{0,120}?(?:depreciation|amortisation|amortization)",
+     "(?:折旧|折舊|摊销|攤銷)[^。]{0,80}?(?:计入|計入|列入|包括(?:于|於|在)|计提(?:于|於)|归属于|歸屬於|分[摊攤][至于於])[^。]{0,40}?(?:(?:一般及)?(?:行政|管理)(?:开支|開支|费用|費用))",
+     "(?:(?:一般及)?(?:行政|管理)(?:开支|開支|费用|費用))[^。]{0,40}?(?:折旧|折舊|摊销|攤銷)"
     ]
    },
    "statement": null,
@@ -28353,6 +28371,12 @@
      "到期",
      "账面原值",
      "账面价值"
+    ],
+    "prose_any": [
+     "(?:depreciation|amortisation|amortization)[^.。]{0,200}?(?:included\\s+in|charged\\s+to|recognised\\s+in|recognized\\s+in|borne\\s+by|allocated\\s+to|presented\\s+in|reported\\s+(?:in|within))[^.。]{0,80}?(?:(?:other\\s+)?operating\\s+(?:expenses?|costs?))",
+     "(?:(?:other\\s+)?operating\\s+(?:expenses?|costs?))[^.。]{0,120}?(?:depreciation|amortisation|amortization)",
+     "(?:折旧|折舊|摊销|攤銷)[^。]{0,80}?(?:计入|計入|列入|包括(?:于|於|在)|计提(?:于|於)|归属于|歸屬於|分[摊攤][至于於])[^。]{0,40}?(?:(?:其他)?(?:经营|經營)(?:开支|開支|费用|費用|成本))",
+     "(?:(?:其他)?(?:经营|經營)(?:开支|開支|费用|費用|成本))[^。]{0,40}?(?:折旧|折舊|摊销|攤銷)"
     ]
    },
    "statement": null,
@@ -29470,6 +29494,12 @@
      "到期",
      "账面原值",
      "账面价值"
+    ],
+    "prose_any": [
+     "(?:depreciation|amortisation|amortization)[^.。]{0,200}?(?:included\\s+in|charged\\s+to|recognised\\s+in|recognized\\s+in|borne\\s+by|allocated\\s+to|presented\\s+in|reported\\s+(?:in|within))[^.。]{0,80}?(?:(?:other\\s+)?operating\\s+(?:expenses?|costs?)|administrative\\s+expenses?|selling\\s+(?:and\\s+(?:distribution|marketing)\\s+)?expenses?|distribution\\s+costs?)",
+     "(?:(?:other\\s+)?operating\\s+(?:expenses?|costs?)|administrative\\s+expenses?|selling\\s+(?:and\\s+(?:distribution|marketing)\\s+)?expenses?|distribution\\s+costs?)[^.。]{0,120}?(?:depreciation|amortisation|amortization)",
+     "(?:折旧|折舊|摊销|攤銷)[^。]{0,80}?(?:计入|計入|列入|包括(?:于|於|在)|计提(?:于|於)|归属于|歸屬於|分[摊攤][至于於])[^。]{0,40}?(?:(?:其他)?(?:经营|經營)(?:开支|開支|费用|費用)|(?:行政|管理)(?:开支|開支|费用|費用)|(?:销售|銷售)(?:开支|開支|费用|費用))",
+     "(?:(?:其他)?(?:经营|經營)(?:开支|開支|费用|費用)|(?:行政|管理)(?:开支|開支|费用|費用)|(?:销售|銷售)(?:开支|開支|费用|費用))[^。]{0,40}?(?:折旧|折舊|摊销|攤銷)"
     ]
    },
    "statement": null,
@@ -29877,6 +29907,12 @@
      "到期",
      "账面原值",
      "账面价值"
+    ],
+    "prose_any": [
+     "(?:depreciation|amortisation|amortization)[^.。]{0,200}?(?:included\\s+in|charged\\s+to|recognised\\s+in|recognized\\s+in|borne\\s+by|allocated\\s+to|presented\\s+in|reported\\s+(?:in|within))[^.。]{0,80}?(?:cost\\s+of\\s+(?:sales|revenue|revenues|goods\\s+sold|services))",
+     "(?:cost\\s+of\\s+(?:sales|revenue|revenues|goods\\s+sold|services))[^.。]{0,120}?(?:depreciation|amortisation|amortization)",
+     "(?:折旧|折舊|摊销|攤銷)[^。]{0,80}?(?:计入|計入|列入|包括(?:于|於|在)|计提(?:于|於)|归属于|歸屬於|分[摊攤][至于於])[^。]{0,40}?(?:(?:销售|銷售|营业|營業|主营业务|主營業務)成本)",
+     "(?:(?:销售|銷售|营业|營業|主营业务|主營業務)成本)[^。]{0,40}?(?:折旧|折舊|摊销|攤銷)"
     ]
    },
    "statement": null,
@@ -30016,6 +30052,12 @@
      "到期",
      "账面原值",
      "账面价值"
+    ],
+    "prose_any": [
+     "(?:depreciation|amortisation|amortization)[^.。]{0,200}?(?:included\\s+in|charged\\s+to|recognised\\s+in|recognized\\s+in|borne\\s+by|allocated\\s+to|presented\\s+in|reported\\s+(?:in|within))[^.。]{0,80}?(?:cost\\s+of\\s+(?:sales|revenue|revenues|goods\\s+sold|services))",
+     "(?:cost\\s+of\\s+(?:sales|revenue|revenues|goods\\s+sold|services))[^.。]{0,120}?(?:depreciation|amortisation|amortization)",
+     "(?:折旧|折舊|摊销|攤銷)[^。]{0,80}?(?:计入|計入|列入|包括(?:于|於|在)|计提(?:于|於)|归属于|歸屬於|分[摊攤][至于於])[^。]{0,40}?(?:(?:销售|銷售|营业|營業|主营业务|主營業務)成本)",
+     "(?:(?:销售|銷售|营业|營業|主营业务|主營業務)成本)[^。]{0,40}?(?:折旧|折舊|摊销|攤銷)"
     ]
    },
    "statement": null,

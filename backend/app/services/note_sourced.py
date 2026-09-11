@@ -47,6 +47,8 @@ import re
 from decimal import Decimal, InvalidOperation
 
 from app.services import derivation
+# One split for every side of every comparison — see `line_item_notes`.
+from app.services.note_context import subject_tokens
 
 # A pattern an author mistyped must not take the run down, and must not silently match nothing
 # either. Both outcomes are reported by `fill`, which returns the refusals alongside the fills.
@@ -173,6 +175,125 @@ def select_rows(item, notes, periods: set[str] | None = None) -> list[NoteRowHit
                     period=str(getattr(value, "period_label", "") or "")))
     return hits
 
+
+
+# ── a figure the filing states only in PROSE ─────────────────────────────────────────────────────
+#
+# THE CASE THIS EXISTS FOR, measured on the reference HK filing. The operating-expense share of the
+# depreciation charge is disclosed in a footnote and NOWHERE ELSE: "Depreciation charges of
+# approximately HK$529,841,000 (2024: HK$665,553,000) are included in 'other operating expenses' on
+# the face of the consolidated income statement." 529841 appears in no extracted row anywhere in the
+# document, so no row-caption pattern and no row-term can reach it, and the line stays empty however
+# plainly the filing states it.
+#
+# A 4-DIGIT YEAR IS NOT AN AMOUNT. `(2024: HK$665,553,000)` carries both the prior figure and the
+# year that labels it, and a naive number scan reads 2024 as the first amount in the sentence.
+_PROSE_AMOUNT = re.compile(r"(?<![\d.,])\d{1,3}(?:,\d{3})+(?:\.\d+)?(?![\d,])")
+# The parenthetical that labels a comparative: `(2024: ... 665,553,000)`.
+_PROSE_PRIOR = re.compile(r"[(（]\s*(?:19|20)\d{2}\s*[:：][^)）]*?"
+                          r"((?<![\d.,])\d{1,3}(?:,\d{3})+(?:\.\d+)?)")
+# A sentence shorter than this is a fragment — a footnote marker, a page header, a stray figure —
+# and matching one says nothing. Same floor `note_context` uses when it splits prose into units.
+_MIN_SENTENCE = 26
+
+
+class ProseHit:
+    """A figure a note states in a sentence rather than in a row."""
+
+    __slots__ = ("key", "note_number", "note_title", "sentence", "matched_by", "amount", "period")
+
+    def __init__(self, *, key, note_number, note_title, sentence, matched_by, amount, period):
+        self.key = key
+        self.note_number = note_number
+        self.note_title = note_title
+        self.sentence = sentence
+        self.matched_by = matched_by
+        self.amount = amount
+        self.period = period
+
+
+def _sentences(text: str) -> list[str]:
+    out = []
+    for raw in re.split(r"(?<=[.。;；])\s+|[\r\n]+", text or ""):
+        raw = " ".join(raw.split()).strip()
+        if len(raw) >= _MIN_SENTENCE:
+            out.append(raw)
+    return out
+
+
+def select_prose(item, notes) -> list[ProseHit]:
+    r"""The figures this item's PROSE PATTERNS find in a matched note's prose.
+
+    THE PATTERNS, NOT THE TERMS, and that distinction is the whole correctness of this function.
+    A `row_caption_any` pattern is typically a CONJUNCTION with a proximity bound:
+
+        (?:depreciation|amortisation).{0,40}(?:administrative(?:\s+expenses?)?|selling…|operating…)
+
+    — "a depreciation word within forty characters of an expense-function word". The derived
+    `row_terms` are that pattern split on `|`, which turns the conjunction into a DISJUNCTION:
+    `depreciation` OR `operating expenses`. Measured, that cost real figures: a term-based version
+    of this function matched any sentence merely mentioning operating expenses and replaced the
+    reference filing's depreciation charge of 587,417 with 36,966,000, and invented two more
+    figures on lines that should have stayed empty. The proximity and the two-part structure are
+    exactly what made the pattern specific, so prose is matched with the pattern intact.
+
+    THE TERMS ARE STILL NOT USELESS — they floor the model's answers
+    (`line_item_notes.caption_agrees_with_row_terms`), where a disjunction is sound because the
+    question there is only whether a caption is about the same subject at all. They cannot decide
+    what COUNTS, and that has now been measured three times: as a row acceptance rule on one shared
+    token (4 of 8 figures wrong), on whole-term containment (6 of 8), and here on prose.
+
+    ALSO REQUIRED, because a pattern match alone is not a figure:
+      * The sentence must carry a GROUPED amount — thousands separators — which keeps years, note
+        numbers and bare percentages out. A 4-digit year is explicitly not an amount.
+      * `row_caption_none` vetoes, as it does for rows.
+
+    A FALLBACK, NOT AN ALTERNATIVE. The caller consults this only for an item whose ROW route found
+    nothing: a row is the filing's own tabulation and a sentence is a narrative restatement, so
+    prose competing with rows would sometimes replace the first with the second.
+    """
+    src = getattr(item, "note_source", None)
+    if src is None:
+        return []
+    titles = _compiled(getattr(src, "note_title_any", None))
+    # `prose_any` AND NOT `row_caption_any` — see the field's own comment for why neither the row
+    # patterns nor the row terms can serve here. An empty `prose_any` means this line has no prose
+    # route, and returning nothing is the right answer: a line nobody has authored for prose should
+    # produce no prose figure rather than a guess.
+    counts = _compiled(getattr(src, "prose_any", None))
+    vetoes = _compiled(getattr(src, "row_caption_none", None))
+    if not titles or not counts:
+        return []
+
+    hits: list[ProseHit] = []
+    for table in notes or ():
+        title = getattr(table, "title", "") or ""
+        number = str(getattr(table, "note_number", "") or "")
+        if not (_matches_any(title, titles) or _matches_any(number, titles)):
+            continue
+        for sentence in _sentences(getattr(table, "source_text", "") or ""):
+            matched = _matches_any(sentence, counts)
+            if matched is None:
+                continue
+            if _matches_any(sentence, vetoes):
+                continue
+            amounts = _PROSE_AMOUNT.findall(sentence)
+            if not amounts:
+                continue
+            prior = _PROSE_PRIOR.search(sentence)
+            prior_text = prior.group(1) if prior else None
+            # The first grouped amount is the current one; the comparative is the one the
+            # parenthetical year labels. Where they are the same string the sentence states a
+            # single figure, and reading it as both periods would invent a comparative.
+            current = next((a for a in amounts if a != prior_text), None)
+            for period, text in (("current", current), ("prior", prior_text)):
+                value = _num((text or "").replace(",", ""))
+                if value is None:
+                    continue
+                hits.append(ProseHit(
+                    key=item.key, note_number=number, note_title=title,
+                    sentence=sentence, matched_by=matched, amount=value, period=period))
+    return hits
 
 def _trail_input(hit: NoteRowHit, *, counted: bool) -> dict:
     return {
