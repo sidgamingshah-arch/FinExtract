@@ -542,8 +542,10 @@ def test_contingent_liabilities_rejects_non_exposure_amount_labels(mappings):
 
 def test_contingent_liabilities_is_fully_declared(mappings):
     m = mappings[CONTINGENT]
-    for field in ("extraction_mode", "value_scope", "match_priority", "section_disambiguation",
-                  "template_note"):
+    # `template_note` was in this list and is gone: it was authored on 395 of 539 items as 395
+    # DISTINCT hand-written sentences and read by no code at all, so it was removed rather than
+    # left to imply a decision nothing acts on.
+    for field in ("extraction_mode", "value_scope", "match_priority", "section_disambiguation"):
         assert m.get(field), f"{CONTINGENT}.{field} is unset; every sibling concept declares it"
 
 

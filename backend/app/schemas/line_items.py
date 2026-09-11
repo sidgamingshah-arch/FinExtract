@@ -422,8 +422,6 @@ class LineItemDef(BaseModel):
     others_rule: str | None = None
     section_disambiguation: str | None = None
     derivation: str | None = None
-    aggregation_note: str | None = None
-    template_note: str | None = None
     notes_as_source_rationale: str | None = None
 
     # ── extracted: how the caption is recognised ─────────────────────────────────────────────

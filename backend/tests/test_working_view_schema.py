@@ -143,8 +143,6 @@ def test_concept_level_prose_and_containment_fields_survive():
     # "the template declares this node with role: header … the role should be corrected to 'line'".
     # The cash-flow revision corrected it and retired that key, so the shipped file needs none — the
     # field still has to survive a load, which is what the model assertion below holds.
-    assert [m for m in ont.mappings if m.template_note] == []
-    assert OntologyMapping(canonical_key="x", template_note="t").template_note == "t"
     # ``notes_as_source_rationale`` was on the tax residual, which the tax-bucket removal retired
     # with it: no shipped concept sources from a note now, so none carries the rationale for doing
     # so. Held the same way as ``template_note`` above — the field survives a load, and a rulebook
@@ -155,7 +153,6 @@ def test_concept_level_prose_and_containment_fields_survive():
     assert by_key["pl_expenses__employee_benefits_expense"].note_use == "evidence_only"
     assert by_key["bs_equity__total_equity"].unit_of_account == "subtotal"
     d_and_a = by_key["cf_cash_flow_from_operating_activities__depreciation_and_amortisation"]
-    assert d_and_a.aggregation_note
 
 
 def test_nested_blocks_are_modelled_not_free_dicts():

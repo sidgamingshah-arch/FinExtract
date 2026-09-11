@@ -219,8 +219,6 @@ class OntologyMapping(BaseModel):
     # Prose the LLM is shown or a reviewer reads; free-form by nature.
     derivation: str | None = None                     # how the value is computed when not printed
     section_disambiguation: str | None = None         # which of two look-alike captions is this
-    aggregation_note: str | None = None               # several printed rows sum into one concept
-    template_note: str | None = None                  # a known disagreement with the template
     equivalence: Equivalence | None = None
 
     @field_validator("never_sweep", mode="before")

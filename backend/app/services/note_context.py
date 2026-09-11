@@ -83,6 +83,10 @@ _HAN = re.compile(r"[㐀-䶿一-鿿豈-﫿]+")
 # which matches nothing and only dilutes the IDF of the words that do.
 _MIN_PROSE_SENTENCE = 26
 
+# How many note NUMBERS similarity may add to `identified_notes`, over the whole document. See the
+# bound's own comment in `identified_notes` for why a per-line cap is not enough.
+_SEMANTIC_NOTE_BUDGET = 8
+
 
 def subject_tokens(text: str) -> list[str]:
     """The words a subject is compared on, in both scripts.
@@ -387,12 +391,61 @@ def identified_notes(line_item_set, notes) -> list[dict]:
         if pats:
             compiled.append((item.key, pats))
 
+    # `note_selection` DECIDES HOW EACH LINE'S NOTES ARE FOUND, and this is where the field is
+    # read. Declared per line item (`semantic` by default):
+    #
+    #   "patterns" — its `note_title_any` regexes, and only those.
+    #   "semantic" — those PLUS the notes its meaning scores against the headings
+    #                (`services.line_item_notes`).
+    #
+    # A UNION RATHER THAN A REPLACEMENT, and that is measured rather than chosen for safety's sake.
+    # Scored against the authored regexes as ground truth — they produced every focus figure, so
+    # the notes they match are notes the line really is in — semantic selection finds 100% of them
+    # within the top ten on the English filing and only 53% on the Chinese one. Replacing the
+    # patterns would therefore LOSE notes on a PRC filing, silently, which is the one outcome worse
+    # than carrying a note nobody asked for. So semantic selection ADDS the notes the patterns
+    # missed — which is the gap it exists for: `折旧及摊销` matched none of 25 authored depreciation
+    # patterns until anchored combined forms were added by hand.
+    semantic_by_note: dict[str, set[str]] = {}
+    if any(str(getattr(i, "note_selection", "semantic")) == "semantic" for i in decls):
+        from app.services.line_item_notes import header_pool, notes_for_line_item
+        pool = header_pool(notes)
+        by_key = {i.key: i for i in (getattr(line_item_set, "items", None) or ())}
+        scored: dict[str, tuple[float, set[str]]] = {}
+        for item in decls:
+            if str(getattr(item, "note_selection", "semantic")) != "semantic":
+                continue
+            parent = by_key.get(getattr(item, "parent", "") or "")
+            for hit in notes_for_line_item(item, pool, parent=parent):
+                best, keys = scored.get(hit.note, (0.0, set()))
+                keys.add(item.key)
+                scored[hit.note] = (max(best, hit.score), keys)
+        # A TOTAL BOUND ON WHAT SIMILARITY MAY ADD, best-scoring first.
+        #
+        # WHY A TOTAL AND NOT A PER-LINE CAP, which `notes_for_line_item` already applies. A note
+        # NUMBER is not a note: measured on the reference filing, 190 extracted tables carry only
+        # about 33 distinct numbers, because a note continued across pages repeats its number on
+        # every fragment. So claiming note "7" pulls in every fragment of note 7, and 23 numbers
+        # added by 77 line items became 56 extra TABLES — `identified_notes` went from 31 tables to
+        # 87 and one request from 30,407 tokens to 82,299. Per-line caps cannot see that, because
+        # each line asked for a handful.
+        #
+        # AND AN INFERENCE DOES NOT EARN WHAT A DECLARATION EARNS. This function passes a note IN
+        # FULL because an author declared it, which is a stronger statement than any score. A
+        # semantically selected note is a guess; passing an unbounded number of guesses in full
+        # spends the request on them. The regex-claimed notes are never subject to this bound.
+        for note, (_score, keys) in sorted(scored.items(), key=lambda kv: -kv[1][0])[
+                :_SEMANTIC_NOTE_BUDGET]:
+            semantic_by_note[note] = keys
+
     out: list[dict] = []
     for table in notes or ():
         title = getattr(table, "title", "") or ""
         number = str(getattr(table, "note_number", "") or "")
-        wanted_by = sorted({key for key, pats in compiled
-                            if any(p.search(title) or p.search(number) for p in pats)})
+        claimed = {key for key, pats in compiled
+                   if any(p.search(title) or p.search(number) for p in pats)}
+        claimed |= semantic_by_note.get(number or title, set())
+        wanted_by = sorted(claimed)
         if not wanted_by:
             continue
         rows = []

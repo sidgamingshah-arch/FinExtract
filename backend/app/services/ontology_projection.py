@@ -72,7 +72,7 @@ SAME: tuple[str, ...] = (
     # Prose. `section_disambiguation` is read by mapping.py and answers "which of two look-alike
     # captions is this" — it is the first discriminator for 30 of the 420 collisions.
     "decomposition_rule", "others_rule", "section_disambiguation", "derivation",
-    "aggregation_note", "template_note", "notes_as_source_rationale",
+    "notes_as_source_rationale",
 )
 
 # How `extraction_mode` becomes a line-item `type`. The ontology says how a value may ARRIVE;

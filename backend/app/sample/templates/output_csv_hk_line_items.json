@@ -774,8 +774,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A6; value cell B6.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -838,8 +836,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A7; value cell B7.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -891,8 +887,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A8; value cell B8.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -958,8 +952,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A9; value cell B9.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -1011,8 +1003,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A10; value cell B10.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -1074,8 +1064,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A11; value cell B11.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -1138,8 +1126,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A12; value cell B12.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -1191,8 +1177,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A13; value cell B13.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -1244,8 +1228,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Balance Sheet!A14; value cell B14.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -1292,7 +1274,6 @@
    "alias_matching": "enabled",
    "is_gross_parent": false,
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "template_note": "Exact field from Balance Sheet!A15; value cell B15.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -1343,7 +1324,6 @@
    "alias_matching": "enabled",
    "is_gross_parent": false,
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "template_note": "Exact field from Balance Sheet!A16; value cell B16.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -1394,8 +1374,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A17; value cell B17.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -1445,8 +1423,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A18; value cell B18.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -1505,8 +1481,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A19; value cell B19.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -1570,8 +1544,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A20; value cell B20.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -1621,8 +1593,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A21; value cell B21.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -1674,8 +1644,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A22; value cell B22.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -1732,8 +1700,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A23; value cell B23.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -1787,8 +1753,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A24; value cell B24.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -1835,7 +1799,6 @@
    "alias_matching": "enabled",
    "is_gross_parent": false,
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "template_note": "Exact field from Balance Sheet!A25; value cell B25.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -1891,8 +1854,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Balance Sheet!A26; value cell B26.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -1952,8 +1913,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A27; value cell B27.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -2008,8 +1967,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A28; value cell B28.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -2073,8 +2030,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A29; value cell B29.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -2124,8 +2079,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A30; value cell B30.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -2175,8 +2128,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A31; value cell B31.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -2230,8 +2181,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A32; value cell B32.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -2285,8 +2234,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A33; value cell B33.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -2398,8 +2345,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A34; value cell B34.",
    "type": "derived",
    "namespace": "template",
    "rollup": "alternatives",
@@ -2552,8 +2497,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A35; value cell B35.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -2619,8 +2562,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A36; value cell B36.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -2672,8 +2613,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A37; value cell B37.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -2729,8 +2668,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A38; value cell B38.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -2819,8 +2756,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A39; value cell B39.",
    "type": "derived",
    "namespace": "template",
    "rollup": "alternatives",
@@ -3056,8 +2991,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A40; value cell B40.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -3117,8 +3050,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A41; value cell B41.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -3174,8 +3105,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A42; value cell B42.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -3225,8 +3154,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A43; value cell B43.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -3284,8 +3211,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A44; value cell B44.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -3345,8 +3270,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A45; value cell B45.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -3398,8 +3321,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A46; value cell B46.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -3455,8 +3376,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A47; value cell B47.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -3536,8 +3455,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A48; value cell B48.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -3621,8 +3538,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A49; value cell B49.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -3699,8 +3614,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A50; value cell B50.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -3759,8 +3672,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A51; value cell B51.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -3812,8 +3723,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A52; value cell B52.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -3869,8 +3778,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A53; value cell B53.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -3922,8 +3829,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A54; value cell B54.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -4013,8 +3918,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A55; value cell B55.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -4064,8 +3967,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A56; value cell B56.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -4144,8 +4045,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A57; value cell B57.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -4199,8 +4098,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A58; value cell B58.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -4261,8 +4158,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_nca.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Balance Sheet!A59; value cell B59.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -4310,8 +4205,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A61; value cell B61.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -4365,8 +4258,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A62; value cell B62.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -4424,8 +4315,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A63; value cell B63.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -4485,8 +4374,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A64; value cell B64.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -4542,8 +4429,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Balance Sheet!A65; value cell B65.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -4591,8 +4476,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A66; value cell B66.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -4640,8 +4523,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A67; value cell B67.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -4689,8 +4570,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A68; value cell B68.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -4742,8 +4621,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A69; value cell B69.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -4791,8 +4668,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A70; value cell B70.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -4840,8 +4715,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A71; value cell B71.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -4897,8 +4770,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A72; value cell B72.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -4994,8 +4865,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A73; value cell B73.",
    "type": "derived",
    "namespace": "template",
    "rollup": "alternatives",
@@ -5162,8 +5031,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A74; value cell B74.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -5223,8 +5090,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A75; value cell B75.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -5280,8 +5145,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A76; value cell B76.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -5331,8 +5194,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A77; value cell B77.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -5390,8 +5251,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A78; value cell B78.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -5450,8 +5309,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A79; value cell B79.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -5501,8 +5358,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A80; value cell B80.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -5554,8 +5409,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A81; value cell B81.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -5605,8 +5458,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A82; value cell B82.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -5682,8 +5533,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A83; value cell B83.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -5734,8 +5583,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A84; value cell B84.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -5815,8 +5662,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A85; value cell B85.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -5898,8 +5743,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A86; value cell B86.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -5955,8 +5798,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A87; value cell B87.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -6021,8 +5862,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A88; value cell B88.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -6070,8 +5909,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A89; value cell B89.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -6150,8 +5987,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A90; value cell B90.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -6203,8 +6038,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A91; value cell B91.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -6256,8 +6089,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A92; value cell B92.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -6332,8 +6163,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A93; value cell B93.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -6399,8 +6228,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A94; value cell B94.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -6455,7 +6282,6 @@
    "alias_matching": "enabled",
    "is_gross_parent": false,
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "template_note": "Exact field from Balance Sheet!A95; value cell B95.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -6507,8 +6333,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Balance Sheet!A96; value cell B96.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -6556,8 +6380,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A97; value cell B97.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -6609,8 +6431,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A98; value cell B98.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -6666,8 +6486,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A99; value cell B99.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -6718,8 +6536,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A100; value cell B100.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -6818,8 +6634,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A101; value cell B101.",
    "type": "derived",
    "namespace": "template",
    "rollup": "alternatives",
@@ -6998,8 +6812,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A102; value cell B102.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -7060,8 +6872,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A103; value cell B103.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -7132,8 +6942,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A104; value cell B104.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -7197,8 +7005,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Balance Sheet!A105; value cell B105.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -7260,8 +7066,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Balance Sheet!A106; value cell B106.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -7332,8 +7136,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A108; value cell B108.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -7388,8 +7190,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A109; value cell B109.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -7445,8 +7245,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A110; value cell B110.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -7494,8 +7292,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A111; value cell B111.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -7573,8 +7369,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A112; value cell B112.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -7626,8 +7420,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Balance Sheet!A113; value cell B113.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -7685,8 +7477,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A114; value cell B114.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -7740,8 +7530,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A115; value cell B115.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -7821,8 +7609,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A116; value cell B116.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -7870,8 +7656,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A117; value cell B117.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -7948,8 +7732,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Balance Sheet!A118; value cell B118.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -8001,8 +7783,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A119; value cell B119.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -8068,8 +7848,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A120; value cell B120.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -8117,8 +7895,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A121; value cell B121.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -8166,8 +7942,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A122; value cell B122.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -8228,8 +8002,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A123; value cell B123.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -8277,8 +8049,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A124; value cell B124.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -8345,8 +8115,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A125; value cell B125.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -8410,8 +8178,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A127; value cell B127.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -8469,8 +8235,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Balance Sheet!A128; value cell B128.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -8547,8 +8311,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A130; value cell B130.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -8608,8 +8370,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A131; value cell B131.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -8667,8 +8427,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A132; value cell B132.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -8720,8 +8478,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A133; value cell B133.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -8795,8 +8551,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A134; value cell B134.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -8848,8 +8602,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A135; value cell B135.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -8905,8 +8657,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A136; value cell B136.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -8962,8 +8712,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A137; value cell B137.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -9011,8 +8759,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A138; value cell B138.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -9068,8 +8814,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A139; value cell B139.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -9125,8 +8869,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A140; value cell B140.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -9182,8 +8924,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A141; value cell B141.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -9235,8 +8975,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A142; value cell B142.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -9294,8 +9032,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A143; value cell B143.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -9351,8 +9087,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A144; value cell B144.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -9409,8 +9143,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A145; value cell B145.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -9491,8 +9223,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A146; value cell B146.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -9546,8 +9276,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A147; value cell B147.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -9606,8 +9334,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A148; value cell B148.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -9661,8 +9387,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A149; value cell B149.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -9722,8 +9446,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A150; value cell B150.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -9779,8 +9501,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A151; value cell B151.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -9830,8 +9550,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A152; value cell B152.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -9889,8 +9607,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A153; value cell B153.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -9948,8 +9664,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A154; value cell B154.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -10019,8 +9733,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A155; value cell B155.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -10077,8 +9789,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A156; value cell B156.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -10130,8 +9840,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A157; value cell B157.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -10187,8 +9895,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A158; value cell B158.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -10240,8 +9946,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A159; value cell B159.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -10304,8 +10008,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A160; value cell B160.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -10362,8 +10064,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A161; value cell B161.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -10415,8 +10115,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A162; value cell B162.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -10468,8 +10166,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A163; value cell B163.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -10528,8 +10224,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A164; value cell B164.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -10594,8 +10288,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Balance Sheet!A165; value cell B165.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -10673,8 +10365,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A167; value cell B167.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -10734,8 +10424,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A168; value cell B168.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -10807,8 +10495,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A169; value cell B169.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -10860,8 +10546,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A170; value cell B170.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -10915,8 +10599,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A171; value cell B171.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -10990,8 +10672,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A172; value cell B172.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -11053,8 +10733,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A173; value cell B173.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -11104,8 +10782,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A174; value cell B174.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -11155,8 +10831,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A175; value cell B175.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -11209,8 +10883,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A176; value cell B176.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -11268,8 +10940,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A177; value cell B177.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -11325,8 +10995,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A178; value cell B178.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -11376,8 +11044,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A179; value cell B179.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -11425,8 +11091,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A180; value cell B180.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -11482,8 +11146,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A181; value cell B181.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -11539,8 +11201,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A182; value cell B182.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -11596,8 +11256,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A183; value cell B183.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -11649,8 +11307,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A184; value cell B184.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -11706,8 +11362,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A185; value cell B185.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -11761,8 +11415,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A186; value cell B186.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -11810,8 +11462,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A187; value cell B187.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -11868,8 +11518,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A188; value cell B188.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -11920,8 +11568,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A189; value cell B189.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -11969,8 +11615,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A190; value cell B190.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -12046,8 +11690,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A191; value cell B191.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -12118,8 +11760,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A192; value cell B192.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -12178,8 +11818,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A193; value cell B193.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -12227,8 +11865,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A194; value cell B194.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -12282,8 +11918,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A195; value cell B195.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -12343,8 +11977,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A196; value cell B196.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -12400,8 +12032,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A197; value cell B197.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -12451,8 +12081,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A198; value cell B198.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -12510,8 +12138,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A199; value cell B199.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -12572,8 +12198,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A200; value cell B200.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -12627,8 +12251,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A201; value cell B201.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -12680,8 +12302,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A202; value cell B202.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -12736,8 +12356,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A203; value cell B203.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -12789,8 +12407,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A204; value cell B204.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -12840,8 +12456,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A205; value cell B205.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -12897,8 +12511,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A206; value cell B206.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -12953,8 +12565,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A207; value cell B207.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -13006,8 +12616,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A208; value cell B208.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -13077,8 +12685,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A209; value cell B209.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -13145,8 +12751,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A210; value cell B210.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -13200,8 +12804,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A211; value cell B211.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -13253,8 +12855,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A212; value cell B212.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -13314,8 +12914,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A213; value cell B213.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -13367,8 +12965,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A214; value cell B214.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -13420,8 +13016,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A215; value cell B215.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -13479,8 +13073,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Balance Sheet!A216; value cell B216.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -13537,8 +13129,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Balance Sheet!A217; value cell B217.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -13597,8 +13187,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Balance Sheet!A219; value cell B219.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -13662,8 +13250,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Balance Sheet!A220; value cell B220.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -13732,8 +13318,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A6; value cell B6.",
    "type": "derived",
    "namespace": "template",
    "rollup": "alternatives",
@@ -13883,8 +13467,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A7; value cell B7.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -13932,8 +13514,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A8; value cell B8.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -13985,8 +13565,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A9; value cell B9.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -14036,8 +13614,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A10; value cell B10.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -14100,8 +13676,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A11; value cell B11.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -14153,8 +13727,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A12; value cell B12.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -14202,8 +13774,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A13; value cell B13.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -14251,8 +13821,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A14; value cell B14.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -14311,8 +13879,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A15; value cell B15.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -14387,8 +13953,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A16; value cell B16.",
    "type": "derived",
    "namespace": "template",
    "cascade": [
@@ -14481,8 +14045,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Income Statement!A17; value cell B17.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -14542,8 +14104,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Income Statement!A18; value cell B18.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -14597,8 +14157,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A19; value cell B19.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -14680,8 +14238,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A20; value cell B20.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -14731,8 +14287,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A21; value cell B21.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -14782,8 +14336,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A22; value cell B22.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -14835,8 +14387,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A23; value cell B23.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -14908,8 +14458,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A24; value cell B24.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -14985,8 +14533,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A25; value cell B25.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -15060,8 +14606,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A26; value cell B26.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -15131,8 +14675,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A27; value cell B27.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -15192,8 +14734,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A28; value cell B28.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -15252,8 +14792,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A29; value cell B29.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -15303,8 +14841,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A30; value cell B30.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -15357,8 +14893,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A31; value cell B31.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -15440,8 +14974,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A32; value cell B32.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -15491,8 +15023,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A33; value cell B33.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -15542,8 +15072,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A34; value cell B34.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -15599,8 +15127,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A35; value cell B35.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -15652,8 +15178,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A36; value cell B36.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -15718,8 +15242,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A37; value cell B37.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -15781,8 +15303,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A38; value cell B38.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -15834,8 +15354,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A39; value cell B39.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -15887,8 +15405,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A40; value cell B40.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -15940,8 +15456,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A41; value cell B41.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -15999,8 +15513,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A42; value cell B42.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -16079,8 +15591,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A43; value cell B43.",
    "type": "derived",
    "namespace": "template",
    "cascade": [
@@ -16230,8 +15740,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A44; value cell B44.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -16286,8 +15794,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A45; value cell B45.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -16339,8 +15845,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A46; value cell B46.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -16388,8 +15892,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A47; value cell B47.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -16461,8 +15963,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Income Statement!A48; value cell B48.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -16510,8 +16010,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A49; value cell B49.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -16563,8 +16061,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A50; value cell B50.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -16616,8 +16112,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A51; value cell B51.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -16682,8 +16176,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A52; value cell B52.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -16731,8 +16223,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A53; value cell B53.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -16807,8 +16297,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A54; value cell B54.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -16866,8 +16354,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A55; value cell B55.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -16929,8 +16415,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A56; value cell B56.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -16980,8 +16464,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A57; value cell B57.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -17031,8 +16513,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A58; value cell B58.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -17086,8 +16566,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A59; value cell B59.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -17139,8 +16617,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A60; value cell B60.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -17199,8 +16675,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A61; value cell B61.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -17271,8 +16745,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A62; value cell B62.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -17320,8 +16792,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A63; value cell B63.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -17375,8 +16845,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Income Statement!A64; value cell B64.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -17439,8 +16907,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A65; value cell B65.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -17504,8 +16970,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A66; value cell B66.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -17555,8 +17019,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A67; value cell B67.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -17606,8 +17068,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A68; value cell B68.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -17668,8 +17128,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A69; value cell B69.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -17717,8 +17175,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A70; value cell B70.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -17768,8 +17224,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A71; value cell B71.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -17827,8 +17281,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A72; value cell B72.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -17878,8 +17330,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A73; value cell B73.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -17933,8 +17383,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A74; value cell B74.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -17982,8 +17430,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A75; value cell B75.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -18035,8 +17481,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A76; value cell B76.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -18100,8 +17544,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A77; value cell B77.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -18153,8 +17595,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Income Statement!A78; value cell B78.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -18210,8 +17650,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A79; value cell B79.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -18265,8 +17703,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A80; value cell B80.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -18318,8 +17754,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A81; value cell B81.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -18369,8 +17803,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A82; value cell B82.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -18422,8 +17854,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A83; value cell B83.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -18485,8 +17915,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A84; value cell B84.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -18540,8 +17968,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A85; value cell B85.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -18591,8 +18017,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A86; value cell B86.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -18644,8 +18068,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Income Statement!A87; value cell B87.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -18720,8 +18142,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Income Statement!A88; value cell B88.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -18783,8 +18203,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A89; value cell B89.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -18832,8 +18250,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A90; value cell B90.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -18881,8 +18297,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A91; value cell B91.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -18954,8 +18368,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Income Statement!A92; value cell B92.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -19007,8 +18419,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Income Statement!A93; value cell B93.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -19056,8 +18466,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A94; value cell B94.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -19105,8 +18513,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A95; value cell B95.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -19178,8 +18584,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A96; value cell B96.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -19254,8 +18658,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Income Statement!A97; value cell B97.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -19324,8 +18726,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_oci.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A99; value cell B99.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -19385,8 +18785,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_oci.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A100; value cell B100.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -19450,8 +18848,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_oci.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A101; value cell B101.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -19511,8 +18907,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_oci.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A102; value cell B102.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -19564,8 +18958,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_oci.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A103; value cell B103.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -19627,8 +19019,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_oci.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A104; value cell B104.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -19699,8 +19089,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_oci.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A105; value cell B105.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -19758,8 +19146,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Income Statement / is_oci.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Income Statement!A106; value cell B106.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -19815,8 +19201,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_retained.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A108; value cell B108.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -19882,8 +19266,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_retained.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A109; value cell B109.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -19947,8 +19329,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_retained.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A110; value cell B110.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -20010,8 +19390,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_retained.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A111; value cell B111.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -20067,8 +19445,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_retained.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A112; value cell B112.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -20130,8 +19506,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_retained.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A113; value cell B113.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -20206,8 +19580,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Income Statement / is_retained.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Income Statement!A114; value cell B114.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -20282,8 +19654,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A6; value cell B6.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -20331,8 +19701,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A7; value cell B7.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -20380,8 +19748,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A8; value cell B8.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -20441,8 +19807,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A9; value cell B9.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -20505,8 +19869,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A10; value cell B10.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -20566,8 +19928,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A11; value cell B11.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -20617,8 +19977,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A12; value cell B12.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -20688,8 +20046,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A13; value cell B13.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -20739,8 +20095,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A14; value cell B14.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -20798,8 +20152,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A15; value cell B15.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -20857,8 +20209,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A16; value cell B16.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -20922,8 +20272,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A17; value cell B17.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -20977,8 +20325,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A18; value cell B18.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -21030,8 +20376,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A19; value cell B19.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -21081,8 +20425,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A20; value cell B20.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -21132,8 +20474,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A21; value cell B21.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -21183,8 +20523,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A22; value cell B22.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -21236,8 +20574,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A23; value cell B23.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -21289,8 +20625,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A24; value cell B24.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -21340,8 +20674,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A25; value cell B25.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -21393,8 +20725,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A26; value cell B26.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -21456,8 +20786,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A27; value cell B27.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -21507,8 +20835,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A28; value cell B28.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -21556,8 +20882,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A29; value cell B29.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -21607,8 +20931,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A30; value cell B30.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -21664,8 +20986,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A31; value cell B31.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -21719,8 +21039,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A32; value cell B32.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -21781,8 +21099,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A33; value cell B33.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -21838,8 +21154,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A34; value cell B34.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -21889,8 +21203,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A35; value cell B35.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -21958,8 +21270,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A36; value cell B36.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -22021,8 +21331,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_indirect.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Cash Flow!A37; value cell B37.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -22075,8 +21383,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_direct.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A39; value cell B39.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -22127,8 +21433,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_direct.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A40; value cell B40.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -22181,8 +21485,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_direct.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A41; value cell B41.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -22233,8 +21535,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_direct.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A42; value cell B42.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -22284,8 +21584,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_direct.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A43; value cell B43.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -22337,8 +21635,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Cash Flow / cf_oper_direct.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Cash Flow!A44; value cell B44.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -22390,8 +21686,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A46; value cell B46.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -22443,8 +21737,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A47; value cell B47.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -22507,8 +21799,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A48; value cell B48.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -22581,8 +21871,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A49; value cell B49.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -22639,8 +21927,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A50; value cell B50.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -22699,8 +21985,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A51; value cell B51.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -22771,8 +22055,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A52; value cell B52.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -22843,8 +22125,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A53; value cell B53.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -22898,8 +22178,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A54; value cell B54.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -22953,8 +22231,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A55; value cell B55.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -23016,8 +22292,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A56; value cell B56.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -23086,8 +22360,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A57; value cell B57.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -23137,8 +22409,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A58; value cell B58.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -23190,8 +22460,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A59; value cell B59.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -23241,8 +22509,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A60; value cell B60.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -23302,8 +22568,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A61; value cell B61.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -23374,8 +22638,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A62; value cell B62.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -23425,8 +22687,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A63; value cell B63.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -23480,8 +22740,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A64; value cell B64.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -23553,8 +22811,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A65; value cell B65.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -23614,8 +22870,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Cash Flow / cf_investing.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Cash Flow!A66; value cell B66.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -23670,8 +22924,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A68; value cell B68.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -23721,8 +22973,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A69; value cell B69.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -23787,8 +23037,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A70; value cell B70.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -23846,8 +23094,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A71; value cell B71.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -23914,8 +23160,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A72; value cell B72.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -23979,8 +23223,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A73; value cell B73.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -24037,8 +23279,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A74; value cell B74.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -24088,8 +23328,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A75; value cell B75.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -24137,8 +23375,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A76; value cell B76.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -24190,8 +23426,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A77; value cell B77.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -24248,8 +23482,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A78; value cell B78.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -24305,8 +23537,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A79; value cell B79.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -24376,8 +23606,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A80; value cell B80.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -24438,8 +23666,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Cash Flow!A81; value cell B81.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -24498,8 +23724,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A82; value cell B82.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -24556,8 +23780,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
-   "aggregation_note": "Aggregate only mutually exclusive facts with identical period, scope, currency and unit.",
-   "template_note": "Exact field from Cash Flow!A83; value cell B83.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -24621,8 +23843,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Cash Flow!A84; value cell B84.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -24678,8 +23898,6 @@
    ],
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Cash Flow / cf_financing.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Exact field from Cash Flow!A85; value cell B85.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -24729,8 +23947,6 @@
    "is_gross_parent": true,
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_equity.",
-   "aggregation_note": "Calculate only after every dependency is populated and validated.",
-   "template_note": "Computed Field Logic Equity_022.",
    "type": "extracted",
    "namespace": "template"
   },
@@ -27457,8 +26673,6 @@
    "is_gross_parent": false,
    "decomposition_rule": "Classify each unique item in the fixed §5 priority order (Letters of Credit, Performance bonds, Bank guarantees, Corporate guarantees, then unclassified); never split or fabricate an exposure.",
    "section_disambiguation": "Bind only to Financial Statement Notes / notes.",
-   "aggregation_note": "Sum unique items per type AND per currency; never convert currencies and never add a reported total to its own components.",
-   "template_note": "Classified narrative and tables per docs/PRC_Contingent_Liabilities_Extraction_Logic_Revised.md; the quantifiable total per currency also lands on this row.",
    "type": "derived",
    "namespace": "template",
    "rollup": "alternatives",

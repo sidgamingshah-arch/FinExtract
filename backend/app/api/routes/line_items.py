@@ -939,8 +939,6 @@ class ItemEdit(BaseModel):
     others_rule: str | None = None
     section_disambiguation: str | None = None
     derivation: str | None = None
-    aggregation_note: str | None = None
-    template_note: str | None = None
     notes_as_source_rationale: str | None = None
 
 
@@ -1003,8 +1001,6 @@ _EDIT_SCALARS: dict[str, str] = {
     "others_rule": "others_rule",
     "section_disambiguation": "section_disambiguation",
     "derivation": "derivation",
-    "aggregation_note": "aggregation_note",
-    "template_note": "template_note",
     "notes_as_source_rationale": "notes_as_source_rationale",
 }
 

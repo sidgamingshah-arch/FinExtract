@@ -235,8 +235,6 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
     "decomposition_rule": ("decomposition_rule", "= total cash − other"),
     "others_rule": ("others_rule", "may hold nothing but immaterial balances"),
     "derivation": ("derivation", "total cash less the other line"),
-    "aggregation_note": ("aggregation_note", "summed across the note's own rows"),
-    "template_note": ("template_note", "binds to probe_cash on the probe template"),
     "notes_as_source_rationale": ("notes_as_source_rationale",
                                   "the note states the split the face only summarises"),
 }
