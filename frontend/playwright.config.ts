@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -32,6 +33,35 @@ import { defineConfig } from "@playwright/test";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SCRATCH = join(HERE, "e2e", ".scratch");
 
+// THE BROWSER AND THE INTERPRETER ARE BOTH RESOLVED RATHER THAN ASSUMED, because this config had
+// a container's answers hard-coded and they are wrong everywhere else.
+//
+// `executablePath` named `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` unconditionally. On
+// the Linux image that path is correct and pinning it is the point — it is the preinstalled
+// browser, and letting Playwright resolve its own would download a second copy. On any other
+// machine the path does not exist and every test fails at launch with an ENOENT that reads as a
+// broken suite rather than as a missing dependency. So the pin holds where the file is there and
+// otherwise falls through to Playwright's own resolution, which finds whatever
+// `playwright install` put in the per-user cache.
+const PINNED_CHROMIUM = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
+const CHROMIUM = existsSync(PINNED_CHROMIUM) ? PINNED_CHROMIUM : undefined;
+
+// The backend has to run on the VENV's interpreter, not on whatever `python` the PATH offers. On
+// the image they are the same thing; on a Windows checkout the PATH python is a bare system
+// install with no fastapi, so `python -m uvicorn` exits immediately and Playwright reports only
+// "Timed out waiting 120000ms from config.webServer" — pointing at the backend when the fault is
+// the interpreter. Resolved from this file, like SCRATCH, so it does not depend on the caller's
+// cwd.
+const VENV_PY = [
+  join(HERE, "..", ".venv", "Scripts", "python.exe"),   // Windows
+  join(HERE, "..", ".venv", "bin", "python"),           // POSIX
+].find(existsSync);
+// `exec` replaces the shell so uvicorn receives the signals Playwright sends it, which matters for
+// a clean shutdown — and it is a POSIX shell builtin that cmd.exe does not have, so it is only
+// used where there is a shell to exec from.
+const PY = VENV_PY ? `"${VENV_PY}"` : "python";
+const SERVE = process.platform === "win32" ? `${PY} -m uvicorn` : `exec ${PY} -m uvicorn`;
+
 export default defineConfig({
   testDir: "./e2e",
   timeout: 60_000,
@@ -59,7 +89,9 @@ export default defineConfig({
     // why. A trace carries the network timeline and the console, which is what distinguishes "the
     // server was slow" from "the dev server reloaded the page under us".
     trace: "retain-on-failure",
-    launchOptions: { executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" },
+    // See CHROMIUM above: the image's preinstalled browser where it exists, Playwright's own
+    // resolution everywhere else.
+    launchOptions: CHROMIUM ? { executablePath: CHROMIUM } : {},
   },
   webServer: [
     {
@@ -78,7 +110,7 @@ export default defineConfig({
       // already assumes) and the directory it clears arrives in `env`, which is passed to the
       // process rather than through the shell.
       command: "node ../frontend/e2e/reset-scratch.mjs"
-             + " && exec python -m uvicorn app.main:app --port 8000",
+             + ` && ${SERVE} app.main:app --port 8000`,
       cwd: "../backend",
       url: "http://127.0.0.1:8000/health",
       // NEVER adopt a server that is already listening. It reads as a convenience, but it makes
