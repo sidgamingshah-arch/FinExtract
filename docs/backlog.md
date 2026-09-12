@@ -277,6 +277,56 @@ right. `docs/architecture/01-extraction-pipeline.md` is held to `default_pipelin
 
 ---
 
+## 11. THE FIRST LIVE RUN — what it proved, and the one finding it produced
+
+Run on laisun, four focus parts, `grouping = none`, against the configured provider. **4 calls, 0
+failures, 0 unresolved citations**, 19,159 in / 1,446 out, 129s. `mapping_strategy` reported
+`llm_line_items`.
+
+**What it validated in production for the first time.** None of this had ever been exercised
+against a real model — every test uses a stub.
+
+* The reply contract holds: every citation the model gave resolved to an extracted row or a
+  verified prose amount. Zero unresolved.
+* **The prose path works, including the scale fix.** It found `HK$375,901,000` in note 45's
+  narrative, verified it against the note's own text, and divided by 1,000. Without the fix landed
+  in `405093a` it would have published 375,901,000 — a thousandfold error on the face.
+* **An empty answer is a real answer.** Three of the four lines returned no `sources` — "this
+  filing does not state it in these notes" — rather than force-fitting a row. That is the
+  behaviour the contract asks for and it had never been seen from a model.
+* Non-interference held: `notes__contingent_liabilities` kept its cascade figure (934,842) while
+  its part took the new one, so nothing overwrote anything.
+* No existing figure moved. Revenue 4,995,768, depreciation 529,841, LTP 788,507 — all identical
+  to the deterministic baseline.
+
+**THE FINDING, and it is about the CONFIGURATION rather than the model.** The figure landed on
+`sub__cl_reported_total`, whose definition reads "the single aggregate figure the filing itself
+prints for its contingent exposure … the answer only for a filing that gives this one figure and
+itemises no instrument types". The sentence it came from says:
+
+> "As at 31 July 2025, in respect of **these** guarantees, the contingent liabilities of the Group
+> amounted to approximately HK$375,901,000 (2024: HK$594,086,000)."
+
+"These guarantees" is ONE CLASS — mortgage guarantees to end-buyers — and laisun does itemise
+instrument types, so by its own definition this line should not have been answered for this
+filing. The model was not shown that exclusion in a form it could act on: the definition's
+qualifier is prose at the end of a long paragraph, and nothing in the request says "only if the
+note itemises nothing".
+
+**No published figure is wrong today** — the parent's cascade correctly declined the part. The risk
+is latent: a filing whose cascade does reach the reported-total rung would take a subset figure as
+the total.
+
+**What to do about it.** Either give the line an `exclude` the request can act on (a class total is
+not the reported total), or move the qualifier out of the definition's tail into `exclude_criteria`
+where `line_item_payload` sends it as its own field. This is exactly the class of problem a live
+run exists to surface, and it is cheap to fix.
+
+**Reproduce:** `scratchpad/live_run.py` — deterministic baseline then live, same configuration,
+`llm_mapping` the only difference, every focus figure diffed.
+
+---
+
 ## 10. No PRC measurement beyond the corpus dumps
 
 Everything in item 4 rests on the 18 dumps in `_vocab/`, which are extraction output. Where a
