@@ -338,3 +338,149 @@ has to be traced before that cleanup ships.
   or that screen's save silently drops it — the defect its own comment documents.
 - **Enforcing vetoes before collapsing the note-source fields.** Migrating 15,000 entries whose
   effect nobody has ever observed would make a migration bug invisible.
+
+---
+
+# What was built, and where the plan was wrong
+
+Appended after implementing the plan end to end. Every number below is measured; where a measurement
+contradicted the plan it is recorded as a correction rather than quietly followed.
+
+## The form
+
+**69 controls → 21.** 2,886 lines of `screens/LineItems.tsx` → 2,291.
+
+| step | detail |
+|---|---|
+| 30 retired controls removed | the server already refused these writes, so removal changed no behaviour |
+| 9 plan deletions | `include_criteria`, `confusable_with`, `section_disambiguation`, `in_output`, `namespace`, `unit_of_account`, `alias_matching`, `value_scope`, `note_source.caption_normalization` |
+| bands 4 and 5 removed whole | band 5 was the plan's "What kind of figure is it?"; band 4 was empty once `order` left |
+| `type` and the where-question to band 1 | they sat in bands 6 and 3 — below the fields they govern |
+| 18 sections → 6 grouped statements | one control, in the filing's own banner wording |
+| recognition 3 controls → 1 | one list, each row a mode |
+| note source 7 controls → 4 | each question's regex field paired with its scored twin |
+| 30 dead symbols removed | label maps, three field components, twelve type imports, an empty residual wrapper that rendered a bordered div with nothing in it |
+
+**The three field lists had drifted**, which was the part that was not cosmetic. A banner states how
+many controls it holds before React renders them, so the count walks `GROUP_FIELDS` through the same
+filter `fld` applies. After the removals, 8 names in it had no control, 13 `withheldReason` rules
+spoke about controls that no longer existed, and 33 of 39 `RETIRED_FIELDS` entries guarded nothing.
+`tests/test_form_field_lists.py` now asserts the lists are an identity with the rendered form.
+
+## Corrections to the plan
+
+**1. `parent` was retired and should not have been.** Not a plan item — the form had retired it on a
+measured "13 of 475" taken against an older set. Against the shipped 539 it is declared by exactly
+the 77 note-read parts, every one of them, and it is the only field saying which whole a part
+explains. The workspace trace and the Line Items sheet's indentation both walk it, so retiring it
+made a new part unauthorable and the set's only hierarchy unreadable. Un-retired, with a test.
+
+**2. `section_disambiguation` needed replacing, not just deleting.** The plan listed it as a plain
+deletion. It was sent to the model as `how_to_tell_it_apart` on 375 of the 518 lines a run asks
+about, and it was the payload's ONLY placement signal. Its 395 values hold thirteen distinct strings,
+every one generated as `"Bind only to {statement} / {section}."` — so the prose said nothing, but
+removing it would have removed real information. The request now sends `printed_in`: the statement
+under the name a filing prints over it.
+
+**3. `confusable_with`'s field stays; only its payload half went.** The plan's evidence was about
+the LLM half — it sent canonical keys (`bs_nca__land_use_rights`) that appear nowhere in a request.
+`line_item_matching._mutually_confusable` reads the field to settle two contested captions against
+each other, on two authored pairs. That is live, so the field stays and the payload key went.
+
+**4. `description` is not deleted.** The plan said to fold any real "why" into `definition` first.
+Reading all 85 values, they describe the SOURCING STRATEGY ("the largest valid of three searches",
+"Priority 1 is the face caption; Priority 2 is the revenue note's own total") rather than what the
+line means. Folding them into `definition` would send sourcing mechanics to the field the matcher
+and the model read as meaning. The control is off the form; the field and its 85 values stay.
+
+**5. `value_scope` does not derive.** The plan would derive it once an others master marks the
+residuals, on the reading that `alias_matching: disabled` identifies them. Measured: 14 lines carry
+`alias_matching: disabled` and 3 of them are NOT residual, so the rule does not hold. The control is
+off the form and the 11 stored values stay.
+
+**6. The "18 template keys with no line item" item dissolves.** There are 15, not 18, and all 15 are
+`kpis.ratios` entries — current ratio, DSO, ROE — computed from line-item keys rather than extracted
+from a filing. A line item for "current ratio" would be wrong. All their references resolve; there
+is nothing to surface and nothing to fix.
+
+**7. The note source's patterns are not generated twins.** The plan projected "roughly half of
+~20,000 entries become deletable, since the generated twin disappears". That holds for recognition —
+all 389 `regex_hints` are literals with forgiving spacing and ZERO need regex power — and fails for
+the note source: of its 5,167 patterns, 4,667 (90%) need real regex and cannot be paraphrased into a
+readable mode (`note_title_any` 119 of 119, `row_caption_any` 1,044 of 1,172, `row_caption_none`
+3,504 of 3,876). The ~10,000 deletions projected there are not available.
+
+**8. Cited notes are not a free addition.** The plan recorded "strictly better than today and cannot
+withhold a note the current behaviour would have delivered". Measured over the twelve-filing corpus,
+the per-line cap is 4, so on 6 of the 92 lines carrying a citation the citation displaces the
+lowest-scoring note. Still the right trade; recorded as a trade. `note_selection: any` declines it.
+
+**9. The derived-parent question is settled and the original claim was right.** The plan flagged
+`map_ontology`'s "a derived parent is reached by nothing" as unverified, because reading the locks in
+`line_item_matching` suggested only 3 of 9 were excluded. `_unmatchable` has THREE clauses, not two —
+`alias_matching == "disabled"`, `extraction_mode == "derive"`, AND `type == "derived"` — and all 9 are
+in it. Probed at the level of the ANSWER with all 2,068 captions either matcher knows: removing the
+recognition from all nine changed zero answers. 258 inert entries deleted.
+
+## Data
+
+| change | detail |
+|---|---|
+| `unit_of_account` derived | 539 of 539 stored values reproduced exactly, then deleted; the value still exists at load because `rollups.py:125` recognises a subtotal by it alone |
+| 2,835 redundant section copies pruned | each removed only where removal left the resolved line byte-identical: `statement` 462, `temporality` 462, `sign_convention` 462, `note_use` 461, `section_scope` 458, `note_use_rationale` 394, `match_priority` 68, `face_only` 68 |
+| 395 `section_disambiguation` values | all thirteen distinct strings were generated from the line's own gate |
+| 258 inert entries on 9 derived parents | 77 aliases, 142 locale aliases, 15 keyword hints, 7 regex hints, 17 exclude hints |
+| 31 of 33 formulas migrated into `terms` | generated from the template rollup and verified against it term for term |
+
+**What the field-by-field measurement saved.** `face_only` and `match_priority` look like section
+policy and 394 of their 462 per-line values DIFFER from their section — only the 68 genuine copies
+went. `note_use` is 461 copies and one real override: `notes__contingent_liabilities` declares
+`decomposition_allowed` against its section's `evidence_only`, and without it a six-rung cascade
+publishes blank on every filing. Every explicit `null` stayed — the 77 parts declare `statement:
+null` deliberately, and dropping it would let the section's value back in.
+
+**The two formulas that cannot migrate.** `bs_ca__inventories` and `bs_equity__retained_profits`
+declare `reported_total_key` pointing at THEMSELVES with `reported_total_op: diff`: each line's
+figure is its own printed total less the components the filing broke out. `Term.ref` names another
+line, and a line naming its own reported figure is a cycle. Both keep the fall-through.
+
+**And the hazard that bounded the migration.** 32 of the 65 template rollups belong to lines that are
+not `calculated`, and ALL 32 declare `reported_total_key` — they are residuals, eleven of them the
+`exclusive_residual` buckets. Writing `terms` for one would turn "the unexplained remainder" into
+"the sum of the parts": a different figure, and a plausible-looking one.
+
+## New capability
+
+**The filing's own note reference now reaches the model.** `stages.link_notes` has been resolving the
+printed "Note 14" beside a face caption into `doc.links` all along, for the note-to-face
+reconciliation, and the line-item path had no reference to it — `identified_notes` was not even passed
+the document. Every note in a request got there by scoring, which is an inference; a printed
+reference is the preparer saying where the detail is.
+
+    3,533 face rows          863 printed note references
+      150 (line, filing) pairs whose citation resolves to a note the run holds
+       92 asked-about lines carrying a citation
+       30 of those cite a note SCORING DID NOT DELIVER
+        6 where the citation displaces a scored note
+
+`note_selection` is redefined rather than extended. It was `semantic` / `patterns` — which selector
+found a line's notes — and the two were never alternatives: `identified_notes` passes a pattern-named
+note unconditionally and scoring ADDS to it, so `patterns` removed the line from the semantic pass and
+gained nothing. All 539 declared neither, so nothing migrated. It now reads "Note order priority".
+
+## Still open
+
+**1. Alias normalisation and the 349 redundant patterns.** The one step that changes matching: dash
+and whitespace folding makes the alias index match MORE, so two lines whose aliases differ only by a
+dash would collide. Needs `focus_as_published.py --all` no-figures-move plus a collision scan over
+the normalised index before anything is deleted. Not attempted.
+
+**2. The others master** (~14 lines marked as a section's leftover, replacing `alias_matching`,
+`value_scope: exclusive_residual` and `residual_policy`). `alias_matching` cannot simply be deleted
+without it: the template declares zero `__others` keys, so it is currently the only thing keeping 12
+catch-all buckets out of the alias index, and a naming-convention rule would miss
+`bs_equity__equity_and_reserves`.
+
+**3. The cross-check master** (the 33 calculated lines whose printed subtotal is read and compared).
+Until it exists, `test_formula_in_config.py` is what holds the config's `terms` and the template's
+rollup to each other; nothing reconciles them at runtime.
