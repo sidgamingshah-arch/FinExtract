@@ -134,22 +134,39 @@ _EXTRACTION_MODE_DECISIONS = frozenset({
     "bs_nca__secur_and_other_fincl_assets_ltp",
 })
 
-# RECOGNITION MOVED DOWN TO THE FACE-READING PARTS, so these two parents no longer carry it.
+# RECOGNITION IS GONE FROM EVERY DERIVED PARENT, because no route can reach one.
 #
-# Both concepts are `type: derived` parents whose figure comes from a row printed on the FACE of a
-# statement. A derived parent is never offered to any route — `_unmatchable` includes
-# `_computed_parent` — so `keyword_hints`, `regex_hints` and `match_priority` sitting on the PARENT
-# described a match that could not happen, while the part that actually corresponds to the printed
-# row (`sub__face_principal_revenue`, `sub__rp_bs_face_receivables`) had no recognition at all and
-# was unreachable except through the model. The three fields moved to the parts.
+# THIS USED TO BOUND TWO CONCEPTS. `bs_nca__due_from_related_parties_ltp` and
+# `is_pl__sales_revenues` had their `keyword_hints`, `regex_hints` and `match_priority` moved down
+# to the face-reading PART that corresponds to the printed row (`sub__face_principal_revenue`,
+# `sub__rp_bs_face_receivables`), which had no recognition at all and was unreachable except through
+# the model. The other seven derived parents kept theirs, on the open question of whether a derived
+# parent is REALLY caption-unreachable — `map_ontology` asserted it, while a reading of the locks in
+# `line_item_matching` suggested only 3 of 9 were excluded.
 #
-# NAMED RATHER THAN FOLDED INTO `_SEED_LAG`, for the reason the other decisions here are: this is
-# the seed LEADING the rulebook, deliberately, and a THIRD concept or a FOURTH field losing its
-# recognition still fails this test — which is what stops recognition being deleted by accident.
-_FACE_RECOGNITION_MOVED = frozenset({
-    "bs_nca__due_from_related_parties_ltp", "is_pl__sales_revenues",
-})
-_FACE_RECOGNITION_FIELDS = {"keyword_hints", "regex_hints", "match_priority"}
+# THE QUESTION IS SETTLED, and by measurement rather than by reading. `_unmatchable` has THREE
+# clauses, not two: `alias_matching == "disabled"`, `extraction_mode == "derive"`, AND
+# `type == "derived"`. All 9 of 9 derived lines are in it. Probed directly with every caption either
+# matcher knows — 2,068 of them, each line's label and every alias in every locale — removing the
+# recognition from all nine changed ZERO answers, key, method, confidence, review flag and tie set
+# alike. `note_sets` skips them too (`asked_about` is False for a derived line), so nothing builds
+# them a note probe either, and they are never in an LLM request.
+#
+# So 258 entries left the nine: 77 aliases, 142 locale aliases, 15 keyword hints, 7 regex hints and
+# 17 exclude hints, all of them describing a match that could not happen.
+#
+# STILL NAMED RATHER THAN FOLDED INTO `_SEED_LAG`, and now computed from the set rather than typed
+# out: this is the seed LEADING the rulebook, deliberately, and an EXTRACTED concept losing its
+# recognition must still fail this test. That is what stops recognition being deleted by accident.
+_FACE_RECOGNITION_FIELDS = {"keyword_hints", "regex_hints", "match_priority",
+                            "exclude_hints", "aliases", "aliases_i18n"}
+
+
+def _derived_parents() -> frozenset[str]:
+    """The keys no caption, alias, regex or semantic probe may reach. Read off the shipped set so a
+    tenth derived line is covered without editing a list, which is how the old pair went stale."""
+    return frozenset(d.key for d in load_shipped_set().items
+                     if str(getattr(d.type, "value", d.type)) == "derived")
 
 # THE SEED LEADS THE RULEBOOK ON TWO FIELDS BECAUSE THE CONFIG SCREEN WORK CHANGED THEM.
 #
@@ -349,10 +366,10 @@ def test_shipped_set_diverges_only_in_the_known_classes():
         # being flipped without the measurement that justifies it.
         if field == "extraction_mode" and set(keys) <= _EXTRACTION_MODE_DECISIONS:
             continue
-        # …and the recognition fields on exactly the two derived parents whose face-reading PART
-        # now carries them. Both halves are bounded: the field must be one of the three that moved,
-        # and the concepts must be those two.
-        if field in _FACE_RECOGNITION_FIELDS and set(keys) <= _FACE_RECOGNITION_MOVED:
+        # …and the recognition fields on the DERIVED parents, which no route can reach. Both
+        # halves are still bounded: the field must be one of the recognition fields, and every
+        # concept must be a derived line.
+        if field in _FACE_RECOGNITION_FIELDS and set(keys) <= _derived_parents():
             continue
         # …and the two fields the config-screen work changed, bounded by COUNT so a wider
         # divergence still fails. See `_EXCLUDE_BLANKED` / `_DEFINITION_FOLDED` above.

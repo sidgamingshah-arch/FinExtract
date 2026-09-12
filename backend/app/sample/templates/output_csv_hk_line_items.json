@@ -1889,13 +1889,6 @@
    "definition": "Amounts receivable from related parties that are NOT due within one year — balances owed by fellow subsidiaries, the immediate and ultimate holding company, shareholders, directors, associates, joint ventures and other related parties, including entrusted loans routed through a bank. Excludes trade receivables from related parties and any portion due within one year.",
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
-   "exclude_hints": [
-    "委托贷款",
-    "委托借款",
-    "委托银行贷款",
-    "\\bdebtors?\\b",
-    "trade\\s+receivable"
-   ],
    "sign_rule": {},
    "inherits": "bs_nca",
    "face_only": false,
@@ -2176,61 +2169,6 @@
    "definition": "Securities and other financial assets held as NON-CURRENT assets — the same classes of investment as the current portion (fair value through profit or loss or other comprehensive income, equity and debt securities, bonds, funds, wealth management products) but not expected to be realised within one year, including the non-current portion of a holding a note splits between current and non-current. Excludes derivatives, other receivables, and investments in related parties, associates and joint ventures.",
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
-   "aliases": [
-    "Secur & Other Fincl Assets(LTP)",
-    "Financial asset at FVTPL",
-    "Financial assets at fair value through profit or loss",
-    "Financial asset at FVTOCI",
-    "Financial asset",
-    "Available-for-sale financial assets",
-    "Held-to-maturity financial assets",
-    "structured deposits with embedded derivatives",
-    "Debt investments",
-    "Other debt investments",
-    "Other financial assets",
-    "investment securities",
-    "Financial assets at fair value through other comprehensive income"
-   ],
-   "aliases_i18n": {
-    "en": [
-     "Secur & Other Fincl Assets(LTP)",
-     "Financial asset at FVTPL",
-     "Financial asset at FVTOCI",
-     "Financial asset",
-     "Available-for-sale financial assets",
-     "Held-to-maturity financial assets",
-     "structured deposits with embedded derivatives",
-     "Debt investments",
-     "Other debt investments",
-     "Other financial assets",
-     "investment securities",
-     "Financial assets at fair value through profit or loss",
-     "Financial assets at fair value through other comprehensive income"
-    ],
-    "zh": [
-     "以公允价值计量且其变动计入损益的金融资产",
-     "债务投资",
-     "债权投资",
-     "其他债务投资",
-     "其他债权投资",
-     "其他权益工具投资",
-     "其他金融资产",
-     "其他非流动金融资产",
-     "可供出售金融资产",
-     "含嵌入式衍生工具的结构性存款",
-     "投资证券",
-     "持有至到期金融资产",
-     "按公平值计入其他全面收益的金融资产",
-     "按公平值计入损益的金融资产",
-     "金融资产"
-    ]
-   },
-   "keyword_hints": [
-    "Secur & Other Fincl Assets(LTP)"
-   ],
-   "regex_hints": [
-    "^Secur\\s+\\&\\s+Other\\s+Fincl\\s+Assets\\(LTP\\)$"
-   ],
    "sign_rule": {},
    "inherits": "bs_nca",
    "face_only": false,
@@ -3925,68 +3863,6 @@
    "definition": "Securities and other financial assets held as CURRENT assets — financial assets at fair value through profit or loss and through other comprehensive income, listed and unlisted equity and debt securities, corporate and government bonds, investment and money market funds, wealth management products, structured deposits and certificates of deposit, expected to be realised within one year. Excludes derivative assets, other receivables, and cash and cash equivalents.",
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
-   "aliases": [
-    "Secur & Other Fincl Assets(CP)",
-    "Financial asset at FVTPL",
-    "Financial assets at fair value through profit or loss",
-    "Financial asset at FVTOCI",
-    "Financial asset",
-    "Available-for-sale financial assets",
-    "Held-to-maturity financial assets",
-    "structured deposits with embedded derivatives",
-    "Debt investments",
-    "Other debt investments",
-    "Other financial assets",
-    "investment securities",
-    "Money market instruments",
-    "Marketable securities",
-    "short term money market deposits",
-    "Financial assets at fair value through other comprehensive income"
-   ],
-   "aliases_i18n": {
-    "en": [
-     "Secur & Other Fincl Assets(CP)",
-     "Financial asset at FVTPL",
-     "Financial asset at FVTOCI",
-     "Financial asset",
-     "Available-for-sale financial assets",
-     "Held-to-maturity financial assets",
-     "structured deposits with embedded derivatives",
-     "Debt investments",
-     "Other debt investments",
-     "Other financial assets",
-     "investment securities",
-     "Money market instruments",
-     "Marketable securities",
-     "short term money market deposits",
-     "Financial assets at fair value through profit or loss",
-     "Financial assets at fair value through other comprehensive income"
-    ],
-    "zh": [
-     "交易性金融资产",
-     "以公允价值计量且其变动计入损益的金融资产",
-     "债务投资",
-     "其他债务投资",
-     "其他金融资产",
-     "其他非流动金融资产",
-     "可供出售金融资产",
-     "含嵌入式衍生工具的结构性存款",
-     "投资证券",
-     "持有至到期金融资产",
-     "按公平值计入其他全面收益的金融资产",
-     "按公平值计入损益的金融资产",
-     "有价证券",
-     "短期货币市场存款",
-     "货币市场工具",
-     "金融资产"
-    ]
-   },
-   "keyword_hints": [
-    "Secur & Other Fincl Assets(CP)"
-   ],
-   "regex_hints": [
-    "^Secur\\s+\\&\\s+Other\\s+Fincl\\s+Assets\\(CP\\)$"
-   ],
    "sign_rule": {},
    "inherits": "bs_ca",
    "face_only": false,
@@ -5281,71 +5157,6 @@
    "definition": "Receivables due within one year OTHER THAN TRADE — deposits paid, prepayments, tax recoverable other than income tax, staff advances, interest and dividends receivable and other debtors, stated net of the loss allowance or impairment provision against them. Excludes trade receivables and amounts due from related parties.",
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
-   "aliases": [
-    "Other Receivables(CP)",
-    "Other receivables",
-    "Deposit received",
-    "deposit paid",
-    "Loan to third parties",
-    "Staff loan",
-    "Accrued revenue",
-    "Deposit received from related parties",
-    "Dividend receivables",
-    "Interest receivables",
-    "Rental deposits",
-    "Utility deposits",
-    "Retention receivables",
-    "Other tax receivables",
-    "sundry debtor",
-    "Due from investee",
-    "Non-trade receivables",
-    "Current portion of long term lending"
-   ],
-   "aliases_i18n": {
-    "en": [
-     "Other Receivables(CP)",
-     "Other receivables",
-     "Deposit received",
-     "deposit paid",
-     "Loan to third parties",
-     "Staff loan",
-     "Accrued revenue",
-     "Deposit received from related parties",
-     "Dividend receivables",
-     "Interest receivables",
-     "Rental deposits",
-     "Utility deposits",
-     "Retention receivables",
-     "Other tax receivables",
-     "sundry debtor",
-     "Due from investee",
-     "Non-trade receivables",
-     "Current portion of long term lending"
-    ],
-    "zh": [
-     "一年内到期的贷款及垫款",
-     "一年内到期的长期应收款",
-     "其他应收款",
-     "其他应收款项",
-     "往来款",
-     "拆出资金",
-     "按金、预付款项及其他应收款",
-     "按金及预付款项",
-     "预付款项、其他应收款及其他资产",
-     "预付款项、按金及其他应收款项",
-     "预付款项及其他应收款项"
-    ]
-   },
-   "keyword_hints": [
-    "Other Receivables(CP)"
-   ],
-   "regex_hints": [
-    "^Other\\s+Receivables\\(CP\\)$"
-   ],
-   "exclude_hints": [
-    "(?:deposits?|prepayments?|prepaid)[\\s\\S]{0,80}other\\s+receivable",
-    "other\\s+receivable[\\s\\S]{0,80}(?:deposits?|prepayments?|prepaid|other\\s+assets)"
-   ],
    "sign_rule": {},
    "inherits": "bs_ca",
    "face_only": false,
@@ -10874,11 +10685,6 @@
    "definition": "Revenue from the ordinary course of business — turnover from the sale of goods and the rendering of services, before cost of sales and excluding other income, finance income and gains. This is the top line of the income statement, and a revenue note disaggregates the same figure by product, service line, geography, segment or timing of transfer.",
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
-   "exclude_hints": [
-    "营业收入",
-    "营业总收入",
-    "^(?:[一二三四五六七八九十]+、|其中：)?\\s*(?:收益|营业额|销售收入|客户合约收益)$"
-   ],
    "sign_rule": {},
    "inherits": "is_pl",
    "face_only": false,
@@ -11321,47 +11127,6 @@
    "definition": "Depreciation, amortisation and impairment charged to COST OF SALES — the part of the period's depreciation and amortisation borne by the cost of goods sold or of services rendered, rather than by operating expenses. A filing states it either as a depreciation row inside the cost of sales note, or as a footnote saying that depreciation charges are included in cost of sales.",
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
-   "aliases": [
-    "Deprec & Impairment(COS)",
-    "Depreciation of Property,plant and equipments / fixed assets",
-    "Depreciation of property, plant and equipment",
-    "Depreciation of investment property",
-    "Depreciation of fixed assets",
-    "Depreciation of construction in progress",
-    "Amortisation of prepaid lease payment",
-    "Release of prepaid lease payments",
-    "Depreciation included in cost of sales"
-   ],
-   "aliases_i18n": {
-    "en": [
-     "Deprec & Impairment(COS)",
-     "Depreciation of Property,plant and equipments / fixed assets",
-     "Depreciation of property, plant and equipment",
-     "Depreciation of investment property",
-     "Depreciation of fixed assets",
-     "Depreciation of construction in progress",
-     "Amortisation of prepaid lease payment",
-     "Release of prepaid lease payments",
-     "Depreciation included in cost of sales"
-    ],
-    "zh": [
-     "投资物业折旧",
-     "折旧",
-     "固定资产折旧",
-     "物业、厂房及设备折旧",
-     "在建工程折旧",
-     "预付租赁款项摊销",
-     "预付租赁款项转出",
-     "计入销售成本的折旧"
-    ]
-   },
-   "keyword_hints": [
-    "Deprec & Impairment(COS)"
-   ],
-   "regex_hints": [
-    "^Deprec\\s+\\&\\s+Impairment\\(COS\\)$",
-    "^Depreciation\\s+of\\s+property\\s*,\\s*plant\\s+and\\s+equipment(?:\\W.*)?$"
-   ],
    "sign_rule": {},
    "inherits": "is_pl",
    "face_only": false,
@@ -12603,51 +12368,6 @@
    "definition": "Depreciation, amortisation and impairment charged to OPERATING EXPENSES — the part of the period's depreciation and amortisation borne by administrative, general, selling, distribution, marketing or research and development expenses, rather than by cost of sales. A filing states it either as a depreciation and amortisation row inside one of those expense notes, or as a footnote saying that depreciation charges are included in other operating expenses on the face of the income statement.",
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
-   "aliases": [
-    "Deprec & Impairment(Oper Exp)",
-    "Depreciation of Investment Property",
-    "Amortisation of prepaid lease payment",
-    "Release of prepaid lease payments",
-    "Depreciation of fixed assets",
-    "Depreciation of property, plant and equipment",
-    "Depreciation of construction in progress",
-    "Depreciation included in operating expenses",
-    "Depreciation charged to operating expenses"
-   ],
-   "aliases_i18n": {
-    "en": [
-     "Deprec & Impairment(Oper Exp)",
-     "Depreciation of Investment Property",
-     "Amortisation of prepaid lease payment",
-     "Release of prepaid lease payments",
-     "Depreciation of fixed assets",
-     "Depreciation of property, plant and equipment",
-     "Depreciation of construction in progress",
-     "Depreciation included in operating expenses",
-     "Depreciation charged to operating expenses"
-    ],
-    "zh": [
-     "使用权资产的折旧",
-     "折旧",
-     "物业及设备折旧",
-     "投资物业折旧",
-     "固定资产折旧",
-     "物业、厂房及设备折旧",
-     "在建工程折旧",
-     "预付租赁款项摊销",
-     "预付租赁款项转出",
-     "计入经营开支的折旧",
-     "经营开支所包含的折旧",
-     "计入行政、销售、研发或其他经营开支的折旧"
-    ]
-   },
-   "keyword_hints": [
-    "Deprec & Impairment(Oper Exp)"
-   ],
-   "regex_hints": [
-    "^Deprec\\s+\\&\\s+Impairment\\(Oper\\s+Exp\\)$",
-    "^Depreciation\\s+of\\s+Investment\\s+Property(?:\\W.*)?$"
-   ],
    "sign_rule": {},
    "inherits": "is_pl",
    "face_only": false,
@@ -19732,19 +19452,6 @@
    "definition": "Number of months covered by the current reporting period. Derive from explicit current-period start and end dates or explicit duration when available.",
    "value_scope": "exclusive_leaf",
    "extraction_mode": "derive",
-   "aliases": [
-    "Periods",
-    "Months in Period",
-    "Reporting Period Months",
-    "Period Length"
-   ],
-   "keyword_hints": [
-    "months",
-    "year ended",
-    "six months",
-    "quarter",
-    "period"
-   ],
    "sign_rule": {},
    "inherits": "statement_setup_controls",
    "alias_matching": "enabled",
@@ -21185,53 +20892,6 @@
    "definition": "Contingent liabilities disclosed in the notes — possible obligations that are not recognised on the balance sheet: corporate and bank guarantees given, performance bonds, letters of credit, litigation and claims outstanding, and tax disputes. Disclosed only in the notes, so the amount guaranteed and the amount utilised are stated there and are different figures. Capture the complete relevant disclosure with note number, reporting period, currency, unit, scope and exact source location. Preserve separate amounts and categories as structured child facts where available.",
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
-   "aliases": [
-    "Contingent liabilities",
-    "Contingencies",
-    "Guarantees",
-    "Litigation and claims",
-    "Possible obligations",
-    "Commitments and contingencies",
-    "Pending litigation",
-    "Pending arbitration"
-   ],
-   "aliases_i18n": {
-    "en": [
-     "Commitments and contingencies",
-     "Pending litigation",
-     "Pending arbitration"
-    ],
-    "zh": [
-     "或有负债",
-     "或有事项",
-     "关联方担保",
-     "关联担保",
-     "未决诉讼",
-     "未决仲裁",
-     "诉讼及仲裁事项",
-     "重大诉讼、仲裁事项",
-     "对外担保",
-     "担保事项",
-     "承诺及或有事项",
-     "承诺事项及或有事项"
-    ]
-   },
-   "keyword_hints": [
-    "contingent",
-    "guarantee",
-    "litigation",
-    "claim",
-    "possible obligation"
-   ],
-   "exclude_hints": [
-    "授信额度",
-    "合同总额",
-    "累计发生额",
-    "交易金额",
-    "已偿还金额",
-    "已解除担保金额",
-    "已确认预计负债"
-   ],
    "sign_rule": {},
    "inherits": "notes",
    "note_use": "decomposition_allowed",
