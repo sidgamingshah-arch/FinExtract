@@ -517,18 +517,35 @@ export function TriBoolField({
  *  `sum` where the parts are alternative restatements of one figure double-counts it. */
 export function SelectField<T extends string>({
   label, help, error, inherited, editable, testid, value, onChange, options, labelOf, helpOf,
-  nullable, nullLabel = "nothing was said", reason,
+  groupOf, nullable, nullLabel = "nothing was said", reason,
 }: FieldProps & {
   value: T | null;
   onChange: (v: T | null) => void;
   options: readonly T[];
   labelOf?: (v: T) => string;
   helpOf?: (v: T) => string | undefined;
+  /** Renders `<optgroup>`s, in the order the groups first appear in `options`.
+   *
+   *  ADDED FOR THE PLACING CONTROL, which offers eighteen sections. Flat, they are eighteen
+   *  indistinguishable rows an author has to read end to end; grouped under the statement each
+   *  belongs to, the list is six headings with three or four rows apiece and the choice is the two
+   *  questions it always was. Declaration order is kept deliberately — a balance sheet prints
+   *  non-current assets above current assets, and sorting would put the engine's spelling first. */
+  groupOf?: (v: T) => string;
   nullable?: boolean;
   nullLabel?: string;
   reason?: string;
 }) {
   const text = (v: T) => labelOf?.(v) ?? v;
+  const grouped: [string, T[]][] = [];
+  if (groupOf) {
+    for (const o of options) {
+      const name = groupOf(o);
+      const last = grouped.find(([g]) => g === name);
+      if (last) last[1].push(o);
+      else grouped.push([name, [o]]);
+    }
+  }
   return (
     <FieldRow label={label} help={help} error={error} inherited={inherited} editable={editable}
               testid={testid} reason={reason}>
@@ -545,7 +562,12 @@ export function SelectField<T extends string>({
           {/* An empty option only where `null` is a legal state. Where it is not, a blank entry
               would offer an item with no type / no side / no scope at all. */}
           {(nullable || value === null) && <option value="">{nullLabel}</option>}
-          {options.map((o) => <option key={o} value={o}>{text(o)}</option>)}
+          {groupOf
+            ? grouped.map(([name, members]) => (
+              <optgroup key={name} label={name}>
+                {members.map((o) => <option key={o} value={o}>{text(o)}</option>)}
+              </optgroup>))
+            : options.map((o) => <option key={o} value={o}>{text(o)}</option>)}
         </select>
       ) : (
         <div style={inputStyle(false, !!error)}>

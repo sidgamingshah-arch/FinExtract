@@ -587,10 +587,24 @@ function requiredNow(name: string, sel: { type: string; outputStructure: string 
  *  its measurement. Two inventories of the same form is the drift this comment warns about; one of
  *  them going stale is how a banner comes to announce four fields over a group showing three.
  */
+/** The sentinel for "not tied to a statement", which is not one of the eighteen section keys and
+ *  must not collide with one. Underscored on both ends for the same reason a namespace is. */
+const FULL_REPORT = "__full_report__";
+
+/** What each section's `where` adds to its name in the list. Face and notes are worth saying;
+ *  "either" is the absence of a restriction and saying so would put a parenthesis on five of
+ *  eighteen rows to communicate nothing. */
+const WHERE_SUFFIX: Record<string, string> = {
+  face: " — on the face",
+  notes: " — in the notes",
+  either: "",
+};
+
 const GROUP_FIELDS = {
+  identity: ["type", "inherits"],
   meaning: ["label", "definition", "prompt", "exclude_criteria"],
   recognition: ["aliases", "regex_hints", "keyword_hints", "exclude_hints"],
-  gate: ["inherits", "statement", "section_scope", "note_selection", "llm_only_if_note_tagged",
+  gate: ["section_scope", "note_selection", "llm_only_if_note_tagged",
          "note_use", "note_source"],
   /** Rendered only while the `note_source` switch is on, so counted only then. */
   noteSource: ["note_source.note_title_any", "note_source.row_caption_any",
@@ -603,7 +617,7 @@ const GROUP_FIELDS = {
   // obtained" was `extraction_mode`, which decided something else entirely. That crossed naming is
   // not cosmetic: it is what let the LLM gate key on the wrong field and offer revenue to the
   // model, and what made a cascade's protection depend on a mode value.
-  assembly: ["type", "terms", "cascade", "implemented_by"],
+  assembly: ["terms", "cascade", "implemented_by"],
 } as const;
 
 const CONDITIONAL_FIELDS = [
@@ -924,9 +938,36 @@ function Detail(p: EditorProps) {
   };
   /** Every group shut, or every group open — for a reader who wants the whole form at once, or
    *  who wants the eight questions with nothing under them as a table of contents. */
-  const BANDS = [1, 2, 3, 4, 5];
+  const BANDS = [1, 2, 3, 4, 5, 6];
   const allShut = BANDS.every((i) => shut[`g${i}`]);
   const setAll = (v: boolean) => setShut(Object.fromEntries(BANDS.map((i) => [`g${i}`, v])));
+
+  /** THE PLACING CONTROL'S THREE DERIVED PIECES.
+   *
+   *  `inherits` names one of the set's eighteen sections and the server validates it against
+   *  exactly that list, so the control's value is the section key. What the control SHOWS is the
+   *  statement it belongs to and the banner a filing prints, both served on `vocab.sections`.
+   *
+   *  THE FOURTH STATE IS NOT A SECTION. The 77 note-level parts declare `statement: null` and an
+   *  empty `section_scope` while still inheriting `notes` — deliberately outside the gate, because
+   *  a part is read out of a note rather than claimed off a statement face. As three separate
+   *  fields that reads as three omissions; as one option it reads as the decision it is. */
+  const sectionsByKey = Object.fromEntries((vocab?.sections ?? []).map((x) => [x.key, x]));
+  const statedStatement = g("statement", item.statement);
+  const statedScope = g("section_scope", item.section_scope) ?? [];
+  const isFullReport = statedStatement === null && statedScope.length === 0;
+  const placing = isFullReport ? FULL_REPORT : (g("inherits", item.inherits) ?? null);
+  const placingOptions = [...(vocab?.sections ?? []).map((x) => x.key), FULL_REPORT];
+  /** One choice, three fields — because the three are one decision and writing only `inherits`
+   *  would leave a part still carrying the statement it had before. */
+  const placingPatch = (v: string | null): Partial<LineItemEdit> => {
+    if (v === FULL_REPORT) {
+      return { inherits: g("inherits", item.inherits) || "notes",
+               statement: null, section_scope: [] };
+    }
+    if (v === null) return { inherits: null };
+    return { inherits: v, statement: sectionsByKey[v]?.statement || null };
+  };
 
   const type = g<LineItemType>("type", item.type);
   const noteSource = g<NoteSource | null>("note_source", item.note_source);
@@ -1052,12 +1093,84 @@ function Detail(p: EditorProps) {
         </div>
       )}
 
-      {/* ── 1. MEANING ────────────────────────────────────────────────────────────────────────
+      {/* ── 1. IDENTITY AND PLACING ──────────────────────────────────────────────────────────
+          THE TWO QUESTIONS THAT DECIDE WHAT THE REST OF THE FORM MEANS, and they are here because
+          they used not to be. `type` sat in band 6 of 7 and `inherits` in band 3 — both BELOW the
+          fields they govern, so an author met a prompt box, eight regex lists and a note-source
+          block before being asked whether the line is read off a page at all. A calculated line
+          needs none of them.
+
+          `statement` IS GONE AS A CONTROL and is not gone as a value. It was a separate dropdown
+          AND a per-line copy on 462 items, and measured, not one of the 462 differed from the
+          statement its own section declares — one question with two answers, which is how they
+          drift. The section chosen here supplies it. */}
+      <Group {...band(1, GROUP_FIELDS.identity)}
+             question="What kind of line is this, and where does it live?"
+             note="Everything below is read in the light of these two: a formula line takes no
+                   captions and is never shown to the model, and the section decides which
+                   statement and which banners can reach it.">
+        {fld("type", (e) => (
+          <SelectField<LineItemType>
+            label="Type" testid="type" editable={editable} reason={lockReason}
+            help="How this line gets its figure, and therefore which sections below apply: read off
+                  the page, added up from parts, or worked out by a rule. A line
+                  that says it is calculated but lists no parts cannot produce
+                  anything, so that is refused when you save."
+            // THE THREE THE SPEC KEEPS, intersected with what the server will accept. Filtered
+            // rather than replaced: a deployment whose vocabulary lacks one of them must not be
+            // offered it, and one that still serves `intermediate` must not show it.
+            options={(vocab?.types ?? []).filter((t) => (SPEC_TYPES as readonly string[])
+              .includes(String(t)))}
+            labelOf={(v) => TYPE_TONE[v].label}
+            helpOf={(v) => ({
+              extracted: "read off a printed caption — the only type the model is ever asked about",
+              calculated: "summed from its components, which the template's rollup names. Computed "
+                        + "whether or not the filing prints the subtotal; a printed figure that "
+                        + "disagrees is recorded as a finding rather than used",
+              derived: "assembled by the cascade below — ordered rungs over its own parts. Reached "
+                     + "by nothing else: no caption, no alias, no semantic probe, and never the "
+                     + "model",
+            } as Record<string, string>)[v]}
+            value={type}
+            onChange={(v) => {
+              if (!v) return;
+              patch({ type: v });
+              // `_coherent` FORCES `in_output` false for an intermediate. Dropping a drafted
+              // `in_output` here rather than sending false keeps the edit honest: the author has
+              // not declared anything about the output, the type has.
+              if (v === "intermediate") drop("in_output");
+            }}
+            error={e} />
+        ))}
+        {fld("inherits", (e) => (
+          <SelectField<string>
+            label="Where in the report does this line live?" testid="inherits"
+            editable={editable} nullable reason={lockReason}
+            nullLabel="anywhere — this line declares its own gate"
+            groupOf={(v) => (v === FULL_REPORT ? "Not tied to a statement"
+              : sectionsByKey[v]?.statement_label ?? "Other")}
+            labelOf={(v) => (v === FULL_REPORT
+              ? "The whole report — looked for anywhere"
+              : `${sectionsByKey[v]?.label ?? v}${WHERE_SUFFIX[sectionsByKey[v]?.where ?? ""] ?? ""}`)}
+            help={<>Choose the statement and the sub-heading this line is printed under, in one
+                  step: the section you pick supplies the statement, the banners the line may be
+                  claimed under, and how its figure is measured. A line pointed at the wrong
+                  section is not found at all, and correcting this is usually the fix.
+                  <br />Pick <b>the whole report</b> for a line that is not printed on any
+                  statement — the note-level parts are all authored this way, and it is what puts
+                  them deliberately outside the gate rather than looking like an omission.</>}
+            options={placingOptions}
+            value={placing} onChange={(v) => patch(placingPatch(v))}
+            error={e} inherited={inh("statement", item.statement)} />
+        ))}
+      </Group>
+
+      {/* ── 2. MEANING ────────────────────────────────────────────────────────────────────────
           FIRST, AND NOT BEHIND A DISCLOSURE. `definition` is what `meaning()` hands the
           description-matching tier (it prefers it over `description`), and the four criteria
           fields are what let a caption be resolved by MEANING rather than by string match — which
           is the difference between widening one line and editing a 162-alternative regex. */}
-      <Group {...band(1, GROUP_FIELDS.meaning)} question="What is this line, in words?"
+      <Group {...band(2, GROUP_FIELDS.meaning)} question="What is this line, in words?"
              note="What the model reads when the printed caption is not close to any alias.">
         {fld("label", (e) => (
           <TextField label="Label" testid="label" editable={editable} reason={lockReason}
@@ -1107,12 +1220,12 @@ function Detail(p: EditorProps) {
         ))}
       </Group>
 
-      {/* ── 2. RECOGNITION ───────────────────────────────────────────────────────────────────
+      {/* ── 3. RECOGNITION ───────────────────────────────────────────────────────────────────
           THE LOCALE BEING EDITED IS IN THE HEADER, because `aliases` is locale-scoped: it
           replaces THAT locale's list, and the base list too when the locale is the set default.
           The other locales are read-only beside it and say so. A map-shaped write is precisely how
           editing the Chinese aliases clobbers the English ones. */}
-      <Group {...band(2, GROUP_FIELDS.recognition)} question="Which printed captions are this line?"
+      <Group {...band(3, GROUP_FIELDS.recognition)} question="Which printed captions are this line?"
              note={<>Recognition evidence, matched against the caption as printed. Aliases are
                    edited ONE LOCALE AT A TIME — the selector says which.</>}
              right={
@@ -1202,37 +1315,16 @@ function Detail(p: EditorProps) {
         ))}
       </Group>
 
-      {/* ── 3. THE GATE ──────────────────────────────────────────────────────────────────────
+      {/* ── 4. THE GATE ──────────────────────────────────────────────────────────────────────
           WHERE a caption may be claimed from. Hundreds of the set's normalised captions are
           claimed by more than one line item and some of those claims span different statements,
           so the gate is what settles which line a caption reaches. Nearly all of it arrives by
           INHERITANCE from a `section_defaults` entry — hence the badges. */}
-      <Group {...band(3, [...GROUP_FIELDS.gate,
+      <Group {...band(4, [...GROUP_FIELDS.gate,
                           ...(noteSource ? GROUP_FIELDS.noteSource : [])])}
              question="Where may it be claimed from?"
              note="The gate is authored once per section and claimed by `inherits`; editing a
                    gate field here overrides the section for this line only.">
-        {fld("inherits", (e) => (
-          <SelectField<string>
-            label="Inherits its gate from" testid="inherits" editable={editable} nullable
-            reason={lockReason} nullLabel="nothing — this line declares its own gate"
-            help="The section this line belongs to. It supplies the statement and the banners this
-                  line may be found under, so a line pointed at the wrong section
-                  will not be found at all — and correcting this is usually the
-                  fix."
-            options={vocab?.inherits_options ?? []}
-            value={g("inherits", item.inherits)} onChange={(v) => patch({ inherits: v })}
-            error={e} />
-        ))}
-        {fld("statement", (e) => (
-          <SelectField<StatementToken>
-            label="Statement" testid="statement" editable={editable} nullable reason={lockReason}
-            nullLabel="any — nothing was said"
-            help="The statement a caption must have been printed on for this line to claim it."
-            options={vocab?.statements ?? []} labelOf={(s) => STATEMENT_LABEL[s] ?? s}
-            value={g("statement", item.statement)} onChange={(v) => patch({ statement: v })}
-            error={e} inherited={inh("statement", item.statement)} />
-        ))}
         {fld("section_scope", (e) => (
           <StringListEditor label="Section banners it may sit under" testid="section_scope"
                             editable={editable}
@@ -1422,10 +1514,10 @@ function Detail(p: EditorProps) {
         )}
       </Group>
 
-      {/* ── 4. STRUCTURE ─────────────────────────────────────────────────────────────────────
+      {/* ── 5. STRUCTURE ─────────────────────────────────────────────────────────────────────
           The tree, and what a parenthood ASSERTS. `rollup` exists because the rollup check would
           otherwise have summed the twelve alternative restatements of the depreciation line. */}
-      <Group {...band(4, GROUP_FIELDS.structure)}
+      <Group {...band(5, GROUP_FIELDS.structure)}
              question="How does it sit among the other lines?">
         {fld("parent", (e) => (
           <KeyPicker label="Part of" testid="parent" editable={editable} reason={lockReason}
@@ -1443,47 +1535,14 @@ function Detail(p: EditorProps) {
       </Group>
 
 
-      {/* ── 5. ASSEMBLY ──────────────────────────────────────────────────────────────────────
+      {/* ── 6. ASSEMBLY ──────────────────────────────────────────────────────────────────────
           BOTH BLOCKS STAY ON SCREEN, the current type's expanded and the other collapsed. Hiding
           the one that does not apply is how a type change makes a group vanish and an author
           concludes the field was taken away — and both are needed while a line is being moved
           from one type to the other. */}
-      <Group {...band(5, GROUP_FIELDS.assembly)} question="How is its figure obtained?"
+      <Group {...band(6, GROUP_FIELDS.assembly)} question="How is its figure obtained?"
              note="A calculated or intermediate line is a signed sum of terms; a derived line is
                    an ordered cascade of attempts, the first that resolves winning.">
-        {fld("type", (e) => (
-          <SelectField<LineItemType>
-            label="Type" testid="type" editable={editable} reason={lockReason}
-            help="How this line gets its figure, and therefore which sections below apply: read off
-                  the page, added up from parts, or worked out by a rule. A line
-                  that says it is calculated but lists no parts cannot produce
-                  anything, so that is refused when you save."
-            // THE THREE THE SPEC KEEPS, intersected with what the server will accept. Filtered
-            // rather than replaced: a deployment whose vocabulary lacks one of them must not be
-            // offered it, and one that still serves `intermediate` must not show it.
-            options={(vocab?.types ?? []).filter((t) => (SPEC_TYPES as readonly string[])
-              .includes(String(t)))}
-            labelOf={(v) => TYPE_TONE[v].label}
-            helpOf={(v) => ({
-              extracted: "read off a printed caption — the only type the model is ever asked about",
-              calculated: "summed from its components, which the template's rollup names. Computed "
-                        + "whether or not the filing prints the subtotal; a printed figure that "
-                        + "disagrees is recorded as a finding rather than used",
-              derived: "assembled by the cascade below — ordered rungs over its own parts. Reached "
-                     + "by nothing else: no caption, no alias, no semantic probe, and never the "
-                     + "model",
-            } as Record<string, string>)[v]}
-            value={type}
-            onChange={(v) => {
-              if (!v) return;
-              patch({ type: v });
-              // `_coherent` FORCES `in_output` false for an intermediate. Dropping a drafted
-              // `in_output` here rather than sending false keeps the edit honest: the author has
-              // not declared anything about the output, the type has.
-              if (v === "intermediate") drop("in_output");
-            }}
-            error={e} />
-        ))}
         <details open={type === "calculated" || type === "intermediate"}>
           <summary style={{ cursor: "pointer", fontSize: 11.5, fontWeight: 600,
                              color: color.ink2, marginBottom: 9 }}>
@@ -1531,7 +1590,7 @@ function Detail(p: EditorProps) {
         </details>
       </Group>
 
-      {/* ── 8. LOCKED ────────────────────────────────────────────────────────────────────────
+      {/* ── 7. LOCKED ────────────────────────────────────────────────────────────────────────
           NOT AUTHORABLE ≠ ABSENT. The entries and their reasons come from
           `vocab.not_editable` — served rather than restated here, so a field cannot quietly
           disappear from the form with no reason attached, and so a reason this screen does not own

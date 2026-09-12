@@ -53,6 +53,7 @@ import json
 import re
 import types
 import typing
+import os
 from typing import Any, Literal, get_args, get_origin
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -310,6 +311,96 @@ def _literal_values(annotation) -> list:
     return list(get_args(annotation))
 
 
+# THE STATEMENTS UNDER THE NAMES A FILING PRINTS OVER THEM. `StatementType`'s members are engine
+# tokens (`profit_and_loss`), and a dropdown that offers one is asking an author to recognise a word
+# the document does not use. The same map exists in `services/line_item_llm` for the model's benefit;
+# they are deliberately separate because a screen and a prompt want different lengths of the same
+# name, and folding them together would settle that by accident.
+_STATEMENT_LABEL: dict[str, str] = {
+    "balance_sheet": "Balance sheet",
+    "profit_and_loss": "Profit or loss",
+    "cash_flow": "Cash flows",
+    "equity_changes": "Changes in equity",
+    "notes": "Notes to the accounts",
+    "covenants_supplemental": "Supplemental and covenant data",
+    "statement_setup": "Reporting setup",
+}
+
+
+def _sections(st: LineItemSet) -> list[dict]:
+    """The 18 sections as the three questions an author actually has, not as 18 keys.
+
+    WHAT THIS REPLACES. `inherits_options` is `sorted(st.section_defaults)` — `bs_ca`, `bs_cl`,
+    `bs_equity`, `bs_nca`, `bs_ncl`, `capital_and_lease_commitments`, … — eighteen engine keys in
+    alphabetical order, which is the order that puts `cf_financing` before `credit_compliance` and
+    both before `is_oci`. An author choosing where a line lives had to know the key scheme.
+
+    MEASURED, THE KEYS DECOMPOSE EXACTLY, which is what makes this a projection and not an
+    invention: every section declares a `statement` (6 distinct over the 18), and `face_only` plus
+    `scopes` say WHERE inside it — 12 sections are face-only, `notes` searches the notes, and the 5
+    supplemental/setup sections are neither, meaning either. The banner label comes off the set's
+    own vocabulary: `scope_tokens` maps the section key to a banner token and
+    `section_banners[].headings` holds the printed wording, so "Non current assets" is the filing's
+    phrase rather than a string invented here.
+
+    `statement` IS DERIVED FROM THIS ON THE SCREEN, which is the point. It was a separate control
+    and a materialised per-line copy on 462 items, and measured, NOT ONE of the 462 differed from
+    the statement its own section declares. One question with two answers is how they drift.
+    """
+    banner_headings: dict[str, str] = {}
+    for banner in st.vocabulary.section_banners:
+        if banner.token and banner.headings:
+            banner_headings[banner.token] = str(banner.headings[0])
+
+    out: list[dict] = []
+    for key, section in st.section_defaults.items():
+        statement = str(getattr(section.statement, "value", section.statement) or "")
+        # `face_only` and `scopes` are the two declarations that place a section inside its
+        # statement. Neither is authored per line any more — both are section policy, measured as
+        # never varying within one — so reading them here is reading the section's own answer.
+        if section.face_only:
+            where = "face"
+        elif [s for s in (section.scopes or ()) if str(getattr(s, "value", s)) == "notes"]:
+            where = "notes"
+        else:
+            where = "either"
+        token = st.vocabulary.scope_tokens.get(key) or ""
+        # UNDERSCORES OUT WHATEVER THE SOURCE. Some banners declare their own token as their first
+        # heading (`income_and_expenses`), so folding only the fallback left engine spelling on the
+        # screen for four of the eighteen.
+        heading = (banner_headings.get(token) or token or key).replace("_", " ").strip()
+        out.append({
+            "key": key,
+            "statement": statement,
+            "statement_label": _STATEMENT_LABEL.get(statement, statement.replace("_", " ")),
+            "where": where,
+            "label": heading[:1].upper() + heading[1:] if heading else key,
+        })
+
+    # TWO SECTIONS SHARING A LABEL ARE TWO UNPICKABLE OPTIONS. `cf_oper_indirect` and
+    # `cf_oper_direct` both fold to the banner "operating activities" — correctly, they ARE the same
+    # printed heading — and a dropdown offering it twice is a dropdown an author has to guess at.
+    # The distinguishing tail of the key is what separates them, and only where it has to.
+    seen: dict[tuple[str, str], list[dict]] = {}
+    for entry in out:
+        seen.setdefault((entry["statement"], entry["label"]), []).append(entry)
+    for (_stmt, _label), group in seen.items():
+        if len(group) < 2:
+            continue
+        shared = os.path.commonprefix([e["key"] for e in group])
+        for entry in group:
+            tail = entry["key"][len(shared):].strip("_").replace("_", " ")
+            if tail:
+                entry["label"] = f"{entry['label']} ({tail})"
+    # BY STATEMENT AND THEN BY DECLARATION ORDER, never alphabetically. A balance sheet prints
+    # non-current assets above current assets and the sections are declared in that order, so
+    # sorting on the key would reorder the statement to suit an engine's spelling.
+    order = list(_STATEMENT_LABEL)
+    out.sort(key=lambda s: (order.index(s["statement"]) if s["statement"] in order else len(order),
+                            list(st.section_defaults).index(s["key"])))
+    return out
+
+
 def _vocabulary(st: LineItemSet) -> dict:
     """Every value an item edit may legally carry, keyed the way the editor's controls are.
 
@@ -366,7 +457,14 @@ def _vocabulary(st: LineItemSet) -> dict:
         # `inherits` names a `section_defaults` entry of THIS set. A dangling one is not a load
         # error but a silent no-op that leaves the item with no gate at all, which is why the
         # options come from the set rather than from anything the client remembers.
+        #
+        # BOTH SPELLINGS ARE SERVED. `inherits_options` is the flat closed set the validator
+        # compares against; `sections` is the same eighteen carrying the statement they belong to,
+        # where inside it they sit, and the banner wording a filing prints — which is what lets the
+        # screen ask three plain questions instead of offering eighteen engine keys in alphabetical
+        # order. See `_sections`.
         "inherits_options": sorted(st.section_defaults),
+        "sections": _sections(st),
         "section_scope_tokens": sorted(scope_ids | banner_tokens),
         "residual_frameworks": sorted(frameworks),
         "residual_populations": sorted(populations),
