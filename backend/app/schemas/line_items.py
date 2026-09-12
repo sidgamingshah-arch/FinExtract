@@ -355,6 +355,30 @@ class SectionDefaults(BaseModel):
     analyst_bucket: str | None = None
 
 
+# ── unit_of_account, derived ──────────────────────────────────────────────────────────────────
+#
+# The statements whose figures are POSITIONS AT A DATE rather than movements over a period. The
+# first is obvious; the other two are here because they were measured that way in the shipped set
+# and the reason holds: covenant and supplemental data restates balance-sheet quantities (net debt,
+# gearing, facility headroom) and the setup section carries the run's own scalars (currency, scale,
+# period end), neither of which accumulates.
+_BALANCE_STATEMENTS: frozenset[str] = frozenset(
+    {"balance_sheet", "covenants_supplemental", "statement_setup"})
+
+
+def _derived_unit_of_account(type_: str, statement: object) -> str:
+    """What kind of quantity a line carries, from its type and its placing.
+
+    Verified against all 539 shipped lines with zero mismatches before the stored values were
+    removed. `statement` arrives as a `StatementType`, whose `str()` is `"StatementType.X"` because
+    `Enum.__str__` beats `str`'s — hence `.value`.
+    """
+    if str(getattr(type_, "value", type_) or "") == "calculated":
+        return "subtotal"
+    name = str(getattr(statement, "value", statement) or "")
+    return "balance" if name in _BALANCE_STATEMENTS else "flow"
+
+
 class LineItemDef(BaseModel):
     """One configured line item — the whole of what used to take a concept plus a definition."""
 
@@ -565,6 +589,16 @@ class LineItemDef(BaseModel):
 
     # ── measurement properties ───────────────────────────────────────────────────────────────
     temporality: Temporality | None = None
+    # DERIVED WHEN NOT DECLARED, and no line in the shipped set declares it any more. Measured
+    # before removing the 539 stored values: `_derived_unit_of_account` below reproduces every one
+    # of them, exactly, with zero mismatches — so the field held 539 copies of an answer its own
+    # `type` and `statement` already gave.
+    #
+    # THE VALUE STILL HAS TO EXIST, which is why this is a derivation and not a deletion:
+    # `services/rollups.py:125` recognises a subtotal by this field and nothing else ("it is why
+    # the split is not 'the key looks like a total'"). Declared still wins, so a set that needs an
+    # exception can state one; `None` is the discriminator, which works here precisely because the
+    # field has no non-null default.
     unit_of_account: UnitOfAccount | None = None
     # An EXPECTATION, never a transformation — `sign_rule` performs the flip. Distinct again from
     # `Term.sign`, which is arithmetic inside one formula.
@@ -581,6 +615,25 @@ class LineItemDef(BaseModel):
     # as the alternative the validator below accepts, but the shipped set names one for no line —
     # every derived line there carries a `cascade`, which is the configuration-driven route.
     implemented_by: str = ""
+
+    @model_validator(mode="after")
+    def _derive_measurement(self):
+        """Fill `unit_of_account` from what the line already says about itself.
+
+        A subtotal is a subtotal because it is CALCULATED; everything else is a balance or a flow
+        according to the statement it is printed in — a position at a date, or a movement over a
+        period. Both halves are properties of the placing, not opinions about the line, which is
+        what made 539 stored copies redundant.
+
+        HERE AND NOT IN `resolve_line_item_inherits`, though that is where the section layer is
+        folded in, because the resolver returns early on two shapes it must leave alone (a bare
+        list, and a set with no `section_defaults`) and skips any item without `inherits`. A
+        derivation placed there would apply to most loads and not all of them, and the reader most
+        likely to be surprised is `rollups`, which asks this question about every line.
+        """
+        if self.unit_of_account is None:
+            self.unit_of_account = _derived_unit_of_account(self.type, self.statement)
+        return self
 
     @model_validator(mode="after")
     def _coherent(self):

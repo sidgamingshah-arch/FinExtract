@@ -605,7 +605,14 @@ def test_declared_fields_is_what_the_item_declared_not_what_it_inherited(client)
     dropped = {f for fields in declared.values() for f in fields} - set(LineItemDef.model_fields)
     assert dropped == {"note_use_rationale"}, \
         f"a stored key the model no longer drops, or a new one it does: {sorted(dropped)}"
-    # 395: `notes__contingent_liabilities` gained one when its `note_use` was changed to
-    # `decomposition_allowed` — a contingent liability is disclosed only in the notes, so
-    # `evidence_only` made the concept unfillable by any route, and the rationale records why.
-    assert sum(1 for f in declared.values() if "note_use_rationale" in f) == 395
+    # ONE, and it was 395. The other 394 were per-line copies of the sentence their own SECTION
+    # declares, on a key `LineItemDef` does not have — so the file carried 394 paragraphs the
+    # loader read and threw away. They were pruned with every other redundant copy (2,835 across 8
+    # fields, each removed only where removal left the resolved line byte-identical).
+    #
+    # The survivor is the one that was never a copy: `notes__contingent_liabilities` overrides its
+    # section's `note_use` to `decomposition_allowed` — a contingent liability is disclosed only in
+    # the notes, so `evidence_only` made the concept unfillable by any route — and its rationale
+    # records why. One is all this test needs: the property is that `declared_fields` reports a
+    # stored key the model drops, not that many items do.
+    assert sum(1 for f in declared.values() if "note_use_rationale" in f) == 1
