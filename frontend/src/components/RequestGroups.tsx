@@ -46,10 +46,21 @@ export function RequestGroups({ versionId, set, eligible, ineligible, canEdit }:
   const [showNote, setShowNote] = useState(false);
   const served = set.request_groups ?? [];
   const [draft, setDraft] = useState<RequestGroup[]>(served);
-  // Re-seed when the server serves a different version, so a publish elsewhere is not overwritten
+  // RE-SEED WHEN THE SERVER SERVES A DIFFERENT VERSION, so a publish elsewhere is not overwritten
   // by a stale draft still sitting in this card.
-  const [seed, setSeed] = useState(served);
-  if (seed !== served) { setSeed(served); setDraft(served); }
+  //
+  // KEYED ON `versionId`, NOT ON `served`, AND THAT DISTINCTION WAS AN INFINITE LOOP. The guard
+  // read `if (seed !== served)`, a REFERENCE comparison — and `served` is
+  // `set.request_groups ?? []`, so on every set that declares no groups (which is every shipped
+  // one: the field is absent, not empty) the `??` minted a BRAND NEW ARRAY each render. The
+  // condition was therefore permanently true: setSeed -> render -> new [] -> setSeed, until React
+  // gave up with "Too many re-renders", taking the whole Line Items screen down with it.
+  //
+  // `MasterPrompt` has the identical shape and survives only because its `served` is a STRING
+  // (`?? ""`), which compares by value. That is luck, not design, so both are now keyed on the
+  // version — which is what the sentence above always said the trigger was.
+  const [seed, setSeed] = useState(versionId);
+  if (seed !== versionId) { setSeed(versionId); setDraft(served); }
   const save = useEditLineItemSet();
 
   const named = new Set(draft.flatMap((g) => g.members));

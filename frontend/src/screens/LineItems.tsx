@@ -481,8 +481,13 @@ function MasterPrompt({ versionId, served, canEdit }: {
   const save = useEditLineItemSet();
   // Re-seed when the server serves a different version, so a publish elsewhere is not overwritten
   // by a stale draft still sitting in this box.
-  const [seed, setSeed] = useState(served);
-  if (seed !== served) { setSeed(served); setText(served); }
+  //
+  // KEYED ON `versionId` rather than on `served`. This one worked, because `served` is a string and
+  // strings compare by value — but the same two lines in `RequestGroups`, where the value is an
+  // array built with `?? []`, were an infinite re-render that took the screen down. Keying both on
+  // the version removes the dependence on the served value's TYPE, and says what the trigger is.
+  const [seed, setSeed] = useState(versionId);
+  if (seed !== versionId) { setSeed(versionId); setText(served); }
   const dirty = text !== served;
 
   return (
