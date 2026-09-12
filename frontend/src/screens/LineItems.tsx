@@ -949,11 +949,19 @@ function Detail(p: EditorProps) {
   /** One choice, three fields — because the three are one decision and writing only `inherits`
    *  would leave a part still carrying the statement it had before. */
   const placingPatch = (v: string | null): Partial<LineItemEdit> => {
-    if (v === FULL_REPORT) {
+    if (v === FULL_REPORT || v === null) {
+      // "THE WHOLE REPORT" AND "NOTHING CHOSEN" ARE THE SAME WRITE, and there is no separate
+      // "declares its own gate" option any more. A line with NO section inherits no policy at all,
+      // and `note_use` then resolves to the empty string — which `stages.note_sourced.
+      // _note_permission` reads as "a note may not fill this", so the line publishes blank on every
+      // filing. Offering that as a choice beside a working one is offering a trap; the control shows
+      // "not chosen yet" for a line that has not been placed and does not invite returning to it.
+      //
+      // The 77 parts are all authored exactly this way — `inherits: notes` for the section's
+      // policy, with `statement: null` and an empty `section_scope` to leave the gate.
       return { inherits: g("inherits", item.inherits) || "notes",
                statement: null, section_scope: [] };
     }
-    if (v === null) return { inherits: null };
     return { inherits: v, statement: sectionsByKey[v]?.statement || null };
   };
 
@@ -1133,8 +1141,8 @@ function Detail(p: EditorProps) {
         {fld("inherits", (e) => (
           <SelectField<string>
             label="Where in the report does this line live?" testid="inherits"
-            editable={editable} nullable reason={lockReason}
-            nullLabel="anywhere — this line declares its own gate"
+            editable={editable} reason={lockReason}
+            nullLabel="not chosen yet"
             groupOf={(v) => (v === FULL_REPORT ? "Not tied to a statement"
               : sectionsByKey[v]?.statement_label ?? "Other")}
             labelOf={(v) => (v === FULL_REPORT
