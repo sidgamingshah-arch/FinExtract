@@ -81,3 +81,11 @@ test.py
 # nothing is lost by keeping them out of the history — and a note caption is filing content.
 _filings/
 _vocab/
+
+# Analysis scratch and measurement workbooks. The workbooks are built FROM real annual reports,
+# so they carry client figures; the JSON dumps are one-off probe output, not configuration.
+_*.json
+backend/_*.json
+backend/scripts/_*.json
+backend/scripts/_*.py
+*.xlsx

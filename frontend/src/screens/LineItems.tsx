@@ -42,8 +42,8 @@
 import { useState, type ReactNode } from "react";
 
 import {
-  BoolField, InfoToggle, KeyPicker, LockedRow, NumberField, OrderedMultiSelect, RungCards,
-  SelectField, StringListEditor, TermRows, TextArea, TextField, TriBoolField, type KeyOption,
+  BoolField, InfoToggle, KeyPicker, LockedRow, RungCards,
+  SelectField, StringListEditor, TermRows, TextArea, TextField, type KeyOption,
 } from "../components/configFields";
 import { RequestGroups } from "../components/RequestGroups";
 import { Button, Card } from "../components/ui";
@@ -57,12 +57,11 @@ import { useCan } from "../lib/rbac";
 import { SCREENS } from "./config";
 import { color, font, radius } from "../theme";
 import type {
-  CaptionNormalization, LineItemAliasMatching, LineItemDef, LineItemEdit,
-  LineItemExtractionMode, LineItemNamespace, LineItemNoteUse, LineItemRollup, LineItemSetInfo,
-  LineItemSide, LineItemTemporality, LineItemType, LineItemUnitOfAccount, LineItemVocab,
-  NoteSource, ResidualPolicy, SearchScope, SignExpectation, SignRuleConvention, StatementToken,
-  ValueScope,
-  OutputStructure, NoteSelection,} from "../types";
+  LineItemDef, LineItemEdit,
+  LineItemNoteUse, LineItemSetInfo,
+  LineItemType, LineItemVocab,
+  NoteSource, StatementToken,
+ NoteSelection,} from "../types";
 
 const TYPE_TONE: Record<LineItemType, { bg: string; fg: string; label: string }> = {
   extracted: { bg: color.greenBg, fg: color.greenFg, label: "Extracted" },
@@ -71,16 +70,6 @@ const TYPE_TONE: Record<LineItemType, { bg: string; fg: string; label: string }>
   derived: { bg: color.amberBg, fg: color.amberFg, label: "Derived" },
 };
 
-const SCOPE_LABEL: Record<string, string> = {
-  notes: "Notes to the accounts",
-  balance_sheet: "Balance sheet",
-  profit_and_loss: "Profit & loss",
-  cash_flow: "Cash flow",
-  equity_changes: "Changes in equity",
-  covenants_supplemental: "Covenants / supplemental",
-  statement_setup: "Statement setup",
-  front_matter: "Chairman / MD&A",
-};
 
 /** The seven statements a line item can be gated to, as a reader names them. The TOKENS come from
  *  `vocab.statements`; this map only spells them for a human, and falls back to the token. */
@@ -94,42 +83,11 @@ const STATEMENT_LABEL: Record<string, string> = {
   notes: "Notes",
 };
 
-const SIDE_LABEL: Record<string, string> = {
-  from_section: "From the section banner", asset: "Asset", liability: "Liability",
-  equity: "Equity", none: "n/a — nothing was said",
-};
 
-const ROLLUP_HELP: Record<string, string> = {
-  sum: "the parts below add up to this line",
-  alternatives: "the parts below are alternative sources for ONE figure — never summed",
-  none: "this line has no parts",
-};
 
-const MODE_HELP: Record<string, string> = {
-  extract: "read off the filing",
-  extract_or_derive: "read off the filing, or computed if no row is printed",
-  derive: "computed — and STILL a candidate the matcher can recognise",
-  do_not_extract: "the only value that removes this line from candidacy entirely",
-};
 
-const VALUE_SCOPE_HELP: Record<string, string> = {
-  exclusive_leaf: "a stand-alone figure that overlaps nothing",
-  exclusive_child: "a component of a gross parent — never summed with it",
-  exclusive_residual: "computed as the unexplained remainder of its section",
-  not_applicable: "not extracted, so overlap does not arise",
-};
 
-const ALIAS_MATCHING_HELP: Record<string, string> = {
-  enabled: "reachable by every matching tier",
-  disabled: "unreachable by every matching tier — fillable only by the residual sweep. This is "
-    + "the lock that defines a residual bucket.",
-};
 
-const NAMESPACE_HELP: Record<string, string> = {
-  template: "held against the target template's canonical keys by the publish gate",
-  internal: "names no output column, so the key gate does not apply — a note-level part that is "
-    + "part of a line rather than a line",
-};
 
 const NOTE_USE_HELP: Record<string, string> = {
   evidence_only: "a cited note may evidence this figure but never be its source",
@@ -143,10 +101,6 @@ const NEW_NOTE_SOURCE: NoteSource = {
   note_title_any: [], row_caption_any: [], row_caption_none: [],
   prose_any: [], note_terms: [], row_terms: [], row_terms_none: [],
   caption_normalization: "none",
-};
-const NEW_RESIDUAL_POLICY: ResidualPolicy = {
-  framework: "", section_scope: "", population: "", cross_section: false,
-  notes_as_source: false, plug: false, itemise: false,
 };
 
 function Tag({ type }: { type: LineItemType }) {
@@ -344,107 +298,57 @@ function simpleFieldsFor(type: string): Set<string> {
   return new Set(out);
 }
 
-/** RETIRED — controls removed rather than demoted, with the measurement that decided each.
+/** THE TWO CONTROLS THAT ARE ON THE FORM AND MUST NOT BE OFFERED.
  *
- *  Counted against the 475 authored shipped items (`_audit/field_usage.py`). A field NO item
- *  declares is a control nobody has had a reason to touch, and offering it implies a decision that
- *  has never needed making. A field declared on hundreds of items with ONE distinct value is a
- *  constant wearing a control.
+ *  This set used to hold 39 names and is down to two, because retiring a control and REMOVING it
+ *  are different things and only the first needs a filter. A retired control was still rendered,
+ *  still counted in its banner, still in `withheldReason`'s rules — `fld` just returned null for
+ *  it. Once the control itself is gone there is nothing to filter, so a name here without a
+ *  matching `fld` call guards nothing and reads as a live rule; `tests/test_form_field_lists.py`
+ *  refuses one.
  *
- *  Deliberately NOT retired though never declared: `in_output` (the shipped file relies on its
- *  default; provisioning sets it, and it decides whether a line is delivered) and `terms` (unused
- *  only because the five derivations still live in Python — the moment one moves to configuration
- *  this is how it is expressed).
+ *  THE RETIREMENT RECORD, kept because the measurements are the argument and would otherwise be
+ *  rediscovered field by field. Counted against the 475 authored shipped items
+ *  (`_audit/field_usage.py`), or the 539 resolved where noted.
  *
- *  Retiring a control does not remove the FIELD: a stored value keeps working and the endpoint
- *  still accepts it. What goes is the invitation to set it here.
+ *    declared by NOBODY (0 of 475) — a control nobody has had a reason to touch:
+ *      `pattern` (`regex_hints` is the list form, used on 393)   `scopes`   `side`
+ *      `allow_contra`   `face_only`   `sole_component_of`   `analyst_bucket`
+ *      `sign_rule.convention` + `sign_rule.flip_if_label_matches`   `output_structure`
+ *      `others_rule`   `derivation`   `notes_as_source_rationale` (read if set, and never set)
+ *
+ *    a CONSTANT wearing a control — declared on hundreds with one or two distinct values:
+ *      `temporality` (462 of 539, 2 distinct, 0 of 18 sections vary)
+ *      `sign_expectation` (462 of 539, `sign_convention` on the wire, 0 vary)
+ *      `decomposition_rule` (391 of 475, 3 distinct, 358 restating `global_rules`)
+ *      `note_use_rationale` (394 of 475, ONE distinct value — never rendered here; recorded so a
+ *       future author does not add one)
+ *
+ *    the TEMPLATE already declares it:
+ *      `rollup` / `is_gross_parent` / `children_if_decomposed` (its `rollup.children`)
+ *      `order` (its row order)   `residual_policy` + `never_sweep` + `expected_components`
+ *      (its `__others` keys route the sweep)   `value_scope` (462 of 539, 2 distinct)
+ *
+ *    superseded by a field that says it better:
+ *      `extraction_mode` (by `type`)   `description` (by `definition`, which the model reads)
+ *      `match_priority` (462 of 475, 76 distinct — the shipped ranking stands and ties can no
+ *       longer be re-broken from this screen)
+ *
+ *  `parent` IS NOT IN THAT RECORD AND WAS. It was retired on "13 of 475"; re-measured against the
+ *  shipped 539 it is declared by exactly the 77 note-read parts — all of them — and it is the only
+ *  field saying which whole a part explains. See `tests/test_form_field_lists.py`.
+ *
+ *  Removing a control does not remove the FIELD: a stored value keeps working and the endpoint
+ *  still accepts it. What went is the invitation to set it here.
  */
 const RETIRED_FIELDS = new Set([
-  "pattern",                 // 0 of 475 — `regex_hints` is the list version and is used on 393
-  "scopes",                  // 0 of 475 — search order; the section already decides where to look
-  "side",                    // 0 of 475 — read off the banner in practice
-  "allow_contra",            // 0 of 475
-  "face_only",               // 0 of 475 — arrives from the section
-  "sole_component_of",       // 0 of 475
-  "analyst_bucket",          // 0 of 475
-  "sign_rule.convention",    // 0 of 475 — `sign_expectation` is the one that is used
-  "sign_rule.flip_if_label_matches",
-  // (`note_use_rationale` is measured the same way — 394 of 475 with ONE distinct value, prose
-  //  that never varies — but it was never rendered as a control here, so there is nothing to
-  //  retire. Recorded so a future author does not add one.)
-  "description",             // 21 of 475, and `definition` is the field the model actually reads
-  "order",                   // 21 of 475 — display order, which the template already fixes
-
-  // ── RETIRED BY REVIEW, NOT BY MEASUREMENT ────────────────────────────────────────────────────
-  // Everything above is retired because NO item declares it. The nine below are different and the
-  // difference matters to whoever reads this next: most of them ARE declared, some on hundreds of
-  // items. They were removed because the surface was judged too large to author against, with the
-  // usage counted (`scripts/line_item_options_workbook.py`) and accepted.
-  //
-  // Retiring is still not deleting: every field keeps working, the endpoint keeps accepting it, and
-  // the shipped values keep driving extraction. What goes is the invitation to set it HERE. The
-  // consequence is therefore narrow and worth naming — a value already authored stays in force, and
-  // a NEW one can no longer be authored on this screen.
-  "match_priority",          // 462 of 475, 76 distinct — decides which line wins a contested
-                             //   caption. The shipped ranking stands; ties can no longer be
-                             //   re-broken from here.
-  "is_gross_parent",         // 32 of 475 — with the next field, the pair that stops a parent being
-  "children_if_decomposed",  // 31 of 475 — loaded alongside the children it already contains.
-                             //   Existing containment holds; a new one is not authorable here.
-  "expected_components",     // 11 of 475 — what a section's residual is expected to absorb.
-  "parent",                  // 13 of 475 — reporting hierarchy, distinct from `inherits`, which is
-  "rollup",                  //  8 of 475 — the gate and stays. These two were the roll-up pair.
+  // BOTH ARE RENDERED, and `requiredNow` forces both back the moment `type` is `derived` — which
+  // is the only state either one means anything in. So the filter and the override together say
+  // "offered on a derived line, nowhere else", and neither half works alone: without the filter
+  // every extracted line carries two controls for a cascade it will never have, and without the
+  // override choosing `derived` produces a server refusal with no control on screen to answer.
   "cascade",                 //  2 of 475 — ordered fallbacks when the preferred source is absent.
   "implemented_by",          //  1 of 475 — names the code filling a line configuration cannot.
-  "decomposition_rule",      // 391 of 475 but only THREE distinct values, 358 of them restating
-                             //   `global_rules.no_fabricated_split`, which the system prompt
-                             //   already carries. A set-level policy copied onto every row.
-
-  // ── RETIRED BY THE v2 CONFIG SPEC ────────────────────────────────────────────────────────────
-  // A third class, and the distinction from the two above is worth keeping. Those were retired for
-  // being unused or for surface area. These are retired because something ELSE is now the single
-  // place the question is answered — so leaving a control here would be a second place to answer
-  // it, which is how the two places come to disagree. Measured over the 539 shipped items.
-
-  // `type` IS NOW THE ONLY FIELD DESCRIBING HOW A FIGURE IS OBTAINED. The two fields between them
-  // represented 16 combinations and the set used 4 — ('extracted','extract') 497,
-  // ('extracted','extract_or_derive') 33, ('derived','extract') 8, ('derived','derive') 1 — and
-  // the unused twelve were not harmless: ('derived','extract') is the state that silently offered
-  // revenue to the model, and relying on ('derived','derive') to protect a cascade is what made
-  // the long-term financial assets line publish 1,705,426 against its rung's 788,507.
-  "extraction_mode",
-
-  // `in_output`, `namespace` AND `order` ARE NOT RETIRED, and the reasoning that nearly retired
-  // them is worth recording. "The template decides delivery" holds for the 462 template lines and
-  // fails for the 77 note-level PARTS: measured, all 77 declare `namespace: internal` and
-  // `in_output: false`, and ZERO of them appear anywhere in the template. So the template cannot
-  // decide a part's delivery or its display order, and refusing these would make a part
-  // unauthorable — which is exactly the surface someone extending the eight focus lines needs.
-
-  // RESIDUAL IS NOT CONFIGURED HERE. The sweep already has a template-driven path —
-  // `stages/residual.py:74`, "Without a v2 rulebook … the template-driven routing below is used
-  // unchanged: the template's `__others` keys", routed by `_sections_from_template` (:107) — and
-  // these four fields are v2 OVERRIDES layered on it, not the path itself. So the sweep, the
-  // buckets and the reconciliation that depends on them all keep working; what goes is the
-  // per-section tuning and the itemisation record.
-  "value_scope",             // 462 of 539, 2 distinct — the marker that makes a line a bucket
-  "residual_policy",
-  "residual_policy.framework", "residual_policy.section_scope", "residual_policy.population",
-  "residual_policy.cross_section", "residual_policy.notes_as_source", "residual_policy.plug",
-  "residual_policy.itemise",
-  "never_sweep",             // 7 of 539
-
-  // SECTION POLICY STORED 462 TIMES EACH. Measured across the 18 sections, none of these varies
-  // WITHIN one, so they describe the section rather than the line and belong on `section_defaults`.
-  "temporality",             // 462 of 539, 2 distinct, 0 of 18 sections vary
-  "sign_expectation",        // `sign_convention` on the wire — 462 of 539, 2 distinct, 0 vary
-
-  // DECLARED BY NOTHING, and `output_structure` was on the SIMPLE form — every author met a
-  // control no item has ever set.
-  "output_structure",        // 0 of 539
-  "others_rule",             // 0 of 539
-  "derivation",              // 0 of 539
-  "notes_as_source_rationale",  // 0 of 539 — read if set, and never set
 ]);
 
 /** The three types the v2 spec keeps, in the order an author meets them.
@@ -546,20 +450,6 @@ function MasterPrompt({ versionId, served, canEdit }: {
   );
 }
 
-/** The three output structures as an author reads them, and what each one commits to. */
-const OUTPUT_STRUCTURE_LABEL: Record<string, string> = {
-  value: "Value — a number",
-  phrase: "Phrase — short text off the page",
-  prose: "Prose — written by the model from the prompt",
-};
-const OUTPUT_STRUCTURE_HELP: Record<string, string> = {
-  value: "The default, and what every existing line is. Totals, reconciliation and the balance "
-       + "identities all read it.",
-  phrase: "A short piece of text as printed — an audit opinion's wording, a going-concern "
-        + "statement. Lifted, not written: the words come from the filing.",
-  prose: "Text the model writes for this line from the line's own prompt below. Nothing is read "
-       + "off the page, so the prompt is the whole specification — and is required.",
-};
 
 /** WHAT THE CURRENT SELECTIONS MAKE MEANINGLESS — the reason a control is withheld, or null.
  *
@@ -581,16 +471,12 @@ const OUTPUT_STRUCTURE_HELP: Record<string, string> = {
 function withheldReason(name: string, sel: {
   type: string; extractionMode: string; aliasMatching: string; outputStructure: string;
 }): string | null {
-  const { type, extractionMode, aliasMatching, outputStructure } = sel;
+  const { type, extractionMode, aliasMatching } = sel;
 
   // ── SERVER-ENFORCED ────────────────────────────────────────────────────────────────────────
   // `_coherent`: a prompt is only ever sent for an `extracted` line, and is refused elsewhere.
   if (name === "prompt" && type !== "extracted") {
     return `a prompt is only sent for an extracted line, and this one is ${type} — its figure comes from arithmetic, so the model is never asked about it`;
-  }
-  // `_coherent` forces `in_output = false` on an intermediate, whatever was submitted.
-  if (name === "in_output" && type === "intermediate") {
-    return "an intermediate line never reaches the export; the server forces this off";
   }
   // `_coherent`: terms are REQUIRED for calculated/intermediate and meaningless otherwise.
   if (name === "terms" && !["calculated", "intermediate"].includes(type)) {
@@ -634,26 +520,13 @@ function withheldReason(name: string, sel: {
     }
   }
 
-  // A TEXT LINE IS NOT A FIGURE. `phrase` and `prose` hold words, so the controls that describe a
-  // NUMBER describe nothing: there is no sign to expect, no unit of account, and the line cannot be
-  // a component of a subtotal or appear in a balance identity. Withheld rather than left on the
-  // form, because a sign expectation on a sentence is a review trigger that can never fire and an
-  // author cannot tell that from one that simply has not fired yet.
-  const NUMERIC_ONLY = ["sign_expectation", "unit_of_account", "value_scope", "residual_policy",
-                        "never_sweep", "expected_components", "is_gross_parent",
-                        "children_if_decomposed", "rollup"];
-  if (outputStructure !== "value" && NUMERIC_ONLY.includes(name)) {
-    return `this line outputs ${outputStructure === "prose" ? "prose" : "a phrase"}, not a number, so it takes no part in totals or sign checks`;
-  }
-
   // ── INERT BY CONFIGURATION ─────────────────────────────────────────────────────────────────
   // A line the matcher can never reach gets no caption offered to it, so every caption-matching
   // control is text that is stored and never read. `alias_matching: "disabled"` and
   // `extraction_mode: "derive"` are the two locks that produce it — together they are
   // `mapping._unmatchable`, and a concept in that set cannot be reached by any caption or any
   // model decision.
-  const CAPTION_MATCHING = ["aliases", "pattern", "regex_hints", "keyword_hints", "exclude_hints",
-                            "confusable_with", "section_disambiguation"];
+  const CAPTION_MATCHING = ["aliases", "regex_hints", "keyword_hints", "exclude_hints"];
   if (CAPTION_MATCHING.includes(name)) {
     if (aliasMatching === "disabled") {
       return "caption matching is switched off for this line, so nothing here is ever consulted";
@@ -712,25 +585,24 @@ function requiredNow(name: string, sel: { type: string; outputStructure: string 
  *  THE ORDER IS THE ARGUMENT. What the line IS comes before which captions reach it, which comes
  *  before where it may be claimed from — so the numbers on the banners are how far through that
  *  reasoning the reader has got, rather than decoration.
+ *
+ *  THE INVARIANT, asserted by `tests/test_form_field_lists.py`: a name is listed here IF AND ONLY
+ *  IF a `fld(...)` call renders it, each in exactly one group. A RETIRED field used to be listed
+ *  too, which read as documentation and behaved as a defect — `shows` filters it out, so the name
+ *  sat in the group's list contributing nothing while `RETIRED_FIELDS` already recorded it with
+ *  its measurement. Two inventories of the same form is the drift this comment warns about; one of
+ *  them going stale is how a banner comes to announce four fields over a group showing three.
  */
 const GROUP_FIELDS = {
-  meaning: ["label", "description", "definition", "prompt", "include_criteria",
-            "exclude_criteria", "confusable_with", "section_disambiguation"],
-  recognition: ["aliases", "pattern", "regex_hints", "keyword_hints", "exclude_hints",
-                "alias_matching"],
-  gate: ["inherits", "statement", "section_scope", "scopes", "side", "allow_contra",
-         "note_selection", "llm_only_if_note_tagged", "match_priority", "extraction_mode",
-         "face_only", "note_use", "note_source"],
+  meaning: ["label", "definition", "prompt", "exclude_criteria"],
+  recognition: ["aliases", "regex_hints", "keyword_hints", "exclude_hints"],
+  gate: ["inherits", "statement", "section_scope", "note_selection", "llm_only_if_note_tagged",
+         "note_use", "note_source"],
   /** Rendered only while the `note_source` switch is on, so counted only then. */
   noteSource: ["note_source.note_title_any", "note_source.row_caption_any",
                "note_source.row_caption_none", "note_source.note_terms", "note_source.row_terms",
-               "note_source.row_terms_none", "note_source.prose_any",
-               "note_source.caption_normalization"],
-  structure: ["in_output", "parent", "rollup", "order", "namespace", "value_scope",
-              "is_gross_parent", "children_if_decomposed", "sole_component_of",
-              "expected_components", "never_sweep", "residual_policy"],
-  measurement: ["output_structure", "temporality", "unit_of_account", "sign_expectation",
-                "sign_rule.convention", "sign_rule.flip_if_label_matches", "analyst_bucket"],
+               "note_source.row_terms_none", "note_source.prose_any"],
+  structure: ["parent"],
   // `type` FIRST, because it selects which of the other three applies. It used to sit in
   // `structure`, one group away from the fields it governs and under a question about hierarchy
   // ("How does it sit among the other lines?") — while the field LABELLED "How the figure is
@@ -738,24 +610,19 @@ const GROUP_FIELDS = {
   // not cosmetic: it is what let the LLM gate key on the wrong field and offer revenue to the
   // model, and what made a cascade's protection depend on a mode value.
   assembly: ["type", "terms", "cascade", "implemented_by"],
-  prose: ["decomposition_rule", "others_rule", "derivation", "notes_as_source_rationale"],
 } as const;
 
 const CONDITIONAL_FIELDS = [
-  "prompt", "in_output", "terms", "cascade", "implemented_by",
+  "prompt", "terms", "cascade", "implemented_by",
   // withheld on a line the model is never asked about — see withheldReason
   "llm_only_if_note_tagged", "note_selection",
   // withheld on a DERIVED line, where a note source would fill the parent and skip its cascade.
   // The switch and every control under it, so rolling the group open shows the reason once rather
-  // than eight silent inputs.
+  // than seven silent inputs.
   "note_source", "note_source.note_title_any", "note_source.row_caption_any",
   "note_source.row_caption_none", "note_source.note_terms", "note_source.row_terms",
-  "note_source.row_terms_none", "note_source.prose_any", "note_source.caption_normalization",
-  "aliases", "pattern", "regex_hints", "keyword_hints", "exclude_hints",
-  "confusable_with", "section_disambiguation",
-  // withheld once the line outputs text rather than a number
-  "sign_expectation", "unit_of_account", "value_scope", "residual_policy", "never_sweep",
-  "expected_components", "is_gross_parent", "children_if_decomposed", "rollup",
+  "note_source.row_terms_none", "note_source.prose_any",
+  "aliases", "regex_hints", "keyword_hints", "exclude_hints",
 ];
 
 /** What this line's own selections withhold, computed BEFORE the form renders.
@@ -1042,8 +909,6 @@ function Detail(p: EditorProps) {
     if (RETIRED_FIELDS.has(n) && !forced) return false;
     return mode === "advanced" || isSimple(n) || !!errors[n] || forced;
   };
-  /** Whether a group has anything to show, so an empty card is not rendered in simple mode. */
-  const anyOf = (...names: string[]) => names.some(shows);
   const idx = (name: string) => indexErrors[name];
 
   /** ONE BANNER'S FOUR PROPS, from its position and its field list.
@@ -1065,39 +930,17 @@ function Detail(p: EditorProps) {
   };
   /** Every group shut, or every group open — for a reader who wants the whole form at once, or
    *  who wants the eight questions with nothing under them as a table of contents. */
-  const BANDS = [1, 2, 3, 4, 5, 6, 7, 8];
+  const BANDS = [1, 2, 3, 4, 5];
   const allShut = BANDS.every((i) => shut[`g${i}`]);
   const setAll = (v: boolean) => setShut(Object.fromEntries(BANDS.map((i) => [`g${i}`, v])));
 
   const type = g<LineItemType>("type", item.type);
   const noteSource = g<NoteSource | null>("note_source", item.note_source);
-  const residual = g<ResidualPolicy | null>("residual_policy", item.residual_policy);
-  const signRule = g("sign_rule", item.sign_rule);
   const perLocale = item.aliases_i18n ?? {};
   const otherLocales = Object.keys(perLocale).filter((l) => l !== locale);
 
   const setNoteSource = (patchNs: Partial<NoteSource>) =>
     patch({ note_source: { ...(noteSource ?? NEW_NOTE_SOURCE), ...patchNs } });
-  const setResidual = (patchRp: Partial<ResidualPolicy>) =>
-    patch({ residual_policy: { ...(residual ?? NEW_RESIDUAL_POLICY), ...patchRp } });
-
-  // A live compile of `pattern`, so a torn regex is known before the save rather than as a 422.
-  // The server compiles it too and its refusal is what lands on the control; this is only the
-  // faster half of the same answer.
-  const pattern = g("pattern", item.pattern);
-  let patternNote: ReactNode = null;
-  if (pattern) {
-    try {
-      new RegExp(pattern);
-      patternNote = <div style={{ fontSize: 10.5, color: color.greenFg, marginTop: 4 }}>
-        compiles
-      </div>;
-    } catch (e) {
-      patternNote = <div style={{ fontSize: 10.5, color: color.redFg, marginTop: 4 }}>
-        does not compile: {(e as Error).message}
-      </div>;
-    }
-  }
 
   const lockReason = !p.canEdit
     ? "you do not have `config:line_items`"
@@ -1229,15 +1072,6 @@ function Detail(p: EditorProps) {
                      value={g("label", item.label)} onChange={(v) => patch({ label: v })}
                      error={e} inherited={inh("label", item.label)} />
         ))}
-        {fld("description", (e) => (
-          <TextArea label="Description" testid="description" editable={editable} rows={3}
-                    reason={lockReason}
-                    help="Display prose about the line — and the model's semantic text when
-                          `definition` is empty."
-                    value={g("description", item.description)}
-                    onChange={(v) => patch({ description: v ?? "" })}
-                    error={e} inherited={inh("description", item.description)} />
-        ))}
         {fld("definition", (e) => (
           <TextArea label="Definition — the authoritative accounting meaning" testid="definition"
                     editable={editable} rows={4} reason={lockReason}
@@ -1263,17 +1097,6 @@ function Detail(p: EditorProps) {
                     onChange={(v) => patch({ prompt: v ?? "" })}
                     error={e} />
         ))}
-        {fld("include_criteria", (e) => (
-          <StringListEditor label="Counts as this line" testid="include_criteria"
-                            editable={editable} variant="prose"
-                            help="Prose criteria shown to the model — what COUNTS. One statement
-                                  per entry."
-                            placeholder="e.g. bank balances repayable on demand"
-                            value={g("include_criteria", item.include_criteria)}
-                            onChange={(v) => patch({ include_criteria: v })}
-                            error={e} indexErrors={idx("include_criteria")}
-                            inherited={inh("include_criteria", item.include_criteria)} />
-        ))}
         {fld("exclude_criteria", (e) => (
           <StringListEditor label="Does NOT count as this line" testid="exclude_criteria"
                             editable={editable} variant="prose"
@@ -1287,29 +1110,6 @@ function Detail(p: EditorProps) {
                             onChange={(v) => patch({ exclude_criteria: v })}
                             error={e} indexErrors={idx("exclude_criteria")}
                             inherited={inh("exclude_criteria", item.exclude_criteria)} />
-        ))}
-        {fld("confusable_with", (e) => (
-          <KeyPicker label="Easy to confuse with" testid="confusable_with" multi
-                     editable={editable} reason={lockReason} options={keys} exclude={[item.key]}
-                     help="Lines whose captions a reader could genuinely mix up. When a caption
-                           could be either, the row is sent to review
-                           instead of one of them being chosen and
-                           reported as certain."
-                     value={g("confusable_with", item.confusable_with)}
-                     onChange={(v) => patch({ confusable_with: v })}
-                     error={e} indexErrors={idx("confusable_with")}
-                     inherited={inh("confusable_with", item.confusable_with)} />
-        ))}
-        {fld("section_disambiguation", (e) => (
-          <TextArea label="Which of two look-alike captions this is" testid="section_disambiguation"
-                    editable={editable} rows={2} nullable reason={lockReason}
-                    help="What tells this line apart from the one above, in one sentence. Read when
-                          two lines both claim a caption — so it decides
-                          which of them gets the figure."
-                    value={g("section_disambiguation", item.section_disambiguation)}
-                    onChange={(v) => patch({ section_disambiguation: v })}
-                    error={e}
-                    inherited={inh("section_disambiguation", item.section_disambiguation)} />
         ))}
       </Group>
 
@@ -1370,15 +1170,6 @@ function Detail(p: EditorProps) {
             </p>
           </div>
         )}
-        {fld("pattern", (e) => (
-          <TextField label="Pattern" testid="pattern" editable={editable} mono reason={lockReason}
-                     help="One pattern matched against the printed caption. Checked when you save,
-                           and a pattern that will not compile is
-                           reported here rather than silently never
-                           matching."
-                     value={pattern} onChange={(v) => patch({ pattern: v })}
-                     monoNote={patternNote} error={e} inherited={inh("pattern", item.pattern)} />
-        ))}
         {fld("regex_hints", (e) => (
           <StringListEditor label="Regex hints — positive evidence" testid="regex_hints"
                             editable={editable} variant="mono"
@@ -1414,15 +1205,6 @@ function Detail(p: EditorProps) {
                             onChange={(v) => patch({ exclude_hints: v })}
                             error={e} indexErrors={idx("exclude_hints")}
                             inherited={inh("exclude_hints", item.exclude_hints)} />
-        ))}
-        {fld("alias_matching", (e) => (
-          <SelectField<LineItemAliasMatching>
-            label="Alias matching" testid="alias_matching" editable={editable} reason={lockReason}
-            options={vocab?.alias_matching ?? []}
-            helpOf={(v) => ALIAS_MATCHING_HELP[v]}
-            value={g("alias_matching", item.alias_matching)}
-            onChange={(v) => v && patch({ alias_matching: v })}
-            error={e} inherited={inh("alias_matching", item.alias_matching)} />
         ))}
       </Group>
 
@@ -1471,39 +1253,6 @@ function Detail(p: EditorProps) {
                             error={e} indexErrors={idx("section_scope")}
                             inherited={inh("section_scope", item.section_scope)} />
         ))}
-        {fld("scopes", (e) => (
-          <OrderedMultiSelect<SearchScope>
-            label="Where to look, in search order" testid="scopes" editable={editable}
-            help="Where to look for this figure, tried in this order — the first place that yields a
-                  number is used. It is an order, not a restriction: nothing here
-                  forbids a place, it only decides which is consulted first."
-            options={vocab?.scopes ?? []} labelOf={(s) => SCOPE_LABEL[s] ?? s}
-            addLabel="Add a scope…"
-            value={g("scopes", item.scopes)} onChange={(v) => patch({ scopes: v })}
-            error={e} inherited={inh("scopes", item.scopes)} />
-        ))}
-        {fld("side", (e) => (
-          <SelectField<LineItemSide>
-            label="Asset, liability or equity" testid="side" editable={editable}
-            reason={lockReason}
-            help="Which side of the balance sheet this line sits on. “From section” takes it from
-                  the heading the caption was printed under, which only works if
-                  this line can reach a section — otherwise say the side outright."
-            options={vocab?.sides ?? []} labelOf={(s) => SIDE_LABEL[s] ?? s}
-            value={g("side", item.side)} onChange={(v) => v && patch({ side: v })}
-            error={e} inherited={inh("side", item.side)} />
-        ))}
-        {fld("allow_contra", (e) => (
-          <BoolField label="A caption on the OPPOSITE side may fill this line" testid="allow_contra"
-                     editable={editable}
-                     help="Off by default — a bare “Cash” once resolved to an overdraft. On
-                           legitimately for an instrument that appears on both sides."
-                     onText="The opposite side may fill this line."
-                     offText="A caption printed on the opposite side can never fill this line."
-                     value={g("allow_contra", item.allow_contra)}
-                     onChange={(v) => patch({ allow_contra: v })}
-                     error={e} inherited={inh("allow_contra", item.allow_contra)} />
-        ))}
         {fld("note_selection", (e) => (
           <SelectField<NoteSelection>
             label="How this line's notes are found" testid="note_selection" editable={editable}
@@ -1541,46 +1290,6 @@ function Detail(p: EditorProps) {
                      onChange={(v) => patch({ llm_only_if_note_tagged: v })}
                      error={e}
                      inherited={inh("llm_only_if_note_tagged", item.llm_only_if_note_tagged)} />
-        ))}
-        {fld("match_priority", (e) => (
-          <NumberField label="Match priority" testid="match_priority" editable={editable}
-                       allowNull reason={lockReason}
-                       nullLabel="nothing said" numberLabel="a priority"
-                       help="When two lines could both take a caption, the higher number wins. Only
-                             consulted for a genuine tie — it does not
-                             make a line match a caption it otherwise
-                             would not."
-                       zeroNote="0 is the residual floor — a line at 0 is unreachable by matching
-                                 altogether. That is a different assertion from “nothing said”."
-                       value={g("match_priority", item.match_priority)}
-                       onChange={(v) => patch({ match_priority: v })}
-                       error={e} inherited={inh("match_priority", item.match_priority)} />
-        ))}
-        {fld("extraction_mode", (e) => (
-          <SelectField<LineItemExtractionMode>
-            label="How the figure is obtained" testid="extraction_mode" editable={editable}
-            reason={lockReason}
-            help="Only `do_not_extract` suppresses the line. Reading `derive` as “do not extract”
-                  refuses a printed row and sweeps it into a residual."
-            options={vocab?.extraction_modes ?? []} helpOf={(v) => MODE_HELP[v]}
-            value={g("extraction_mode", item.extraction_mode)}
-            onChange={(v) => v && patch({ extraction_mode: v })}
-            error={e} inherited={inh("extraction_mode", item.extraction_mode)} />
-        ))}
-        {fld("face_only", (e) => (
-          <TriBoolField label="Only readable off the face of a statement" testid="face_only"
-                        editable={editable}
-                        trueLabel="face only" falseLabel="notes allowed" nullLabel="nothing said"
-                        help="Genuinely three-valued: `null` is not `false` — v1 sets never
-                              expressed this at all."
-                        stateHelp={{
-                          yes: "A note may never be the source for this line.",
-                          no: "A note may be read for this line, subject to the fields below.",
-                          unset: "Nothing was said, which is not the same as “notes allowed”.",
-                        }}
-                        value={g("face_only", item.face_only)}
-                        onChange={(v) => patch({ face_only: v })}
-                        error={e} inherited={inh("face_only", item.face_only)} />
         ))}
         {fld("note_use", (e) => (
           <SelectField<LineItemNoteUse>
@@ -1715,25 +1424,6 @@ function Detail(p: EditorProps) {
                                 onChange={(v) => setNoteSource({ prose_any: v })}
                                 error={e} indexErrors={idx("note_source.prose_any")} />
             ))}
-            {fld("note_source.caption_normalization", (e) => (
-              <SelectField<CaptionNormalization>
-                label="Match those patterns against"
-                testid="note_source-caption_normalization" editable={editable} reason={lockReason}
-                help="Whether the three pattern lists above are matched against the caption AS
-                      PRINTED, or against a cleaned-up version (lowercased,
-                      punctuation and spacing removed, Chinese variants
-                      folded). Choose “as printed” if you copied the wording
-                      straight out of a filing; choose normalised to let one
-                      pattern cover capitalisation and punctuation
-                      differences. Changing this on existing patterns can stop
-                      them matching."
-                options={vocab?.caption_normalizations ?? []}
-                labelOf={(v) => (v === "none" ? "raw captions, as printed"
-                                              : "normalised text (mapping_v1)")}
-                value={noteSource.caption_normalization}
-                onChange={(v) => v && setNoteSource({ caption_normalization: v })}
-                error={e} />
-            ))}
           </div>
         )}
       </Group>
@@ -1743,16 +1433,6 @@ function Detail(p: EditorProps) {
           otherwise have summed the twelve alternative restatements of the depreciation line. */}
       <Group {...band(4, GROUP_FIELDS.structure)}
              question="How does it sit among the other lines?">
-        {fld("in_output", (e) => (
-          <BoolField label="Reaches the output template" testid="in_output" editable={editable}
-                     help="Whether the line reaches the statement screens and the export."
-                     disabledReason={type === "intermediate"
-                       ? "an intermediate never reaches the output — forced by the type"
-                       : undefined}
-                     value={type === "intermediate" ? false : g("in_output", item.in_output)}
-                     onChange={(v) => patch({ in_output: v })}
-                     error={e} inherited={inh("in_output", item.in_output)} />
-        ))}
         {fld("parent", (e) => (
           <KeyPicker label="Part of" testid="parent" editable={editable} reason={lockReason}
                      options={keys} exclude={[item.key]}
@@ -1765,291 +1445,16 @@ function Detail(p: EditorProps) {
                      onChange={(v) => patch({ parent: v })}
                      error={e} inherited={inh("parent", item.parent)} />
         ))}
-        {fld("rollup", (e) => (
-          <SelectField<LineItemRollup>
-            label="How the parts combine" testid="rollup" editable={editable}
-            reason={lockReason}
-            help="Choosing `sum` where the parts are alternative restatements of ONE figure
-                  double-counts it."
-            options={vocab?.rollups ?? []} helpOf={(v) => ROLLUP_HELP[v]}
-            value={g("rollup", item.rollup)} onChange={(v) => v && patch({ rollup: v })}
-            error={e} inherited={inh("rollup", item.rollup)} />
-        ))}
-        {fld("order", (e) => (
-          <NumberField label="Display order among siblings" testid="order" editable={editable}
-                       reason={lockReason}
-                       help="Where this line sits among its siblings on screen and in the output.
-                             Presentation only — it has no effect on
-                             which captions match."
-                       value={g("order", item.order)} onChange={(v) => patch({ order: v ?? 0 })}
-                       error={e} />
-        ))}
-        {fld("namespace", (e) => (
-          <SelectField<LineItemNamespace>
-            label="Where this line came from" testid="namespace" editable={editable} reason={lockReason}
-            help="Whether the output template asked for this line, or you added it. Only the
-                  template can put a line in its own space, so this cannot be set
-                  by hand — and a template line cannot be deleted."
-            options={vocab?.namespaces ?? []} helpOf={(v) => NAMESPACE_HELP[v]}
-            value={g("namespace", item.namespace)} onChange={(v) => v && patch({ namespace: v })}
-            error={e} />
-        ))}
-        {fld("value_scope", (e) => (
-          <SelectField<ValueScope>
-            label="May it overlap another line?" testid="value_scope" editable={editable}
-            reason={lockReason} help="Whether this line's figure may also be counted inside another
-                                      line. Consulted when a
-                                      section's leftover is
-                                      worked out, so that a
-                                      figure is not counted
-                                      twice."
-            options={vocab?.value_scopes ?? []} helpOf={(v) => VALUE_SCOPE_HELP[v]}
-            value={g("value_scope", item.value_scope)}
-            onChange={(v) => v && patch({ value_scope: v })}
-            error={e} inherited={inh("value_scope", item.value_scope)} />
-        ))}
-        {fld("is_gross_parent", (e) => (
-          <BoolField label="Already includes its children's figures"
-                     testid="is_gross_parent" editable={editable}
-                     help="Without it, caption collisions had no discriminator and both claimants
-                           were loaded additively — double-counting a figure the filing printed
-                           once."
-                     onText="Never loaded additively with the children named below."
-                     offText="No containment declared."
-                     value={g("is_gross_parent", item.is_gross_parent)}
-                     onChange={(v) => patch({ is_gross_parent: v })}
-                     error={e} inherited={inh("is_gross_parent", item.is_gross_parent)} />
-        ))}
-        {fld("children_if_decomposed", (e) => (
-          <KeyPicker label="Children this parent already contains" testid="children_if_decomposed"
-                     multi editable={editable} reason={lockReason} options={keys}
-                     exclude={[item.key]}
-                     help="Keys of this set. A pipe-joined string names no key — list each entry
-                           separately."
-                     value={g("children_if_decomposed", item.children_if_decomposed)}
-                     onChange={(v) => patch({ children_if_decomposed: v })}
-                     error={e} indexErrors={idx("children_if_decomposed")}
-                     inherited={inh("children_if_decomposed", item.children_if_decomposed)} />
-        ))}
-        {fld("sole_component_of", (e) => (
-          <KeyPicker label="Sole component of" testid="sole_component_of" editable={editable}
-                     reason={lockReason} options={keys} exclude={[item.key]}
-                     help="Use when a filing prints only the subtotal and none of its parts: the
-                           whole figure is then taken as this line. The moment any sibling line
-                           IS found on the page, that assumption is dropped — the subtotal
-                           evidently covers more than this one line."
-                     value={g("sole_component_of", item.sole_component_of)}
-                     onChange={(v) => patch({ sole_component_of: v })}
-                     error={e} inherited={inh("sole_component_of", item.sole_component_of)} />
-        ))}
-        {fld("expected_components", (e) => (
-          <KeyPicker label="Parts expected to be found first" testid="expected_components"
-                     multi editable={editable} reason={lockReason} options={keys}
-                     help="The keys a residual or parent expects to be evidenced. A typo here
-                           silently disables the expectation, so entries are picked, not typed."
-                     value={g("expected_components", item.expected_components)}
-                     onChange={(v) => patch({ expected_components: v })}
-                     error={e} indexErrors={idx("expected_components")}
-                     inherited={inh("expected_components", item.expected_components)} />
-        ))}
-        {fld("never_sweep", (e) => (
-          <KeyPicker label="Never absorb these keys" testid="never_sweep" multi
-                     editable={editable} reason={lockReason} options={keys}
-                     help="A prohibition. One that names a non-key cannot be told apart from a
-                           filing that never triggered it."
-                     value={g("never_sweep", item.never_sweep)}
-                     onChange={(v) => patch({ never_sweep: v })}
-                     error={e} indexErrors={idx("never_sweep")}
-                     inherited={inh("never_sweep", item.never_sweep)} />
-        ))}
 
-        {/* RESIDUAL POLICY — a bucket's own copy of the sweep terms it is populated under.
-            `section_scope` inside it is the one term that is not global, so the object cannot be
-            authored anywhere but per item. */}
-        {fld("residual_policy", (e) => (
-          <BoolField label="This line is a RESIDUAL BUCKET" testid="residual_policy"
-                     editable={editable}
-                     help="Its own copy of the sweep terms it is populated under. Switching it off
-                           writes `null` — no policy."
-                     onText="Populated by the sweep, under the terms below."
-                     offText="No residual policy declared."
-                     value={residual !== null}
-                     onChange={(v) => patch({
-                       residual_policy: v ? (item.residual_policy ?? NEW_RESIDUAL_POLICY) : null,
-                     })}
-                     error={e} inherited={inh("residual_policy", item.residual_policy)} />
-        ))}
-        {residual && (
-          <div style={{ borderLeft: `2px solid ${color.indigoBorder2}`, paddingLeft: 11,
-                         marginBottom: 14 }}>
-            {fld("residual_policy.framework", (e) => (
-              <TextField label="Framework" testid="residual_policy-framework" editable={editable}
-                         mono reason={lockReason}
-                         help="Which global residual framework block this policy repeats. A free
-                               string on the model, so the list is a suggestion."
-                         datalist={vocab?.residual_frameworks}
-                         value={residual.framework}
-                         onChange={(v) => setResidual({ framework: v })} error={e} />
-            ))}
-            {fld("residual_policy.section_scope", (e) => (
-              <TextField label="Section this bucket is confined to"
-                         testid="residual_policy-section_scope" editable={editable} mono
-                         reason={lockReason}
-                         help="What makes “may not cross a section” mean anything. Per-item by
-                               necessity — a global value cannot express it."
-                         datalist={vocab?.section_scope_tokens}
-                         value={residual.section_scope}
-                         onChange={(v) => setResidual({ section_scope: v })} error={e} />
-            ))}
-            {fld("residual_policy.population", (e) => (
-              <TextField label="How the bucket is filled" testid="residual_policy-population"
-                         editable={editable} mono reason={lockReason}
-                         help="Sweep only, versus anything else declared."
-                         datalist={vocab?.residual_populations}
-                         value={residual.population}
-                         onChange={(v) => setResidual({ population: v })} error={e} />
-            ))}
-            {fld("residual_policy.cross_section", (e) => (
-              <BoolField label="May pull rows from OUTSIDE that section"
-                         testid="residual_policy-cross_section" editable={editable}
-                         value={residual.cross_section}
-                         onChange={(v) => setResidual({ cross_section: v })}
-                         onText="The sweep may reach outside the section above."
-                         offText="The sweep is confined to the section above."
-                         error={e} />
-            ))}
-            {fld("residual_policy.notes_as_source", (e) => (
-              <BoolField label="Note rows may fill it, not only face rows"
-                         testid="residual_policy-notes_as_source" editable={editable}
-                         value={residual.notes_as_source}
-                         onChange={(v) => setResidual({ notes_as_source: v })} error={e} />
-            ))}
-            {fld("residual_policy.plug", (e) => (
-              <BoolField label="May be computed as a PLUG" testid="residual_policy-plug"
-                         editable={editable} tone="warn"
-                         help="(reported subtotal − mapped children)."
-                         onText="A plug ALWAYS ties, so it hides the mapping gap it papers over."
-                         offText="Never computed as the difference — a gap stays visible as a gap."
-                         value={residual.plug} onChange={(v) => setResidual({ plug: v })}
-                         error={e} />
-            ))}
-            {fld("residual_policy.itemise", (e) => (
-              <BoolField label="Itemise what was swept" testid="residual_policy-itemise"
-                         editable={editable}
-                         help="Decides whether a reviewer can see what was swept, or only one
-                               collapsed figure."
-                         value={residual.itemise} onChange={(v) => setResidual({ itemise: v })}
-                         error={e} />
-            ))}
-          </div>
-        )}
       </Group>
 
-      {/* ── 5. MEASUREMENT ───────────────────────────────────────────────────────────────────
-          THE TWO SIGN FIELDS ARE LABELLED APART, because they are two questions and one name for
-          both is how an author changes the wrong one: `sign_convention` on the item is the sign
-          the line is EXPECTED to carry (a review trigger, sent as `sign_expectation`), and
-          `sign_rule.convention` is how a value is NORMALISED. */}
-      <Group {...band(5, GROUP_FIELDS.measurement)} question="What kind of figure is it?">
-        {fld("output_structure", (e) => (
-          <SelectField<OutputStructure>
-            label="What this line outputs" testid="output_structure" editable={editable}
-            reason={lockReason} options={vocab?.output_structures ?? []}
-            labelOf={(o) => OUTPUT_STRUCTURE_LABEL[o] ?? o}
-            helpOf={(o) => OUTPUT_STRUCTURE_HELP[o]}
-            help="Almost every line is a NUMBER, and everything that totals or reconciles assumes
-                  it. The other two make the line hold text instead: a
-                  phrase taken off the page, or prose the model writes
-                  from this line's own prompt. Text output is only
-                  available on an extracted line — no arithmetic
-                  produces a sentence."
-            value={g("output_structure", item.output_structure) ?? "value"}
-            onChange={(v) => patch({ output_structure: v ?? "value" })}
-            error={e} />
-        ))}
-        {fld("temporality", (e) => (
-          <SelectField<LineItemTemporality>
-            label="Instant or duration" testid="temporality" editable={editable} nullable
-            reason={lockReason} help="The line's identity as a measurement; validation reads it."
-            options={vocab?.temporalities ?? []}
-            value={g("temporality", item.temporality)} onChange={(v) => patch({ temporality: v })}
-            error={e} inherited={inh("temporality", item.temporality)} />
-        ))}
-        {fld("unit_of_account", (e) => (
-          <SelectField<LineItemUnitOfAccount>
-            label="Balance, flow or subtotal" testid="unit_of_account" editable={editable} nullable
-            reason={lockReason} options={vocab?.units_of_account ?? []}
-            value={g("unit_of_account", item.unit_of_account)}
-            onChange={(v) => patch({ unit_of_account: v })}
-            error={e} inherited={inh("unit_of_account", item.unit_of_account)} />
-        ))}
-        {fld("sign_expectation", (e) => (
-          <SelectField<SignExpectation>
-            label="Expected sign — a review trigger" testid="sign_expectation" editable={editable}
-            nullable reason={lockReason}
-            help="The sign this figure should normally have. Nothing is ever flipped for you — a
-                  value with the unexpected sign is flagged for a human to look
-                  at, because a genuine negative and a sign error look the same to
-                  a machine."
-            options={vocab?.sign_expectations ?? []}
-            value={g("sign_expectation", item.sign_convention)}
-            onChange={(v) => patch({ sign_expectation: v })}
-            error={e} inherited={inh("sign_convention", item.sign_convention)} />
-        ))}
-        {fld("sign_rule.convention", (e) => (
-          <SelectField<SignRuleConvention>
-            label="How the value is NORMALISED" testid="sign_rule-convention" editable={editable}
-            nullable reason={lockReason} nullLabel="no sign rule at all"
-            help="The convention a figure is stored under. Clearing it removes the whole sign rule
-                  — including the label regexes below."
-            options={vocab?.sign_conventions ?? []}
-            value={signRule?.convention ?? null}
-            onChange={(v) => patch({
-              // The rule is nullable AS AN OBJECT and the convention is its required half, so the
-              // convention IS the on/off switch: no convention means no normalisation declared.
-              sign_rule: v === null ? null
-                                    : { convention: v,
-                                        flip_if_label_matches: signRule?.flip_if_label_matches ?? [] },
-            })}
-            error={e} inherited={inh("sign_rule", item.sign_rule)} />
-        ))}
-        {fld("sign_rule.flip_if_label_matches", (e) => (
-          <StringListEditor label="Flip the sign when the printed label matches"
-                            testid="sign_rule-flip_if_label_matches"
-                            editable={editable && !!signRule} variant="mono"
-                            help={signRule
-                              ? "A silent sign inversion is one of the most expensive errors on a"
-                                + " statement, and this is the only field that causes one."
-                              : "Choose a normalisation convention above first — these regexes"
-                                + " live inside the sign rule."}
-                            value={signRule?.flip_if_label_matches ?? []}
-                            onChange={(v) => patch({
-                              sign_rule: { convention: signRule?.convention ?? "natural",
-                                           flip_if_label_matches: v },
-                            })}
-                            error={e} indexErrors={idx("sign_rule.flip_if_label_matches")} />
-        ))}
-        {fld("analyst_bucket", (e) => (
-          <SelectField<string>
-            label="Analyst section for its rows" testid="analyst_bucket" editable={editable}
-            nullable reason={lockReason} nullLabel="nothing said — read from the printed section"
-            help="Which section this line's rows are filed under when the page itself does not say —
-                  interest, for instance, which statements rarely print a heading
-                  for. A value naming no real section sends the rows to “Others”
-                  instead, which is why this is a list rather than free text."
-            options={vocab?.analyst_buckets ?? []}
-            value={g("analyst_bucket", item.analyst_bucket)}
-            onChange={(v) => patch({ analyst_bucket: v })}
-            error={e} inherited={inh("analyst_bucket", item.analyst_bucket)} />
-        ))}
-      </Group>
 
-      {/* ── 6. ASSEMBLY ──────────────────────────────────────────────────────────────────────
+      {/* ── 5. ASSEMBLY ──────────────────────────────────────────────────────────────────────
           BOTH BLOCKS STAY ON SCREEN, the current type's expanded and the other collapsed. Hiding
           the one that does not apply is how a type change makes a group vanish and an author
           concludes the field was taken away — and both are needed while a line is being moved
           from one type to the other. */}
-      <Group {...band(6, GROUP_FIELDS.assembly)} question="How is its figure obtained?"
+      <Group {...band(5, GROUP_FIELDS.assembly)} question="How is its figure obtained?"
              note="A calculated or intermediate line is a signed sum of terms; a derived line is
                    an ordered cascade of attempts, the first that resolves winning.">
         {fld("type", (e) => (
@@ -2130,47 +1535,6 @@ function Detail(p: EditorProps) {
                        onChange={(v) => patch({ implemented_by: v })} error={e} />
           ))}
         </details>
-      </Group>
-
-      {/* ── 7. PROSE ─────────────────────────────────────────────────────────────────────────
-          Nullable prose: an emptied box yields `null` ("nothing was said"), not `""`. These
-          document decisions someone will otherwise re-litigate. */}
-      <Group {...band(7, GROUP_FIELDS.prose)} question="Notes for the next reader"
-             note="Free prose. Nothing matches on these — they record a decision.">
-        {fld("decomposition_rule", (e) => (
-          <TextArea label="How a combined parent decomposes" testid="decomposition_rule"
-                    editable={editable} rows={2} nullable reason={lockReason}
-                    value={g("decomposition_rule", item.decomposition_rule)}
-                    onChange={(v) => patch({ decomposition_rule: v })} error={e}
-                    inherited={inh("decomposition_rule", item.decomposition_rule)} />
-        ))}
-        {fld("others_rule", (e) => (
-          <TextArea label="What this line's “Others” remainder may contain" testid="others_rule"
-                    editable={editable} rows={2} nullable reason={lockReason}
-                    value={g("others_rule", item.others_rule)}
-                    onChange={(v) => patch({ others_rule: v })} error={e}
-                    inherited={inh("others_rule", item.others_rule)} />
-        ))}
-        {fld("derivation", (e) => (
-          <TextArea label="How the figure is derived, in words" testid="derivation"
-                    editable={editable} rows={2} nullable reason={lockReason}
-                    value={g("derivation", item.derivation)}
-                    onChange={(v) => patch({ derivation: v })} error={e}
-                    inherited={inh("derivation", item.derivation)} />
-        ))}
-        {/* `aggregation_note` and `template_note` HAD CONTROLS HERE AND THE FIELDS ARE GONE.
-            Both were removed from `LineItemDef` after measurement — 395 and 391 of 539 items
-            declared them, 54 KB of prose between them, and NOTHING in the pipeline read either.
-            A control writing a field the endpoint no longer accepts is worse than a missing
-            control: the author types, saves, and gets a refusal naming a field they cannot see.
-            `notes_as_source_rationale` below is deliberately NOT in that group — it is read. */}
-        {fld("notes_as_source_rationale", (e) => (
-          <TextArea label="Why a note may be the authoritative source" testid="notes_as_source_rationale"
-                    editable={editable} rows={2} nullable reason={lockReason}
-                    value={g("notes_as_source_rationale", item.notes_as_source_rationale)}
-                    onChange={(v) => patch({ notes_as_source_rationale: v })} error={e}
-                    inherited={inh("notes_as_source_rationale", item.notes_as_source_rationale)} />
-        ))}
       </Group>
 
       {/* ── 8. LOCKED ────────────────────────────────────────────────────────────────────────
