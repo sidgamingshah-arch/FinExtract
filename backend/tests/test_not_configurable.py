@@ -36,7 +36,7 @@ SEED = (pathlib.Path(__file__).resolve().parent.parent
 # change there that is not mirrored here is exactly the regression this file exists to catch.
 TEMPLATE_SCREEN_SENDS = frozenset({
     "key", "locale", "aliases", "sign_convention", "definition", "value_scope",
-    "include_criteria", "exclude_criteria", "confusable_with", "keyword_hints",
+    "exclude_criteria", "confusable_with", "keyword_hints",
     "regex_hints", "exclude_hints",
 })
 
@@ -96,12 +96,17 @@ def test_the_fields_the_v2_spec_removed_are_all_refused():
 
 
 def test_the_count_someone_has_to_justify():
-    """23 of 54 wire fields refused. The number is here so widening the surface is a decision.
+    """23 of 53 wire fields refused. The number is here so widening the surface is a decision.
+
+    54 UNTIL `include_criteria` WENT. Measured before removing it: 375 of its 441 declarations held
+    one generated sentence restating the line's own label, and it was sent to the model as `include`
+    on 375 of the 518 lines a run asks about. The 69 authored ones were folded into `definition`,
+    which both paths read.
 
     It was 26 until the audit found that `in_output`, `namespace` and `order` cannot be refused:
     the template has no row for an off-template PART (measured: 0 of the 77 appear in it), so it
     cannot decide a part's delivery, and refusing them made parts unauthorable."""
-    assert len(_EDITABLE_FIELDS) == 54, len(_EDITABLE_FIELDS)
+    assert len(_EDITABLE_FIELDS) == 53, len(_EDITABLE_FIELDS)
     assert len(_NOT_CONFIGURABLE) == 23, len(_NOT_CONFIGURABLE)
 
 

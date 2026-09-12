@@ -518,7 +518,18 @@ class LineItemDef(BaseModel):
     # AND `exclude` (prose criteria shown to the LLM). Folding prose into a regex-validated list
     # either fails validation or, worse, compiles as an accidental veto.
     exclude_hints: list[str] = Field(default_factory=list)
-    include_criteria: list[str] = Field(default_factory=list)
+    # `include_criteria` IS GONE. Measured before removing it: 441 of 539 lines declared it and
+    # 375 of those held one GENERATED sentence — "Amounts or disclosures explicitly reported for
+    # <label> in <statement>" — which restates the label the payload already carries and the probe
+    # already scores. It was sent to the model as `include` on 375 of the 518 lines a run asks
+    # about, so the cost was not a heavy form but a request in which a quarter of the prose said
+    # nothing. The 69 genuinely authored sentences (currency, rounding, entity name) were folded
+    # into `definition` — the field BOTH paths read, the payload directly and
+    # `line_item_notes.blended_probe` for note selection — so no guidance was lost.
+    #
+    # `exclude_criteria` STAYS and is deliberately empty in the shipped set: 393 of its 462 values
+    # were one identical sentence. The field is the right shape for what it is for, so it keeps its
+    # place behind the advanced toggle for the day somebody writes a real exclusion.
     exclude_criteria: list[str] = Field(default_factory=list)
     note_source: NoteSource | None = None
     # Whether a cited note may be a SOURCE for this line or only evidence for it.

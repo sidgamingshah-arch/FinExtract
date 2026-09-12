@@ -450,7 +450,14 @@ def resolve_sources(sources, notes) -> tuple[list[dict], list[dict]]:
 
     resolved: list[dict] = []
     unresolved: list[dict] = []
-    for ref in sources or ():
+    # THE CITATION'S OWN POSITION TRAVELS WITH IT, and it has to.
+    #
+    # `LineItemAnswer.signs` is POSITIONAL — `signs[i]` belongs to `sources[i]` — and the caller
+    # sums the entries it gets back. Returning two unordered lists meant a caller that dropped or
+    # reordered any entry silently re-paired the remaining figures with the wrong signs: a
+    # declared deduction of 120,000 published as +120,000. `at` is what lets every consumer pair a
+    # figure with the sign the model actually gave it, whatever it does with the rest.
+    for at, ref in enumerate(sources or ()):
         want_note = str(getattr(ref, "note", "") or "").strip()
         want_cap = norm(getattr(ref, "caption", ""))
         quote = (getattr(ref, "quote", "") or "").strip()
@@ -475,6 +482,7 @@ def resolve_sources(sources, notes) -> tuple[list[dict], list[dict]]:
                 found = _amount_in_text(stated, (getattr(table, "source_text", "") or "") + " " + quote)
                 if found is not None:
                     resolved.append({
+                        "at": at,
                         "note": want_note, "title": getattr(table, "title", "") or "",
                         "caption": getattr(ref, "caption", ""),
                         # Keyed `prose` rather than a period: the sentence says which line the
@@ -486,12 +494,14 @@ def resolve_sources(sources, notes) -> tuple[list[dict], list[dict]]:
                         "quote": quote, "prose": True})
                     continue
                 unresolved.append({
+                    "at": at,
                     "note": want_note, "caption": getattr(ref, "caption", ""), "quote": quote,
                     "amount": stated,
                     "why": (f"the amount {stated} does not appear in note {want_note}'s text — a "
                             f"figure the model stated rather than located is refused")})
                 continue
-            unresolved.append({"note": want_note,
+            unresolved.append({"at": at,
+                               "note": want_note,
                                "caption": getattr(ref, "caption", ""),
                                "quote": quote,
                                "why": ("no extracted row in that note matches the caption — it may "
@@ -508,7 +518,8 @@ def resolve_sources(sources, notes) -> tuple[list[dict], list[dict]]:
             figures[str(getattr(ev, "period_label", "") or "?")] = str(ev.value)
             if prov is None:
                 prov = derivation._json_safe_provenance(getattr(ev, "provenance", None))
-        resolved.append({"note": number, "title": getattr(table, "title", "") or "",
+        resolved.append({"at": at,
+                         "note": number, "title": getattr(table, "title", "") or "",
                          "caption": caption, "figures": figures, "provenance": prov,
                          "quote": quote})
     return resolved, unresolved

@@ -366,6 +366,26 @@ class ExtractionSettings(BaseModel):
     #               components, or two lines whose DISTINCTION is what the model keeps
     #               getting wrong. Read by `services.line_item_requests.plan_requests`.
     llm_request_grouping: Literal["none", "identical", "similar", "manual"] = "none"
+    # MAY AN AUTHORED EXCLUSION REFUSE A MODEL'S CITATION?
+    #
+    # `note_source.row_caption_none` and `row_terms_none` are the author's statement of rows that
+    # must NEVER count — 14,943 entries across the 77 parts, against 4,211 positive terms. They are
+    # enforced on the deterministic row and prose routes and, until this setting existed, on nothing
+    # else: an LLM answer was checked only for POSITIVE agreement with `row_terms`, so a caption the
+    # author had explicitly excluded was accepted whenever it shared one discriminating word.
+    # Measured on `sub__pbt_oper_exp_depreciation`: "Opening balance of accumulated depreciation",
+    # "Depreciation on disposal" and "Depreciation transferred out" are each vetoed and each were
+    # accepted — all three real rows of a PP&E movement schedule, sitting beside the wanted one.
+    #
+    # ON BY DEFAULT, because an exclusion an author wrote and the engine ignores is worse than no
+    # exclusion: it reads as a control. A switch rather than a constant because it changes which
+    # figures publish — turning it on refuses citations that previously produced numbers, and a
+    # deployment mid-review may want to see the before and after against the same filing.
+    #
+    # A REFUSED CITATION IS NOT DISCARDED. It is counted, named as unverified and the line is sent
+    # to review (`stages.line_item_llm`), so enabling this narrows what is TRUSTED rather than what
+    # is published — which is why it is safe to ship on.
+    llm_vetoes_bind_model_answers: bool = True
     # The overlap two note sets need to share a request under "similar", as a Jaccard index —
     # |A n B| / |A u B|. 1.0 is "identical" by another name. Read only in "similar" mode.
     #

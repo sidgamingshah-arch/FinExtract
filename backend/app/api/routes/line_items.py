@@ -859,7 +859,6 @@ class ItemEdit(BaseModel):
     # Extra instruction for THIS line, sent inside its own candidate entry. Refused by
     # `LineItemDef` on a non-`extracted` line, and that refusal lands on this field.
     prompt: str | None = None
-    include_criteria: list[str] | None = None
     exclude_criteria: list[str] | None = None
     confusable_with: list[str] | None = None
     value_scope: ValueScope | None = None
@@ -1008,7 +1007,6 @@ _EDIT_SCALARS: dict[str, str] = {
 # blanks do not. `[]` IS STORED. The ones that name other keys, that must compile, or that are
 # locale-scoped are special cases in the apply instead.
 _EDIT_LISTS: dict[str, str] = {
-    "include_criteria": "include_criteria",
     "exclude_criteria": "exclude_criteria",
     "keyword_hints": "keyword_hints",
     # `scopes` is a search ORDER, not a set, and `_clean_list` preserves order — which is why it

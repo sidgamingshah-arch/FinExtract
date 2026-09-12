@@ -36,7 +36,10 @@ from app.services.mapping import _KEY_SECTION_OVERRIDES
 # accidental veto.
 RENAMED: dict[str, str] = {
     "canonical_key": "key",
-    "include": "include_criteria",
+    # `include` -> `include_criteria` is gone with the field. A rulebook concept that still declares
+    # `include` now lands nowhere, which `scripts/project_ontology.py` reports as an unhomed
+    # declaration — the right outcome: it says the prose has no destination rather than writing it
+    # to a field nothing reads.
     "exclude": "exclude_criteria",
 }
 

@@ -93,7 +93,7 @@ _SET = {
         {"key": _EDITED, "label": "Cash", "inherits": "bs_ca",
          "aliases": ["Cash"], "aliases_i18n": {"en": ["Cash"], "zh": ["現金"]},
          "description": "as first stored", "definition": "as first stored",
-         "keyword_hints": ["cash"], "include_criteria": ["bank balances"]},
+         "keyword_hints": ["cash"]},
         {"key": "probe_parent", "label": "Total cash", "aliases": ["Total cash"],
          "inherits": "bs_ca"},
         # PARENTED FROM THE START, so the cycle case below has an edge to close: with every item a
@@ -147,7 +147,6 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
     # here so the coverage guard sees it; excluded from the combined body because a non-`value`
     # structure is only legal on an `extracted` line, and asserted on its own below.
     "output_structure": ("output_structure", "phrase"),
-    "include_criteria": ("include_criteria", ["bank balances", "cash on hand"]),
     "exclude_criteria": ("exclude_criteria", ["bank overdrafts repayable on demand"]),
     "confusable_with": ("confusable_with", ["probe_other"]),
     "section_disambiguation": ("section_disambiguation",
@@ -569,15 +568,15 @@ def test_a_configured_empty_list_stays_empty(client, probe):
     """
     _tpl, cfg = probe
     new_id = _saved(client, cfg["id"], {"key": _EDITED, "keyword_hints": [],
-                                        "include_criteria": [], "section_scope": []})
+                                        "section_scope": []})
     stored = _stored(client, new_id)
-    for field in ("keyword_hints", "include_criteria", "section_scope"):
+    for field in ("keyword_hints", "section_scope"):
         assert stored.get(field) == [], f"{field}: {stored.get(field)!r}"
     # Re-read, resolved: the section layer must not put its list back.
     resolved = _in_force(client)
     assert resolved["section_scope"] == [], (
         f"the cleared gate came back as {resolved['section_scope']!r} from section_defaults")
-    assert resolved["keyword_hints"] == [] and resolved["include_criteria"] == []
+    assert resolved["keyword_hints"] == []
 
 
 # ── 4. the locale contract ────────────────────────────────────────────────────────────────────

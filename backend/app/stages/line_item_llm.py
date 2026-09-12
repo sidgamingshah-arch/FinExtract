@@ -207,47 +207,65 @@ class LineItemLlmStage(Stage):
                     continue
                 seen.add(key)
                 item = by_key[key]
-                resolved, unresolved, figures = line_item_llm.resolve(answer, doc.notes)
+                resolved, unresolved, _ = line_item_llm.resolve(answer, doc.notes)
                 unresolved_total += len(unresolved)
                 for bad in unresolved:
                     ctx.log(f"line_item_llm:{key}: citation NOT resolved "
                             f"note={bad.get('note')!r} caption={str(bad.get('caption'))[:60]!r} "
                             f"({bad.get('why')})")
-                if not resolved:
-                    continue
-                # THE FLOOR THE ANSWER IS CHECKED AGAINST. A line that declares `row_terms` has
-                # said what its ROW is called, and a citation whose caption shares no subject word
-                # with those terms is not that row — it is almost always the note or expense TOTAL
-                # the line is a component of. Measured: the face row "Other operating expenses"
-                # (1,026,959, a real income-statement total) was bound to a depreciation part,
-                # whose meaning is the depreciation CHARGED TO those expenses. It matched the
-                # CONTAINER's name.
+                # THE FLOOR THE ANSWER IS CHECKED AGAINST, and what it now does with a failure.
                 #
-                # A PROSE ENTRY IS EXEMPT, and it has to be: a sentence belongs to no row, so it
-                # carries no caption to test — `resolve_sources` returns it with `prose: True` and
-                # whatever caption the model gave, usually empty. Tested anyway, an empty caption
-                # shares no word with anything and every prose figure would be refused. What
-                # verifies a prose amount is that it appears in the cited note's own text, which
-                # `resolve_sources` has already checked before it is returned at all.
-                refused = [e for e in resolved
-                           if not e.get("prose")
-                           and not line_item_notes.caption_agrees_with_row_terms(
-                               item, str(e.get("caption") or ""))[0]]
-                if refused:
-                    for entry in refused:
-                        ctx.log(f"line_item_llm:{key}: row_terms_refused "
-                                f"{str(entry.get('caption'))[:60]!r} — the caption shares no "
-                                f"subject word with this line's own row terms")
-                    resolved = [e for e in resolved if e not in refused]
-                    if not resolved:
+                # A line that declares `row_terms` has said what its ROW is called, and a citation
+                # whose caption shares no DISCRIMINATING word with those terms is not that row — it
+                # is almost always the note or expense TOTAL the line is a component of. Measured:
+                # the face row "Other operating expenses" (1,026,959, a real income-statement
+                # total) was bound to a depreciation part, whose meaning is the depreciation
+                # CHARGED TO those expenses. It matched the CONTAINER's name.
+                #
+                # MARKED, NOT DROPPED, and that is the change. Dropping a refused term published a
+                # PARTIAL SUM as the line's whole figure — 500,000 where the model said
+                # 500,000 - 120,000 — and, because `signs` is positional and was not filtered with
+                # it, moved the survivor onto another term's sign, publishing a declared deduction
+                # as an addition. The figure of a refused row is REAL (it came off an extracted
+                # row); only its identity is in doubt. So it is counted, the line goes to review,
+                # and the term is named so a reader sees which part of the arithmetic is unverified.
+                #
+                # A PROSE ENTRY IS EXEMPT from the floor, and it has to be: a sentence belongs to no
+                # row, so it carries no caption to test, and an empty caption shares no word with
+                # anything. What verifies a prose amount is that it appears in the cited note's own
+                # text, which `resolve_sources` checks before returning it at all.
+                vetoes_bind = bool(getattr(ctx.settings.extraction,
+                                           "llm_vetoes_bind_model_answers", True))
+                for entry in resolved:
+                    if entry.get("prose"):
                         continue
-                    component = str(answer.role or "").lower() == "component"
-                    figures = line_item_llm.figures_of(resolved, list(answer.signs or ()),
-                                                       component)
+                    caption = str(entry.get("caption") or "")
+                    ok, why = line_item_notes.caption_agrees_with_row_terms(item, caption)
+                    # AND THE AUTHOR'S OWN EXCLUSIONS, which this path ignored entirely. See
+                    # `line_item_notes.caption_is_vetoed`: 14,943 authored entries that the
+                    # deterministic routes enforce and an LLM answer was never tested against.
+                    if ok and vetoes_bind:
+                        vetoed, veto_why = line_item_notes.caption_is_vetoed(item, caption)
+                        if vetoed:
+                            ok, why = False, veto_why
+                    if not ok:
+                        entry["row_terms_refused"] = why
+                        ctx.log(f"line_item_llm:{key}: row_terms_refused "
+                                f"{str(entry.get('caption'))[:60]!r} — counted and flagged for "
+                                f"review ({why})")
+                component = str(answer.role or "").lower() == "component"
+                figures, unverified = line_item_llm.combine_terms(
+                    resolved, unresolved, list(answer.signs or ()), component,
+                    fallback_period=_current_period(doc) or "current")
                 if not figures:
+                    # NOTHING WAS LOCATED AND NOTHING WAS EVEN CLAIMED. No figure can be published,
+                    # so the answer is recorded on the row instead of vanishing — `_write_unanswered`
+                    # says why, so the review queue and the workspace can show what the model said.
+                    self._write_unanswered(doc, by_concept, item, answer, unresolved, ctx)
                     continue
                 answered += 1
-                filled += self._write(doc, by_concept, item, answer, resolved, figures, ctx)
+                filled += self._write(doc, by_concept, item, answer, resolved, figures, ctx,
+                                      unverified)
             missing = sorted(asked - seen)
             if missing:
                 # Said out loud: these lines were paid for and came back unanswered. They fall to
@@ -289,7 +307,7 @@ class LineItemLlmStage(Stage):
         return doc
 
     def _write(self, doc, by_concept: dict, item, answer, resolved: list[dict],
-               figures: dict, ctx) -> int:
+               figures: dict, ctx, unverified: list[dict] | None = None) -> int:
         """Write one line item's located figure, with the trail that says where it came from."""
         row = by_concept.get(item.key)
         if row is None:
@@ -302,6 +320,22 @@ class LineItemLlmStage(Stage):
         row.confidence.method = MappingMethod.LLM.value
         row.confidence.mapping = float(answer.confidence or 0.0)
         row.confidence.flags.append(f"line_item_llm:{len(resolved)} cited row(s)")
+        # A FIGURE WITH AN UNVERIFIED TERM IN IT GOES TO REVIEW, and says which term.
+        #
+        # `combine_terms` counts a refused caption and a stated-but-not-found amount so the
+        # arithmetic is the model's own rather than a silent partial sum. The price is that the
+        # published figure contains something nobody could confirm, so it must not read as settled.
+        # The flag is what the review queue and the grid pick up; each term is named so a reader
+        # sees WHICH part of the sum is in doubt rather than being told the whole line is.
+        for term in (unverified or ()):
+            what = ("stated but not found in the note's text"
+                    if term.get("amount") and not term.get("figures")
+                    else "caption refused by this line's row terms")
+            row.confidence.flags.append(
+                f"llm_unverified_term:{str(term.get('caption') or term.get('note') or '?')[:60]}"
+                f" ({what})")
+        if unverified:
+            row.confidence.flags.append(f"llm_unverified_terms:{len(unverified)}")
         if answer.reason:
             # The model's own stated justification, surfaced rather than only logged: a reviewer
             # asking why these rows are this line sees the reasoning and not only a score. Each
@@ -340,6 +374,39 @@ class LineItemLlmStage(Stage):
             ctx.log(f"line_item_llm:{item.key}[{basis}:{period}] = {amount} "
                     f"from {len(resolved)} cited row(s)")
         return written
+
+    def _write_unanswered(self, doc, by_concept: dict, item, answer, unresolved: list[dict],
+                          ctx) -> int:
+        """The model answered and NOTHING could be located. Record the answer anyway.
+
+        WHAT THIS REPLACES: `if not resolved: continue`. Nothing whatever reached the row — no
+        flag, no derivation, no reason — so the model's answer survived only as a line in
+        `ctx.logs`. A reviewer asking "what did it say about this line?" had nowhere to look, and
+        the review queue had nothing to raise. That is the worst of the three outcomes to leave
+        silent, because it is the one where the figure is missing AND the reasoning is hidden.
+
+        NO FIGURE IS WRITTEN. There is nothing to write: every citation named a row that is not in
+        the note, or an amount that is not in its text. The row is created if it does not exist so
+        the answer has somewhere to live, and it carries the reason, each refused citation and why,
+        and a flag the queue can select on.
+        """
+        row = by_concept.get(item.key)
+        if row is None:
+            row = LineItem(source_label=item.label or item.key, canonical_key=item.key)
+            doc.line_items.append(row)
+            by_concept[item.key] = row
+        row.confidence.method = MappingMethod.LLM.value
+        row.confidence.mapping = float(answer.confidence or 0.0)
+        row.confidence.flags.append(f"llm_answered_nothing_located:{len(unresolved)} citation(s)")
+        if answer.reason:
+            row.confidence.flags.append(f"llm_reason:{answer.reason}")
+        for bad in unresolved:
+            row.confidence.flags.append(
+                f"llm_citation_unresolved:note {bad.get('note')!r} "
+                f"{str(bad.get('caption') or '')[:48]!r} — {str(bad.get('why') or '')[:120]}")
+        ctx.log(f"line_item_llm:{item.key}: answered but nothing located — "
+                f"{len(unresolved)} citation(s) recorded on the row, no figure written")
+        return 0
 
     @staticmethod
     def _write_prose(row, doc, amount, resolved: list[dict], ctx, item) -> int:

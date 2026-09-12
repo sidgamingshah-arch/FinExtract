@@ -190,8 +190,12 @@ def line_item_payload(item, notes_for_item: tuple[str, ...]) -> dict:
         entry["definition"] = item.definition
     elif getattr(item, "description", ""):
         entry["definition"] = item.description
-    for attr, name in (("include_criteria", "include"),
-                       ("exclude_criteria", "exclude"),
+    # NO `include` ANY MORE — the field is gone from the schema; see its tombstone there. `exclude`
+    # and `do_not_confuse_with` remain, and both are omitted entirely when empty rather than sent
+    # as an empty list: a key whose value says nothing still costs the model a line to read and
+    # invites it to infer that the author had nothing to exclude, which is not the same as not
+    # having been asked.
+    for attr, name in (("exclude_criteria", "exclude"),
                        ("confusable_with", "do_not_confuse_with")):
         values = list(getattr(item, attr, None) or ())
         if values:
@@ -295,6 +299,72 @@ def figures_of(resolved: list[dict], signs: list[int], component: bool) -> dict[
                 continue
             out[period] = out.get(period, Decimal(0)) + (value * sign)
     return out
+
+
+def combine_terms(resolved: list[dict], unresolved: list[dict], signs: list[int],
+                  component: bool, fallback_period: str) -> tuple[dict, list[dict]]:
+    """Every cited term in the model's OWN order — verified or not — summed, plus what was not.
+
+    ``(figures, unverified)``. `figures` is per period as before; `unverified` lists the terms that
+    contributed a figure nobody could confirm, so the caller can flag the line and mark them.
+
+    WHY AN UNVERIFIED TERM IS STILL COUNTED, which reverses the older rule that a figure the model
+    stated rather than located is simply refused. A component answer is ARITHMETIC: "this line is
+    500,000 less 120,000". Dropping the 120,000 does not make the claim smaller, it makes it a
+    DIFFERENT claim — and the old path published the 500,000 alone, as the line's figure, with
+    nothing saying a term had gone. Worse, `signs` is positional and was not filtered alongside the
+    entries, so dropping the first term moved the second to index 0 and a declared deduction
+    published as an addition. Both are fixed by keeping every term, in position, and reporting which
+    could not be confirmed.
+
+    THREE KINDS OF TERM, and only the third is new:
+
+      * VERIFIED ROW — resolved against an extracted row, figures per period. Counted.
+      * REFUSED CAPTION — resolved, so the figure is a real extracted one; only the caption failed
+        the row-terms floor. Counted, and reported unverified: the number is real, its identity is
+        not.
+      * STATED BUT NOT FOUND — the model gave an amount that is not in the note's text. Counted at
+        `fallback_period` because a bare amount carries no column, and reported unverified. This is
+        the one that publishes a figure nobody located, which is why the caller must raise a review
+        flag rather than merely log it.
+
+    A citation with no figure at all — no matching row and no stated amount — contributes nothing
+    and is not in `unverified` either: there is no term to mark, only a citation that named nothing.
+    """
+    terms: list[tuple[int, dict, bool]] = [(int(e.get("at", i)), e, True)
+                                           for i, e in enumerate(resolved)]
+    terms += [(int(e.get("at", 10_000 + i)), e, False) for i, e in enumerate(unresolved)]
+    terms.sort(key=lambda x: x[0])
+
+    out: dict[str, Decimal] = {}
+    unverified: list[dict] = []
+    first_whole: set[str] = set()
+    for at, entry, was_resolved in terms:
+        sign = signs[at] if at < len(signs) and signs[at] in (1, -1) else 1
+        figures = dict(entry.get("figures") or {})
+        confirmed = was_resolved and not entry.get("row_terms_refused")
+        if not figures and not was_resolved:
+            stated = _amount(entry.get("amount"))
+            if stated is None:
+                continue                      # named nothing — no term to count or to mark
+            figures = {fallback_period: str(stated)}
+        if not figures:
+            continue
+        if not confirmed:
+            unverified.append({**entry, "sign": sign})
+        for period, raw in figures.items():
+            value = _amount(raw)
+            if value is None:
+                continue
+            if component:
+                out[period] = out.get(period, Decimal(0)) + (value * sign)
+            elif period not in first_whole:
+                # WHOLE: each citation states the line's own figure, so the first that resolves is
+                # taken and the rest corroborate. Summing them would publish a figure printed
+                # nowhere — a face line plus the note total behind it.
+                out[period] = value
+                first_whole.add(period)
+    return out, unverified
 
 
 def ask(provider, system: str, request: dict, *, max_tokens: int) -> LineItemReply:

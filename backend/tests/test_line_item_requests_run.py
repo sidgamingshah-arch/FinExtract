@@ -102,6 +102,28 @@ class Answers:
             "model": "answers", "input_tokens": 1, "output_tokens": 1}
 
 
+@pytest.fixture(autouse=True)
+def _restore_extraction_settings():
+    """`get_settings()` is a PROCESS-WIDE singleton, and `_run` writes to it.
+
+    Without this, a test here that sets `llm_request_grouping="identical"` leaves it set for
+    every test that runs afterwards in the same process — measured, it made
+    `test_row_terms_gate::test_the_config_default_is_the_attributable_mode` fail with
+    `'identical' == 'none'` while passing on its own. A test that changes another file's result is
+    worse than a failing one, because the failure is attributed to innocent code.
+    """
+    from app.config import get_settings as _gs
+
+    ex = _gs().extraction
+    before = {k: getattr(ex, k) for k in
+              ("llm_mapping", "llm_focus_only", "llm_focus_keys", "llm_request_grouping")}
+    try:
+        yield
+    finally:
+        for k, v in before.items():
+            setattr(ex, k, v)
+
+
 def _run(shipped, doc, answers, only_asked: bool = True, **extraction):
     ctx = PipelineContext(raw_bytes=b"", settings=get_settings())
     ctx.line_items = shipped
@@ -233,15 +255,33 @@ def test_a_prose_amount_is_verified_against_the_note_text_and_scaled(shipped):
     assert _value(doc, SUB) == Decimal("529841")
 
 
-def test_a_prose_figure_that_is_not_in_the_note_is_refused(shipped):
+def test_a_prose_figure_that_is_not_in_the_note_is_published_but_flagged(shipped):
+    """A STATED AMOUNT THAT IS NOT IN THE NOTE'S TEXT, and the posture that changed.
+
+    This asserted `_value(doc, SUB) is None` — the figure was refused outright, on the rule that
+    "a figure the model stated rather than located is refused". That rule caught a fabricated
+    RMB 6.6 bn on the corpus run, and it also threw away the model's arithmetic whenever one term
+    of a sum could not be confirmed, publishing a silent partial sum instead.
+
+    THE DECISION IS NOW THE OTHER WAY: the term is counted, the figure is published, and the line
+    is flagged for review with the unverified term NAMED. A reader sees the whole claim and which
+    part of it nobody could confirm. The refusal is no longer silent in either direction — it used
+    to lose the figure without saying so, and it would now publish it without saying so, so the
+    flag is the load-bearing half of this test.
+    """
     prose = "Depreciation charges of approximately HK$529,841,000 are included in expenses"
     doc = _doc(_note("7", "PROFIT BEFORE TAX", [("Auditor's remuneration", "120")], prose=prose))
     ctx, _p = _run(shipped, doc, [
         {"key": SUB, "confidence": 0.7,
          "sources": [{"note": "7", "caption": "", "quote": prose, "amount": "999,999,000"}]}])
 
-    assert _value(doc, SUB) is None
+    # It is still reported as not located — that fact has not changed.
     assert any("citation NOT resolved" in line for line in ctx.logs), ctx.logs[-6:]
+    row = next((li for li in doc.line_items if li.canonical_key == SUB), None)
+    assert row is not None, "the answer left no trace on the row at all"
+    flags = " ".join(row.confidence.flags)
+    # …and the line cannot read as settled.
+    assert "llm_unverified_term" in flags or "llm_answered_nothing_located" in flags, flags
 
 
 # ── what is never asked about ──────────────────────────────────────────────────────────────────

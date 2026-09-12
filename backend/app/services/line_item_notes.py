@@ -67,6 +67,7 @@ note-plus-rows units; both sides differ here.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from app.services.note_context import ContextPool, ContextUnit, subject_tokens
@@ -505,6 +506,50 @@ def discriminating_tokens(item) -> set[str]:
         for value in (getattr(source, field, None) or ()):
             container |= set(subject_tokens(str(value)))
     return (solo - container) or every
+
+
+def caption_is_vetoed(item, caption: str) -> tuple[bool, str]:
+    r"""Does this caption match something the author said must NEVER count? ``(vetoed, why)``.
+
+    THE LARGEST BODY OF AUTHORED CONFIGURATION IN THE SET, AND IT WAS INERT ON THE PATH THAT
+    PRODUCES FIGURES. Across the 77 parts there are 11,067 `row_terms_none` and 3,876
+    `row_caption_none` entries — 14,943 exclusions against 4,211 positive terms, about three and a
+    half negatives for every positive. `note_sourced` applies them on the deterministic row route
+    (:140) and the prose route (:289). Nothing applied them to an LLM answer: `content_vetoes` is
+    read only inside `widen_by_content`, and widening ships off (`WIDEN_BELOW = 0.0`).
+
+    WHAT GOT THROUGH, measured on `sub__pbt_oper_exp_depreciation`, whose author vetoed
+    `['^\s*at\s+\d', 'opening', 'closing', 'disposal', 'write.?off', 'transfer', 'reclassif']`:
+
+        Opening balance of accumulated depreciation   vetoed   ACCEPTED
+        Depreciation on disposal                     vetoed   ACCEPTED
+        Depreciation transferred out                 vetoed   ACCEPTED
+
+    Every one shares `depreciation`, so the positive floor passed them — and every one is a real
+    row in a PP&E movement schedule, sitting beside the row that is actually wanted. An opening
+    accumulated balance published as the period's charge is the error this vocabulary exists to
+    prevent.
+
+    BOTH FIELDS, AND THE DIFFERENCE BETWEEN THEM. `row_caption_none` entries are REGEXES matched
+    against the caption; `row_terms_none` entries are plain terms, matched on shared subject tokens
+    the way the positive floor matches. A term is not compiled as a pattern: `note_sourced` keeps
+    them apart for the same reason, and treating a plain term as a regex is how a stray bracket
+    becomes an accidental veto on everything.
+    """
+    source = getattr(item, "note_source", None)
+    if source is None or not caption:
+        return False, ""
+    for raw in (getattr(source, "row_caption_none", None) or ()):
+        try:
+            if re.search(str(raw), caption, re.IGNORECASE):
+                return True, f"the caption matches an authored exclusion /{raw}/"
+        except re.error:
+            continue          # a pattern that will not compile is reported by `bad_patterns`
+    got = set(subject_tokens(caption))
+    for raw in (getattr(source, "row_terms_none", None) or ()):
+        if got & set(subject_tokens(str(raw))):
+            return True, f"the caption shares a subject word with the excluded term {raw!r}"
+    return False, ""
 
 
 def caption_agrees_with_row_terms(item, caption: str) -> tuple[bool, str]:

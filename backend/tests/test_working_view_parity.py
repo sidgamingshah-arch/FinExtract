@@ -151,6 +151,26 @@ _FACE_RECOGNITION_MOVED = frozenset({
 })
 _FACE_RECOGNITION_FIELDS = {"keyword_hints", "regex_hints", "match_priority"}
 
+# THE SEED LEADS THE RULEBOOK ON TWO FIELDS BECAUSE THE CONFIG SCREEN WORK CHANGED THEM.
+#
+# `exclude` — the rulebook's spelling of `exclude_criteria` — is declared on 462 concepts there and
+# is now EMPTY on all 462 in the seed. Measured before blanking it: 393 of those 462 values were one
+# identical generated sentence ("Do not substitute another section, period, entity scope, currency or
+# unit; do not double count a parent and its children"), sent to the model as `exclude` on every
+# request. The field survives for the day somebody writes a real exclusion; its generated contents
+# did not.
+#
+# `definition` diverges on 76 concepts because the 69 genuinely authored `include_criteria` values
+# were FOLDED INTO IT when that field went — "Use the presentation currency explicitly stated in the
+# statements or accounting-policy note" and the like, which lived nowhere else. `definition` is the
+# one prose field BOTH paths read (the payload sends it, `line_item_notes` builds the note-selection
+# probe from it), so it is where guidance belongs.
+#
+# Named rather than folded into `_SEED_LAG`, like the other decisions here: a 463rd `exclude` or a
+# 77th changed `definition` still fails this test, which is what stops either drifting further.
+_EXCLUDE_BLANKED = 462
+_DEFINITION_FOLDED = 76
+
 # Fields on which the SHIPPED seed may lag the rulebook — see the module docstring. `description`
 # is by design (the 8 merged keys keep the configurator's prose); the rest are staleness, and the
 # assertion is that the divergence goes no wider than these names.
@@ -333,6 +353,12 @@ def test_shipped_set_diverges_only_in_the_known_classes():
         # now carries them. Both halves are bounded: the field must be one of the three that moved,
         # and the concepts must be those two.
         if field in _FACE_RECOGNITION_FIELDS and set(keys) <= _FACE_RECOGNITION_MOVED:
+            continue
+        # …and the two fields the config-screen work changed, bounded by COUNT so a wider
+        # divergence still fails. See `_EXCLUDE_BLANKED` / `_DEFINITION_FOLDED` above.
+        if field == "exclude" and len(keys) <= _EXCLUDE_BLANKED:
+            continue
+        if field == "definition" and len(keys) <= _DEFINITION_FOLDED:
             continue
         unexpected[field] = keys
     assert not unexpected, (
