@@ -45,7 +45,7 @@ import {
   BoolField, InfoToggle, KeyPicker, LockedRow, RungCards,
   SelectField, StringListEditor, TermRows, TextArea, TextField, type KeyOption,
 } from "../components/configFields";
-import { RecognitionEditor } from "../components/RecognitionEditor";
+import { MatchListEditor } from "../components/MatchListEditor";
 import { RequestGroups } from "../components/RequestGroups";
 import { Button, Card } from "../components/ui";
 import { useT } from "../i18n";
@@ -598,8 +598,7 @@ const GROUP_FIELDS = {
          "note_use", "note_source"],
   /** Rendered only while the `note_source` switch is on, so counted only then. */
   noteSource: ["note_source.note_title_any", "note_source.row_caption_any",
-               "note_source.row_caption_none", "note_source.note_terms", "note_source.row_terms",
-               "note_source.row_terms_none", "note_source.prose_any"],
+               "note_source.row_caption_none", "note_source.prose_any"],
   structure: ["parent"],
   // `type` FIRST, because it selects which of the other three applies. It used to sit in
   // `structure`, one group away from the fields it governs and under a question about hierarchy
@@ -618,8 +617,7 @@ const CONDITIONAL_FIELDS = [
   // The switch and every control under it, so rolling the group open shows the reason once rather
   // than seven silent inputs.
   "note_source", "note_source.note_title_any", "note_source.row_caption_any",
-  "note_source.row_caption_none", "note_source.note_terms", "note_source.row_terms",
-  "note_source.row_terms_none", "note_source.prose_any",
+  "note_source.row_caption_none", "note_source.prose_any",
   "aliases", "exclude_hints",
 ];
 
@@ -1238,25 +1236,31 @@ function Detail(p: EditorProps) {
                </span>
              }>
         {fld("aliases", (e) => (
-          <RecognitionEditor label="Captions that claim this line" testid="aliases"
-                             editable={editable} locale={locale}
-                             help={<>Every row is one way a printed caption can be recognised as
-                                   this line, and the mode says which way. <b>is exactly</b> is the
-                                   caption as printed; the other modes are for a filing that words
-                                   it loosely. Measured over the 389 patterns this set ships, every
-                                   single one is a literal caption with forgiving spacing — so the
-                                   first two modes are almost certainly what you want, and the raw
-                                   pattern escape only appears on a row that already needs it.</>}
-                             aliases={g("aliases", aliasesFor(item, set, locale))}
-                             regex={g("regex_hints", item.regex_hints)}
-                             keywords={g("keyword_hints", item.keyword_hints)}
-                             onChange={(next) => patch({ aliases: next.aliases,
-                                                         regex_hints: next.regex_hints,
-                                                         keyword_hints: next.keyword_hints })}
-                             error={e}
-                             indexErrors={{ aliases: idx("aliases"),
-                                            regex_hints: idx("regex_hints"),
-                                            keyword_hints: idx("keyword_hints") }} />
+          <MatchListEditor label="Captions that claim this line" testid="aliases"
+                           editable={editable}
+                           help={<>Every row is one way a printed caption can be recognised as this
+                                 line, and the mode says which way. <b>is exactly</b> is the caption
+                                 as printed; the others are for a filing that words it loosely.
+                                 Measured over the 389 patterns this set ships, every single one is
+                                 a literal caption with forgiving spacing — so the first two modes
+                                 are almost certainly what you want.</>}
+                           map={{ exact: "aliases", exact_loose: "regex_hints",
+                                  starts: "regex_hints", ends: "regex_hints",
+                                  contains: "keyword_hints", pattern: "regex_hints" }}
+                           order={["aliases", "regex_hints", "keyword_hints"]}
+                           values={{ aliases: g("aliases", aliasesFor(item, set, locale)),
+                                     regex_hints: g("regex_hints", item.regex_hints),
+                                     keyword_hints: g("keyword_hints", item.keyword_hints) }}
+                           onChange={(next) => patch({ aliases: next.aliases,
+                                                       regex_hints: next.regex_hints,
+                                                       keyword_hints: next.keyword_hints })}
+                           suffixOf={(f) => (f === "aliases" ? locale : undefined)}
+                           emptyText="Nothing listed — a configured empty, not a default. This line
+                                      is then reachable only by its own label and by meaning."
+                           error={e}
+                           indexErrors={{ aliases: idx("aliases"),
+                                          regex_hints: idx("regex_hints"),
+                                          keyword_hints: idx("keyword_hints") }} />
         ))}
         {locale === set.locale && (
           <p style={{ fontSize: 10.5, color: color.sec2, margin: "-6px 0 12px", lineHeight: 1.5 }}>
@@ -1384,90 +1388,97 @@ function Detail(p: EditorProps) {
         {noteSource && (
           <div style={{ borderLeft: `2px solid ${color.indigoBorder2}`, paddingLeft: 11,
                          marginBottom: 14 }}>
+            {/* ── THE THREE QUESTIONS A NOTE SOURCE ANSWERS ───────────────────────────────
+                PAIRED, NOT MERGED. Each control holds one question's regex field AND its scored
+                twin, because a pattern and a term answer the same question by different means: a
+                pattern either fires or it does not, a term SCORES, so a phrasing nobody
+                anticipated still ranks instead of silently matching nothing. The row's mode says
+                which, and the value stays in the field that implements it.
+
+                THE NOTE PAIR DOES NOT MERGE WITH THE ROW PAIRS, and that is measured rather than
+                tidy: a note's HEADING names the container and a row's caption names the CONTENT,
+                and one vocabulary cannot do both jobs — a single blended probe scored 0.000 on the
+                note headed 管理費用 for a line whose every token is a depreciation word. Three
+                questions, three controls. */}
             {fld("note_source.note_title_any", (e) => (
-              <StringListEditor label="Note title matches any of" testid="note_source-note_title_any"
-                                editable={editable} variant="mono"
-                                help="Regexes over the note's heading."
-                                value={noteSource.note_title_any}
-                                onChange={(v) => setNoteSource({ note_title_any: v })}
-                                error={e} indexErrors={idx("note_source.note_title_any")} />
+              <MatchListEditor label="Which note holds this line"
+                               testid="note_source-note" editable={editable}
+                               help="The note a figure is disclosed INSIDE — the container, which is
+                                     often nothing like the row's own wording (“property, plant and
+                                     equipment”, “administrative expenses”). Scored rows rank a
+                                     heading; matched rows pin it."
+                               map={{ exact_loose: "note_source.note_title_any",
+                                      starts: "note_source.note_title_any",
+                                      ends: "note_source.note_title_any",
+                                      scored: "note_source.note_terms",
+                                      pattern: "note_source.note_title_any" }}
+                               order={["note_source.note_title_any", "note_source.note_terms"]}
+                               values={{ "note_source.note_title_any": noteSource.note_title_any,
+                                         "note_source.note_terms": noteSource.note_terms ?? [] }}
+                               onChange={(next) => setNoteSource({
+                                 note_title_any: next["note_source.note_title_any"],
+                                 note_terms: next["note_source.note_terms"] })}
+                               emptyText="Nothing said — the line's own label and definition are
+                                          scored against note headings instead."
+                               error={e}
+                               indexErrors={{
+                                 "note_source.note_title_any": idx("note_source.note_title_any"),
+                                 "note_source.note_terms": idx("note_source.note_terms") }} />
             ))}
             {fld("note_source.row_caption_any", (e) => (
-              <StringListEditor label="Rows that COUNT" testid="note_source-row_caption_any"
-                                editable={editable} variant="mono"
-                                help="Which rows inside the note count towards this figure. A row
-                                      the note prints but no
-                                      pattern here matches
-                                      contributes nothing, so
-                                      widen this when a filing
-                                      words a row differently."
-                                value={noteSource.row_caption_any}
-                                onChange={(v) => setNoteSource({ row_caption_any: v })}
-                                error={e} indexErrors={idx("note_source.row_caption_any")} />
+              <MatchListEditor label="Which rows inside it count"
+                               testid="note_source-rows" editable={editable}
+                               help="The rows that make up this figure. A row the note prints but
+                                     nothing here reaches contributes nothing, so widen this when a
+                                     filing words a row differently. Scored rows also reach the
+                                     MODEL — a batch answer citing a caption that shares nothing
+                                     with them is refused — so they both rank a row and tell the
+                                     model what the line is called."
+                               map={{ exact_loose: "note_source.row_caption_any",
+                                      starts: "note_source.row_caption_any",
+                                      ends: "note_source.row_caption_any",
+                                      scored: "note_source.row_terms",
+                                      pattern: "note_source.row_caption_any" }}
+                               order={["note_source.row_caption_any", "note_source.row_terms"]}
+                               values={{ "note_source.row_caption_any": noteSource.row_caption_any,
+                                         "note_source.row_terms": noteSource.row_terms ?? [] }}
+                               onChange={(next) => setNoteSource({
+                                 row_caption_any: next["note_source.row_caption_any"],
+                                 row_terms: next["note_source.row_terms"] })}
+                               emptyText="Nothing said."
+                               error={e}
+                               indexErrors={{
+                                 "note_source.row_caption_any": idx("note_source.row_caption_any"),
+                                 "note_source.row_terms": idx("note_source.row_terms") }} />
             ))}
             {fld("note_source.row_caption_none", (e) => (
-              <StringListEditor label="Rows that must be EXCLUDED"
-                                testid="note_source-row_caption_none"
-                                editable={editable} variant="veto"
-                                help="Rows inside the note that must NOT count, even if a pattern
-                                      above matched them. Each
-                                      is checked when you save
-                                      — a broken pattern would
-                                      otherwise exclude
-                                      nothing and the figure
-                                      would quietly include
-                                      rows you meant to drop."
-                                value={noteSource.row_caption_none}
-                                onChange={(v) => setNoteSource({ row_caption_none: v })}
-                                error={e} indexErrors={idx("note_source.row_caption_none")} />
-            ))}
-            {/* ── THE SEMANTIC HALF ────────────────────────────────────────────────────────────
-                TERMS, NOT PATTERNS, and the distinction is the reason they are separate controls
-                rather than more entries in the lists above. A pattern either fires or it does
-                not; a term SCORES, so a phrasing nobody anticipated still ranks instead of
-                silently matching nothing. They are also the same TWO LEVELS as the patterns: a
-                note's heading names the container, a row's caption names the content, and one
-                vocabulary cannot do both jobs — measured, a single blended probe scored 0.000 on
-                the note headed 管理費用 for a line whose every token is a depreciation word. */}
-            {fld("note_source.note_terms", (e) => (
-              <StringListEditor label="Words describing the NOTE this line sits in"
-                                testid="note_source-note_terms" editable={editable}
-                                help="Plain words, not regexes — scored against each note's
-                                      HEADING. This names the container: the note a figure is
-                                      disclosed inside (“property, plant and equipment”,
-                                      “administrative expenses”), which is often nothing like the
-                                      row's own wording. Leave it empty to score the line's label
-                                      and description instead."
-                                emptyText="Nothing said — the line's own label and description are
-                                           scored against note headings instead."
-                                value={noteSource.note_terms ?? []}
-                                onChange={(v) => setNoteSource({ note_terms: v })}
-                                error={e} indexErrors={idx("note_source.note_terms")} />
-            ))}
-            {fld("note_source.row_terms", (e) => (
-              <StringListEditor label="Words describing the ROW inside that note"
-                                testid="note_source-row_terms" editable={editable}
-                                help="Plain words scored against the note's ROW CAPTIONS — the
-                                      content rather than the container. These reach the model as
-                                      well as the scorer, so a term here both ranks a row and
-                                      tells the model what the line is called; a batch answer
-                                      citing a caption that shares nothing with them is refused."
-                                emptyText="Nothing said."
-                                value={noteSource.row_terms ?? []}
-                                onChange={(v) => setNoteSource({ row_terms: v })}
-                                error={e} indexErrors={idx("note_source.row_terms")} />
-            ))}
-            {fld("note_source.row_terms_none", (e) => (
-              <StringListEditor label="Words that RULE a row OUT"
-                                testid="note_source-row_terms_none" editable={editable}
-                                variant="veto"
-                                help="The veto half of the scored route: a row whose caption
-                                      carries one of these is not this line's, however well it
-                                      scores otherwise."
-                                emptyText="Nothing vetoed."
-                                value={noteSource.row_terms_none ?? []}
-                                onChange={(v) => setNoteSource({ row_terms_none: v })}
-                                error={e} indexErrors={idx("note_source.row_terms_none")} />
+              <MatchListEditor label="Which rows must be EXCLUDED"
+                               testid="note_source-excluded" editable={editable} veto
+                               help="Rows inside the note that must NOT count, even where the list
+                                     above reaches them — the movement schedule's opening balance
+                                     beside the charge you want. Every entry is checked when you
+                                     save: an exclusion that cannot compile excludes nothing, and
+                                     the figure then quietly includes rows you meant to drop."
+                               map={{ exact_loose: "note_source.row_caption_none",
+                                      starts: "note_source.row_caption_none",
+                                      ends: "note_source.row_caption_none",
+                                      scored: "note_source.row_terms_none",
+                                      pattern: "note_source.row_caption_none" }}
+                               order={["note_source.row_caption_none",
+                                       "note_source.row_terms_none"]}
+                               values={{
+                                 "note_source.row_caption_none": noteSource.row_caption_none,
+                                 "note_source.row_terms_none": noteSource.row_terms_none ?? [] }}
+                               onChange={(next) => setNoteSource({
+                                 row_caption_none: next["note_source.row_caption_none"],
+                                 row_terms_none: next["note_source.row_terms_none"] })}
+                               emptyText="Nothing vetoed."
+                               error={e}
+                               indexErrors={{
+                                 "note_source.row_caption_none":
+                                   idx("note_source.row_caption_none"),
+                                 "note_source.row_terms_none":
+                                   idx("note_source.row_terms_none") }} />
             ))}
             {fld("note_source.prose_any", (e) => (
               <StringListEditor label="Sentences that state the figure in words"
