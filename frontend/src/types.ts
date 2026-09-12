@@ -407,6 +407,20 @@ export interface ViewerMeta {
   callout: string;
 }
 
+/** One line's trail: what it was assembled from, as the inspector renders it.
+ *
+ *  Served in `StatementResponse.traces` for every keyed row that HAS a trail — a row read straight
+ *  off one caption explains itself through its own provenance and gets no entry. */
+export interface LineItemTrace {
+  label: string;
+  /** Display only — a rendering of the arithmetic, never an expression to send back. */
+  formula: string;
+  method?: string | null;
+  /** Face or note, so a reader knows whether they are being sent to a statement or a note. */
+  printed_in?: string | null;
+  contributions: RowContribution[];
+}
+
 export interface StatementResponse {
   statement: StatementKey;
   label: string;
@@ -438,6 +452,21 @@ export interface StatementResponse {
    *  re-scaled or re-currencied. Absent means ordinary monetary presentation. */
   presentation?: "raw" | "monetary";
   rows: StatementRow[];
+  /** The TRAIL for every keyed row that has one — INCLUDING THE SUB-LINE ITEMS, which are not in
+   *  `rows` at all.
+   *
+   *  `rows` is built from the template's sections, and the 77 sub-line items are not template
+   *  nodes, so the grid has no row for the layer that actually corresponds to a printed note row.
+   *  A derived parent's contribution names the sub-line it came from (`canonical_key`), and this
+   *  is where that name resolves to something: the sub-line's own label, its formula, and its own
+   *  contributions — each with the page it was printed on.
+   *
+   *  FLAT, keyed by canonical key, because the chain is deeper than two: a main line names a
+   *  sub-line, and a sub-line assembled from several notes names each of those. Walk it by
+   *  following `canonical_key` from one entry to the next; a contribution with no key is a leaf —
+   *  a place in the document rather than a configured line — and its `source` is the end of the
+   *  trail. Absent on responses stored before the field existed. */
+  traces?: Record<string, LineItemTrace> | null;
   /** Why this statement is serving no rows, or null while it is serving them.
    *
    *  An empty grid has more than one cause and they need telling apart: the run's template declares

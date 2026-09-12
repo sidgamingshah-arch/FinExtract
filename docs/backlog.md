@@ -356,9 +356,32 @@ treated as an extraction defect rather than a dump artefact — item 4(b) especi
 
 ---
 
-## 12. HALF THE NOTES A LINE SELECTS NEVER REACH ITS REQUEST — the binding constraint
+## 12. Half the notes a line selects never reach its request — REAL, AND RANKED WRONG AT FIRST
 
-**This is the largest item on the list and it is a defect, not a gap.** Measured over all 18
+**DOWNGRADED, AND THE CORRECTION IS THE USEFUL PART OF THIS ITEM.** This was written as "the
+largest item on the list", on the strength of 80-of-158 note delivery. That number is right and the
+conclusion drawn from it was wrong, because it does not distinguish the two kinds of note a line
+gets:
+
+* a note its authored `note_title_any` NAMES — the source the configuration says the figure is
+  printed in. `note_context.identified_notes` passes these **unconditionally**; they are explicitly
+  exempt from `_SEMANTIC_NOTE_BUDGET`.
+* a note SIMILARITY proposed. These are additive candidates, and these are what the budget drops.
+
+Measured directly (`scripts/audit_expected_source.py`, 77 lines x 18 filings = 1,386 pairs): of the
+508 pairs where the configuration names an expected note AND the filing contains it, the request
+carried it in **501 — 99%**. Seven were withheld. So the budget is not keeping the model from the
+evidence we expect it to read; it is trimming the guesses around it, which is what it was written to
+do.
+
+WHAT IS STILL WORTH DOING. The 12-of-72 empty payloads are real, and a request with no note in it
+is still a request that cannot be answered — reserving each line its top-1 note fixes that for ~44%
+more context (table below). But it is a completeness improvement, not the binding constraint, and
+**item 4's vocabulary gap is what actually withholds evidence**: 878 of 1,386 pairs have NO note
+matching the line's pattern at all, and 77 of those are a heading the filing really does print
+(scored 0.70+ by similarity) that the pattern simply misses. Those 77 are a two-line fix each.
+
+**The original framing, kept because the measurement stands on its own:** Measured over all 18
 filings and the four focus parts: of **158 notes those lines selected, 80 reached a request — 50%.**
 Twelve of the 72 requests carried **no note at all** despite the line having selected one to four.
 

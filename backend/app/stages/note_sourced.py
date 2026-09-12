@@ -127,9 +127,19 @@ class NoteSourcedStage(Stage):
                             rollup="prose", item_label=item.label or item.key, amount=amount,
                             inputs=[{"label": f"note {hit.note_number}: {hit.sentence[:160]}",
                                      # The figure AS THE SENTENCE STATES IT, so the division by the
-                                     # statement's scale is auditable against the words.
+                                     # statement's scale is auditable against the words. The row
+                                     # above carries the scaled figure and a `prose_scaled_by:`
+                                     # flag, so the two are reconcilable; `excerpt` says so here
+                                     # rather than leaving a reader to notice a contributions list
+                                     # that reads a thousand times the total above it.
                                      "value": str(hit.amount), "counted": True,
-                                     "deducted": False, "note": hit.note_number}]))
+                                     "deducted": False, "note": hit.note_number,
+                                     "excerpt": (f"stated in full in the sentence"
+                                                 + (f"; the line publishes it divided by {scale}"
+                                                    if scale and scale != 1 else "")),
+                                     # THE PAGE. Without it a prose citation is an amount a reader
+                                     # cannot go and look at — see `ProseHit.provenance`.
+                                     "provenance": hit.provenance}]))
                     filled += 1
                     prose_filled += 1
                 row.is_computed = True
@@ -444,7 +454,7 @@ def _fill_parents(children_of: dict[str, list], by_key: dict, doc: DocumentModel
         # that decides a published figure.
         if parent_def is not None and (getattr(parent_def, "cascade", None)
                                        or getattr(parent_def, "terms", None)):
-            resolved += _fill_by_cascade(parent_def, kids, by_key, doc, ctx)
+            resolved += _fill_by_cascade(parent_def, kids, by_key, doc, ctx, defs)
             continue
         rollup = declared.get(parent_key, "sum")
         if rollup == "none":
@@ -495,8 +505,39 @@ def _fill_parents(children_of: dict[str, list], by_key: dict, doc: DocumentModel
     return resolved
 
 
+def _cascade_input(term: dict, by_key: dict, defs: dict | None) -> dict:
+    """One cascade term as a contribution — carrying the line it REFERS TO, not just its key.
+
+    See the comment at the call site for what this fixes. The label falls back through the
+    definition's own label, then the extracted row's printed caption, then the bare key, so a
+    referenced line that is configured but was never extracted still reads as a name.
+    """
+    ref = str(term.get("ref") or "")
+    row = by_key.get(ref) if ref else None
+    definition = (defs or {}).get(ref) if ref else None
+    label = (getattr(definition, "label", "") or getattr(row, "source_label", "") or ref
+             or "fixed number")
+    out = {
+        "label": label,
+        "value": term.get("value"),
+        "counted": True,
+        "deducted": term.get("sign", 1) < 0,
+        "excerpt": f"role={term.get('role')}",
+    }
+    if ref:
+        # WHAT MAKES THE HOP CLICKABLE. The inspector renders a contribution with a
+        # `canonical_key` as a line the reader can open; without it the same row is inert text.
+        out["canonical_key"] = ref
+        values = list(getattr(row, "values", {}).values()) if row is not None else []
+        prov = next((getattr(v, "provenance", None) for v in values
+                     if getattr(v, "provenance", None) is not None), None)
+        if prov is not None:
+            out["provenance"] = note_sourced.derivation._json_safe_provenance(prov)
+    return out
+
+
 def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
-                     ctx: PipelineContext) -> int:
+                     ctx: PipelineContext, defs: dict | None = None) -> int:
     """Evaluate the parent's declared cascade against its note-sourced children, per column.
 
     PER (BASIS, PERIOD), because a rung is only an arithmetic within one column: mixing the current
@@ -685,9 +726,25 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
                 method=f"cascade:{got.rung_used}",
                 formula=" + ".join(
                     f"{'-' if i['sign'] < 0 else ''}{i['ref']}" for i in got.inputs),
-                inputs=[{"label": i["ref"], "value": i["value"], "counted": True,
-                         "deducted": i["sign"] < 0, "excerpt": f"role={i['role']}"}
-                        for i in got.inputs],
+                # A CASCADE INPUT IS ANOTHER LINE ITEM, AND IT SAYS SO NOW.
+                #
+                # These inputs are the SUB-LINE ITEMS the parent is assembled from — the one hop
+                # that makes a main line traceable to the note rows underneath it — and the trail
+                # recorded each as `label: "sub__pbt_oper_exp_depreciation"` with
+                # `canonical_key: None`. Two consequences, both visible to a reader:
+                #
+                #   * the inspector printed a RAW KEY where every other contribution prints a
+                #     caption, because the label was all it had;
+                #   * and with no `canonical_key` there was nothing to click. `_contribution`
+                #     comments that "an input is a note line, not a mapped concept", which is true
+                #     of a note-row input and exactly false of this one — so the chain stopped at
+                #     the parent and the sub-line's own citations were unreachable from it.
+                #
+                # `ref` IS the referenced line's key, so the link needs no new data: the key is
+                # carried, the human label is looked up, and the referenced row's own provenance
+                # rides along so the contribution is clickable to the page as well as navigable to
+                # the line. A `const` term has no `ref` and stays a plain labelled number.
+                inputs=[_cascade_input(i, by_key, defs) for i in got.inputs],
                 result=got.value,
                 flags=[f"rung:{got.rung_used}"]
                      + ([f"rungs_refused:{len(got.refused_rungs)}"] if got.refused_rungs else [])

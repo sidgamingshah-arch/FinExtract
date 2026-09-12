@@ -530,7 +530,8 @@ def build_statement_workbook(rows: list[dict], template_def: dict, *, locale: st
                              include: set[str] | None = None,
                              scale: float = 1.0, units_caption: str | None = None,
                              credit_narrative: dict | None = None,
-                             coverage: dict | None = None) -> bytes:
+                             coverage: dict | None = None,
+                             line_item_set=None) -> bytes:
     """A formatted, statement-shaped workbook: one sheet per statement in the template, with
     its sections / subtotals / totals, localized line labels, and consolidated + standalone
     columns side by side, plus Note details / Ratios / Disclosures sheets. Purely
@@ -580,6 +581,23 @@ def build_statement_workbook(rows: list[dict], template_def: dict, *, locale: st
 
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
+
+    # THE LINE ITEMS SHEET IS BUILT FIRST AND MOVED LAST.
+    #
+    # First because the statement sheets REFERENCE it: `_emit_nodes` writes `='Line Items'!D12`
+    # in place of its own copy of a figure, and it cannot write an address it does not yet know.
+    # Moved to the end afterwards so the workbook a reader opens still begins with the statements
+    # it always began with — the request was that the existing sheets stay as they are and gain a
+    # link, not that they move over for a new one.
+    from app.services.export_line_items import SHEET as LINE_ITEMS_SHEET
+    from app.services.export_line_items import build_line_items_sheet
+
+    links: dict = {}
+    if line_item_set is not None:
+        links = build_line_items_sheet(
+            wb, line_item_set, rows, period_cols=period_cols, locale=locale, scale=scale,
+            num_fmt=num_fmt, units_caption=units_caption)
+
     from app.services.mapping import normalize_statement
     from app.services.statements import ACTIVE_STATEMENTS
 
@@ -633,7 +651,7 @@ def build_statement_workbook(rows: list[dict], template_def: dict, *, locale: st
         r = hc + 1
         r = _emit_nodes(ws, stmt.get("sections", []), by_key, period_cols, first_val, conf_col,
                         src_col, locale, r, section_fill, total_fill, thin_top, dbl_top, right,
-                        num_fmt, ink, scale, calc)
+                        num_fmt, ink, scale, calc, links)
 
         ws.freeze_panes = ws.cell(hc + 1, 1)
         ws.column_dimensions["A"].width = 46
@@ -652,6 +670,9 @@ def build_statement_workbook(rows: list[dict], template_def: dict, *, locale: st
     _add_analysis_sheets(wb, rows, disclosures or [], note_details or [], locale,
                          reconciliation or [], include, credit_narrative,
                          template_def=template_def)
+
+    if LINE_ITEMS_SHEET in wb.sheetnames:
+        wb.move_sheet(LINE_ITEMS_SHEET, offset=len(wb.sheetnames))
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -958,7 +979,7 @@ def _emit_disclosure_working(ws, d: dict, ri: int, wrap, num_fmt, right) -> int:
 
 def _emit_nodes(ws, nodes, by_key, period_cols, first_val, conf_col, src_col, locale, r,
                 section_fill, total_fill, thin_top, dbl_top, right, num_fmt, ink, scale=1.0,
-                calc=None):
+                calc=None, links=None):
     from openpyxl.styles import Alignment, Font
 
     for node in nodes:
@@ -989,7 +1010,7 @@ def _emit_nodes(ws, nodes, by_key, period_cols, first_val, conf_col, src_col, lo
             for child in node.get("children", []):
                 r = _emit_nodes(ws, [child], by_key, period_cols, first_val, conf_col, src_col,
                                 locale, r, section_fill, total_fill, thin_top, dbl_top, right,
-                                num_fmt, ink, scale, calc)
+                                num_fmt, ink, scale, calc, links)
             continue
 
         is_bold = role in ("subtotal", "total")
@@ -1025,8 +1046,34 @@ def _emit_nodes(ws, nodes, by_key, period_cols, first_val, conf_col, src_col, lo
                                       f"were extracted, so it could not be recomputed")
             if val is not None and scale != 1.0:
                 val = round(val * scale)
+
             cell = ws.cell(r, ci, val)
             cell.number_format = num_fmt
+
+            # LINKED TO THE LINE ITEMS SHEET AS A HYPERLINK, KEEPING THE FIGURE IN THE CELL.
+            #
+            # A CELL REFERENCE WAS TRIED FIRST AND IS WRONG HERE. `='Line Items'!E256` traces
+            # beautifully and empties the cell of its number: openpyxl, pandas, and anything else
+            # reading the file without evaluating it sees the formula string. Measured, the first
+            # thing that broke was `test_units.test_export_applies_unit_conversion`, which asserts
+            # the unit-converted 1,204,000 is visible on the Balance Sheet — it was, and then it
+            # was a formula. Every programmatic consumer of this export would have read the same
+            # way, and the brief was that these sheets stay as they are AND gain a link, which a
+            # reference cannot do because it replaces what it links from.
+            #
+            # So the figure stays and the traceback rides alongside it. Clicking the cell jumps to
+            # this line's row on the Line Items sheet, where its sub-lines and the note rows it was
+            # assembled from are listed with their own pages.
+            ref = (links or {}).get((key, b, p))
+            if ref is not None and val is not None:
+                address, theirs = ref
+                # Only where the two sheets agree about the figure. This sheet writes the COMPUTED
+                # value for a calculated node and the Line Items sheet reports the extracted row;
+                # where they differ, the difference is the finding in this cell's own comment, and
+                # a link inviting the reader to "trace back" to a different number is worse than
+                # no link.
+                if theirs is not None and abs(float(theirs) - float(val)) <= 0.5:
+                    cell.hyperlink = f"#{address}"
             cell.alignment = right
             if is_bold:
                 cell.font = Font(bold=True)

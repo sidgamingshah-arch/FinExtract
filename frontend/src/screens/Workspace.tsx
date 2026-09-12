@@ -15,7 +15,7 @@ import { EmptyState } from "../components/EmptyState";
 import { ExcelGrid, PageStack, toPicked, type Picked } from "../components/SourceViewer";
 import { color, confStyle, font, layout, radius, shadow, fmtIN, fmtPlain, parseAccounting } from "../theme";
 import { DERIVED_STATEMENTS } from "../types";
-import type { Basis, FxRateResolution, StatementColumn, StatementKey, StatementResponse, StatementRow, SupersededTemplate } from "../types";
+import type { Basis, FxRateResolution, LineItemTrace, RowContribution, StatementColumn, StatementKey, StatementResponse, StatementRow, SupersededTemplate } from "../types";
 import { ApiError, refusalText } from "../lib/api";
 import { activeTemplate, configurationInForce, useDocumentRun, useDocumentRunStatus, useDocumentRuns, useDocumentStatement, useEditDocumentLineItem, useFxRateResolution, useLineItemVersions, useReextract, useRevertDocumentLineItem, useStatement, useEditLineItem, useProjectLoaded, useTemplates } from "../lib/queries";
 import { useCan } from "../lib/rbac";
@@ -385,6 +385,178 @@ const ORIGIN_CHIP: Record<Origin, { label: string; bg: string; fg: string; help:
                          help: "Printed in the document but not verifiable — none of this line's "
                                + "components were extracted" },
 };
+
+/** ONE HOP OF THE TRACE, and the rows beneath it — main line item, sub-line item, printed row.
+ *
+ *  WHAT THIS REPLACED, and why it had to become recursive. The inspector rendered ONE level: the
+ *  contributions of the selected row, each clickable through to the page it was printed on. That
+ *  is the right leaf behaviour and it was the whole chain, so a main line assembled from a
+ *  sub-line showed the sub-line's name and its figure and stopped there — the notes that explain
+ *  the number were one hop further on and unreachable.
+ *
+ *  The chain is now as deep as the configuration makes it: a main line names a sub-line
+ *  (`canonical_key`), `StatementResponse.traces` resolves that name to the sub-line's own trail,
+ *  and that trail's inputs are the printed rows, each with a page. A contribution with no
+ *  `canonical_key` is a LEAF — a place in the document rather than a configured line — and its
+ *  source is the end of the trail.
+ *
+ *  TWO GESTURES ON ONE ROW, kept distinct because they answer different questions. The label
+ *  expands the hop ("what is this made of"); the page reference jumps the viewer ("show me where
+ *  it is printed"). A row that can do both offers both, and a row that can only jump behaves
+ *  exactly as it did before this existed.
+ *
+ *  Depth is bounded by `traces` being FLAT and by `seen`: a configuration that pointed a line at
+ *  itself, directly or round a loop, would otherwise recurse until the tab died. */
+function TraceRows({
+  contributions, traces, period, linkable, onPick, present, expanded, onToggle, depth, path,
+  seen = [],
+}: {
+  contributions: RowContribution[];
+  traces?: Record<string, LineItemTrace> | null;
+  period: "current" | "prior";
+  linkable: boolean;
+  onPick: (p: Picked) => void;
+  present: (raw: number | null) => string;
+  expanded: Set<string>;
+  onToggle: (at: string) => void;
+  depth: number;
+  path: string;
+  seen?: string[];
+}) {
+  return (
+    <>
+      {contributions.map((c, i) => {
+        // Each period was printed in its own column, often on its own page.
+        const prov = period === "current" ? c.source : c.source2;
+        const src = period === "current" ? c.src : c.src2;
+        const v = period === "current" ? c.v1 : c.v2;
+        const jump = linkable ? toPicked(prov ?? null, c.label) : null;
+        // A fact printed twice is evidence for the figure, not an addend of it. It still belongs
+        // in the list — it is a real place in the document a reviewer can check — but showing it
+        // with a "+" would make the column not add up.
+        const counted = (period === "current" ? c.counted : c.counted2) !== false;
+
+        const key = c.canonical_key ?? "";
+        // A hop is only offered where there is something behind it: a key, a trail for that key,
+        // and no cycle back to a line already on this branch.
+        const deeper = key && !seen.includes(key) ? traces?.[key] : undefined;
+        const at = path + "/" + (key || c.label) + "#" + i;
+        const open = !!deeper && expanded.has(at);
+
+        return (
+          <div key={at}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "baseline",
+                gap: 8,
+                padding: "6px 10px",
+                paddingLeft: 10 + depth * 14,
+                borderTop: i === 0 && depth === 0 ? "none" : "1px solid " + color.cardBorder,
+              }}
+            >
+              <span style={{ fontFamily: font.mono, fontSize: 10.5, color: color.muted,
+                             minWidth: 14 }}>
+                {!counted ? "=" : c.deducted ? "−" : i === 0 ? "" : "+"}
+              </span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span
+                  onClick={() => (deeper ? onToggle(at) : jump && onPick(jump))}
+                  title={deeper
+                    ? (open ? "Hide what this is made of" : "Show what this is made of")
+                    : jump ? "Show " + src + " in the document" : undefined}
+                  style={{
+                    fontSize: 11.5, color: color.ink, display: "block",
+                    cursor: deeper || jump ? "pointer" : "default",
+                    textDecoration: deeper ? "none" : jump ? "underline dotted" : "none",
+                  }}
+                >
+                  {/* The disclosure marker is the affordance for the HOP. Without it a line that
+                      opens looks identical to one that jumps, and the reader learns which is
+                      which by clicking. */}
+                  {deeper ? (
+                    <span style={{ fontFamily: font.mono, fontSize: 9.5, color: color.sec2,
+                                   marginRight: 5 }}>
+                      {open ? "▾" : "▸"}
+                    </span>
+                  ) : null}
+                  {c.label}
+                </span>
+                {/* An input read out of PROSE has no printed row to point at, so the filing's own
+                    sentence is the trace — shown here rather than left to a page number the
+                    reader cannot check anything against. */}
+                {c.excerpt ? (
+                  <span style={{ fontSize: 10.5, color: color.muted, fontStyle: "italic",
+                                 display: "block", marginTop: 2, lineHeight: 1.45 }}>
+                    {"“" + c.excerpt + "”"}
+                  </span>
+                ) : null}
+              </span>
+              {!counted ? (
+                <span style={{ fontSize: 9.5, fontWeight: 600, padding: "1px 6px",
+                               borderRadius: radius.pill, background: color.amberBg,
+                               color: color.amberFg }}>
+                  printed twice
+                </span>
+              ) : c.residual ? (
+                <span style={{ fontSize: 9.5, fontWeight: 600, padding: "1px 6px",
+                               borderRadius: radius.pill, background: color.amberBg,
+                               color: color.amberFg }}>
+                  {v == null ? "absent" : "routed"}
+                </span>
+              ) : null}
+              {/* THE PAGE STAYS ITS OWN TARGET even on a row that expands, so "show me where this
+                  is printed" is never lost to "show me what this is made of". */}
+              <span
+                onClick={() => jump && onPick(jump)}
+                title={jump ? "Show " + src + " in the document" : undefined}
+                style={{ fontFamily: font.mono, fontSize: 11,
+                         color: jump ? color.sec2 : color.muted,
+                         minWidth: 46, textAlign: "right",
+                         cursor: jump ? "pointer" : "default",
+                         textDecoration: jump && deeper ? "underline dotted" : "none" }}
+              >
+                {src || ""}
+              </span>
+              <span style={{ fontFamily: font.mono, fontSize: 11.5, fontWeight: 600,
+                             color: counted ? color.ink : color.muted, minWidth: 92,
+                             textAlign: "right" }}>
+                {/* A deducted input carries the "−" in its operator column, so the amount shows
+                    its magnitude: "− 529,841" rather than "+ -529,841". */}
+                {v == null ? "—" : present(c.deducted ? Math.abs(v) : v)}
+              </span>
+            </div>
+            {open && deeper ? (
+              <>
+                {/* The sub-line's own arithmetic, named before its parts are listed — the same
+                    thing the inspector prints above a top-level contributions block. */}
+                {deeper.formula ? (
+                  <div style={{ padding: "2px 10px 4px " + (10 + (depth + 1) * 14) + "px",
+                                fontFamily: font.mono, fontSize: 10, color: color.muted }}>
+                    {deeper.formula}
+                  </div>
+                ) : null}
+                <TraceRows
+                  contributions={deeper.contributions}
+                  traces={traces}
+                  period={period}
+                  linkable={linkable}
+                  onPick={onPick}
+                  present={present}
+                  expanded={expanded}
+                  onToggle={onToggle}
+                  depth={depth + 1}
+                  path={at}
+                  seen={[...seen, key]}
+                />
+              </>
+            ) : null}
+          </div>
+        );
+      })}
+    </>
+  );
+}
 
 /** The chip for an origin, or null when this build has never heard of it.
  *
@@ -1011,6 +1183,10 @@ export default function WorkspaceScreen() {
   // contribution was printed on, and the comment an edit is filed against. Per-period, because
   // last year's figure has its own provenance and its own reason for having been restated.
   const [inspPeriod, setInspPeriod] = useState<"current" | "prior">("current");
+  // WHICH HOPS OF THE TRACE ARE OPEN, by PATH rather than by key. A sub-line can
+  // legitimately appear under more than one parent (two cascades naming the same note
+  // callout), and keying on the canonical key alone would open both copies together.
+  const [openTrace, setOpenTrace] = useState<Set<string>>(() => new Set());
   // Units presentation is display-only (raw values stay intact for editing/formulas).
   const [unitTarget, setUnitTarget] = useState<UnitTarget>("as_reported");
   // Currency presentation: "" = the document's own currency (no conversion). A different target
@@ -2061,77 +2237,24 @@ export default function WorkspaceScreen() {
                       overflow: "hidden",
                     }}
                   >
-                    {selRowObj.contributions.map((c, i) => {
-                      // Each period was printed in its own column, often on its own page.
-                      const prov = inspPeriod === "current" ? c.source : c.source2;
-                      const src = inspPeriod === "current" ? c.src : c.src2;
-                      const v = inspPeriod === "current" ? c.v1 : c.v2;
-                      const jump = usingReal ? toPicked(prov ?? null, c.label) : null;
-                      // A fact printed twice is evidence for the figure, not an addend of it. It
-                      // still belongs in the list — it is a real place in the document a reviewer
-                      // can check — but showing it with a "+" would make the column not add up.
-                      const counted =
-                        (inspPeriod === "current" ? c.counted : c.counted2) !== false;
-                      return (
-                        <div
-                          key={`${c.label}-${i}`}
-                          onClick={() => jump && setPicked(jump)}
-                          title={jump ? `Show ${src} in the document` : undefined}
-                          style={{
-                            display: "flex",
-                            alignItems: "baseline",
-                            gap: 8,
-                            padding: "6px 10px",
-                            borderTop: i === 0 ? "none" : `1px solid ${color.cardBorder}`,
-                            cursor: jump ? "pointer" : "default",
-                          }}
-                        >
-                          <span style={{ fontFamily: font.mono, fontSize: 10.5, color: color.muted,
-                                         minWidth: 14 }}>
-                            {!counted ? "=" : c.deducted ? "−" : i === 0 ? "" : "+"}
-                          </span>
-                          <span style={{ flex: 1, minWidth: 0 }}>
-                            <span style={{ fontSize: 11.5, color: color.ink, display: "block",
-                                           textDecoration: jump ? "underline dotted" : "none" }}>
-                              {c.label}
-                            </span>
-                            {/* An input read out of PROSE has no printed row to point at, so the
-                                filing's own sentence is the trace — shown here rather than left to
-                                a page number the reader cannot check anything against. */}
-                            {c.excerpt ? (
-                              <span style={{ fontSize: 10.5, color: color.muted, fontStyle: "italic",
-                                             display: "block", marginTop: 2, lineHeight: 1.45 }}>
-                                “{c.excerpt}”
-                              </span>
-                            ) : null}
-                          </span>
-                          {!counted ? (
-                            <span style={{ fontSize: 9.5, fontWeight: 600, padding: "1px 6px",
-                                           borderRadius: radius.pill, background: color.amberBg,
-                                           color: color.amberFg }}>
-                              printed twice
-                            </span>
-                          ) : c.residual ? (
-                            <span style={{ fontSize: 9.5, fontWeight: 600, padding: "1px 6px",
-                                           borderRadius: radius.pill, background: color.amberBg,
-                                           color: color.amberFg }}>
-                              {v == null ? "absent" : "routed"}
-                            </span>
-                          ) : null}
-                          <span style={{ fontFamily: font.mono, fontSize: 11, color: color.sec2,
-                                         minWidth: 46, textAlign: "right" }}>
-                            {src || ""}
-                          </span>
-                          <span style={{ fontFamily: font.mono, fontSize: 11.5, fontWeight: 600,
-                                         color: counted ? color.ink : color.muted, minWidth: 92,
-                                         textAlign: "right" }}>
-                            {/* A deducted input carries the "−" in its operator column, so the
-                                amount shows its magnitude: "− 529,841" rather than "+ -529,841". */}
-                            {v == null ? "—" : present(c.deducted ? Math.abs(v) : v)}
-                          </span>
-                        </div>
-                      );
-                    })}
+                    <TraceRows
+                      contributions={selRowObj.contributions}
+                      traces={d.traces}
+                      period={inspPeriod}
+                      linkable={usingReal}
+                      onPick={setPicked}
+                      present={present}
+                      expanded={openTrace}
+                      onToggle={(at) =>
+                        setOpenTrace((was) => {
+                          const next = new Set(was);
+                          if (next.has(at)) next.delete(at);
+                          else next.add(at);
+                          return next;
+                        })}
+                      depth={0}
+                      path=""
+                    />
                   </div>
                 ) : null}
               </>

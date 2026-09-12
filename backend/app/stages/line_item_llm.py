@@ -321,8 +321,19 @@ class LineItemLlmStage(Stage):
                 row.derivation, basis=basis, period_label=period,
                 derivation=note_sourced.trail(
                     rollup="line_item_llm", item_label=item.label or item.key, amount=amount,
+                    # `value`, NOT `amount`, AND THE SPELLING IS LOAD-BEARING.
+                    # `derivation._signed` reads `item["value"]` to produce each contribution's
+                    # figure, so an input filed under `amount` reached the inspector, the export
+                    # and the trace with `v1: None` — the formula listed its inputs by name and
+                    # every one of their figures was blank. Measured against the deterministic
+                    # route, which has always written `value` and whose contributions carry real
+                    # numbers; the two routes simply disagreed about the key. Nothing warned,
+                    # because a missing key is indistinguishable from an input whose period
+                    # printed no figure.
                     inputs=[{"label": f"note {e.get('note')}: {str(e.get('caption'))[:160]}",
-                             "amount": str(e.get("figures", {}).get(period, "")),
+                             "value": str(e.get("figures", {}).get(period, "")),
+                             "note": e.get("note"),
+                             "counted": True,
                              "provenance": e.get("provenance")}
                             for e in resolved]))
             written += 1

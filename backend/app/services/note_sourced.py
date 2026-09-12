@@ -200,9 +200,11 @@ _MIN_SENTENCE = 26
 class ProseHit:
     """A figure a note states in a sentence rather than in a row."""
 
-    __slots__ = ("key", "note_number", "note_title", "sentence", "matched_by", "amount", "period")
+    __slots__ = ("key", "note_number", "note_title", "sentence", "matched_by", "amount", "period",
+                 "provenance")
 
-    def __init__(self, *, key, note_number, note_title, sentence, matched_by, amount, period):
+    def __init__(self, *, key, note_number, note_title, sentence, matched_by, amount, period,
+                 provenance=None):
         self.key = key
         self.note_number = note_number
         self.note_title = note_title
@@ -210,6 +212,13 @@ class ProseHit:
         self.matched_by = matched_by
         self.amount = amount
         self.period = period
+        # WHERE THE SENTENCE IS, so a prose figure can be clicked through to the page like any
+        # other citation. `_prose_provenance` has always existed for this and the ROW route has
+        # always carried it; the deterministic prose trail did not, so `sub__pbt_oper_exp_
+        # depreciation` — a line whose ONLY source on the reference filing is a footnote — reached
+        # the inspector as an amount with no page. The end of a traceback is the page, and for
+        # exactly the figures that are hardest to find by eye there was no end.
+        self.provenance = provenance
 
 
 def _sentences(text: str) -> list[str]:
@@ -292,7 +301,8 @@ def select_prose(item, notes) -> list[ProseHit]:
                     continue
                 hits.append(ProseHit(
                     key=item.key, note_number=number, note_title=title,
-                    sentence=sentence, matched_by=matched, amount=value, period=period))
+                    sentence=sentence, matched_by=matched, amount=value, period=period,
+                    provenance=_prose_provenance(table)))
     return hits
 
 def _trail_input(hit: NoteRowHit, *, counted: bool) -> dict:

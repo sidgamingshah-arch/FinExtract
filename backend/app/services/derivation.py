@@ -172,7 +172,18 @@ def _contribution(current: dict | None, prior: dict | None) -> dict:
     ref = current or prior or {}
     return {
         "label": _label(ref),
-        "canonical_key": None,          # an input is a note line, not a mapped concept
+        # THE KEY IS PASSED THROUGH WHEN THE INPUT HAS ONE, AND MOST DO NOT.
+        #
+        # This read `None` with the comment "an input is a note line, not a mapped concept". True
+        # of a note-row input, and exactly false of a CASCADE input: those are the sub-line items a
+        # derived parent is assembled from, so each one IS a mapped concept with its own figure,
+        # its own citations and its own row. Hardcoding None here severed the main-to-sub hop no
+        # matter what the trail recorded — the inspector had nothing to make clickable, so a reader
+        # on a main line could not reach the sub-line whose notes explain it.
+        #
+        # Still None for a note row, because a note row genuinely is not a concept. The difference
+        # is now carried by the data rather than asserted for every input.
+        "canonical_key": ref.get("canonical_key"),
         "v1": _signed(current),
         "v2": _signed(prior),
         # Shown beneath the label when the input was read out of prose — see `input_from_evidence`.

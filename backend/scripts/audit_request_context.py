@@ -182,6 +182,8 @@ def reachable(item, notes_block: list[dict], selected: list[str]) -> tuple[str, 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--keys", default=",".join(PARTS))
+    ap.add_argument("--all", action="store_true",
+                    help="every line the configuration is ever asked about, not the 4 focus parts")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
@@ -192,8 +194,17 @@ def main() -> int:
 
     cfg = load_line_item_set(json.loads(SEED.read_text(encoding="utf-8")), resolve=True)
     every = {i.key: i for i in cfg.items}
-    keys = [k for k in args.keys.split(",") if k in every]
-    missing = [k for k in args.keys.split(",") if k not in every]
+    if args.all:
+        from app.services import line_item_requests
+        keys = [i.key for i in cfg.items if line_item_requests.asked_about(i)]
+        missing = []
+    else:
+        keys = [k for k in args.keys.split(",") if k in every]
+        missing = [k for k in args.keys.split(",") if k not in every]
+    # At 518 lines the per-filing grid is wider than any screen and the per-line tables are pages
+    # long, so the wide views collapse to per-filing counts and the worst-served lines. The ALL row
+    # is unaffected: it is summed over every key, listed or not.
+    wide = len(keys) > 12
     settings = get_settings()
     settings.extraction.llm_request_grouping = "none"
     settings.extraction.llm_focus_only = False
@@ -206,8 +217,12 @@ def main() -> int:
         print(f"  not in the shipped configuration, skipped: {missing}")
     print("\n  Was the answer IN the payload?   ROW PRESENT / PROSE ONLY = yes.   "
           "NO CANDIDATE = an empty reply was correct.\n")
-    head = "  ".join(f"{k.replace('sub__', '')[:19]:<19s}" for k in keys)
-    print(f"  {'filing':<30s} {'reg':>3s} {'notes':>5s}  {head}")
+    if wide:
+        print(f"  (grid collapsed to counts: {len(keys)} lines is wider than any screen)")
+        print(f"  {'filing':<30s} {'reg':>3s} {'notes':>5s}  verdict counts over all lines")
+    else:
+        head = "  ".join(f"{k.replace('sub__', '')[:19]:<19s}" for k in keys)
+        print(f"  {'filing':<30s} {'reg':>3s} {'notes':>5s}  {head}")
 
     tally = {k: collections.Counter() for k in keys}
     evidence = {k: [] for k in keys}
@@ -245,8 +260,15 @@ def main() -> int:
             tally[key][verdict] += 1
             evidence[key].append((data["_file"], verdict, len(block), why))
             cells.append(f"{verdict:<19s}")
-        print(f"  {data['_file'][:30]:<30s} {'CAS' if data['_cas'] else 'HK':>3s} "
-              f"{len(tables):>5d}  " + "  ".join(cells))
+        if wide:
+            seen = collections.Counter(c.strip() for c in cells)
+            print(f"  {data['_file'][:30]:<30s} {'CAS' if data['_cas'] else 'HK':>3s} "
+                  f"{len(tables):>5d}  row={seen['ROW PRESENT']:<4d} "
+                  f"prose={seen['PROSE ONLY']:<3d} nocand={seen['NO CANDIDATE']:<4d} "
+                  f"undelivered={seen['NOT DELIVERED']:<4d} nosel={seen['NOT SELECTED']:<4d}")
+        else:
+            print(f"  {data['_file'][:30]:<30s} {'CAS' if data['_cas'] else 'HK':>3s} "
+                  f"{len(tables):>5d}  " + "  ".join(cells))
 
     order = ["ROW PRESENT", "PROSE ONLY", "NO CANDIDATE", "NOT DELIVERED", "NOT SELECTED",
              "NO VOCAB", "NOT ASKED"]
@@ -255,7 +277,15 @@ def main() -> int:
     print("=" * 120)
     print(f"\n  {'line':<30s} " + "  ".join(f"{o:>13s}" for o in order)
           + f" {'notes/req':>10s} {'delivered':>10s}")
-    for key in keys:
+    # WHICH LINES GET LISTED. At 518 the per-line tables run for pages, so a wide run lists
+    # the worst-served twelve — the ones whose payload most often could not answer, which is
+    # the only part of a 518-row table anyone acts on. The ALL row below sums over EVERY key,
+    # listed or not, so the headline is unaffected by this.
+    shown = (sorted(keys, key=lambda k: -(tally[k]["NOT DELIVERED"] + tally[k]["NOT SELECTED"]
+                                          + tally[k]["NO CANDIDATE"]))[:12] if wide else keys)
+    if wide:
+        print(f"  (the 12 worst-served of {len(keys)} lines; the ALL row is over all of them)")
+    for key in shown:
         counts = "  ".join(f"{tally[key][o]:>13d}" for o in order)
         got = carried[key]
         avg = f"{sum(got) / len(got):.1f}" if got else "—"
@@ -313,12 +343,12 @@ def main() -> int:
     print("  WHAT THE PAYLOAD TOLD THE MODEL — share of requests carrying each authored field")
     print("=" * 120)
     print(f"\n  {'line':<32s} " + "  ".join(f"{f[:9]:>10s}" for f in FIELDS[:8]))
-    for key in keys:
+    for key in shown:
         n = max(1, len(carried[key]))
         cells = "  ".join(f"{100 * fields_seen[key][f] // n:>9d}%" for f in FIELDS[:8])
         print(f"  {key.replace('sub__', '')[:32]:<32s} {cells}")
     print(f"\n  {'line':<32s} " + "  ".join(f"{f[:9]:>10s}" for f in FIELDS[8:]))
-    for key in keys:
+    for key in shown:
         n = max(1, len(carried[key]))
         cells = "  ".join(f"{100 * fields_seen[key][f] // n:>9d}%" for f in FIELDS[8:])
         print(f"  {key.replace('sub__', '')[:32]:<32s} {cells}")
@@ -327,7 +357,7 @@ def main() -> int:
         print("\n" + "=" * 120)
         print("  EVIDENCE, per filing")
         print("=" * 120)
-        for key in keys:
+        for key in shown:
             print(f"\n  {key}")
             for name, verdict, n, why in evidence[key]:
                 print(f"    {name[:26]:<26s} {verdict:<13s} {n:>2d} notes  {why[:150]}")

@@ -3734,7 +3734,11 @@ def export_document(
                                         note_details=run.result.get("note_details", []),
                                         reconciliation=run.result.get("reconciliation", []),
                                         include=include_set, scale=scale, units_caption=caption,
-                                        credit_narrative=narrative, coverage=coverage)
+                                        credit_narrative=narrative, coverage=coverage,
+                                        # The configuration itself, for the Line Items sheet: every
+                                        # configured line including the sub-lines, which no other
+                                        # sheet can show because they are not template nodes.
+                                        line_item_set=_line_item_set_for_run(session, run))
     else:
         data = build_rows_xlsx(rows, filename=doc.filename or "document", scale=scale)
     return Response(
@@ -4085,6 +4089,27 @@ def _run_rulebook(session: Session, run) -> tuple[object | None, str]:
         return build_working_view(load_line_item_set(row.definition)), ""
     except Exception as exc:  # noqa: BLE001 — a malformed configuration must not break a re-map
         return None, f"rulebook_unloadable: {type(exc).__name__}"
+
+
+def _line_item_set_for_run(session: Session, run):
+    """The FULL configured line-item set this run used, or None.
+
+    NOT `_line_item_view_for_run`, and the difference is the reason this exists.
+    `services.working_view.build_working_view` projects the MATCHABLE concepts and drops all 77
+    sub-line items, which is right for a matcher and exactly wrong for the Line Items sheet: the
+    sub-lines are what that sheet is for. So this returns the loaded set itself.
+    """
+    from app.db.models import LineItemVersion
+    from app.schemas.line_items import load_line_item_set
+
+    lid = _run_line_item_version_id(run)
+    row = session.get(LineItemVersion, lid) if lid else None
+    if row is None:
+        return None
+    try:
+        return load_line_item_set(row.definition, resolve=True)
+    except Exception:  # noqa: BLE001 — a malformed set must not fail the whole export
+        return None
 
 
 def _line_item_view_for_run(session: Session, run):
@@ -5189,6 +5214,38 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
                               "formula": info["formula"], "result": info["net"],
                               "note": f"{note} {_t('Raw', locale)}: {raw}."}
 
+    # EVERY KEYED ROW'S OWN TRAIL, INCLUDING THE SUB-LINES THE GRID CANNOT SHOW.
+    #
+    # WHY IT IS A SIBLING MAP AND NOT A FIELD ON A ROW. This statement is built from the
+    # TEMPLATE's sections, so the 77 sub-line items are not in `rows` at all — they are not
+    # template nodes. But a derived parent's contributions now name the sub-line they came
+    # from (`stages/note_sourced._cascade_input`), so the grid can offer that hop and then has
+    # nowhere to go: the sub-line's own citations, which are the thing worth opening, live on a
+    # row the client was never sent.
+    #
+    # Keyed by canonical key so a contribution resolves with a lookup rather than a search,
+    # and FLAT rather than nested because the chain can be more than two deep — a parent names
+    # a sub-line, and a sub-line assembled from several notes names each of those. Nesting
+    # would fix the depth at whatever this function happened to build.
+    #
+    # ONLY ROWS WITH A TRAIL. A row read straight off one caption explains itself through its
+    # own provenance, and an entry for it would say nothing.
+    traces: dict[str, dict] = {}
+    for tr in rows:
+        trace_key = tr.get("canonical_key")
+        if not trace_key or trace_key in traces or not tr.get("derivation"):
+            continue
+        trace_formula, trace_contributions = _merge_derivation(tr["derivation"], basis)
+        if not trace_contributions:
+            continue
+        traces[trace_key] = {
+            "label": tr.get("source_label") or trace_key,
+            "formula": trace_formula or "",
+            "method": tr.get("mapping_method"),
+            "printed_in": tr.get("printed_in"),
+            "contributions": trace_contributions,
+        }
+
     basis_label = _BASIS_LABEL_I18N.get(basis, {}).get(locale, basis.title())
     return _stamp({
         "statement": statement_type,
@@ -5202,6 +5259,9 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
         # Document shape so the Workspace picks the right live viewer (PDF pages vs Excel cells).
         "format": doc_format, "page_count": page_count,
         "rows": out,
+        # The trail for every keyed row that has one, sub-lines included — see where it is
+        # built. A client walks the chain from a contribution's `canonical_key`.
+        "traces": traces,
         # Null when the statement is being served. See `_statement_refusal`.
         "refused": refused,
         "viewer": {

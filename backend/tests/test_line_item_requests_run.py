@@ -148,6 +148,23 @@ def test_the_page_and_figure_come_off_the_row_not_from_the_model(shipped):
     written = str(trail.derivation)
     assert "9" in written and "line_item_llm" in written
 
+    # AND THE INPUT'S OWN FIGURE SURVIVES THE TRIP TO A CONTRIBUTION.
+    #
+    # This is asserted through `derivation.merge_for_basis` rather than on the raw trail because
+    # that is what the inspector, the trace and the workbook all read, and the raw trail looked
+    # perfectly healthy while the contribution came out empty: the inputs were filed under
+    # `amount` and `derivation._signed` reads `value`, so every LLM-located line displayed its
+    # formula with blank figures beside each name. A substring check on `str(derivation)` cannot
+    # see that — the number is in there either way — so the assertion has to go through the
+    # consumer.
+    from app.services.derivation import merge_for_basis
+
+    formula, contributions = merge_for_basis(trail.derivation, "consolidated")
+    assert formula, "the trail recorded no formula"
+    assert contributions, "the trail produced no contributions"
+    assert [c["v1"] for c in contributions] == [5170.0], (
+        f"the cited row's own figure did not reach the contribution: {contributions}")
+
 
 def test_a_citation_that_resolves_to_nothing_is_reported_not_believed(shipped):
     doc = _doc(_note("7", "PROFIT BEFORE TAX", [("Auditor's remuneration", "120")]))

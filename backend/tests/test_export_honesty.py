@@ -77,13 +77,24 @@ def test_flat_export_has_formula_column(client):
     assert cell.data_type == "s"
 
 
-def test_workbook_carries_formulas_as_notes_not_live_cells(client):
-    """The Excel export does not build a live spreadsheet, and the docs now say so.
+def test_an_analysts_audit_formula_is_a_note_and_never_a_live_cell(client):
+    """AN ANALYST'S OWN FORMULA travels for AUDIT and never as a live cell.
 
-    A formula travels for AUDIT: as text in the flat sheet's Formula column, and as a cell NOTE on
-    the row's label cell in the statement workbook. References are canonical line-item keys
-    resolved server-side by services/formula.py and are never translated to cell addresses, so
-    nothing in the file recalculates — the number in the cell is the value the server computed.
+    WHAT THIS TEST USED TO ASSERT, AND WHY IT IS NARROWED. It read "no cell in the workbook has
+    `data_type == 'f'`", on the reasoning that nothing in the file should recalculate because the
+    number in the cell must be the value the server computed. The reasoning is right and the
+    assertion was wider than it: it also forbade a cell REFERENCING another cell of the same
+    workbook, which cannot disagree with the server — it displays the very number the server wrote
+    somewhere else.
+
+    So the rule is now stated as what it always protected: an analyst's ``formula`` field is an
+    expression over CANONICAL LINE-ITEM KEYS, resolved server-side by ``services/formula.py`` and
+    never translated to cell addresses. Written live it would be `=SUM(x)` with no `x` in the file
+    — a `#NAME?` where a figure should be. It stays a comment.
+
+    The live references the Line Items sheet introduces are covered by
+    ``tests/test_export_line_items_sheet.py``, which asserts the property this one used to imply:
+    every formula in the workbook evaluates to the figure the server published.
     """
     import openpyxl
 
@@ -96,11 +107,16 @@ def test_workbook_carries_formulas_as_notes_not_live_cells(client):
     x = client.get(f"/api/v1/documents/{doc_id}/export",
                    params={"fmt": "excel", "layout": "statement"})
     wb = openpyxl.load_workbook(io.BytesIO(x.content))
-    assert not [c for ws in wb.worksheets for row in ws.iter_rows() for c in row
-                if c.data_type == "f"]
+
+    live = [c.value for ws in wb.worksheets for row in ws.iter_rows() for c in row
+            if c.data_type == "f"]
+    assert "=SUM(x)" not in live, "the analyst's key-based formula was written as a live cell"
+    # …and nothing live references a name rather than a cell, which is the failure mode: `x` is a
+    # canonical key, and a workbook cannot resolve one.
+    assert not [f for f in live if "SUM(x)" in str(f)]
     notes = [c.comment.text for ws in wb.worksheets for row in ws.iter_rows() for c in row
              if c.comment]
-    assert any("=SUM(x)" in note for note in notes)
+    assert any("=SUM(x)" in note for note in notes), "the formula was not preserved for audit"
 
 
 def test_include_gates_analysis_sheets(client):
