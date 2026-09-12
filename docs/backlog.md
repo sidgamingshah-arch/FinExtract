@@ -37,52 +37,74 @@ disagree and the screen believes the wrong one. 8 of the current test failures a
 
 ---
 
-## 2. Every request sends the same note several times over
+## 2. Every request repeats a note's ENVELOPE — and the fix is caching, not collapsing
 
-**What breaks.** `note_context.identified_notes` appends one entry per extracted TABLE. A note
-printed across pages arrives as many tables carrying one number, so it goes into the payload once
-per fragment — each with its own full `prose`, which is the largest field.
+**CORRECTED.** This entry claimed 26-39% off the note block by collapsing fragments. That number
+was measured on a collapse that **keeps the longest prose and throws the rest away** — and the
+fragments do not carry the same prose. Measured on laisun's note 4: 7 fragments with prose lengths
+934 / 2,411 / 2,338 / 1,729 / 2,791 / 1,139 / 1,322, and **0 of the 21 pairs** has one contained in
+the other. They are successive pages of one long narrative, not copies.
 
-**Example, measured.** laisun's note 4 arrives as **7 fragments**, note 6 as 7, note 15 as 6 — the
-block is 39 entries for **12 distinct notes**.
+So that 39% was 37,777 characters of the filing's own narrative being discarded. The **lossless**
+collapse — one entry per note with the prose CONCATENATED in page order — is worth much less:
 
-| | as sent | one entry per note | saving |
+| | as sent | lossy collapse | **lossless collapse** |
 |---|---|---|---|
-| laisun | 38,965 tokens | 23,776 | **15,189 — 39%** |
-| suncreate | 14,609 | 10,851 | **3,757 — 26%** |
+| laisun (39 entries / 12 notes) | 38,965 tok | 23,776 (-39%, **loses 37,777 chars**) | **36,386 (-7%)** |
+| suncreate (60 entries / 37 notes) | 14,609 tok | 10,851 (-26%, loses 6,423 chars) | **13,008 (-11%)** |
 
-That block rides in every request that selects those notes, so on laisun's 77 requests it is the
-dominant cost of the run.
+**What is genuinely repeated** is the ENVELOPE: the note number, the title and `identified_for`,
+once per fragment — 7 times for note 4. That is the 7-11%.
 
-**Solutions, in the order they should be taken.**
+**So the attacks reverse in priority.**
 
-1. **Collapse by note number** in `identified_notes`: keep the longest prose, concatenate the rows,
-   union the `identified_for`. 26–39% off the note block, and it is the same correction already
-   made on the SELECTION side (`notes_for_line_item` caps by note, not fragment — `141aad1`).
-2. **Move the block to the system prompt.** It rides in the user message today, which providers do
-   not cache, while the cacheable system prefix is ~6,600 characters. Behaviourally identical,
-   turns most copies into cache reads.
-3. Nothing else is needed — per-request scoping is already done (`build_request` slices the
-   identified notes to those THIS request's lines selected).
+1. **MOVE THE BLOCK TO THE SYSTEM PROMPT.** It rides in the user message, which providers do not
+   cache, while the cacheable system prefix is ~6,600 characters. Behaviourally identical, and it
+   turns most copies of a ~36,000-token block into cache reads. This is the large win and it loses
+   nothing.
+2. **Collapse fragments losslessly** — one entry per note, prose concatenated, rows concatenated,
+   `identified_for` unioned. 7-11%, and it also makes the block easier to read.
+3. Per-request scoping is already done (`build_request` slices the identified notes to those THIS
+   request's lines selected).
 
-**Instrument:** `scripts/preflight_live_run.py`.
+**Do NOT keep only the longest prose.** A footnote stating a figure no row carries is the whole
+reason the prose travels — that is how the operating-expense depreciation share is reachable at all
+— and it can sit in any fragment.
+
+**Instruments:** `scripts/preflight_live_run.py`, and the fragment measurement above.
 
 ---
 
-## 3. A note-sourced figure destroys the printed one — PARKED
+## 3. `note_sourced._write` overwrites `value_raw` — PARKED, and the impact is smaller than stated
 
-**DECIDED:** do not fix for now.
+**DECIDED:** do not fix for now. The measurement below supports that rather than merely allowing it.
 
-`note_sourced._write` sets `value` **and** `value_raw` to the same amount. `value_raw` is supposed
-to hold what the filing printed — `stages/note_tag_gate.py:20` documents that convention and
-follows it, and `stages/residual.py:536` falls back to it.
+**CORRECTED.** This entry said "the printed figure is gone and the differs-from-printed check has
+lost its comparand". Neither is true today:
 
-**Example.** The face prints total depreciation 587,417; a note discloses the operating-expense
-share and that is written to the line. The 587,417 is gone, and the differs-from-printed check has
-lost its comparand.
+* **No reader observes it.** Every consumer of `value_raw` uses it only as a FALLBACK for a missing
+  `value` — `structural_checks.py:201`, `stages/confidence.py:54`, `stages/residual.py:536`,
+  `services/assemble_components.py:76` and `services/note_sourced.py:167` are all
+  `ev.value if ev.value is not None else ev.value_raw`. `_write` always sets `value`, so the
+  fallback never fires.
+* **It never reaches a person.** `_serialize_rows` emits `value` and not `value_raw`, so the field
+  is absent from the API, from every screen and from the export.
+* **The printed-vs-derived check does not use it.** `note_sourced` compares `existing.value`
+  against the note-derived figure BEFORE writing and keeps the printed one with a
+  `note_sourced_differs_from_printed:` flag. That comparison happens earlier and reads another
+  field.
 
-`line_item_llm._write_prose` preserves it correctly, so the two writers disagree — which makes this
-cheap to fix by copying the one that is right, whenever it is wanted.
+**What IS lost, precisely.** `normalize` leaves `value_raw` as the printed magnitude with the
+printed sign and `value` as the sign-normalised figure — so on a row where a sign cue applied they
+DIFFER. `_write` sets both to the note-derived amount, so for those rows the printed magnitude and
+the sign decision are unrecoverable, and unlike `note_tag_gate` there is no flag naming what was
+displaced (`note_tag_absent_zeroed:<figure>` is that stage's convention, and it backfills
+`value_raw` only when empty rather than overwriting it).
+
+**So the cost is latent, not live:** the day something wants the printed original — an audit
+column, a "what did the page say" view — it will not be there for note-sourced rows.
+`line_item_llm._write_prose` already does it correctly, which makes the fix a copy of the writer
+that is right.
 
 ---
 
@@ -217,6 +239,22 @@ built a pool of every note and face row in the filing, scored each against a pro
 that row's rival candidate concepts, and returned the best few subject to three caps: at most 3
 notes, at most 3 face rows, and 1,200 characters total. The row then travelled to the model with
 those units attached as its context.
+
+**What it actually returned, on the reference filing.** `build_pool` made **1,764 units** from
+laisun — every note and every face row. Asked for the context of a trade-receivables caption
+(`probe = "trade receivables from third parties amounts due from customers loss allowance"`,
+`notes_cap=3, face_cap=3, char_budget=1200`) it returned:
+
+```
+face   ref=cash_flow    ''
+note   ref=23           'INVESTMENTS IN ASSOCIATES'
+note   ref=46           'FINANCIAL INSTRUMENTS BY CATEGORY (CONTINUED)'
+```
+
+None of the three is the trade-receivables note. That is the mechanism working as designed and
+still being poor: it scores a row's probe against a pool in which a forty-row note shares more
+tokens with anything than a short one does, which is exactly the breadth-over-subject problem
+`line_item_notes` was written to avoid by scoring HEADERS instead of whole notes.
 
 **Why it has no equivalent now.** The unit is the LINE ITEM, and a line's notes come from its own
 configuration — `note_title_any` plus, where `note_selection` is `semantic`, the headings its
