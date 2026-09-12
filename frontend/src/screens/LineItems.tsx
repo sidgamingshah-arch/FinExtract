@@ -45,6 +45,7 @@ import {
   BoolField, InfoToggle, KeyPicker, LockedRow, RungCards,
   SelectField, StringListEditor, TermRows, TextArea, TextField, type KeyOption,
 } from "../components/configFields";
+import { RecognitionEditor } from "../components/RecognitionEditor";
 import { RequestGroups } from "../components/RequestGroups";
 import { Button, Card } from "../components/ui";
 import { useT } from "../i18n";
@@ -60,7 +61,7 @@ import type {
   LineItemDef, LineItemEdit,
   LineItemNoteUse, LineItemSetInfo,
   LineItemType, LineItemVocab,
-  NoteSource, StatementToken,
+  NoteSource,
  NoteSelection,} from "../types";
 
 const TYPE_TONE: Record<LineItemType, { bg: string; fg: string; label: string }> = {
@@ -71,17 +72,6 @@ const TYPE_TONE: Record<LineItemType, { bg: string; fg: string; label: string }>
 };
 
 
-/** The seven statements a line item can be gated to, as a reader names them. The TOKENS come from
- *  `vocab.statements`; this map only spells them for a human, and falls back to the token. */
-const STATEMENT_LABEL: Record<string, string> = {
-  statement_setup: "Statement setup",
-  balance_sheet: "Balance sheet",
-  profit_and_loss: "Profit & loss",
-  cash_flow: "Cash flow",
-  equity_changes: "Changes in equity",
-  covenants_supplemental: "Covenants / supplemental",
-  notes: "Notes",
-};
 
 
 
@@ -520,7 +510,7 @@ function withheldReason(name: string, sel: {
   // `extraction_mode: "derive"` are the two locks that produce it — together they are
   // `mapping._unmatchable`, and a concept in that set cannot be reached by any caption or any
   // model decision.
-  const CAPTION_MATCHING = ["aliases", "regex_hints", "keyword_hints", "exclude_hints"];
+  const CAPTION_MATCHING = ["aliases", "exclude_hints"];
   if (CAPTION_MATCHING.includes(name)) {
     if (aliasMatching === "disabled") {
       return "caption matching is switched off for this line, so nothing here is ever consulted";
@@ -603,7 +593,7 @@ const WHERE_SUFFIX: Record<string, string> = {
 const GROUP_FIELDS = {
   identity: ["type", "inherits"],
   meaning: ["label", "definition", "prompt", "exclude_criteria"],
-  recognition: ["aliases", "regex_hints", "keyword_hints", "exclude_hints"],
+  recognition: ["aliases", "exclude_hints"],
   gate: ["section_scope", "note_selection", "llm_only_if_note_tagged",
          "note_use", "note_source"],
   /** Rendered only while the `note_source` switch is on, so counted only then. */
@@ -630,7 +620,7 @@ const CONDITIONAL_FIELDS = [
   "note_source", "note_source.note_title_any", "note_source.row_caption_any",
   "note_source.row_caption_none", "note_source.note_terms", "note_source.row_terms",
   "note_source.row_terms_none", "note_source.prose_any",
-  "aliases", "regex_hints", "keyword_hints", "exclude_hints",
+  "aliases", "exclude_hints",
 ];
 
 /** What this line's own selections withhold, computed BEFORE the form renders.
@@ -1248,15 +1238,25 @@ function Detail(p: EditorProps) {
                </span>
              }>
         {fld("aliases", (e) => (
-          <StringListEditor label={`Aliases (${locale})`} testid="aliases" editable={editable}
-                            help={<>The printed captions that claim this line in{" "}
-                                  <b style={{ fontFamily: font.mono }}>{locale}</b>. Saving
-                                  replaces this locale's list only.</>}
-                            placeholder="Paste a caption exactly as printed…"
-                            value={g("aliases", aliasesFor(item, set, locale))}
-                            onChange={(v) => patch({ aliases: v })}
-                            draft={p.aliasDraft} onDraft={p.onAliasDraft}
-                            error={e} indexErrors={idx("aliases")} />
+          <RecognitionEditor label="Captions that claim this line" testid="aliases"
+                             editable={editable} locale={locale}
+                             help={<>Every row is one way a printed caption can be recognised as
+                                   this line, and the mode says which way. <b>is exactly</b> is the
+                                   caption as printed; the other modes are for a filing that words
+                                   it loosely. Measured over the 389 patterns this set ships, every
+                                   single one is a literal caption with forgiving spacing — so the
+                                   first two modes are almost certainly what you want, and the raw
+                                   pattern escape only appears on a row that already needs it.</>}
+                             aliases={g("aliases", aliasesFor(item, set, locale))}
+                             regex={g("regex_hints", item.regex_hints)}
+                             keywords={g("keyword_hints", item.keyword_hints)}
+                             onChange={(next) => patch({ aliases: next.aliases,
+                                                         regex_hints: next.regex_hints,
+                                                         keyword_hints: next.keyword_hints })}
+                             error={e}
+                             indexErrors={{ aliases: idx("aliases"),
+                                            regex_hints: idx("regex_hints"),
+                                            keyword_hints: idx("keyword_hints") }} />
         ))}
         {locale === set.locale && (
           <p style={{ fontSize: 10.5, color: color.sec2, margin: "-6px 0 12px", lineHeight: 1.5 }}>
@@ -1277,29 +1277,6 @@ function Detail(p: EditorProps) {
             </p>
           </div>
         )}
-        {fld("regex_hints", (e) => (
-          <StringListEditor label="Regex hints — positive evidence" testid="regex_hints"
-                            editable={editable} variant="mono"
-                            help="Patterns that make a caption MORE likely to be this line. Each is
-                                  checked when you save, and a
-                                  broken one is named — a pattern
-                                  that cannot compile would
-                                  otherwise match nothing and look
-                                  like a caption problem."
-                            value={g("regex_hints", item.regex_hints)}
-                            onChange={(v) => patch({ regex_hints: v })}
-                            error={e} indexErrors={idx("regex_hints")}
-                            inherited={inh("regex_hints", item.regex_hints)} />
-        ))}
-        {fld("keyword_hints", (e) => (
-          <StringListEditor label="Keyword hints" testid="keyword_hints" editable={editable}
-                            help="Words that count towards a caption matching this line, without
-                                  having to write a full pattern."
-                            value={g("keyword_hints", item.keyword_hints)}
-                            onChange={(v) => patch({ keyword_hints: v })}
-                            error={e} indexErrors={idx("keyword_hints")}
-                            inherited={inh("keyword_hints", item.keyword_hints)} />
-        ))}
         {fld("exclude_hints", (e) => (
           <StringListEditor label="Regex VETOES — never match" testid="exclude_hints"
                             editable={editable} variant="veto"

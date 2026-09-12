@@ -73,11 +73,11 @@ export interface FieldProps {
 }
 
 const labelStyle: CSSProperties = { fontSize: 11.5, fontWeight: 600, color: color.ink2 };
-const helpStyle: CSSProperties = { fontSize: 10.5, color: color.muted, lineHeight: 1.5 };
+export const helpStyle: CSSProperties = { fontSize: 10.5, color: color.muted, lineHeight: 1.5 };
 
 /** The one input shell. `invalid` puts the server's refusal on the control itself, because a red
  *  sentence eight fields down the form is not attributed to anything a reader can see. */
-function inputStyle(editable: boolean, invalid?: boolean, mono?: boolean): CSSProperties {
+export function inputStyle(editable: boolean, invalid?: boolean, mono?: boolean): CSSProperties {
   return {
     width: "100%", boxSizing: "border-box", fontSize: 12, lineHeight: 1.5,
     fontFamily: mono ? font.mono : font.sans,
@@ -88,7 +88,7 @@ function inputStyle(editable: boolean, invalid?: boolean, mono?: boolean): CSSPr
   };
 }
 
-const smallBtn: CSSProperties = { fontSize: 11, fontWeight: 600, padding: "4px 9px",
+export const smallBtn: CSSProperties = { fontSize: 11, fontWeight: 600, padding: "4px 9px",
                                   borderRadius: radius.controlSm };
 
 /** A one-line note in the tone of the thing it is warning about. */
