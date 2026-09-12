@@ -354,6 +354,88 @@ def build_pool(doc, stmt_by_page: dict[int, str] | None = None, *,
 
 # ── the notes the CONFIGURATION identifies ────────────────────────────────────────────────────
 
+# The shortest run of characters worth calling a repeat rather than a coincidence. A page-header
+# band or a repeated table-column row is hundreds of characters; a shared phrase of a dozen is two
+# sentences happening to agree, and removing it would cut a sentence in half. 40 is measured
+# against the blocks that actually recur on the reference filing — the smallest true furniture
+# block is 129 characters and the largest 520, and nothing legitimate sits near the floor.
+_REPEAT_BLOCK = 40
+# How far back to look for a repeat. Furniture recurs page to page, so the previous fragment or
+# two is where it is; comparing every new fragment against the whole accumulated note is quadratic
+# on a long note for nothing. 24,000 characters is longer than any multi-fragment note measured
+# (laisun's widest is 12,664).
+_REPEAT_WINDOW = 24_000
+
+
+def dedupe_prose(pieces: list[str]) -> str:
+    """Every fragment's prose in document order, with text that already appeared removed.
+
+    ORDER IS PRESERVED AND NOTHING DISTINCT IS DROPPED. Each fragment keeps the parts of itself
+    that have not been seen; a block of `_REPEAT_BLOCK` characters or more that already appears in
+    what has been kept so far is cut out. So the first occurrence of every string survives, which
+    is the property `note_sourced.resolve_sources` depends on — it verifies a prose-stated amount
+    against the note's own text, and an amount that was printed on three continuation pages still
+    appears once.
+
+    WHY NOT SUFFIX/PREFIX MATCHING, which is the obvious reading of "remove the overlap": measured
+    on the reference filing, consecutive fragments share EXACTLY 0 characters at their joins. The
+    repetition is not a seam, it is furniture reprinted mid-fragment — a column-header band, a
+    "(continued)" sub-heading — so it has to be found wherever it sits.
+    """
+    import difflib
+
+    kept: list[str] = []
+    seen = ""
+    for piece in pieces:
+        text = (piece or "").strip()
+        if not text:
+            continue
+        if not seen:
+            kept.append(text)
+            seen = text
+            continue
+        window = seen[-_REPEAT_WINDOW:]
+        matcher = difflib.SequenceMatcher(None, window, text, autojunk=False)
+        drop = []
+        for block in matcher.get_matching_blocks():
+            if block.size < _REPEAT_BLOCK:
+                continue
+            # SHRINK TO WHOLE WORDS BEFORE CUTTING, and this is not tidiness — it is the
+            # difference between removing furniture and splicing a number.
+            #
+            # A matching block is the longest run of IDENTICAL characters, and it greedily absorbs
+            # the shared parts of two figures that differ. Measured on laisun's note 15: fragment 4
+            # reads "…Average market unit HK$13,600 The higher…" and fragment 5
+            # "…Average market unit HK$13,500 The higher…", so difflib matches through "HK$13," and
+            # again from "00" — and cutting both left the literal "5" where an amount had been.
+            # Seven amounts were destroyed that way, across two notes, all of them unobservable
+            # inputs in a fair-value table: exactly the numbers a filing states once.
+            #
+            # Pulling both edges back to whitespace means a cut can only ever remove whole tokens,
+            # so a figure is either wholly repeated — in which case the earlier copy survives — or
+            # wholly kept.
+            start, end = block.b, block.b + block.size
+            while start < end and not text[start].isspace():
+                start += 1
+            while end > start and not text[end - 1].isspace():
+                end -= 1
+            if end - start >= _REPEAT_BLOCK:
+                drop.append((start, end))
+        if drop:
+            out, at = [], 0
+            for start, end in drop:
+                if start > at:
+                    out.append(text[at:start])
+                at = max(at, end)
+            out.append(text[at:])
+            # Single spaces where a block was cut, so two sentences do not run together.
+            text = " ".join(part.strip() for part in out if part.strip())
+        if text:
+            kept.append(text)
+            seen += "\n" + text
+    return "\n".join(kept)
+
+
 def identified_notes(line_item_set, notes) -> list[dict]:
     """Every note a `note_source` declaration names, IN FULL — all rows and all prose.
 
@@ -438,7 +520,31 @@ def identified_notes(line_item_set, notes) -> list[dict]:
                 :_SEMANTIC_NOTE_BUDGET]:
             semantic_by_note[note] = keys
 
-    out: list[dict] = []
+    # ONE ENTRY PER NOTE NUMBER, NOT ONE PER TABLE.
+    #
+    # A note printed across pages arrives as several tables all carrying its number — laisun's note
+    # 4 as seven, note 6 as seven, note 15 as six — and this emitted one entry each. So the note's
+    # number, title and `identified_for` went into the payload once per fragment, and a request
+    # carrying twelve distinct notes carried thirty-nine entries.
+    #
+    # ALL THE PROSE STILL TRAVELS. The first attempt at this kept the longest fragment's prose and
+    # that is measurably wrong: laisun's note 7 arrives as 1,765 / 1,589 / 1,195 characters and the
+    # SHORTEST holds "^ Depreciation charges of approximately HK$529,841,000 … are included in
+    # 'other operating expenses'" — the only source `sub__pbt_oper_exp_depreciation` has on that
+    # filing, and the measured reason the prose route exists. Note 47 loses its only narrative
+    # amount the same way; two of five multi-fragment notes.
+    #
+    # WHAT IS REMOVED IS THE REPETITION. Measured, consecutive fragments share NO text at their
+    # joins (0.0% suffix/prefix) but 12.9% of the prose across laisun's multi-fragment notes is
+    # repeated in blocks of 40 characters or more, and it is table furniture: the segment table's
+    # 520-character column-header band reprinted on three continuation pages, the fair-value
+    # table's header row, the "(continued)" sub-headings, the "2025 2024 … HK$'000" period band.
+    # `dedupe_prose` cuts a block that already appeared and keeps the first occurrence of every
+    # distinct string, which is the property `note_sourced.resolve_sources` needs: it verifies a
+    # prose-stated amount against the note's own text, and an amount printed on three pages still
+    # appears once.
+    by_number: dict[str, dict] = {}
+    order: list[str] = []
     for table in notes or ():
         title = getattr(table, "title", "") or ""
         number = str(getattr(table, "note_number", "") or "")
@@ -461,15 +567,34 @@ def identified_notes(line_item_set, notes) -> list[dict]:
                     continue
                 figures[str(getattr(ev, "period_label", "") or "?")] = str(ev.value)
             rows.append({"caption": caption, **({"figures": figures} if figures else {})})
-        entry: dict = {"note": number, "title": title,
-                       # WHICH declaration wanted it, so the model can see why this note is here
-                       # and which line it is expected to speak to.
-                       "identified_for": wanted_by}
-        if rows:
-            entry["rows"] = rows
+
+        key = number or title
+        acc = by_number.get(key)
+        if acc is None:
+            # THE FIRST FRAGMENT'S TITLE IS THE NOTE'S. A later one is a continuation line —
+            # "SEGMENT INFORMATION (CONTINUED)" — or, on a CAS filing, a sentence fragment.
+            acc = {"note": number, "title": title, "_for": set(), "_rows": [], "_prose": []}
+            by_number[key] = acc
+            order.append(key)
+        acc["_for"].update(wanted_by)
+        acc["_rows"].extend(rows)
         prose = (getattr(table, "source_text", "") or "").strip()
         if prose:
-            # The narrative, verbatim. This is where a footnote states a figure no row carries.
-            entry["prose"] = prose
+            acc["_prose"].append(prose)
+
+    out: list[dict] = []
+    for key in order:
+        acc = by_number[key]
+        entry: dict = {"note": acc["note"], "title": acc["title"],
+                       # WHICH declaration wanted it, so the model can see why this note is here
+                       # and which line it is expected to speak to. Unioned across the fragments:
+                       # a line whose pattern matched only the continuation page still asked for
+                       # this note.
+                       "identified_for": sorted(acc["_for"])}
+        if acc["_rows"]:
+            entry["rows"] = acc["_rows"]
+        if acc["_prose"]:
+            # The narrative, in page order, with repeated furniture removed once.
+            entry["prose"] = dedupe_prose(acc["_prose"])
         out.append(entry)
     return out

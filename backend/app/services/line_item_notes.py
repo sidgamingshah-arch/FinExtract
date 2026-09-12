@@ -74,11 +74,20 @@ from app.services.note_context import ContextPool, ContextUnit, subject_tokens
 
 @dataclass(frozen=True)
 class NoteHit:
-    """One note a line item scored against, and how well."""
+    """One note a line item scored against, and how well.
+
+    `via` says WHICH SEARCH FOUND IT, and it is not decoration: a note found by its heading was
+    chosen on its author's own statement of subject, while one found by content was chosen because
+    it contains a row this line is looking for. Those are different strengths of evidence and the
+    run log, the request trail and `scripts/calibrate_line_item_notes.py` all need to tell them
+    apart — a filing whose figures all arrive through widening is a filing whose header vocabulary
+    needs work, and that is invisible if both look the same.
+    """
 
     note: str
     title: str
     score: float
+    via: str = "header"
 
 
 # THE FLOOR BELOW WHICH A NOTE IS NOT OFFERED AT ALL. ONE constant, because it was the same literal
@@ -113,6 +122,47 @@ class NoteHit:
 # pattern claiming 存货 (inventories) and ．会计处理方法 (accounting policy). The probe scoring
 # 0.000 there is CORRECT; the regex is wrong. No floor recovers a bad pattern.
 MIN_SCORE = 0.25
+
+# BELOW THIS, THE HEADER SEARCH IS NOT CONFIDENT AND THE CONTENT SEARCH RUNS AS WELL.
+#
+# Not the same number as `MIN_SCORE` and not derivable from it. `MIN_SCORE` answers "is this note
+# worth offering at all"; this answers "did the header route actually find what it was looking
+# for". A line whose best heading scores 0.27 has cleared the floor and found nothing convincing —
+# exactly the case where asking a different question is worth the request size.
+#
+# 0.40 sits between the two distributions the fixture in `tests/test_note_context_ranking.py`
+# measures: the worst TRUE match scores 0.598 and unrelated headings reach 0.308 at the 90th
+# percentile. So a best-score below 0.40 means the header route returned nothing it would itself
+# call a true match, and above it the heading is its author's own statement of subject and is the
+# better answer.
+#
+# RAISING IT WIDENS MORE OFTEN (more notes per request, more chances to find a figure nothing
+# else reaches); LOWERING IT TRUSTS THE HEADERS FURTHER. At 0.0 the content search never runs and
+# the behaviour is what it was before it existed, which is the way to turn this off.
+# MEASURED, AND IT RECOVERS NOTHING AGAINST THE ONLY GROUND TRUTH THERE IS — so it ships OFF.
+#
+# `scripts/measure_widening.py` over the 9 CAS filings: 763 (line, authored note) pairs, 499
+# delivered by the header route, 499 delivered with widening as well. ZERO recovered, for +8% notes
+# per line and 153 notes admitted that no pattern names.
+#
+# WHY ZERO, and the reason is structural rather than a tuning failure. When a pattern names a note,
+# that note's HEADING contains the pattern's words — and a line's `note_terms` are written from the
+# same vocabulary, so the header route already finds it. The cases where the header route fails are
+# the ones where the heading says something else entirely, and there the content search finds a
+# DIFFERENT note. So widening cannot improve recall measured against the patterns; its entire
+# value is the 153, and whether those are right is a judgement no script here can make.
+#
+# WHICH IS NOT THE SAME AS SAYING IT IS WORTHLESS. `note_context.identified_notes` already passes a
+# pattern-named note UNCONDITIONALLY, so the 499 were never at risk — which means "recall against
+# the patterns" was the wrong measurement for this feature, and the right one is whether any of the
+# 153 holds a figure nothing else reaches. That needs a live run to answer: a request carrying a
+# widened note either cites a row in it or does not.
+#
+# SO THE MECHANISM IS BUILT AND THE DEFAULT IS 0.0 (never widen). Set it to 0.40 to turn it on —
+# that value is where the header route stops returning anything it would itself call a true match
+# (the fixture in `tests/test_note_context_ranking.py` measures the worst true match at 0.598 and
+# unrelated headings at 0.308 for the 90th percentile), so it is the threshold to try first.
+WIDEN_BELOW = 0.0
 
 def header_pool(notes) -> ContextPool:
     """One unit per note, carrying its HEADER only.
@@ -273,6 +323,91 @@ def notes_for_line_item(item, pool: ContextPool, *, min_score: float = MIN_SCORE
     return out
 
 
+def content_terms(item) -> list[str]:
+    """Everything a line says its ROW is called — the vocabulary the content search matches on.
+
+    `row_terms` and `row_caption_any` both describe the row, and they are pooled here because the
+    question being asked is "does this note contain this line's row", which neither field owns on
+    its own. `row_caption_any` entries are regex SOURCES, so they are used as literals only when
+    they contain no metacharacter — a pattern is for matching a caption once the note is chosen,
+    not for scanning a document.
+    """
+    import re as _re
+
+    source = getattr(item, "note_source", None)
+    if source is None:
+        return []
+    out: list[str] = [t for t in (getattr(source, "row_terms", None) or []) if t and t.strip()]
+    for raw in (getattr(source, "row_caption_any", None) or []):
+        if raw and not _re.search(r"[\\|()\[\]{}?*+^$]", raw):
+            out.append(raw)
+    # Longest first, so the specificity ranking below reads the most specific match it can.
+    return sorted({t.strip().lower() for t in out if t.strip()}, key=len, reverse=True)
+
+
+def content_vetoes(item) -> list[str]:
+    """What must NOT be in a row for it to count — the same vetoes the row reader applies.
+
+    Applied here as well as there, because a note admitted on a vetoed row is a note carried into
+    the request for a row that will then be refused: the cost without the figure.
+    """
+    source = getattr(item, "note_source", None)
+    if source is None:
+        return []
+    out = list(getattr(source, "row_terms_none", None) or [])
+    out += [t for t in (getattr(source, "row_caption_none", None) or []) if t]
+    return [t.strip().lower() for t in out if t and t.strip()]
+
+
+def widen_by_content(item, notes, *, cap: int = 4) -> list[NoteHit]:
+    """The notes anywhere in the document whose ROWS this line is looking for, best first.
+
+    THE FALLBACK WHEN THE HEADING SEARCH COMES UP SHORT. It answers the other question — not "which
+    heading is about this line" but "which note contains this line's row" — so it cannot fail the
+    way the header route fails, because what it matches IS what the line is defined by.
+
+    RANKED BY THE SPECIFICITY OF THE TERM THAT MATCHED, not by how many rows matched. `row_terms`
+    carry both 固定资产折旧 and a bare 折旧, so counting matches would let a note mentioning
+    depreciation in eight places outrank the one note captioned for it. The longest matching term
+    is the closest thing to "this row IS what the line means", and the row count only breaks ties.
+
+    Scored 0.0 and marked `via="content"`: there is no comparable similarity to report — a literal
+    match is not a cosine — and reporting one would let a widened hit be compared against a header
+    score as though they measured the same thing.
+    """
+    terms = content_terms(item)
+    if not terms or not notes:
+        return []
+    vetoes = content_vetoes(item)
+
+    # note number -> (longest matching term, matching rows, title)
+    best: dict[str, tuple[int, int, str]] = {}
+    for table in notes:
+        number = str(getattr(table, "note_number", "") or "")
+        if not number:
+            continue
+        title = (getattr(table, "title", "") or "")
+        longest = hits = 0
+        for row in (getattr(table, "items", None) or ()):
+            caption = (getattr(row, "raw_label", "") or "").lower()
+            if not caption or any(v in caption for v in vetoes):
+                continue
+            matched = next((t for t in terms if t in caption), None)
+            if matched is None:
+                continue
+            hits += 1
+            longest = max(longest, len(matched))
+        if not hits:
+            continue
+        prior = best.get(number)
+        if prior is None or (longest, hits) > prior[:2]:
+            best[number] = (longest, hits, title)
+
+    ranked = sorted(best.items(), key=lambda kv: (-kv[1][0], -kv[1][1], kv[0]))
+    return [NoteHit(note=num, title=meta[2], score=0.0, via="content")
+            for num, meta in ranked[:cap]]
+
+
 def note_sets(items, notes, *, min_score: float = MIN_SCORE,
               cap: int = 4) -> dict[str, list[NoteHit]]:
     """Every `extract` line item's note set, keyed by line-item key.
@@ -300,6 +435,22 @@ def note_sets(items, notes, *, min_score: float = MIN_SCORE,
             continue
         parent = by_key.get(getattr(item, "parent", "") or "")
         hits = notes_for_line_item(item, pool, min_score=min_score, cap=cap, parent=parent)
+        # WIDEN BY CONTENT WHEN THE HEADER SEARCH CAME UP SHORT — see `WIDEN_BELOW`. The header
+        # route asks which HEADING is about this line; when its best answer is not one it would
+        # itself call a true match, the other question is worth asking: which note in this document
+        # CONTAINS the rows this line is looking for.
+        #
+        # APPENDED, NEVER SUBSTITUTED, and the header hits keep their order. A heading is its
+        # author's own statement of subject and outranks a row match on evidence; what widening
+        # adds is reach where that statement was not found. The cap still bounds the total, so a
+        # line with four confident headings widens to nothing extra.
+        best = max((h.score for h in hits), default=0.0)
+        if best < WIDEN_BELOW and len(hits) < cap:
+            seen = {h.note for h in hits}
+            for extra in widen_by_content(item, notes, cap=cap - len(hits)):
+                if extra.note not in seen:
+                    hits.append(extra)
+                    seen.add(extra.note)
         if hits:
             out[item.key] = hits
     return out
