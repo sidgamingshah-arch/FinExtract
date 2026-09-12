@@ -21,17 +21,22 @@ is not "a caption I would call close enough" but "a caption THIS RUN would have 
 that fails it could not have produced a figure however well the model read the note, so counting
 it as available evidence would overstate what the payload offered.
 
-READ `ROW PRESENT` AS AN UPPER BOUND, NOT AN ESTIMATE — BACKLOG ITEM 14. Borrowing the run's gate
-also inherits its defect: it accepts a caption sharing ONE subject token with `row_terms`, and
-`row_terms` are multi-word phrases that `subject_tokens` splits into single words. For
-`sub__fixed_asset_depreciation` the accepted set therefore contains `assets`, `property`, `plant`,
-`use` and `and` — so `Deposits and other receivables` passes for a depreciation line, on `and`.
-Measured, at least 8 of 43 row verdicts here rest only on such a fragment, and the Han verdicts are
-additionally suspect because a compound term (`固定资产折旧`) is one word whose bigrams include the
-container noun `资产`. So a `ROW PRESENT` means "the run would have accepted something in this
-payload", which is WEAKER than "the line's figure is in this payload". The tally prints the bound
-with that wording. Fixing the gate fixes this number too, which is the main reason item 14 is
-ranked where it is.
+`ROW PRESENT` IS STILL AN UPPER BOUND, BUT A MUCH TIGHTER ONE — BACKLOG ITEM 14, NOW FIXED.
+Borrowing the run's gate used to inherit a defect: it accepted a caption sharing ONE subject token
+with `row_terms`, and `row_terms` are multi-word phrases split into single words, so the accepted
+set for `sub__fixed_asset_depreciation` held `assets`, `property`, `plant`, `use` and `and` —
+`Deposits and other receivables` passed a depreciation line on the word `and`.
+
+`line_item_notes.discriminating_tokens` now narrows that to tokens from terms the author named
+ALONE, minus the line's own note-level (container) vocabulary. Measured over the 4 focus lines, the
+effect on THIS script's verdicts is large and downward: ROW PRESENT 43 -> 25, with those verdicts
+moving to NO CANDIDATE where they belong, and reachability 65% -> 47%. Over all 77 authored lines,
+786 -> 665 (57% -> 48%). The number got smaller because it had been wrong.
+
+IT IS STILL A BOUND, for a reason recorded in `tests/test_row_terms_gate.py`: the container
+subtraction removes the vocabulary of the line's OWN note, so a row term naming a DIFFERENT note's
+container still contributes its tokens. So a `ROW PRESENT` means "the run would have accepted
+something in this payload", which remains weaker than "the line's figure is in this payload".
 
   NOT ASKED       the line is never put to a model (derived, or excluded by focus). No payload.
   NOT SELECTED    the line's own note search found nothing above the floor. A selection gap.
@@ -307,9 +312,9 @@ def main() -> int:
           f"{there} of them ({100.0 * there / max(1, asked):.0f}%):")
     print(f"      {total['ROW PRESENT']:>4d} from a row the run's own gate would ACCEPT")
     print(f"      {total['PROSE ONLY']:>4d} from prose only — the narrower route")
-    print("      ^ AT MOST, not exactly: the gate accepts a caption sharing ONE word with a")
-    print("        multi-word row term, so `Deposits and other receivables` passes a depreciation")
-    print("        line on the word `and`. See backlog item 14 — fixing it lowers this number.")
+    print("      ^ AT MOST, not exactly: the gate is `caption_agrees_with_row_terms`, which asks")
+    print("        whether a caption shares a DISCRIMINATING word with the line's row terms — a")
+    print("        weaker question than whether it is that row. See backlog item 14.")
     print(f"\n  So AT MOST {there} can be a model failure. The other {asked - there} are not:")
     print(f"      {total['NO CANDIDATE']:>4d} carried notes that hold no acceptable row   "
           f"-> vocabulary")

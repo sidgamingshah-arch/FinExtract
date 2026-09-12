@@ -48,7 +48,7 @@ from decimal import Decimal, InvalidOperation
 
 from app.services import derivation
 # One split for every side of every comparison — see `line_item_notes`.
-from app.services.note_context import subject_tokens
+from app.services.note_context import matches_title, subject_tokens
 
 # A pattern an author mistyped must not take the run down, and must not silently match nothing
 # either. Both outcomes are reported by `fill`, which returns the refusals alongside the fills.
@@ -69,6 +69,21 @@ def _matches_any(text: str, compiled: list[tuple[str, re.Pattern | None]]) -> st
     """The first pattern that matches, or None. Returns the PATTERN so the trail can name it."""
     for raw, rx in compiled:
         if rx is not None and rx.search(text or ""):
+            return raw
+    return None
+
+
+def _matches_title_any(title: str, compiled: list[tuple[str, re.Pattern | None]]) -> str | None:
+    """`_matches_any` for a note HEADING, which arrives carrying an enumerator.
+
+    A heading is matched as extracted and with its leading enumerator removed
+    (`note_context.title_variants`), because 44% of the corpus's headings begin with a bare "、"
+    and every anchored `note_title_any` pattern fails those. Row CAPTIONS are matched by
+    `_matches_any` unchanged: a caption carries no enumerator, and stripping a leading character
+    from one would be loosening a pattern for no reason.
+    """
+    for raw, rx in compiled:
+        if rx is not None and matches_title(rx, title or ""):
             return raw
     return None
 
@@ -131,7 +146,8 @@ def select_rows(item, notes, periods: set[str] | None = None) -> list[NoteRowHit
         title = getattr(table, "title", "") or ""
         # The note NUMBER is offered to the title patterns too, because a filing whose note headings
         # were captured without their text still identifies the note by its number.
-        if not (_matches_any(title, titles) or _matches_any(str(getattr(table, "note_number", "")),
+        if not (_matches_title_any(title, titles)
+                or _matches_any(str(getattr(table, "note_number", "")),
                                                             titles)):
             continue
         for row in getattr(table, "items", None) or ():
@@ -278,7 +294,9 @@ def select_prose(item, notes) -> list[ProseHit]:
     for table in notes or ():
         title = getattr(table, "title", "") or ""
         number = str(getattr(table, "note_number", "") or "")
-        if not (_matches_any(title, titles) or _matches_any(number, titles)):
+        # The PROSE route reaches its note the same way the row route does, so a heading whose
+        # enumerator defeated the pattern withheld the sentence as well as the table.
+        if not (_matches_title_any(title, titles) or _matches_any(number, titles)):
             continue
         for sentence in _sentences(getattr(table, "source_text", "") or ""):
             matched = _matches_any(sentence, counts)

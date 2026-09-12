@@ -456,6 +456,57 @@ def note_sets(items, notes, *, min_score: float = MIN_SCORE,
     return out
 
 
+def discriminating_tokens(item) -> set[str]:
+    """The tokens that actually distinguish this line's ROW from its container.
+
+    THE DEFECT THIS CLOSES, and it made the gate above almost inert. The check was
+    `{t for term in row_terms for t in subject_tokens(term)}` — every token of every term — and
+    `row_terms` are multi-word PHRASES. For `sub__fixed_asset_depreciation` the 36 terms include
+    "depreciation of property plant and equipment" and "amortization and depreciation", so the
+    accepted set contained 77 tokens including:
+
+        assets  fixed  property  plant  equipment  investment  lease  payments  use  right  and
+
+    and ANY caption containing the word "and" passed. Measured against the shipped configuration,
+    the gate accepted "Deposits and other receivables" (on `and`) and "Contract assets, net (i)"
+    (on `assets`) for a DEPRECIATION line, and 固定资产 — the container's own name, which is the
+    single error the whole check was written to refuse.
+
+    TWO NARROWINGS, and both are needed. Measured on that line against eight captions that must
+    pass and six that must be refused: today's rule passes 8 and wrongly accepts 3; the first
+    narrowing alone still accepts 固定资产; both together pass 8 and wrongly accept 0.
+
+      1. ONLY TOKENS FROM A TERM THE AUTHOR NAMED ALONE. `depreciation`, `amortisation`, `折旧`,
+         `摊销` are all authored as standalone terms; `assets`, `and`, `plant` never are — they
+         exist only inside a phrase. A token that an author never used by itself was never their
+         statement of what the row is called.
+      2. MINUS THE NOTE-LEVEL VOCABULARY. A token that appears in `note_terms` or `note_title_any`
+         names the CONTAINER by construction — that is what those fields are for — so it cannot be
+         what distinguishes a row inside it. This is the two-level distinction the vocabulary work
+         is about, applied to the check. It is what removes 资产 (from 固定资产折旧, whose bigrams
+         include the container noun) while leaving 折旧.
+
+    THE FALLBACK IS NOT DECORATION. If narrowing leaves nothing, the full token set is returned
+    rather than an empty one: an empty set makes the gate refuse EVERY caption for that line and
+    lose its figures silently, which is far worse than the over-acceptance being fixed here.
+    Measured, no shipped line needs it — all 77 keep a non-empty, smaller set — so it exists for
+    the line somebody authors next.
+    """
+    source = getattr(item, "note_source", None)
+    terms = [str(t) for t in (getattr(source, "row_terms", None) or ())]
+    if not terms:
+        return set()
+    every = {t for term in terms for t in subject_tokens(term)}
+    # A "single word" is a term with no internal space. Han compounds have none by nature, which
+    # is why narrowing (2) is what carries the Chinese half.
+    solo = {t for term in terms if " " not in term.strip() for t in subject_tokens(term)}
+    container: set[str] = set()
+    for field in ("note_terms", "note_title_any"):
+        for value in (getattr(source, field, None) or ()):
+            container |= set(subject_tokens(str(value)))
+    return (solo - container) or every
+
+
 def caption_agrees_with_row_terms(item, caption: str) -> tuple[bool, str]:
     """Does this caption look like the ROW this line item is, at all? `(ok, why_not)`.
 
@@ -484,7 +535,7 @@ def caption_agrees_with_row_terms(item, caption: str) -> tuple[bool, str]:
     terms = list(getattr(source, "row_terms", None) or ())
     if not terms:
         return True, ""
-    wanted = {t for term in terms for t in subject_tokens(str(term))}
+    wanted = discriminating_tokens(item)
     if not wanted:
         return True, ""
     got = set(subject_tokens(caption or ""))

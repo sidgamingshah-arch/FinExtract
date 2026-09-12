@@ -27510,7 +27510,8 @@
    "inherits": "notes",
    "note_source": {
     "note_title_any": [
-     "property\\s*,?\\s*plant\\s+and\\s+equipment|物業、廠房及設備|固定资产|使用权资产|使用權資產"
+     "property\\s*,?\\s*plant\\s+and\\s+equipment|物業、廠房及設備|固定资产|使用权资产|使用權資產",
+     "property\\s+and\\s+equipment|物業及設備|物业及设备"
     ],
     "row_caption_any": [
      "depreciation\\s+of\\s+investment\\s+propert",
@@ -35343,7 +35344,8 @@
      "revenue\\s+and\\s+other\\s+income\\s+and\\s+gains?",
      "收益[、，]?\\s*其他收入及收益|收入[、，]?\\s*其他收入及收",
      "營業額及其他收入|营业额及其他收入",
-     "收入與成本|收入与成本"
+     "收入與成本|收入与成本",
+     "^\\s*(?:note\\s+)?(?:\\d+[.、)]?\\s*)?revenue\\s*$"
     ],
     "row_caption_any": [
      "^\\s*主营业务收入(?!\\s*成本)",
@@ -43057,7 +43059,8 @@
    "inherits": "notes",
    "note_source": {
     "note_title_any": [
-     "^\\s*(?:note\\s+)?(?:\\d+[.、)]?\\s*)?financial\\s+assets?\\s*$|^\\s*(?:\\d+[.、)]?\\s*)?financial\\s+assets?\\s*[-–—(]\\s*non-?current|^\\s*(?:\\d+[.、)]?\\s*)?non-?current\\s+financial\\s+assets?\\s*$|^\\s*(?:\\d+[.、)]?\\s*)?金融資產\\s*$|^\\s*(?:\\d+[.、)]?\\s*)?金融资产\\s*$|^\\s*(?:\\d+[.、)]?\\s*)?非流動金融資產\\s*$|^\\s*(?:\\d+[.、)]?\\s*)?非流动金融资产\\s*$"
+     "^\\s*(?:note\\s+)?(?:\\d+[.、)]?\\s*)?financial\\s+assets?\\s*$|^\\s*(?:\\d+[.、)]?\\s*)?financial\\s+assets?\\s*[-–—(]\\s*non-?current|^\\s*(?:\\d+[.、)]?\\s*)?non-?current\\s+financial\\s+assets?\\s*$|^\\s*(?:\\d+[.、)]?\\s*)?金融資產\\s*$|^\\s*(?:\\d+[.、)]?\\s*)?金融资产\\s*$|^\\s*(?:\\d+[.、)]?\\s*)?非流動金融資產\\s*$|^\\s*(?:\\d+[.、)]?\\s*)?非流动金融资产\\s*$",
+     "^\\s*(?:\\d+[.、)]?\\s*)?其他非流动金融资产|^\\s*(?:\\d+[.、)]?\\s*)?其他非流動金融資產"
     ],
     "row_caption_any": [
      "^\\s*total\\s*$",

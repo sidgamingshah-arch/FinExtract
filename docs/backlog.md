@@ -108,7 +108,36 @@ that is right.
 
 ---
 
-## 4. PRC vocabulary — do it at BOTH levels
+## 4. PRC vocabulary — do it at BOTH levels (PARTLY DONE)
+
+**DONE SO FAR, and the first fix was not a vocabulary fix at all.** Measured, 1,486 of 3,359 note
+headings in the corpus (44%) begin with a BARE separator — `、其他应收款` — because the heading is
+extracted from a line whose Han enumerator (`五、`) has been split off. Every authored
+`note_title_any` is anchored with an optional ARABIC enumerator and nothing else, so none of them
+could pass it: `sub__rp_other_receivables_note` matched NONE of its own notes on 11 of 18 filings
+while its pattern spells that exact phrase. Fixed in the MATCHER
+(`note_context.title_variants` / `matches_title`, applied at all three sites — `identified_notes`,
+the row route and the prose route) rather than by editing hundreds of anchors, each of which would
+have been a chance to widen one by accident.
+
+Then three per-line additions, each checked against the note's actual ROWS before authoring:
+`sub__ltp_fincl_assets_note_total` (+ `其他非流动金融资产`, 8 filings),
+`sub__ppe_depreciation` (+ `property and equipment` / `物業及設備` — the existing pattern required
+"plant"), `sub__revenue_note_principal_revenue` (+ a bare `^revenue$`).
+
+**Expected-source delivery: 501 -> 518 of 508 checkable pairs.** ABSENT 878 -> 861.
+
+**WHAT THE CHECKING CAUGHT, and it is why the remaining 861 are not a bulk edit.** The 0.70+
+similarity band is NOT uniformly correct. Of the 32 lines it flagged: `一年内到期的非流动资产` for
+`cp_current_loans_advances_*` (16 pairs) is WRONG — the note's rows are
+`一年内到期的长期应收款` and `一年内到期的银行大额存单`, certificates of deposit and long-term
+receivables, not loans and advances. `、其他` ("other") and `GENERAL INFORMATION` are scoring
+artifacts on short headings. Several name LIABILITIES for an ASSET line. Every remaining candidate
+needs its note's rows read before a pattern is authored.
+
+---
+
+## 4b. The original analysis
 
 **DECIDED:** the work is at two levels, and they are different questions. Conflating them is what
 produced a wrong diagnosis twice.
@@ -503,7 +532,36 @@ acquiring aliases still fails `tests/test_line_item_gate.py`.
 
 ---
 
-## 14. THE ROW-TERMS GATE ADMITS THE CONTAINER CAPTION IT WAS WRITTEN TO REFUSE
+## 14. THE ROW-TERMS GATE ADMITTED THE CONTAINER CAPTION IT WAS WRITTEN TO REFUSE — FIXED
+
+**FIXED** by `line_item_notes.discriminating_tokens`, which narrows the accepted set twice: to
+tokens from terms the author named ALONE (`depreciation`, `折旧` — never `and` or `assets`, which
+exist only inside a phrase), then minus the line's own note-level vocabulary, which names the
+CONTAINER by construction and is what removes `资产` from `固定资产折旧` while leaving `折旧`.
+
+Chosen by measurement rather than intuition, against 8 captions that must pass and 6 that must be
+refused: today's rule passed 8 and wrongly accepted 3; the first narrowing alone still accepted
+`固定资产`; both together pass 8 and wrongly accept 0. All 77 authored lines keep a NON-EMPTY,
+smaller set, and `discriminating_tokens` falls back to the full set rather than return nothing —
+an empty set would refuse every caption for that line and lose its figures silently.
+
+**What it changed, and the number went DOWN because it had been wrong.** Reachability over the 4
+focus lines 65% -> 47% (ROW PRESENT 43 -> 25, those verdicts moving to NO CANDIDATE); over all 77
+authored lines 786 -> 665 (57% -> 48%). **No published figure moved** — verified by extracting each
+available filing twice, once with the old rule patched back in, and diffing every concept through
+`concept_value`: 0 of 311 and 0 of 323. The deterministic path recorded 0 refusals either way,
+which is the honest caveat: on those filings `map_ontology`'s call site never fired, so that is
+evidence of no harm rather than a strong test of it.
+
+**The residual limit, recorded in `tests/test_row_terms_gate.py::test_what_the_narrowing_does_NOT_fix`:**
+the subtraction removes the vocabulary of the line's OWN note, so a row term naming a DIFFERENT
+note's container still contributes its tokens — `sub__operating_expense_depreciation` reads the
+EXPENSES note and still accepts a bare `固定资产`. Weaker than what was fixed, and note selection is
+what keeps that caption away from it.
+
+---
+
+## 14b. The original finding, kept because the measurement stands
 
 **This is the most consequential finding of the corpus audit, and it invalidates a number I
 reported before measuring it.**

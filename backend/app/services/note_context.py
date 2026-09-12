@@ -88,6 +88,51 @@ _MIN_PROSE_SENTENCE = 26
 _SEMANTIC_NOTE_BUDGET = 8
 
 
+# THE ENUMERATOR A HEADING ARRIVES WITH, AND WHY IT HAS TO BE STRIPPED BEFORE MATCHING.
+#
+# MEASURED: 1,486 of 3,359 note headings in the corpus (44%) begin with a BARE separator - "、 公司
+# 概况", "、其他应收款" - because the heading is extracted from a line whose Han enumerator ("五、")
+# has been split off, leaving the separator at the front of the title. A further slice begins with
+# the full enumerator, and some with a stray ")".
+#
+# Almost every authored `note_title_any` pattern is anchored: `^\s*(?:\d+[.、)]?\s*)?其他应收款`.
+# That optional group admits an ARABIC enumerator and nothing else, so it cannot pass a leading
+# "、" and the pattern fails on the very filings it was written for -
+# `sub__rp_other_receivables_note` missed "、其他应收款" on 11 of 18 filings while its own pattern
+# spells that exact phrase. The note then never reaches the request, so neither its rows nor its
+# PROSE reach the model, and the line comes back empty for a reason no log names.
+#
+# FIXED HERE RATHER THAN IN THE CONFIGURATION, because the alternative is editing the anchor of
+# every pattern in the set - hundreds of them, each a chance to widen one by accident. A pattern is
+# tested against the heading AS EXTRACTED and against the heading with its enumerator removed, so:
+#
+#   * an anchored pattern now matches the content it names, whatever enumerator precedes it;
+#   * a pattern that deliberately matches an enumerator still matches, because the raw spelling is
+#     tried first and unchanged;
+#   * nothing is loosened in the middle of a heading - only the leading run is removed.
+_LEAD = re.compile(r"^[\s)）]*(?:[一二三四五六七八九十百]+|\d+)?\s*[、．。.)）]?\s*")
+
+
+def title_variants(title: str) -> tuple[str, ...]:
+    """The heading as extracted, and with any leading enumerator or separator removed.
+
+    Both, in that order, and de-duplicated - a heading with no enumerator yields one string, so a
+    caller pays nothing for the headings that never had the problem.
+    """
+    raw = title or ""
+    out = [raw]
+    stripped = _LEAD.sub("", raw, count=1).strip()
+    if stripped and stripped != raw:
+        out.append(stripped)
+    return tuple(out)
+
+
+def matches_title(pattern, title: str) -> bool:
+    """Whether one compiled pattern matches a note heading, enumerator notwithstanding."""
+    return any(pattern.search(v) for v in title_variants(title))
+
+
+
 def subject_tokens(text: str) -> list[str]:
     """The words a subject is compared on, in both scripts.
 
@@ -548,8 +593,11 @@ def identified_notes(line_item_set, notes) -> list[dict]:
     for table in notes or ():
         title = getattr(table, "title", "") or ""
         number = str(getattr(table, "note_number", "") or "")
+        # THROUGH `matches_title`, so an anchored pattern is not defeated by the enumerator the
+        # heading arrives with — see `_LEAD`. This is the site that decides what reaches a request
+        # AT ALL: a pattern that misses here takes the note's rows AND its prose with it.
         claimed = {key for key, pats in compiled
-                   if any(p.search(title) or p.search(number) for p in pats)}
+                   if any(matches_title(p, title) or p.search(number) for p in pats)}
         claimed |= semantic_by_note.get(number or title, set())
         wanted_by = sorted(claimed)
         if not wanted_by:

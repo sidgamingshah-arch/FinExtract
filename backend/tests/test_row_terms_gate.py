@@ -82,6 +82,104 @@ def test_a_real_phrasing_is_not_refused(shipped, caption):
     assert ok is True, f"{caption!r} was refused: {why}"
 
 
+@pytest.mark.parametrize("key,caption", [
+    # ON "and", from "depreciation of property plant and equipment" and "amortization and
+    # depreciation". Any caption in the filing containing the word passed.
+    (PART, "Deposits and other receivables"),
+    (PART, "Deposits, prepayments, other receivables and other assets"),
+    # ON "assets", from every "... assets" phrase in the term list.
+    (PART, "Contract assets, net (i)"),
+    (PART, "Unlisted equity investments, at fair value"),
+    # ON THE CONTAINER'S OWN NAME. 固定资产折旧 is one word, so its bigrams include 资产, and the
+    # note this line reads is captioned 固定资产 — the exact confusion the gate exists for. Asserted
+    # against the line whose CONTAINER that is: see the limitation test below for why the same
+    # caption is not refused for every line that mentions fixed assets in a row term.
+    ("sub__fixed_asset_depreciation", "固定资产"),
+    ("sub__fixed_asset_depreciation", "固定資產"),
+])
+def test_a_caption_that_only_shares_a_phrase_fragment_is_refused(shipped, key, caption):
+    """THE DEFECT THAT MADE THE GATE ALMOST INERT, measured against the shipped configuration.
+
+    `row_terms` are multi-word PHRASES and the check tokenised all of them together, so for
+    `sub__fixed_asset_depreciation` the accepted set held 77 tokens — including `assets`,
+    `property`, `plant`, `use` and `and`. A depreciation line therefore accepted "Deposits and
+    other receivables", and 固定资产, which is the container caption the whole check was written to
+    refuse.
+
+    `discriminating_tokens` narrows it twice: to tokens from terms the author named ALONE
+    (`depreciation`, `折旧` — never `and` or `assets`, which exist only inside a phrase), then minus
+    the note-level vocabulary, which names the CONTAINER by construction and is what removes 资产
+    while leaving 折旧. Measured on `sub__fixed_asset_depreciation`: 8 of 8 real captions still
+    pass and 0 of 6 of these are accepted, against 3 of 6 before.
+    """
+    item = {i.key: i for i in shipped.items}[key]
+    ok, why = caption_agrees_with_row_terms(item, caption)
+
+    assert ok is False, f"{caption!r} was accepted on a phrase fragment"
+    assert "shares no subject word" in why
+
+
+def test_what_the_narrowing_does_NOT_fix(shipped):
+    """THE LIMITATION, stated rather than discovered later.
+
+    The container subtraction removes the vocabulary of THE LINE'S OWN note. A row term that names
+    a DIFFERENT note's container still contributes its tokens: `sub__operating_expense_depreciation`
+    reads the EXPENSES note (`note_terms`: "operating expenses", 經營開支), and carries 固定资产折旧
+    as a row term because that is a caption printed inside that note — so 资产 survives as
+    "discriminating" for it and the bare caption 固定资产 is still accepted.
+
+    That is a weaker over-acceptance than the one fixed: 固定资产 is not a row of the expenses note,
+    so it should not be offered in the first place, and the note selection is what keeps it out.
+    Recorded here so the next narrowing has a measured starting point rather than a suspicion —
+    and so that a future change which DOES refuse it fails this test and is read deliberately.
+    """
+    item = {i.key: i for i in shipped.items}["sub__operating_expense_depreciation"]
+    ok, _why = caption_agrees_with_row_terms(item, "固定资产")
+    assert ok is True, ("this now refuses a foreign container caption — a genuine improvement; "
+                        "update this test and say what made it possible")
+
+
+def test_no_shipped_line_is_left_with_nothing_to_match_on(shipped):
+    """THE FAILURE MODE THE NARROWING COULD HAVE INTRODUCED, and the reason for the fallback.
+
+    An empty discriminating set makes the gate refuse EVERY caption for that line and lose its
+    figures silently — far worse than the over-acceptance being fixed. `discriminating_tokens`
+    falls back to the full token set rather than return nothing, and this asserts the fallback is
+    not currently load-bearing: all 77 authored lines keep a non-empty, SMALLER set, so a line that
+    needed the fallback would be a new authoring shape rather than a regression hiding behind it.
+    """
+    from app.services.line_item_notes import discriminating_tokens
+    from app.services.note_context import subject_tokens
+
+    judged = [i for i in shipped.items
+              if getattr(getattr(i, "note_source", None), "row_terms", None)]
+    assert len(judged) >= 77
+    for item in judged:
+        terms = [str(x) for x in item.note_source.row_terms]
+        every = {tok for term in terms for tok in subject_tokens(term)}
+        got = discriminating_tokens(item)
+        assert got, f"{item.key} has nothing left to match on"
+        assert got <= every, f"{item.key} gained tokens its terms do not contain"
+
+
+def test_the_fallback_returns_everything_rather_than_nothing():
+    """Stated directly, because no shipped line exercises it: a line whose every row term is also
+    note vocabulary keeps the full set instead of being left unmatched."""
+    from app.services.line_item_notes import discriminating_tokens
+
+    class _Source:
+        row_terms = ["depreciation"]
+        note_terms = ["depreciation"]
+        note_title_any = ["depreciation"]
+
+    class _Item:
+        key = "probe"
+        note_source = _Source()
+
+    got = discriminating_tokens(_Item())
+    assert got == {"depreciation"}, got
+
+
 def test_a_line_with_no_row_terms_is_not_judged(shipped):
     """Absent configuration is not a negative finding. Refusing on it would make the floor punish
     exactly the lines nobody has authored yet."""

@@ -111,6 +111,8 @@ def expected_notes(item, tables) -> list[str]:
     Heading OR number, because that is exactly what `identified_notes` matches on — anything
     narrower here would report a note as unexpected that the run itself treats as declared.
     """
+    from app.services.note_context import matches_title
+
     pats = patterns_of(item)
     if not pats:
         return []
@@ -118,7 +120,9 @@ def expected_notes(item, tables) -> list[str]:
     for table in tables:
         title = getattr(table, "title", "") or ""
         number = str(getattr(table, "note_number", "") or "")
-        if any(p.search(title) or p.search(number) for p in pats):
+        # Through the same matcher `identified_notes` uses, or this script would report an
+        # expectation the run does not share — in either direction.
+        if any(matches_title(p, title) or p.search(number) for p in pats):
             if number not in got:
                 got.append(number)
     return got
