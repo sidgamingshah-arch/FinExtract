@@ -149,8 +149,6 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
     "output_structure": ("output_structure", "phrase"),
     "exclude_criteria": ("exclude_criteria", ["bank overdrafts repayable on demand"]),
     "confusable_with": ("confusable_with", ["probe_other"]),
-    "section_disambiguation": ("section_disambiguation",
-                              "the balance-sheet cash line, not the cash-flow one"),
     # structure
     "type": ("type", "calculated"),
     "in_output": ("in_output", False),
@@ -207,8 +205,7 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
         "prose_any": [r"cash[^.]{0,80}?held\s+at\s+bank"],
         "note_terms": ["cash and cash equivalents", "现金及现金等价物"],
         "row_terms": ["bank balances", "银行存款"],
-        "row_terms_none": ["restricted"],
-        "caption_normalization": "mapping_v1"}),
+        "row_terms_none": ["restricted"]}),
     # recognition
     "aliases": ("aliases", ["Cash at bank", "Bank balances"]),
     "alias_matching": ("alias_matching", "disabled"),

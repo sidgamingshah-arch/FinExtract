@@ -451,8 +451,6 @@ def test_every_closed_set_the_editor_offers_is_the_schema_s_own(client):
         "units_of_account": list(get_args(UnitOfAccount)),
         "sign_expectations": list(get_args(SignExpectation)),
         "note_uses": list(get_args(NoteUse)),
-        "caption_normalizations": list(
-            get_args(NoteSource.model_fields["caption_normalization"].annotation)),
         "term_roles": list(get_args(Term.model_fields["role"].annotation)),
         "analyst_buckets": list(BUCKET_KEYS),
     }

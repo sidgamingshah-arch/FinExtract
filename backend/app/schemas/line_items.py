@@ -287,11 +287,13 @@ class NoteSource(BaseModel):
     note_terms: list[str] = Field(default_factory=list)
     row_terms: list[str] = Field(default_factory=list)
     row_terms_none: list[str] = Field(default_factory=list)
-    # WHICH TEXT THESE PATTERNS ARE AUTHORED AGAINST. The shipped patterns were lifted out of
-    # code that matched RAW captions, so folding them through `normalize_label` would stop some of
-    # them matching. `mapping_v1` says the opposite — author against normalised text, as the
-    # rulebook's aliases are. Saying it per pattern group beats guessing.
-    caption_normalization: Literal["none", "mapping_v1"] = "none"
+    # `caption_normalization` IS GONE. It claimed to say which text these patterns are authored
+    # against — raw captions (`none`) or captions folded through `normalize_label` (`mapping_v1`) —
+    # and all 77 note sources declared the default. Grepped before removing it: NOTHING read the
+    # field. Not `note_context`, not `note_sourced`, not `line_item_notes`; its only two mentions
+    # outside this line were the vocabulary endpoint listing its values for a dropdown, and a
+    # comment naming it as unread. So the control offered a choice with no consequence, and its
+    # help text warned of one — patterns silently ceasing to match — that could not occur.
 
     @model_validator(mode="after")
     def _patterns_compile(self):
@@ -441,12 +443,26 @@ class LineItemDef(BaseModel):
     sole_component_of: str | None = None
 
     # ── prose the LLM is shown or a reviewer reads ───────────────────────────────────────────
-    # Free-form by nature, and carried rather than dropped: `section_disambiguation` is read by
-    # `mapping.py` and answers "which of two look-alike captions is this", which is the question
-    # the 31 collisions above ask. The rest document a decision someone will otherwise re-litigate.
+    # Free-form by nature, and carried rather than dropped: these document a decision someone will
+    # otherwise re-litigate.
+    #
+    # `section_disambiguation` IS GONE FROM THIS MODEL. It was kept on the reading that it answers
+    # "which of two look-alike captions is this" — authored prose the collisions above need. Then it
+    # was measured: 395 of 539 lines declared it, holding THIRTEEN distinct strings, and every one
+    # is `"Bind only to {statement} / {section}."` — generated from the line's own placement, not
+    # written about the line. Nothing was distinguished by it; 375 of the 518 lines a run asks about
+    # were sending the model a sentence that restated their own gate, and named an engine key
+    # (`bs_nca`) while doing it.
+    #
+    # It was still the request's ONLY placement signal, so it is REPLACED rather than deleted:
+    # `line_item_llm.line_item_payload` now sends `printed_in`, the statement under the name a
+    # filing prints over it. `mapping.py` keeps reading the rulebook's OWN
+    # `section_disambiguation` (`schemas/ontology.py`) for its confusable-tie step — a different
+    # model on a different path, and untouched. A v2 concept that declares the field now lands
+    # nowhere, which `scripts/project_ontology.py` reports as an unhomed declaration: the same
+    # outcome `include` got, and the right one.
     decomposition_rule: str | None = None
     others_rule: str | None = None
-    section_disambiguation: str | None = None
     derivation: str | None = None
     notes_as_source_rationale: str | None = None
 

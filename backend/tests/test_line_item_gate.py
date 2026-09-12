@@ -410,8 +410,28 @@ def test_a_gross_parent_names_the_children_it_contains():
     assert "bs_ca__trade_receivables_gross" in d.children_if_decomposed
 
 
-def test_the_prose_that_answers_a_look_alike_pair_is_carried():
-    """`section_disambiguation` is read by mapping.py and resolves 30 of the 420 collisions."""
-    d = LineItemDef(key="x", section_disambiguation="the one printed under non-current assets")
+def test_a_look_alike_pair_is_answered_by_the_banner_not_by_prose():
+    """REPLACES `test_the_prose_that_answers_a_look_alike_pair_is_carried`.
 
-    assert d.section_disambiguation
+    That test asserted `section_disambiguation` was carried, on the claim it "resolves 30 of the 420
+    collisions". The field is gone: 395 of 539 lines declared it and the values hold THIRTEEN
+    distinct strings, every one generated as `"Bind only to {statement} / {section}."` — which
+    distinguishes nothing, because it restates the gate the line already declares.
+
+    What actually separates a look-alike pair is the BANNER. Measured on this set, 170 contested
+    captions are same-statement and different sub-heading: `"Financial asset at FVTPL"` is claimed
+    by both `bs_ca` and `bs_nca`, `"Shareholders / holding companies"` by `bs_nca` (due from) and
+    `bs_ncl` (due to). That discriminator is `section_scope`, it is authored per line, and it is
+    still on the form.
+    """
+    current = LineItemDef(key="x", statement="balance_sheet", section_scope=["bs_ca"])
+    non_current = LineItemDef(key="y", statement="balance_sheet", section_scope=["bs_nca"])
+
+    # The field is off the model. Pydantic IGNORES an unknown key rather than refusing it (see
+    # `loader.unknown_keys` for why), so a stored value does not break a load — it lands nowhere,
+    # which is what `scripts/project_ontology.py` reports as an unhomed declaration.
+    assert not hasattr(current, "section_disambiguation")
+    assert "section_disambiguation" not in LineItemDef.model_fields
+    assert current.statement == non_current.statement
+    assert current.section_scope != non_current.section_scope, (
+        "the banner is the only thing separating this pair")

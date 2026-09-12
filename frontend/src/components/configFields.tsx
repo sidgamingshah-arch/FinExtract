@@ -283,7 +283,7 @@ export function TextField({
   );
 }
 
-/** Prose: `description`, `definition`, `section_disambiguation`, and the six nullable notes.
+/** Prose: `description`, `definition`, and the six nullable notes.
  *
  *  `nullable` is not decoration. On the wire a prose field is either `""` — a configured empty,
  *  stored — or `null`, "nothing was said". The nullable prose fields are declared `string | null`
@@ -683,7 +683,7 @@ export function OrderedMultiSelect<T extends string>({
  *                and they sit next to `exclude_criteria`, which is prose shown to the model. The
  *                two are different fields and folding prose into the regex list either fails to
  *                compile or compiles as an accidental veto — so they never look alike.
- *    • `prose` — full-width rows in the sans face, for `include_criteria`/`exclude_criteria`,
+ *    • `prose` — full-width rows in the sans face, for `exclude_criteria`,
  *                whose entries are sentences and unreadable as inline chips.
  *
  *  `indexErrors` is how a per-row refusal lands on its row: the server attributes a compile error

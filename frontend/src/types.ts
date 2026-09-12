@@ -1408,7 +1408,7 @@ export interface TemplateResponse {
  *  It is kept only because `api.editLineItem` is still typed on it and `Template.tsx` still sends
  *  `canonical_key`, and neither file is in this change. The wire has moved: the endpoint is
  *  `PATCH /line-items/versions/{id}/items` and its body (`routes/line_items.py::ItemEdit`) takes
- *  `key`, not `canonical_key`, and `include_criteria` / `exclude_criteria`, not `include` /
+ *  `key`, not `canonical_key`, and `exclude_criteria`, not `include` /
  *  `exclude`. Pydantic IGNORES the keys it does not declare, so the two criteria lists the
  *  Template screen sends under the old names are accepted with a 200 and DROPPED — a save that
  *  silently does nothing, which is the defect class this whole change is closing. DELETE this
@@ -1537,7 +1537,6 @@ export type SignRuleConvention = "natural" | "natural_positive" | "natural_negat
 /** Whether `note_source`'s three pattern groups are authored against RAW captions or against
  *  `normalize_label`-folded text. The shipped patterns were lifted from a matcher that reads raw
  *  captions, so folding them would stop some of them matching. */
-export type CaptionNormalization = "none" | "mapping_v1";
 
 export interface LineItemTerm {
   ref: string;
@@ -1576,7 +1575,6 @@ export interface NoteSource {
   note_terms?: string[];
   row_terms?: string[];
   row_terms_none?: string[];
-  caption_normalization: CaptionNormalization;
 }
 /** Sweep terms for a residual bucket — the section's unexplained remainder. */
 export interface ResidualPolicy {
@@ -1668,7 +1666,6 @@ export interface LineItemDef {
   /** Regex vetoes against the raw caption. Renamed from `exclude`, which was doing the work of
    *  two fields — these, and the prose criteria below. */
   exclude_hints: string[];
-  include_criteria: string[];
   exclude_criteria: string[];
   note_source: NoteSource | null;
   note_use: LineItemNoteUse | null;
@@ -1696,7 +1693,6 @@ export interface LineItemDef {
   decomposition_rule: string | null;
   others_rule: string | null;
   /** Which of two look-alike captions this is — resolves 30 of the 420 collisions. */
-  section_disambiguation: string | null;
   derivation: string | null;
   /** `aggregation_note` and `template_note` were here and are gone from the model: 395 and 391 of
    *  539 items declared them, 54 KB of prose between them, and nothing in the pipeline read
@@ -1771,13 +1767,11 @@ export interface LineItemEdit {
   /** A number, a phrase off the page, or prose written from `prompt`. Refused unless the line is
    *  `extracted`; `prose` is refused with no prompt to write it from. */
   output_structure?: OutputStructure;
-  include_criteria?: string[];
   exclude_criteria?: string[];
   /** Other keys of THIS set (unknown keys are refused, attributed to this field). Routes an
    *  unresolvable pair to review instead of letting the engine pick one at confidence 1.0. */
   confusable_with?: string[];
   /** Which of two look-alike captions this is. Read by `mapping.py` — not decoration. */
-  section_disambiguation?: string | null;
 
   // ── structure of the tree ─────────────────────────────────────────────────────────────────
   /** The premise of the whole model: which of the other groups carry meaning at all.
@@ -1921,7 +1915,6 @@ export interface LineItemVocab {
   /** The 3-token UI vocabulary `sign_convention` still accepts, for the Template screen. */
   legacy_sign_conventions: string[];
   note_uses: LineItemNoteUse[];
-  caption_normalizations: CaptionNormalization[];
   term_roles: TermRole[];
   /** `services.buckets.BUCKET_KEYS`. Served so the select cannot offer a bucket the gate
    *  refuses. */

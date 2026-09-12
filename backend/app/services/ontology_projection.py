@@ -72,9 +72,11 @@ SAME: tuple[str, ...] = (
     # of one shape: a gross parent against the child it contains, same statement, same banner,
     # same priority. mapping.py and map_ontology.py both read these.
     "is_gross_parent", "children_if_decomposed", "sole_component_of",
-    # Prose. `section_disambiguation` is read by mapping.py and answers "which of two look-alike
-    # captions is this" — it is the first discriminator for 30 of the 420 collisions.
-    "decomposition_rule", "others_rule", "section_disambiguation", "derivation",
+    # Prose. `section_disambiguation` IS NOT HERE: the line-item model no longer has the field, so
+    # a concept declaring it lands nowhere and the projection script reports an unhomed declaration
+    # — the same outcome `include` got. `mapping.py` still reads the RULEBOOK's own copy for its
+    # confusable-tie step, which is a different model on a different path.
+    "decomposition_rule", "others_rule", "derivation",
     "notes_as_source_rationale",
 )
 

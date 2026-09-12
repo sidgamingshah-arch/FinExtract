@@ -160,6 +160,21 @@ class Outcome:
     error: str = ""
 
 
+# THE STATEMENTS AS A FILING PRINTS THEM. `StatementType`'s members are engine tokens
+# (`profit_and_loss`), and a request that names one is asking the model to read a word the document
+# does not use. Kept beside the payload rather than on the enum because this is the only place that
+# needs the printed form — everywhere else compares tokens.
+_STATEMENT_LABEL: dict[str, str] = {
+    "balance_sheet": "Consolidated statement of financial position (balance sheet)",
+    "profit_and_loss": "Consolidated statement of profit or loss",
+    "cash_flow": "Consolidated statement of cash flows",
+    "equity_changes": "Consolidated statement of changes in equity",
+    "notes": "Notes to the financial statements",
+    "covenants_supplemental": "Supplemental and covenant data",
+    "statement_setup": "Reporting setup — currency, scale and period",
+}
+
+
 def line_item_payload(item, notes_for_item: tuple[str, ...]) -> dict:
     """One line item as the model is shown it — its own configuration, and nothing else's.
 
@@ -191,15 +206,11 @@ def line_item_payload(item, notes_for_item: tuple[str, ...]) -> dict:
     elif getattr(item, "description", ""):
         entry["definition"] = item.description
     # NO `include` ANY MORE — the field is gone from the schema; see its tombstone there. `exclude`
-    # and `do_not_confuse_with` remain, and both are omitted entirely when empty rather than sent
-    # as an empty list: a key whose value says nothing still costs the model a line to read and
-    # invites it to infer that the author had nothing to exclude, which is not the same as not
-    # having been asked.
-    for attr, name in (("exclude_criteria", "exclude"),
-                       ("confusable_with", "do_not_confuse_with")):
-        values = list(getattr(item, attr, None) or ())
-        if values:
-            entry[name] = values
+    # remains, and is omitted entirely when empty rather than sent as an empty list: a key whose
+    # value says nothing still costs the model a line to read and invites it to infer that the
+    # author had nothing to exclude, which is not the same as not having been asked.
+    if exclude := list(getattr(item, "exclude_criteria", None) or ()):
+        entry["exclude"] = exclude
     # HOW THE FILING PRINTS IT, in both scripts. `aliases_i18n` is the per-locale half and it is
     # carried whole rather than filtered to the document's locale: a PRC filing prints a bilingual
     # heading as often as not, and the model is reading the notes rather than matching a string.
@@ -210,11 +221,28 @@ def line_item_payload(item, notes_for_item: tuple[str, ...]) -> dict:
     if i18n:
         entry["printed_as_by_language"] = {
             lang: list(values) for lang, values in i18n.items() if values}
-    # THE SENTENCE THAT SEPARATES THIS LINE FROM ITS LOOK-ALIKE. Authored for a reader and, until
-    # the row path went, read by `_concept_payload`. It belongs here far more than it belonged
-    # there: two notes whose headings differ by one word is exactly the case a locator gets wrong.
-    if getattr(item, "section_disambiguation", ""):
-        entry["how_to_tell_it_apart"] = item.section_disambiguation
+    # WHERE THE LINE IS PRINTED, and it replaces a sentence that said the same thing in prose.
+    #
+    # `section_disambiguation` used to be sent here as `how_to_tell_it_apart`, on 375 of the 518
+    # lines the model is asked about. Measured, its 395 authored values hold THIRTEEN distinct
+    # strings and every one of them is `"Bind only to {statement} / {section}."` — generated from
+    # the line's own placement, not authored about the line. It was still the only placement signal
+    # the request carried, so deleting it would have removed real information; the fix is to send
+    # the placement itself.
+    #
+    # THE STATEMENT GOES AND THE SECTION KEY DOES NOT. `bs_nca` means nothing to a reader of a
+    # filing, and naming an engine key was the generated sentence's other flaw — it is also why
+    # `do_not_confuse_with` is no longer sent: its four lines carried canonical keys
+    # (`bs_nca__land_use_rights`) that appear nowhere in the request. The field stays, because
+    # `line_item_matching._mutually_confusable` reads it to settle two contested captions against
+    # each other; what went is a payload key the model could not act on.
+    # `.value`, NOT `str()`. `StatementType` subclasses `str` AND `Enum`, and `Enum.__str__` wins:
+    # `str(StatementType.BALANCE_SHEET)` is `"StatementType.BALANCE_SHEET"`, which matches no label
+    # and would have reached the model as "StatementType.BALANCE SHEET" on every one of 441 lines.
+    raw = getattr(item, "statement", None)
+    statement = str(getattr(raw, "value", raw) or "")
+    if statement:
+        entry["printed_in"] = _STATEMENT_LABEL.get(statement, statement.replace("_", " "))
     if ns is not None:
         # WHAT THE ROW IS CALLED, and the most useful field here of any of them. `row_terms` is the
         # author's statement of the CONTENT's name as against the note HEADING's — the

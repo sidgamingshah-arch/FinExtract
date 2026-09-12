@@ -84,7 +84,7 @@ def test_the_fields_the_v2_spec_removed_are_all_refused():
         "residual_policy", "never_sweep", "expected_components",   # residual is template-routed
         "temporality", "sign_expectation", "face_only",       # section policy
         "is_gross_parent", "children_if_decomposed", "rollup",     # the template's rollups
-        "match_priority",                                     # section_disambiguation settles ties
+        "match_priority",                                     # the banner settles ties
         "output_structure", "others_rule", "derivation", "notes_as_source_rationale",
         "sole_component_of", "scopes", "side", "allow_contra", "analyst_bucket",
         "pattern", "description", "decomposition_rule",
@@ -96,7 +96,12 @@ def test_the_fields_the_v2_spec_removed_are_all_refused():
 
 
 def test_the_count_someone_has_to_justify():
-    """23 of 53 wire fields refused. The number is here so widening the surface is a decision.
+    """23 of 52 wire fields refused. The number is here so widening the surface is a decision.
+
+    53 UNTIL `section_disambiguation` WENT. Its 395 declarations held THIRTEEN distinct strings and
+    every one was `"Bind only to {statement} / {section}."` — the line's own gate restated back to
+    it, and naming an engine key. It was the request's only placement signal, so the payload now
+    sends `printed_in` (the statement under the name a filing prints over it) instead.
 
     54 UNTIL `include_criteria` WENT. Measured before removing it: 375 of its 441 declarations held
     one generated sentence restating the line's own label, and it was sent to the model as `include`
@@ -106,7 +111,7 @@ def test_the_count_someone_has_to_justify():
     It was 26 until the audit found that `in_output`, `namespace` and `order` cannot be refused:
     the template has no row for an off-template PART (measured: 0 of the 77 appear in it), so it
     cannot decide a part's delivery, and refusing them made parts unauthorable."""
-    assert len(_EDITABLE_FIELDS) == 53, len(_EDITABLE_FIELDS)
+    assert len(_EDITABLE_FIELDS) == 52, len(_EDITABLE_FIELDS)
     assert len(_NOT_CONFIGURABLE) == 23, len(_NOT_CONFIGURABLE)
 
 

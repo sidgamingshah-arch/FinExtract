@@ -203,7 +203,9 @@ function ChipList({
 interface Criteria {
   definition: string;
   value_scope: ValueScope;
-  include: string[];
+  // NO `include`. It wrote `include_criteria`, which is gone from the line-item model (its 441
+  // values held 375 copies of one generated sentence); the endpoint ignores unknown keys, so the
+  // row kept accepting text and discarding it on save. `exclude` stays — the field is still there.
   exclude: string[];
   confusable_with: string[];
   keyword_hints: string[];
@@ -213,7 +215,7 @@ interface Criteria {
 type CriteriaList = Exclude<keyof Criteria, "definition" | "value_scope">;
 
 const EMPTY_DRAFTS: Record<CriteriaList, string> = {
-  include: "", exclude: "", confusable_with: "", keyword_hints: "", regex_hints: "",
+  exclude: "", confusable_with: "", keyword_hints: "", regex_hints: "",
   exclude_hints: "",
 };
 
@@ -221,7 +223,6 @@ function criteriaOf(cfg: NodeConfig): Criteria {
   return {
     definition: cfg.definition ?? "",
     value_scope: cfg.value_scope ?? "exclusive_leaf",
-    include: cfg.include ?? [],
     exclude: cfg.exclude ?? [],
     confusable_with: cfg.confusable_with ?? [],
     keyword_hints: cfg.keyword_hints ?? [],
@@ -334,7 +335,6 @@ function CriteriaEditor({
         })}
       </div>
 
-      {list("include", "tp.include", "tp.includeHint", "tp.includePh", "indigo")}
       {list("exclude", "tp.exclude", "tp.excludeHint", "tp.excludePh", "red")}
       <ChipList
         label={t("tp.confusable")} hint={t("tp.confusableHint")} placeholder={t("tp.confusablePick")}
@@ -466,7 +466,7 @@ function NodeRules({ cfg, canonicalKey, lineItemVersionId, concepts, locale, can
       //
       // THREE OF THE KEYS THIS BODY SENT WERE THE ONTOLOGY-ERA SPELLING, and the save could not
       // have worked. `ItemEdit` (backend `routes/line_items.py`) names the item `key`, not
-      // `canonical_key`, and the criteria `include_criteria` / `exclude_criteria`, not `include` /
+      // `canonical_key`, and the criterion `exclude_criteria`, not `include` /
       // `exclude`. `key` is REQUIRED there, so every save was a 422 on a field the screen never
       // sent; and pydantic IGNORES keys it does not declare, so even past that refusal the two
       // criteria lists would have been dropped in silence — a save reporting "Saved as v3" having
@@ -486,7 +486,7 @@ function NodeRules({ cfg, canonicalKey, lineItemVersionId, concepts, locale, can
         // name would write an answer to a question nobody was asked.
         sign_convention: sign,
         definition: effCriteria.definition, value_scope: effCriteria.value_scope,
-        include_criteria: effCriteria.include, exclude_criteria: effCriteria.exclude,
+        exclude_criteria: effCriteria.exclude,
         confusable_with: effCriteria.confusable_with, keyword_hints: effCriteria.keyword_hints,
         regex_hints: effCriteria.regex_hints, exclude_hints: effCriteria.exclude_hints,
       };

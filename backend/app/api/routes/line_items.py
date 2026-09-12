@@ -361,8 +361,6 @@ def _vocabulary(st: LineItemSet) -> dict:
         "sign_conventions": [c.value for c in SignConvention],
         "legacy_sign_conventions": sorted(_SIGN_FROM_UI),
         "note_uses": _literal_values(NoteUse),
-        "caption_normalizations": _literal_values(
-            NoteSource.model_fields["caption_normalization"].annotation),
         "term_roles": _literal_values(Term.model_fields["role"].annotation),
         "analyst_buckets": list(BUCKET_KEYS),
         # `inherits` names a `section_defaults` entry of THIS set. A dangling one is not a load
@@ -931,12 +929,10 @@ class ItemEdit(BaseModel):
     implemented_by: str | None = None
 
     # ── prose ─────────────────────────────────────────────────────────────────────────────────
-    # `section_disambiguation` is NOT decoration: `mapping.py` reads it, and it answers exactly the
-    # question the 31 containment collisions ask. The rest document a decision someone will
-    # otherwise re-litigate.
+    # Each documents a decision someone will otherwise re-litigate. (`section_disambiguation` was
+    # here and is gone from the model — see its tombstone in `schemas/line_items.py`.)
     decomposition_rule: str | None = None
     others_rule: str | None = None
-    section_disambiguation: str | None = None
     derivation: str | None = None
     notes_as_source_rationale: str | None = None
 
@@ -998,7 +994,6 @@ _EDIT_SCALARS: dict[str, str] = {
     "implemented_by": "implemented_by",
     "decomposition_rule": "decomposition_rule",
     "others_rule": "others_rule",
-    "section_disambiguation": "section_disambiguation",
     "derivation": "derivation",
     "notes_as_source_rationale": "notes_as_source_rationale",
 }
@@ -1087,8 +1082,12 @@ _NOT_CONFIGURABLE: dict[str, str] = {
     "is_gross_parent": "the template's `rollup.children` declares what a subtotal contains",
     "children_if_decomposed": "the template's `rollup.children` declares what a subtotal contains",
     "rollup": "the template's `rollup` declares how a subtotal combines its children",
-    # Contested captions are settled by `section_disambiguation` instead.
-    "match_priority": "`section_disambiguation` settles a contested caption",
+    # Contested captions are settled by the BANNER the caption was printed under (`section_scope`)
+    # — 170 of this set's contested captions are decided by it and nothing else, same statement and
+    # different sub-heading. (This used to name `section_disambiguation`, which is gone: its 395
+    # values held 13 generated strings, each restating the gate the banner already states.)
+    "match_priority": "the banner a caption is printed under (`section_scope`) settles which line "
+                      "claims it",
     # Declared by no item in the shipped set, and read by nothing that matters.
     "output_structure": "no line item declares this",
     "others_rule": "no line item declares this",

@@ -441,29 +441,48 @@ def test_a_run_where_nothing_was_located_stays_deterministic(shipped):
 
 # ── what an author wrote reaches the request ───────────────────────────────────────────────────
 
-def test_the_lines_own_disambiguation_prose_reaches_the_request(shipped):
-    """`section_disambiguation` is the sentence that separates a line from its look-alike, and it
-    is consumed rather than decorative: the prose in the configuration is the prose in the request.
+def test_where_the_line_is_printed_reaches_the_request(shipped):
+    """The request states the line's PLACEMENT, and states it in the words the filing uses.
 
-    MOVED FROM `test_binding_order.py`, where it read the sentence out of the candidate payload a
-    per-caption call was handed. That was the field's only reader, and prose needs a reader that
-    reads. It now travels from the LINE ITEM as `how_to_tell_it_apart` — which is where it belongs:
-    two note headings differing by one word is exactly the case a locator gets wrong, and the
-    author's sentence is the only thing that settles it.
+    REPLACES `test_the_lines_own_disambiguation_prose_reaches_the_request`, and the replacement is
+    the point rather than a rename. That test asserted `section_disambiguation` travelled as
+    `how_to_tell_it_apart`, on the reading that it was "the sentence that separates a line from its
+    look-alike" — authored prose with a reader that reads. Measured against the shipped set, its 395
+    values hold THIRTEEN distinct strings and every one is `"Bind only to {statement} / {section}."`,
+    generated from the line's own placement. No author wrote a distinguishing sentence; 375 of the
+    518 lines the model is asked about were sending it one anyway.
+
+    It was still the ONLY placement signal in the payload, so the field's removal had to be a
+    replacement and not a deletion: the statement now goes as the name a filing prints over it,
+    which is strictly more than the generated sentence carried and in a word the document uses.
+    `bs_nca` does not travel — an engine key in a request is the flaw the generated sentence
+    inherited, and the reason `do_not_confuse_with` (four lines, carrying canonical keys) is no
+    longer sent either.
     """
     from app.services.line_item_llm import line_item_payload
 
-    item = next(i for i in shipped.items if line_item_requests.asked_about(i))
-    item = item.model_copy(update={
-        "section_disambiguation": "MARKER: the current one is the one due within a year."})
-
+    item = next(i for i in shipped.items
+                if line_item_requests.asked_about(i)
+                and getattr(i.statement, "value", None) == "balance_sheet")
     entry = line_item_payload(item, ("7",))
-    assert entry["how_to_tell_it_apart"].startswith("MARKER:")
 
-    # …and a line that authors none carries no such key, rather than an empty string the model has
-    # to interpret.
-    bare = item.model_copy(update={"section_disambiguation": ""})
-    assert "how_to_tell_it_apart" not in line_item_payload(bare, ("7",))
+    assert entry["printed_in"] == "Consolidated statement of financial position (balance sheet)"
+    assert "how_to_tell_it_apart" not in entry, "the generated sentence is still being sent"
+    # The KEY is an engine key and is meant to be there — the model answers with it verbatim. What
+    # must not be there is a section key in anything the model is asked to READ.
+    described = {k: v for k, v in entry.items() if k not in ("key", "notes_supplied")}
+    assert "bs_nca" not in json.dumps(described), "a section key reached the model as prose"
+    # THE ENUM TRAP, asserted because it is invisible in the output it produces. `StatementType`
+    # subclasses both `str` and `Enum`, so `str(member)` is `"StatementType.BALANCE_SHEET"` — the
+    # first version of this read that way, matched no label, and would have sent every one of 441
+    # lines the string "StatementType.BALANCE SHEET".
+    assert "StatementType" not in json.dumps(entry)
+
+    # A line tied to NO statement — the 77 note-read parts declare `statement: null` on purpose —
+    # carries no such key, rather than an empty string the model has to interpret.
+    part = next(i for i in shipped.items if i.note_source is not None)
+    assert part.statement is None, part.key
+    assert "printed_in" not in line_item_payload(part, ("7",))
 
 
 def test_what_a_line_declares_about_its_row_reaches_the_request(shipped):

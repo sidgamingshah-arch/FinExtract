@@ -100,7 +100,6 @@ const NOTE_USE_HELP: Record<string, string> = {
 const NEW_NOTE_SOURCE: NoteSource = {
   note_title_any: [], row_caption_any: [], row_caption_none: [],
   prose_any: [], note_terms: [], row_terms: [], row_terms_none: [],
-  caption_normalization: "none",
 };
 
 function Tag({ type }: { type: LineItemType }) {
@@ -156,9 +155,8 @@ function Patterns({ label, values, tone }: { label: string; values: string[]; to
  *  override of a section-level default or machinery for a case that arises on a handful of lines.
  *
  *  `aliases` and `definition` carry the most weight: aliases catch the wording a filing prints,
- *  and the definition is what resolves a wording nobody listed. `include_criteria` /
- *  `exclude_criteria` sharpen that. `inherits` decides where the line may be found, `type` decides
- *  how it gets a figure, `in_output` whether it is delivered, and `sign_convention` what to flag.
+ *  and the definition is what resolves a wording nobody listed. `exclude_criteria` sharpens that.
+ *  `inherits` decides where the line may be found and `type` how it gets a figure.
  */
 /** SIMPLE IS PER TYPE, NOT ONE LIST FOR EVERY LINE.
  *
@@ -194,7 +192,6 @@ const COMMON_SIMPLE = ["label", "statement", "type"];
  *  and therefore simple ONLY for a line either of them can reach. */
 const MEANING_SIMPLE = [
   "definition",               // 539 of 539, 539 distinct — the most-authored field in the set
-  "include_criteria",         // 462 of 539, 417 distinct — the second, and it was NOT on the form
   "exclude_criteria",         // 462 of 539, 31 distinct
   // THE THREE RECOGNITION LISTS, which are not interchangeable. `aliases` are captions folded
   // through `normalize_label` and matched exactly; `regex_hints` are patterns matched against the
@@ -234,8 +231,6 @@ const NOTE_SOURCE_SIMPLE = [
   // WHETHER THE MODEL IS ASKED, AND WITH WHAT. Both are conditional on `extract`, so on a line
   // that never reaches the model they are withheld with a reason rather than shown here.
   "note_selection", "llm_only_if_note_tagged",
-  // `note_source.caption_normalization` deliberately stays advanced: 0 of 539 items declare it, so
-  // promoting it would put a control nobody has needed on the form most authors see.
 ];
 
 /** The simple form for one line, by its type.
@@ -287,13 +282,12 @@ function simpleFieldsFor(type: string): Set<string> {
              // TO BE SOURCED FROM A NOTE OR THE FACE — the one gate switch the spec keeps per
              // line. `face_only` is retired beside it: 462 of 539 items declare it with ONE
              // distinct value and it never varies inside a section, so it is section policy.
-             "note_use",
-             // WHICH OF TWO LOOK-ALIKE CAPTIONS THIS IS. 395 of 539 items, 13 distinct, and it
-             // resolves the collisions where the printed BANNER is the only discriminator —
-             // "Others", or the two different "Non-controlling interests" of a
-             // comprehensive-income statement. It is what settles a contested caption now that
-             // `match_priority` is retired.
-             "section_disambiguation");
+             // `section_disambiguation` WAS HERE. Its 395 values held 13 distinct strings,
+             // every one `"Bind only to {statement} / {section}."` — the line's own gate restated,
+             // and named by engine key. The BANNER (`section_scope`) is what actually settles a
+             // contested caption: 170 of this set's collisions are same-statement, different
+             // sub-heading, and it is already on this form.
+             "note_use");
   }
   return new Set(out);
 }
