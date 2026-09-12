@@ -205,7 +205,7 @@ def test_never_asked_names_the_type_before_the_mode():
 
 
 @pytest.mark.parametrize("field,value", [("llm_only_if_note_tagged", True),
-                                         ("note_selection", "patterns")])
+                                         ("note_selection", "any")])
 def test_the_two_model_facing_flags_are_refused_on_a_derived_line(field, value):
     """Both flags are about what the model is asked and with what, so both have to test the same
     gate. Refused rather than ignored — a flag silently doing nothing is worse than a message."""

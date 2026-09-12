@@ -409,8 +409,45 @@ def widen_by_content(item, notes, *, cap: int = 4) -> list[NoteHit]:
             for num, meta in ranked[:cap]]
 
 
+def cited_notes(doc) -> dict[str, tuple[str, ...]]:
+    """key -> the note numbers THE FILING ITSELF prints against that line's face row.
+
+    THE FILING'S OWN STATEMENT OF WHERE THE DETAIL IS, which the line-item path did not have. Every
+    note reached the model by scoring: a probe built from the line's prose against each note's
+    heading, then a content widening when that came up short. Both are inferences about which note
+    is about this line. A printed "Note 14" beside a face caption is not an inference — it is the
+    preparer saying so, and `stages.link_notes` has been resolving those into `doc.links` all along
+    for the note-to-face reconciliation.
+
+    READ OFF THE FACE ROW, not the note. `FaceNoteLink.face_item_id` is a `LineItem` id and the key
+    comes off that row's `canonical_key`, so a link survives only where the mapper placed the row —
+    which is the right gate: a citation on a row nobody could place names a note for a line that
+    does not exist.
+
+    EVERY ROW CARRYING THE KEY, deduplicated by note number and in document order. A face caption
+    printed on both the consolidated and the standalone statement carries two rows and usually the
+    same reference; a line whose detail is split across two notes ("14, 15") carries two numbers and
+    both are wanted.
+    """
+    if doc is None:
+        return {}
+    by_id = {li.id: li for li in (getattr(doc, "line_items", None) or ())}
+    out: dict[str, list[str]] = {}
+    for link in (getattr(doc, "links", None) or ()):
+        row = by_id.get(getattr(link, "face_item_id", None))
+        key = str(getattr(row, "canonical_key", "") or "") if row is not None else ""
+        number = str(getattr(link, "note_number", "") or "")
+        if not key or not number:
+            continue
+        seen = out.setdefault(key, [])
+        if number not in seen:
+            seen.append(number)
+    return {key: tuple(values) for key, values in out.items()}
+
+
 def note_sets(items, notes, *, min_score: float = MIN_SCORE,
-              cap: int = 4) -> dict[str, list[NoteHit]]:
+              cap: int = 4, cited: dict[str, tuple[str, ...]] | None = None
+              ) -> dict[str, list[NoteHit]]:
     """Every `extract` line item's note set, keyed by line-item key.
 
     THE INPUT TO BATCHING. Two line items may share one request only when they need the same notes,
@@ -420,8 +457,16 @@ def note_sets(items, notes, *, min_score: float = MIN_SCORE,
     Only `extract` lines are selected for: a derived or derivable line takes its figure from
     declared arithmetic and is never asked about (`_llm_withheld` in `services.mapping`), so
     building it a note set would cost a scoring pass to produce a set nothing reads.
+
+    `cited` PUTS THE FILING'S OWN REFERENCE FIRST. See `cited_notes`: a printed "Note 14" beside a
+    face caption is the preparer's statement of where the detail is, and it outranks any probe
+    because it is not an inference. Passing nothing keeps the pure-scoring behaviour, which is what
+    every caller that has no document does (the audit scripts, the calibration sweep, the tests
+    that hand in bare items).
     """
     pool = header_pool(notes)
+    titles = {str(getattr(t, "note_number", "") or ""): str(getattr(t, "title", "") or "")
+              for t in (notes or ())}
     by_key = {i.key: i for i in items}
     out: dict[str, list[NoteHit]] = {}
     for item in items:
@@ -435,7 +480,25 @@ def note_sets(items, notes, *, min_score: float = MIN_SCORE,
         if not asked_about(item):
             continue
         parent = by_key.get(getattr(item, "parent", "") or "")
-        hits = notes_for_line_item(item, pool, min_score=min_score, cap=cap, parent=parent)
+        # THE PRINTED REFERENCE, AHEAD OF EVERY PROBE. Only notes this document actually has — a
+        # reference to a note the pruner dropped or the parser never built names nothing, and
+        # passing it on would put a number in the request with no text under it.
+        #
+        # `via="cited"` rather than folding it into "header", because the run log and the request
+        # trail have to be able to say a note arrived on the filing's own authority: a figure
+        # located in a cited note and one located in a note that merely scored well are different
+        # provenance, and a reviewer cannot see the difference in the number.
+        # `note_selection: any` DECLINES THE PRIORITY. The trade is real — a citation displaces
+        # the lowest-scoring note at the cap — so a line whose printed reference is known to point
+        # at the wrong disclosure can say so, per line, and keep pure scoring.
+        wants_citation = str(getattr(item, "note_selection", "cited_first") or "") != "any"
+        first = [NoteHit(note=num, title=titles.get(num, ""), score=1.0, via="cited")
+                 for num in ((cited or {}).get(item.key, ()) if wants_citation else ())
+                 if num in titles][:cap]
+        scored = [h for h in notes_for_line_item(item, pool, min_score=min_score, cap=cap,
+                                                 parent=parent)
+                  if h.note not in {c.note for c in first}]
+        hits = (first + scored)[:cap]
         # WIDEN BY CONTENT WHEN THE HEADER SEARCH CAME UP SHORT — see `WIDEN_BELOW`. The header
         # route asks which HEADING is about this line; when its best answer is not one it would
         # itself call a true match, the other question is worth asking: which note in this document
@@ -445,7 +508,12 @@ def note_sets(items, notes, *, min_score: float = MIN_SCORE,
         # author's own statement of subject and outranks a row match on evidence; what widening
         # adds is reach where that statement was not found. The cap still bounds the total, so a
         # line with four confident headings widens to nothing extra.
-        best = max((h.score for h in hits), default=0.0)
+        # READ OFF THE SCORED HITS, NOT OFF `hits`. A cited note enters with score 1.0, so asking
+        # `hits` would report a confident header match on every line the filing cites and switch
+        # widening off — for the lines most likely to need it, since a citation and a thin probe
+        # often go together. The question widening answers is still "did the HEADER search come up
+        # short", and only the header search can answer it.
+        best = max((h.score for h in scored), default=0.0)
         if best < WIDEN_BELOW and len(hits) < cap:
             seen = {h.note for h in hits}
             for extra in widen_by_content(item, notes, cap=cap - len(hits)):

@@ -481,7 +481,7 @@ def dedupe_prose(pieces: list[str]) -> str:
     return "\n".join(kept)
 
 
-def identified_notes(line_item_set, notes) -> list[dict]:
+def identified_notes(line_item_set, notes, *, cited=None) -> list[dict]:
     """Every note a `note_source` declaration names, IN FULL — all rows and all prose.
 
     WHY IN FULL, AND WHY NOT SCORED. These are not notes a similarity function guessed at: an
@@ -518,30 +518,32 @@ def identified_notes(line_item_set, notes) -> list[dict]:
         if pats:
             compiled.append((item.key, pats))
 
-    # `note_selection` DECIDES HOW EACH LINE'S NOTES ARE FOUND, and this is where the field is
-    # read. Declared per line item (`semantic` by default):
+    # THE SEMANTIC PASS IS UNCONDITIONAL, and `note_selection` no longer gates it.
     #
-    #   "patterns" — its `note_title_any` regexes, and only those.
-    #   "semantic" — those PLUS the notes its meaning scores against the headings
-    #                (`services.line_item_notes`).
+    # IT USED TO. The field chose between `patterns` (the line's `note_title_any` regexes and only
+    # those) and `semantic` (those PLUS the notes its meaning scores against the headings), and the
+    # branch here skipped a `patterns` line. That was never a choice between selectors: this
+    # function passes a pattern-named note UNCONDITIONALLY, so `patterns` removed the line from the
+    # semantic pass and added nothing. Measured, 539 of 539 lines declared neither value, so the
+    # option existed and was never taken.
     #
-    # A UNION RATHER THAN A REPLACEMENT, and that is measured rather than chosen for safety's sake.
-    # Scored against the authored regexes as ground truth — they produced every focus figure, so
-    # the notes they match are notes the line really is in — semantic selection finds 100% of them
-    # within the top ten on the English filing and only 53% on the Chinese one. Replacing the
-    # patterns would therefore LOSE notes on a PRC filing, silently, which is the one outcome worse
-    # than carrying a note nobody asked for. So semantic selection ADDS the notes the patterns
-    # missed — which is the gap it exists for: `折旧及摊销` matched none of 25 authored depreciation
-    # patterns until anchored combined forms were added by hand.
+    # AND THE UNION IS MEASURED. Scored against the authored regexes as ground truth — they produced
+    # every focus figure, so the notes they match are notes the line really is in — semantic
+    # selection finds 100% of them within the top ten on the English filing and only 53% on the
+    # Chinese one. Replacing the patterns would therefore LOSE notes on a PRC filing, silently,
+    # which is the one outcome worse than carrying a note nobody asked for. Scoring ADDS the notes
+    # the patterns missed — the gap it exists for: `折旧及摊销` matched none of 25 authored
+    # depreciation patterns until anchored combined forms were added by hand.
+    #
+    # `note_selection` now decides only whether the FILING's own citation ranks ahead of a score —
+    # applied below, per line, where the budget is spent.
     semantic_by_note: dict[str, set[str]] = {}
-    if any(str(getattr(i, "note_selection", "semantic")) == "semantic" for i in decls):
+    if decls:
         from app.services.line_item_notes import header_pool, notes_for_line_item
         pool = header_pool(notes)
         by_key = {i.key: i for i in (getattr(line_item_set, "items", None) or ())}
         scored: dict[str, tuple[float, set[str]]] = {}
         for item in decls:
-            if str(getattr(item, "note_selection", "semantic")) != "semantic":
-                continue
             parent = by_key.get(getattr(item, "parent", "") or "")
             for hit in notes_for_line_item(item, pool, parent=parent):
                 best, keys = scored.get(hit.note, (0.0, set()))
@@ -561,8 +563,25 @@ def identified_notes(line_item_set, notes) -> list[dict]:
         # FULL because an author declared it, which is a stronger statement than any score. A
         # semantically selected note is a guess; passing an unbounded number of guesses in full
         # spends the request on them. The regex-claimed notes are never subject to this bound.
-        for note, (_score, keys) in sorted(scored.items(), key=lambda kv: -kv[1][0])[
-                :_SEMANTIC_NOTE_BUDGET]:
+        #
+        # THE FILING'S OWN CITATION RANKS AHEAD OF EVERY SCORE, and it is inside the budget rather
+        # than exempt from it. A printed "Note 14" beside a face caption is the preparer saying
+        # where the detail is, so it is not the same kind of claim as a probe that scored 0.41 —
+        # but it is also not an AUTHORED declaration about this configuration, which is what the
+        # unconditional pass is for. So it spends budget, and spends it first: `_SEMANTIC_NOTE_
+        # BUDGET` exists because a note NUMBER pulls in every fragment carrying it (23 numbers
+        # became 56 extra tables and one request went from 30,407 to 82,299 tokens), and a citation
+        # costs exactly the same as a guess does.
+        # ONLY THE LINES THAT ASKED FOR IT. A line declaring `note_selection: any` has said its
+        # printed reference is not to be trusted ahead of a score, so its citation does not buy a
+        # place in the budget.
+        prioritising = {i.key for i in decls
+                        if str(getattr(i, "note_selection", "cited_first") or "") != "any"}
+        cited_numbers = {n for key, numbers in (cited or {}).items() if key in prioritising
+                         for n in numbers}
+        ranked = sorted(scored.items(),
+                        key=lambda kv: (kv[0] not in cited_numbers, -kv[1][0]))
+        for note, (_score, keys) in ranked[:_SEMANTIC_NOTE_BUDGET]:
             semantic_by_note[note] = keys
 
     # ONE ENTRY PER NOTE NUMBER, NOT ONE PER TABLE.

@@ -89,8 +89,12 @@ class LineItemLlmStage(Stage):
                     f"{type(exc).__name__}: {exc})")
             return doc
 
+        # `doc` FOR THE CITATIONS. The notes the filing itself prints against a face caption go
+        # into each line's note set ahead of anything a probe scored — see
+        # `line_item_notes.cited_notes`. It is the only reason the whole document is passed here
+        # rather than just its notes.
         plans, by_key, notes_of, identified = line_item_llm.plan_and_notes(
-            line_item_set, doc.notes, ctx.settings)
+            line_item_set, doc.notes, ctx.settings, doc=doc)
         if not plans:
             ctx.log("line_item_llm:no line item is asked about (every line is a derived parent or "
                     "declares no note source)")

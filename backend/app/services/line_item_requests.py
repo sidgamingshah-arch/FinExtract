@@ -99,12 +99,17 @@ def _note_keys(hits) -> tuple[str, ...]:
     return tuple(seen)
 
 
-def plan_requests(line_item_set, notes, settings) -> list[RequestPlan]:
+def plan_requests(line_item_set, notes, settings, *, cited=None) -> list[RequestPlan]:
     """The requests to make for one document, in the order they should be made.
 
     Every line item the model is asked about appears in exactly one plan. That is the property the
     caller depends on and the reason the manual mode falls back per key: a partial master has to be
     usable, or nobody can grow one a group at a time.
+
+    `cited` is `line_item_notes.cited_notes(doc)` — the notes the FILING prints against each line's
+    face row, which go into the set ahead of anything a probe found. It reaches the grouping too,
+    and that is the point rather than a side effect: two lines that cite the same note now share a
+    request, which the scoring alone had no way to notice.
     """
     mode = str(getattr(settings.extraction, "llm_request_grouping", "none") or "none")
     similarity = float(getattr(settings.extraction, "llm_group_similarity", 0.8) or 0.8)
@@ -113,7 +118,7 @@ def plan_requests(line_item_set, notes, settings) -> list[RequestPlan]:
 
     # The note set per line item, computed once. Needed by every mode: the authored modes group on
     # it, and "manual" still has to say which notes each request carries.
-    sets = line_item_notes.note_sets(items, notes)
+    sets = line_item_notes.note_sets(items, notes, cited=cited)
     notes_of = {key: _note_keys(hits) for key, hits in sets.items()}
 
     if mode == "manual":

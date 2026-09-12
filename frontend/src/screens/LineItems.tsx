@@ -1249,21 +1249,21 @@ function Detail(p: EditorProps) {
         ))}
         {fld("note_selection", (e) => (
           <SelectField<NoteSelection>
-            label="How this line's notes are found" testid="note_selection" editable={editable}
+            label="Note order priority" testid="note_selection" editable={editable}
             reason={lockReason} options={vocab?.note_selections ?? []}
-            labelOf={(o) => (o === "semantic" ? "By meaning (semantic)" : "By authored pattern")}
-            help="Semantic by default: this line's own meaning is scored against each note's
-                  heading, so a phrasing nobody wrote a pattern for still scores instead of
-                  simply not matching. Measured on the two reference filings against the authored
-                  patterns, it finds 95% of the right notes in the top ten on the English filing
-                  and 40% on the Chinese one — the gap is lines whose prose does not name the note
-                  they sit inside (a depreciation line disclosed under “administrative expenses”
-                  shares no words with that heading). Naming that container in the description
-                  closes it, and unlike a pattern the description also reaches the model. Choose
-                  the authored pattern for a line whose regexes already pin its note and whose
-                  prose does not yet name it."
-            value={g("note_selection", item.note_selection) ?? "semantic"}
-            onChange={(v) => patch({ note_selection: v ?? "semantic" })}
+            labelOf={(o) => (o === "cited_first"
+              ? "The note the report itself points to, first"
+              : "Whichever note best matches this line")}
+            help="When the statement prints “Note 14” beside this line, that is the preparer
+                  telling you where the detail is — so by default note 14 is offered first and the
+                  rest of the room is filled by the notes that best match this line. Across twelve
+                  filings, 92 lines carry such a reference and 30 of them point at a note the
+                  matching would not have offered at all. It is not free: only four notes are sent
+                  per line, so on 6 of those 92 the cited note pushes out the weakest match. Choose
+                  the second option for a line whose printed reference you know points at the wrong
+                  disclosure."
+            value={g("note_selection", item.note_selection) ?? "cited_first"}
+            onChange={(v) => patch({ note_selection: v ?? "cited_first" })}
             error={e} />
         ))}
         {fld("llm_only_if_note_tagged", (e) => (

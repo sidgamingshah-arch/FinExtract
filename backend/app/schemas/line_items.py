@@ -101,10 +101,21 @@ LineItemType = Literal["extracted", "calculated", "intermediate", "derived"]
 # still balance and nothing would say the line had been skipped.
 OutputStructure = Literal["value", "phrase", "prose"]
 
-# HOW THIS LINE'S NOTES ARE FOUND. `semantic` scores the line's own meaning against each note's
-# HEADER (`services.line_item_notes`); `patterns` matches the authored `note_source.note_title_any`
-# regexes against the same headers (`note_context.identified_notes`).
-NoteSelection = Literal["semantic", "patterns"]
+# WHICH NOTE THIS LINE IS OFFERED FIRST, once every route has had its say.
+#
+# THE FIELD USED TO CHOOSE BETWEEN TWO SELECTORS — `semantic` (score the line's meaning against each
+# note HEADER) and `patterns` (match the authored `note_source.note_title_any` regexes against the
+# same headers). That was the wrong shape for two reasons, and both were measured. The selectors are
+# a UNION, not alternatives: `identified_notes` passes a pattern-named note unconditionally and
+# `note_sets` adds what scoring found, so `patterns` never turned scoring off — it only stopped the
+# line contributing to the semantic pass, which is capability removed and nothing gained. And 539 of
+# 539 lines declared neither value, so nothing was ever authored against it.
+#
+# WHAT IT DECIDES NOW is the one question that was left unanswerable: when the FILING ITSELF prints
+# "Note 14" beside this line's face caption, does that note go first? `cited_first` says yes, which
+# is the default because a preparer's reference is not an inference; `any` says rank by score alone,
+# for the line whose printed reference is known to point at the wrong disclosure.
+NoteSelection = Literal["cited_first", "any"]
 
 # Where a caption may be READ FROM, in the order they are searched — a search ORDER, not a gate.
 # `notes` leads by default: a note states the figure the face only summarises, and for the eight
@@ -522,29 +533,26 @@ class LineItemDef(BaseModel):
     # arithmetic, so a note reference beside a printed row says nothing about whether that
     # arithmetic should run; `_coherent` refuses the combination rather than ignoring it.
     llm_only_if_note_tagged: bool = False
-    # HOW THE NOTES FOR THIS LINE ARE FOUND. `semantic` by default: the line's own meaning scored
-    # against each note's header, which needs no pattern per phrasing and degrades to a low score
-    # rather than to silence where a regex would simply not fire.
+    # WHETHER THE FILING'S OWN NOTE REFERENCE GOES FIRST — see `NoteSelection` for what this field
+    # used to mean and why it changed.
     #
-    # MEASURED ON THE TWO REFERENCE FILINGS, against the authored regexes as ground truth (they are
-    # what produced every figure in the focus runs, so the notes they match are notes the line
-    # really is in) — `scripts/calibrate_line_item_notes.py`:
+    # `cited_first` by default, and the default is the argument: everything else in a note set is
+    # an inference. Scoring asks which HEADING is about this line and content widening asks which
+    # note holds the rows it wants; a printed "Note 14" beside the face caption is the preparer
+    # saying where the detail is. `stages.link_notes` has been resolving those into `doc.links` for
+    # the note-to-face reconciliation all along, and this path had no reference to them.
     #
-    #     laisun (English)      41 (line, note) pairs    95.1% found within the top 10
-    #     suncreate (Chinese)  120 pairs                  40.0% within the top 10
+    # MEASURED OVER THE TWELVE-FILING CORPUS: 863 printed references, 92 asked-about lines carrying
+    # one, and 30 of those citing a note SCORING DID NOT DELIVER. It is not free — the per-line cap
+    # is 4, so on 6 of the 92 the citation displaces the lowest-scoring note. That is the trade
+    # `any` exists to decline, for a line whose reference is known to point elsewhere.
     #
-    # THE GAP IS NOT THE METHOD, IT IS WHAT THE LINES SAY ABOUT THEMSELVES. A header names the
-    # CONTAINER and a line item names the CONTENT: `sub__ga_depreciation` belongs in the note headed
-    # 管理费用 (administrative expenses) and `sub__ppe_depreciation` in the one headed PROPERTY,
-    # PLANT AND EQUIPMENT. Both are correct pairings that score ~0, because nothing in either line's
-    # prose names the container it is disclosed inside — the authored regexes carried that knowledge
-    # instead. Naming the container in `description` is what closes it, and unlike a regex that text
-    # also reaches the model.
-    #
-    # SO `patterns` IS NOT DEPRECATED. Set it on a line whose disclosure the regexes already pin and
-    # whose prose does not yet name it; the two selectors answer the same question and the choice is
-    # per line rather than per run.
-    note_selection: NoteSelection = "semantic"
+    # WHAT SCORING IS NOT. There is no longer a value that turns the semantic pass off. It was
+    # never an alternative to the patterns — `identified_notes` passes a pattern-named note
+    # unconditionally and scoring ADDS to it, which is measured: scoring finds 95% of the authored
+    # pairs within the top ten on the English filing and 40% on the Chinese one, so replacing the
+    # patterns would lose notes on a PRC filing while withholding scoring gains nothing.
+    note_selection: NoteSelection = "cited_first"
     aliases: list[str] = Field(default_factory=list)
     # Per-locale aliases. A single flat list cannot hold the Han half as data: the shipped
     # rulebook carries 473 distinct zh aliases and the matcher folds EVERY locale into one index,
@@ -700,7 +708,7 @@ class LineItemDef(BaseModel):
         if never:
             for field in ("note_selection", "llm_only_if_note_tagged"):
                 value = getattr(self, field, None)
-                if field == "note_selection" and str(value or "semantic") == "semantic":
+                if field == "note_selection" and str(value or "cited_first") == "cited_first":
                     continue            # the default says nothing; only an explicit choice does
                 if field == "llm_only_if_note_tagged" and not value:
                     continue

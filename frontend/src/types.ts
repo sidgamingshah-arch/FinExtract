@@ -1488,7 +1488,12 @@ export type LineItemType = "extracted" | "calculated" | "intermediate" | "derive
  *  Only legal on an `extracted` line: no arithmetic produces a sentence, and the server refuses
  *  the pair. `prose` additionally requires a prompt, which is the only thing it is written from. */
 export type OutputStructure = "value" | "phrase" | "prose";
-export type NoteSelection = "semantic" | "patterns";
+/** Whether the FILING's own printed note reference goes ahead of a scored one.
+ *
+ *  This used to be `"semantic" | "patterns"` — which selector found a line's notes — and the two
+ *  were never alternatives: a pattern-named note is passed unconditionally and scoring ADDS to it,
+ *  so `patterns` only removed the line from the semantic pass. All 539 lines declared neither. */
+export type NoteSelection = "cited_first" | "any";
 /** Where a caption may be READ FROM, in search order — not a gate. The tokens are
  *  `StatementType`'s own: this list once said `income_statement` and `changes_in_equity`, neither
  *  of which the backend knows (it says `profit_and_loss` and `equity_changes`), so a scope sent
@@ -1654,8 +1659,8 @@ export interface LineItemDef {
    *  and where it prints none, report 0 (or "" for a text line) rather than leaving it blank.
    *  `extraction_mode: extract` only; the server refuses it elsewhere. */
   llm_only_if_note_tagged: boolean;
-  /** How this line's notes are found: `semantic` scores its meaning against each note's header,
-   *  `patterns` matches the authored `note_source.note_title_any` regexes. Semantic by default. */
+  /** Whether a note the filing itself cites beside this line's face caption is offered first.
+   *  `cited_first` by default; `any` ranks by score alone. */
   note_selection: NoteSelection;
   aliases: string[];
   /** Per-locale aliases; the matcher folds every locale into one index. */

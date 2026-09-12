@@ -847,7 +847,13 @@ def test_the_note_tag_threshold_is_refused_with_a_message_naming_its_own_control
 
 
 def test_the_note_selection_round_trips_on_an_extract_line(client, probe):
-    """A line can be told to find its notes by authored pattern instead of by meaning.
+    """A line can decline having the filing's own note reference offered to it first.
+
+    THE VOCABULARY CHANGED WITH THE FIELD'S MEANING. It was `semantic` / `patterns` — which
+    selector found a line's notes — and the two were never alternatives: `identified_notes` passes
+    a pattern-named note unconditionally and scoring ADDS to it, so `patterns` removed the line
+    from the semantic pass and gained nothing. All 539 lines declared neither. The field now says
+    whether a note the FILING cites beside this line's face caption goes first.
 
     ON `type`, NOT ON `extraction_mode`, for the reason given on the note-tag threshold above: the
     mode field is retired and `type` carries the same statement. `note_selection` is legal on an
@@ -856,18 +862,22 @@ def test_the_note_selection_round_trips_on_an_extract_line(client, probe):
     _tpl, cfg = probe
 
     new_id = _saved(client, cfg["id"], {"key": _EDITED, "type": "extracted",
-                                        "note_selection": "patterns"})
+                                        "note_selection": "any"})
 
-    assert _stored(client, new_id)["note_selection"] == "patterns"
+    assert _stored(client, new_id)["note_selection"] == "any"
 
 
-def test_note_selection_defaults_to_semantic_so_no_line_needs_a_pattern(client, probe):
-    """THE DEFAULT IS THE POLICY. Semantic selection needs no pattern per phrasing, so a line
-    nobody has authored regexes for still gets notes — which is the whole reason it is the default
-    rather than an opt-in."""
+def test_note_selection_defaults_to_taking_the_filings_own_reference_first(client, probe):
+    """THE DEFAULT IS THE POLICY, and the policy changed with the field.
+
+    It used to be `semantic`, because scoring needs no pattern per phrasing and a line nobody wrote
+    regexes for still got notes. Scoring is now unconditional, so that is no longer a choice — and
+    what the default states instead is that a PRINTED reference outranks a probe. Measured over
+    twelve filings: 92 asked-about lines carry one, and 30 cite a note scoring did not deliver.
+    """
     from app.schemas.line_items import LineItemDef
 
-    assert LineItemDef(key="x").note_selection == "semantic"
+    assert LineItemDef(key="x").note_selection == "cited_first"
 
 
 def test_every_line_defaults_to_a_number_so_existing_configuration_is_unchanged(client, probe):

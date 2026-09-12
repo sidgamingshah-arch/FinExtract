@@ -49,7 +49,7 @@ from typing import ClassVar
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.services import line_item_requests, note_context, note_sourced
+from app.services import line_item_notes, line_item_requests, note_context, note_sourced
 from app.services.mapping import SourceRef
 
 
@@ -411,19 +411,27 @@ def ask(provider, system: str, request: dict, *, max_tokens: int) -> LineItemRep
     return reply, meta
 
 
-def plan_and_notes(line_item_set, notes, settings):
+def plan_and_notes(line_item_set, notes, settings, *, doc=None):
     """``(plans, by_key, notes_of, identified)`` — everything a run needs, computed once.
 
     `identified_notes` is document-level (its IDF is a property of the filing), so it is built once
     here and sliced per request rather than rebuilt per call.
+
+    `doc` IS OPTIONAL AND ONLY THE CITATIONS NEED IT. Passing it lets `note_sets` put the notes the
+    filing prints against a line's face row ahead of anything scored — see
+    `line_item_notes.cited_notes`. Every caller that has a document should pass it; the ones that
+    do not (the audit scripts, which are handed reconstructed note tables and no face rows) keep
+    the pure-scoring behaviour rather than being rewritten to fake a document.
     """
     items = [i for i in (getattr(line_item_set, "items", None) or [])
              if line_item_requests.asked_about(i)]
     by_key = {i.key: i for i in items}
-    plans = line_item_requests.plan_requests(line_item_set, notes, settings)
+    cited = line_item_notes.cited_notes(doc)
+    plans = line_item_requests.plan_requests(line_item_set, notes, settings,
+                                             cited=cited)
     notes_of = {p.keys[0] if len(p.keys) == 1 else k: p.notes
                 for p in plans for k in p.keys}
-    identified = note_context.identified_notes(line_item_set, notes)
+    identified = note_context.identified_notes(line_item_set, notes, cited=cited)
     return plans, by_key, notes_of, identified
 
 
