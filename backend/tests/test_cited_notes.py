@@ -38,7 +38,7 @@ from app.core.models.enums import Basis
 from app.core.models.line_item import (ExtractedValue, FaceNoteLink, LineItem, NoteItem, NotesTable,
                                        Provenance)
 from app.schemas.line_items import LineItemDef, LineItemSet, NoteSource
-from app.services import line_item_notes, note_context
+from app.services import line_item_llm, line_item_notes, note_context
 
 
 def _note(number: str, title: str, captions: tuple[str, ...] = ()) -> NotesTable:
@@ -248,3 +248,52 @@ def test_a_cited_note_outranks_a_better_scoring_one_inside_the_budget() -> None:
 
     assert cited == ["5"], cited
     assert scored_only == ["7"], f"the higher score must win when nothing is cited: {scored_only}"
+
+
+def test_a_cited_note_the_scorer_missed_reaches_the_payload_WITH_ITS_TEXT() -> None:
+    """THE DEFECT THE END-TO-END REVIEW FOUND, and the reason this file needed a payload-level test
+    rather than only a note-set one.
+
+    A note reaches a request only by being in BOTH halves: `note_sets` decides the plan's numbers,
+    and `build_request` takes the note TEXT from `identified_notes`, filtered to those numbers. The
+    first version of the citation work sorted `identified_notes`'s candidates so a cited note came
+    FIRST — which does nothing for a cited note that scored NOTHING, and that is exactly the case
+    the capability exists for (30 of the 92 corpus citations point at a note scoring did not
+    deliver).
+
+    So the line's `notes_supplied` named note 1 and the payload carried no text for it. The model
+    was pointed at a note it could not read — worse than not offering it at all, and the same
+    failure the "citation to a note this document does not have" case refuses from the other
+    direction. A citation now ENTERS the candidate set rather than reordering it.
+    """
+    item = _item("x", parent="p",
+                 note_source=NoteSource(note_terms=["deferred consideration payable"],
+                                        row_terms=["deferred consideration"]))
+    notes = [_note(str(i + 1), t, ("some row",)) for i, t in enumerate(_POOL)]
+    st = LineItemSet(items=[item])
+    cited = {"x": ("1",)}
+
+    # Nothing in the line's prose names any of these headings, so scoring finds note 1 for no
+    # reason at all — which is the premise.
+    assert not [n for n in note_context.identified_notes(st, notes)
+                if str(n.get("note")) == "1"]
+
+    sets = line_item_notes.note_sets([item], notes, cited=cited)
+    identified = note_context.identified_notes(st, notes, cited=cited)
+
+    class _Plan:
+        keys = ("x",)
+        notes = tuple(h.note for h in sets["x"])
+        name = "x"
+
+    payload = line_item_llm.build_request(_Plan(), {"x": item}, {"x": _Plan.notes}, identified)
+    supplied = payload["line_items"][0]["notes_supplied"]
+    carried = {str(n.get("note")) for n in payload["notes"]}
+
+    assert "1" in supplied, supplied
+    assert not [n for n in supplied if n not in carried], (
+        f"named to the model with no text under it: "
+        f"{[n for n in supplied if n not in carried]}")
+    # …and the text is really there, not an empty shell.
+    note_one = next(n for n in payload["notes"] if str(n.get("note")) == "1")
+    assert note_one.get("rows"), note_one

@@ -577,6 +577,32 @@ def identified_notes(line_item_set, notes, *, cited=None) -> list[dict]:
         # place in the budget.
         prioritising = {i.key for i in decls
                         if str(getattr(i, "note_selection", "cited_first") or "") != "any"}
+
+        # A CITATION ENTERS THE CANDIDATES; IT DOES NOT MERELY REORDER THEM. This is the whole
+        # point and the first version got it wrong: it sorted `scored` so a cited note came first,
+        # which does nothing for a cited note that SCORED NOTHING — and that is exactly the case
+        # the capability is for. `note_sets` had already put it in the plan, so the line's
+        # `notes_supplied` named note 14 while `build_request` — which takes the note TEXT from
+        # here, filtered to the plan's numbers — carried no text for it. The model was pointed at a
+        # note it could not read, which is worse than not offering it, and is the same failure the
+        # "citation to a note this document does not have" case refuses from the other direction.
+        #
+        # Only a note THIS DOCUMENT HOLDS is admitted: `have` is built from the tables below, so a
+        # reference the pruner dropped or the parser never built still names nothing.
+        have = {str(getattr(t, "note_number", "") or "") for t in (notes or ())}
+        for key, numbers in (cited or {}).items():
+            if key not in prioritising:
+                continue
+            for number in numbers:
+                if not number or number not in have:
+                    continue
+                best, keys = scored.get(number, (0.0, set()))
+                keys.add(key)
+                # 1.0 is above every probe score, so the sort below puts a citation first without
+                # needing a second key — and a note that BOTH scored well and is cited keeps one
+                # entry rather than two.
+                scored[number] = (max(best, 1.0), keys)
+
         cited_numbers = {n for key, numbers in (cited or {}).items() if key in prioritising
                          for n in numbers}
         ranked = sorted(scored.items(),
