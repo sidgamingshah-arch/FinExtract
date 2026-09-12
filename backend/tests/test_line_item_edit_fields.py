@@ -79,7 +79,14 @@ _SET = {
     "locale": "en",
     "supported_locales": ["en", "zh"],
     "section_defaults": {
-        "bs_ca": {"statement": "balance_sheet", "section_scope": ["bs_ca"], "match_priority": 5},
+        # `note_use` is here for the explicit-null test. It is one of the few fields a section may
+        # declare (`SectionDefaults`) that a line item may ALSO still write and that has a real null
+        # state, so it is what makes "a declared null beats the section" observable now that
+        # `match_priority`, `analyst_bucket` and `face_only` are no longer item-writable.
+        # (`sign_convention` is section-declarable and item-writable too, but a null on it is not a
+        # "nothing said" state — the item-level field is special-cased into `sign_rule.convention`.)
+        "bs_ca": {"statement": "balance_sheet", "section_scope": ["bs_ca"], "match_priority": 5,
+                  "note_use": "evidence_only"},
         "bs_nca": {"statement": "balance_sheet", "section_scope": ["bs_nca"]},
     },
     "items": [
@@ -516,19 +523,26 @@ def test_an_explicit_null_is_stored_as_null_and_beats_the_section(client, probe)
     """``null`` means "nothing was said" — a real configuration, and not the same as absent.
 
     Asserted through the RESOLVED read as well, because that is where it costs something: the item
-    inherits ``bs_ca``, which declares ``match_priority: 5``, and a null that was dropped instead
-    of stored would come back as 5.
+    inherits ``bs_ca``, which declares ``note_use: evidence_only``, and a null that was dropped
+    instead of stored would come back carrying the section's value.
+
+    ON SURVIVING FIELDS. This used ``match_priority``, ``analyst_bucket`` and ``face_only``, all
+    three of which are now refused outright as no longer configurable — so the patch was rejected
+    before the null-handling it exists to prove was ever exercised. The property is about how an
+    explicit ``null`` is treated, not about any particular field, so it moves to fields a surface
+    still offers: ``note_source`` as the nullable object, and ``note_use`` as the nullable scalar
+    that ``SectionDefaults`` also declares — which is the half that costs something, and the reason
+    the section entry above carries it.
     """
     _tpl, cfg = probe
-    new_id = _saved(client, cfg["id"], {"key": _EDITED, "match_priority": None,
-                                        "analyst_bucket": None, "note_source": None,
-                                        "face_only": None})
+    new_id = _saved(client, cfg["id"], {"key": _EDITED, "note_source": None,
+                                        "note_use": None})
     stored = _stored(client, new_id)
-    for field in ("match_priority", "analyst_bucket", "note_source", "face_only"):
+    for field in ("note_source", "note_use"):
         assert field in stored, f"{field}: an explicit null was dropped rather than stored"
         assert stored[field] is None, f"{field}: {stored[field]!r}"
-    assert _in_force(client)["match_priority"] is None, (
-        "the item declares 'nothing said'; the section's 5 must not be folded back in")
+    assert _in_force(client)["note_use"] is None, (
+        "the item declares 'nothing said'; the section's value must not be folded back in")
 
 
 def test_a_field_with_no_null_state_says_what_clears_it(client, probe):
@@ -627,8 +641,15 @@ def _refusal(response) -> tuple[str | None, int | None, str]:
 # that control is a refusal they cannot act on.
 _REFUSALS: tuple[tuple[str, dict, str, int | None], ...] = (
     # A regex that does not compile is a SILENT hole, not a crash: the veto simply stops vetoing.
-    # Index 0 because `pattern` is compiled as a one-entry list; there is only ever one.
-    ("pattern", {"key": _EDITED, "pattern": "("}, "pattern", 0),
+    #
+    # ON `regex_hints`, NOT ON `pattern`, AND THAT IS THE POINT OF THE MOVE. This case read
+    # `{"pattern": "("}` and expected the regex complaint at entry 0. `pattern` is now retired —
+    # `regex_hints` is the list form and is what the matcher reads — so the FIRST refusal on that
+    # body is the retirement notice at index None and the regex complaint is pushed to index 1.
+    # Asserting the retirement would test the tombstone twice (the `analyst_bucket` case below
+    # already covers that shape) and would stop testing regex validation at all, so the case moves
+    # to the field that still exists and keeps checking what it was written to check.
+    ("regex_hints", {"key": _EDITED, "regex_hints": ["cash", "("]}, "regex_hints", 1),
     ("exclude_hints", {"key": _EDITED, "exclude_hints": ["overdraft", "("]},
      "exclude_hints", 1),
     # A silent sign inversion is one of the most expensive errors on a statement, and this is the
@@ -716,21 +737,32 @@ def test_the_withdrawn_accept_bar_is_accepted_and_ignored(client, probe):
 
 
 def test_the_two_sign_fields_are_two_questions(client, probe):
-    """``sign_expectation`` writes ``sign_convention``; the legacy ``sign_convention`` writes
-    ``sign_rule.convention``. Asserted in ONE test so the two can never be silently merged.
+    """The two sign questions stay two questions — and the EXPECTATION now belongs to the section.
 
-    They answer different questions. The model's ``sign_convention`` is the sign a line is EXPECTED
-    to carry — a review trigger, which ``test_normalize_sign`` and ``test_validation_block`` both
-    reason over — while ``sign_rule.convention`` is how a value is NORMALISED when it is stored.
-    One name for both is how an author edits one thinking they changed the other.
+    They answer different things. The sign a line is EXPECTED to carry is a review trigger, which
+    ``test_normalize_sign`` and ``test_validation_block`` both reason over; ``sign_rule.convention``
+    is how a value is NORMALISED when it is stored. One name for both is how an author edits one
+    thinking they changed the other, which is why both halves are asserted in one test.
+
+    WHAT MOVED. ``sign_expectation`` was the item-level control for the expectation and is now
+    refused — "this never varies inside a section — set it on the section" — so the test no longer
+    proves it round-trips onto ``sign_convention``; it proves the REFUSAL, which is the current
+    contract and is the half an author can act on. The normalisation route is unchanged and is
+    still asserted end to end below.
     """
     _tpl, cfg = probe
-    new_id = _saved(client, cfg["id"], {"key": _EDITED,
-                                        "sign_expectation": "negative_expected",
-                                        "sign_convention": "expense_contra"})
+
+    # THE EXPECTATION IS A SECTION QUESTION NOW, and the refusal has to say so on its own name.
+    r = _patch(client, cfg["id"], {"key": _EDITED, "sign_expectation": "negative_expected"})
+    assert r.status_code == 422, r.text
+    field, _index, shown = _refusal(r)
+    assert field == "sign_expectation", r.text
+    assert "section" in shown, f"the refusal must send the author to the section: {shown!r}"
+
+    # THE NORMALISATION ROUTE IS UNCHANGED: the legacy 3-token spelling still maps into
+    # `sign_rule.convention` and nowhere else.
+    new_id = _saved(client, cfg["id"], {"key": _EDITED, "sign_convention": "expense_contra"})
     stored = _stored(client, new_id)
-    assert stored["sign_convention"] == "negative_expected", (
-        "the EXPECTATION is what the model's `sign_convention` holds")
     assert stored["sign_rule"]["convention"] == "natural_negative", (
         "the legacy 3-token spelling maps into `sign_rule.convention` and nowhere else")
     # And the legacy vocabulary is closed: three tokens, of six real SignConvention values.
@@ -756,29 +788,40 @@ def test_a_prompt_round_trips_on_an_extracted_line(client, probe):
     assert _stored(client, new_id)["prompt"] == wording
 
 
-def test_an_output_structure_round_trips_on_an_extracted_line(client, probe):
-    """A line can be told to hold a phrase off the page rather than a number.
+def test_output_structure_is_refused_because_no_line_declares_it(client, probe):
+    """``output_structure`` is retired, and this asserts the retirement rather than the field.
 
-    Excluded from the combined patch because that body sets `type: "calculated"` — see
-    `_NOT_COHERENT_WITH_THE_REST`. Proved authorable here.
+    It used to prove the field was authorable — "a line can be told to hold a phrase off the page
+    rather than a number". Measured against the shipped configuration, NO line item declares it, so
+    the control invited an author to set something nothing reads. It is refused now, and what is
+    worth holding is that the refusal ARRIVES rather than the write silently succeeding: a field
+    writable by API and visible on no screen is a value nobody can see, review or explain.
     """
     _tpl, cfg = probe
+    before = len(_versions(client))
 
-    new_id = _saved(client, cfg["id"],
-                    {"key": _EDITED, "type": "extracted", "output_structure": "phrase"})
+    r = _patch(client, cfg["id"],
+               {"key": _EDITED, "type": "extracted", "output_structure": "phrase"})
 
-    assert _stored(client, new_id)["output_structure"] == "phrase"
+    assert r.status_code == 422, r.text
+    field, _index, shown = _refusal(r)
+    assert field == "output_structure", r.text
+    assert "no line item declares this" in shown, shown
+    assert len(_versions(client)) == before, "a refused edit must publish nothing"
 
 
 def test_the_note_tag_threshold_round_trips_on_an_extract_line(client, probe):
     """A line can be told that a note reference beside the row is its evidence threshold.
 
-    Excluded from the combined patch because that body sets `extraction_mode: "extract_or_derive"`
-    — see `_NOT_COHERENT_WITH_THE_REST`. Proved authorable here, on the mode it is legal for.
+    ON `type`, NOT ON `extraction_mode`. This asked for `extraction_mode: "extract"`, which is now
+    retired — `type` says how a figure is obtained: extracted, calculated or derived — so the patch
+    was refused on the retired field before it reached the threshold it meant to prove. The
+    declaration this test is about is `llm_only_if_note_tagged`, and it is legal on an EXTRACTED
+    line, which is what `type` now names.
     """
     _tpl, cfg = probe
 
-    new_id = _saved(client, cfg["id"], {"key": _EDITED, "extraction_mode": "extract",
+    new_id = _saved(client, cfg["id"], {"key": _EDITED, "type": "extracted",
                                         "llm_only_if_note_tagged": True})
 
     assert _stored(client, new_id)["llm_only_if_note_tagged"] is True
@@ -791,25 +834,33 @@ def test_the_note_tag_threshold_is_refused_with_a_message_naming_its_own_control
     the author reads "the extraction mode is wrong" about a field they did not touch."""
     _tpl, cfg = probe
 
-    r = _patch(client, cfg["id"], {"key": _EDITED, "extraction_mode": "derive",
+    # `alias_matching: "disabled"` rather than the retired `extraction_mode: "derive"`, and NOT
+    # `type: "derived"` either — that one is refused first for a different and correct reason ("a
+    # derived line needs a cascade or `implemented_by`"), which would make this test pass or fail on
+    # the cascade rule instead of on attribution. `alias_matching: "disabled"` is the other
+    # never-asked declaration and it needs nothing else to be coherent, so the ONLY problem in this
+    # body is the note-tag threshold — which is exactly what makes the attribution observable.
+    r = _patch(client, cfg["id"], {"key": _EDITED, "alias_matching": "disabled",
                                    "llm_only_if_note_tagged": True})
 
     assert r.status_code == 422, r.text
-    error = r.json()["detail"]["errors"][0]
-    assert error["field"] == "llm_only_if_note_tagged", r.json()["detail"]
-    assert "llm_only_if_note_tagged" in error["message"]
+    named = [e for e in r.json()["detail"]["errors"]
+             if e["field"] == "llm_only_if_note_tagged"]
+    assert named, r.json()["detail"]
+    assert "llm_only_if_note_tagged" in named[0]["message"]
 
 
 def test_the_note_selection_round_trips_on_an_extract_line(client, probe):
     """A line can be told to find its notes by authored pattern instead of by meaning.
 
-    Excluded from the combined patch because that body sets `extraction_mode: "extract_or_derive"`
-    — see `_NOT_COHERENT_WITH_THE_REST`. Proved authorable here, on the mode it is legal for.
+    ON `type`, NOT ON `extraction_mode`, for the reason given on the note-tag threshold above: the
+    mode field is retired and `type` carries the same statement. `note_selection` is legal on an
+    extracted line and meaningless on a derived one, which `_coherent` enforces.
     """
     _tpl, cfg = probe
 
-    new_id = _saved(client, cfg["id"], {"key": _EDITED, "extraction_mode": "extract",
-                                       "note_selection": "patterns"})
+    new_id = _saved(client, cfg["id"], {"key": _EDITED, "type": "extracted",
+                                        "note_selection": "patterns"})
 
     assert _stored(client, new_id)["note_selection"] == "patterns"
 

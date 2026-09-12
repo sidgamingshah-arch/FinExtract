@@ -134,6 +134,23 @@ _EXTRACTION_MODE_DECISIONS = frozenset({
     "bs_nca__secur_and_other_fincl_assets_ltp",
 })
 
+# RECOGNITION MOVED DOWN TO THE FACE-READING PARTS, so these two parents no longer carry it.
+#
+# Both concepts are `type: derived` parents whose figure comes from a row printed on the FACE of a
+# statement. A derived parent is never offered to any route — `_unmatchable` includes
+# `_computed_parent` — so `keyword_hints`, `regex_hints` and `match_priority` sitting on the PARENT
+# described a match that could not happen, while the part that actually corresponds to the printed
+# row (`sub__face_principal_revenue`, `sub__rp_bs_face_receivables`) had no recognition at all and
+# was unreachable except through the model. The three fields moved to the parts.
+#
+# NAMED RATHER THAN FOLDED INTO `_SEED_LAG`, for the reason the other decisions here are: this is
+# the seed LEADING the rulebook, deliberately, and a THIRD concept or a FOURTH field losing its
+# recognition still fails this test — which is what stops recognition being deleted by accident.
+_FACE_RECOGNITION_MOVED = frozenset({
+    "bs_nca__due_from_related_parties_ltp", "is_pl__sales_revenues",
+})
+_FACE_RECOGNITION_FIELDS = {"keyword_hints", "regex_hints", "match_priority"}
+
 # Fields on which the SHIPPED seed may lag the rulebook — see the module docstring. `description`
 # is by design (the 8 merged keys keep the configurator's prose); the rest are staleness, and the
 # assertion is that the divergence goes no wider than these names.
@@ -311,6 +328,11 @@ def test_shipped_set_diverges_only_in_the_known_classes():
         # same way and for the same reason: a SEVENTH still fails here, which is what stops a mode
         # being flipped without the measurement that justifies it.
         if field == "extraction_mode" and set(keys) <= _EXTRACTION_MODE_DECISIONS:
+            continue
+        # …and the recognition fields on exactly the two derived parents whose face-reading PART
+        # now carries them. Both halves are bounded: the field must be one of the three that moved,
+        # and the concepts must be those two.
+        if field in _FACE_RECOGNITION_FIELDS and set(keys) <= _FACE_RECOGNITION_MOVED:
             continue
         unexpected[field] = keys
     assert not unexpected, (

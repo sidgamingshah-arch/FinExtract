@@ -120,9 +120,12 @@ def test_the_signal_is_set_in_exactly_one_place():
                for i, line in enumerate(lines, 1)
                if re.search(r"column_index\s*=(?!=)", line) and "def " not in line]
 
-    assert len(writers) == 1, [(str(f), i) for f, i, _ in writers]
+    assert len(writers) == 1, [(f.as_posix(), i) for f, i, _ in writers]
     path, line_no, lines = writers[0]
-    assert str(path) == "services/row_reconstruct.py", str(path)
+    # `as_posix()`, not `str()`: a relative path stringifies with backslashes on Windows, so this
+    # asserted "services/row_reconstruct.py" against "services\\row_reconstruct.py" and failed for
+    # the platform rather than for the thing it guards.
+    assert path.as_posix() == "services/row_reconstruct.py", path.as_posix()
     nearby = "\n".join(lines[max(0, line_no - 12):line_no + 8])
     assert "matrix" in nearby, f"the sole writer at line {line_no} is no longer the matrix path"
 

@@ -194,14 +194,39 @@ def test_a_deferred_tax_line_the_mapper_MISSED_cancels_it_too(raw_ontology):
 
 
 def test_deferred_tax_disclosed_only_in_the_cited_note_cancels_it(raw_ontology):
-    """A filing that splits the charge in its tax note HAS a split. The note is where the split
-    usually is, so a face-only check would infer against the disclosure."""
+    """A filing that splits the charge in its tax note HAS a split, so the INFERENCE must not fire.
+
+    WHAT THIS TEST USED TO ASSERT, AND WHY IT NO LONGER CAN. It read `CURRENT not in _keys(doc)` —
+    "nothing may fill the current-tax child here" — which was a sound proxy when it was written,
+    because the inference was the only thing that could fill it and filling it meant asserting the
+    whole -1,200 was current, which the note contradicts two rows down.
+
+    NOTE DECOMPOSITION NOW FILLS IT, AND FROM THE PRINTED FIGURE. `map_ontology`'s decomposition
+    pass reads the cited note's own rows and splits the aggregate across the children it names —
+    logged as `map_line_items:split(pl_tax_expense__total_tax_expense) into 2 concepts` — so
+    `current_tax` comes out at the note's own -900 and `deferred_tax` at its -300. That is the
+    disclosed split, not an inference over it, and it is strictly better than leaving both children
+    empty. The old assertion would forbid the correct answer.
+
+    SO THE ASSERTION MOVES TO THE THING THAT ACTUALLY MATTERS: the inference stays out of it, and
+    whatever fills `current_tax` carries the NOTE's figure and never the face total. -1,200 landing
+    in `current_tax` is the defect this file exists to prevent, and it is now checked by value
+    rather than by absence.
+    """
     doc = _income_statement(_li(0, "Income tax expense", -1200, note="9"))
     doc.notes = [_tax_note(("Current tax 當期稅項", -900), ("Deferred tax 遞延稅項", -300))]
     ctx = _run(doc, _ontology(raw_ontology))
 
-    assert CURRENT not in _keys(doc)
-    assert any("is disclosed in note 9" in line for line in ctx.logs)
+    # THE INFERENCE DECLINED. It is the sole_component pass, not the split, that must stay away.
+    assert not any("sole_component_of" in line for line in ctx.logs), (
+        "the inference fired on a filing whose note discloses the split")
+    # AND THE FACE TOTAL WAS NOT PUBLISHED AS THE CURRENT CHARGE.
+    current = next((li for li in doc.line_items if li.canonical_key == CURRENT), None)
+    if current is not None:
+        got = {str(v.value) for v in (current.values or {}).values()}
+        assert "-1200" not in got, (
+            f"the whole charge was published as current tax; the note says -900. got {got}")
+        assert got == {"-900"}, f"expected the note's own current-tax figure, got {got}"
 
 
 def test_a_note_the_tax_line_does_not_cite_is_not_evidence_about_it(raw_ontology):

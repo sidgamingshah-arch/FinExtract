@@ -317,13 +317,34 @@ note itemises nothing".
 is latent: a filing whose cascade does reach the reported-total rung would take a subset figure as
 the total.
 
-**What to do about it.** Either give the line an `exclude` the request can act on (a class total is
-not the reported total), or move the qualifier out of the definition's tail into `exclude_criteria`
-where `line_item_payload` sends it as its own field. This is exactly the class of problem a live
-run exists to surface, and it is cheap to fix.
+**What to do about it — and the first answer here was wrong, so it is recorded as a correction.**
+This was written as "the exclusion is prose at a paragraph's tail, so move it to `exclude_criteria`
+where `line_item_payload` sends it as its own field", on the assumption that the qualifier never
+reached the model. MEASURED, IT DID. The line's `instruction` field — carried on 100% of requests —
+reads in full:
 
-**Reproduce:** `scratchpad/live_run.py` — deterministic baseline then live, same configuration,
-`llm_mapping` the only difference, every focus figure diffed.
+> Take the note's own printed total only where the note itemises no instrument types, and never add
+> it to any type amount it already includes.
+
+So the constraint travelled, as its own top-level payload field, in the imperative voice, and was
+not followed. That makes this a MODEL failure on this instance rather than a configuration gap, and
+moving the same words into `exclude_criteria` would change which JSON key carries them and nothing
+else. What is worth doing instead is the deterministic guard the words describe: the run already
+knows whether the note itemises instrument types, because it has the note's rows — so refuse a
+`cl_reported_total` citation from a note that has itemised rows, the way
+`caption_agrees_with_row_terms` refuses a container caption. A rule the code can check does not
+depend on the model honouring a sentence.
+
+**The general point, measured across the whole configuration.** All 77 parts carry exclusion
+language ("never", "rather than", "only where") in `definition` or `instruction`, and NOT ONE has an
+`exclude_criteria` field — the 77 parts are exactly the 77 of 518 lines with no `include_criteria`,
+no `exclude_criteria` and no `section_disambiguation`, and exactly the 77 that carry a `prompt`
+instead. The parts were authored in a different field vocabulary from the 441 wholes. That is worth
+knowing, but it is a tidiness question, not an information one: the content reaches the model either
+way.
+
+**Reproduce:** `scratchpad/live_run.py` for the run; `scripts/audit_request_context.py` for the
+field-presence table that corrected this.
 
 ---
 
@@ -332,3 +353,208 @@ run exists to surface, and it is cheap to fix.
 Everything in item 4 rests on the 18 dumps in `_vocab/`, which are extraction output. Where a
 finding says "the document does not contain X", that needs confirming against the PDF before it is
 treated as an extraction defect rather than a dump artefact — item 4(b) especially.
+
+---
+
+## 12. HALF THE NOTES A LINE SELECTS NEVER REACH ITS REQUEST — the binding constraint
+
+**This is the largest item on the list and it is a defect, not a gap.** Measured over all 18
+filings and the four focus parts: of **158 notes those lines selected, 80 reached a request — 50%.**
+Twelve of the 72 requests carried **no note at all** despite the line having selected one to four.
+
+**What breaks, for whom.** A request with no note in it cannot be answered, and the model correctly
+returns nothing. In the run log that is indistinguishable from "this filing does not disclose it" —
+so the failure reads as a model or vocabulary problem and sends effort at the prompt, which cannot
+fix it. `sub__face_principal_revenue` is worst hit: on 7 of 18 filings it selected notes and
+received none.
+
+**The mechanism.** `line_item_llm.build_request` intersects the line's own selection with
+`note_context.identified_notes`:
+
+```python
+wanted = set(plan.notes)
+"notes": [n for n in identified if str(n.get("note", "")) in wanted] if wanted else []
+```
+
+`identified_notes` passes every REGEX-CLAIMED note unconditionally, but bounds its semantic half by
+`note_context._SEMANTIC_NOTE_BUDGET = 8` — eight note numbers **for the whole document**, ranked
+globally by score across all 518 lines at once. A line whose best heading scores 0.40 loses its only
+note to another line's 0.85, and is sent an empty payload. The per-line cap of 4 in
+`notes_for_line_item` cannot see this, and neither can the request: by the time `build_request` runs,
+the note is simply not in `identified` to be found.
+
+**Why the bound was set, and what changed under it.** Its own comment records the measurement: "23
+numbers added by 77 line items became 56 extra TABLES — `identified_notes` went from 31 tables to 87
+and one request from 30,407 tokens to 82,299." That blowup was real and it was counted **in
+fragments**, when the function emitted one payload entry per extracted table. Item 5's
+fragment-collapse fix made it one entry per note NUMBER, so the cost of admitting a note fell by
+roughly the fragment multiplier — laisun's 39 entries became 12. The bound was never re-derived
+against the new cost basis. The rationale's other half — "an inference does not earn what a
+declaration earns" — still stands, and argues for a smaller reserve rather than for no bound.
+
+**Measured options** (`scripts/audit_request_context.py`, and the sweep in this item's reproduce
+line). "reachable" counts requests where a row in the payload passes
+`caption_agrees_with_row_terms` — the run's own acceptance gate — or prose carries an amount near
+the line's terms:
+
+| change | notes delivered | reachable requests | empty payloads | all-518 context |
+|---|---|---|---|---|
+| today (`budget = 8`) | 80/158 (50%) | 43 | 15 | 32.5M chars |
+| `budget = 40` | 148/158 (93%) | 55 | 6 | 48.0M (+47%) |
+| no bound | 158/158 (100%) | 58 | 3 | 48.5M (+49%) |
+| **reserve each line its top-1, keep `budget = 8`** | **146/158 (92%)** | **55** | **6** | **47.0M (+44%)** |
+
+**What to do.** Reserve every line its single best-scoring note before the global cut, then fill the
+remaining budget as now. It dominates raising the cap — same reachability as `budget = 40` at
+slightly lower total context — and it is the principled shape: the bound exists to stop *unbounded*
+guessing, not to leave a line with nothing. It also keeps the declaration/inference distinction the
+comment argues for, because one note per line is the smallest possible inference.
+
+The cost is real and is not free: ~44% more context on a full 518-line run. Worth stating plainly
+when the change is made rather than discovered afterwards.
+
+**Not yet implemented, deliberately.** It changes which notes reach every request on every run, so
+it needs the `focus_as_published.py --all` no-figure-moves check across the corpus, which belongs
+with the change rather than with the branch being merged.
+
+**Reproduce:** `python scripts/audit_request_context.py` for the per-filing verdicts and the
+delivery share; the budget sweep and the top-1-reserve variant are in this session's transcript and
+re-derivable by setting `note_context._SEMANTIC_NOTE_BUDGET` and re-running the audit.
+
+---
+
+## 13. Two open defects found while clearing the test suite for merge
+
+Both are captured by tests rather than described, so neither can be lost. Both are on the ONTOLOGY
+(row-driven) route, not the line-item route this branch builds.
+
+### (a) The expenses residual routes nothing at all — one row, two failing assertions
+
+`pl_expenses__others` used to receive a statement TOTAL by mistake: "LOSS FROM OPERATING
+ACTIVITIES" had no alias, fell through to the residual router, and landed in a bucket whose own
+rulebook exclusion reads "Section subtotals and statement totals". That half is fixed — the total
+now maps to `pl_operating_profit_ebit`.
+
+**The genuine expense row went with it.** Measured on the transcribed HKEX fixture:
+
+| row | files under | should be |
+|---|---|---|
+| Fair value losses on investment properties, net  −508,569 | `engine_unclassified_face__profit_and_loss` | `pl_expenses__others` |
+
+So the residual holds ZERO rows, and because the row is in no section the subtotal sums over,
+`pl_operating_profit_ebit` computes **−387,591 against the printed −896,160 — a gap of 508,569,
+which is that row to the rupee.** Every other subtotal on the statement agrees with the filing, and
+`test_every_printed_line_of_the_statement_is_filed` still passes because the engine bucket IS a
+canonical key — which is exactly why this was invisible.
+
+Refusing a statement total and routing an unaliased expense row are two questions, and the sweep
+currently answers both with "no". Fixing the routing makes both tests pass with no other change.
+
+**Marked `xfail(strict=True)`** in `tests/test_hk_income_statement.py`, so it fails loudly if the
+routing is fixed and the marker is left behind.
+
+### (b) Two face-reading PARTS declare aliases and no part has a statement gate
+
+`sub__face_principal_revenue` and `sub__rp_bs_face_receivables` are the only 2 of 77 parts that
+declare aliases. They need them: both read a row off the FACE of a statement rather than out of a
+note — their `note_source.note_title_any` matches "consolidated balance sheet" and "consolidated
+income statement" — so without aliases the deterministic route cannot reach them at all, and
+recognition was moved DOWN to them from their derived parents precisely so it would sit on the
+layer that corresponds to a printed row.
+
+**The risk.** A part declares no `statement` and no `section_scope`, deliberately — pinning one
+loses the note that prints it (`tests/test_line_item_gate.py` carries the measurement). So an alias
+on a part is bindable from ANY statement, and `mapping.match` now returns on the FIRST exact alias
+hit, so a caption "Revenue" on a cash-flow statement can reach `sub__face_principal_revenue` with
+nothing left to refuse it. Not observed in the corpus run; reported because the guard that would
+have caught it is the one being exempted.
+
+**The likely fix, and why it is not done here.** Pin exactly these two to their own statement. That
+is coherent with the gate test's own argument — it objects to pinning a part printed in a NOTE whose
+whole sits on another statement, and a face part is definitionally on one named statement — but it
+changes where a part may bind on every run, so it belongs with a `focus_as_published.py --all`
+no-figures-move check rather than with a merge.
+
+**The guard is narrowed, not removed:** the exemption names those two keys, so a THIRD part
+acquiring aliases still fails `tests/test_line_item_gate.py`.
+
+---
+
+## 14. THE ROW-TERMS GATE ADMITS THE CONTAINER CAPTION IT WAS WRITTEN TO REFUSE
+
+**This is the most consequential finding of the corpus audit, and it invalidates a number I
+reported before measuring it.**
+
+`line_item_notes.caption_agrees_with_row_terms` accepts a caption that shares **one** subject token
+with the line's `row_terms`. Its own docstring argues one token is enough, and gives the measured
+case it was written for: the face row "Other operating expenses" (1,026,959, a real income-statement
+total) bound to a depreciation part, refused because that caption "shares no token with the line's
+row terms — every one of which is a depreciation phrase".
+
+**Every one of which is NOT a depreciation phrase, token by token.** `row_terms` are multi-word
+PHRASES and `subject_tokens` splits them into individual words, so for
+`sub__fixed_asset_depreciation` the accepted token set contains:
+
+```
+assets  fixed  property  plant  equipment  investment  lease  payments
+prepaid  progress  construction  release  right  use  and   <-- "and"
+```
+
+`and` comes from `depreciation of property plant and equipment` and `amortization and
+depreciation`. So **any caption containing the word "and" passes the gate for this line.** Measured
+against the shipped configuration:
+
+| caption offered to `sub__fixed_asset_depreciation` | gate | shares only |
+|---|---|---|
+| `Depreciation charge` | pass | `depreciation` — correct |
+| `Deposits and other receivables` | **pass** | `and` |
+| `Contract assets, net (i)` | **pass** | `assets` |
+| `固定资产` (fixed assets — the CONTAINER) | **pass** | `固定` `定资` `资产` |
+| `Unlisted equity investments, at fair value` | refuse | — |
+
+The Han half fails the same way for a different reason: a compound term like `固定资产折旧`
+("fixed-asset depreciation") is ONE word, so its bigrams include `资产` — the container noun — and
+any caption naming assets at all clears the gate.
+
+**What it costs.** Two things, and the second is why this is at the top of the list:
+
+1. A wrong figure reaching a part. The gate is the last line of defence after
+   `resolve_sources`, and on the container-caption error it does not hold. The measured
+   1,026,959 case was stopped by a cascade guard (`refuse_negative`) that held only because the
+   wrong number happened to be negative.
+2. **It silently inflates every measurement built on it.** `scripts/audit_request_context.py`
+   defines "the evidence was in the payload" as "a row passes this gate", on the reasoning that the
+   gate is what the run itself would accept. That made the headline read *"the figure was reachable
+   in 47 of 72 requests (65%)"*. That number is an **UPPER BOUND, not an estimate**: at least 8 of
+   the 43 row-based verdicts rest only on a word taken from a multi-word phrase (`'Deposits and
+   other receivables'` for a depreciation line), and the Han verdicts are additionally suspect for
+   the compound-bigram reason above. **The corrected claim is "at most 65%".**
+
+**It also explains the run.** The live corpus run produced figures on 2 of 15 filings while the
+audit said the evidence was present in most of them. Reading the actual note, the model declined
+rows this gate would have accepted — so the model was the stricter of the two, and the gap between
+"65%" and "2 of 15" is largely this defect rather than model failure.
+
+**What to do.** The check is the right idea at the wrong granularity: it should ask whether the
+caption names the line's CONTENT, and it currently asks whether it shares any word with anything the
+author typed. Three candidate fixes, cheapest first:
+
+* **Require the match on a term the author named ALONE.** `折旧`, `depreciation`, `amortisation`
+  are authored as standalone terms; `assets` and `and` never are. This is a two-line change and
+  removes `and`, `assets`, `property`, `plant` from the accepted set at a stroke.
+* **Subtract the note-level vocabulary.** A token that appears in `note_terms` / `note_title_any`
+  names the CONTAINER by construction, so it cannot be what distinguishes the row. This is the
+  two-level distinction item 4 is about, applied to the gate.
+* **For a Han compound, require the operative tail** (`折旧` in `固定资产折旧`) rather than any
+  bigram.
+
+The first two are compatible and should probably both happen.
+
+**Not done here.** It makes the gate STRICTER, which can only remove figures — so it needs the
+`focus_as_published.py --all` no-figures-move check plus a re-run of the corpus audit to confirm the
+recall it costs is zero. That is a measurement session of its own.
+
+**Reproduce:** the token set and the caption table are printed by
+`caption_agrees_with_row_terms(by['sub__fixed_asset_depreciation'], caption)` against
+`subject_tokens`; the 8-of-43 count is a weak-token sweep over
+`scripts/audit_request_context.py`'s own payloads.
