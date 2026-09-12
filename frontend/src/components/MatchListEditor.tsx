@@ -139,7 +139,13 @@ export function rowsOf(values: Record<string, string[]>, order: string[],
 }
 
 /** …and back. Every field in `order` is written, so clearing one stores an empty list rather than
- *  leaving the previous value in place. */
+ *  leaving the previous value in place.
+ *
+ *  A ROW OUTSIDE `order` WOULD BE LOST AT THE CALLER, which is why the component derives `order`
+ *  from the map rather than trusting the two to agree. The caller's `onChange` reads the fields it
+ *  knows by name (`patch({ aliases: next.aliases, … })`), so a key this function invented would be
+ *  dropped on the way to the server without anything failing. Keeping the row in the result at
+ *  least makes the mismatch visible to a caller that spreads the object. */
 export function fieldsOf(rows: MatchRow[], order: string[]): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   for (const field of order) out[field] = [];
@@ -173,10 +179,15 @@ export function MatchListEditor({
   const [draft, setDraft] = useState("");
   const offered = (Object.keys(MODE_LABEL) as MatchMode[]).filter((m) => map[m] && m !== "pattern");
   const [draftMode, setDraftMode] = useState<MatchMode>(offered[0] ?? "exact");
-  const rows = rowsOf(values, order, map);
+  // `order` PLUS ANY FIELD THE MAP NAMES THAT IT OMITS, so a mode can never write to a field this
+  // component then fails to read back. The four call sites list the same fields in both, and this
+  // makes a fifth that does not a display-order oddity rather than silent data loss.
+  const fields = [...order, ...Object.values(map).filter((f): f is string =>
+    !!f && !order.includes(f))];
+  const rows = rowsOf(values, fields, map);
   const fg = veto ? color.redFg : color.ink2;
 
-  const write = (next: MatchRow[]) => onChange(fieldsOf(next, order));
+  const write = (next: MatchRow[]) => onChange(fieldsOf(next, fields));
 
   const commit = () => {
     const t = draft.trim();
@@ -277,7 +288,7 @@ export function MatchListEditor({
           {rows.length > 0 && (
             <Button variant="secondary" style={smallBtn}
                     testid={`clear-${testid}`}
-                    onClick={() => onChange(fieldsOf([], order))}
+                    onClick={() => onChange(fieldsOf([], fields))}
                     title="Store empty lists — not a default">Clear all</Button>
           )}
         </div>

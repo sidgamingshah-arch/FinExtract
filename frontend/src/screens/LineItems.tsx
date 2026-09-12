@@ -171,30 +171,40 @@ function Patterns({ label, values, tone }: { label: string; values: string[]; to
  *  still shows every control, and `requiredNow` still forces a control the server would refuse
  *  the save without.
  */
-/** WHAT EVERY LINE ITEM ANSWERS, whatever its type — the v2 spec's universal three.
+/** WHAT EVERY LINE ITEM ANSWERS, whatever its type.
  *
  *  `in_output`, `output_structure` and `sign_expectation` were here and are gone: delivery is the
  *  template's decision, `output_structure` was declared by 0 of 539 items while sitting on the
- *  SIMPLE form, and the sign never varies inside a section so it is section policy. */
-const COMMON_SIMPLE = ["label", "statement", "type"];
+ *  SIMPLE form, and the sign never varies inside a section so it is section policy.
+ *
+ *  `statement` WAS HERE AND IS GONE TOO, because the control is: the section chosen at the top
+ *  supplies it, and measured, not one of the 462 per-line copies differed from its own section's
+ *  value. A name in a simple-form list with no control behind it is the same dead entry the three
+ *  field lists had accumulated — it silently contributes nothing.
+ *
+ *  `definition` IS HERE AND WAS NOT, which is a fix rather than a tidy. It is declared by 539 of
+ *  539 lines, the most-authored field in the set, and it was reachable only through
+ *  `MEANING_SIMPLE` — which a formula line never gets. So the simple form for a calculated line was
+ *  `label`, `type`, `terms`: three controls, no way to say what the line MEANS, on the population
+ *  whose whole remaining surface is those four fields. */
+const COMMON_SIMPLE = ["label", "definition", "type"];
 
 /** What the line is, in words, plus the captions that reach it. Read by the matcher and the model,
  *  and therefore simple ONLY for a line either of them can reach. */
 const MEANING_SIMPLE = [
-  "definition",               // 539 of 539, 539 distinct — the most-authored field in the set
+  // `definition` is in `COMMON_SIMPLE` — every type needs it, not only the caption-matched ones.
   "exclude_criteria",         // 462 of 539, 31 distinct
-  // THE THREE RECOGNITION LISTS, which are not interchangeable. `aliases` are captions folded
-  // through `normalize_label` and matched exactly; `regex_hints` are patterns matched against the
-  // raw caption AND the normalised one; `keyword_hints` require every word to be present rather
-  // than matching a shape. A filing wording a row unexpectedly is caught by the second or third
-  // where the first cannot reach it.
+  // RECOGNITION, WHICH IS ONE CONTROL OVER THREE FIELDS. `regex_hints` and `keyword_hints` were
+  // listed here beside `aliases` when each had its own editor; they are now rows in the collapsed
+  // list, which renders under `aliases`. Naming them here did nothing — `isSimple` is a set
+  // membership test and there is no control to admit.
+  //
+  // The three fields are still not interchangeable, which is why a row remembers which one it came
+  // from: `aliases` are captions folded through `normalize_label` and matched exactly,
+  // `regex_hints` match the raw caption AND the folded one, `keyword_hints` require every word to
+  // be present. The per-locale half writes `aliases_i18n[locale]` through the same control, with
+  // the locale selector in the band header.
   "aliases",                  // 462 of 539, 461 distinct
-  "regex_hints",              // 393 of 539, 393 distinct
-  "keyword_hints",            // 461 of 539, 461 distinct
-  // PER-LANGUAGE CAPTIONS. Not a separate control — the `aliases` editor is locale-scoped and
-  // writes `aliases_i18n[locale]`, with the locale selector above it. 395 items declare it and the
-  // shipped set carries 473 distinct Chinese captions, which a single flat list cannot hold
-  // because the matcher folds every locale into one index.
   // THE LINE'S OWN INSTRUCTION to the model, on the simple form because the model is only ever
   // asked about an extracted line — so this is the one type where it does anything.
   "prompt",                   // 77 of 539, 77 distinct
@@ -215,8 +225,10 @@ const MEANING_SIMPLE = [
  *  and tabulates nowhere. */
 const NOTE_SOURCE_SIMPLE = [
   "note_source",
+  // THREE PAIRED CONTROLS AND THE PROSE ONE. `note_terms`, `row_terms` and `row_terms_none` were
+  // listed here as their own controls and are now `scored by meaning` rows inside the pattern
+  // control each belongs with — so the names below are the four controls that exist.
   "note_source.note_title_any", "note_source.row_caption_any", "note_source.row_caption_none",
-  "note_source.note_terms", "note_source.row_terms", "note_source.row_terms_none",
   "note_source.prose_any",
   // WHETHER THE MODEL IS ASKED, AND WITH WHAT. Both are conditional on `extract`, so on a line
   // that never reaches the model they are withheld with a reason rather than shown here.

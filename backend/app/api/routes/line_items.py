@@ -53,7 +53,6 @@ import json
 import re
 import types
 import typing
-import os
 from typing import Any, Literal, get_args, get_origin
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -327,6 +326,19 @@ _STATEMENT_LABEL: dict[str, str] = {
 }
 
 
+def _shared_prefix(values: list[str]) -> str:
+    """The longest prefix every value starts with. `os.path.commonprefix` does this and is the only
+    reason that module would be imported here, which reads as a filesystem dependency in a routes
+    file."""
+    if not values:
+        return ""
+    head = values[0]
+    for value in values[1:]:
+        while head and not value.startswith(head):
+            head = head[:-1]
+    return head
+
+
 def _sections(st: LineItemSet) -> list[dict]:
     """The 18 sections as the three questions an author actually has, not as 18 keys.
 
@@ -387,7 +399,7 @@ def _sections(st: LineItemSet) -> list[dict]:
     for (_stmt, _label), group in seen.items():
         if len(group) < 2:
             continue
-        shared = os.path.commonprefix([e["key"] for e in group])
+        shared = _shared_prefix([e["key"] for e in group])
         for entry in group:
             tail = entry["key"][len(shared):].strip("_").replace("_", " ")
             if tail:
