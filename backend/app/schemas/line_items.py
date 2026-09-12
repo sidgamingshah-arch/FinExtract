@@ -639,13 +639,15 @@ class LineItemDef(BaseModel):
     def _coherent(self):
         if self.type == "intermediate":
             self.in_output = False
-        # A `calculated` LINE MAY NAME NO TERMS, and 33 shipped lines do exactly that.
+        # A `calculated` LINE MAY NAME NO TERMS, and TWO shipped lines do exactly that.
         #
-        # It used to be refused. The reason it is not is that `terms` is one of TWO places the
-        # arithmetic can be declared, and for a subtotal the other one is authoritative: the
-        # template's `rollup: {op: "sum", children: [...]}`, which all 33 carry with 2 to 34
-        # children each. Requiring `terms` as well would put a second copy of the components in the
-        # configuration, free to drift from the template that actually evaluates them.
+        # It was 33 — every subtotal, on the argument that the template's
+        # `rollup: {op: "sum", children: [...]}` was the authoritative copy and a second one in
+        # `terms` would be free to drift. 31 of them now carry `terms`, generated from that rollup
+        # and verified against it term for term, because a figure's derivation belongs where the
+        # rest of the line is declared. The two survivors subtract from their OWN reported total
+        # (`reported_total_key` naming the line itself), which `Term.ref` cannot express — see
+        # `services/line_items.evaluate`.
         #
         # `services.line_items.evaluate` reads the absence the same way: no terms, so report what
         # the document supplied and let the template's `check_rollups` compare it against the
