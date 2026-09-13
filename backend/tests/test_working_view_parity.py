@@ -218,6 +218,24 @@ _SEED_LAG = {"description", "confusable_with", "section_disambiguation", "aliase
 # and a FIFTEENTH line diverging would mean something else changed.
 _ALIAS_MATCHING_REMOVED = 14
 
+# AND `regex_hints`, WHICH THE SEED HAS ALL BUT STOPPED CARRYING.
+#
+# 387 of its 389 patterns were deleted: every one was an anchored literal whose effect the ALIAS
+# TIER already had. `mapping.normalize_label` strips punctuation and collapses whitespace, so
+# "Trade Receivables (Gross)" folds to the same string the alias does — and `_exact` runs BEFORE
+# the rule tier, so a caption an alias claims never reaches a regex at all. Probed over all 1,986
+# captions either matcher knows: zero answers changed.
+#
+# BOUNDED BY THE PROPERTY, not by a count of the lines that diverge. Every divergence must be a
+# REMOVAL — the seed carries no pattern for that key — so the seed gaining one the rulebook does not
+# have still fails here, and the bound needs no maintenance. The two survivors are on one line and
+# are not anchored literals, so they reach captions an alias does not.
+
+
+def _seed_regex_hints() -> dict:
+    """key -> the patterns the SEED declares, so a divergence can be read as removal or addition."""
+    return {d.key: list(d.regex_hints) for d in load_shipped_set().items}
+
 
 def _rulebook():
     """The shipped rulebook, resolved — the shape `project_concept` consumed."""
@@ -407,6 +425,10 @@ def test_shipped_set_diverges_only_in_the_known_classes():
             continue
         if field == "alias_matching" and len(keys) <= _ALIAS_MATCHING_REMOVED:
             continue
+        if field == "regex_hints":
+            seeded = _seed_regex_hints()
+            if all(not seeded.get(k) for k in keys):
+                continue
         # …and the two fields the config-screen work changed, bounded by COUNT so a wider
         # divergence still fails. See `_EXCLUDE_BLANKED` / `_DEFINITION_FOLDED` above.
         if field == "exclude" and len(keys) <= _EXCLUDE_BLANKED:
