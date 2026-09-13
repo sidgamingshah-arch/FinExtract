@@ -231,7 +231,6 @@ def _blended(item, parent=None) -> str:
     """
     parts = [
         (getattr(item, "label", "") or ""),
-        (getattr(item, "description", "") or ""),
         (getattr(item, "definition", "") or ""),
     ]
     parts.extend(str(x) for x in (getattr(item, "include", None) or ()))

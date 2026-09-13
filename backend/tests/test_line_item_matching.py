@@ -212,36 +212,48 @@ def test_priority_settles_a_tie_the_gate_leaves_standing():
     assert m.match("Deposits").key == "high"
 
 
-def test_a_mutually_confusable_pair_at_equal_priority_goes_to_review():
-    """Taking the higher priority here is taking the first declared, which the binding order
-    forbids in as many words."""
-    m = _matcher({"key": "a", "aliases": ["Notes payable"], "match_priority": 80,
-                  "confusable_with": ["b"]},
-                 {"key": "b", "aliases": ["Notes payable"], "match_priority": 80,
-                  "confusable_with": ["a"]})
+def test_a_contested_caption_is_settled_by_an_exclusion_on_the_line_it_is_not():
+    """REPLACES THREE TESTS THAT PINNED `confusable_with`, and the replacement is the decision.
+
+    That field named a pair each claiming the other's captions, and `_forbidden_tie` refused such a
+    pair at equal priority: both keys returned, needs_review set, nothing published. Measured
+    against the shipped set, it fired on 8 of 238 equal-priority alias collisions — so 230 identical
+    situations already resolved by file order, and on those 8 file order was WRONG (土地使用权,
+    the Chinese for land use rights, went to Buildings because Buildings is declared first).
+
+    The pairs are now expressed where a disagreement belongs: an exclusion on the line the caption
+    is NOT. `_vetoed` makes that outrank the line's own alias, which is the whole point of the
+    field, so the answer is deterministic and readable on the line rather than deferred to whoever
+    picks up the review queue.
+    """
+    m = _matcher({"key": "a", "aliases": ["Notes payable", "Notes payable (current)"],
+                  "match_priority": 80, "exclude_hints": [r"^Notes\s+payable$"]},
+                 {"key": "b", "aliases": ["Notes payable"], "match_priority": 80})
     got = m.match("Notes payable")
 
-    assert got.key is None
-    assert got.needs_review
-    assert sorted(got.tied) == ["a", "b"]
-    assert "confusable" in got.reason
+    assert got.key == "b"
+    assert not got.needs_review
+    # …and the excluded line still wins its own distinctive caption.
+    assert m.match("Notes payable (current)").key == "a"
 
 
-def test_a_one_way_confusable_edge_is_not_a_forbidden_tie():
-    """A one-way edge is a warning about a bigger concept, not "never pick between these"."""
-    m = _matcher({"key": "a", "aliases": ["Notes payable"], "match_priority": 80,
-                  "confusable_with": ["b"]},
-                 {"key": "b", "aliases": ["Notes payable"], "match_priority": 80})
+def test_an_exclusion_outranks_the_lines_own_alias():
+    """The property the conversion depends on: if it did not hold, the losing line would keep
+    claiming the caption and the tie would simply be silent instead of refused."""
+    m = _matcher({"key": "a", "aliases": ["Notes payable"], "match_priority": 90,
+                  "exclude_hints": [r"^Notes\s+payable$"]},
+                 {"key": "b", "aliases": ["Notes payable"], "match_priority": 10})
 
-    assert m.match("Notes payable").key in {"a", "b"}      # settled, not refused
+    assert m.match("Notes payable").key == "b", "the higher-priority line's exclusion was ignored"
 
 
 def test_a_banner_separates_a_pair_that_would_otherwise_tie():
-    """The gate normally means the forbidden-tie path never fires."""
+    """The gate settles most collisions before any of this matters — which is why only 8 of the
+    set's 238 equal-priority collisions were ever declared as pairs."""
     m = _matcher({"key": "a", "statement": "balance_sheet", "section_scope": ["bs_ncl"],
-                  "aliases": ["Notes payable"], "match_priority": 80, "confusable_with": ["b"]},
+                  "aliases": ["Notes payable"], "match_priority": 80},
                  {"key": "b", "statement": "balance_sheet", "section_scope": ["bs_cl"],
-                  "aliases": ["Notes payable"], "match_priority": 80, "confusable_with": ["a"]})
+                  "aliases": ["Notes payable"], "match_priority": 80})
 
     assert m.match("Notes payable", "balance_sheet", "CURRENT LIABILITIES").key == "b"
 

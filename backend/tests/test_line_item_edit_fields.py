@@ -92,7 +92,7 @@ _SET = {
     "items": [
         {"key": _EDITED, "label": "Cash", "inherits": "bs_ca",
          "aliases": ["Cash"], "aliases_i18n": {"en": ["Cash"], "zh": ["現金"]},
-         "description": "as first stored", "definition": "as first stored",
+         "definition": "as first stored",
          "keyword_hints": ["cash"]},
         {"key": "probe_parent", "label": "Total cash", "aliases": ["Total cash"],
          "inherits": "bs_ca"},
@@ -136,7 +136,6 @@ _NOT_COHERENT_WITH_THE_REST = {"prompt", "output_structure", "llm_only_if_note_t
 _ROUND_TRIP: dict[str, tuple[str, object]] = {
     # meaning — the four the user named, plus the label
     "label": ("label", "Cash and cash equivalents"),
-    "description": ("description", "Cash on hand, at bank, and short-term deposits."),
     "definition": ("definition", "IAS 7 cash and cash equivalents, net of nothing."),
     # Extra instruction for THIS line, sent inside its own candidate entry. Round-tripped like any
     # other prose field; the constraint that it is only legal on an `extracted` line is a
@@ -148,7 +147,6 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
     # structure is only legal on an `extracted` line, and asserted on its own below.
     "output_structure": ("output_structure", "phrase"),
     "exclude_criteria": ("exclude_criteria", ["bank overdrafts repayable on demand"]),
-    "confusable_with": ("confusable_with", ["probe_other"]),
     # structure
     "type": ("type", "calculated"),
     "in_output": ("in_output", False),
@@ -507,7 +505,6 @@ def test_a_field_left_out_of_the_body_is_untouched(client, probe):
     new_id = _saved(client, cfg["id"], {"key": _EDITED, "label": "Renamed"})
     stored = _stored(client, new_id)
     assert stored["label"] == "Renamed"
-    assert stored["description"] == "as first stored"
     assert stored["definition"] == "as first stored"
     assert stored["keyword_hints"] == ["cash"]
     assert stored["aliases"] == ["Cash"]
@@ -700,10 +697,13 @@ def test_a_refused_edit_changes_nothing_at_all(client, probe):
     before = _stored(client, cfg["id"])
     r = _patch(client, cfg["id"], {"key": _EDITED, "label": "Never stored",
                                    "pattern": "(", "exclude_hints": ["("],
-                                   "confusable_with": ["no_such_key"]})
+                                   "regex_hints": ["(unclosed"]})
     assert r.status_code == 422, r.text
     fields = {e["field"] for e in r.json()["detail"]["errors"]}
-    assert fields == {"pattern", "exclude_hints", "confusable_with"}, fields
+    # `confusable_with` was the third field here and is gone from the model; `regex_hints` takes
+    # its place because the property under test is "every problem in one pass", which needs three
+    # broken fields and does not care which.
+    assert fields == {"pattern", "exclude_hints", "regex_hints"}, fields
     assert _stored(client, cfg["id"]) == before, "a refused edit wrote part of itself"
     assert len(_versions(client)) == 1
 

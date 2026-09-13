@@ -289,7 +289,7 @@ def _sizes(definition: dict) -> dict:
 # identical on a screen, and only one of them is a decision.
 _NOT_EDITABLE: dict[str, str] = {
     "key": ("the identity every other declaration names — `parent`, `terms[].ref`, "
-            "`confusable_with`, `children_if_decomposed`, `expected_components`, `never_sweep`, "
+            "`children_if_decomposed`, `expected_components`, `never_sweep`, "
             "`sole_component_of` and the template's `canonical_key` all name it, and it is this "
             "endpoint's own selector, so rename via a full republish"),
     "children": ("computed from `parent` on every read — storage is flat, so editing the "
@@ -958,7 +958,6 @@ class ItemEdit(BaseModel):
     # they changed the other.
     sign_convention: str | None = None
     label: str | None = None
-    description: str | None = None
     # The criteria the LLM actually reasons over. Aliases only help when the printed wording is
     # close to one; `definition`/`include_criteria`/`exclude_criteria`/`confusable_with` are what
     # let a caption be resolved by MEANING, so they have to be editable too or an analyst can only
@@ -968,7 +967,6 @@ class ItemEdit(BaseModel):
     # `LineItemDef` on a non-`extracted` line, and that refusal lands on this field.
     prompt: str | None = None
     exclude_criteria: list[str] | None = None
-    confusable_with: list[str] | None = None
     value_scope: ValueScope | None = None
     # Lexical rule hints (regex / keyword), the deterministic tier's controls. `exclude_hints` are
     # regex VETOES — prose belongs in `exclude_criteria`, and folding prose into this list either
@@ -1074,7 +1072,6 @@ _SIGN_FROM_UI = {
 # ItemEdit field -> the LineItemDef field it writes. Straight copy of the validated value.
 _EDIT_SCALARS: dict[str, str] = {
     "label": "label",
-    "description": "description",
     "definition": "definition",
     "prompt": "prompt",
     "type": "type",
@@ -1209,7 +1206,6 @@ _NOT_CONFIGURABLE: dict[str, str] = {
     "allow_contra": "no line item declares this",
     "analyst_bucket": "no line item declares this",
     "pattern": "`regex_hints` is the list form and is what the matcher reads",
-    "description": "`definition` is the prose the matcher and the model actually read",
     "decomposition_rule": "`global_rules.no_fabricated_split` carries this for the whole set",
 }
 
@@ -1637,20 +1633,6 @@ def edit_line_item(version_id: str, body: ItemEdit,
         writes["pattern"] = pattern
 
     # ── the keys other declarations name ─────────────────────────────────────────────────────
-    if "confusable_with" in sent:
-        if body.confusable_with is None:
-            errors.append(_err("confusable_with", "confusable_with is a list, so it has no null "
-                                                  "state — send [] to clear it"))
-        else:
-            # These name OTHER line items; a typo would silently weaken the very disambiguation the
-            # field exists for, so unknown keys are rejected rather than stored.
-            cleaned = _clean_list(body.confusable_with)
-            unknown = [k for k in cleaned if k not in known]
-            if unknown:
-                errors.append(_err("confusable_with",
-                                   f"confusable_with names unknown line items: {unknown}"))
-            else:
-                writes["confusable_with"] = cleaned
     for field in ("expected_components", "never_sweep", "children_if_decomposed"):
         if field not in sent:
             continue

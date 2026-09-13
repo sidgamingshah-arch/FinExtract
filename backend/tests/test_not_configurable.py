@@ -87,7 +87,10 @@ def test_the_fields_the_v2_spec_removed_are_all_refused():
         "match_priority",                                     # the banner settles ties
         "output_structure", "others_rule", "derivation", "notes_as_source_rationale",
         "sole_component_of", "scopes", "side", "allow_contra", "analyst_bucket",
-        "pattern", "description", "decomposition_rule",
+        # `description` WAS HERE AND THE FIELD IS GONE, so there is nothing to refuse. Its 85
+        # values were sourcing instructions and went to `prompt` (77 extracted lines) and
+        # `definition` (8 derived, which cannot carry a prompt).
+        "pattern", "decomposition_rule",
     }
     assert set(_NOT_CONFIGURABLE) == expected, {
         "refused but not in the spec": sorted(set(_NOT_CONFIGURABLE) - expected),
@@ -96,7 +99,16 @@ def test_the_fields_the_v2_spec_removed_are_all_refused():
 
 
 def test_the_count_someone_has_to_justify():
-    """23 of 52 wire fields refused. The number is here so widening the surface is a decision.
+    """22 of 50 wire fields refused.
+
+    51 UNTIL `confusable_with` WENT. Its two mutual pairs became exclusions: 36 vetoes for the other
+    line's distinctive captions, and 9 aliases removed from the line they did not belong to. The number is here so widening the surface is a decision.
+
+    52/23 UNTIL `description` WENT. Its 85 values described HOW a figure is sourced rather than what
+    the line is, and the payload read them only as a fallback for a missing `definition` — a branch
+    that never fired, because all 539 lines declare one. They moved to the field that reads them:
+    `prompt` for the 77 extracted lines (all of which already had one) and `definition` for the 8
+    derived, which cannot carry a prompt at all.
 
     53 UNTIL `section_disambiguation` WENT. Its 395 declarations held THIRTEEN distinct strings and
     every one was `"Bind only to {statement} / {section}."` — the line's own gate restated back to
@@ -111,8 +123,8 @@ def test_the_count_someone_has_to_justify():
     It was 26 until the audit found that `in_output`, `namespace` and `order` cannot be refused:
     the template has no row for an off-template PART (measured: 0 of the 77 appear in it), so it
     cannot decide a part's delivery, and refusing them made parts unauthorable."""
-    assert len(_EDITABLE_FIELDS) == 52, len(_EDITABLE_FIELDS)
-    assert len(_NOT_CONFIGURABLE) == 23, len(_NOT_CONFIGURABLE)
+    assert len(_EDITABLE_FIELDS) == 50, len(_EDITABLE_FIELDS)
+    assert len(_NOT_CONFIGURABLE) == 22, len(_NOT_CONFIGURABLE)
 
 
 @pytest.mark.parametrize("field,value", [

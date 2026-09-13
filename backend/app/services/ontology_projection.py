@@ -61,7 +61,12 @@ RENAMED: dict[str, str] = {
 # because the next person reads it as evidence and stops looking.
 
 SAME: tuple[str, ...] = (
-    "label", "description", "definition", "prompt", "confusable_with", "value_scope",
+    # `description` IS NOT HERE: the line-item model no longer has the field, so a rulebook
+    # concept declaring it lands nowhere and the projection script reports an unhomed declaration.
+    # Its 85 shipped values were sourcing instructions, and they went to `prompt` and `definition`.
+    # `confusable_with` IS NOT HERE either: the line-item model no longer has it, so a rulebook
+    # concept declaring it lands nowhere. Its two shipped pairs became `exclude_hints`.
+    "label", "definition", "prompt", "value_scope",
     "extraction_mode",
     "analyst_bucket", "aliases", "aliases_i18n", "keyword_hints", "regex_hints", "exclude_hints",
     "sign_rule", "inherits", "statement", "section_scope",
@@ -98,7 +103,7 @@ TYPE_OF_MODE: dict[str, str] = {
 # key comes from the rulebook, because the rulebook is what knows where a caption may be claimed.
 ASSEMBLY_FIELDS: tuple[str, ...] = (
     "type", "cascade", "terms", "rollup", "implemented_by", "parent", "order", "in_output",
-    "namespace", "note_source", "scopes", "side", "allow_contra", "description",
+    "namespace", "note_source", "scopes", "side", "allow_contra",
 )
 
 

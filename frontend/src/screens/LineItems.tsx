@@ -42,7 +42,7 @@
 import { useState, type ReactNode } from "react";
 
 import {
-  BoolField, InfoToggle, KeyPicker, LockedRow, RungCards,
+  BoolField, InfoToggle, KeyPicker, LockedRow, NumberField, RungCards,
   SelectField, StringListEditor, TermRows, TextArea, TextField, type KeyOption,
 } from "../components/configFields";
 import { MatchListEditor } from "../components/MatchListEditor";
@@ -193,7 +193,14 @@ const COMMON_SIMPLE = ["label", "definition", "type"];
  *  and therefore simple ONLY for a line either of them can reach. */
 const MEANING_SIMPLE = [
   // `definition` is in `COMMON_SIMPLE` — every type needs it, not only the caption-matched ones.
-  "exclude_criteria",         // 462 of 539, 31 distinct
+  //
+  // `exclude_criteria` IS NOT HERE — it is on the form, behind the advanced toggle. Measured
+  // before its values were cleared: 393 of 462 held ONE identical generated sentence ("Do not
+  // substitute another section, period, entity scope, currency or unit; do not double count a
+  // parent and its children"), which went to the model on every request and said nothing about
+  // the line. All 462 are now empty, so the simple form was offering an always-blank box on the
+  // question an author asks least often. The field keeps its place for the day somebody writes a
+  // real exclusion; it no longer takes a row on the form most authors see.
   // RECOGNITION, WHICH IS ONE CONTROL OVER THREE FIELDS. `regex_hints` and `keyword_hints` were
   // listed here beside `aliases` when each had its own editor; they are now rows in the collapsed
   // list, which renders under `aliases`. Naming them here did nothing — `isSimple` is a set
@@ -611,7 +618,7 @@ const GROUP_FIELDS = {
   /** Rendered only while the `note_source` switch is on, so counted only then. */
   noteSource: ["note_source.note_title_any", "note_source.row_caption_any",
                "note_source.row_caption_none", "note_source.prose_any"],
-  structure: ["parent"],
+  structure: ["parent", "order"],
   // `type` FIRST, because it selects which of the other three applies. It used to sit in
   // `structure`, one group away from the fields it governs and under a question about hierarchy
   // ("How does it sit among the other lines?") — while the field LABELLED "How the figure is
@@ -1539,7 +1546,17 @@ function Detail(p: EditorProps) {
                      onChange={(v) => patch({ parent: v })}
                      error={e} inherited={inh("parent", item.parent)} />
         ))}
-
+        {fld("order", (e) => (
+          <NumberField label="Display order among siblings" testid="order" editable={editable}
+                       reason={lockReason}
+                       help="Where this line sits among its siblings on screen and in the output.
+                             Presentation only — it has no effect on which captions match, on any
+                             figure, or on any total. 85 lines declare one; everything else falls
+                             back to the order the output template lists its rows in, which is
+                             usually what you want."
+                       value={g("order", item.order)} onChange={(v) => patch({ order: v ?? 0 })}
+                       error={e} />
+        ))}
       </Group>
 
 

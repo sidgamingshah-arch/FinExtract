@@ -556,14 +556,15 @@ def test_placing_a_row_by_hand_stops_it_being_counted_as_unplaced(client):
     assert row_id not in after["buckets"]["unresolved_face_item_ids"]
 
     index = client.get(f"{API}/documents/{doc_id}/buckets").json()
-    # ONE STILL UNRESOLVED, AND IT IS NOT THIS ROW. The count was 0 here when the run mapped against
-    # the HKFRS pair; the configured configuration does not recognise the fixture's "Trade
-    # receivables" caption, so that row stays unplaced (see test_source_buckets for what that costs
-    # and how it is fixed in configuration). The claim this test makes is about the row the ANALYST
-    # placed, which is why the id-level assertions above and below are the load-bearing ones — the
-    # count is asserted exactly rather than relaxed to `<=` so a NEW row falling out of coverage
-    # still fails here.
-    assert index["unresolved_face_rows"] == 1
+    # NOTHING IS UNRESOLVED NOW. This was 1 for a reason this test recorded: the configuration did
+    # not recognise the fixture's "Trade receivables" caption, because two lines claimed it at equal
+    # priority and named each other in `confusable_with`, so the matcher refused to choose. That
+    # pair is configuration now (see `test_source_buckets`) and the row is placed.
+    #
+    # The claim this test makes is still about the row the ANALYST placed, which is why the id-level
+    # assertions above and below are the load-bearing ones — the count is asserted exactly rather
+    # than relaxed to `<=` so a NEW row falling out of coverage still fails here.
+    assert index["unresolved_face_rows"] == 0
     assert row_id not in after["buckets"]["unresolved_face_item_ids"]
     detail = client.get(f"{API}/documents/{doc_id}/buckets/current_assets").json()
     assert [r["unresolved"] for r in detail["rows"] if r["id"] == row_id] == [False]

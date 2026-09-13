@@ -12,14 +12,13 @@ WHAT IT PORTS, and from where. `OntologyMatcher`'s DETERMINISTIC path, tier for 
     locks               `_unmatchable`  = alias_matching disabled, extraction_mode derive
     exact alias         `_exact`        gate handed IN, then label ownership, then priority
                                                                                     (mapping:1083)
-    forbidden ties      `_exact_tie`    mutually-confusable at equal priority -> review
                                                                                     (mapping:1137)
     rule tier           `_rule`         regex_hints then keyword_hints, priority-ordered, on BOTH
                                         the raw-lowercased and the normalised caption (mapping:1193)
 
 THE SEMANTIC TIER IS NOT PORTED, and that is a scope statement rather than an omission. The LLM
 tier consumes the same per-concept payload — `definition`, `include_criteria`,
-`exclude_criteria`, `confusable_with` — which the merged model now carries in full, so it can be
+`exclude_criteria` — which the merged model now carries in full, so it can be
 pointed at this registry without changing what it is shown. What it cannot be is proven equivalent
 the way the deterministic path can, and the deterministic path is what decides a figure when no
 LLM is configured.
@@ -415,41 +414,6 @@ class LineItemMatcher:
         exact = [k for k in keys if k in owners]
         return exact or keys
 
-    def _mutually_confusable(self, a: str, b: str) -> bool:
-        """Both name the other. MUTUAL on purpose.
-
-        `confusable_with` is a directed graph and a one-way edge is usually a warning about a
-        bigger concept ("do not confuse this leaf with that subtotal"). Only a pair that each names
-        the other is the rulebook saying these two are mistaken for one another.
-        """
-        da, db = self.by_key.get(a), self.by_key.get(b)
-        return bool(da and db and b in da.confusable_with and a in db.confusable_with)
-
-    def _forbidden_tie(self, norm: str, statement: str | None, section: str | None,
-                       caption: str) -> list[str]:
-        """Claimants of this alias that may NOT be separated by priority.
-
-        An alias claimed by two line items is normally settled by descending `match_priority` — but
-        a mutually-confusable pair sitting at the SAME priority (current vs non-current borrowings,
-        notes payable, properties under development) would be settled by taking the first declared,
-        which the binding order forbids in as many words. The banner normally separates them and
-        this never fires; when it does not, the honest answer is both, for review.
-        """
-        keys = [k for k in (self._alias_index.get(norm) or [])
-                if self._allowed(k, statement, section, caption)]
-        if len(keys) < 2:
-            return []
-        keys = self._prefer_label_owners(norm, keys)
-        if len(keys) < 2:
-            return []
-        top = max(self._priority_of(k) for k in keys)
-        tied = [k for k in keys if self._priority_of(k) == top]
-        for i, a in enumerate(tied):
-            for b in tied[i + 1:]:
-                if self._mutually_confusable(a, b):
-                    return tied
-        return []
-
     # ── the tiers ────────────────────────────────────────────────────────────────────────────
 
     def _exact(self, norm: str, statement: str | None, section: str | None,
@@ -515,12 +479,12 @@ class LineItemMatcher:
             seg_norm = normalize_label(seg)
             if not seg_norm:
                 continue
-            tied = self._forbidden_tie(seg_norm, statement, section, caption)
-            if tied:
-                return LineItemMatch(
-                    None, MappingMethod.UNMATCHED, 0.0, needs_review=True, tied=tied,
-                    reason="mutually-confusable claimants at equal priority; the binding order "
-                           "forbids separating them by declaration order")
+            # THE FORBIDDEN-TIE STEP IS GONE WITH `confusable_with`. It refused a
+            # mutually-declared pair at equal priority and sent both keys to review. Measured, it
+            # fired on 8 of the set's 238 equal-priority alias collisions — 230 already resolved by
+            # file order — and on those 8 file order was wrong, so each is now settled by an
+            # `exclude_hints` entry on the line the caption is NOT. See the tombstone in
+            # `schemas/line_items.py`.
             hit = self._exact(seg_norm, statement, section, caption)
             if hit:
                 return LineItemMatch(

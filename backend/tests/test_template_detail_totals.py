@@ -535,9 +535,14 @@ def test_the_controls_the_screen_withholds_are_the_ones_the_server_refuses(clien
         r = client.patch(f"{API}/line-items/versions/{cfg_id}/items",
                          json={"key": key, "aliases": ["Anything at all"]})
         assert r.status_code == 404, f"an alias edit on {key} was accepted: {r.text}"
+        # `confusable_with` USED TO BE THE SECOND HALF OF THIS CHECK — an edit naming an unmapped
+        # key as a confusable target was refused, which proved the key-existence validation ran on
+        # a field pointing AT another line and not only on the edited key. The field is gone (its
+        # two pairs became exclusions), and `parent` is the other field that names a line, so it
+        # carries the property now.
         r = client.patch(f"{API}/line-items/versions/{cfg_id}/items",
-                         json={"key": editable, "confusable_with": [key]})
-        assert r.status_code == 422, f"{key} was accepted as a confusable_with target: {r.text}"
+                         json={"key": editable, "parent": key})
+        assert r.status_code == 422, f"{key} was accepted as a parent: {r.text}"
 
 
 def test_an_edit_to_a_configuration_with_no_target_template_is_refused(client, orphaned_config):

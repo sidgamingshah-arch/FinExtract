@@ -403,7 +403,18 @@ class LineItemDef(BaseModel):
     # the LLM's description-based tier matches a caption against (`OntologyMapping.meaning()`
     # prefers it over `description`), so collapsing the two would either put display copy into a
     # matching decision or hide the meaning from the screen.
-    description: str = ""
+    # `description` IS GONE. 85 lines declared it and, read end to end, every one described HOW
+    # a figure is sourced rather than what the line is: "The largest valid of three searches — the
+    # receivable notes, the related-party grouping, and the related-party transactions note",
+    # "Priority 1 is the face caption the spec accepts; Priority 2 is the revenue note's own total".
+    # That is an instruction to whoever is looking for the figure, and it was reaching nobody: the
+    # request payload used it only as a FALLBACK for a missing `definition` (`elif`), and all 85
+    # lines have one, so the branch never fired.
+    #
+    # So the 85 went to the field that reads them, split by what each type can carry: 77 extracted
+    # lines to `prompt` (the line's own extra instruction to the model — all 77 already had one)
+    # and 8 derived lines to `definition`, because `_coherent` refuses a prompt on a line the model
+    # is never asked about and there was nothing to append to.
     definition: str = ""
     # EXTRA INSTRUCTION FOR THIS LINE, sent to the model beside this concept's definition when it
     # is offered as a candidate (`mapping._concept_payload`).
@@ -457,7 +468,21 @@ class LineItemDef(BaseModel):
     never_sweep: list[str] = Field(default_factory=list)
     # Canonical keys this one is easy to confuse with. Routes an unresolvable pair to review
     # instead of letting the engine pick one at confidence 1.0.
-    confusable_with: list[str] = Field(default_factory=list)
+    # `confusable_with` IS GONE, and its two pairs are now exclusions.
+    #
+    # It named a pair that each claims the other's captions, and `line_item_matching._forbidden_tie`
+    # refused such a pair at equal priority — returning both keys for review rather than taking the
+    # first declared, which the binding order forbids in as many words.
+    #
+    # MEASURED, IT COVERED 8 OF 238. The set has 238 alias collisions whose top priority is shared,
+    # so 230 identical situations already resolved by file order and the declaration was insuring
+    # 3% of them. And on those 8 file order gets it WRONG: 土地使用权, 租赁土地, 预付土地出让金 and
+    # 预付土地租赁款项 are the Chinese for land use rights, and Buildings is declared first.
+    #
+    # So each caption is decided in `exclude_hints`, where an exclusion outranks the line's own
+    # alias: 28 vetoes for the other line's distinctive captions and 8 settling the shared ones.
+    # A pair's disagreement is now readable on the line rather than deferred to a reviewer, and the
+    # four captions that would have published as Buildings resolve to Land use rights.
 
     # ── containment: a gross parent and the children it already contains ────────────────────
     # THE LAST DISCRIMINATOR, and leaving it out was measurable. Projecting all 462 concepts
@@ -870,7 +895,7 @@ class LineItemDef(BaseModel):
 
     def meaning(self) -> str:
         """Best available semantic text for description-based matching."""
-        return self.definition or self.description or self.label or self.key
+        return self.definition or self.label or self.key
 
 
 class LineItemSetMetadata(BaseModel):

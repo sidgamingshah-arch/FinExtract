@@ -803,17 +803,23 @@ def test_a_real_extraction_reaches_the_buckets_endpoint_with_its_rows_in_the_rig
     #   section answers current_assets and the row is placed rather than spanning. Whether that
     #   declaration is right is a question about the shipped configuration, editable on the Line
     #   Items screen — which is the point of there being one configuration engine.
-    # * "Trade receivables" resolves to no section, so it is in Others and counted unresolved. A
-    #   COVERAGE LOSS, stated as a number below rather than hidden: the caption reaches
-    #   ``engine_unclassified_face__balance_sheet__unresolved_section__trade_receivables``, which
-    #   keeps the row stored and reviewable but places it nowhere. It is fixable by adding the alias
-    #   to ``bs_ca__trade_receivables`` in configuration, and a blank a user can fix beats a filled
-    #   cell from a path that is gone.
+    # * "Trade receivables" IS NOW PLACED, and this test said what would fix it: "if this becomes 0
+    #   the configuration gained the alias and this test should say so". It did, by a different
+    #   route than the comment expected. The caption was declared by BOTH
+    #   ``bs_ca__trade_and_other_receivables`` and ``bs_ca__trade_receivables_gross`` at equal
+    #   priority, and the two named each other in `confusable_with` — so `_forbidden_tie` refused to
+    #   choose, the row resolved to no line, and it was swept into Others and counted unresolved.
+    #
+    #   `confusable_with` is gone and the pair's disagreement is now stated as configuration: the
+    #   caption came off the alias list of the combined line (贸易及其他应收款 is trade AND other;
+    #   应收账款 is trade) and the trade-only line keeps it. So the row lands in current assets on a
+    #   dedicated line, which is what the filing prints.
     assert "Total assets" in labels("current_assets")
-    assert "Trade receivables" in labels("others")
-    assert index["unresolved_face_rows"] == 1, (
-        "one of the fixture's four captions resolves to no section; if this becomes 0 the "
-        "configuration gained the alias and this test should say so")
+    assert "Trade receivables" in labels("current_assets")
+    assert "Trade receivables" not in labels("others")
+    assert index["unresolved_face_rows"] == 0, (
+        "every caption in the fixture now resolves to a section; a regression here means a "
+        "contested caption went back to being refused rather than decided")
 
 
 def test_an_extraction_that_pins_no_rulebook_still_uses_the_one_in_force(client):
@@ -844,13 +850,15 @@ def test_an_extraction_that_pins_no_rulebook_still_uses_the_one_in_force(client)
 
     index = client.get(f"/api/v1/documents/{doc_id}/buckets").json()
     counts = {b["bucket"]: b["face_rows"] for b in index["buckets"]}
-    assert counts["current_assets"] == 2 and counts["non_current_assets"] == 1
-    # One of the fixture's four captions resolves to no section under the shipped configuration and
-    # is placed in Others; see the test above for what that costs and how it is fixed. The subject
-    # here is that the DEFAULT resolved a configuration at all — three placed rows instead of the
-    # zero a run with nothing in force produced.
-    assert index["unresolved_face_rows"] == 1
-    assert counts["others"] == 1
+    assert counts["current_assets"] == 3 and counts["non_current_assets"] == 1
+    # ALL FOUR CAPTIONS ARE NOW PLACED. It was three, because "Trade receivables" was claimed by two
+    # lines at equal priority that named each other in `confusable_with` — so the matcher refused to
+    # choose and the row was swept into Others. That pair is now expressed as configuration (the
+    # caption came off the combined line's alias list; the trade-only line keeps it), so the row
+    # lands in current assets. The subject here is still that the DEFAULT resolved a configuration
+    # at all — four placed rows instead of the zero a run with nothing in force produced.
+    assert index["unresolved_face_rows"] == 0
+    assert counts["others"] == 0
 
 
 def test_the_worker_reads_the_options_the_run_stores(client):

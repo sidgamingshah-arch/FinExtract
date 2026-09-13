@@ -159,6 +159,21 @@ _FACE_RECOGNITION_MOVED = frozenset({
 })
 _FACE_RECOGNITION_FIELDS = {"keyword_hints", "regex_hints", "match_priority"}
 
+# THE FOUR LINES WHERE `confusable_with` BECAME EXCLUSIONS, which the rulebook does not know about.
+#
+# That field named two mutual pairs and `_forbidden_tie` refused each pair at equal priority —
+# both keys to review, nothing published. It fired on 8 of the set's 238 equal-priority alias
+# collisions, and on those 8 file order was wrong: 土地使用权 is the Chinese for land use rights and
+# Buildings is declared first. So the disagreement is now stated as configuration — 36 exclusions
+# for the other line's distinctive captions, and 9 aliases removed from the line they did not belong
+# to — which is the seed LEADING the rulebook, named rather than folded into `_SEED_LAG`.
+#
+# A FIFTH line gaining an exclusion the rulebook does not have still fails this test.
+_CONFUSABLE_CONVERTED = frozenset({
+    "bs_nca__buildings", "bs_nca__land_use_rights",
+    "bs_ca__trade_and_other_receivables", "bs_ca__trade_receivables_gross",
+})
+
 # THE SEED LEADS THE RULEBOOK ON TWO FIELDS BECAUSE THE CONFIG SCREEN WORK CHANGED THEM.
 #
 # `exclude` — the rulebook's spelling of `exclude_criteria` — is declared on 462 concepts there and
@@ -361,6 +376,9 @@ def test_shipped_set_diverges_only_in_the_known_classes():
         # now carries them. Both halves are bounded: the field must be one of the three that moved,
         # and the concepts must be those two.
         if field in _FACE_RECOGNITION_FIELDS and set(keys) <= _FACE_RECOGNITION_MOVED:
+            continue
+        # …and `exclude_hints` on the four lines whose `confusable_with` pair became exclusions.
+        if field == "exclude_hints" and set(keys) <= _CONFUSABLE_CONVERTED:
             continue
         # …and the two fields the config-screen work changed, bounded by COUNT so a wider
         # divergence still fails. See `_EXCLUDE_BLANKED` / `_DEFINITION_FOLDED` above.

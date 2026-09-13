@@ -201,10 +201,11 @@ def line_item_payload(item, notes_for_item: tuple[str, ...]) -> dict:
         "label": item.label or item.key,
         "notes_supplied": list(notes_for_item),
     }
+    # ONE PROSE FIELD, not two with a fallback. This used to read `description` when `definition`
+    # was empty — a branch that never fired, because all 539 lines declare a definition. The 85
+    # `description` values went to `prompt` (77) and `definition` (8) when the field was removed.
     if getattr(item, "definition", ""):
         entry["definition"] = item.definition
-    elif getattr(item, "description", ""):
-        entry["definition"] = item.description
     # NO `include` ANY MORE — the field is gone from the schema; see its tombstone there. `exclude`
     # remains, and is omitted entirely when empty rather than sent as an empty list: a key whose
     # value says nothing still costs the model a line to read and invites it to infer that the
