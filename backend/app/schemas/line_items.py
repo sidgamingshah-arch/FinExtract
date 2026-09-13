@@ -1737,6 +1737,33 @@ class OthersMaster(BaseModel):
     keys: list[str] = Field(default_factory=list)
 
 
+class CrossCheckMaster(BaseModel):
+    """WHICH PRINTED SUBTOTALS ARE READ AND COMPARED, and how tightly.
+
+    THE COMPARISON ALREADY EXISTED; the declaration did not. `api/routes/documents.py` reads the
+    printed subtotal off the filing, compares it against the figure this line's components come to,
+    and raises a `calculated_mismatch` card carrying both figures, the difference and every
+    component. What it had no way to know was which of the configuration's figures that matters for,
+    and the tolerance was a module constant in a routes file — so tightening it was a code change.
+
+    A DISAGREEMENT IS A FINDING, NOT A CORRECTION. The published figure stays the computed one and
+    the printed one goes beside it in review, because a difference means a component is mis-mapped,
+    missing or double-counted — and that is what an analyst has to look at, not a number to swap in.
+
+    A LINE LEFT OUT IS STILL COMPUTED AND PUBLISHED. What it loses is the comparison, which is the
+    right shape for the handful of subtotals a filing genuinely does not print.
+    """
+
+    note: str = ""
+    # The calculated line-item keys. Validated against the set's own items, for the reason
+    # `others_master` is: a key naming nothing is a comparison that silently stopped happening.
+    keys: list[str] = Field(default_factory=list)
+    # The currency amount below which a difference is float noise from the sum rather than a
+    # disagreement. A computed subtotal and the printed one are read from the same page in the same
+    # units, so anything real is a whole unit or more.
+    tolerance: float = 0.5
+
+
 class LineItemSet(BaseModel):
     """A whole set of definitions, with the things that are true of the set rather than an item.
 
@@ -1844,6 +1871,10 @@ class LineItemSet(BaseModel):
     # see `OthersMaster`. Declared here rather than inferred from the key names, because a
     # convention would miss `bs_equity__other_reserves` and claim anything else called "other".
     others_master: OthersMaster = Field(default_factory=OthersMaster)
+    # WHICH OF THIS SET'S OWN ARITHMETIC IS CHECKED AGAINST THE FILING — see `CrossCheckMaster`.
+    # It matters more now that `terms` lives here: the config declares 31 of the 33 formulas, and
+    # this is the list saying which of those the printed page gets a vote on.
+    cross_check_master: CrossCheckMaster = Field(default_factory=CrossCheckMaster)
     items: list[LineItemDef] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -1866,14 +1897,16 @@ class LineItemSet(BaseModel):
         two answers to one question. `residual_policy` is filled only where absent, so a bucket
         needing `cross_section` or `notes_as_source` can still state its own.
         """
-        marked = set(self.others_master.keys)
-        if marked:
-            known = {d.key for d in self.items}
-            unknown = sorted(marked - known)
+        known = {d.key for d in self.items}
+        for name, keys in (("others_master", self.others_master.keys),
+                           ("cross_check_master", self.cross_check_master.keys)):
+            unknown = sorted(set(keys) - known)
             if unknown:
                 raise ValueError(
-                    f"others_master names {len(unknown)} line item(s) this set does not have: "
+                    f"{name} names {len(unknown)} line item(s) this set does not have: "
                     + ", ".join(unknown[:10]))
+        marked = set(self.others_master.keys)
+        if marked:
             for item in self.items:
                 if item.key not in marked:
                     continue

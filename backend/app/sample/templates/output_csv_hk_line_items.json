@@ -40965,5 +40965,44 @@
    "cf_investing__other_invest_cash_flows",
    "cf_financing__other_financing_cash_flows"
   ]
+ },
+ "cross_check_master": {
+  "note": "The calculated lines whose PRINTED subtotal is read off the filing and compared against the figure the components come to. A disagreement is a finding, not a correction: the published figure stays the computed one and the review queue carries the printed one beside it, because a component is then mis-mapped, missing or double-counted and that is what an analyst has to look at. A line left out of this list is still computed and published; it simply is not compared.",
+  "keys": [
+   "bs_nca__gross_fixed_assets",
+   "bs_nca__net_fixed_assets",
+   "bs_nca__net_intangibles",
+   "bs_nca__total_non_current_assets",
+   "bs_ca__inventories",
+   "bs_ca__net_trade_receivables",
+   "bs_ca__total_current_assets",
+   "bs_ca__total_assets",
+   "bs_equity__permanent_equity",
+   "bs_equity__retained_profits",
+   "bs_equity__total_equity_and_reserves",
+   "bs_ncl__total_non_current_liabilities",
+   "bs_cl__total_current_liabilities",
+   "bs_cl__total_liabilities",
+   "bs_cl__total_equity_and_liabilities",
+   "is_pl__total_cost_of_sales",
+   "is_pl__gross_profit",
+   "is_pl__net_operating_profit",
+   "is_pl__net_interest_income_expense",
+   "is_pl__net_other_financial_inc_exp",
+   "is_pl__other_income_expense",
+   "is_pl__profit_loss_before_tax",
+   "is_pl__total_income_tax",
+   "is_pl__profit_loss_bef_extraord_items",
+   "is_pl__profit_for_the_year",
+   "is_oci__total_other_comprehensive_income",
+   "cf_oper_indirect__cash_flows_oper_activ_indirect",
+   "cf_oper_direct__cash_flows_oper_activ_direct",
+   "cf_investing__cash_flows_from_invest_activities",
+   "cf_financing__cash_flows_from_finance_activities",
+   "cf_financing__end_of_period_cash_and_cash_equiv",
+   "cf_financing__unexplained_adjustment_to_cash",
+   "bs_equity__equity_and_reserves"
+  ],
+  "tolerance": 0.5
  }
 }

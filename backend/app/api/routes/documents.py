@@ -1808,7 +1808,8 @@ def _structural_checks(structural: list[dict], locale: str, covered: set[_Assert
 def _accounting_checks(rows: list[dict], reconciliation: list[dict], locale: str,
                        structural: list[dict] | None = None,
                        template_def: dict | None = None,
-                       stats: dict | None = None) -> list[dict]:
+                       stats: dict | None = None,
+                       cross_check: "_CrossCheck | None" = None) -> list[dict]:
     """Failed accounting validations for the review queue (Req 11): the balance-sheet
     identity, note→face ties, the template's structural relations, and — since the face now
     carries the COMPUTED figure for every calculated line — what the document printed instead.
@@ -1936,12 +1937,14 @@ def _accounting_checks(rows: list[dict], reconciliation: list[dict], locale: str
     # mismatch are the same arithmetic over the same components, so their assertions coincide and the
     # second card would restate the first.
     checks += _calculated_checks(rows, template_def, locale,
-                                 asserted=_reported_assertions(checks))
+                                 asserted=_reported_assertions(checks),
+                                 cross_check=cross_check)
     return checks
 
 
 def _calculated_checks(rows: list[dict], template_def: dict | None, locale: str,
-                       asserted: set[_Assertion]) -> list[dict]:
+                       asserted: set[_Assertion],
+                       cross_check: "_CrossCheck | None" = None) -> list[dict]:
     """ONE review item for the template's CALCULATED lines: the document printed a subtotal that its
     own components do not come to.
 
@@ -1996,8 +1999,13 @@ def _calculated_checks(rows: list[dict], template_def: dict | None, locale: str,
         # Only report on a basis the document actually presented.
         if not any(_basis_values(r, basis) for r in rows):
             continue
+        check = cross_check or _CrossCheck()
         for key, c in calc.items():
             if c.cycle:
+                continue
+            # THE MASTER DECIDES WHETHER THIS LINE'S PRINTED SUBTOTAL GETS A VOTE. A line left out
+            # is still computed and published; what it loses is the comparison card.
+            if not check.compares(key):
                 continue
             reported = _concept_value(groups.get(key, []), basis, period)
             label = names.get(key, key)
@@ -2018,7 +2026,7 @@ def _calculated_checks(rows: list[dict], template_def: dict | None, locale: str,
             if reported is None:
                 continue            # computed cleanly and the document never printed it: fine
             diff = c.value - reported
-            if abs(diff) <= _CALC_TOLERANCE:
+            if abs(diff) <= check.tolerance:
                 continue            # the printed figure and the components agree
             mismatch = {
                 "id": f"chk-calc-{basis}-{key}", "type": "calculated_mismatch", "icon": "≠",
@@ -2359,7 +2367,8 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
                   template_def: dict | None = None,
                   judgements: list[dict] | None = None,
                   run_id: str = "",
-                  coverage_block: dict | None = None) -> dict:
+                  coverage_block: dict | None = None,
+                  cross_check: "_CrossCheck | None" = None) -> dict:
     """Derive the human-in-the-loop review queue from a real extraction — the QA the analyst works
     before export. No demo data involved.
 
@@ -2425,7 +2434,7 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
                    "current template, which may already declare it.")
     stats: dict = {}
     accounting = _accounting_checks(rows, reconciliation or [], locale, structural or [],
-                                    template_def, stats=stats)
+                                    template_def, stats=stats, cross_check=cross_check)
     checks: list[dict] = list(accounting)
     # The extracted lines the accounting findings NAME, each contributed by the builder that knows
     # which lines its card indicts. The header's third tile counts the rows in none of them.
@@ -2949,7 +2958,8 @@ def get_document_commentary(document_id: str, locale: str = Depends(output_local
     doc = session.get(Document, document_id)
     review = _build_review(rows, "", locale, run.result.get("reconciliation", []),
                            run.result.get("structural", []), _template_for_run(session, run),
-                           judgements=_inforce_judgements(session, doc), run_id=run.id)
+                           judgements=_inforce_judgements(session, doc), run_id=run.id,
+                           cross_check=_CrossCheck.of(_line_item_set_for_run(session, run)))
     units = run.result.get("units") or {}
     # OUTSTANDING WORK, NOT QUEUE LENGTH. The commentary's "some reported figures are provisional
     # pending sign-off" caveat, and its refusal to call a filing's data strong, key off this number
@@ -3043,7 +3053,11 @@ def get_document_review(document_id: str, locale: str = Depends(output_locale),
                          run.result.get("reconciliation", []),
                          run.result.get("structural", []), template_def,
                          judgements=_inforce_judgements(session, doc), run_id=run.id,
-                         coverage_block=_coverage_block(run, template_def, locale))
+                         coverage_block=_coverage_block(run, template_def, locale),
+                         # WHICH PRINTED SUBTOTALS THIS RUN'S CONFIGURATION ASKS TO BE COMPARED,
+                         # and how tightly. Read off the set the run actually used, so a
+                         # re-published configuration changes the comparison and not the code.
+                         cross_check=_CrossCheck.of(_line_item_set_for_run(session, run)))
 
 
 class JudgementBody(BaseModel):
@@ -4482,7 +4496,39 @@ def _equity_closing(rows: list[dict], basis: str) -> tuple[str, float, str] | No
 
 # A computed subtotal and the printed one are read from the same page in the same units, so any
 # real difference is a whole currency unit or more. Below that it is float noise from the sum.
+#
+# THE FALLBACK, not the rule. `cross_check_master` on the configuration in force decides which
+# printed subtotals are compared and how tightly; this is what applies when a caller has no
+# configuration to read — a review built from a run that named none, and the tests that call these
+# builders directly. Keeping the old value here is what makes the master a DECLARATION of current
+# behaviour rather than a change to it.
 _CALC_TOLERANCE = 0.5
+
+
+class _CrossCheck:
+    """Which printed subtotals are compared, and how tightly — resolved once per request.
+
+    `keys` EMPTY MEANS EVERY CALCULATED LINE, which is the behaviour before the master existed and
+    what a caller with no configuration still gets. A master that marks nothing would otherwise
+    silently switch every comparison off, and "nobody declared this yet" must not read as "do not
+    check anything".
+    """
+
+    __slots__ = ("keys", "tolerance")
+
+    def __init__(self, keys=(), tolerance: float = _CALC_TOLERANCE) -> None:
+        self.keys = frozenset(keys or ())
+        self.tolerance = float(tolerance or _CALC_TOLERANCE)
+
+    def compares(self, key: str) -> bool:
+        return not self.keys or key in self.keys
+
+    @classmethod
+    def of(cls, line_item_set) -> "_CrossCheck":
+        master = getattr(line_item_set, "cross_check_master", None)
+        if master is None:
+            return cls()
+        return cls(master.keys, master.tolerance)
 
 
 def _component_value(calc: dict, owner_key: str, index: int):
@@ -4524,9 +4570,10 @@ _CALC_NOTES = {
 }
 
 
-def _calculated_note(origin: str, diff: float | None, n_components: int, locale: str) -> str:
+def _calculated_note(origin: str, diff: float | None, n_components: int, locale: str,
+                     tolerance: float = _CALC_TOLERANCE) -> str:
     note = _t(_CALC_NOTES[origin], locale).replace("{n}", str(n_components))
-    if diff is not None and abs(diff) > _CALC_TOLERANCE:
+    if diff is not None and abs(diff) > tolerance:
         note = f"{note} {_t('The printed figure differs by', locale)} {diff:,.0f}."
     return note
 
@@ -4734,11 +4781,13 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
                      filename: str, basis: str = "consolidated", locale: str = "en",
                      units_ctx: dict | None = None, company: str | None = None,
                      doc_format: str = "", page_count: int = 0,
-                     netting_rules: list | None = None) -> dict:
+                     netting_rules: list | None = None,
+                     cross_check: "_CrossCheck | None" = None) -> dict:
     """Group the real extracted rows into one statement (by the template's sections), so the
     Workspace grid renders real data with its provenance-backed values. Only rows that
     carry a value for the requested `basis` (consolidated / standalone) are shown. Labels are
     resolved in the output `locale` from the template's label_i18n (input=output parity)."""
+    _check = cross_check or _CrossCheck()
     prefix = _stmt_prefix(template_def, statement_type)
     # WHICH BASIS THIS VIEW CAN ACTUALLY SHOW. Asking for a basis the document never labelled used
     # to return nothing, so a filing extracted as company-only rendered an empty Consolidated tab —
@@ -4931,9 +4980,10 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
                 "src": "", "formula": row.get("arithmetic") or row.get("formula") or "",
                 "result": "" if row["v1"] is None else f"{row['v1']:,.0f}",
                 "note": _calculated_note(row["origin"], diff,
-                                         len(source.components) if source else 0, locale),
+                                         len(source.components) if source else 0, locale,
+                                         _check.tolerance),
             }
-        if diff is not None and abs(diff) > _CALC_TOLERANCE:
+        if diff is not None and abs(diff) > _check.tolerance and _check.compares(row.get("k") or ""):
             # A divergence is the finding; the review queue carries it with the arithmetic.
             row["status"] = "recon"
         row["confidence"] = row.get("confidence")
@@ -5304,7 +5354,9 @@ def get_document_statement(
                               page_count=run.result.get("page_count") or doc.page_count or 0,
                               # Apply only the netting the LLM confirmed for this document (cached at
                               # extraction); the configured netting policies are candidates, not results.
-                              netting_rules=run.result.get("netting") or [])
+                              netting_rules=run.result.get("netting") or [],
+                              cross_check=_CrossCheck.of(
+                                  _line_item_set_for_run(session, run)))
     # Which template version this spread's SHAPE came from, and whether a newer one exists. Added
     # here rather than inside `_build_statement`, which is a pure function of a definition and has no
     # session to ask the question with — and the question is about the row in the table, not about
