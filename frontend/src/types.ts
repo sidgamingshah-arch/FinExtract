@@ -1570,10 +1570,19 @@ export interface NoteSource {
    *  simply stops excluding — which is why the edit path compiles each one and attributes the
    *  compile error to this list and to the offending index. */
   row_caption_none: string[];
-  /** Regexes over a note's SENTENCES, for a figure stated in prose and tabulated nowhere.
-   *  Optional on the wire: a set written before the field existed carries no value for it, and an
-   *  empty list means no prose route rather than a default one. */
+  /** THE RAW ESCAPE HATCH for the prose route — regexes over a note's SENTENCES. Authored in
+   *  plain words through the two fields below now; this stays for a sentence shape the grammar
+   *  cannot express. Measured over the 28 patterns it replaced, none needed it. */
   prose_any?: string[];
+  /** WHICH SHARED SUBJECT VOCABULARY this line's sentences are about — a name into
+   *  `LineItemSetInfo.prose_grammar.subjects`, e.g. "depreciation". */
+  prose_subject?: string;
+  /** WHERE THE SENTENCE SAYS THE FIGURE LANDED, in plain phrases: "other operating expenses",
+   *  "cost of sales", 其他经营开支. The only per-line part of a prose rule — measured, all 28
+   *  patterns this replaced decomposed into subject + connective + destination, and across the
+   *  seven prose lines only this part differed. Traditional spellings are generated from the
+   *  Simplified ones, so each phrase is written once. */
+  prose_landed_in?: string[];
   /** THE SCORED HALF, at the same two levels as the patterns above: `note_terms` are scored
    *  against note HEADINGS (which note), `row_terms` against ROW CAPTIONS (which of its rows).
    *  Terms, not patterns — an unanticipated phrasing still ranks instead of not firing. */
@@ -1722,6 +1731,24 @@ export interface LineItemDef {
    *  and silently detaches the item from its section. A field absent from this list and non-empty
    *  above was INHERITED, and the control says so. */
   declared_fields: string[];
+  /** WHAT THIS LINE'S PLAIN PHRASES COMPILE TO — the sentence patterns generated from
+   *  `note_source.prose_subject` and `prose_landed_in`, server-side.
+   *
+   *  DERIVED AND READ-ONLY. It is served so the screen is not asking anyone to trust it: the prose
+   *  route is authored in words now and the patterns are generated, so without this there is
+   *  nowhere to check what a phrase list actually became. Never sent back — it arrives at ITEM
+   *  level rather than inside `note_source` precisely because `note_source` is posted wholesale on
+   *  every save, and a generated field inside it would round-trip into storage and reappear as
+   *  though someone had authored it. */
+  prose_compiled?: string[];
+  /** WHERE THE BOUND TEMPLATE PLACES THIS LINE, when it places it at all.
+   *
+   *  Derived and read-only, served so the placing control can say the template settled the
+   *  statement and the section rather than asking an author to answer them again. Measured on the
+   *  configuration in force: the template places 462 of 534 lines and the configuration agrees
+   *  with it 462/462 on both fields. ABSENT for the other 72 — all `namespace: internal`
+   *  sub-line items, the note-read parts, which genuinely do author their own placing. */
+  template_placing?: { statement: string; section: string };
 }
 
 /** AN INLINE EDIT TO ONE LINE ITEM — the body of `PATCH /line-items/versions/{id}/items`, mirroring
@@ -1946,10 +1973,20 @@ export interface LineItemVocab {
    *  belong to, where inside it they sit, and the banner wording a filing prints. Derived on the
    *  server from `section_defaults` plus the set's own banner vocabulary — see `_sections`. */
   sections: LineItemSection[];
-  /** Scope ids and banner tokens this set already uses — SUGGESTIONS, not a closed set:
-   *  `section_scope` is a free list, and a filing printing an undeclared banner is exactly the
-   *  case an author is here to handle. */
+  /** THE SCOPE IDS this set uses — SUGGESTIONS, not a closed set: `section_scope` is a free list,
+   *  and a filing printing an undeclared banner is exactly the case an author is here to handle.
+   *
+   *  THE RAW BANNER TOKENS ARE NO LONGER OFFERED. They were, alongside these, and measured on the
+   *  configuration in force that doubled the list for nothing: all 20 scope ids are used by a
+   *  line, and 17 of the 18 banner tokens by none. The two are not alternatives — they are the
+   *  same eighteen sections in two spellings, and the token loses the section identity that
+   *  `inherits`, the analyst bucket and `section_defaults` are all keyed on. */
   section_scope_tokens: string[];
+  /** Which of those constrain NOTHING. `token_of_scope` returns null for a scope id naming no
+   *  banner, and an empty resolved scope means unconstrained in the matcher — so choosing one is a
+   *  deliberate "any banner". Seven of the twenty, relied on by 72 lines: the statement totals no
+   *  banner may constrain, and the five compact sections a filing prints no banner for. */
+  section_scope_unconstrained?: string[];
   /** Free strings on the model, so these are datalists too. */
   residual_frameworks: string[];
   residual_populations: string[];
@@ -2031,6 +2068,19 @@ export interface LineItemSetInfo {
     note_use_rationale: string; sign_convention: string; match_priority: number;
     face_only: boolean; analyst_bucket: string;
   }>>;
+  /** HOW A SENTENCE PLACES A FIGURE — the shared half of every prose rule, authored once for the
+   *  set. A prose rule is subject + connective + destination, and measured across the seven lines
+   *  that have one, the first two were identical on every line; so they live here and a line says
+   *  only where the figure landed.
+   *
+   *  The screen needs `subjects` to offer the vocabulary names on a line, and `connective` to say
+   *  what the shared half already covers — without which "just say where it landed" reads as a
+   *  control that lost half its question. */
+  prose_grammar?: {
+    note?: string;
+    connective: string[];
+    subjects: Record<string, string[]>;
+  };
 }
 export interface LineItemsResponse {
   /** WHICH STORED VERSION answered — the row a run would map against, served with every read.

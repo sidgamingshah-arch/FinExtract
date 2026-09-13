@@ -239,6 +239,16 @@
  "vocabulary": {
   "section_banners": [
    {
+    "token": "notes",
+    "headings": [
+     "notes to the consolidated financial statements",
+     "notes to the financial statements",
+     "notes to financial statements",
+     "财务报表附注"
+    ],
+    "heading_row": false
+   },
+   {
     "token": "non_current_liabilities",
     "headings": [
      "non current liabilities",
@@ -17345,11 +17355,18 @@
      "账面原值",
      "账面价值"
     ],
-    "prose_any": [
-     "(?:depreciation|amortisation|amortization)[^.。]{0,200}?(?:included\\s+in|charged\\s+to|recognised\\s+in|recognized\\s+in|borne\\s+by|allocated\\s+to|presented\\s+in|reported\\s+(?:in|within))[^.。]{0,80}?(?:research\\s+and\\s+development\\s+(?:expenses?|costs?)|r\\s*&\\s*d\\s+(?:expenses?|costs?))",
-     "(?:research\\s+and\\s+development\\s+(?:expenses?|costs?)|r\\s*&\\s*d\\s+(?:expenses?|costs?))[^.。]{0,120}?(?:depreciation|amortisation|amortization)",
-     "(?:折旧|折舊|摊销|攤銷)[^。]{0,80}?(?:计入|計入|列入|包括(?:于|於|在)|计提(?:于|於)|归属于|歸屬於|分[摊攤][至于於])[^。]{0,40}?(?:(?:研发|研發|研究(?:及|与|與)开发|研究(?:及|与|與)開發)(?:开支|開支|费用|費用))",
-     "(?:(?:研发|研發|研究(?:及|与|與)开发|研究(?:及|与|與)開發)(?:开支|開支|费用|費用))[^。]{0,40}?(?:折旧|折舊|摊销|攤銷)"
+    "prose_subject": "depreciation",
+    "prose_landed_in": [
+     "research and development expenses",
+     "research and development costs",
+     "r&d expenses",
+     "r&d costs",
+     "研发开支",
+     "研发费用",
+     "研究及开发开支",
+     "研究及开发费用",
+     "研究与开发开支",
+     "研究与开发费用"
     ]
    },
    "statement": null,
@@ -17520,11 +17537,19 @@
      "账面原值",
      "账面价值"
     ],
-    "prose_any": [
-     "(?:depreciation|amortisation|amortization)[^.。]{0,200}?(?:included\\s+in|charged\\s+to|recognised\\s+in|recognized\\s+in|borne\\s+by|allocated\\s+to|presented\\s+in|reported\\s+(?:in|within))[^.。]{0,80}?(?:selling\\s+(?:and\\s+(?:distribution|marketing)\\s+)?expenses?|distribution\\s+costs?|marketing\\s+expenses?)",
-     "(?:selling\\s+(?:and\\s+(?:distribution|marketing)\\s+)?expenses?|distribution\\s+costs?|marketing\\s+expenses?)[^.。]{0,120}?(?:depreciation|amortisation|amortization)",
-     "(?:折旧|折舊|摊销|攤銷)[^。]{0,80}?(?:计入|計入|列入|包括(?:于|於|在)|计提(?:于|於)|归属于|歸屬於|分[摊攤][至于於])[^。]{0,40}?(?:(?:销售|銷售)(?:及(?:分销|分銷|推广|推廣))?(?:开支|開支|费用|費用))",
-     "(?:(?:销售|銷售)(?:及(?:分销|分銷|推广|推廣))?(?:开支|開支|费用|費用))[^。]{0,40}?(?:折旧|折舊|摊销|攤銷)"
+    "prose_subject": "depreciation",
+    "prose_landed_in": [
+     "selling expenses",
+     "selling and distribution expenses",
+     "selling and marketing expenses",
+     "distribution costs",
+     "marketing expenses",
+     "销售开支",
+     "销售费用",
+     "销售及分销开支",
+     "销售及分销费用",
+     "销售及推广开支",
+     "销售及推广费用"
     ]
    },
    "statement": null,
@@ -17691,11 +17716,18 @@
      "账面原值",
      "账面价值"
     ],
-    "prose_any": [
-     "(?:depreciation|amortisation|amortization)[^.。]{0,200}?(?:included\\s+in|charged\\s+to|recognised\\s+in|recognized\\s+in|borne\\s+by|allocated\\s+to|presented\\s+in|reported\\s+(?:in|within))[^.。]{0,80}?(?:(?:general\\s+and\\s+)?administrative\\s+expenses?)",
-     "(?:(?:general\\s+and\\s+)?administrative\\s+expenses?)[^.。]{0,120}?(?:depreciation|amortisation|amortization)",
-     "(?:折旧|折舊|摊销|攤銷)[^。]{0,80}?(?:计入|計入|列入|包括(?:于|於|在)|计提(?:于|於)|归属于|歸屬於|分[摊攤][至于於])[^。]{0,40}?(?:(?:一般及)?(?:行政|管理)(?:开支|開支|费用|費用))",
-     "(?:(?:一般及)?(?:行政|管理)(?:开支|開支|费用|費用))[^。]{0,40}?(?:折旧|折舊|摊销|攤銷)"
+    "prose_subject": "depreciation",
+    "prose_landed_in": [
+     "administrative expenses",
+     "general and administrative expenses",
+     "行政开支",
+     "行政费用",
+     "管理开支",
+     "管理费用",
+     "一般及行政开支",
+     "一般及行政费用",
+     "一般及管理开支",
+     "一般及管理费用"
     ]
    },
    "statement": null,
@@ -17861,11 +17893,18 @@
      "账面原值",
      "账面价值"
     ],
-    "prose_any": [
-     "(?:depreciation|amortisation|amortization)[^.。]{0,200}?(?:included\\s+in|charged\\s+to|recognised\\s+in|recognized\\s+in|borne\\s+by|allocated\\s+to|presented\\s+in|reported\\s+(?:in|within))[^.。]{0,80}?(?:(?:other\\s+)?operating\\s+(?:expenses?|costs?))",
-     "(?:(?:other\\s+)?operating\\s+(?:expenses?|costs?))[^.。]{0,120}?(?:depreciation|amortisation|amortization)",
-     "(?:折旧|折舊|摊销|攤銷)[^。]{0,80}?(?:计入|計入|列入|包括(?:于|於|在)|计提(?:于|於)|归属于|歸屬於|分[摊攤][至于於])[^。]{0,40}?(?:(?:其他)?(?:经营|經營)(?:开支|開支|费用|費用|成本))",
-     "(?:(?:其他)?(?:经营|經營)(?:开支|開支|费用|費用|成本))[^。]{0,40}?(?:折旧|折舊|摊销|攤銷)"
+    "prose_subject": "depreciation",
+    "prose_landed_in": [
+     "operating expenses",
+     "operating costs",
+     "other operating expenses",
+     "other operating costs",
+     "经营开支",
+     "经营费用",
+     "经营成本",
+     "其他经营开支",
+     "其他经营费用",
+     "其他经营成本"
     ]
    },
    "statement": null,
@@ -18993,11 +19032,27 @@
      "账面原值",
      "账面价值"
     ],
-    "prose_any": [
-     "(?:depreciation|amortisation|amortization)[^.。]{0,200}?(?:included\\s+in|charged\\s+to|recognised\\s+in|recognized\\s+in|borne\\s+by|allocated\\s+to|presented\\s+in|reported\\s+(?:in|within))[^.。]{0,80}?(?:(?:other\\s+)?operating\\s+(?:expenses?|costs?)|administrative\\s+expenses?|selling\\s+(?:and\\s+(?:distribution|marketing)\\s+)?expenses?|distribution\\s+costs?)",
-     "(?:(?:other\\s+)?operating\\s+(?:expenses?|costs?)|administrative\\s+expenses?|selling\\s+(?:and\\s+(?:distribution|marketing)\\s+)?expenses?|distribution\\s+costs?)[^.。]{0,120}?(?:depreciation|amortisation|amortization)",
-     "(?:折旧|折舊|摊销|攤銷)[^。]{0,80}?(?:计入|計入|列入|包括(?:于|於|在)|计提(?:于|於)|归属于|歸屬於|分[摊攤][至于於])[^。]{0,40}?(?:(?:其他)?(?:经营|經營)(?:开支|開支|费用|費用)|(?:行政|管理)(?:开支|開支|费用|費用)|(?:销售|銷售)(?:开支|開支|费用|費用))",
-     "(?:(?:其他)?(?:经营|經營)(?:开支|開支|费用|費用)|(?:行政|管理)(?:开支|開支|费用|費用)|(?:销售|銷售)(?:开支|開支|费用|費用))[^。]{0,40}?(?:折旧|折舊|摊销|攤銷)"
+    "prose_subject": "depreciation",
+    "prose_landed_in": [
+     "operating expenses",
+     "operating costs",
+     "other operating expenses",
+     "other operating costs",
+     "administrative expenses",
+     "selling expenses",
+     "selling and distribution expenses",
+     "selling and marketing expenses",
+     "distribution costs",
+     "经营开支",
+     "经营费用",
+     "其他经营开支",
+     "其他经营费用",
+     "行政开支",
+     "行政费用",
+     "管理开支",
+     "管理费用",
+     "销售开支",
+     "销售费用"
     ]
    },
    "statement": null,
@@ -19404,11 +19459,15 @@
      "账面原值",
      "账面价值"
     ],
-    "prose_any": [
-     "(?:depreciation|amortisation|amortization)[^.。]{0,200}?(?:included\\s+in|charged\\s+to|recognised\\s+in|recognized\\s+in|borne\\s+by|allocated\\s+to|presented\\s+in|reported\\s+(?:in|within))[^.。]{0,80}?(?:cost\\s+of\\s+(?:sales|revenue|revenues|goods\\s+sold|services))",
-     "(?:cost\\s+of\\s+(?:sales|revenue|revenues|goods\\s+sold|services))[^.。]{0,120}?(?:depreciation|amortisation|amortization)",
-     "(?:折旧|折舊|摊销|攤銷)[^。]{0,80}?(?:计入|計入|列入|包括(?:于|於|在)|计提(?:于|於)|归属于|歸屬於|分[摊攤][至于於])[^。]{0,40}?(?:(?:销售|銷售|营业|營業|主营业务|主營業務)成本)",
-     "(?:(?:销售|銷售|营业|營業|主营业务|主營業務)成本)[^。]{0,40}?(?:折旧|折舊|摊销|攤銷)"
+    "prose_subject": "depreciation",
+    "prose_landed_in": [
+     "cost of sales",
+     "cost of revenues",
+     "cost of goods sold",
+     "cost of services",
+     "销售成本",
+     "营业成本",
+     "主营业务成本"
     ]
    },
    "statement": null,
@@ -19548,11 +19607,15 @@
      "账面原值",
      "账面价值"
     ],
-    "prose_any": [
-     "(?:depreciation|amortisation|amortization)[^.。]{0,200}?(?:included\\s+in|charged\\s+to|recognised\\s+in|recognized\\s+in|borne\\s+by|allocated\\s+to|presented\\s+in|reported\\s+(?:in|within))[^.。]{0,80}?(?:cost\\s+of\\s+(?:sales|revenue|revenues|goods\\s+sold|services))",
-     "(?:cost\\s+of\\s+(?:sales|revenue|revenues|goods\\s+sold|services))[^.。]{0,120}?(?:depreciation|amortisation|amortization)",
-     "(?:折旧|折舊|摊销|攤銷)[^。]{0,80}?(?:计入|計入|列入|包括(?:于|於|在)|计提(?:于|於)|归属于|歸屬於|分[摊攤][至于於])[^。]{0,40}?(?:(?:销售|銷售|营业|營業|主营业务|主營業務)成本)",
-     "(?:(?:销售|銷售|营业|營業|主营业务|主營業務)成本)[^。]{0,40}?(?:折旧|折舊|摊销|攤銷)"
+    "prose_subject": "depreciation",
+    "prose_landed_in": [
+     "cost of sales",
+     "cost of revenues",
+     "cost of goods sold",
+     "cost of services",
+     "销售成本",
+     "营业成本",
+     "主营业务成本"
     ]
    },
    "statement": null,
@@ -39843,5 +39906,36 @@
    "bs_equity__equity_and_reserves"
   ],
   "tolerance": 0.5
+ },
+ "prose_grammar": {
+  "note": "How a filing places a figure in a sentence. Authored once: measured over the 28 hand-written patterns this replaces, the subject and the connective were identical on all seven prose lines and only the destination differed.",
+  "connective": [
+   "included in",
+   "charged to",
+   "recognised in",
+   "recognized in",
+   "borne by",
+   "allocated to",
+   "presented in",
+   "reported in",
+   "reported within",
+   "计入",
+   "列入",
+   "包括于",
+   "包括在",
+   "计提于",
+   "归属于",
+   "分摊至",
+   "分摊于"
+  ],
+  "subjects": {
+   "depreciation": [
+    "depreciation",
+    "amortisation",
+    "amortization",
+    "折旧",
+    "摊销"
+   ]
+  }
  }
 }

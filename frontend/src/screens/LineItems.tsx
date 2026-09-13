@@ -89,7 +89,8 @@ const NOTE_USE_HELP: Record<string, string> = {
  *  what "I have declared this object and not yet its patterns" actually means. */
 const NEW_NOTE_SOURCE: NoteSource = {
   note_title_any: [], row_caption_any: [], row_caption_none: [],
-  prose_any: [], note_terms: [], row_terms: [], row_terms_none: [],
+  prose_any: [], prose_subject: "", prose_landed_in: [],
+  note_terms: [], row_terms: [], row_terms_none: [],
 };
 
 function Tag({ type }: { type: LineItemType }) {
@@ -228,15 +229,29 @@ const MEANING_SIMPLE = [
  *  Both halves are here because they answer the same two questions in two different ways: the
  *  `*_any`/`*_none` regexes MATCH, the `*_terms` lists SCORE. A line whose phrasing nobody
  *  anticipated is reached by the second and not by the first, which is the whole reason the
- *  semantic half exists. `prose_any` is the third route — a figure the filing states in a sentence
- *  and tabulates nowhere. */
+ *  semantic half exists.
+ *
+ *  THE THIRD ROUTE IS PROSE — a figure the filing states in a sentence and tabulates nowhere — and
+ *  it is the one part of this block that takes no regex at all. It used to: four hand-written
+ *  patterns per line, 28 across the seven lines that have one, averaging 300 characters. Split
+ *  structurally, every one was the same three parts, and across those seven lines two of the three
+ *  were byte identical:
+ *
+ *      what figure            identical on all 7   -> `prose_grammar.subjects`, named per line
+ *      how it is placed       identical on all 7   -> `prose_grammar.connective`, shared outright
+ *      WHERE IT LANDED        the only difference  -> `note_source.prose_landed_in`, in words
+ *
+ *  So the simple form asks the two questions a line actually answers, and `prose_any` stays behind
+ *  the advanced toggle as the escape hatch it has become. */
 const NOTE_SOURCE_SIMPLE = [
   "note_source",
   // THREE PAIRED CONTROLS AND THE PROSE ONE. `note_terms`, `row_terms` and `row_terms_none` were
   // listed here as their own controls and are now `scored by meaning` rows inside the pattern
   // control each belongs with — so the names below are the four controls that exist.
   "note_source.note_title_any", "note_source.row_caption_any", "note_source.row_caption_none",
-  "note_source.prose_any",
+  // THE PROSE ROUTE, IN WORDS. `prose_any` is NOT here: it is the raw escape hatch now and belongs
+  // behind the advanced toggle, where a control nobody should reach for first belongs.
+  "note_source.prose_subject", "note_source.prose_landed_in",
   // WHETHER THE MODEL IS ASKED, AND WITH WHAT. Both are conditional on `extract`, so on a line
   // that never reaches the model they are withheld with a reason rather than shown here.
   "note_selection", "llm_only_if_note_tagged",
@@ -473,8 +488,9 @@ function MasterPrompt({ versionId, served, canEdit }: {
  */
 function withheldReason(name: string, sel: {
   type: string; extractionMode: string; aliasMatching: string; outputStructure: string;
+  faceOnly: boolean;
 }): string | null {
-  const { type, extractionMode, aliasMatching } = sel;
+  const { type, extractionMode, aliasMatching, faceOnly } = sel;
 
   // ── SERVER-ENFORCED ────────────────────────────────────────────────────────────────────────
   // `_coherent`: a prompt is only ever sent for an `extracted` line, and is refused elsewhere.
@@ -504,6 +520,29 @@ function withheldReason(name: string, sel: {
     return "a note source names where in the notes a figure is READ from, and a derived line is "
          + "not read — its figure is its cascade's. Declaring one here would fill the parent "
          + "directly and skip every rung; put it on the part whose rung reads that note";
+  }
+
+  // A LINE PLACED ON THE FACE IS NOT READ FROM A NOTE, so nothing about which note, which of its
+  // rows, or how its sentences read is a question this line has.
+  //
+  // `face_only` IS THE PLACING AND IT IS NOT ITEM-WRITABLE — the section declares it, so this is
+  // the gate's own answer rather than a second opinion the form invented. The global rule is
+  // "notes are evidence for a face amount, never an independent source of one", and
+  // `stages/residual` reads `face_only is False` as half of the permission to source from a note
+  // at all (`m.note_use == "decomposition_allowed" or m.face_only is False`). A note source on a
+  // face-placed line is therefore a contradiction the engine would resolve against it.
+  //
+  // HOW MANY LINES THIS AFFECTS TODAY: two. Measured on the configuration in force, `face_only`
+  // resolves True on 2 of 534 items even though TWELVE of the eighteen sections declare it — 394
+  // items explicitly declare `face_only: false` and override their section. So the "— on the face"
+  // suffix the placing control shows is about the SECTION, and a line inside one of those sections
+  // has almost always declared itself not face-placed. That is worth knowing before reading this
+  // rule as a large change; it is the correct rule and it fires on the data that asks for it.
+  if (faceOnly && (name === "note_source" || name.startsWith("note_source.")
+                   || name === "note_selection" || name === "llm_only_if_note_tagged")) {
+    return "this line is placed on the FACE of the statement, so its figure is read from the "
+         + "printed row and never from a note — notes may corroborate it but cannot be its "
+         + "source. Change the placing above if the figure really lives in a note";
   }
 
   // `_coherent`: both of these are about whether the MODEL is asked, and TWO declarations decide
@@ -617,7 +656,8 @@ const GROUP_FIELDS = {
          "note_use", "note_source"],
   /** Rendered only while the `note_source` switch is on, so counted only then. */
   noteSource: ["note_source.note_title_any", "note_source.row_caption_any",
-               "note_source.row_caption_none", "note_source.prose_any"],
+               "note_source.row_caption_none", "note_source.prose_subject",
+               "note_source.prose_landed_in", "note_source.prose_any"],
   structure: ["parent", "order"],
   // `type` FIRST, because it selects which of the other three applies. It used to sit in
   // `structure`, one group away from the fields it governs and under a question about hierarchy
@@ -636,7 +676,8 @@ const CONDITIONAL_FIELDS = [
   // The switch and every control under it, so rolling the group open shows the reason once rather
   // than seven silent inputs.
   "note_source", "note_source.note_title_any", "note_source.row_caption_any",
-  "note_source.row_caption_none", "note_source.prose_any",
+  "note_source.row_caption_none", "note_source.prose_subject",
+  "note_source.prose_landed_in", "note_source.prose_any",
   "aliases", "exclude_hints",
 ];
 
@@ -647,7 +688,8 @@ const CONDITIONAL_FIELDS = [
  *  always read as empty there.
  */
 function withheldFields(
-  sel: { type: string; extractionMode: string; aliasMatching: string; outputStructure: string },
+  sel: { type: string; extractionMode: string; aliasMatching: string; outputStructure: string;
+         faceOnly: boolean },
   errors: Record<string, string>,
 ): Map<string, string> {
   const out = new Map<string, string>();
@@ -877,6 +919,10 @@ function Detail(p: EditorProps) {
     extractionMode: String(g("extraction_mode", item.extraction_mode) ?? "extract"),
     aliasMatching: String(g("alias_matching", item.alias_matching) ?? "enabled"),
     outputStructure: String(g("output_structure", item.output_structure) ?? "value"),
+    // THE PLACING, as the gate resolves it. Not item-writable, so it is read off the served item
+    // and never off the draft: `face_only` is one of the fields the section declares and an item
+    // may no longer override, which is why there is no `g(...)` here.
+    faceOnly: item.face_only === true,
   };
   /** What this line's own selections withhold. Derived from `sel`, so it follows the author's
    *  choice of type immediately rather than after a save. */
@@ -965,6 +1011,14 @@ function Detail(p: EditorProps) {
   const isFullReport = statedStatement === null && statedScope.length === 0;
   const placing = isFullReport ? FULL_REPORT : (g("inherits", item.inherits) ?? null);
   const placingOptions = [...(vocab?.sections ?? []).map((x) => x.key), FULL_REPORT];
+  // WHETHER THE TEMPLATE ALREADY ANSWERED THIS, and it answered it for 462 of the 534 lines. Shown
+  // rather than enforced: the 72 it does not place are the internal sub-line items — the note-read
+  // parts, the lines an author edits most — so the control has to stay live for them, and a value
+  // the template settled is better explained than taken away. Only surfaced where it AGREES with
+  // what the line says; a disagreement is a real edit somebody made and the help text says so.
+  const fromTemplate = item.template_placing
+    && item.template_placing.section === (g("inherits", item.inherits) ?? null)
+    ? item.template_placing : null;
   /** One choice, three fields — because the three are one decision and writing only `inherits`
    *  would leave a part still carrying the statement it had before. */
   const placingPatch = (v: string | null): Partial<LineItemEdit> => {
@@ -991,6 +1045,22 @@ function Detail(p: EditorProps) {
 
   const setNoteSource = (patchNs: Partial<NoteSource>) =>
     patch({ note_source: { ...(noteSource ?? NEW_NOTE_SOURCE), ...patchNs } });
+
+  // THE SHARED HALF OF A PROSE RULE, off the set. A line answers "what figure" by NAMING one of
+  // these vocabularies and "where did it land" in plain words; the connective list is shown in the
+  // help so that asking only for the destination reads as sufficient rather than as a control that
+  // lost half its question. A server that serves no grammar offers no subject, which is the right
+  // answer: naming a vocabulary the set does not carry is refused at publish.
+  // WHICH BANNER CHOICES CONSTRAIN NOTHING, off the server so the screen is not re-deriving
+  // `token_of_scope`. Used to mark those rows rather than to refuse them: naming a section with no
+  // printed banner is correct for a statement total and for the five sections a filing prints no
+  // heading for, and 72 lines in force do exactly that.
+  const unconstrained = vocab?.section_scope_unconstrained ?? [];
+
+  const proseVocab = p.set.prose_grammar?.subjects ?? {};
+  const proseSubjects = Object.keys(proseVocab);
+  const proseConnectives = p.set.prose_grammar?.connective ?? [];
+  const proseSubject = g("note_source", item.note_source)?.prose_subject || null;
 
   const lockReason = !p.canEdit
     ? "you do not have `config:line_items`"
@@ -1173,7 +1243,17 @@ function Detail(p: EditorProps) {
                   section is not found at all, and correcting this is usually the fix.
                   <br />Pick <b>the whole report</b> for a line that is not printed on any
                   statement — the note-level parts are all authored this way, and it is what puts
-                  them deliberately outside the gate rather than looking like an omission.</>}
+                  them deliberately outside the gate rather than looking like an omission.
+                  {fromTemplate && (
+                    <>
+                      <br /><b>The template already places this line</b> under{" "}
+                      <b>{sectionsByKey[fromTemplate.section]?.label
+                          ?? fromTemplate.section}</b> in{" "}
+                      <b>{fromTemplate.statement.replace(/_/g, " ")}</b>, and the value above
+                      agrees with it. Changing it here makes this line disagree with the template
+                      it is published against — which is occasionally right, and never accidental.
+                    </>
+                  )}</>}
             options={placingOptions}
             value={placing} onChange={(v) => patch(placingPatch(v))}
             error={e} inherited={inh("statement", item.statement)} />
@@ -1336,11 +1416,20 @@ function Detail(p: EditorProps) {
         {fld("section_scope", (e) => (
           <StringListEditor label="Section banners it may sit under" testid="section_scope"
                             editable={editable}
-                            help="EMPTY MEANS UNCONSTRAINED, and an empty list is stored as
-                                  empty. The suggestions are what this set already declares — a
-                                  filing printing an undeclared banner is exactly the case you are
-                                  here to handle, so anything is accepted."
+                            help={`EMPTY MEANS UNCONSTRAINED, and an empty list is stored as
+                                  empty. The suggestions are the ${
+                                    (vocab?.section_scope_tokens ?? []).length} section ids this
+                                  set uses — a filing printing an undeclared banner is exactly the
+                                  case you are here to handle, so anything is accepted.${
+                                    unconstrained.length
+                                      ? ` Marked “any banner” below: ${unconstrained.join(", ")} —
+                                         these name no printed banner, so choosing one constrains
+                                         nothing. That is deliberate for a statement total, which
+                                         sits under whatever section was printed last above it.`
+                                      : ""}`}
                             emptyText="Unconstrained — a configured empty, not a default."
+                            suffixOf={(v) => (unconstrained.includes(v)
+                              ? "any banner — names no printed heading" : undefined)}
                             suggest={vocab?.section_scope_tokens}
                             value={g("section_scope", item.section_scope)}
                             onChange={(v) => patch({ section_scope: v })}
@@ -1507,20 +1596,77 @@ function Detail(p: EditorProps) {
                                  "note_source.row_terms_none":
                                    idx("note_source.row_terms_none") }} />
             ))}
-            {fld("note_source.prose_any", (e) => (
-              <StringListEditor label="Sentences that state the figure in words"
-                                testid="note_source-prose_any" editable={editable} variant="mono"
-                                help="Regexes over a note's SENTENCES, for a figure the filing
-                                      states in prose and tabulates nowhere — “Depreciation
-                                      charges of approximately HK$529,841,000 … are included in
-                                      other operating expenses”. Authored for sentence length, not
-                                      caption length: in that footnote the gap between the two
-                                      subjects is 87 characters, so a caption pattern's `.{0,40}`
-                                      does not reach. EMPTY MEANS NO PROSE ROUTE — a line with
-                                      nothing here yields no prose figure rather than a guess, and
-                                      prose is only ever consulted where the row route found
-                                      nothing."
+            {/* ── THE PROSE ROUTE, IN WORDS ────────────────────────────────────────────────
+                A figure the filing states in a sentence and tabulates nowhere — "Depreciation
+                charges of approximately HK$529,841,000 (2024: HK$665,553,000) are included in
+                'other operating expenses'" — where that amount appears in NO extracted row
+                anywhere in the document. No row pattern reaches it.
+
+                THIS WAS FOUR REGEXES PER LINE. A prose rule is three parts — what figure, how the
+                sentence places it, where it landed — and measured across the seven lines that have
+                one, the first two were byte identical on every line while only the third differed.
+                So the shared halves moved to the set (`prose_grammar`) and the bounds became engine
+                constants, leaving the two questions below. 222 destination spellings across those
+                lines became 74 plain phrases, and the 28 regexes became none. */}
+            {fld("note_source.prose_subject", (e) => (
+              <SelectField label="What figure the sentences state"
+                           testid="note_source-prose_subject" editable={editable} nullable
+                           nullLabel="no prose route for this line"
+                           options={proseSubjects} value={proseSubject}
+                           onChange={(v) => setNoteSource({ prose_subject: v ?? "" })}
+                           labelOf={(v) => `${v} — ${(proseVocab[v] ?? []).slice(0, 4).join(", ")}`}
+                           help={`Names a shared vocabulary, so the words are written once for the
+                                  whole set rather than per line. "depreciation" covers
+                                  depreciation, amortisation, amortization and 折旧 — and leaving it
+                                  unchosen is what turns the prose route off.`}
+                           error={e} />
+            ))}
+            {fld("note_source.prose_landed_in", (e) => (
+              <StringListEditor label="Where the sentence says it landed"
+                                testid="note_source-prose_landed_in" editable={editable}
+                                help={`Plain phrases, one per expense line the filing might name —
+                                       “other operating expenses”, “cost of sales”, 其他经营开支. No
+                                       regex: spacing, hyphens, ampersands and the plural are
+                                       forgiven, and every Traditional spelling is generated from
+                                       the Simplified one, so 经营开支 also reaches 經營開支.
+                                       ${proseConnectives.length
+                                         ? `The set already covers how a sentence places a figure —
+                                            ${proseConnectives.slice(0, 5).join(", ")} and
+                                            ${proseConnectives.length - 5} more — so this is the
+                                            only part left to say.`
+                                         : ""}
+                                       EMPTY MEANS NO PROSE ROUTE: the line yields no prose figure
+                                       rather than a guess, and prose is only ever consulted where
+                                       the row route found nothing.`}
                                 emptyText="No prose route for this line."
+                                value={noteSource.prose_landed_in ?? []}
+                                onChange={(v) => setNoteSource({ prose_landed_in: v })}
+                                error={e} indexErrors={idx("note_source.prose_landed_in")} />
+            ))}
+            {/* WHAT THOSE WORDS BECAME, so the screen is not asking anyone to trust it. Generated
+                server-side and read-only — shown only when there is something to show, and only in
+                advanced, because an author who is happy with the phrases never needs it. */}
+            {mode === "advanced" && (item.prose_compiled ?? []).length > 0 && (
+              <LockedRow label="Compiled to" testid="note_source-prose_compiled"
+                         value={(item.prose_compiled ?? []).map((p, at) => (
+                           <div key={at} style={{ marginBottom: 3, wordBreak: "break-all" }}>{p}</div>
+                         ))}
+                         reason={`Generated from the two answers above — ${
+                           (item.prose_compiled ?? []).length} patterns: the filing's own word order
+                           and the reverse, in each script the phrases use. Not authored and not
+                           saved; it is here so a phrase list can be checked rather than trusted.`} />
+            )}
+            {fld("note_source.prose_any", (e) => (
+              <StringListEditor label="Sentence patterns, written by hand"
+                                testid="note_source-prose_any" editable={editable} variant="mono"
+                                help={`THE ESCAPE HATCH, not the way in. Raw regexes over a note's
+                                       sentences, for a shape the two questions above cannot
+                                       express. Measured over the 28 hand-written patterns they
+                                       replaced, none needed this. Prefer the phrases: a plain
+                                       phrase cannot fail to compile, and a pattern that does fail
+                                       does not fail loudly — it simply stops matching, and the
+                                       figure quietly goes missing.`}
+                                emptyText="Nothing written by hand — the phrases above are the rule."
                                 value={noteSource.prose_any ?? []}
                                 onChange={(v) => setNoteSource({ prose_any: v })}
                                 error={e} indexErrors={idx("note_source.prose_any")} />
@@ -1817,10 +1963,32 @@ export default function LineItemsScreen() {
 
   const filtering = !!needle || !!typeFilter;
   const hits = filtering ? flat.filter(hit) : [];
-  // While filtering, the selection must be one of the visible rows — otherwise the detail pane
-  // shows a line the list no longer offers, which is the same disorientation in reverse.
+  // EVERY KEY THE FILTERED LIST ACTUALLY DRAWS — each hit, plus the descendants `row` recurses
+  // into. The two are not the same set, and mistaking one for the other made every sub-line item
+  // of a searched parent unselectable.
+  //
+  // THE BUG THIS CLOSES. The test here was `hits.some((d) => d.key === sel)` — "did the clicked
+  // line match the search?" — and the list renders a matching parent TOGETHER WITH ITS CHILDREN
+  // (`row` ends in `d.children.map(...)`). A child's own key, label, aliases and hints contain
+  // nothing of its parent's name, so searching `secur_and_other_fincl_assets_cp` makes the parent
+  // a hit and its eleven `sub__fa_cp_*` parts merely VISIBLE. Clicking one set `sel`, failed the
+  // test, and fell through to `hits[0]` — so every child opened the first row in the list instead.
+  // Reproduced end to end: unfiltered the child opens correctly, searching the parent opens
+  // "Pledged Secur & Other Fincl Assets(CP)", searching the child's own label works again.
+  //
+  // The guard's intent was right and is kept — a selection the list no longer offers leaves the
+  // detail pane showing a line you cannot see. It was asking the wrong question: not "did this
+  // match" but "is this on screen".
+  const drawn = new Set<string>();
+  if (filtering) {
+    const mark = (d: LineItemDef) => {
+      drawn.add(d.key);
+      (d.children ?? []).forEach(mark);
+    };
+    hits.forEach(mark);
+  }
   const selected = filtering
-    ? ((sel && hits.some((d) => d.key === sel) && byKey.get(sel)) || hits[0])
+    ? ((sel && drawn.has(sel) && byKey.get(sel)) || hits[0])
     : ((sel && byKey.get(sel)) || items[0]);
 
   /* ── the draft, measured against what the server served ─────────────────────────────────── */

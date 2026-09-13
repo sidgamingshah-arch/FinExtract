@@ -294,7 +294,41 @@ class NoteSource(BaseModel):
     # sentence actually uses ("included in", "charged to", 計入). EMPTY MEANS NO PROSE ROUTE for this
     # line, which is why the field is opt-in rather than defaulted — an unauthored line produces no
     # prose figure rather than a guess.
+    #
+    # THE PROSE ROUTE IS NOW ANSWERED IN WORDS — `prose_subject` and `prose_landed_in` below, which
+    # is what an author writes. `prose_any` stays as the escape hatch for a sentence shape the
+    # grammar cannot express, on the same principle as `MatchListEditor`'s `pattern` mode: measured
+    # over the 28 shipped patterns, none needed it.
     prose_any: list[str] = Field(default_factory=list)
+    # WHICH SHARED SUBJECT VOCABULARY THIS LINE'S SENTENCES ARE ABOUT — a name into
+    # `LineItemSet.prose_grammar.subjects`, e.g. "depreciation".
+    #
+    # NAMED RATHER THAN LISTED HERE, and that is the one non-obvious choice in this block. All seven
+    # prose lines are depreciation splits, so the vocabulary is the same on every one; repeating the
+    # four words per line invites them to drift apart silently, and putting them in ONE set-level
+    # list would mean a future line about staff costs widens all seven — a sentence reading "staff
+    # costs … included in … administrative expenses" would then claim the G&A DEPRECIATION line.
+    # A named vocabulary is neither: the seven share one by name, and a new subject is a new name
+    # that touches none of them.
+    prose_subject: str = ""
+    # WHERE THE SENTENCE SAYS THE FIGURE LANDED — plain phrases, one per expense line, in any script
+    # the filings print. "other operating expenses", "cost of sales", 其他经营开支.
+    #
+    # THE ONLY PER-LINE PART OF A PROSE RULE, measured: all 28 shipped patterns decompose into
+    # subject + connective + destination, and across the seven lines the first two were byte
+    # identical while only this one differed. See `services.prose_grammar`, which compiles these
+    # into the four patterns (both word orders, both scripts) the seven lines used to carry by hand.
+    #
+    # TRADITIONAL SPELLINGS ARE GENERATED, not authored: 折旧 also matches 折舊 because every Han
+    # character expands to a class of its variants. That alone removes three quarters of the Chinese
+    # vocabulary the shipped patterns spelled out — 222 destination spellings across the seven lines
+    # become 74 phrases.
+    #
+    # A PLAIN PHRASE CANNOT FAIL TO COMPILE, which is the point. `_refuse_uncompilable` exists
+    # because a broken pattern is a silent hole — the match simply stops happening and a figure
+    # quietly includes or omits rows nobody can trace. That whole class of error is unreachable
+    # through this field.
+    prose_landed_in: list[str] = Field(default_factory=list)
     note_terms: list[str] = Field(default_factory=list)
     row_terms: list[str] = Field(default_factory=list)
     row_terms_none: list[str] = Field(default_factory=list)
@@ -1764,6 +1798,44 @@ class CrossCheckMaster(BaseModel):
     tolerance: float = 0.5
 
 
+class ProseGrammar(BaseModel):
+    r"""HOW A FILING PLACES A FIGURE IN A SENTENCE — authored once, for the whole set.
+
+    WHAT THIS REPLACES. Seven lines carried 28 hand-written regexes averaging 300 characters, to
+    reach figures a filing states in prose and tabulates nowhere. All 28 were split structurally
+    and every one is the same three-part shape — subject, connective, destination — and across the
+    seven lines the subject and the connective were BYTE IDENTICAL while only the destination
+    differed. So two of the three parts are not properties of a line at all: they are properties of
+    this kind of disclosure, and they belong here.
+
+    THE BOUNDS ARE NOT HERE. All seven lines used the same four distance bounds, so they are
+    constants in `services.prose_grammar` with the measurement recorded beside them. A knob every
+    line sets the same way is a knob that only offers a way to be inconsistent; a set that genuinely
+    needs a different window has `note_source.prose_any`.
+
+    THE EQUIVALENCE IS MEASURED. The generated patterns were checked against the 28 they replace on
+    1,636 constructed sentences covering every spelling those patterns admit — every
+    Simplified/Traditional mix, every `&` spacing, both plurals, both word orders — and on 271
+    sentences pulled from twelve real filings. Zero spellings lost, and the per-line match sets on
+    real prose are identical: nothing lost, nothing newly claimed.
+    """
+
+    note: str = ""
+    # THE VERB OF PLACEMENT — how a filing says a figure ended up somewhere. Universal language
+    # rather than accounting, which is why it is one list for the set and not a per-line decision.
+    # Both scripts in one list: `prose_grammar` splits them, because an English subject paired with
+    # a Chinese destination would be matching a sentence that does not exist.
+    connective: list[str] = Field(default_factory=list)
+    # NAMED SUBJECT VOCABULARIES — "what figure is this sentence about". A line names one through
+    # `note_source.prose_subject`; see that field for why this is named rather than shared outright.
+    #
+    # A NAME NO LINE USES IS NOT AN ERROR — a vocabulary can be authored before the line that will
+    # use it. The refusal runs the other way: a line naming a vocabulary that is not here is refused
+    # at load, because it would otherwise produce no patterns and the figure would quietly stay
+    # empty, which is the silence this whole block exists to remove.
+    subjects: dict[str, list[str]] = Field(default_factory=dict)
+
+
 class LineItemSet(BaseModel):
     """A whole set of definitions, with the things that are true of the set rather than an item.
 
@@ -1875,6 +1947,9 @@ class LineItemSet(BaseModel):
     # It matters more now that `terms` lives here: the config declares 31 of the 33 formulas, and
     # this is the list saying which of those the printed page gets a vote on.
     cross_check_master: CrossCheckMaster = Field(default_factory=CrossCheckMaster)
+    # HOW A SENTENCE PLACES A FIGURE — the subject and connective vocabularies every prose line
+    # shares, so a line says only where the figure landed. See `ProseGrammar`.
+    prose_grammar: ProseGrammar = Field(default_factory=ProseGrammar)
     items: list[LineItemDef] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -1919,6 +1994,53 @@ class LineItemSet(BaseModel):
                         # that is the section the line inherits.
                         section_scope=item.inherits or "",
                         cross_section=False, notes_as_source=False, plug=False, itemise=True)
+        return self
+
+    @model_validator(mode="after")
+    def _prose_rules_are_complete(self):
+        """A prose destination needs a subject vocabulary and a note to look in, or it finds nothing.
+
+        THREE REFUSALS, each closing a silence the raw-regex field used to have.
+
+        A DESTINATION WITH NO SUBJECT. "other operating expenses" alone says where a figure landed
+        and nothing about what figure, so no pattern can be built from it. `compile_for` would
+        return an empty list and the line would stay empty exactly as though the filing had never
+        mentioned it — the failure mode being designed out. Refused with the line's key, so it is
+        attributable to a line of configuration rather than to "the engine".
+
+        A SUBJECT NAMING NO VOCABULARY. A typo in `prose_subject` is the same silence: the name
+        resolves to nothing and the destination compiles to nothing.
+
+        A PROSE ROUTE WITH NO NOTE TO READ. `select_prose` reaches its note through
+        `note_title_any` and returns nothing without one, so a line with a destination and no note
+        title is a rule that cannot fire however well it is written. This was true of `prose_any`
+        too and nothing said so; measured on the shipped set, all seven prose lines carry exactly
+        one note title, so nothing shipped relies on the silence.
+
+        A SUBJECT WITH NO DESTINATION IS NOT REFUSED. It says what the line is about and leaves the
+        prose route off, which is a legitimate half-authored state for a screen to save.
+        """
+        bad: list[str] = []
+        known = set(self.prose_grammar.subjects)
+        for item in self.items:
+            src = item.note_source
+            if src is None:
+                continue
+            landed = [p for p in (src.prose_landed_in or ()) if (p or "").strip()]
+            if not landed:
+                continue
+            name = (src.prose_subject or "").strip()
+            if not name:
+                bad.append(f"{item.key}: prose_landed_in is set but prose_subject names no "
+                           f"subject vocabulary, so no sentence pattern can be built")
+            elif name not in known:
+                bad.append(f"{item.key}: prose_subject {name!r} is not in "
+                           f"prose_grammar.subjects ({', '.join(sorted(known)) or 'empty'})")
+            if not [t for t in (src.note_title_any or ()) if (t or "").strip()]:
+                bad.append(f"{item.key}: prose_landed_in is set but note_title_any is empty, so "
+                           f"the prose route has no note to read and can never fire")
+        if bad:
+            raise ValueError("prose rule is incomplete — " + "; ".join(bad))
         return self
 
     @model_validator(mode="after")

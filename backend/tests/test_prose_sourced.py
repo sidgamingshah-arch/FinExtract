@@ -20,8 +20,22 @@ fits prose, and both failures were measured rather than reasoned about.
     with the amounts stripped — because the sentence carries the figure, the comparative and a verb
     phrase in between. Against `.{0,40}` it does not match at all.
 
-So `prose_any` is authored for sentence-length text, and an EMPTY `prose_any` means no prose route
-for that line — opt-in, so an unauthored line yields no figure rather than a guess.
+So a prose rule is authored for sentence-length text, and a line that names no destination has no
+prose route — opt-in, so an unauthored line yields no figure rather than a guess.
+
+HOW IT IS AUTHORED NOW, and why these tests pass a grammar. The rule used to be raw regex:
+`prose_any`, four patterns per line, 28 across the seven lines. Split structurally, every one was
+the same three parts — subject, connective, destination — and across the seven lines the first two
+were byte identical while only the destination differed. So the shared halves moved to
+`LineItemSet.prose_grammar` and a line now says only WHERE THE FIGURE LANDED, in plain words:
+
+    prose_subject:   depreciation                  <- names a shared vocabulary
+    prose_landed_in: other operating expenses, 其他经营开支
+
+`services.prose_grammar` compiles those into the four patterns, both word orders and both scripts,
+generating every Traditional spelling from the Simplified one. That is why `select_prose` takes the
+set's grammar: given only an item it cannot build a sentence pattern, and the right answer then is
+nothing rather than a looser match assembled from what is to hand.
 
 AND THE SCALE IS THE OTHER HALF. Prose states a figure in full ("HK$529,841,000"); a table states
 it in the statement's units. This stage runs at 10 and `normalize` at 8, so nothing scales what is
@@ -63,6 +77,17 @@ def _item(shipped, key=PART):
     return {i.key: i for i in shipped.items}[key]
 
 
+def _prose(shipped, notes, key=PART):
+    """`select_prose` WITH THE SET'S GRAMMAR, which is now the only way it finds anything.
+
+    The subject and connective vocabularies live on the SET (`prose_grammar`), because measured
+    across the seven prose lines they were identical on every one; a line says only where the
+    figure landed. So a call with no grammar has no patterns to match with, and every test here
+    goes through this helper rather than re-deciding that per case.
+    """
+    return note_sourced.select_prose(_item(shipped, key), notes, shipped.prose_grammar)
+
+
 def _note(text=FOOTNOTE, *, number="7", title="LOSS FROM OPERATING ACTIVITIES", rows=()):
     return NotesTable(note_number=number, title=title, source_pages=[141],
                       source_text=text, items=list(rows))
@@ -71,7 +96,7 @@ def _note(text=FOOTNOTE, *, number="7", title="LOSS FROM OPERATING ACTIVITIES", 
 # ── the selection ─────────────────────────────────────────────────────────────────────────────
 
 def test_the_footnote_figure_and_its_comparative_are_both_read(shipped):
-    hits = note_sourced.select_prose(_item(shipped), [_note()])
+    hits = _prose(shipped, [_note()])
 
     assert {(h.period, str(h.amount)) for h in hits} == {
         ("current", "529841000"), ("prior", "665553000")}
@@ -80,20 +105,31 @@ def test_the_footnote_figure_and_its_comparative_are_both_read(shipped):
 def test_a_four_digit_year_is_not_read_as_an_amount(shipped):
     """`(2024: HK$665,553,000)` carries the comparative AND the year labelling it. A naive number
     scan takes 2024 as the first amount in the sentence."""
-    hits = note_sourced.select_prose(_item(shipped), [_note()])
+    hits = _prose(shipped, [_note()])
 
     assert "2024" not in {str(h.amount) for h in hits}
     assert str(next(h.amount for h in hits if h.period == "current")) == "529841000"
 
 
-def test_a_line_with_no_prose_pattern_yields_nothing(shipped):
-    """`prose_any` is OPT-IN. An unauthored line must produce no figure rather than a guess — which
-    is what makes the field safe to add without auditing all 539 definitions."""
+def test_a_line_with_no_prose_destination_yields_nothing(shipped):
+    """THE PROSE ROUTE IS OPT-IN, and that is what made it safe to add without auditing all 539
+    definitions. A line that names no destination must produce no figure rather than a guess —
+    checked with the grammar in hand, so what is being tested is the absent destination and not an
+    absent vocabulary."""
     bare = next(i for i in shipped.items
                 if getattr(i, "note_source", None)
+                and not getattr(i.note_source, "prose_landed_in", None)
                 and not getattr(i.note_source, "prose_any", None)
                 and getattr(i.note_source, "note_title_any", None))
-    assert note_sourced.select_prose(bare, [_note()]) == []
+    assert note_sourced.select_prose(bare, [_note()], shipped.prose_grammar) == []
+
+
+def test_the_grammar_is_required_and_its_absence_is_not_a_guess(shipped):
+    """A CALL WITH NO GRAMMAR HAS NO PATTERNS. The subject and connective vocabularies are
+    set-level, so `select_prose` given only an item cannot build a sentence pattern — and the right
+    answer then is nothing, not a looser match assembled from what is to hand."""
+    assert note_sourced.select_prose(_item(shipped), [_note()], None) == []
+    assert _prose(shipped, [_note()]), "with the grammar it must still find the footnote"
 
 
 def test_a_sentence_with_no_grouped_amount_yields_nothing(shipped):
@@ -101,19 +137,18 @@ def test_a_sentence_with_no_grouped_amount_yields_nothing(shipped):
     years, note numbers and bare percentages out."""
     narrative = ("Depreciation charges are included in other operating expenses on the face of the "
                  "consolidated income statement, as described in the accounting policies.")
-    assert note_sourced.select_prose(_item(shipped), [_note(narrative)]) == []
+    assert _prose(shipped, [_note(narrative)]) == []
 
 
 def test_the_note_title_still_gates_it(shipped):
     """Prose does not escape the note gate: a sentence in the wrong note is not this line's."""
-    assert note_sourced.select_prose(
-        _item(shipped), [_note(title="SHARE CAPITAL", number="40")]) == []
+    assert _prose(shipped, [_note(title="SHARE CAPITAL", number="40")]) == []
 
 
 def test_a_sibling_whose_container_differs_does_not_claim_the_same_sentence(shipped):
     """THE PRECISION THE PATTERN BUYS. `sub__ga_depreciation` is the administrative-expense share
     and this footnote is about operating expenses — a term-based rule claimed it for both."""
-    assert note_sourced.select_prose(_item(shipped, "sub__ga_depreciation"), [_note()]) == []
+    assert _prose(shipped, [_note()], "sub__ga_depreciation") == []
 
 
 def test_a_match_cannot_straddle_two_sentences(shipped):
@@ -121,7 +156,7 @@ def test_a_match_cannot_straddle_two_sentences(shipped):
     container in the NEXT would match, and the amount taken could belong to neither."""
     two = ("Depreciation for the year was material. Bank charges of HK$12,345,678 are included in "
            "other operating expenses.")
-    hits = note_sourced.select_prose(_item(shipped), [_note(two)])
+    hits = _prose(shipped, [_note(two)])
 
     assert "12345678" not in {str(h.amount) for h in hits}
 

@@ -107,6 +107,25 @@ class LineItemVersion(Base):
     version: Mapped[int] = mapped_column(Integer, default=1)
     definition: Mapped[dict] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    # WHICH EDITING SESSION THIS VERSION BELONGS TO, and when it last changed.
+    #
+    # ONE VERSION PER SESSION, NOT ONE PER FIELD. Every inline edit used to add a version, so a
+    # sitting spent renaming a few lines produced a dozen of them and the history said nothing
+    # about what happened — measured on this database, eleven versions for three line-item edits
+    # and six deletions. An edit arriving in the SAME session as the version in force now REPLACES
+    # that version's definition; a new session starts a new version. So a version is one person's
+    # sitting, which is the unit anybody reading the history actually wants.
+    #
+    # NULLABLE BECAUSE MOST ROWS PREDATE IT, and because a publish with no session to attribute —
+    # the `X-Role` dev header, a service call, the reference-data seeder — must still be able to
+    # write one. An unattributed publish always inserts: coalescing needs proof that the session is
+    # the same, and absence of a session id is not proof.
+    #
+    # `updated_at` is what tells a reader a version was edited after it was created. Left null
+    # until the first in-place replacement, so "created and never touched" stays distinguishable
+    # from "created and then written to".
+    authored_in_session: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class FxRate(Base):

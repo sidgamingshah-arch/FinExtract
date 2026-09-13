@@ -84,7 +84,11 @@ class NoteSourcedStage(Stage):
                 # is the filing's own tabulation and a sentence is a narrative restatement of it,
                 # so prose competing with rows would sometimes replace the first with the second.
                 # Here it can only fill what would otherwise be empty.
-                prose = note_sourced.select_prose(item, doc.notes)
+                # THE SET'S GRAMMAR, passed in: the subject and connective vocabularies every
+                # prose line shares live on the SET, so `select_prose` is given one item and
+                # cannot reach them itself. Without it only raw `prose_any` patterns are consulted.
+                prose = note_sourced.select_prose(
+                    item, doc.notes, getattr(line_item_set, "prose_grammar", None))
                 if not prose:
                     continue
                 row = by_key.get(item.key)

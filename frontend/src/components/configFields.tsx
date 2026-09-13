@@ -725,7 +725,7 @@ export function OrderedMultiSelect<T extends string>({
  *  save is not one click away. */
 export function StringListEditor({
   label, help, error, inherited, editable, testid, value, onChange, variant = "plain",
-  placeholder, indexErrors, draft, onDraft, emptyText, suggest,
+  placeholder, indexErrors, draft, onDraft, emptyText, suggest, suffixOf,
 }: FieldProps & {
   value: string[];
   onChange: (v: string[]) => void;
@@ -737,6 +737,11 @@ export function StringListEditor({
   emptyText?: string;
   /** Values this set already uses, offered on the input. Never a closed set — see above. */
   suggest?: readonly string[];
+  /** A per-value note shown beside the row, for a value whose CONSEQUENCE differs from its
+   *  neighbours'. Added for the section banners, where seven of the twenty offered ids name no
+   *  printed heading and so constrain nothing — which is correct for a statement total and wrong
+   *  to discover by accident. A marked value is never refused; it is explained. */
+  suffixOf?: (v: string) => string | undefined;
 }) {
   const [own, setOwn] = useState("");
   const lifted = draft !== undefined && onDraft !== undefined;
@@ -783,6 +788,9 @@ export function StringListEditor({
                           onClick={() => onChange(value.filter((_, j) => j !== i))}>×</Button>
                 )}
               </div>
+              {suffixOf?.(v) && (
+                <div style={{ ...helpStyle, marginTop: 2 }}>{suffixOf(v)}</div>
+              )}
               {indexErrors?.[i] && (
                 <div style={{ fontSize: 10.5, color: color.redFg, marginTop: 3 }}>
                   {indexErrors[i]}
@@ -800,11 +808,16 @@ export function StringListEditor({
           )}
           {value.map((v, i) => (
             <span key={`${v}-${i}`}
-                  title={indexErrors?.[i]}
+                  title={indexErrors?.[i] ?? suffixOf?.(v)}
                   style={{ fontSize: 11.5, padding: "5px 11px", borderRadius: radius.pill,
                             background: indexErrors?.[i] ? color.redBg : color.indigoTint2,
                             color: indexErrors?.[i] ? color.redFg : color.indigo }}>
               {v}
+              {suffixOf?.(v) && (
+                <span style={{ opacity: 0.7, marginInlineStart: 5, fontSize: 10 }}>
+                  · {suffixOf(v)!.split(" — ")[0]}
+                </span>
+              )}
               {editable && (
                 <span role="button" aria-label={`Remove ${v}`} title="Remove"
                       onClick={() => onChange(value.filter((_, j) => j !== i))}

@@ -89,6 +89,14 @@ _SET = {
                   "note_use": "evidence_only"},
         "bs_nca": {"statement": "balance_sheet", "section_scope": ["bs_nca"]},
     },
+    # THE SHARED HALF OF A PROSE RULE, so `note_source.prose_subject` in `_ROUND_TRIP` has a
+    # vocabulary to name. A line naming one this set does not carry is refused at load
+    # (`_prose_rules_are_complete`), which is what makes the round-trip above a real check on the
+    # pair rather than on one field in isolation.
+    "prose_grammar": {
+        "connective": ["held at", "included in", "计入"],
+        "subjects": {"cash": ["cash", "现金"]},
+    },
     "items": [
         {"key": _EDITED, "label": "Cash", "inherits": "bs_ca",
          "aliases": ["Cash"], "aliases_i18n": {"en": ["Cash"], "zh": ["現金"]},
@@ -196,11 +204,18 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
     # model's — which is why the three semantic groups are here even though they are empty. They
     # are the SAME TWO LEVELS as the patterns beside them, in terms rather than regexes: which note
     # (scored against headers), then which rows inside it (scored against row captions).
+    # `prose_subject` AND `prose_landed_in` are the prose route as it is now authored — plain
+    # phrases, compiled into patterns by `services.prose_grammar`. `prose_any` is beside them as
+    # the raw escape hatch it has become, so this table covers both routes. The subject NAMES a
+    # vocabulary in `_SET["prose_grammar"]`; a name that set does not carry is refused at load, so
+    # the two have to agree and this is the pair that proves they do.
     "note_source": ("note_source", {
         "note_title_any": [r"^cash and cash equivalents"],
         "row_caption_any": [r"bank balances?"],
         "row_caption_none": [r"restricted"],
         "prose_any": [r"cash[^.]{0,80}?held\s+at\s+bank"],
+        "prose_subject": "cash",
+        "prose_landed_in": ["bank balances", "现金"],
         "note_terms": ["cash and cash equivalents", "现金及现金等价物"],
         "row_terms": ["bank balances", "银行存款"],
         "row_terms_none": ["restricted"]}),

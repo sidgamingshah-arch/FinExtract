@@ -46,7 +46,7 @@ from __future__ import annotations
 import re
 from decimal import Decimal, InvalidOperation
 
-from app.services import derivation
+from app.services import derivation, prose_grammar
 # One split for every side of every comparison — see `line_item_notes`.
 from app.services.note_context import matches_title, subject_tokens
 
@@ -246,7 +246,7 @@ def _sentences(text: str) -> list[str]:
     return out
 
 
-def select_prose(item, notes) -> list[ProseHit]:
+def select_prose(item, notes, grammar=None) -> list[ProseHit]:
     r"""The figures this item's PROSE PATTERNS find in a matched note's prose.
 
     THE PATTERNS, NOT THE TERMS, and that distinction is the whole correctness of this function.
@@ -276,16 +276,24 @@ def select_prose(item, notes) -> list[ProseHit]:
     A FALLBACK, NOT AN ALTERNATIVE. The caller consults this only for an item whose ROW route found
     nothing: a row is the filing's own tabulation and a sentence is a narrative restatement, so
     prose competing with rows would sometimes replace the first with the second.
+
+    `grammar` IS THE SET'S `prose_grammar`, passed in rather than reached for, because it is a
+    property of the SET and this function is given one item. Absent, only the raw `prose_any`
+    patterns are consulted — which is what every caller that has no set does.
     """
     src = getattr(item, "note_source", None)
     if src is None:
         return []
     titles = _compiled(getattr(src, "note_title_any", None))
-    # `prose_any` AND NOT `row_caption_any` — see the field's own comment for why neither the row
-    # patterns nor the row terms can serve here. An empty `prose_any` means this line has no prose
+    # WHAT COUNTS AS A PROSE SENTENCE FOR THIS LINE — the patterns generated from the plain phrases
+    # the author wrote, plus any raw ones authored through the escape hatch.
+    #
+    # `prose_*` AND NOT `row_caption_any` — see the field's own comment for why neither the row
+    # patterns nor the row terms can serve here. Nothing authored means this line has no prose
     # route, and returning nothing is the right answer: a line nobody has authored for prose should
     # produce no prose figure rather than a guess.
-    counts = _compiled(getattr(src, "prose_any", None))
+    counts = _compiled(list(getattr(src, "prose_any", None) or ())
+                       + prose_grammar.compile_for(src, grammar))
     vetoes = _compiled(getattr(src, "row_caption_none", None))
     if not titles or not counts:
         return []
@@ -408,7 +416,12 @@ def bad_patterns(item) -> list[str]:
     if src is None:
         return []
     out: list[str] = []
-    for field in ("note_title_any", "row_caption_any", "row_caption_none"):
+    # `prose_any` IS IN THIS LIST AND WAS NOT. It is the raw escape hatch now that the prose route
+    # is authored in plain phrases, so it is the one prose field that can still carry a broken
+    # pattern — and a broken one there is the same silent hole as anywhere else: the sentence simply
+    # stops matching and the line stays empty. The GENERATED patterns need no check; a plain phrase
+    # cannot fail to compile, which is the point of generating them.
+    for field in ("note_title_any", "row_caption_any", "row_caption_none", "prose_any"):
         for raw, rx in _compiled(getattr(src, field, None)):
             if rx is None:
                 out.append(f"{item.key}.note_source.{field}: /{raw}/")

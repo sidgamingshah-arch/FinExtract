@@ -138,6 +138,10 @@ class Principal:
     username: str
     name: str
     via: str  # "session" | "role-header"
+    # THE EDITING SESSION, empty when there is none to attribute — the `X-Role` dev header and
+    # every service call. An opaque handle, never the bearer token: it is written to the database
+    # so a configuration version can record the sitting it belongs to.
+    session_id: str = ""
 
 
 def current_principal(
@@ -166,7 +170,7 @@ def current_principal(
             sess = resolve_session(token.strip())
             if sess is not None:
                 return Principal(role=sess.user.role, username=sess.user.username,
-                                 name=sess.user.name, via="session")
+                                 name=sess.user.name, via="session", session_id=sess.id)
 
     # 2. Dev/service fallback — only when there is no valid session and it is enabled.
     if x_role and settings.auth.allow_role_header:

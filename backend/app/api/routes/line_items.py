@@ -96,7 +96,9 @@ from app.schemas.line_items import (
     load_line_item_set,
 )
 from app.schemas.loader import load_template, unknown_keys
-from app.security.rbac import Permission, require
+from app.security.rbac import (Permission, Principal, current_principal,
+                               require)
+from app.services import prose_grammar
 from app.services.config_select import select_for_template
 from app.services.line_items import build
 
@@ -413,6 +415,75 @@ def _sections(st: LineItemSet) -> list[dict]:
     return out
 
 
+def _template_placing(session: Session, st: LineItemSet) -> dict[str, dict]:
+    """Each key the BOUND TEMPLATE places -> the statement and section it places it in.
+
+    WHY THE SCREEN NEEDS THIS. `statement` and `inherits` are two of the questions the placing
+    control asks, and for most lines the template has already answered both: measured on the
+    configuration in force against `output_csv_hk_v1`, the template places 462 of 534 lines and the
+    configuration agrees with it on the statement 462 times out of 462 and on the section 462 out of
+    462. A control that asks an author to re-answer a question the template settled is a control
+    offering them a way to contradict it.
+
+    SO THIS IS SERVED, NOT ENFORCED, and that is the whole of the judgement here. Deriving the two
+    fields and dropping them from the model was the original plan and the measurement argues against
+    it: the 72 lines the template does NOT place are all `namespace: internal` sub-line items — the
+    note-read parts — and those are exactly the lines an author edits most. They would still need
+    both controls, so removing the fields would buy nothing on the lines that matter and risk the
+    462 that are already correct. Badging them instead gives the clarity with no behaviour change,
+    and the screen can then say WHY a value is what it is rather than inviting a second opinion.
+
+    THE OTHER TEMPLATE DOES NOT AGREE, and the reason is worth recording rather than discovering
+    later: `hkfrs_hk_china_template` names its sections `bs_s5_equity` where this one says
+    `bs_equity`, so the same derivation against that template disagrees on every line it places.
+    That is not a defect — a set is bound to ONE template through `target_template_key` and this
+    reads the bound one — but it does mean the agreement above is a fact about this pair and not a
+    property of templates in general.
+    """
+    from app.db.models import TemplateVersion
+
+    row = session.execute(
+        select(TemplateVersion)
+        .where(TemplateVersion.template_key == st.target_template_key)
+        .order_by(TemplateVersion.version.desc())
+    ).scalars().first()
+    if row is None:
+        return {}
+    out: dict[str, dict] = {}
+
+    def walk(node: dict, statement: str, section: str) -> None:
+        key = node.get("canonical_key")
+        if isinstance(key, str) and key and key not in out:
+            out[key] = {"statement": statement, "section": section}
+        for kid in node.get("children") or ():
+            if isinstance(kid, dict):
+                walk(kid, statement, section)
+
+    for stmt in (row.definition or {}).get("statements") or ():
+        if not isinstance(stmt, dict):
+            continue
+        statement = str(stmt.get("type") or stmt.get("key") or "")
+        for sec in stmt.get("sections") or ():
+            if not isinstance(sec, dict):
+                continue
+            # The TOP-LEVEL section node names the section every descendant belongs to, which is
+            # the granularity `section_defaults` is keyed at.
+            walk(sec, statement, str(sec.get("canonical_key") or sec.get("node_id") or ""))
+    return out
+
+
+def _banner_vocabulary(st: LineItemSet):
+    """The matcher's own `Vocabulary`, so the screen's idea of what constrains what is the engine's.
+
+    Built here rather than reimplemented: `token_of_scope` resolves a compact id through
+    `scope_tokens` and otherwise by the banner a scope id ENDS WITH, longest-first, and a second
+    copy of that rule in a route is a second copy to drift.
+    """
+    from app.services.line_item_matching import Vocabulary
+
+    return Vocabulary(st.vocabulary)
+
+
 def _vocabulary(st: LineItemSet) -> dict:
     """Every value an item edit may legally carry, keyed the way the editor's controls are.
 
@@ -422,16 +493,23 @@ def _vocabulary(st: LineItemSet) -> dict:
     """
     from app.services.buckets import BUCKET_KEYS
 
-    # Section scope is authored in TWO spellings and both resolve through one vocabulary: an item
-    # names a scope id (`bs_ca`, `bs_s1_current_assets`) and `scope_tokens` maps it to the banner
-    # token a printed heading folds to. Offering only one of the two would make half the shipped
-    # set unauthorable, so both are served — as SUGGESTIONS, not a closed set: `section_scope` is
-    # a free list on the model, and a filing printing a banner nobody has declared yet is exactly
-    # the case an author is here to handle.
+    # WHICH SECTION A LINE MAY BE CLAIMED UNDER — the SCOPE IDS this set actually uses, and only
+    # those. Previously the raw banner tokens were offered alongside them, and measured on the
+    # configuration in force that made the list twice as long as it needed to be for nothing:
+    #
+    #     20 scope ids      `bs_ca`, `is_pl`, `cf_financing`, `notes`, …   ALL 20 used by a line
+    #     18 banner tokens  `current_assets`, `income_and_expenses`, …     17 of 18 used by NONE
+    #
+    # The two are not alternatives an author chooses between — they are the same eighteen sections
+    # in two spellings. `token_of_scope` maps `bs_ca` onto the banner `current_assets` itself, so
+    # naming the token instead of the id says nothing extra and loses the section identity that
+    # `inherits`, the analyst bucket and `section_defaults` are all keyed on. The one token any line
+    # does use, `profit_attributable_to`, IS a scope id here too, so nothing in force loses an
+    # option. `section_scope` is still a free list on the model — a filing printing a banner nobody
+    # has declared is exactly the case an author is here to handle — so this narrows a SUGGESTION
+    # list and closes nothing.
     scope_ids = {s for d in st.items for s in d.section_scope if s}
     scope_ids |= {s for sec in st.section_defaults.values() for s in sec.section_scope if s}
-    banner_tokens = {b.token for b in st.vocabulary.section_banners if b.token}
-    banner_tokens |= {t for t in st.vocabulary.scope_tokens.values() if t}
 
     # `residual_policy.framework` and `.population` are free strings on the model, so what is
     # offered is what this set already declares plus the framework it actually carries — a
@@ -477,7 +555,20 @@ def _vocabulary(st: LineItemSet) -> dict:
         # order. See `_sections`.
         "inherits_options": sorted(st.section_defaults),
         "sections": _sections(st),
-        "section_scope_tokens": sorted(scope_ids | banner_tokens),
+        "section_scope_tokens": sorted(scope_ids),
+        # WHICH OF THOSE ACTUALLY CONSTRAIN ANYTHING, so the screen can say so instead of leaving
+        # an author to find out that a choice changed nothing.
+        #
+        # `token_of_scope` returns None for a scope id that names no banner, and an EMPTY resolved
+        # scope means UNCONSTRAINED in `mapping._in_section` — so picking one of these is a
+        # deliberate "any banner", not a narrower claim. Seven of the twenty are like that and 72
+        # lines rely on it: `bs_top_level` and `profit_attributable_to`-style statement totals,
+        # which no banner may constrain because a statement total routinely sits under the last
+        # section printed above it; and the five compact sections a filing prints no banner for
+        # (`statement_setup_controls`, `supplemental_data`, `off_balance_sheet_data`,
+        # `credit_compliance`, `capital_and_lease_commitments`).
+        "section_scope_unconstrained": sorted(
+            s for s in scope_ids if _banner_vocabulary(st).token_of_scope(s) is None),
         "residual_frameworks": sorted(frameworks),
         "residual_populations": sorted(populations),
         # WHAT IS NOT AUTHORABLE HERE, AND WHY — served rather than restated in the screen, so a
@@ -533,11 +624,29 @@ def get_line_items(template_key: str | None = None, session: Session = Depends(d
     stored = row.definition or {}
     raw_list = stored.get("items") if isinstance(stored, dict) else stored
     raw_items = {d.get("key"): d for d in (raw_list or []) if isinstance(d, dict)}
+    # Read once rather than per item: `payload` recurses, and this walks the whole template.
+    placing = _template_placing(session, st)
 
     def payload(d) -> dict:
         out = d.model_dump(mode="json")
         out["children"] = [payload(k) for k in reg.children_of(d.key)]
         out["declared_fields"] = sorted(raw_items.get(d.key, {}).keys())
+        # WHAT THE AUTHOR'S PLAIN PHRASES COMPILE TO — derived, read-only, and shown so the screen
+        # is not asking anyone to trust it. The prose route is authored in words now
+        # (`note_source.prose_subject` and `prose_landed_in`) and the patterns are generated, so
+        # without this there is nowhere to check what a phrase list actually became.
+        #
+        # AT ITEM LEVEL AND NOT INSIDE `note_source`, deliberately. `note_source` is an
+        # `_EDIT_MODELS` entry, so the screen sends the whole object back on every save — a
+        # generated field inside it would round-trip into storage and reappear as though it had
+        # been authored. Nothing outside `_EDIT_*` is ever written, so here it cannot.
+        out["prose_compiled"] = prose_grammar.compile_for(d.note_source, st.prose_grammar)
+        # WHERE THE BOUND TEMPLATE PUTS THIS LINE, when it places it at all — so the screen can say
+        # that the statement and the section were settled by the template rather than asking an
+        # author to answer them again. Absent for the 72 internal sub-line items the template does
+        # not place; those genuinely do author their own. See `_template_placing`.
+        if (placed := placing.get(d.key)) is not None:
+            out["template_placing"] = placed
         return out
 
     roots = sorted((d for d in defs if not d.parent), key=lambda d: (d.order, d.key))
@@ -572,6 +681,11 @@ def get_line_items(template_key: str | None = None, session: Session = Depends(d
             # item — the two-layer model that survived the merge.
             "section_defaults": {k: v.model_dump(mode="json", exclude_none=True)
                                  for k, v in st.section_defaults.items()},
+            # HOW A SENTENCE PLACES A FIGURE, authored once for the set. The screen needs the
+            # subject vocabulary NAMES to offer them on a line, and needs the connective list to
+            # say what the shared half of a prose rule already covers — a line only answers where
+            # the figure landed, and without this the screen could not show why that is enough.
+            "prose_grammar": st.prose_grammar.model_dump(mode="json"),
         },
         # EVERY VALUE THE EDITOR MAY OFFER, so the UI cannot present one the gate then refuses.
         # See `_vocabulary`: derived from the same aliases `ItemEdit` is typed on.
@@ -1339,13 +1453,55 @@ def _attributed_errors(exc: ValidationError, edited_index: int | None = None) ->
     return out
 
 
-def _publish_new_version(session: Session, row, definition: dict, *, key_field: str = "key",
-                         edited_key: str | None = None, edited_index: int | None = None) -> dict:
-    """Validate an edited definition and store it as the NEXT version of the same set.
+def _models_now():
+    """The timestamp helper `db.models` stamps every other column on this table with."""
+    from app.db.models import _now
 
-    Shared by every inline edit so validation can never be skipped on one path: a run references the
-    exact version it used, so an edit must ADD a version rather than mutate one — mutating a stored
-    definition would retroactively change how a past run is explained.
+    return _now()
+
+
+def _pinned_by_a_run(session: Session, version_id: str) -> bool:
+    """Whether any extraction run names this configuration version.
+
+    THE ONE THING THAT MAKES A VERSION IMMUTABLE. A run records the exact version it used so a
+    reader can be told which configuration produced the figures; replacing that definition would
+    retroactively change how a finished run is explained, and nothing would say so. So a pinned
+    version is never written to, whatever session asks.
+    """
+    from app.db.models import ExtractionRun
+
+    return session.execute(
+        select(func.count()).select_from(ExtractionRun)
+        .where(ExtractionRun.line_item_version_id == version_id)
+    ).scalar_one() > 0
+
+
+def _publish_new_version(session: Session, row, definition: dict, *, key_field: str = "key",
+                         edited_key: str | None = None, edited_index: int | None = None,
+                         session_id: str = "") -> dict:
+    """Validate an edited definition and store it — replacing this session's version, or adding one.
+
+    Shared by every inline edit so validation can never be skipped on one path.
+
+    ONE VERSION PER SESSION, NOT ONE PER FIELD. Every edit used to add a version, so a sitting
+    spent renaming a few lines produced a dozen of them and the history said nothing about what
+    happened: measured on the live database, ELEVEN versions for three line-item edits and six
+    deletions. An edit arriving in the same session as the version in force now REPLACES that
+    version's definition; a different session starts a new one. A version is then one person's
+    sitting, which is the unit a reader of the history actually wants.
+
+    THREE CONDITIONS, ALL REQUIRED, or it inserts:
+
+      * the version in force was authored in THIS session — `authored_in_session` matches
+      * this caller HAS a session to be identified by. The `X-Role` dev header and every service
+        call have none, and absence of a session id is not proof that the session is the same, so
+        an unattributed publish always inserts.
+      * NO RUN PINS IT. This is the original rule and it is untouched: a run names the exact
+        version it used, and rewriting that definition would change how a finished run is
+        explained. See `_pinned_by_a_run`.
+
+    So the immutability that mattered is kept exactly — what changes is that an unpinned version
+    nobody else has seen stops being frozen the instant it is written.
 
     THE REFUSALS ARE ATTRIBUTED, the publish itself is unchanged. Everything the loader can say
     about an edited definition is something an author has to fix on a control: a bad `side`, a term
@@ -1372,16 +1528,39 @@ def _publish_new_version(session: Session, row, definition: dict, *, key_field: 
     validated_against = _validate_against_target_template(session, st, key_field=key_field,
                                                           edited_key=edited_key)
 
+    definition["line_items_key"] = row.line_items_key
+
+    # THE VERSION IN FORCE — the highest version of this set, which is what an edit is against.
+    in_force = session.execute(
+        select(LineItemVersion)
+        .where(LineItemVersion.line_items_key == row.line_items_key)
+        .order_by(LineItemVersion.version.desc())
+        .limit(1)
+    ).scalars().first()
+
+    if (session_id and in_force is not None
+            and in_force.authored_in_session == session_id
+            and not _pinned_by_a_run(session, in_force.id)):
+        # SAME SITTING, NOBODY ELSE HAS SEEN IT: replace it rather than stacking another.
+        in_force.definition = definition
+        # The same clock every other row on this table uses, so a reader comparing
+        # `created_at` with `updated_at` is comparing like with like.
+        in_force.updated_at = _models_now()
+        session.add(in_force)
+        session.commit()
+        return {**_version_identity(in_force),
+                "validated_against_template": validated_against}
+
     max_ver = session.execute(
         select(func.max(LineItemVersion.version))
         .where(LineItemVersion.line_items_key == row.line_items_key)
     ).scalar()
-    definition["line_items_key"] = row.line_items_key
     new_row = LineItemVersion(
         line_items_key=row.line_items_key,
         target_template_key=row.target_template_key,
         version=(max_ver or 0) + 1,
         definition=definition,
+        authored_in_session=session_id or None,
     )
     session.add(new_row)
     session.commit()
@@ -1391,7 +1570,8 @@ def _publish_new_version(session: Session, row, definition: dict, *, key_field: 
 
 @router.patch("/versions/{version_id}/items", dependencies=[_GATE])
 def edit_line_item(version_id: str, body: ItemEdit,
-                   session: Session = Depends(db)) -> dict:
+                   session: Session = Depends(db),
+                   principal: Principal = Depends(current_principal)) -> dict:
     """Apply an edit to ONE line item by publishing a NEW version.
 
     Every authorable field on a line item arrives here; ``key``, ``children`` and ``aliases_i18n``
@@ -1703,7 +1883,8 @@ def edit_line_item(version_id: str, body: ItemEdit,
     # is not editable — the author reads it as "the key is wrong".
     out = _publish_new_version(session, row, definition,
                                key_field="namespace" if "namespace" in sent else "key",
-                               edited_key=body.key, edited_index=target_at)
+                               edited_key=body.key, edited_index=target_at,
+                               session_id=principal.session_id)
     out["key"] = body.key
     return out
 
@@ -1736,7 +1917,8 @@ class SetEdit(BaseModel):
 
 @router.patch("/versions/{version_id}", dependencies=[_GATE])
 def edit_line_item_set(version_id: str, body: SetEdit,
-                       session: Session = Depends(db)) -> dict:
+                       session: Session = Depends(db),
+                       principal: Principal = Depends(current_principal)) -> dict:
     """Edit the configuration's own settings by publishing a NEW version.
 
     THE MASTER PROMPT lives here because it applies to every mapping call rather than to one line:
@@ -1767,12 +1949,14 @@ def edit_line_item_set(version_id: str, body: SetEdit,
                                     "instruction")])
         definition["prompt"] = body.prompt
 
-    return _publish_new_version(session, row, definition)
+    return _publish_new_version(session, row, definition,
+                                session_id=principal.session_id)
 
 
 @router.post("/versions/{version_id}/items", status_code=201, dependencies=[_GATE])
 def add_line_item(version_id: str, body: ItemCreate,
-                  session: Session = Depends(db)) -> dict:
+                  session: Session = Depends(db),
+                  principal: Principal = Depends(current_principal)) -> dict:
     """Add a line item, as `namespace: "internal"`, by publishing a NEW version.
 
     The rule this serves: a template provisions its own lines, and an author may ADD to that set
@@ -1812,14 +1996,16 @@ def add_line_item(version_id: str, body: ItemCreate,
 
     items.append(item)
     out = _publish_new_version(session, row, definition,
-                               edited_key=key, edited_index=len(items) - 1)
+                               edited_key=key, edited_index=len(items) - 1,
+                               session_id=principal.session_id)
     out["key"] = key
     return out
 
 
 @router.delete("/versions/{version_id}/items/{key}", dependencies=[_GATE])
 def delete_line_item(version_id: str, key: str,
-                     session: Session = Depends(db)) -> dict:
+                     session: Session = Depends(db),
+                     principal: Principal = Depends(current_principal)) -> dict:
     """Delete an item — refused when the TEMPLATE put it there.
 
     THE REFUSAL IS SERVER-SIDE, not a hidden button. A template line's item exists because the
@@ -1865,7 +2051,8 @@ def delete_line_item(version_id: str, key: str,
     referrers = [d.get("key") for d in items
                  if d.get("key") != key and key in json.dumps(d, ensure_ascii=False)]
     items.pop(at)
-    out = _publish_new_version(session, row, definition)
+    out = _publish_new_version(session, row, definition,
+                               session_id=principal.session_id)
     out["deleted"] = key
     if referrers:
         out["now_dangling_references_in"] = referrers

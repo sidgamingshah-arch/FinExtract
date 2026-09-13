@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import secrets
 import time
+import uuid
 from dataclasses import dataclass
 
 from .rbac import Role
@@ -44,6 +45,11 @@ USERS: dict[str, dict] = {
 
 @dataclass
 class Session:
+    # THE ID IS NOT THE TOKEN, deliberately. The token is a credential and must not be written
+    # anywhere but this process's memory; the id is an opaque handle that may be stored — which is
+    # what lets a configuration version record the editing session it belongs to
+    # (`LineItemVersion.authored_in_session`) without putting a bearer token in the database.
+    id: str
     token: str
     user: User
     created: float
@@ -72,7 +78,8 @@ def authenticate(username: str | None, password: str | None, *, demo_mode: bool 
 def create_session(user: User, ttl_minutes: int) -> Session:
     token = secrets.token_urlsafe(32)
     now = time.time()
-    sess = Session(token=token, user=user, created=now, expires=now + ttl_minutes * 60)
+    sess = Session(id=uuid.uuid4().hex, token=token, user=user, created=now,
+                   expires=now + ttl_minutes * 60)
     _SESSIONS[token] = sess
     return sess
 
