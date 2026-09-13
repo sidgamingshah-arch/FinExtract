@@ -2570,7 +2570,6 @@
    "exclude_criteria": [],
    "label": "Other Non-Current Assets",
    "definition": "Extract the reported value for 'Other Non-Current Assets' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
-   "value_scope": "exclusive_residual",
    "aliases": [
     "Other Non-Current Assets",
     "Total Non-current asset",
@@ -2597,16 +2596,6 @@
    "inherits": "bs_nca",
    "face_only": false,
    "match_priority": 77,
-   "alias_matching": "disabled",
-   "residual_policy": {
-    "framework": "residual_framework",
-    "section_scope": "bs_nca",
-    "population": "sweep_only",
-    "cross_section": false,
-    "notes_as_source": false,
-    "plug": false,
-    "itemise": true
-   },
    "expected_components": [
     "Club memberships and club debentures",
     "Contract assets recoverable after more than one year",
@@ -4207,7 +4196,6 @@
    "exclude_criteria": [],
    "label": "Other Current Assets",
    "definition": "Extract the reported value for 'Other Current Assets' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
-   "value_scope": "exclusive_residual",
    "aliases": [
     "Other Current Assets",
     "Total Current asset",
@@ -4235,16 +4223,6 @@
    "inherits": "bs_ca",
    "face_only": false,
    "match_priority": 78,
-   "alias_matching": "disabled",
-   "residual_policy": {
-    "framework": "residual_framework",
-    "section_scope": "bs_ca",
-    "population": "sweep_only",
-    "cross_section": false,
-    "notes_as_source": false,
-    "plug": false,
-    "itemise": true
-   },
    "expected_components": [
     "Contract assets",
     "Amounts due from customers on construction contracts",
@@ -4640,7 +4618,6 @@
    "inherits": "bs_ca",
    "face_only": false,
    "match_priority": 81,
-   "alias_matching": "disabled",
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "type": "derived",
    "rollup": "alternatives",
@@ -5475,7 +5452,6 @@
    "exclude_criteria": [],
    "label": "Other Reserves",
    "definition": "Extract the reported value for 'Other Reserves' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
-   "value_scope": "exclusive_residual",
    "aliases": [
     "Other Reserves",
     "Total Equity / Stockholders Equity/ Owners' Equity"
@@ -5501,16 +5477,6 @@
    "inherits": "bs_equity",
    "face_only": false,
    "match_priority": 79,
-   "alias_matching": "disabled",
-   "residual_policy": {
-    "framework": "residual_framework",
-    "section_scope": "bs_equity",
-    "population": "sweep_only",
-    "cross_section": false,
-    "notes_as_source": false,
-    "plug": false,
-    "itemise": true
-   },
    "expected_components": [
     "Share option and share-based payment reserve",
     "Special reserve, including a PRC safety production reserve",
@@ -6550,7 +6516,6 @@
    "exclude_criteria": [],
    "label": "Other Non-Current Liabilities",
    "definition": "Extract the reported value for 'Other Non-Current Liabilities' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
-   "value_scope": "exclusive_residual",
    "aliases": [
     "Other Non-Current Liabilities",
     "Perpetual securities",
@@ -6587,16 +6552,6 @@
    "inherits": "bs_ncl",
    "face_only": false,
    "match_priority": 79,
-   "alias_matching": "disabled",
-   "residual_policy": {
-    "framework": "residual_framework",
-    "section_scope": "bs_ncl",
-    "population": "sweep_only",
-    "cross_section": false,
-    "notes_as_source": false,
-    "plug": false,
-    "itemise": true
-   },
    "expected_components": [
     "Financial guarantee contracts",
     "Deferred or contingent consideration payable on an acquisition",
@@ -8244,7 +8199,6 @@
    "exclude_criteria": [],
    "label": "Other Current Liabilities",
    "definition": "Extract the reported value for 'Other Current Liabilities' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
-   "value_scope": "exclusive_residual",
    "aliases": [
     "Other Current Liabilities"
    ],
@@ -8270,16 +8224,6 @@
    "inherits": "bs_cl",
    "face_only": false,
    "match_priority": 79,
-   "alias_matching": "disabled",
-   "residual_policy": {
-    "framework": "residual_framework",
-    "section_scope": "bs_cl",
-    "population": "sweep_only",
-    "cross_section": false,
-    "notes_as_source": false,
-    "plug": false,
-    "itemise": true
-   },
    "expected_components": [
     "Liabilities directly associated with assets classified as held for sale",
     "Accrued staff salaries, bonuses and welfare payable",
@@ -9896,7 +9840,6 @@
    "inherits": "is_pl",
    "face_only": false,
    "match_priority": 19,
-   "alias_matching": "disabled",
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "type": "derived",
    "cascade": [
@@ -10590,7 +10533,6 @@
    "exclude_criteria": [],
    "label": "Other Operating Expenses",
    "definition": "Extract the reported value for 'Other Operating Expenses' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
-   "value_scope": "exclusive_residual",
    "aliases": [
     "Other Operating Expenses",
     "Listing expenses",
@@ -10620,16 +10562,6 @@
    "inherits": "is_pl",
    "face_only": false,
    "match_priority": 12,
-   "alias_matching": "disabled",
-   "residual_policy": {
-    "framework": "residual_framework",
-    "section_scope": "is_pl",
-    "population": "sweep_only",
-    "cross_section": false,
-    "notes_as_source": false,
-    "plug": false,
-    "itemise": true
-   },
    "expected_components": [
     "Listing expenses",
     "Direct operating expenses of investment properties",
@@ -13520,7 +13452,6 @@
    "exclude_criteria": [],
    "label": "Other Equity & Reserves Adj",
    "definition": "Extract the reported value for 'Other Equity & Reserves Adj' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
-   "value_scope": "exclusive_residual",
    "aliases": [
     "Other Equity & Reserves Adj",
     "Share of other comprehensive income of joint ventures"
@@ -13547,16 +13478,6 @@
    "inherits": "is_oci",
    "face_only": false,
    "match_priority": 10,
-   "alias_matching": "disabled",
-   "residual_policy": {
-    "framework": "residual_framework",
-    "section_scope": "is_oci",
-    "population": "sweep_only",
-    "cross_section": false,
-    "notes_as_source": false,
-    "plug": false,
-    "itemise": true
-   },
    "expected_components": [
     "Exchange differences on translation of foreign operations",
     "Share of other comprehensive income of associates and joint ventures",
@@ -13873,7 +13794,6 @@
    "exclude_criteria": [],
    "label": "Other Adj to Retained Profits",
    "definition": "Extract the reported value for 'Other Adj to Retained Profits' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
-   "value_scope": "exclusive_residual",
    "aliases": [
     "Other Adj to Retained Profits"
    ],
@@ -13898,16 +13818,6 @@
    "inherits": "is_retained",
    "face_only": false,
    "match_priority": 10,
-   "alias_matching": "disabled",
-   "residual_policy": {
-    "framework": "residual_framework",
-    "section_scope": "is_retained",
-    "population": "sweep_only",
-    "cross_section": false,
-    "notes_as_source": false,
-    "plug": false,
-    "itemise": true
-   },
    "expected_components": [
     "Distributions to holders of perpetual capital securities",
     "Acquisition of non-controlling interests charged to retained profits",
@@ -14921,7 +14831,6 @@
    "exclude_criteria": [],
    "label": "Other Non-Cash Adjs(Oper)",
    "definition": "Extract the reported value for 'Other Non-Cash Adjs(Oper)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
-   "value_scope": "exclusive_residual",
    "aliases": [
     "Other Non-Cash Adjs(Oper)"
    ],
@@ -14944,16 +14853,6 @@
    "inherits": "cf_oper_indirect",
    "face_only": false,
    "match_priority": 80,
-   "alias_matching": "disabled",
-   "residual_policy": {
-    "framework": "residual_framework",
-    "section_scope": "cf_oper_indirect",
-    "population": "sweep_only",
-    "cross_section": false,
-    "notes_as_source": false,
-    "plug": false,
-    "itemise": true
-   },
    "expected_components": [
     "Equity-settled share-based payment expense",
     "Unrealised foreign exchange differences",
@@ -16046,7 +15945,6 @@
    "exclude_criteria": [],
    "label": "Other Invest Cash Flows",
    "definition": "Extract the reported value for 'Other Invest Cash Flows' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
-   "value_scope": "exclusive_residual",
    "aliases": [
     "Other Invest Cash Flows",
     "Net cash used in/generated from investing activities"
@@ -16067,16 +15965,6 @@
    "inherits": "cf_investing",
    "face_only": false,
    "match_priority": 80,
-   "alias_matching": "disabled",
-   "residual_policy": {
-    "framework": "residual_framework",
-    "section_scope": "cf_investing",
-    "population": "sweep_only",
-    "cross_section": false,
-    "notes_as_source": false,
-    "plug": false,
-    "itemise": true
-   },
    "expected_components": [
     "Advances to and repayments from related parties other than associates and joint ventures",
     "Loans advanced to third parties and repayments received",
@@ -16636,7 +16524,6 @@
    "exclude_criteria": [],
    "label": "Other Financing Cash Flows",
    "definition": "Extract the reported value for 'Other Financing Cash Flows' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
-   "value_scope": "exclusive_residual",
    "aliases": [
     "Other Financing Cash Flows"
    ],
@@ -16661,16 +16548,6 @@
    "inherits": "cf_financing",
    "face_only": false,
    "match_priority": 80,
-   "alias_matching": "disabled",
-   "residual_policy": {
-    "framework": "residual_framework",
-    "section_scope": "cf_financing",
-    "population": "sweep_only",
-    "cross_section": false,
-    "notes_as_source": false,
-    "plug": false,
-    "itemise": true
-   },
    "expected_components": [
     "Acquisition of non-controlling interests",
     "Distributions to holders of perpetual capital securities",
@@ -17003,7 +16880,6 @@
    "inherits": "bs_equity",
    "face_only": false,
    "match_priority": 100,
-   "alias_matching": "disabled",
    "is_gross_parent": true,
    "decomposition_rule": "Use only dependencies stated in the formula; never fabricate missing components.",
    "type": "calculated",
@@ -41073,5 +40949,21 @@
    "definition": "The part of the current-account receivable balance that is due from related parties — intra-group and other related-unit running accounts, 关联方往来款 and its variants — as the filing identifies them. It is read from the same current-account or other current assets note that supplies the current-account figure, since only an amount shown inside that balance can be carved out of it. It is not the whole current-account balance, and it is not a current account the entity owes to a related party, which sits on the liability side. It is also not the related-party transaction turnover for the period; only the balance outstanding at the reporting date counts.",
    "prompt": "Deduct only the related-party balance shown inside this current-account receivable, never the whole current-account figure and never an amount the entity owes a related party. current_account_receivables_related_party_net. Related-party current-account balances (关联方往来款 / 关联方资金往来 / 关联单位往来) inside the 往来款 or 其他流动资产 note, separated from sub__cp_current_account_net by the related-party qualifier. This is the commonest place a PRC filing parks intra-group balances, so it is usually the deduction that decides this line. Sign -1."
   }
- ]
+ ],
+ "others_master": {
+  "note": "The section residuals — each line is its section's unexplained remainder, filled only by the sweep in `residual_framework`. Marking a line here is what makes it a bucket: `value_scope` and `residual_policy` are derived from this list at load, so the fact is stated once instead of three times per line.",
+  "keys": [
+   "bs_nca__other_non_current_assets",
+   "bs_ca__other_current_assets",
+   "bs_equity__other_reserves",
+   "bs_ncl__other_non_current_liabilities",
+   "bs_cl__other_current_liabilities",
+   "is_pl__other_operating_expenses",
+   "is_oci__other_equity_and_reserves_adj",
+   "is_retained__other_adj_to_retained_profits",
+   "cf_oper_indirect__other_non_cash_adjs_oper",
+   "cf_investing__other_invest_cash_flows",
+   "cf_financing__other_financing_cash_flows"
+  ]
+ }
 }

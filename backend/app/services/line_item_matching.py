@@ -301,7 +301,13 @@ class LineItemMatcher:
         #   those as unused history rather than as a signal that matching was intended.
         self._unmatchable: set[str] = {
             d.key for d in line_items.items
-            if d.alias_matching == "disabled" or d.extraction_mode == "derive"
+            # `alias_matching == "disabled"` WAS THE FIRST CLAUSE AND IS GONE. It locked the
+            # section residuals out of every tier, and the others master removes the field — the
+            # framework's prohibition 2 ("never populated by alias, regex or embedding match") is
+            # implemented in `stages.residual` as a RELEASE, so a row a matcher claims for a bucket
+            # is handed back and swept instead. The buckets stay out of the LLM's reach through
+            # `_never_asked`, which reads the marker rather than the lock.
+            if d.extraction_mode == "derive"
             or str(getattr(d, "type", "") or "") == "derived"
         }
 

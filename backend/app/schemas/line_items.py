@@ -781,14 +781,17 @@ class LineItemDef(BaseModel):
 
         A residual is the exception for a reason that is not about arithmetic: its purpose is to
         carry the UNEXPLAINED remainder, so a figure filed there makes the reconciliation that
-        would have reported the gap tie instead. `alias_matching: "disabled"` is the declared
-        switch that marks one, which is what `mapping._locked` reads.
+        would have reported the gap tie instead. `value_scope: "exclusive_residual"` is what marks
+        one, set by `others_master` — it used to be read off `alias_matching: "disabled"`, which
+        also locked the bucket out of the caption index and so conflated "what this line IS" with
+        "how captions reach it". Removing that lock stopped this method recognising a bucket and
+        offered eleven of them to the model; the marker does not have that problem.
 
         THREE DECLARATIONS ANSWER IT, for three different reasons, and the answer NAMES which one
         so an author can act on it:
 
           * `type: derived` — its figure is its declared cascade's.
-          * `alias_matching: disabled` — a section residual, filled by the sweep.
+          * `value_scope: exclusive_residual` — a section residual, filled by the sweep.
           * `extraction_mode: derive` — the framework computes it; there is no source to locate.
 
         `extract_or_derive` IS ASKED ABOUT, and that is the boundary that moved. It means "printed
@@ -806,7 +809,7 @@ class LineItemDef(BaseModel):
             return ("this one is `derived`, so its figure is its declared cascade's — a number "
                     "written straight onto the parent skips every rung, which loses which "
                     "disclosure it came from and the cross-check between rungs")
-        if str(self.alias_matching) == "disabled":
+        if str(getattr(self.value_scope, "value", self.value_scope)) == "exclusive_residual":
             return ("this one is a section residual, which carries a section's unexplained "
                     "remainder and is filled by the sweep rather than by any answer")
         if str(getattr(self, "extraction_mode", "")) == "derive":
@@ -1707,6 +1710,33 @@ class RequestGroup(BaseModel):
     note: str = ""
 
 
+class OthersMaster(BaseModel):
+    """WHICH LINES ARE THEIR SECTION'S LEFTOVER — one list, replacing three per-line declarations.
+
+    THE FACT WAS STORED THREE TIMES. Each of the eleven "Others" buckets declared `value_scope:
+    exclusive_residual` (what makes it a bucket), a `residual_policy` object, and `alias_matching:
+    disabled`. Measured, the eleven policy objects reduce to ONE shape once `section_scope` is read
+    off the line's own `inherits` — so two of the three derive from the marking completely, and
+    `resolve_line_item_inherits` fills them.
+
+    A DECLARED VALUE STILL WINS, which is what makes this a default rather than a rewrite: a set
+    needing a bucket with `cross_section` or `notes_as_source` on can state the policy on the line
+    and the derivation leaves it alone.
+
+    THE LOCK IS NOT DERIVED. `alias_matching: disabled` kept a bucket out of the caption index, on
+    the argument that "Others" fuzzes against almost anything short. It is a second lock on a bolted
+    door: the framework's prohibition 2 — "never populated by alias, regex or embedding match" — is
+    implemented in `stages.residual` as a RELEASE rather than a refusal, so a row a matcher claims
+    for a bucket is handed back and re-offered to the section's dedicated concepts. The field is gone
+    from all 14 lines that carried it.
+    """
+
+    note: str = ""
+    # The line-item keys. Validated against the set's own items by `LineItemSet`, because a key
+    # naming nothing is not a load error but a bucket that silently stops being one.
+    keys: list[str] = Field(default_factory=list)
+
+
 class LineItemSet(BaseModel):
     """A whole set of definitions, with the things that are true of the set rather than an item.
 
@@ -1809,7 +1839,54 @@ class LineItemSet(BaseModel):
     # pydantic's default `extra="ignore"` would swallow the block silently on the next load — the
     # same reason every block above is declared here explicitly rather than left to `extra`.
     residual_framework: ResidualFramework | None = None
+    # WHICH LINES THE FRAMEWORK ABOVE APPLIES TO. `residual_framework.applies_to` reads "every
+    # concept with value_scope: exclusive_residual", and this is the list that makes a line one —
+    # see `OthersMaster`. Declared here rather than inferred from the key names, because a
+    # convention would miss `bs_equity__other_reserves` and claim anything else called "other".
+    others_master: OthersMaster = Field(default_factory=OthersMaster)
     items: list[LineItemDef] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _others_master_marks_its_lines(self):
+        """The marking, and the two fields it decides.
+
+        A MARKED KEY THAT NAMES NO ITEM IS REFUSED, for the reason a dangling `inherits` is: the
+        line would load, be sorted as an ordinary leaf by `rollups`, and its section's leftover would
+        go nowhere while the reconciliation that should have reported the gap balanced instead.
+
+        ON THE SET AND NOT IN `resolve_line_item_inherits`, which is where this started and was
+        wrong. The resolver only runs for a RESOLVED load, and `load_line_item_set(..., resolve=
+        False)` is a real path — the config screen reads it to show what an item itself declares.
+        A bucket loaded that way carried no `value_scope`, so `line_item_requests.asked_about`
+        stopped recognising it and OFFERED ELEVEN RESIDUAL BUCKETS TO THE MODEL. Caught by
+        `test_request_grouping`, which is exactly the test for it.
+
+        `value_scope` IS FORCED, not defaulted: the master is the statement that this line is its
+        section's leftover, and a line marked here whose `value_scope` said anything else would be
+        two answers to one question. `residual_policy` is filled only where absent, so a bucket
+        needing `cross_section` or `notes_as_source` can still state its own.
+        """
+        marked = set(self.others_master.keys)
+        if marked:
+            known = {d.key for d in self.items}
+            unknown = sorted(marked - known)
+            if unknown:
+                raise ValueError(
+                    f"others_master names {len(unknown)} line item(s) this set does not have: "
+                    + ", ".join(unknown[:10]))
+            for item in self.items:
+                if item.key not in marked:
+                    continue
+                item.value_scope = "exclusive_residual"
+                if item.residual_policy is None:
+                    item.residual_policy = ResidualPolicy(
+                        framework="residual_framework",
+                        population="sweep_only",
+                        # THE ONE TERM THAT IS NOT GLOBAL — a bucket sweeps its OWN section, and
+                        # that is the section the line inherits.
+                        section_scope=item.inherits or "",
+                        cross_section=False, notes_as_source=False, plug=False, itemise=True)
+        return self
 
     @model_validator(mode="after")
     def _request_groups_are_answerable(self):

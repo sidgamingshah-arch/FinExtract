@@ -830,13 +830,16 @@ def test_the_note_tag_threshold_is_refused_with_a_message_naming_its_own_control
     the author reads "the extraction mode is wrong" about a field they did not touch."""
     _tpl, cfg = probe
 
-    # `alias_matching: "disabled"` rather than the retired `extraction_mode: "derive"`, and NOT
-    # `type: "derived"` either — that one is refused first for a different and correct reason ("a
+    # `value_scope: "exclusive_residual"` rather than the retired `extraction_mode: "derive"`, and
+    # NOT `type: "derived"` either — that one is refused first for a different and correct reason ("a
     # derived line needs a cascade or `implemented_by`"), which would make this test pass or fail on
-    # the cascade rule instead of on attribution. `alias_matching: "disabled"` is the other
-    # never-asked declaration and it needs nothing else to be coherent, so the ONLY problem in this
-    # body is the note-tag threshold — which is exactly what makes the attribution observable.
-    r = _patch(client, cfg["id"], {"key": _EDITED, "alias_matching": "disabled",
+    # the cascade rule instead of on attribution.
+    #
+    # IT USED TO BE `alias_matching: "disabled"`, which was the never-asked declaration until the
+    # others master took that over: the marker is now `value_scope: exclusive_residual`, and
+    # `alias_matching` is gone from the model. Either way what this test needs is a body whose ONLY
+    # problem is the note-tag threshold, which is what makes the attribution observable.
+    r = _patch(client, cfg["id"], {"key": _EDITED, "value_scope": "exclusive_residual",
                                    "llm_only_if_note_tagged": True})
 
     assert r.status_code == 422, r.text

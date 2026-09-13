@@ -209,6 +209,15 @@ _DEFINITION_FOLDED = 76
 # assertion is that the divergence goes no wider than these names.
 _SEED_LAG = {"description", "confusable_with", "section_disambiguation", "aliases", "aliases_i18n"}
 
+# AND `alias_matching`, WHICH THE SEED NO LONGER HAS AT ALL. The others master marks the eleven
+# residual buckets, `value_scope: exclusive_residual` is the marker, and the field that used to
+# carry the marking — along with a caption lock and a never-asked flag — is removed from all 14
+# lines that declared it. The rulebook still declares it, so every one of those 14 diverges.
+#
+# Bounded by the COUNT rather than folded into `_SEED_LAG`: this is the seed LEADING the rulebook,
+# and a FIFTEENTH line diverging would mean something else changed.
+_ALIAS_MATCHING_REMOVED = 14
+
 
 def _rulebook():
     """The shipped rulebook, resolved — the shape `project_concept` consumed."""
@@ -395,6 +404,8 @@ def test_shipped_set_diverges_only_in_the_known_classes():
         # Checked against the union, because a per-reason check passes only while one reason acts
         # alone — and the first version of this allowance did exactly that and failed on the eight.
         if field == "exclude_hints" and set(keys) <= _CONFUSABLE_CONVERTED | _derived_parents():
+            continue
+        if field == "alias_matching" and len(keys) <= _ALIAS_MATCHING_REMOVED:
             continue
         # …and the two fields the config-screen work changed, bounded by COUNT so a wider
         # divergence still fails. See `_EXCLUDE_BLANKED` / `_DEFINITION_FOLDED` above.

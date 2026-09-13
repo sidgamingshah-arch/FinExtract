@@ -175,14 +175,43 @@ def test_an_exclusion_is_matched_case_insensitively():
 
 # ── the locks ────────────────────────────────────────────────────────────────────────────────────
 
-def test_a_locked_residual_is_unreachable_by_matching():
-    """"Others" matches almost anything short, and a figure landing there ties the reconciliation
-    that was supposed to report the gap."""
-    m = _matcher({"key": "bs_ca__others", "aliases": ["Others"], "alias_matching": "disabled"},
+def test_a_residual_is_reachable_by_matching_and_released_by_the_sweep():
+    """THE LOCK IS GONE, BY DIRECTIVE, AND THE SECOND GUARD IS WHY THAT IS SAFE.
+
+    `alias_matching: "disabled"` kept a bucket out of every tier — ""Others" matches almost anything
+    short, and a figure landing there ties the reconciliation that was supposed to report the gap".
+    The others master replaces the field, and the caption lock is not part of what it derives.
+
+    What stands in its place is the framework's prohibition 2, "never populated by alias, regex or
+    embedding match", implemented in `stages.residual` as a RELEASE rather than a refusal: a row that
+    arrives already claimed for a residual is handed back, its key cleared, flagged
+    `residual_alias_populated:<method>`, and re-offered to the section's dedicated concepts before
+    the sweep runs. So the MATCHER may now answer with a bucket, and the stage that owns buckets
+    undoes it — which is asserted end to end by the no-figures-move comparison over three filings
+    rather than here, because this file has no pipeline.
+    """
+    m = _matcher({"key": "bs_ca__others", "aliases": ["Others"],
+                  "value_scope": "exclusive_residual"},
                  {"key": "bs_ca__real", "aliases": ["Prepayments"]})
 
-    assert m.match("Others").key is None
+    assert m.match("Others").key == "bs_ca__others"
     assert m.match("Prepayments").key == "bs_ca__real"
+
+
+def test_a_residual_is_still_never_offered_to_the_model():
+    """The job `alias_matching` was doing that DID have to survive, and the one whose loss cost the
+    most: `_never_asked` read the lock, so removing it offered eleven residual buckets to the model.
+    A residual carries a section's UNEXPLAINED remainder, so a figure the model files there makes the
+    reconciliation that would have reported the gap tie instead. The marker carries it now."""
+    from app.schemas.line_items import LineItemDef
+    from app.services.line_item_requests import asked_about
+
+    bucket = LineItemDef(key="bs_ca__others", label="Others",
+                         value_scope="exclusive_residual")
+    ordinary = LineItemDef(key="bs_ca__real", label="Prepayments")
+
+    assert not asked_about(bucket), bucket._never_asked()
+    assert asked_about(ordinary)
 
 
 def test_a_computed_line_is_not_offered_to_a_printed_caption():
@@ -321,6 +350,18 @@ def test_the_shipped_set_carries_the_whole_rulebook(shipped):
     assert len(shipped._alias_index) > 1900, "the alias vocabulary did not survive the merge"
 
 
-def test_the_locked_residuals_are_locked_in_the_shipped_set(shipped):
-    """16 concepts rely on this; a matchable residual bucket is a reconciliation that ties wrongly."""
-    assert len(shipped._unmatchable) >= 16
+def test_the_shipped_set_still_locks_the_lines_that_must_be_locked(shipped):
+    """IT WAS 16 AND IS 11, and the difference is the eleven residual buckets leaving this set.
+
+    `_unmatchable` had three clauses and now has two: `extraction_mode == "derive"` and
+    `type == "derived"`. The buckets were in it through `alias_matching: "disabled"`, which the
+    others master removes — they are kept away from the MODEL by `_never_asked` instead, and away
+    from a bucket's own total by the sweep's release. What must still be locked is every line whose
+    figure is arithmetic: a caption claiming one of those skips the arithmetic entirely.
+    """
+    locked = shipped._unmatchable
+    derived = {d.key for d in shipped.set.items
+               if str(getattr(d.type, "value", d.type)) == "derived"}
+
+    assert derived <= locked, sorted(derived - locked)
+    assert len(locked) >= len(derived), (len(locked), len(derived))

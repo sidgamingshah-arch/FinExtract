@@ -107,8 +107,13 @@ def evaluate_parity(
     # nothing and cannot make a locale extractable. Mirrors the ``_unmatchable`` set in
     # ``services.mapping.OntologyMatcher`` — restated rather than imported, because a schema
     # module must not depend on a service.
+    # `value_scope != "exclusive_residual"` rather than `alias_matching != "disabled"`: the
+    # residual buckets no longer carry that lock (the others master marks them instead), and what
+    # this count needs to exclude is a line whose aliases nothing reads — which is what being a
+    # bucket means, not what the lock said.
     matchable = [m for m in (ontology.mappings if ontology else ())
-                 if m.alias_matching != "disabled" and m.extraction_mode != "derive"]
+                 if str(getattr(m, "value_scope", "")) != "exclusive_residual"
+                 and m.extraction_mode != "derive"]
     result: list[LanguageParity] = []
     for loc in locales:
         seed = SEED_LANGUAGES.get(loc, {"name": loc, "rtl": False, "has_ocr_pack": False})
