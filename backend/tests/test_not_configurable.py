@@ -99,7 +99,13 @@ def test_the_fields_the_v2_spec_removed_are_all_refused():
 
 
 def test_the_count_someone_has_to_justify():
-    """22 of 50 wire fields refused.
+    """22 of 51 wire fields refused.
+
+    51 SINCE `terms_op` ARRIVED — how a calculated line's terms, or a cascade rung's, combine: sum,
+    max, min or first. Added because the related-party spec's own selection rule is MAX_VALID(Find
+    1, Find 2, Find 3) and the engine could only sum or take the first available, which the line's
+    replaced rung note recorded as a compromise. `sum` is the default and every previously shipped
+    formula means it, so the field widened the surface without moving a figure.
 
     51 UNTIL `confusable_with` WENT. Its two mutual pairs became exclusions: 36 vetoes for the other
     line's distinctive captions, and 9 aliases removed from the line they did not belong to. The number is here so widening the surface is a decision.
@@ -123,7 +129,7 @@ def test_the_count_someone_has_to_justify():
     It was 26 until the audit found that `in_output`, `namespace` and `order` cannot be refused:
     the template has no row for an off-template PART (measured: 0 of the 77 appear in it), so it
     cannot decide a part's delivery, and refusing them made parts unauthorable."""
-    assert len(_EDITABLE_FIELDS) == 50, len(_EDITABLE_FIELDS)
+    assert len(_EDITABLE_FIELDS) == 51, len(_EDITABLE_FIELDS)
     assert len(_NOT_CONFIGURABLE) == 22, len(_NOT_CONFIGURABLE)
 
 
@@ -149,7 +155,7 @@ def test_no_shipped_item_would_now_be_unloadable():
 
     raw = json.loads(SEED.read_text(encoding="utf-8"))
     shipped = load_line_item_set(raw, resolve=True)
-    assert len(shipped.items) == 539
+    assert len(shipped.items) == 543
 
     declared = {f for f in _NOT_CONFIGURABLE for i in raw["items"] if f in i}
     assert declared, "no shipped item declares a refused field — then this test proves nothing"

@@ -287,7 +287,9 @@ def test_the_note_level_parts_are_off_template():
     # 14 since the profit-before-tax note's COST-OF-SALES depreciation callout was added on
     # review — a third reader of that note, distinguished from the other two by the qualifier
     # in its caption. See `is_pl__deprec_and_impairment_cos`'s COS_P2 rung.
-    assert len(subs) == 77
+    # 78 — plus `sub__fa_cp_intermediate_residual`, which is off-template for the same reason
+    # every other part is: the template does not print it.
+    assert len(subs) == 81
     assert all(d.namespace == "internal" for d in subs)
     assert all(d.namespace == "template" for d in st.items if d.in_output)
 

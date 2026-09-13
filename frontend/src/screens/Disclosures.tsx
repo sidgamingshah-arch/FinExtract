@@ -34,8 +34,10 @@ function amount(value: string | null | undefined, currency: string | null | unde
 function DisclosureWorking({ d }: { d: Disclosure }) {
   const breakdown = d.breakdown ?? [];
   const statements = d.statements ?? [];
+  const items = d.items ?? [];
+  const itemTotals = d.item_totals ?? [];
   const explanation = (d.explanation ?? "").trim();
-  if (!breakdown.length && !statements.length && !explanation) return null;
+  if (!breakdown.length && !statements.length && !explanation && !items.length) return null;
 
   const label = { fontSize: 10, fontWeight: 700 as const, letterSpacing: 0.3,
                   color: color.muted, textTransform: "uppercase" as const };
@@ -70,6 +72,62 @@ function DisclosureWorking({ d }: { d: Disclosure }) {
                 {[g.item_count ? `${g.item_count} disclosed item${g.item_count === 1 ? "" : "s"}` : "",
                   g.source_pages?.length ? `p.${g.source_pages.join(", p.")}` : ""]
                   .filter(Boolean).join(" · ")}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* EVERY EXPOSURE, ONE BY ONE. The two sections around this one are REDUCTIONS — a sum per
+          type, and only the matters that fit no type — so a classified item appeared nowhere on
+          its own. This is the table a reader checks against the page. */}
+      {items.length > 0 && (
+        <div>
+          <div style={label}>All contingent liabilities disclosed</div>
+          {items.map((it, i) => (
+            <div key={`${it.description}-${i}`}
+                 data-testid={`disc-item-${d.key}`}
+                 style={{ display: "grid", gridTemplateColumns: "1.4fr 1.1fr 1.4fr",
+                          gap: 12, padding: "3px 0", alignItems: "baseline",
+                          opacity: it.duplicate_of ? 0.6 : 1 }}>
+              <span style={{ fontSize: 11.5, color: color.ink, lineHeight: 1.5 }}>
+                {it.description}
+                {it.classification && (
+                  <span style={{ color: color.faint, fontSize: 10.5 }}>
+                    {" — "}{it.classification}
+                  </span>
+                )}
+              </span>
+              {/* Blank, never 0, for the reason the statements below give. */}
+              <span style={fig}>{amount(it.amount, it.currency)}</span>
+              <span style={{ fontSize: 10.5, color: color.faint }}>
+                {[it.counterparty ?? "",
+                  it.note_number ? `note ${it.note_number}` : "",
+                  it.page ? `p.${it.page}` : "",
+                  it.duplicate_of ? "restates another note — not in the total" : ""]
+                  .filter(Boolean).join(" · ")}
+              </span>
+            </div>
+          ))}
+          {itemTotals.map((t, i) => (
+            <div key={`total-${t.currency}-${i}`}
+                 data-testid={`disc-item-total-${d.key}`}
+                 style={{ display: "grid", gridTemplateColumns: "1.4fr 1.1fr 1.4fr",
+                          gap: 12, padding: "5px 0 3px", alignItems: "baseline",
+                          borderTop: `1px solid ${color.hairline2}`, marginTop: 3 }}>
+              <span style={{ fontSize: 11.5, fontWeight: 600, color: color.ink }}>
+                {/* The label says WHICH kind of subtotal this is. A group where nothing was priced
+                    carries no amount, and calling that "Total disclosed" beside an empty figure
+                    reads as a total of nought — the opposite of "not disclosed". */}
+                {t.amount === null || t.amount === undefined
+                  ? "Disclosed without an amount" : "Total disclosed"}
+              </span>
+              <span style={{ ...fig, fontWeight: 600 }}>{amount(t.amount, t.currency)}</span>
+              <span style={{ fontSize: 10.5, color: color.faint }}>
+                {[t.item_count ? `${t.item_count} item${t.item_count === 1 ? "" : "s"}` : "",
+                  t.unpriced ? `${t.unpriced} with no amount disclosed` : "",
+                  t.duplicates_excluded
+                    ? `${t.duplicates_excluded} restatement${t.duplicates_excluded === 1 ? "" : "s"} excluded`
+                    : ""].filter(Boolean).join(" · ")}
               </span>
             </div>
           ))}

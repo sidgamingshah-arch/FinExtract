@@ -160,6 +160,35 @@ Namespace = Literal["template", "internal"]
 Rollup = Literal["sum", "alternatives", "none"]
 
 
+# HOW A GROUP OF TERMS COMBINES, for the two places terms live: a calculated line's `terms` and a
+# cascade rung's. `sum` is the default and every one of the shipped formulas and rungs means it, so
+# this adds a capability to the rule builder without changing a single figure.
+#
+#   sum    add the signed terms. "The four operating-expense notes" is a sum.
+#   max    take the LARGEST. This is what the related-party spec actually says — "MAX_VALID(Find 1,
+#          Find 2, Find 3)" — and `bs_nca__due_from_related_parties_ltp`'s own rung note recorded
+#          that the cascade could not express it: "the spec's actual selection rule is MAX_VALID(...),
+#          not first-available, so this rung's precedence is the spec's declaration order rather
+#          than a claim that ...". Three readings of one quantity, and the fullest wins.
+#   min    the smallest, for a rule that wants the most conservative of several readings.
+#   first  the first present in declared order, ignoring the rest. This is what `rollup:
+#          "alternatives"` says at the PARENT level, available here so a group INSIDE one formula
+#          can be alternatives while the formula around it still sums — the related-party note is
+#          read four ways (by class, by counterparty, as an umbrella, from the dedicated note) and
+#          those are alternative views of the same balances, never addends.
+#
+# IT APPLIES TO THE BASE GROUP ONLY — the `required` and `any_of` terms. An `adjustment` is a signed
+# addition to whatever the base comes to, in every mode, because a deduction is not one of the
+# candidates being chosen between: it applies to the winner. So "the largest of three readings, less
+# the entrusted loans disclosed separately" is one rung.
+#
+# `required` STILL MEANS REQUIRED in every mode: its absence kills the group, whether the group is
+# being summed or maximised. And a base with nothing present is still None rather than 0 — a max
+# over three absent readings has no value, and publishing zero would assert the filing disclosed
+# none.
+TermsOp = Literal["sum", "max", "min", "first"]
+
+
 class Term(BaseModel):
     """One addend of a formula: a line item, a fixed number, or the absolute value of a line item.
 
@@ -208,6 +237,9 @@ class CascadeRung(BaseModel):
 
     id: str                            # "P1", "Find_2" — as the run log and the audit trail name it
     terms: list[Term] = Field(default_factory=list)
+    # HOW THIS RUNG'S BASE TERMS COMBINE — see `TermsOp`. `sum` is the default and what every
+    # shipped rung means, so this adds a capability without changing one.
+    terms_op: TermsOp = "sum"
     note: str = ""                     # why this rung exists, for the person reading the screen
     # A RUNG THAT COMPUTES BELOW ZERO IS REFUSED, and the next rung is tried. This is not a
     # nicety: a rung resolving to -50 has mistaken what its inputs meant — the commonest case is
@@ -675,6 +707,9 @@ class LineItemDef(BaseModel):
 
     # ── calculated / intermediate ────────────────────────────────────────────────────────────
     terms: list[Term] = Field(default_factory=list)
+    # HOW THOSE TERMS COMBINE — see `TermsOp`. `sum` on every one of the 33 shipped
+    # formulas, so this is a capability the rule builder gains, not a change to a figure.
+    terms_op: TermsOp = "sum"
 
     # ── derived ──────────────────────────────────────────────────────────────────────────────
     cascade: list[CascadeRung] = Field(default_factory=list)

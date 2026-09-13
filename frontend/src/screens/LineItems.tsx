@@ -58,6 +58,7 @@ import { useCan } from "../lib/rbac";
 import { SCREENS } from "./config";
 import { color, font, radius } from "../theme";
 import type {
+  TermsOp,
   LineItemDef, LineItemEdit,
   LineItemNoteUse, LineItemSetInfo,
   LineItemType, LineItemVocab,
@@ -1721,6 +1722,9 @@ function Detail(p: EditorProps) {
           </summary>
           {fld("terms", (e) => (
             <TermRows label="Terms" testid="terms" editable={editable}
+                      op={g("terms_op", item.terms_op) ?? "sum"}
+                      onOp={(v) => patch({ terms_op: v as TermsOp })}
+                      opOptions={vocab?.terms_ops ?? ["sum", "max", "min", "first"]}
                       help="The parts this line is added up from, each with its sign. Every part
                             must name a line that exists — a mistyped
                             name is refused when you save rather than
@@ -1738,7 +1742,8 @@ function Detail(p: EditorProps) {
             The priority cascade — for a <b>derived</b> line
           </summary>
           {fld("cascade", (e) => (
-            <RungCards label="Rungs, tried in order" testid="cascade" editable={editable}
+            <RungCards
+                      opOptions={vocab?.terms_ops} label="Rungs, tried in order" testid="cascade" editable={editable}
                        help="The ORDER IS the priority. A derived line needs either a cascade or an
                              `implemented_by` below."
                        cascade={g("cascade", item.cascade)} onChange={(v) => patch({ cascade: v })}

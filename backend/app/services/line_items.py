@@ -148,7 +148,8 @@ class Evaluation:
         return self.value is not None
 
 
-def _apply_terms(terms: list[Term], known: dict[str, Decimal | None]) -> Evaluation:
+def _apply_terms(terms: list[Term], known: dict[str, Decimal | None],
+                 op: str = "sum") -> Evaluation:
     """The three term roles, and what each one's absence means. See `Term.role`.
 
     A `required` term missing kills the rung. An `any_of` term missing is fine as long as one of
@@ -159,28 +160,65 @@ def _apply_terms(terms: list[Term], known: dict[str, Decimal | None]) -> Evaluat
 
     Nothing at the base at all is None, never 0: a sum over four absent notes has no value, and
     publishing zero would assert the filing charged none.
+
+    `op` IS HOW THE BASE GROUP COMBINES — see `schemas.line_items.TermsOp`. Default `sum`, which
+    is what every shipped formula and rung means, so the default path is the one this function
+    always had. The base group is the `required` and `any_of` terms; `adjustment` terms are signed
+    additions to whatever the base comes to, IN EVERY MODE, because a deduction is not one of the
+    candidates being chosen between — it applies to the winner. That is what lets "the largest of
+    three readings, less the entrusted loans disclosed separately" be one rung.
+
+    `max`/`min`/`first` READ THE SIGNED CONTRIBUTION, not the raw figure, so a term written with
+    `sign: -1` inside a max group is compared as the negative quantity it contributes. Mixing signs
+    in a max group is expressible and almost certainly a mistake; nothing here forbids it, and the
+    trail records each term's `used` value so the choice is visible.
     """
-    total = Decimal(0)
+    base: list[tuple[Decimal, dict]] = []
+    adjustments = Decimal(0)
     inputs: list[dict] = []
     missing: list[str] = []
-    base_present = 0          # a `required` or `any_of` figure — something the rung is built on
     for t in terms:
         raw = Decimal(str(t.const)) if t.const is not None else known.get(t.ref)
         if raw is None:
             missing.append(t.ref or "fixed number")
+            # `required` STILL MEANS REQUIRED IN EVERY MODE: a max over three readings where one
+            # was declared indispensable is not a max over the other two.
             if t.role == "required":
                 return Evaluation(None, inputs, missing)
             continue
         used = abs(raw) if t.abs else raw
-        total += t.sign * used
-        if t.role != "adjustment":
-            base_present += 1
-        inputs.append({"ref": t.ref or None, "const": t.const, "sign": t.sign,
-                       "abs": t.abs, "role": t.role,
-                       "value": str(raw), "used": str(t.sign * used)})
-    if base_present == 0:
+        contribution = t.sign * used
+        entry = {"ref": t.ref or None, "const": t.const, "sign": t.sign,
+                 "abs": t.abs, "role": t.role,
+                 "value": str(raw), "used": str(contribution)}
+        if t.role == "adjustment":
+            adjustments += contribution
+        else:
+            base.append((contribution, entry))
+        inputs.append(entry)
+    if not base:
         return Evaluation(None, inputs, missing)
-    return Evaluation(total, inputs, missing)
+
+    if op == "sum":
+        total = sum((c for c, _e in base), Decimal(0))
+    elif op == "max":
+        total = max(c for c, _e in base)
+    elif op == "min":
+        total = min(c for c, _e in base)
+    elif op == "first":
+        total = base[0][0]
+    else:
+        # An unknown operator must not silently become a sum: that would publish a figure under a
+        # rule nobody wrote. The schema closes the set, so reaching here means the two have drifted.
+        raise ValueError(f"unknown terms_op {op!r}")
+
+    # WHICH BASE TERMS ACTUALLY DECIDED THE FIGURE, recorded for every mode but `sum`, where all of
+    # them did. Without this a `max` trail lists three readings and does not say which one the
+    # number is — and that is precisely the question a reviewer has.
+    if op != "sum":
+        for c, entry in base:
+            entry["selected"] = (c == total) if op in ("max", "min") else (entry is base[0][1])
+    return Evaluation(total + adjustments, inputs, missing)
 
 
 def evaluate(d: LineItemDef, known: dict[str, Decimal | None]) -> Evaluation:
@@ -214,12 +252,12 @@ def evaluate(d: LineItemDef, known: dict[str, Decimal | None]) -> Evaluation:
         # until the cross-check master takes it over.
         if not d.terms:
             return Evaluation(_dec(known.get(d.key)))
-        return _apply_terms(d.terms, known)
+        return _apply_terms(d.terms, known, getattr(d, "terms_op", "sum"))
 
     if d.type == "derived":
         refused: list[str] = []
         for rung in d.cascade:
-            got = _apply_terms(rung.terms, known)
+            got = _apply_terms(rung.terms, known, getattr(rung, "terms_op", "sum"))
             if not got.resolved:
                 continue
             # A RUNG BELOW ZERO IS NOT AN ANSWER, it is evidence this rung's inputs did not mean

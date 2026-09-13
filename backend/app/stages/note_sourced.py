@@ -232,11 +232,21 @@ class NoteSourcedStage(Stage):
         # parent declares none — so looking the parent's rollup up in that list found nothing and
         # fell back to `sum`, which summed twelve disclosures of one depreciation charge into a cost
         # twelve times too large. The fallback was the bug, not the lookup.
+        # THE ARITHMETIC LINES THAT HAVE NO CHILDREN OF THEIR OWN — BEFORE the parents, so a
+        # parent's cascade can reference one. `bs_nca__secur_and_other_fincl_assets_ltp` does
+        # exactly that: its rungs name the CURRENT securities line's overshoot residual, which is
+        # computed from that line's note-sourced children and must therefore exist before any
+        # parent cascade is evaluated.
+        standalone = _fill_childless_internal(all_items, children_of, by_key, doc, ctx)
         parents = _fill_parents(children_of, by_key, doc, ctx,
                                 _parent_rollup(all_items), _note_permission(all_items),
                                 {i.key: i for i in all_items})
+        # …AND AGAIN AFTER, for one whose inputs are a PARENT's computed figure rather than a
+        # child's. Idempotent: the pass skips any slot that already carries a value, so a line
+        # settled above is not recomputed here.
+        standalone += _fill_childless_internal(all_items, children_of, by_key, doc, ctx)
         ctx.log(f"note_sourced: {touched} item(s) filled from notes, {filled} figure(s), "
-                f"{parents} parent(s) resolved")
+                f"{parents} parent(s) resolved, {standalone} standalone line(s) computed")
         return doc
 
 
@@ -769,6 +779,108 @@ def _slot(row: LineItem, basis: str, period: str):
         if _basis(ev) == basis and str(getattr(ev, "period_label", "") or "") == period:
             return ev
     return None
+
+
+def _fill_childless_internal(all_items, children_of: dict[str, list], by_key: dict,
+                             doc: DocumentModel, ctx: PipelineContext) -> int:
+    """Compute an OFF-TEMPLATE INTERNAL line whose figure is pure arithmetic over other lines.
+
+    THE GAP THIS CLOSES, and it was silent. `_fill_parents` evaluates a cascade only for a key that
+    appears in `children_of`, and `children_of` holds a key only if some configured child of it has
+    a figure. So a configured arithmetic line with NO children of its own was never evaluated at
+    all: its `cascade` was stored, shown on the configuration screen, versioned — and read on no
+    run. Measured while building the securities family: five such lines produced nothing, and
+    because the line that referenced them took its term as `required`, the rung died and the
+    constant fallback answered — the balance-sheet line published 0.0 with nothing saying why.
+
+    WHY IT IS THIS NARROW, and the narrowness is the whole safety argument. Measured over the
+    shipped set, 31 of the 39 configured arithmetic lines have no children — and every one of the
+    31 is `namespace: "template"`, `in_output: True`: the statement subtotals (total assets, total
+    current liabilities, gross profit, profit for the year). Those are computed by
+    `services/rollups.evaluate` from the TEMPLATE's rollup tree, which is the single entry point
+    the statement API, the Excel export and the KPI layer all read. Computing them here as well
+    would be a second place computing one published quantity — the bug `_fill_by_cascade`'s own
+    comment warns about, on the arithmetic that decides a figure.
+
+    So this takes ONLY lines that are off-template and not published:
+
+      * `namespace == "internal"` — outside the template, so no template rollup computes them
+      * `in_output` false — not a published row
+      * no children, so `_fill_parents` never had a chance at them
+      * a `cascade` or `terms` to evaluate, and no figure already
+
+    Measured against the shipped set, that population is EMPTY: every internal sub-line item either
+    reads a note or has children. So this pass can add nothing to any existing configuration, and
+    what it enables is a new internal line whose value is arithmetic — which is what
+    `sub__fa_cp_intermediate_residual` is.
+
+    PER (BASIS, PERIOD), and only in columns where an input actually appears: a rung is an
+    arithmetic within one column, and evaluating one in a column none of its inputs reach would
+    compute a figure the filing states in neither.
+    """
+    from app.services.line_items import evaluate as evaluate_line
+
+    have_children = set(children_of) | set(_children_by_parent(all_items))
+    candidates = [
+        i for i in (all_items or ())
+        if str(getattr(i, "namespace", "") or "") == "internal"
+        and not getattr(i, "in_output", False)
+        and i.key not in have_children
+        and (getattr(i, "cascade", None) or getattr(i, "terms", None))
+    ]
+    if not candidates:
+        return 0
+
+    # Every figure in the document, per column — the same shape `_fill_by_cascade` builds, and for
+    # the same reason: a term names a concept, not a parenthood.
+    slots: dict[tuple[str, str], dict] = {}
+    for row in doc.line_items:
+        key = row.canonical_key
+        if not key:
+            continue
+        for ev in (row.values or {}).values():
+            if ev.value is None:
+                continue
+            slot = (_basis(ev), str(getattr(ev, "period_label", "") or ""))
+            slots.setdefault(slot, {}).setdefault(key, ev.value)
+
+    # IN DECLARED ORDER, so one of these may reference another declared before it. Not a full
+    # topological walk for the reason `_in_dependency_order` gives: `services.line_items.build`
+    # already does the real ordering and a second implementation of that graph is a second thing
+    # to drift.
+    filled = 0
+    for item in sorted(candidates, key=lambda i: (int(getattr(i, "order", 0) or 0), i.key)):
+        row = next((li for li in doc.line_items if li.canonical_key == item.key), None)
+        wrote = []
+        for (basis, period), known in sorted(slots.items()):
+            refs = {t.ref for rung in (getattr(item, "cascade", None) or ())
+                    for t in (getattr(rung, "terms", None) or ()) if getattr(t, "ref", None)}
+            refs |= {t.ref for t in (getattr(item, "terms", None) or ())
+                     if getattr(t, "ref", None)}
+            # NOT THIS LINE'S COLUMN IF NONE OF ITS INPUTS IS IN IT.
+            if not (refs & set(known)):
+                continue
+            if row is not None and _slot(row, basis, period) is not None:
+                continue
+            ev = evaluate_line(item, dict(known))
+            if ev.value is None:
+                if ev.rung_used is None and getattr(item, "cascade", None):
+                    ctx.log(f"note_sourced:{item.key}: no rung resolved in {basis}/{period}"
+                            + (f", refused for computing below zero: {ev.refused_rungs}"
+                               if ev.refused_rungs else ""))
+                continue
+            if row is None:
+                row = LineItem(source_label=item.label or item.key, canonical_key=item.key)
+                doc.line_items.append(row)
+                by_key[item.key] = row
+            _write(row, basis, period, ev.value)
+            row.confidence.flags.append(f"computed_from_config:{ev.rung_used or 'terms'}")
+            wrote.append(f"{basis}/{period}={ev.value}")
+        if wrote:
+            filled += 1
+            ctx.log(f"note_sourced:{item.key}: computed from its own declaration — "
+                    + ", ".join(wrote))
+    return filled
 
 
 def _children_by_parent(all_items) -> dict[str, list[str]]:

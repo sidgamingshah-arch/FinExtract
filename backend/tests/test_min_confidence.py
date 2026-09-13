@@ -103,7 +103,7 @@ def test_the_shipped_set_still_loads_and_matches_after_the_removal():
     st = load_line_item_set(json.loads(SEED.read_text(encoding="utf-8")))
     m = LineItemMatcher(st)
 
-    assert len(st.items) == 539
+    assert len(st.items) == 543
     assert m.match("total assets", "balance_sheet", "CURRENT ASSETS").key == "bs_ca__total_assets"
 
 

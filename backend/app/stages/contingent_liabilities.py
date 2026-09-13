@@ -46,6 +46,12 @@ def _to_dict(result: ContingentLiabilitiesResult) -> dict:
                                for it in result.unclassified_items],
         "status": result.status,
         "qa_flags": result.flags,
+        # THE ITEM-BY-ITEM TABLE AND ITS TOTALS. Stored per period like everything else here, so
+        # `disclosure_explanation` can put them on the disclosure entry every reader already sees.
+        "detail_items": [{k: _jsonable(v) for k, v in r.items()}
+                         for r in result.detail_items],
+        "detail_totals": [{k: _jsonable(v) for k, v in t.items()}
+                          for t in result.detail_totals],
     }
 
 

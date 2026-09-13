@@ -974,6 +974,62 @@ def _emit_disclosure_working(ws, d: dict, ri: int, wrap, num_fmt, right) -> int:
             _detail(ri, s.get("currency"), f"note {note}" if note else "",
                     f"p.{page}" if page else "")
             ri += 1
+
+    # ── EVERY CONTINGENT LIABILITY, ONE BY ONE, AND WHAT THEY COME TO ─────────────────────────
+    #
+    # The two sections above are both REDUCTIONS: one sums the exposure per type, the other keeps
+    # only the matters that fit no type. An item that WAS classified therefore appeared nowhere on
+    # its own, and a reader checking a corporate-guarantee subtotal against the page it cites had
+    # nothing to check it against. This is the detail table §6.5 refers to.
+    #
+    # IN THE WORKBOOK AND NOT ONLY ON THE SCREEN. The Disclosures sheet is where a credit reader
+    # actually works, so a table that exists only in the UI is a table most readers never see.
+    items = d.get("items") or []
+    totals = d.get("item_totals") or []
+    if items:
+        h = ws.cell(ri, 1, "All contingent liabilities disclosed")
+        h.font = bold_grey
+        h.alignment = indent1
+        ri += 1
+        for it in items:
+            label = str(it.get("description") or "")
+            kind = str(it.get("classification") or "")
+            # THE TYPE TRAVELS WITH THE ITEM, because the same description can be classified
+            # differently depending on the instrument language beside it, and the reader is being
+            # asked to check exactly that judgement.
+            ws.cell(ri, 1, f"{label} — {kind}" if kind else label).alignment = indent2
+            _disclosure_amount(ws, ri, it.get("amount"), num_fmt, right)
+            note, page = it.get("note_number"), it.get("page")
+            _detail(ri, it.get("currency"),
+                    str(it.get("counterparty") or ""),
+                    f"note {note}" if note else "",
+                    f"p.{page}" if page else "",
+                    # A RESTATEMENT IS MARKED RATHER THAN HIDDEN: it is excluded from the total
+                    # below, and a reader who could not see it would not know whether the filing
+                    # disclosed the exposure once or twice.
+                    "restates another note — excluded from the total"
+                    if it.get("duplicate_of") else "")
+            ri += 1
+        for t in totals:
+            n, unpriced = t.get("item_count"), t.get("unpriced")
+            dup = t.get("duplicates_excluded")
+            # THE LABEL SAYS WHICH KIND OF SUBTOTAL THIS IS. A group where nothing was priced
+            # carries no amount at all, and calling that row "Total disclosed" beside an empty
+            # Amount cell reads as a total of nought — the opposite of "not disclosed".
+            priced = t.get("amount") is not None
+            ws.cell(ri, 1, "Total disclosed" if priced
+                    else "Disclosed without an amount").font = bold_grey
+            ws.cell(ri, 1).alignment = indent1
+            _disclosure_amount(ws, ri, t.get("amount"), num_fmt, right)
+            # WHAT THE TOTAL DOES NOT INCLUDE, beside it. A sum over eight items where three
+            # disclosed no amount is not a total of the exposure, and a reader who cannot see that
+            # is misled by arithmetic that is itself correct.
+            _detail(ri, t.get("currency"),
+                    f"{n} item{'s' if isinstance(n, int) and n != 1 else ''}" if n else "",
+                    f"{unpriced} with no amount disclosed" if unpriced else "",
+                    f"{dup} restatement{'s' if isinstance(dup, int) and dup != 1 else ''} "
+                    f"excluded" if dup else "")
+            ri += 1
     return ri
 
 

@@ -795,9 +795,52 @@ export interface Disclosure {
   breakdown?: DisclosureBreakdown[];
   /** One sentence per disclosed paragraph that fits no type, with its amount. */
   statements?: DisclosureStatement[];
+  /** EVERY DISCLOSED ITEM, ONE BY ONE — the detail table. `breakdown` above sums per type and
+   *  `statements` keeps only what fits no type, so an item that WAS classified appeared in neither
+   *  on its own: a reader checking a corporate-guarantee subtotal against p.209 had nothing to
+   *  check it against. */
+  items?: DisclosureItem[];
+  /** What that table comes to, per currency and scale. NEVER one blended figure: the derivation
+   *  that published a single total across unlike units was removed deliberately, and this is the
+   *  table's own column sum, not a figure for any line item. */
+  item_totals?: DisclosureItemTotal[];
   /** Which basis and period the explanation describes, e.g. "consolidated:current". */
   basis_period?: string | null;
 }
+/** One row of the detail table — a single disclosed exposure. */
+export interface DisclosureItem {
+  description: string | null;
+  classification: string | null;
+  /** WHY it is that type. The classification runs in a fixed priority order, so a broad
+   *  "guarantee" caption can lose to a more specific instrument — the decision worth showing. */
+  classified_by?: string[];
+  /** A decimal STRING for the same reason as `Disclosure.amount`. Null where the filing disclosed
+   *  the item without an amount, which must render blank and never as 0. */
+  amount: string | null;
+  currency: string | null;
+  scale?: string | null;
+  note_number?: string | null;
+  note_heading?: string | null;
+  page?: number | string | null;
+  counterparty?: string | null;
+  /** Set when this exposure restates one already disclosed in another note. Shown and marked
+   *  rather than hidden — it is excluded from the total, and a reader who could not see it would
+   *  not know whether the filing disclosed the exposure once or twice. */
+  duplicate_of?: string | null;
+}
+
+/** The detail table's column sum for one currency and scale. */
+export interface DisclosureItemTotal {
+  amount: string | null;
+  currency: string | null;
+  scale?: string | null;
+  item_count?: number | null;
+  /** How many items disclosed no amount. Part of the answer, not a footnote: a sum over eight
+   *  items where three disclosed nothing is not a total of the exposure. */
+  unpriced?: number | null;
+  duplicates_excluded?: number | null;
+}
+
 export interface DisclosureBreakdown {
   type: string | null;
   /** A decimal STRING for the same reason as `Disclosure.amount`. */
@@ -1553,6 +1596,9 @@ export interface LineItemTerm {
 export interface CascadeRung {
   id: string;
   terms: LineItemTerm[];
+  /** HOW THOSE TERMS COMBINE — sum | max | min | first. A property of the GROUP, not of any
+   *  one addend. `sum` on every shipped rung. */
+  terms_op?: TermsOp;
   note: string;
   /** A rung computing below zero is passed over and the next tried — the derivation services
    *  refuse a negative candidate, and the config that ported them originally did not. */
@@ -1563,6 +1609,12 @@ export interface CascadeRung {
  *  This object REPLACED a hard-coded heading list and a 162-alternative regex whitelist that
  *  refused a filing writing "Depreciation charge for the year". Widening it is the single edit the
  *  Line Items screen exists to make possible, so all four fields are authorable. */
+/** How a group of terms combines. `sum` adds them; `max`/`min` pick the largest/smallest of
+ *  several readings of one quantity; `first` takes the first present and ignores the rest, so
+ *  the row order is the precedence. Applies to the BASE terms — `required` and `any_of`; an
+ *  `adjustment` is a signed addition to whatever the base comes to, in every mode. */
+export type TermsOp = "sum" | "max" | "min" | "first";
+
 export interface NoteSource {
   note_title_any: string[];
   row_caption_any: string[];
@@ -1714,6 +1766,8 @@ export interface LineItemDef {
   notes_as_source_rationale: string | null;
 
   terms: LineItemTerm[];
+  /** How `terms` combine — see `TermsOp`. `sum` on every shipped formula. */
+  terms_op?: TermsOp;
   cascade: CascadeRung[];
   /** The service that computes this line today, while the config only describes it. Clearing it
    *  is how an author hands the derivation over to an authored `cascade` — and a `derived` line
@@ -1904,6 +1958,9 @@ export interface LineItemEdit {
    *  against this set's keys, so a typo is refused rather than being a term that contributes
    *  nothing. `[]` is stored — and then refused for a calculated line, which is the point. */
   terms?: LineItemTerm[];
+  /** How `terms` combine. A scalar on the wire because it is a property of the GROUP, not of
+   *  any one addend — a per-term copy would be four ways to disagree about one rule. */
+  terms_op?: TermsOp;
   /** The ordered attempts a `derived` line is assembled by — first rung that resolves wins, so
    *  the ORDER IS the priority and is preserved as sent. */
   cascade?: CascadeRung[];
@@ -1945,6 +2002,8 @@ export interface LineItemVocab {
   scopes: SearchScope[];
   sides: LineItemSide[];
   rollups: LineItemRollup[];
+  /** The four ways a group of terms may combine, so the control cannot offer a fifth. */
+  terms_ops?: TermsOp[];
   namespaces: LineItemNamespace[];
   types: LineItemType[];
   output_structures: OutputStructure[];

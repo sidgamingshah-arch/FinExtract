@@ -1668,101 +1668,28 @@
    "order": 6,
    "cascade": [
     {
-     "id": "LTP_FIND_1",
+     "id": "MAX_VALID",
+     "terms_op": "max",
+     "refuse_negative": true,
+     "outranks_printed": true,
      "terms": [
       {
-       "ref": "sub__rp_bs_face_receivables",
-       "role": "required",
-       "sign": 1
-      }
-     ],
-     "note": "Spec 4.2, Candidate 1: 'Find_1 = SUM(Find_1_components excluding entrusted loans)', the unique net related-party balances identified on the balance sheet and in statement-linked disclosures. One child feeds it, so the term is required. Declared first because the spec enumerates Find 1 first (sections 2, 4.2 and 7); note that the spec's actual selection rule is MAX_VALID(Find 1, Find 2, Find 3), not first-available, so this rung's precedence is the spec's declaration order rather than a claim that the face is the best measurement. No deduction: the shared veto already excludes entrusted loans (3.4), and where a face figure bundles an inseparable entrusted loan 3.4 requires the candidate be left not computable rather than netted.",
-     "refuse_negative": true
-    },
-    {
-     "id": "LTP_FIND_2",
-     "terms": [
-      {
-       "ref": "sub__rp_lt_receivables_note",
+       "ref": "sub__rp_find_1",
        "role": "any_of",
        "sign": 1
       },
       {
-       "ref": "sub__rp_current_portion_ltr_note",
+       "ref": "sub__rp_find_2",
        "role": "any_of",
        "sign": 1
       },
       {
-       "ref": "sub__rp_other_receivables_note",
-       "role": "any_of",
-       "sign": 1
-      },
-      {
-       "ref": "sub__rp_loans_and_advances_note",
+       "ref": "sub__rp_find_3",
        "role": "any_of",
        "sign": 1
       }
      ],
-     "note": "Spec 4.3, Candidate 2: 'Find_2 = SUM(Find_2_components excluding entrusted loans)', the unique net related-party balances in the specified receivable notes. The four notes are mutually exclusive receivable classes — in PRC presentation the current portion is reclassified out of 长期应收款 — so summing them counts each underlying receivable once (3.5). Every term is any_of because the spec sums whatever subset the filing discloses and a missing note is not a failure (3.6: return null, never zero-fill). refuse_negative is set because this rung computes a receivable balance; a negative would mean the inputs did not mean what the rung assumed.",
-     "refuse_negative": true
-    },
-    {
-     "id": "LTP_FIND_3A",
-     "terms": [
-      {
-       "ref": "sub__rp_note_by_receivable_class",
-       "role": "required",
-       "sign": 1
-      }
-     ],
-     "note": "Spec 4.4, Candidate 3, read by receivable class: the related-party note's own rows for 其他应收款, 一年内到期的长期应收款, 长期应收款 and 发放贷款及垫款 / 贷款及垫款, which is the order 4.4's 'Search line items' list gives. Placed ahead of the two aggregate readings of the same note because 3.5 forbids adding a subtotal to its components — where the note gives a class breakdown, the breakdown is the component-level measurement and the umbrella line is the subtotal, so the two are alternatives and never both fire. No deduction needed: the shared veto keeps entrusted loans out of these class rows.",
-     "refuse_negative": true
-    },
-    {
-     "id": "LTP_FIND_3B",
-     "terms": [
-      {
-       "ref": "sub__rp_note_by_counterparty",
-       "role": "required",
-       "sign": 1
-      }
-     ],
-     "note": "Spec 4.4, Candidate 3, read by counterparty type: the same note's per-party rows (母公司, 子公司, 联营企业, 合营企业, 受同一控制方控制的企业, 其他关联方, and the HK associates / joint ventures / fellow subsidiaries / directors forms). A separate rung from 3A rather than a summed sibling, because the class view and the counterparty view of one note describe the SAME underlying receivables from two angles — 3.5: 'If the same related-party balance appears under two source notes but represents the same underlying receivable, retain one value within that candidate.' Also no deduction, for the same reason as 3A.",
-     "refuse_negative": true
-    },
-    {
-     "id": "LTP_FIND_3C",
-     "terms": [
-      {
-       "ref": "sub__rp_note_umbrella_total",
-       "role": "required",
-       "sign": 1
-      },
-      {
-       "ref": "sub__rp_note_entrusted_loans",
-       "role": "adjustment",
-       "sign": -1
-      }
-     ],
-     "note": "Spec 4.4, Candidate 3, read as the note's single umbrella related-party receivable line, used when the filing gives one figure and no breakdown. Ranked below 3A and 3B because it is the coarsest of the three readings of this note. This is the first rung whose base can bundle entrusted loans, so sub__rp_note_entrusted_loans enters as an adjustment with sign -1: 3.4 requires entrusted loans out of every related-party calculation, and deducting a separately disclosed 委托贷款 row from a bundled total is precisely the 'separation' 3.4 contemplates. The deduction is an adjustment, not a base — on its own it would leave the rung with nothing to deduct from — and refuse_negative discards the rung if the disclosed entrusted loans exceed the umbrella figure, which would prove the two did not refer to the same pool.",
-     "refuse_negative": true
-    },
-    {
-     "id": "LTP_FIND_3D",
-     "terms": [
-      {
-       "ref": "sub__rp_due_from_note_noncurrent",
-       "role": "required",
-       "sign": 1
-      },
-      {
-       "ref": "sub__rp_note_entrusted_loans",
-       "role": "adjustment",
-       "sign": -1
-      }
-     ],
-     "note": "Spec 4.4 also lists 应收关联方款项 as a related-party note heading in its own right; this rung reads that dedicated 'Amounts due from related companies' note and takes only its non-current-tenor rows, which is what the bs_nca parent means. Last because it is the fallback the parent's definition describes for a filing with no matching Chinese note headings — an English-language HK filing. Same entrusted-loan adjustment as 3C, for the same reason: the base is a single bundled tenor figure. Reviewer check against the quoted formula: these six rungs are Find_1, Find_2, and Find_3 in its four readings — alternatives, never summed (4.5: 'Do not add Find_1, Find_2, and Find_3'), which is why the parent rolls up as alternatives; the spec's MAX_VALID selection is approximated by this declared precedence order.",
-     "refuse_negative": true
+     "note": "MAX_VALID(Find 1, Find 2, Find 3) — the spec's own selection rule, now expressible. The three Finds are three readings of ONE quantity and the fullest disclosure wins, which is why this is a maximum and not a sum: summing them would count the same related-party receivable up to three times. Every term is `any_of`, so a filing that discloses only one of the three still answers with that one, and a filing that discloses none leaves the line empty rather than publishing zero (spec 3.6). `outranks_printed` because no balance sheet prints this quantity: it is related-party amounts extracted from within four receivable captions, net of entrusted loans, and a caption binding this line found something else. This replaces six first-available rungs whose own note recorded that they could not express the rule."
     }
    ],
    "namespace": "template"
@@ -1909,6 +1836,7 @@
    "cascade": [
     {
      "id": "LTP_P1",
+     "refuse_negative": true,
      "terms": [
       {
        "ref": "sub__ltp_nc_portion_of_fincl_asset_notes",
@@ -1929,14 +1857,19 @@
        "ref": "sub__ltp_included_equity_method_investments",
        "role": "adjustment",
        "sign": -1
+      },
+      {
+       "ref": "sub__fa_cp_intermediate_residual",
+       "role": "required",
+       "sign": -1
       }
      ],
-     "note": "Primary. Find_1_LTP from the rows the in-scope notes themselves classify as non-current, less Find_2_LTP, plus the CP carry-forward. This rung leads because spec 6.1 admits only amounts classified under Non-current Assets, so where a note analyses its own total into current and non-current that analysis IS the figure. The three deductions are adjustments at sign -1 and are optional: spec 6.3 lets Find_2_LTP be zero when the notes were found and no component is included in their totals, and a deduction can never make this rung resolvable on its own. The last term is the CP carry-forward: spec 6.4 - 'LTP_candidate = LTP_base + CP_negative_carryforward_to_LTP'. It is zero or negative, so sign +1 ADDS it and it reduces LTP by the Level 3 amount CP could not absorb; role adjustment keeps a carry-forward from resolving this rung on its own, since there would be nothing to add it to. The evaluator must hand over the CARRY-FORWARD (zero, or the negative CP candidate) - not the clamped CP output, which spec 5.4 sets to zero in exactly the case where the carry-forward is non-zero. refuse_negative is spec 6.4's 'LTP_final = LTP_base if LTP_candidate < 0': a negative candidate is skipped and LTP_P2, the same Find_1 source without the carry-forward, supplies LTP_base.  [The spec's CP negative carry-forward term is OMITTED: it is min(CP_candidate, 0) and the only available reference holds CP_final, which the spec clamps to >= 0. Adding that would fold the whole current figure into this line. This rung therefore computes the spec's LTP_base.]",
-     "refuse_negative": true,
+     "note": "The same arithmetic on the OTHER source. Find_1_LTP read from the rows the in-scope notes themselves classify as non-current. Spec 6.1 admits only amounts classified under Non-current Assets, so where a note analyses its own total into current and non-current that analysis is the answer and leads. Less Find_2_LTP. LESS THE CURRENT LINE'S OVERSHOOT. `sub__fa_cp_intermediate_residual` is the amount by which the CURRENT securities arithmetic went below zero, and it belongs here — this is the carry-forward this cascade's notes have always described and no rung ever carried, because until now no line held the quantity. `required`: a filing where the current arithmetic did NOT overshoot has no residual, so this rung dies and the one below answers with no carry-forward — the MISSING_CP_CARRYFORWARD_TO_LTP case. `refuse_negative` because LTP is a carrying amount: a negative one is not a figure a filing asserts, and `refused_rungs` records the refusal so a reviewer can see the rung was declined rather than absent.",
      "outranks_printed": true
     },
     {
      "id": "LTP_P2",
+     "refuse_negative": true,
      "terms": [
       {
        "ref": "sub__ltp_nc_portion_of_fincl_asset_notes",
@@ -1959,12 +1892,12 @@
        "sign": -1
       }
      ],
-     "note": "LTP_base from the same rows, with no carry-forward applied - 'LTP_base = Find_1_LTP - Find_2_LTP'. Both of the spec's escape hatches land here: the carry-forward is unavailable (MISSING_CP_CARRYFORWARD_TO_LTP), or applying it made the candidate negative and LTP_P1 was refused (NEGATIVE_LTP_ADJUSTMENT_REVERSED - 'when applying the negative CP carry-forward would make LTP negative, do not apply the carry-forward. Use the unadjusted LTP_base as the final LTP value'). refuse_negative because LTP is a carrying amount: a negative result would mean the deductions were not the components this rung assumed.",
-     "refuse_negative": true,
+     "note": "Find_1_LTP read from the rows the in-scope notes themselves classify as non-current. Spec 6.1 admits only amounts classified under Non-current Assets, so where a note analyses its own total into current and non-current that analysis is the answer and leads. LTP_base from the same rows, with no carry-forward applied. Both escape hatches land here: the carry-forward was unavailable, or applying it made the candidate negative and the rung above was refused (NEGATIVE_LTP_ADJUSTMENT_REVERSED). `refuse_negative` because LTP is a carrying amount: a negative one is not a figure a filing asserts, and `refused_rungs` records the refusal so a reviewer can see the rung was declined rather than absent.",
      "outranks_printed": true
     },
     {
      "id": "LTP_P3",
+     "refuse_negative": true,
      "terms": [
       {
        "ref": "sub__ltp_fvtpl_note_total",
@@ -2020,14 +1953,19 @@
        "ref": "sub__ltp_included_equity_method_investments",
        "role": "adjustment",
        "sign": -1
+      },
+      {
+       "ref": "sub__fa_cp_intermediate_residual",
+       "role": "required",
+       "sign": -1
       }
      ],
-     "note": "The same arithmetic where the in-scope notes are wholly non-current and print a total rather than a current/non-current split, so Find_1_LTP is 'SUM(unique note_total across all identified Non-current Asset notes)'. The eight note children are any_of because that SUM takes whatever subset of the 6.1 dictionary a filing happens to disclose, and each of them owns one note heading, so no note total is added twice. Deductions and the CP carry-forward behave exactly as in LTP_P1, including refuse_negative for 6.4's reversal rule, which drops to LTP_P4.  [The spec's CP negative carry-forward term is OMITTED: it is min(CP_candidate, 0) and the only available reference holds CP_final, which the spec clamps to >= 0. Adding that would fold the whole current figure into this line. This rung therefore computes the spec's LTP_base.]",
-     "refuse_negative": true,
+     "note": "Primary. P1 − P2 − the current line's overshoot. Find_1_LTP as SUM(unique note_total across all identified Non-current Asset notes) — the same arithmetic where the in-scope notes are wholly non-current and print a total rather than a current/non-current split. The eight note children are `any_of` because that SUM takes whatever subset of the 6.1 notes a filing prints. Less Find_2_LTP — the derivatives, other receivables and equity-method investments disclosed inside those notes, each an `adjustment` so one the filing does not disclose does not apply. LESS THE CURRENT LINE'S OVERSHOOT. `sub__fa_cp_intermediate_residual` is the amount by which the CURRENT securities arithmetic went below zero, and it belongs here — this is the carry-forward this cascade's notes have always described and no rung ever carried, because until now no line held the quantity. `required`: a filing where the current arithmetic did NOT overshoot has no residual, so this rung dies and the one below answers with no carry-forward — the MISSING_CP_CARRYFORWARD_TO_LTP case. `refuse_negative` because LTP is a carrying amount: a negative one is not a figure a filing asserts, and `refused_rungs` records the refusal so a reviewer can see the rung was declined rather than absent.",
      "outranks_printed": true
     },
     {
      "id": "LTP_P4",
+     "refuse_negative": true,
      "terms": [
       {
        "ref": "sub__ltp_fvtpl_note_total",
@@ -2085,8 +2023,7 @@
        "sign": -1
       }
      ],
-     "note": "LTP_base for the note-total source: the same eight notes less Find_2_LTP, with no carry-forward - reached when the carry-forward is unavailable (MISSING_CP_CARRYFORWARD_TO_LTP) or when applying it turned LTP_P3 negative (NEGATIVE_LTP_ADJUSTMENT_REVERSED). refuse_negative because LTP is a carrying amount.",
-     "refuse_negative": true,
+     "note": "P1 − P2, no carry-forward. Find_1_LTP as SUM(unique note_total across all identified Non-current Asset notes) — the same arithmetic where the in-scope notes are wholly non-current and print a total rather than a current/non-current split. The eight note children are `any_of` because that SUM takes whatever subset of the 6.1 notes a filing prints. LTP_base from the same rows, with no carry-forward applied. Both escape hatches land here: the carry-forward was unavailable, or applying it made the candidate negative and the rung above was refused (NEGATIVE_LTP_ADJUSTMENT_REVERSED). `refuse_negative` because LTP is a carrying amount: a negative one is not a figure a filing asserts, and `refused_rungs` records the refusal so a reviewer can see the rung was declined rather than absent.",
      "outranks_printed": true
     }
    ],
@@ -3306,7 +3243,8 @@
    "order": 4,
    "cascade": [
     {
-     "id": "CP_P1",
+     "id": "CP_INTERMEDIATE",
+     "refuse_negative": true,
      "terms": [
       {
        "ref": "sub__fa_cp_fvtpl_note_total",
@@ -3355,64 +3293,23 @@
       },
       {
        "ref": "sub__fa_cp_level_3_total",
-       "role": "required",
+       "role": "adjustment",
        "sign": -1
       }
      ],
-     "note": "Spec 5.4 primary formula, verbatim: CP_candidate = Find_1_CP - Find_2_CP - Find_3_CP. Find_1_CP is 'SUM(unique note_total across all identified Current Asset notes)', so each of the six note-total children is any_of — a filing that prints only the FVTPL and money-market notes still sums those two, and none of the six is individually required. The non-current split child is an adjustment because spec 5.1 and spec 8 admit only current-classified amounts, and it can only ever reduce a total another child already read. The two Find_2_CP components are adjustments too: spec 5.3 allows Find_2_CP to be zero when the notes were found and neither component is inside their totals, so neither may make this rung resolve. Find_3_CP is the one term declared required with sign -1: the primary formula cannot be evaluated without the Level 3 total, and spec 5.4 forbids treating a missing Level 3 disclosure as zero, so this rung must die when the fair-value-hierarchy note is absent and hand over to CP_P2. refuse_negative is deliberately false here, and this is the one place in the family where a negative result is not evidence of a mis-read: spec 5.4 requires the negative candidate to be preserved — 'If CP_candidate is negative, do not replace the negative candidate with Find_1_CP - Find_2_CP', the reported CP output is zero and the original negative candidate carries forward to LTP. Refusing the negative here would send the engine down to CP_P2, which computes exactly the Find_1_CP - Find_2_CP figure the spec prohibits.",
-     "refuse_negative": false
+     "note": "Σ(the in-scope note totals) − the non-current portion − the derivatives and other receivables disclosed inside those notes − the fair value hierarchy Level 3 total. Each note total is `any_of`, so a filing printing only some of the in-scope notes still sums the ones it prints; every deduction is an `adjustment`, so one the filing does not disclose does not apply. PASSED OVER WHEN IT COMPUTES BELOW ZERO — a negative securities balance is not a figure a filing asserts, and `refused_rungs` records that this rung was declined rather than absent. Replaces the CP_P1 / CP_P2_MISSING_LEVEL_3 pair: with Level 3 an `adjustment` it subtracts nothing when the hierarchy note is absent, which is all the second rung ever did."
     },
     {
-     "id": "CP_P2_MISSING_LEVEL_3",
+     "id": "CP_ZERO",
+     "refuse_negative": false,
      "terms": [
       {
-       "ref": "sub__fa_cp_fvtpl_note_total",
-       "role": "any_of",
+       "const": 0.0,
+       "role": "required",
        "sign": 1
-      },
-      {
-       "ref": "sub__fa_cp_fvtoci_note_total",
-       "role": "any_of",
-       "sign": 1
-      },
-      {
-       "ref": "sub__fa_cp_afs_htm_note_total",
-       "role": "any_of",
-       "sign": 1
-      },
-      {
-       "ref": "sub__fa_cp_debt_investments_note_total",
-       "role": "any_of",
-       "sign": 1
-      },
-      {
-       "ref": "sub__fa_cp_investment_and_money_market_securities_note_total",
-       "role": "any_of",
-       "sign": 1
-      },
-      {
-       "ref": "sub__fa_cp_other_fincl_assets_note_total",
-       "role": "any_of",
-       "sign": 1
-      },
-      {
-       "ref": "sub__fa_cp_noncurrent_split_of_note_total",
-       "role": "adjustment",
-       "sign": -1
-      },
-      {
-       "ref": "sub__fa_cp_included_derivatives",
-       "role": "adjustment",
-       "sign": -1
-      },
-      {
-       "ref": "sub__fa_cp_included_other_receivables",
-       "role": "adjustment",
-       "sign": -1
       }
      ],
-     "note": "Spec 5.4 'Missing Level 3', verbatim: 'IF the fair value hierarchy note or Level 3 value is not found: CP_final = Find_1_CP - Find_2_CP; CP_negative_carryforward_to_LTP = null; raise MISSING_LEVEL_3.' Identical to CP_P1 with the Level 3 term dropped, which is why it sits second: it is reachable only when CP_P1 died for want of the Level 3 total, never as an escape from a negative CP_P1 result. refuse_negative is true here, unlike CP_P1: with no Level 3 subtraction this rung is note totals less components proven to sit inside those totals, so a negative can only mean the deduction rows were not in fact part of the extracted totals — spec 3.3 and the DEDUCTION_NOT_PROVEN_INCLUDED / PARENT_COMPONENT_OVERLAP flags — and the rung should be skipped rather than reported.",
-     "refuse_negative": true
+     "note": "Zero, reached only when the rung above was declined for computing below zero. A constant, so it always resolves — which is what makes it a floor rather than another way to publish nothing."
     }
    ],
    "namespace": "template"
@@ -17206,39 +17103,23 @@
    "inherits": "notes",
    "note_source": {
     "note_title_any": [
-     "research\\s+and\\s+development|r\\s*&\\s*d\\s+expenses?|研究及開發開支|研發開支|研发费用|研发开支|研发支出|研究开发费用|研究与开发"
+     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额",
+     "fixed\\s+assets?|固定資產|固定资产",
+     "prepaid\\s+land\\s+lease\\s+payments?|prepaid\\s+lease\\s+payments?|預付土地租賃款項|預付租賃款項",
+     "right.of.use\\s+assets?",
+     "使用權資產|使用权资产",
+     "(?:長期待攤費用|长期待摊费用)[^。；;]{0,20}(?:土地|租賃|租赁)|(?:土地|租賃|租赁)[^。；;]{0,20}(?:長期待攤費用|长期待摊费用)",
+     "prepaid\\s+lease|預付租賃|预付租赁|租賃土地|租赁土地",
+     "construction\\s+in\\s+progress|在建工程",
+     "investment\\s+propert(?:y|ies)|投資物業|投资性房地产|投资物业",
+     "property\\s*,?\\s*plant\\s+and\\s+equipment|物業、廠房及設備|固定资产|使用权资产|使用權資產",
+     "property\\s+and\\s+equipment|物業及設備|物业及设备"
     ],
     "row_caption_any": [
-     "depreciation\\s+of\\s+investment\\s+propert",
-     "depreciation\\s+of\\s+fixed\\s+assets",
-     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
-     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
-     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
-     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "^\\s*depreciation\\s*$",
-     "投資物業折舊",
-     "固定資產折舊",
-     "物業[,、]?\\s*廠房及設備折舊",
-     "在建工程折舊",
-     "使用權資產折舊",
-     "預付租賃款項攤銷",
-     "預付租賃款項轉出",
-     "^折舊$",
-     "投资性房地产折旧",
-     "投资物业折旧",
-     "固定资产折旧",
-     "在建工程折旧",
-     "使用权资产折旧",
-     "预付租赁款项摊销",
-     "^折旧$",
-     "^折旧费$",
-     "折旧费用",
-     "^\\s*折旧[及与和]?摊销\\s*$",
-     "^\\s*折舊[及與和]?攤銷\\s*$",
-     "^\\s*摊销\\s*$",
-     "^\\s*攤銷\\s*$",
-     "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$"
+     "(?:depreciation|amortisation|amortization).{0,40}(?:research\\s+and\\s+development\\s+expenses|research\\s+and\\s+development\\s+costs|r\\&d\\s+expenses|r\\&d\\s+costs)",
+     "(?:research\\s+and\\s+development\\s+expenses|research\\s+and\\s+development\\s+costs|r\\&d\\s+expenses|r\\&d\\s+costs).{0,40}(?:depreciation|amortisation|amortization)",
+     "(?:研发开支|研发费用|研究及开发开支|研究及开发费用|研究与开发开支|研究与开发费用).{0,12}(?:折旧|折舊|摊销|攤銷)",
+     "(?:折旧|折舊|摊销|攤銷).{0,12}(?:研发开支|研发费用|研究及开发开支|研究及开发费用|研究与开发开支|研究与开发费用)"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -17273,7 +17154,10 @@
      "外币折算",
      "到期",
      "账面原值",
-     "账面价值"
+     "账面价值",
+     "accumulated\\s+(?:depreciation|amortisation|amortization|impairment)",
+     "^\\s*additions?\\b|\\badditions\\s+(?:during|for)\\b",
+     "writ(?:e|ten|ing)[\\s.\\-]?off"
     ],
     "note_terms": [
      "research and development",
@@ -17384,39 +17268,23 @@
    "inherits": "notes",
    "note_source": {
     "note_title_any": [
-     "selling\\s+and\\s+marketing|selling\\s+expenses?|selling\\s+and\\s+distribution|distribution\\s+costs?|marketing\\s+expenses?|銷售及市場推廣開支|銷售開支|銷售及分銷開支|分銷成本|销售费用|营业费用|分销费用|销售及市场推广开支"
+     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额",
+     "fixed\\s+assets?|固定資產|固定资产",
+     "prepaid\\s+land\\s+lease\\s+payments?|prepaid\\s+lease\\s+payments?|預付土地租賃款項|預付租賃款項",
+     "right.of.use\\s+assets?",
+     "使用權資產|使用权资产",
+     "(?:長期待攤費用|长期待摊费用)[^。；;]{0,20}(?:土地|租賃|租赁)|(?:土地|租賃|租赁)[^。；;]{0,20}(?:長期待攤費用|长期待摊费用)",
+     "prepaid\\s+lease|預付租賃|预付租赁|租賃土地|租赁土地",
+     "construction\\s+in\\s+progress|在建工程",
+     "investment\\s+propert(?:y|ies)|投資物業|投资性房地产|投资物业",
+     "property\\s*,?\\s*plant\\s+and\\s+equipment|物業、廠房及設備|固定资产|使用权资产|使用權資產",
+     "property\\s+and\\s+equipment|物業及設備|物业及设备"
     ],
     "row_caption_any": [
-     "depreciation\\s+of\\s+investment\\s+propert",
-     "depreciation\\s+of\\s+fixed\\s+assets",
-     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
-     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
-     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
-     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "^\\s*depreciation\\s*$",
-     "投資物業折舊",
-     "固定資產折舊",
-     "物業[,、]?\\s*廠房及設備折舊",
-     "在建工程折舊",
-     "使用權資產折舊",
-     "預付租賃款項攤銷",
-     "預付租賃款項轉出",
-     "^折舊$",
-     "投资性房地产折旧",
-     "投资物业折旧",
-     "固定资产折旧",
-     "在建工程折旧",
-     "使用权资产折旧",
-     "预付租赁款项摊销",
-     "^折旧$",
-     "^折旧费$",
-     "折旧费用",
-     "^\\s*折旧[及与和]?摊销\\s*$",
-     "^\\s*折舊[及與和]?攤銷\\s*$",
-     "^\\s*摊销\\s*$",
-     "^\\s*攤銷\\s*$",
-     "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$"
+     "(?:depreciation|amortisation|amortization).{0,40}(?:selling\\s+expenses|selling\\s+and\\s+distribution\\s+expenses|selling\\s+and\\s+marketing\\s+expenses|distribution\\s+costs|marketing\\s+expenses)",
+     "(?:selling\\s+expenses|selling\\s+and\\s+distribution\\s+expenses|selling\\s+and\\s+marketing\\s+expenses|distribution\\s+costs|marketing\\s+expenses).{0,40}(?:depreciation|amortisation|amortization)",
+     "(?:销售开支|销售费用|销售及分销开支|销售及分销费用|销售及推广开支|销售及推广费用).{0,12}(?:折旧|折舊|摊销|攤銷)",
+     "(?:折旧|折舊|摊销|攤銷).{0,12}(?:销售开支|销售费用|销售及分销开支|销售及分销费用|销售及推广开支|销售及推广费用)"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -17451,7 +17319,10 @@
      "外币折算",
      "到期",
      "账面原值",
-     "账面价值"
+     "账面价值",
+     "accumulated\\s+(?:depreciation|amortisation|amortization|impairment)",
+     "^\\s*additions?\\b|\\badditions\\s+(?:during|for)\\b",
+     "writ(?:e|ten|ing)[\\s.\\-]?off"
     ],
     "note_terms": [
      "selling and marketing",
@@ -17567,39 +17438,23 @@
    "inherits": "notes",
    "note_source": {
     "note_title_any": [
-     "general\\s+and\\s+administrative|administrative\\s+expenses?|g\\s*&\\s*a\\s+expenses?|一般及行政開支|行政開支|管理费用|一般及行政费用|行政费用|一般及管理费用"
+     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额",
+     "fixed\\s+assets?|固定資產|固定资产",
+     "prepaid\\s+land\\s+lease\\s+payments?|prepaid\\s+lease\\s+payments?|預付土地租賃款項|預付租賃款項",
+     "right.of.use\\s+assets?",
+     "使用權資產|使用权资产",
+     "(?:長期待攤費用|长期待摊费用)[^。；;]{0,20}(?:土地|租賃|租赁)|(?:土地|租賃|租赁)[^。；;]{0,20}(?:長期待攤費用|长期待摊费用)",
+     "prepaid\\s+lease|預付租賃|预付租赁|租賃土地|租赁土地",
+     "construction\\s+in\\s+progress|在建工程",
+     "investment\\s+propert(?:y|ies)|投資物業|投资性房地产|投资物业",
+     "property\\s*,?\\s*plant\\s+and\\s+equipment|物業、廠房及設備|固定资产|使用权资产|使用權資產",
+     "property\\s+and\\s+equipment|物業及設備|物业及设备"
     ],
     "row_caption_any": [
-     "depreciation\\s+of\\s+investment\\s+propert",
-     "depreciation\\s+of\\s+fixed\\s+assets",
-     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
-     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
-     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
-     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "^\\s*depreciation\\s*$",
-     "投資物業折舊",
-     "固定資產折舊",
-     "物業[,、]?\\s*廠房及設備折舊",
-     "在建工程折舊",
-     "使用權資產折舊",
-     "預付租賃款項攤銷",
-     "預付租賃款項轉出",
-     "^折舊$",
-     "投资性房地产折旧",
-     "投资物业折旧",
-     "固定资产折旧",
-     "在建工程折旧",
-     "使用权资产折旧",
-     "预付租赁款项摊销",
-     "^折旧$",
-     "^折旧费$",
-     "折旧费用",
-     "^\\s*折旧[及与和]?摊销\\s*$",
-     "^\\s*折舊[及與和]?攤銷\\s*$",
-     "^\\s*摊销\\s*$",
-     "^\\s*攤銷\\s*$",
-     "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$"
+     "(?:depreciation|amortisation|amortization).{0,40}(?:administrative\\s+expenses|general\\s+and\\s+administrative\\s+expenses)",
+     "(?:administrative\\s+expenses|general\\s+and\\s+administrative\\s+expenses).{0,40}(?:depreciation|amortisation|amortization)",
+     "(?:行政开支|行政费用|管理开支|管理费用|一般及行政开支|一般及行政费用|一般及管理开支|一般及管理费用).{0,12}(?:折旧|折舊|摊销|攤銷)",
+     "(?:折旧|折舊|摊销|攤銷).{0,12}(?:行政开支|行政费用|管理开支|管理费用|一般及行政开支|一般及行政费用|一般及管理开支|一般及管理费用)"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -17634,7 +17489,10 @@
      "外币折算",
      "到期",
      "账面原值",
-     "账面价值"
+     "账面价值",
+     "accumulated\\s+(?:depreciation|amortisation|amortization|impairment)",
+     "^\\s*additions?\\b|\\badditions\\s+(?:during|for)\\b",
+     "writ(?:e|ten|ing)[\\s.\\-]?off"
     ],
     "note_terms": [
      "general and administrative",
@@ -17745,39 +17603,23 @@
    "inherits": "notes",
    "note_source": {
     "note_title_any": [
-     "operating\\s+expenses?|operating\\s+costs?|經營開支|其他經營開支|經營成本|经营费用|经营开支|其他经营费用"
+     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额",
+     "fixed\\s+assets?|固定資產|固定资产",
+     "prepaid\\s+land\\s+lease\\s+payments?|prepaid\\s+lease\\s+payments?|預付土地租賃款項|預付租賃款項",
+     "right.of.use\\s+assets?",
+     "使用權資產|使用权资产",
+     "(?:長期待攤費用|长期待摊费用)[^。；;]{0,20}(?:土地|租賃|租赁)|(?:土地|租賃|租赁)[^。；;]{0,20}(?:長期待攤費用|长期待摊费用)",
+     "prepaid\\s+lease|預付租賃|预付租赁|租賃土地|租赁土地",
+     "construction\\s+in\\s+progress|在建工程",
+     "investment\\s+propert(?:y|ies)|投資物業|投资性房地产|投资物业",
+     "property\\s*,?\\s*plant\\s+and\\s+equipment|物業、廠房及設備|固定资产|使用权资产|使用權資產",
+     "property\\s+and\\s+equipment|物業及設備|物业及设备"
     ],
     "row_caption_any": [
-     "depreciation\\s+of\\s+investment\\s+propert",
-     "depreciation\\s+of\\s+fixed\\s+assets",
-     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
-     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
-     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
-     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "^\\s*depreciation\\s*$",
-     "投資物業折舊",
-     "固定資產折舊",
-     "物業[,、]?\\s*廠房及設備折舊",
-     "在建工程折舊",
-     "使用權資產折舊",
-     "預付租賃款項攤銷",
-     "預付租賃款項轉出",
-     "^折舊$",
-     "投资性房地产折旧",
-     "投资物业折旧",
-     "固定资产折旧",
-     "在建工程折旧",
-     "使用权资产折旧",
-     "预付租赁款项摊销",
-     "^折旧$",
-     "^折旧费$",
-     "折旧费用",
-     "^\\s*折旧[及与和]?摊销\\s*$",
-     "^\\s*折舊[及與和]?攤銷\\s*$",
-     "^\\s*摊销\\s*$",
-     "^\\s*攤銷\\s*$",
-     "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$"
+     "(?:depreciation|amortisation|amortization).{0,40}(?:operating\\s+expenses|operating\\s+costs|other\\s+operating\\s+expenses|other\\s+operating\\s+costs)",
+     "(?:operating\\s+expenses|operating\\s+costs|other\\s+operating\\s+expenses|other\\s+operating\\s+costs).{0,40}(?:depreciation|amortisation|amortization)",
+     "(?:经营开支|经营费用|经营成本|其他经营开支|其他经营费用|其他经营成本).{0,12}(?:折旧|折舊|摊销|攤銷)",
+     "(?:折旧|折舊|摊销|攤銷).{0,12}(?:经营开支|经营费用|经营成本|其他经营开支|其他经营费用|其他经营成本)"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -17812,7 +17654,10 @@
      "外币折算",
      "到期",
      "账面原值",
-     "账面价值"
+     "账面价值",
+     "accumulated\\s+(?:depreciation|amortisation|amortization|impairment)",
+     "^\\s*additions?\\b|\\badditions\\s+(?:during|for)\\b",
+     "writ(?:e|ten|ing)[\\s.\\-]?off"
     ],
     "note_terms": [
      "operating expenses",
@@ -18902,7 +18747,17 @@
    "inherits": "notes",
    "note_source": {
     "note_title_any": [
-     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额"
+     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额",
+     "fixed\\s+assets?|固定資產|固定资产",
+     "prepaid\\s+land\\s+lease\\s+payments?|prepaid\\s+lease\\s+payments?|預付土地租賃款項|預付租賃款項",
+     "right.of.use\\s+assets?",
+     "使用權資產|使用权资产",
+     "(?:長期待攤費用|长期待摊费用)[^。；;]{0,20}(?:土地|租賃|租赁)|(?:土地|租賃|租赁)[^。；;]{0,20}(?:長期待攤費用|长期待摊费用)",
+     "prepaid\\s+lease|預付租賃|预付租赁|租賃土地|租赁土地",
+     "construction\\s+in\\s+progress|在建工程",
+     "investment\\s+propert(?:y|ies)|投資物業|投资性房地产|投资物业",
+     "property\\s*,?\\s*plant\\s+and\\s+equipment|物業、廠房及設備|固定资产|使用权资产|使用權資產",
+     "property\\s+and\\s+equipment|物業及設備|物业及设备"
     ],
     "row_caption_any": [
      "(?:depreciation|amortisation|amortization).{0,40}(?:(?:general\\s+and\\s+)?administrative(?:\\s+expenses?)?|selling(?:\\s+and\\s+(?:distribution|marketing))?(?:\\s+expenses?)?|distribution(?:\\s+expenses?|\\s+costs?)?|marketing(?:\\s+expenses?)?|operating\\s+(?:expenses?|costs?)|research\\s+and\\s+development|r\\s*&\\s*d)",
@@ -18945,7 +18800,10 @@
      "外币折算",
      "到期",
      "账面原值",
-     "账面价值"
+     "账面价值",
+     "accumulated\\s+(?:depreciation|amortisation|amortization|impairment)",
+     "^\\s*additions?\\b|\\badditions\\s+(?:during|for)\\b",
+     "writ(?:e|ten|ing)[\\s.\\-]?off"
     ],
     "note_terms": [
      "profit loss before tax ation",
@@ -19070,7 +18928,17 @@
    "inherits": "notes",
    "note_source": {
     "note_title_any": [
-     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额"
+     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额",
+     "fixed\\s+assets?|固定資產|固定资产",
+     "prepaid\\s+land\\s+lease\\s+payments?|prepaid\\s+lease\\s+payments?|預付土地租賃款項|預付租賃款項",
+     "right.of.use\\s+assets?",
+     "使用權資產|使用权资产",
+     "(?:長期待攤費用|长期待摊费用)[^。；;]{0,20}(?:土地|租賃|租赁)|(?:土地|租賃|租赁)[^。；;]{0,20}(?:長期待攤費用|长期待摊费用)",
+     "prepaid\\s+lease|預付租賃|预付租赁|租賃土地|租赁土地",
+     "construction\\s+in\\s+progress|在建工程",
+     "investment\\s+propert(?:y|ies)|投資物業|投资性房地产|投资物业",
+     "property\\s*,?\\s*plant\\s+and\\s+equipment|物業、廠房及設備|固定资产|使用权资产|使用權資產",
+     "property\\s+and\\s+equipment|物業及設備|物业及设备"
     ],
     "row_caption_any": [
      "depreciation\\s+of\\s+investment\\s+propert",
@@ -19149,7 +19017,10 @@
      "(?:行政|銷售(?:及分銷)?|分銷|市場推廣|經營|研究及開發|研發).{0,12}(?:開支|費用|成本)?.{0,6}(?:折舊|攤銷)",
      "(?:折舊|攤銷).{0,12}(?:計入|列入)?(?:行政|銷售|分銷|經營|研發)",
      "(?:行政|销售|分销|营销|经营|研发).{0,12}(?:费用|开支|成本)?.{0,6}(?:折旧|摊销)",
-     "(?:折旧|摊销).{0,12}(?:计入|列入)?(?:行政|销售|分销|经营|研发)"
+     "(?:折旧|摊销).{0,12}(?:计入|列入)?(?:行政|销售|分销|经营|研发)",
+     "accumulated\\s+(?:depreciation|amortisation|amortization|impairment)",
+     "^\\s*additions?\\b|\\badditions\\s+(?:during|for)\\b",
+     "writ(?:e|ten|ing)[\\s.\\-]?off"
     ],
     "note_terms": [
      "profit loss before tax ation",
@@ -19374,7 +19245,10 @@
      "外币折算",
      "到期",
      "账面原值",
-     "账面价值"
+     "账面价值",
+     "accumulated\\s+(?:depreciation|amortisation|amortization|impairment)",
+     "^\\s*additions?\\b|\\badditions\\s+(?:during|for)\\b",
+     "writ(?:e|ten|ing)[\\s.\\-]?off"
     ],
     "note_terms": [
      "cost of sales",
@@ -38061,7 +37935,39 @@
      "^\\s*(?:母公司|子公司|联营企业|合营企业|受同一控制方控制的企业|聯營企業|合營企業|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款)?\\s*$",
      "(?:due\\s+from\\s+(?:a\\s+|the\\s+)?(?:related\\s+part|fellow\\s+subsidiar|holding\\s+compan|ultimate\\s+holding|immediate\\s+holding|subsidiar|associate|joint\\s+venture|group\\s+compan)|amounts?\\s+due\\s+from\\s+(?:related|fellow|group|a\\s+related))",
      "(?:related\\s+part(?:y|ies)|related\\s+compan(?:y|ies))",
-     "(?:母公司|子公司|联营企业|合营企业|聯營企業|合營企業|受同一控制方控制的企业|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款|余额|餘額)"
+     "(?:母公司|子公司|联营企业|合营企业|聯營企業|合營企業|受同一控制方控制的企业|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款|余额|餘額)",
+     "due\\s+from\\s+(?:a\\s+|an\\s+|the\\s+)?related\\s+(?:part|compan|corporat|entit|group)",
+     "due\\s+from\\s+(?:a\\s+|the\\s+)?(?:fellow\\s+)?subsidiar",
+     "due\\s+from\\s+(?:an?\\s+|the\\s+)?associat",
+     "due\\s+from\\s+(?:a\\s+|the\\s+)?(?:joint\\s+ventures?|jointly\\s+controlled\\s+entit)",
+     "due\\s+from\\s+(?:the\\s+)?(?:immediate\\s+|ultimate\\s+|intermediate\\s+)?(?:holding|parent)\\s+compan",
+     "due\\s+from\\s+(?:the\\s+)?directors?",
+     "due\\s+from\\s+(?:a\\s+|the\\s+)?(?:affiliat|connected\\s+(?:part|person)|shareholders?|non.?controlling)",
+     "amounts?\\s+(?:owing|owed)\\s+by\\s+(?:a\\s+|the\\s+)?(?:related|associat|affiliat|fellow|subsidiar|joint|director|shareholder|group)",
+     "(?:loans?|loan\\s+receivables?|other\\s+receivables?|receivables?|advances?|balances?)\\s+(?:due\\s+)?(?:to|from|with)\\s+(?:a\\s+|an\\s+|the\\s+)?(?:related|associat|affiliat|fellow|subsidiar|joint|jointly|director|shareholder|connected|group\\s+compan)",
+     "related\\s+(?:compan(?:y|ies)|part(?:y|ies))\\s*(?:'s|s')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
+     "(?:directors?|subsidiar(?:y|ies)|associates?)\\s*(?:'s|s'|')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
+     "related\\s+part(?:y|ies)\\s+(?:receivables?|balances?)",
+     "应收关联方",
+     "关联方应收款项",
+     "其他应收关联方款项",
+     "关联方(?:资金)?往来",
+     "关联方款项",
+     "关联方余额",
+     "关联方组合",
+     "应收关联(?:公司|企业|单位)款项",
+     "应收(?:母公司|子公司|联营企业|联营公司|合营企业|合营公司|附属公司|同系附属公司|控股股东|股东|董事|高级管理人员)款项",
+     "受同一控制方控制的企业",
+     "其他关联方",
+     "^\\s*关联(?:方|公司|企业|单位)\\s*$",
+     "應收關聯方",
+     "應收關連人士款項",
+     "應收關聯(?:公司|企業)款項",
+     "應收(?:同系附屬公司|附屬公司|聯營公司|合營公司|董事|控股公司|股東|母公司)款項",
+     "關聯方(?:資金)?往來",
+     "關聯方款項",
+     "關連人士款項",
+     "^\\s*關(?:聯|連)(?:方|公司)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*(?:balance\\s+)?(?:as\\s+)?at\\s+(?:1\\b|31\\b|30\\b|\\d{1,2}\\s+\\w+|the\\s+(?:beginning|end))",
@@ -38430,7 +38336,39 @@
      "^\\s*(?:母公司|子公司|联营企业|合营企业|受同一控制方控制的企业|聯營企業|合營企業|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款)?\\s*$",
      "(?:due\\s+from\\s+(?:a\\s+|the\\s+)?(?:related\\s+part|fellow\\s+subsidiar|holding\\s+compan|ultimate\\s+holding|immediate\\s+holding|subsidiar|associate|joint\\s+venture|group\\s+compan)|amounts?\\s+due\\s+from\\s+(?:related|fellow|group|a\\s+related))",
      "(?:related\\s+part(?:y|ies)|related\\s+compan(?:y|ies))",
-     "(?:母公司|子公司|联营企业|合营企业|聯營企業|合營企業|受同一控制方控制的企业|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款|余额|餘額)"
+     "(?:母公司|子公司|联营企业|合营企业|聯營企業|合營企業|受同一控制方控制的企业|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款|余额|餘額)",
+     "due\\s+from\\s+(?:a\\s+|an\\s+|the\\s+)?related\\s+(?:part|compan|corporat|entit|group)",
+     "due\\s+from\\s+(?:a\\s+|the\\s+)?(?:fellow\\s+)?subsidiar",
+     "due\\s+from\\s+(?:an?\\s+|the\\s+)?associat",
+     "due\\s+from\\s+(?:a\\s+|the\\s+)?(?:joint\\s+ventures?|jointly\\s+controlled\\s+entit)",
+     "due\\s+from\\s+(?:the\\s+)?(?:immediate\\s+|ultimate\\s+|intermediate\\s+)?(?:holding|parent)\\s+compan",
+     "due\\s+from\\s+(?:the\\s+)?directors?",
+     "due\\s+from\\s+(?:a\\s+|the\\s+)?(?:affiliat|connected\\s+(?:part|person)|shareholders?|non.?controlling)",
+     "amounts?\\s+(?:owing|owed)\\s+by\\s+(?:a\\s+|the\\s+)?(?:related|associat|affiliat|fellow|subsidiar|joint|director|shareholder|group)",
+     "(?:loans?|loan\\s+receivables?|other\\s+receivables?|receivables?|advances?|balances?)\\s+(?:due\\s+)?(?:to|from|with)\\s+(?:a\\s+|an\\s+|the\\s+)?(?:related|associat|affiliat|fellow|subsidiar|joint|jointly|director|shareholder|connected|group\\s+compan)",
+     "related\\s+(?:compan(?:y|ies)|part(?:y|ies))\\s*(?:'s|s')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
+     "(?:directors?|subsidiar(?:y|ies)|associates?)\\s*(?:'s|s'|')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
+     "related\\s+part(?:y|ies)\\s+(?:receivables?|balances?)",
+     "应收关联方",
+     "关联方应收款项",
+     "其他应收关联方款项",
+     "关联方(?:资金)?往来",
+     "关联方款项",
+     "关联方余额",
+     "关联方组合",
+     "应收关联(?:公司|企业|单位)款项",
+     "应收(?:母公司|子公司|联营企业|联营公司|合营企业|合营公司|附属公司|同系附属公司|控股股东|股东|董事|高级管理人员)款项",
+     "受同一控制方控制的企业",
+     "其他关联方",
+     "^\\s*关联(?:方|公司|企业|单位)\\s*$",
+     "應收關聯方",
+     "應收關連人士款項",
+     "應收關聯(?:公司|企業)款項",
+     "應收(?:同系附屬公司|附屬公司|聯營公司|合營公司|董事|控股公司|股東|母公司)款項",
+     "關聯方(?:資金)?往來",
+     "關聯方款項",
+     "關連人士款項",
+     "^\\s*關(?:聯|連)(?:方|公司)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*(?:balance\\s+)?(?:as\\s+)?at\\s+(?:1\\b|31\\b|30\\b|\\d{1,2}\\s+\\w+|the\\s+(?:beginning|end))",
@@ -38791,7 +38729,39 @@
      "^\\s*(?:母公司|子公司|联营企业|合营企业|受同一控制方控制的企业|聯營企業|合營企業|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款)?\\s*$",
      "(?:due\\s+from\\s+(?:a\\s+|the\\s+)?(?:related\\s+part|fellow\\s+subsidiar|holding\\s+compan|ultimate\\s+holding|immediate\\s+holding|subsidiar|associate|joint\\s+venture|group\\s+compan)|amounts?\\s+due\\s+from\\s+(?:related|fellow|group|a\\s+related))",
      "(?:related\\s+part(?:y|ies)|related\\s+compan(?:y|ies))",
-     "(?:母公司|子公司|联营企业|合营企业|聯營企業|合營企業|受同一控制方控制的企业|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款|余额|餘額)"
+     "(?:母公司|子公司|联营企业|合营企业|聯營企業|合營企業|受同一控制方控制的企业|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款|余额|餘額)",
+     "due\\s+from\\s+(?:a\\s+|an\\s+|the\\s+)?related\\s+(?:part|compan|corporat|entit|group)",
+     "due\\s+from\\s+(?:a\\s+|the\\s+)?(?:fellow\\s+)?subsidiar",
+     "due\\s+from\\s+(?:an?\\s+|the\\s+)?associat",
+     "due\\s+from\\s+(?:a\\s+|the\\s+)?(?:joint\\s+ventures?|jointly\\s+controlled\\s+entit)",
+     "due\\s+from\\s+(?:the\\s+)?(?:immediate\\s+|ultimate\\s+|intermediate\\s+)?(?:holding|parent)\\s+compan",
+     "due\\s+from\\s+(?:the\\s+)?directors?",
+     "due\\s+from\\s+(?:a\\s+|the\\s+)?(?:affiliat|connected\\s+(?:part|person)|shareholders?|non.?controlling)",
+     "amounts?\\s+(?:owing|owed)\\s+by\\s+(?:a\\s+|the\\s+)?(?:related|associat|affiliat|fellow|subsidiar|joint|director|shareholder|group)",
+     "(?:loans?|loan\\s+receivables?|other\\s+receivables?|receivables?|advances?|balances?)\\s+(?:due\\s+)?(?:to|from|with)\\s+(?:a\\s+|an\\s+|the\\s+)?(?:related|associat|affiliat|fellow|subsidiar|joint|jointly|director|shareholder|connected|group\\s+compan)",
+     "related\\s+(?:compan(?:y|ies)|part(?:y|ies))\\s*(?:'s|s')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
+     "(?:directors?|subsidiar(?:y|ies)|associates?)\\s*(?:'s|s'|')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
+     "related\\s+part(?:y|ies)\\s+(?:receivables?|balances?)",
+     "应收关联方",
+     "关联方应收款项",
+     "其他应收关联方款项",
+     "关联方(?:资金)?往来",
+     "关联方款项",
+     "关联方余额",
+     "关联方组合",
+     "应收关联(?:公司|企业|单位)款项",
+     "应收(?:母公司|子公司|联营企业|联营公司|合营企业|合营公司|附属公司|同系附属公司|控股股东|股东|董事|高级管理人员)款项",
+     "受同一控制方控制的企业",
+     "其他关联方",
+     "^\\s*关联(?:方|公司|企业|单位)\\s*$",
+     "應收關聯方",
+     "應收關連人士款項",
+     "應收關聯(?:公司|企業)款項",
+     "應收(?:同系附屬公司|附屬公司|聯營公司|合營公司|董事|控股公司|股東|母公司)款項",
+     "關聯方(?:資金)?往來",
+     "關聯方款項",
+     "關連人士款項",
+     "^\\s*關(?:聯|連)(?:方|公司)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*(?:balance\\s+)?(?:as\\s+)?at\\s+(?:1\\b|31\\b|30\\b|\\d{1,2}\\s+\\w+|the\\s+(?:beginning|end))",
@@ -39150,7 +39120,39 @@
      "^\\s*(?:母公司|子公司|联营企业|合营企业|受同一控制方控制的企业|聯營企業|合營企業|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款)?\\s*$",
      "(?:due\\s+from\\s+(?:a\\s+|the\\s+)?(?:related\\s+part|fellow\\s+subsidiar|holding\\s+compan|ultimate\\s+holding|immediate\\s+holding|subsidiar|associate|joint\\s+venture|group\\s+compan)|amounts?\\s+due\\s+from\\s+(?:related|fellow|group|a\\s+related))",
      "(?:related\\s+part(?:y|ies)|related\\s+compan(?:y|ies))",
-     "(?:母公司|子公司|联营企业|合营企业|聯營企業|合營企業|受同一控制方控制的企业|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款|余额|餘額)"
+     "(?:母公司|子公司|联营企业|合营企业|聯營企業|合營企業|受同一控制方控制的企业|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款|余额|餘額)",
+     "due\\s+from\\s+(?:a\\s+|an\\s+|the\\s+)?related\\s+(?:part|compan|corporat|entit|group)",
+     "due\\s+from\\s+(?:a\\s+|the\\s+)?(?:fellow\\s+)?subsidiar",
+     "due\\s+from\\s+(?:an?\\s+|the\\s+)?associat",
+     "due\\s+from\\s+(?:a\\s+|the\\s+)?(?:joint\\s+ventures?|jointly\\s+controlled\\s+entit)",
+     "due\\s+from\\s+(?:the\\s+)?(?:immediate\\s+|ultimate\\s+|intermediate\\s+)?(?:holding|parent)\\s+compan",
+     "due\\s+from\\s+(?:the\\s+)?directors?",
+     "due\\s+from\\s+(?:a\\s+|the\\s+)?(?:affiliat|connected\\s+(?:part|person)|shareholders?|non.?controlling)",
+     "amounts?\\s+(?:owing|owed)\\s+by\\s+(?:a\\s+|the\\s+)?(?:related|associat|affiliat|fellow|subsidiar|joint|director|shareholder|group)",
+     "(?:loans?|loan\\s+receivables?|other\\s+receivables?|receivables?|advances?|balances?)\\s+(?:due\\s+)?(?:to|from|with)\\s+(?:a\\s+|an\\s+|the\\s+)?(?:related|associat|affiliat|fellow|subsidiar|joint|jointly|director|shareholder|connected|group\\s+compan)",
+     "related\\s+(?:compan(?:y|ies)|part(?:y|ies))\\s*(?:'s|s')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
+     "(?:directors?|subsidiar(?:y|ies)|associates?)\\s*(?:'s|s'|')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
+     "related\\s+part(?:y|ies)\\s+(?:receivables?|balances?)",
+     "应收关联方",
+     "关联方应收款项",
+     "其他应收关联方款项",
+     "关联方(?:资金)?往来",
+     "关联方款项",
+     "关联方余额",
+     "关联方组合",
+     "应收关联(?:公司|企业|单位)款项",
+     "应收(?:母公司|子公司|联营企业|联营公司|合营企业|合营公司|附属公司|同系附属公司|控股股东|股东|董事|高级管理人员)款项",
+     "受同一控制方控制的企业",
+     "其他关联方",
+     "^\\s*关联(?:方|公司|企业|单位)\\s*$",
+     "應收關聯方",
+     "應收關連人士款項",
+     "應收關聯(?:公司|企業)款項",
+     "應收(?:同系附屬公司|附屬公司|聯營公司|合營公司|董事|控股公司|股東|母公司)款項",
+     "關聯方(?:資金)?往來",
+     "關聯方款項",
+     "關連人士款項",
+     "^\\s*關(?:聯|連)(?:方|公司)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*(?:balance\\s+)?(?:as\\s+)?at\\s+(?:1\\b|31\\b|30\\b|\\d{1,2}\\s+\\w+|the\\s+(?:beginning|end))",
@@ -39509,7 +39511,39 @@
      "^\\s*(?:母公司|子公司|联营企业|合营企业|受同一控制方控制的企业|聯營企業|合營企業|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款)?\\s*$",
      "(?:due\\s+from\\s+(?:a\\s+|the\\s+)?(?:related\\s+part|fellow\\s+subsidiar|holding\\s+compan|ultimate\\s+holding|immediate\\s+holding|subsidiar|associate|joint\\s+venture|group\\s+compan)|amounts?\\s+due\\s+from\\s+(?:related|fellow|group|a\\s+related))",
      "(?:related\\s+part(?:y|ies)|related\\s+compan(?:y|ies))",
-     "(?:母公司|子公司|联营企业|合营企业|聯營企業|合營企業|受同一控制方控制的企业|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款|余额|餘額)"
+     "(?:母公司|子公司|联营企业|合营企业|聯營企業|合營企業|受同一控制方控制的企业|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款|余额|餘額)",
+     "due\\s+from\\s+(?:a\\s+|an\\s+|the\\s+)?related\\s+(?:part|compan|corporat|entit|group)",
+     "due\\s+from\\s+(?:a\\s+|the\\s+)?(?:fellow\\s+)?subsidiar",
+     "due\\s+from\\s+(?:an?\\s+|the\\s+)?associat",
+     "due\\s+from\\s+(?:a\\s+|the\\s+)?(?:joint\\s+ventures?|jointly\\s+controlled\\s+entit)",
+     "due\\s+from\\s+(?:the\\s+)?(?:immediate\\s+|ultimate\\s+|intermediate\\s+)?(?:holding|parent)\\s+compan",
+     "due\\s+from\\s+(?:the\\s+)?directors?",
+     "due\\s+from\\s+(?:a\\s+|the\\s+)?(?:affiliat|connected\\s+(?:part|person)|shareholders?|non.?controlling)",
+     "amounts?\\s+(?:owing|owed)\\s+by\\s+(?:a\\s+|the\\s+)?(?:related|associat|affiliat|fellow|subsidiar|joint|director|shareholder|group)",
+     "(?:loans?|loan\\s+receivables?|other\\s+receivables?|receivables?|advances?|balances?)\\s+(?:due\\s+)?(?:to|from|with)\\s+(?:a\\s+|an\\s+|the\\s+)?(?:related|associat|affiliat|fellow|subsidiar|joint|jointly|director|shareholder|connected|group\\s+compan)",
+     "related\\s+(?:compan(?:y|ies)|part(?:y|ies))\\s*(?:'s|s')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
+     "(?:directors?|subsidiar(?:y|ies)|associates?)\\s*(?:'s|s'|')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
+     "related\\s+part(?:y|ies)\\s+(?:receivables?|balances?)",
+     "应收关联方",
+     "关联方应收款项",
+     "其他应收关联方款项",
+     "关联方(?:资金)?往来",
+     "关联方款项",
+     "关联方余额",
+     "关联方组合",
+     "应收关联(?:公司|企业|单位)款项",
+     "应收(?:母公司|子公司|联营企业|联营公司|合营企业|合营公司|附属公司|同系附属公司|控股股东|股东|董事|高级管理人员)款项",
+     "受同一控制方控制的企业",
+     "其他关联方",
+     "^\\s*关联(?:方|公司|企业|单位)\\s*$",
+     "應收關聯方",
+     "應收關連人士款項",
+     "應收關聯(?:公司|企業)款項",
+     "應收(?:同系附屬公司|附屬公司|聯營公司|合營公司|董事|控股公司|股東|母公司)款項",
+     "關聯方(?:資金)?往來",
+     "關聯方款項",
+     "關連人士款項",
+     "^\\s*關(?:聯|連)(?:方|公司)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*(?:balance\\s+)?(?:as\\s+)?at\\s+(?:1\\b|31\\b|30\\b|\\d{1,2}\\s+\\w+|the\\s+(?:beginning|end))",
@@ -39850,6 +39884,192 @@
    "section_scope": [],
    "definition": "The part of the current-account receivable balance that is due from related parties — intra-group and other related-unit running accounts, 关联方往来款 and its variants — as the filing identifies them. It is read from the same current-account or other current assets note that supplies the current-account figure, since only an amount shown inside that balance can be carved out of it. It is not the whole current-account balance, and it is not a current account the entity owes to a related party, which sits on the liability side. It is also not the related-party transaction turnover for the period; only the balance outstanding at the reporting date counts.",
    "prompt": "Deduct only the related-party balance shown inside this current-account receivable, never the whole current-account figure and never an amount the entity owes a related party. current_account_receivables_related_party_net. Related-party current-account balances (关联方往来款 / 关联方资金往来 / 关联单位往来) inside the 往来款 or 其他流动资产 note, separated from sub__cp_current_account_net by the related-party qualifier. This is the commonest place a PRC filing parks intra-group balances, so it is usually the deduction that decides this line. Sign -1."
+  },
+  {
+   "key": "sub__fa_cp_intermediate_residual",
+   "label": "Intermediate residual — how far below zero the securities arithmetic went",
+   "namespace": "internal",
+   "type": "derived",
+   "in_output": false,
+   "order": 11,
+   "cascade": [
+    {
+     "id": "RESIDUAL",
+     "refuse_negative": true,
+     "terms": [
+      {
+       "ref": "sub__fa_cp_fvtpl_note_total",
+       "role": "any_of",
+       "sign": -1
+      },
+      {
+       "ref": "sub__fa_cp_fvtoci_note_total",
+       "role": "any_of",
+       "sign": -1
+      },
+      {
+       "ref": "sub__fa_cp_afs_htm_note_total",
+       "role": "any_of",
+       "sign": -1
+      },
+      {
+       "ref": "sub__fa_cp_debt_investments_note_total",
+       "role": "any_of",
+       "sign": -1
+      },
+      {
+       "ref": "sub__fa_cp_investment_and_money_market_securities_note_total",
+       "role": "any_of",
+       "sign": -1
+      },
+      {
+       "ref": "sub__fa_cp_other_fincl_assets_note_total",
+       "role": "any_of",
+       "sign": -1
+      },
+      {
+       "ref": "sub__fa_cp_noncurrent_split_of_note_total",
+       "role": "adjustment",
+       "sign": 1
+      },
+      {
+       "ref": "sub__fa_cp_included_derivatives",
+       "role": "adjustment",
+       "sign": 1
+      },
+      {
+       "ref": "sub__fa_cp_included_other_receivables",
+       "role": "adjustment",
+       "sign": 1
+      },
+      {
+       "ref": "sub__fa_cp_level_3_total",
+       "role": "adjustment",
+       "sign": 1
+      }
+     ],
+     "note": "0 − the securities expression, which is that expression with every sign inverted. PASSED OVER WHEN NEGATIVE, so it carries a figure only where the expression came out at or below zero — precisely the filings where the securities line falls to its zero rung — and that figure is how far below zero it went. The constant 0 is deliberately NOT a term: as a `required` one it would alone satisfy `_apply_terms`' base-present test, so a filing disclosing none of the in-scope notes would publish a bare 0 instead of leaving this unresolved. Nothing references it; it is stored so the overshoot is reviewable rather than invisible, and `in_output: false` keeps it off the statement and the export."
+    }
+   ],
+   "statement": null,
+   "section_scope": [],
+   "parent": "bs_ca__secur_and_other_fincl_assets_cp"
+  },
+  {
+   "key": "sub__rp_find_1",
+   "label": "Find 1 — related-party receivables in the balance sheet",
+   "namespace": "internal",
+   "type": "derived",
+   "in_output": false,
+   "parent": "bs_nca__due_from_related_parties_ltp",
+   "statement": null,
+   "section_scope": [],
+   "order": 10,
+   "cascade": [
+    {
+     "id": "FIND_1",
+     "terms": [
+      {
+       "ref": "sub__rp_bs_face_receivables",
+       "role": "any_of",
+       "sign": 1
+      }
+     ],
+     "terms_op": "sum",
+     "note": "Spec 4.2. The net related-party balances identified on the balance sheet and in statement-linked disclosures, within the four receivable captions — other receivables, current portion of long-term receivables, long-term receivables, loans and advances. Entrusted loans are excluded by the reading child's own row exclusions (spec 3.4), so there is nothing to deduct here.",
+     "refuse_negative": true,
+     "outranks_printed": false
+    }
+   ]
+  },
+  {
+   "key": "sub__rp_find_2",
+   "label": "Find 2 — related-party balances in the four receivable notes",
+   "namespace": "internal",
+   "type": "derived",
+   "in_output": false,
+   "parent": "bs_nca__due_from_related_parties_ltp",
+   "statement": null,
+   "section_scope": [],
+   "order": 11,
+   "cascade": [
+    {
+     "id": "FIND_2",
+     "terms": [
+      {
+       "ref": "sub__rp_other_receivables_note",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "sub__rp_current_portion_ltr_note",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "sub__rp_lt_receivables_note",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "sub__rp_loans_and_advances_note",
+       "role": "any_of",
+       "sign": 1
+      }
+     ],
+     "terms_op": "sum",
+     "note": "Spec 4.3. The same four captions read as NOTE headings. A genuine sum: in PRC presentation the current portion is reclassified out of 长期应收款, so the four are mutually exclusive receivable classes and summing them counts each underlying receivable once (3.5). Every term `any_of` because the spec sums whatever subset the filing discloses and a missing note is not a failure (3.6: return null, never zero-fill). Entrusted loans are excluded by each child's row exclusions.",
+     "refuse_negative": true,
+     "outranks_printed": false
+    }
+   ]
+  },
+  {
+   "key": "sub__rp_find_3",
+   "label": "Find 3 — related-party balances in the related-party note",
+   "namespace": "internal",
+   "type": "derived",
+   "in_output": false,
+   "parent": "bs_nca__due_from_related_parties_ltp",
+   "statement": null,
+   "section_scope": [],
+   "order": 12,
+   "cascade": [
+    {
+     "id": "FIND_3",
+     "terms": [
+      {
+       "ref": "sub__rp_note_by_receivable_class",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "sub__rp_note_by_counterparty",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "sub__rp_note_umbrella_total",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "sub__rp_due_from_note_noncurrent",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "sub__rp_note_entrusted_loans",
+       "role": "adjustment",
+       "sign": -1
+      }
+     ],
+     "terms_op": "first",
+     "note": "Spec 4.4. FOUR READINGS OF ONE NOTE, not four addends: by receivable class, by counterparty type, as a single umbrella line, and from the dedicated 应收关联方款项 note. 3.5 forbids adding a subtotal to its components, and the class view and the counterparty view describe the SAME balances from two angles — so `terms_op: first` takes the finest reading available and ignores the rest, which is the precedence the six replaced rungs already encoded. The separately disclosed entrusted loans are deducted as an `adjustment`: 3.4 requires them out of every related-party calculation, and only the coarser readings can bundle them.",
+     "refuse_negative": true,
+     "outranks_printed": false
+    }
+   ]
   }
  ],
  "others_master": {

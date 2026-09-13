@@ -237,6 +237,10 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
                                 "flip_if_label_matches": [r"overdraft"]}),
     "analyst_bucket": ("analyst_bucket", "current_assets"),
     # assembly
+    # THE OPERATOR IS A SCALAR, not a member of `terms`: it is a property of the GROUP, and a
+    # per-term copy would be four ways to disagree about one rule. `max` here rather than the `sum`
+    # default, so the round trip proves a NON-default value survives.
+    "terms_op": ("terms_op", "max"),
     "terms": ("terms", [
         {"ref": "probe_parent", "const": None, "sign": 1, "abs": False, "role": "required"},
         {"ref": "probe_other", "const": None, "sign": -1, "abs": True, "role": "adjustment"}]),
@@ -244,6 +248,10 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
         {"id": "P1",
          "terms": [{"ref": "probe_parent", "const": None, "sign": 1, "abs": False,
                     "role": "required"}],
+         # HOW THE TERMS ABOVE COMBINE. Here on the rung as well as on the line, because a rung is
+         # the other place terms live — `bs_nca__due_from_related_parties_ltp`'s MAX_VALID rung is a
+         # `max` over its three Finds, which is the rule its replaced six rungs could not express.
+         "terms_op": "sum",
          "note": "the note's own total, when it states one",
          "refuse_negative": False,
          # SENT WHOLE, like every other nested object in this table — the apply dumps a sub-model in

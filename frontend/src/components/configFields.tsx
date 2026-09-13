@@ -1044,14 +1044,47 @@ const newTerm = (): LineItemTerm => ({ ref: "", const: null, sign: 1, abs: false
  *      says so once rather than leaving three sign fields on one screen to be confused.
  *
  *  Used for `terms` and, unchanged, for every `cascade[].terms` — one editor for one shape. */
+/** HOW A GROUP OF TERMS COMBINES, in the author's words. Four values; `sum` is what every shipped
+ *  formula means, so the control opens on the behaviour already in force.
+ *
+ *  EACH ONE SAYS WHAT IT DOES TO THE ROWS BELOW IT, because the difference between them is not
+ *  visible in the rows: the same three terms are a total under `sum`, a choice under `max`, and a
+ *  precedence list under `first`. */
+export const TERMS_OP_LABEL: Record<string, string> = {
+  sum: "add them up",
+  max: "take the largest",
+  min: "take the smallest",
+  first: "take the first one present",
+};
+
+export const TERMS_OP_HELP: Record<string, string> = {
+  sum: "The rows are COMPONENTS and the figure is their total. Four operating-expense notes are a "
+     + "sum. This is what every formula in this set means today.",
+  max: "The rows are ALTERNATIVE READINGS of one quantity and the largest wins — the fullest "
+     + "disclosure. Use it where a spec says “take the maximum valid”: summing three "
+     + "readings of the same balance would count it three times.",
+  min: "The same, but the smallest wins — the most conservative of several readings.",
+  first: "The first row that has a figure answers and the rest are ignored, so the ORDER of the "
+       + "rows is the precedence. Use it where several rows read the same note different ways: a "
+       + "class breakdown and a counterparty breakdown describe the same balances, so they are "
+       + "alternatives and never addends.",
+};
+
 export function TermRows({
   label, help, error, editable, testid, terms, onChange, options, errorAt, inherited,
+  op, onOp, opOptions, opReason,
 }: FieldProps & {
   terms: LineItemTerm[];
   onChange: (v: LineItemTerm[]) => void;
   options: readonly KeyOption[];
   /** A refusal addressed to one row's one field — the server sends `terms[0].ref`. */
   errorAt?: (index: number, field: keyof LineItemTerm) => string | undefined;
+  /** HOW THE ROWS COMBINE. Omitted where the caller has nowhere to store it, in which case the
+   *  rows read as a sum — which is what they were before this existed. */
+  op?: string;
+  onOp?: (v: string) => void;
+  opOptions?: readonly string[];
+  opReason?: string;
 }) {
   const set = (i: number, patch: Partial<LineItemTerm>) =>
     onChange(terms.map((t, j) => (j === i ? { ...t, ...patch } : t)));
@@ -1067,6 +1100,31 @@ export function TermRows({
     <FieldRow label={label} help={help} error={error} inherited={inherited} editable={editable}
               testid={testid}>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {/* THE OPERATOR FIRST, because it decides what the rows below it mean. The same three
+            terms are a total under `sum`, a choice under `max` and a precedence list under
+            `first`, and nothing in the rows themselves says which. */}
+        {op !== undefined && (opOptions ?? []).length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ ...helpStyle, fontWeight: 600 }}>Combine the rows below by:</span>
+            {editable && onOp ? (
+              <select value={op} onChange={(e) => onOp(e.target.value)}
+                      data-testid={testid ? `select-${testid}-op` : undefined}
+                      style={{ ...inputStyle(true), width: "auto", cursor: "pointer" }}>
+                {(opOptions ?? []).map((o) => (
+                  <option key={o} value={o}>{TERMS_OP_LABEL[o] ?? o}</option>
+                ))}
+              </select>
+            ) : (
+              <span style={{ fontFamily: font.mono, fontSize: 11.5, color: color.ink2 }}>
+                {TERMS_OP_LABEL[op] ?? op}
+              </span>
+            )}
+            {(terms.length > 1 || op !== "sum") && (
+              <span style={helpStyle}>{TERMS_OP_HELP[op] ?? ""}</span>
+            )}
+            {opReason && <span style={helpStyle}>{opReason}</span>}
+          </div>
+        )}
         {terms.length === 0 && (
           <div style={{ ...helpStyle, padding: "8px 10px", background: color.rowAltBg,
                          border: `1px solid ${color.hairline2}`, borderRadius: 7 }}>
@@ -1190,11 +1248,14 @@ const newRung = (n: number): CascadeRung => ({
  *  rung computing −50 would win here and then be refused by the service it claims to describe. */
 export function RungCards({
   label, help, error, editable, testid, cascade, onChange, options, rungErrorAt, termErrorAt,
-  inherited,
+  inherited, opOptions,
 }: FieldProps & {
   cascade: CascadeRung[];
   onChange: (v: CascadeRung[]) => void;
   options: readonly KeyOption[];
+  /** The four ways a rung's terms may combine, from the server so the control cannot offer a
+   *  fifth. A rung is a max where a spec says "take the maximum valid" — see `TERMS_OP_HELP`. */
+  opOptions?: readonly string[];
   /** A refusal addressed to one rung's own field — `cascade[1].id`. */
   rungErrorAt?: (index: number, field: keyof CascadeRung) => string | undefined;
   /** A refusal addressed to one term of one rung — `cascade[1].terms[0].ref`. */
@@ -1261,6 +1322,9 @@ export function RungCards({
               label="What this rung computes" editable={editable} testid={`rung-${i}-terms`}
               terms={rung.terms} onChange={(v) => set(i, { terms: v })} options={options}
               errorAt={(ti, f) => termErrorAt?.(i, ti, f)}
+              op={rung.terms_op ?? "sum"}
+              onOp={(v) => set(i, { terms_op: v as CascadeRung["terms_op"] })}
+              opOptions={opOptions ?? ["sum", "max", "min", "first"]}
             />
 
             <TextArea

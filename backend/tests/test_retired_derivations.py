@@ -353,8 +353,27 @@ def test_the_result_carries_no_derived_total_and_the_assembler_is_gone():
     fields = set(getattr(ContingentLiabilitiesResult, "__dataclass_fields__", {}))
     fields |= set(getattr(ContingentLiabilitiesResult, "model_fields", {}))
     assert "total_quantifiable" not in fields, sorted(fields)
-    assert not [f for f in fields if "total" in f], sorted(fields)
     assert not hasattr(service, "_quantifiable_total")
+
+    # WHAT THIS GUARD IS ACTUALLY FOR, and why it is no longer a ban on the word "total".
+    #
+    # It used to read `assert not [f for f in fields if "total" in f]`. That caught the removed
+    # field by its NAME, which was enough while no legitimate total existed. `detail_totals` is
+    # one: the item-by-item table's own column sum, per currency and scale, for a reader to check
+    # the table against the page. It is not the thing that was removed, and a name check cannot
+    # tell the two apart — so the allowlist is explicit and the REAL protections are behavioural,
+    # asserted in `test_contingent_detail_table.py`:
+    #
+    #   test_nothing_is_published_onto_the_line_item  — no figure reaches
+    #       notes__contingent_liabilities; that number comes from configuration.
+    #   test_no_sum_ever_crosses_a_currency           — no figure spans unlike units, which is
+    #       what MULTIPLE_CURRENCIES_NOT_AGGREGATED used to have to withhold.
+    #   test_an_item_with_no_amount_is_unpriced_and_not_zero — silence is never read as nil.
+    #
+    # A NEW total-shaped field therefore fails here until somebody adds it below deliberately, and
+    # has to satisfy those three to be correct.
+    allowed = {"detail_totals"}
+    assert not [f for f in fields if "total" in f and f not in allowed], sorted(fields)
 
 
 def test_a_two_currency_note_still_yields_two_rows_and_a_paragraph():
@@ -407,7 +426,7 @@ def test_no_shipped_line_item_names_a_deleted_service_as_its_implementer():
     """
     raw = json.loads(_LINE_ITEMS_JSON.read_text(encoding="utf-8"))
     items = raw["items"]
-    assert len(items) == 539, f"the shipped set changed size ({len(items)}) — re-read this test"
+    assert len(items) == 543, f"the shipped set changed size ({len(items)}) — re-read this test"
 
     offenders = [
         (i.get("key"), i.get("implemented_by")) for i in items

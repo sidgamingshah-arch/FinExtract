@@ -89,21 +89,25 @@ def test_the_shipped_configuration_still_declares_note_sources_to_read():
 
 
 def test_a_figure_is_read_out_of_the_note_the_configuration_names(shipped):
-    """The whole point, on the shipped declaration for the R&D note."""
+    """The whole point: an ASSET note whose depreciation row names the function.
+
+    The children share one note set now, so the row is what identifies them — see this module's
+    patch note. An R&D-titled note with an asset-named row is layout (a) and is no longer read.
+    """
     doc, ctx = _run(shipped, [NotesTable(
-        note_number="8", title="Research and development expenses",
-        items=[_note_row("Depreciation of property, plant and equipment", "1200")])])
+        note_number="8", title="Property, plant and equipment",
+        items=[_note_row("Depreciation included in research and development expenses", "1200")])])
     assert _figure(doc, "sub__rd_depreciation") == Decimal("1200")
     assert any("sub__rd_depreciation" in line for line in ctx.logs)
 
 
 def test_rows_inside_one_note_are_added_because_they_are_components(shipped):
-    """A note that splits depreciation across assets prints several rows, and the note's
-    depreciation is their sum."""
+    """A note stating one function's charge on two rows — depreciation and amortisation — and the
+    function's figure is their sum."""
     doc, _ctx = _run(shipped, [NotesTable(
-        note_number="8", title="Research and development expenses",
-        items=[_note_row("Depreciation of property, plant and equipment", "1200"),
-               _note_row("Depreciation of right-of-use assets", "300")])])
+        note_number="8", title="Property, plant and equipment",
+        items=[_note_row("Depreciation included in research and development expenses", "1200"),
+               _note_row("Amortisation included in research and development costs", "300")])])
     assert _figure(doc, "sub__rd_depreciation") == Decimal("1500")
 
 
@@ -113,9 +117,13 @@ def test_the_veto_removes_a_row_a_counting_pattern_already_claimed(shipped):
     applied before the counting patterns, or not at all, the figure would be wrong rather than
     absent — and a wrong figure that still ties is the failure nobody sees."""
     doc, _ctx = _run(shipped, [NotesTable(
-        note_number="8", title="Research and development expenses",
-        items=[_note_row("Depreciation of property, plant and equipment", "1200"),
-               _note_row("Accumulated depreciation", "9999"),
+        note_number="8", title="Property, plant and equipment",
+        items=[_note_row("Depreciation included in research and development expenses", "1200"),
+               # QUALIFIED BY THE SAME FUNCTION, so it matches a counting pattern and the veto has
+               # to be what removes it — the point of the test. A bare "Accumulated depreciation"
+               # would now match no counting pattern at all and prove nothing.
+               _note_row("Accumulated depreciation included in research and development expenses",
+                         "9999"),
                _note_row("Exchange difference", "7"),
                _note_row("Disposals", "45")])])
     assert _figure(doc, "sub__rd_depreciation") == Decimal("1200")
@@ -123,16 +131,17 @@ def test_the_veto_removes_a_row_a_counting_pattern_already_claimed(shipped):
 
 def test_a_row_matching_no_counting_pattern_is_not_read(shipped):
     doc, _ctx = _run(shipped, [NotesTable(
-        note_number="8", title="Research and development expenses",
+        note_number="8", title="Property, plant and equipment",
         items=[_note_row("Staff costs", "5000")])])
     assert _figure(doc, "sub__rd_depreciation") is None
 
 
 def test_a_note_whose_title_does_not_match_is_not_read(shipped):
-    """The title gate is what stops the R&D declaration reading the inventories note."""
+    """The title gate, with a row that WOULD be claimed in an in-scope note — so the title is the
+    only thing refusing it. Inventories is not one of the five notes the children share."""
     doc, _ctx = _run(shipped, [NotesTable(
         note_number="13", title="Inventories",
-        items=[_note_row("Depreciation of property, plant and equipment", "1200")])])
+        items=[_note_row("Depreciation included in research and development expenses", "1200")])])
     assert _figure(doc, "sub__rd_depreciation") is None
 
 
@@ -154,12 +163,11 @@ def test_alternatives_takes_one_child_when_the_parent_declares_no_cascade(shippe
     parent.rollup = "alternatives"
 
     doc = DocumentModel(filename="f.pdf")
-    doc.notes = [
-        NotesTable(note_number="8", title="Research and development expenses",
-                   items=[_note_row("Depreciation of property, plant and equipment", "1200")]),
-        NotesTable(note_number="9", title="General and administrative expenses",
-                   items=[_note_row("Depreciation of property, plant and equipment", "1350")]),
-    ]
+    # ONE asset note breaking its depreciation down by function, which is layout (b): two
+    # children read two different rows of the same note.
+    doc.notes = [NotesTable(note_number="8", title="Property, plant and equipment",
+                            items=[_note_row("Depreciation included in research and development expenses", "1200"),
+                                   _note_row("Depreciation included in administrative expenses", "1350")])]
     ctx = PipelineContext(settings=get_settings())
     ctx.line_items = edited
     doc = NoteSourcedStage().run(doc, ctx)
@@ -179,8 +187,8 @@ def test_the_parent_keeps_the_figure_the_filing_printed(shipped):
     printed.set_value(ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current",
                                      value=Decimal("5000"), value_raw=Decimal("5000")))
     doc, ctx = _run(shipped, [NotesTable(
-        note_number="8", title="Research and development expenses",
-        items=[_note_row("Depreciation of property, plant and equipment", "1200")])],
+        note_number="8", title="Property, plant and equipment",
+        items=[_note_row("Depreciation included in research and development expenses", "1200")])],
         rows=[printed])
 
     assert _figure(doc, OPER_EXP) == Decimal("5000")
@@ -194,9 +202,9 @@ def test_the_trail_names_the_note_the_row_and_the_pattern_that_matched(shipped):
     written through `services.derivation`, which the statement inspector already renders with
     click-to-source."""
     doc, _ctx = _run(shipped, [NotesTable(
-        note_number="8", title="Research and development expenses",
-        items=[_note_row("Depreciation of property, plant and equipment", "1200"),
-               _note_row("Depreciation of right-of-use assets", "300")])])
+        note_number="8", title="Property, plant and equipment",
+        items=[_note_row("Depreciation included in research and development expenses", "1200"),
+               _note_row("Amortisation included in research and development costs", "300")])])
     row = next(li for li in doc.line_items if li.canonical_key == "sub__rd_depreciation")
     assert row.derivation, "no trail was recorded"
     trail = next(iter(row.derivation.values()))
@@ -331,8 +339,8 @@ def test_the_seven_concepts_that_permit_decomposition_are_not_blocked_by_the_gat
     assert permits["is_pl__deprec_and_impairment_cos"] == "decomposition_allowed"
     # And the shipped depreciation fill still happens, which is the same assertion end to end.
     doc, _ctx = _run(shipped, [NotesTable(
-        note_number="8", title="Research and development expenses",
-        items=[_note_row("Depreciation of property, plant and equipment", "1200")])])
+        note_number="8", title="Property, plant and equipment",
+        items=[_note_row("Depreciation included in research and development expenses", "1200")])])
     assert _figure(doc, OPER_EXP) == Decimal("1200")
 
 
@@ -350,12 +358,10 @@ def test_the_declared_cascade_decides_the_parent_not_the_rollup(shipped):
     The cascade also carries what a rollup cannot express at all: optional terms (`any_of`), signed
     deductions (`adjustment`, `sign: -1`), and a refusal to accept a negative candidate.
     """
-    doc, ctx = _run(shipped, [
-        NotesTable(note_number="8", title="Research and development expenses",
-                   items=[_note_row("Depreciation of property, plant and equipment", "1200")]),
-        NotesTable(note_number="9", title="General and administrative expenses",
-                   items=[_note_row("Depreciation of property, plant and equipment", "1350")]),
-    ])
+    # ONE asset note, two function rows — P1 sums the two children that read them.
+    doc, ctx = _run(shipped, [NotesTable(note_number="8", title="Property, plant and equipment",
+                                         items=[_note_row("Depreciation included in research and development expenses", "1200"),
+                                                _note_row("Depreciation included in administrative expenses", "1350")])])
     assert _figure(doc, OPER_EXP) == Decimal("2550"), "P1 did not sum the disclosed subset"
     assert any("rung P1" in line for line in ctx.logs), ctx.logs
 
@@ -365,8 +371,8 @@ def test_an_absent_any_of_term_does_not_kill_the_rung(shipped):
     notes still has a sum. A `required` reading would refuse the rung and fall through to a
     materially different provenance."""
     doc, ctx = _run(shipped, [NotesTable(
-        note_number="9", title="General and administrative expenses",
-        items=[_note_row("Depreciation of property, plant and equipment", "1350")])])
+        note_number="9", title="Property, plant and equipment",
+        items=[_note_row("Depreciation included in administrative expenses", "1350")])])
     assert _figure(doc, OPER_EXP) == Decimal("1350")
     assert any("rung P1" in line for line in ctx.logs)
 
@@ -376,8 +382,8 @@ def test_the_trail_names_which_rung_answered(shipped):
     operating-expense notes has a materially different provenance, and a reviewer cannot see that
     in the number. The rung is recorded on the figure."""
     doc, _ctx = _run(shipped, [NotesTable(
-        note_number="8", title="Research and development expenses",
-        items=[_note_row("Depreciation of property, plant and equipment", "1200")])])
+        note_number="8", title="Property, plant and equipment",
+        items=[_note_row("Depreciation included in research and development expenses", "1200")])])
     row = next(li for li in doc.line_items if li.canonical_key == OPER_EXP)
     assert row.derivation, "the cascade wrote no trail"
     trail = next(iter(row.derivation.values()))
@@ -417,8 +423,8 @@ def test_the_cascade_does_not_overwrite_the_figure_the_filing_printed(shipped):
     printed.set_value(ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current",
                                      value=Decimal("9000"), value_raw=Decimal("9000")))
     doc, ctx = _run(shipped, [NotesTable(
-        note_number="8", title="Research and development expenses",
-        items=[_note_row("Depreciation of property, plant and equipment", "1200")])],
+        note_number="8", title="Property, plant and equipment",
+        items=[_note_row("Depreciation included in research and development expenses", "1200")])],
         rows=[printed])
     assert _figure(doc, OPER_EXP) == Decimal("9000")
     assert any("kept over cascade" in line for line in ctx.logs), ctx.logs
@@ -505,14 +511,14 @@ def test_a_matrix_column_is_not_a_period(shipped):
     from app.core.models.line_item import NoteItem
     from app.services import note_sourced as svc
 
-    row = NoteItem(raw_label="Depreciation of property, plant and equipment")
+    row = NoteItem(raw_label="Depreciation included in research and development expenses")
     # A period fact and a matrix-column fact on the same row.
     row.values["p"] = ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current",
                                      value=Decimal("1200"), value_raw=Decimal("1200"))
     row.values["m"] = ExtractedValue(basis=Basis.CONSOLIDATED, period_label="col3",
                                      value=Decimal("400"), value_raw=Decimal("400"),
                                      column_index=3)
-    note = NotesTable(note_number="8", title="Research and development expenses", items=[row])
+    note = NotesTable(note_number="8", title="Property, plant and equipment", items=[row])
 
     sub = next(i for i in shipped.items if i.key == "sub__rd_depreciation")
     hits = svc.select_rows(sub, [note])
@@ -532,12 +538,12 @@ def test_a_note_column_the_statements_do_not_use_is_not_a_period(shipped):
     from app.core.models.line_item import NoteItem
     from app.services import note_sourced as svc
 
-    row = NoteItem(raw_label="Depreciation of property, plant and equipment")
+    row = NoteItem(raw_label="Depreciation included in research and development expenses")
     row.values["a"] = ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current",
                                      value=Decimal("1200"), value_raw=Decimal("1200"))
     row.values["b"] = ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current:cost",
                                      value=Decimal("999"), value_raw=Decimal("999"))
-    note = NotesTable(note_number="8", title="Research and development expenses", items=[row])
+    note = NotesTable(note_number="8", title="Property, plant and equipment", items=[row])
     sub = next(i for i in shipped.items if i.key == "sub__rd_depreciation")
 
     kept = svc.select_rows(sub, [note], {"current", "prior"})
@@ -560,14 +566,14 @@ def test_the_allowlist_comes_from_the_face_not_from_a_literal(shipped):
     for label in ("current", "prior", "prior_2"):
         face.set_value(ExtractedValue(basis=Basis.CONSOLIDATED, period_label=label,
                                       value=Decimal("1"), value_raw=Decimal("1")))
-    row = NoteItem(raw_label="Depreciation of property, plant and equipment")
+    row = NoteItem(raw_label="Depreciation included in research and development expenses")
     for label, amount in (("current", "10"), ("prior", "20"), ("prior_2", "30"),
                           ("current:cost", "99")):
         row.values[label] = ExtractedValue(basis=Basis.CONSOLIDATED, period_label=label,
                                            value=Decimal(amount), value_raw=Decimal(amount))
     doc = DocumentModel(filename="f.pdf")
     doc.line_items = [face]
-    doc.notes = [NotesTable(note_number="8", title="Research and development expenses",
+    doc.notes = [NotesTable(note_number="8", title="Property, plant and equipment",
                             items=[row])]
     ctx = PipelineContext(settings=get_settings())
     ctx.line_items = shipped

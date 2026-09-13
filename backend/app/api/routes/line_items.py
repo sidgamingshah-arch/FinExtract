@@ -90,6 +90,7 @@ from app.schemas.line_items import (
     SignRule,
     Temporality,
     Term,
+    TermsOp,
     UnitOfAccount,
     UnknownInheritsError,
     ValueScope,
@@ -525,6 +526,9 @@ def _vocabulary(st: LineItemSet) -> dict:
         "scopes": _literal_values(SearchScope),
         "sides": _literal_values(Side),
         "rollups": _literal_values(Rollup),
+        # How a calculated line's terms — or a cascade rung's — combine. Four values, and `sum` is
+        # what every shipped formula means, so the control opens on the behaviour already in force.
+        "terms_ops": _literal_values(TermsOp),
         "namespaces": _literal_values(Namespace),
         "types": _literal_values(LineItemType),
         # The three output structures, so the control cannot offer a fourth.
@@ -1147,6 +1151,11 @@ class ItemEdit(BaseModel):
 
     # ── assembly ──────────────────────────────────────────────────────────────────────────────
     terms: list[Term] | None = None
+    # HOW THE TERMS ABOVE COMBINE — sum, max, min or first. See `schemas.line_items.TermsOp`. On the
+    # wire as a scalar rather than inside `terms`, because it is a property of the GROUP and not of
+    # any one addend; a per-term copy would be four ways to disagree about one rule. The per-RUNG
+    # spelling travels inside `cascade`, which is posted whole.
+    terms_op: TermsOp | None = None
     cascade: list[CascadeRung] | None = None
     implemented_by: str | None = None
 
@@ -1185,6 +1194,8 @@ _SIGN_FROM_UI = {
 #
 # ItemEdit field -> the LineItemDef field it writes. Straight copy of the validated value.
 _EDIT_SCALARS: dict[str, str] = {
+    # The calculated rule builder's operator — see `ItemEdit.terms_op`.
+    "terms_op": "terms_op",
     "label": "label",
     "definition": "definition",
     "prompt": "prompt",

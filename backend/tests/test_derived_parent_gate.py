@@ -100,10 +100,12 @@ def test_the_types_the_shipped_set_declares(shipped):
     from collections import Counter
     counts = Counter(str(i.type) for i in shipped.items)
 
-    assert counts["derived"] == 9, counts
+    # TEN, not nine: `sub__fa_cp_intermediate_residual` is the securities line's overshoot
+    # diagnostic, a derived line computed from its own cascade and published nowhere.
+    assert counts["derived"] == 13, counts
     assert counts["calculated"] == 33, counts
     assert counts["extracted"] == 497, counts
-    assert sum(counts.values()) == 539
+    assert sum(counts.values()) == 543
     # AND THE DISCRIMINATOR THE SECTION ROLL-UPS READ IS UNTOUCHED. `rollups.section_members` keys
     # on `unit_of_account == "subtotal"` and nothing else; flattening it alongside the type takes
     # all 20 sections to `no_reported_subtotal`, so the two must not move together.
@@ -268,4 +270,14 @@ def test_outranking_is_off_by_default_so_an_unexamined_cascade_changes_nothing(s
     assert CascadeRung(id="X").outranks_printed is False
 
     on = [(i.key, r.id) for i in shipped.items for r in (i.cascade or []) if r.outranks_printed]
-    assert on == [("bs_nca__secur_and_other_fincl_assets_ltp", f"LTP_P{n}") for n in (1, 2, 3, 4)], on
+    # TWO LINES CARRY IT, and both reconstruct a quantity no balance sheet prints.
+    #
+    #   securities LTP  — the non-current portion of the in-scope financial-asset notes, less
+    #                     derivatives, less other receivables, less equity-method investments, less
+    #                     the current line's overshoot. All four rungs.
+    #   related-party   — MAX_VALID(Find 1, Find 2, Find 3): related-party amounts extracted from
+    #     LTP             WITHIN four receivable captions, net of entrusted loans. A caption binding
+    #                     this line found something else entirely, which is why the rung is the
+    #                     answer and not the printed row.
+    assert on == [("bs_nca__due_from_related_parties_ltp", "MAX_VALID")] + [
+        ("bs_nca__secur_and_other_fincl_assets_ltp", f"LTP_P{n}") for n in (1, 2, 3, 4)], on

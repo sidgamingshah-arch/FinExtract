@@ -533,6 +533,20 @@ class ContingentLiabilitiesResult:
     unclassified_items: list[dict]
     status: str
     flags: list[str] = field(default_factory=list)
+    # EVERY DISCLOSED ITEM, ONE BY ONE — the detail table §6.5 refers to when it says an item with
+    # no amount "belongs in the narrative and the detail table, just never in a total". It was
+    # computed and thrown away: `classified_summary` groups by type and `unclassified_items` keeps
+    # only what fits no type, so an item that WAS classified appeared nowhere on its own.
+    #
+    # DEFAULTED, so the four constructor calls in this module and every call site outside it keep
+    # working positionally — the docstring above warns that the arity already changed once.
+    detail_items: list[dict] = field(default_factory=list)
+    # THE DETAIL TABLE'S OWN TOTAL, per currency and scale — never one blended figure, and never
+    # published onto a line item. See the module docstring: the derived total assembled out of 172
+    # enumerated entries was removed deliberately and must not come back. This is the column sum of
+    # the table above, grouped as `_classified_summary` groups, so no figure crosses a currency or
+    # a presentation scale.
+    detail_totals: list[dict] = field(default_factory=list)
 
 
 # ── the reasoning, attached to the document-level disclosure ────────────────────────────────────
@@ -598,10 +612,33 @@ def disclosure_explanation(record: dict | None) -> dict:
         for it in (period.get("unclassified_items") or [])
         if it.get("short_statement")
     ]
-    if not breakdown and not statements and not period.get("summary_paragraph"):
+    if (not breakdown and not statements and not period.get("summary_paragraph")
+            and not period.get("detail_items")):
         return {}
+    # THE ITEM-BY-ITEM TABLE, one row per disclosed exposure, and the table's own total per
+    # currency and scale. Additive keys on the entry `disclosures` already carries, which is what
+    # puts them in front of the Excel Disclosures sheet, the JSON export, /analysis and the
+    # Disclosures screen at a single insertion point.
+    detail = [
+        {"description": r.get("description"), "classification": r.get("classification"),
+         "classified_by": r.get("classified_by") or [], "amount": r.get("amount"),
+         "currency": r.get("currency"), "scale": r.get("scale"),
+         "note_number": r.get("note_number"), "note_heading": r.get("note_heading"),
+         "page": r.get("page"), "counterparty": r.get("counterparty"),
+         "duplicate_of": r.get("duplicate_of")}
+        for r in (period.get("detail_items") or [])
+    ]
+    detail_totals = [
+        {"amount": t.get("amount"), "currency": t.get("currency"), "scale": t.get("scale"),
+         "item_count": t.get("item_count"), "unpriced": t.get("unpriced"),
+         "duplicates_excluded": t.get("duplicates_excluded")}
+        for t in (period.get("detail_totals") or [])
+    ]
     return {
         "explanation": period.get("summary_paragraph") or "",
+        # EVERY CONTINGENT LIABILITY, ONE BY ONE, and what the table comes to.
+        "items": detail,
+        "item_totals": detail_totals,
         # Sum-up by type. Per CURRENCY AND SCALE as well as type, which is `_classified_summary`'s
         # own grouping: a type disclosed in both thousands and millions is two rows, never one
         # wrong sum. There is no row total to reconcile against any more — the derived total and
@@ -625,6 +662,74 @@ def attach_contingent_explanation(disclosures: list[dict], record: dict | None) 
             for d in disclosures]
 
 
+def _detail_rows(items: list[ContingentItem]) -> list[dict]:
+    """Every item as one table row, in the order the notes disclosed them.
+
+    A DUPLICATE IS SHOWN AND MARKED, not dropped. `duplicate_of` records that the same exposure was
+    restated in another note, and a reader who sees only one of the two cannot tell whether the
+    filing disclosed it once or twice — which is what POSSIBLE_DUPLICATE asks them to check. It is
+    excluded from the totals instead, so the arithmetic is right and the evidence is still there.
+
+    `classified_by` carries WHY the item is the type it is, because a classification a reader cannot
+    question is one they have to take on trust — and the priority order means a broad "guarantee"
+    caption can lose to a more specific instrument, which is exactly the decision worth showing.
+    """
+    return [
+        {
+            "description": it.description,
+            "classification": it.classification,
+            "classified_by": list(it.classification_basis),
+            "amount": it.amount,
+            "currency": it.currency,
+            "scale": it.scale,
+            "note_number": it.note_number,
+            "note_heading": it.note_heading,
+            "page": it.page,
+            "counterparty": it.counterparty,
+            "duplicate_of": it.duplicate_of,
+        }
+        for it in items
+    ]
+
+
+def _detail_totals(items: list[ContingentItem]) -> list[dict]:
+    """The detail table's column sum, per (currency, scale).
+
+    NOT ONE BLENDED NUMBER, and not a figure for any line item — see the module docstring. Grouped
+    the way `_classified_summary` groups, because a type disclosed in both thousands and millions is
+    two rows and never one wrong sum; the same is true of the table's total.
+
+    A DUPLICATE IS COUNTED ONCE. `duplicate_of` marks an exposure restated in another note, so
+    adding both would double a reader's exposure on the strength of the filing mentioning it twice.
+
+    `unpriced` IS PART OF THE ANSWER. An item disclosed without an amount cannot enter a sum, and a
+    subtotal that does not say how many were left out reads as complete when it is not.
+    """
+    groups: dict[tuple[str, str], dict] = {}
+    for it in items:
+        key = (it.currency or "", str(it.scale) if it.scale is not None else "")
+        g = groups.setdefault(key, {"currency": it.currency, "scale": it.scale,
+                                    "amount": Decimal(0), "item_count": 0, "unpriced": 0,
+                                    "duplicates_excluded": 0})
+        g["item_count"] += 1
+        if it.duplicate_of:
+            g["duplicates_excluded"] += 1
+            continue
+        if it.amount is None:
+            g["unpriced"] += 1
+            continue
+        g["amount"] = (g["amount"] or Decimal(0)) + it.amount
+    # NOTHING PRICED MEANS NO TOTAL, NOT A TOTAL OF NOUGHT. A group whose every item disclosed no
+    # amount carries `amount: None` — writing 0 there would assert the filing disclosed nil
+    # exposure, which is the opposite of what "amount not disclosed" means. Same reason
+    # `_apply_terms` returns None over four absent notes rather than zero, and the same reason
+    # AMOUNT_NOT_DISCLOSED is a flag rather than a value.
+    for g in groups.values():
+        if g["item_count"] and g["unpriced"] + g["duplicates_excluded"] == g["item_count"]:
+            g["amount"] = None
+    return list(groups.values())
+
+
 def _result_from(items: list[ContingentItem], extra_flags: list[str]
                  ) -> ContingentLiabilitiesResult:
     """One period's result from its items — the assembly shared by the note path and the sweep."""
@@ -643,7 +748,7 @@ def _result_from(items: list[ContingentItem], extra_flags: list[str]
         [{"short_statement": _unclassified_statement(it), "amount": it.amount,
           "currency": it.currency, "source_note": it.note_number, "page": it.page}
          for it in unclassified],
-        "COMPUTED", flags)
+        "COMPUTED", flags, _detail_rows(items), _detail_totals(items))
 
 
 def compute(doc: DocumentModel,
@@ -704,7 +809,7 @@ def compute(doc: DocumentModel,
             [{"short_statement": _unclassified_statement(it),
               "amount": it.amount, "currency": it.currency,
               "source_note": it.note_number, "page": it.page} for it in unclassified],
-            "COMPUTED", flags)
+            "COMPUTED", flags, _detail_rows(items), _detail_totals(items))
     return out
 
 
@@ -748,6 +853,26 @@ def build_narrative_payload(result: ContingentLiabilitiesResult) -> dict:
              "currency": it.get("currency")}
             for it in result.unclassified_items
         ],
+        # THE ITEM-BY-ITEM TABLE AND ITS TOTALS, so the commentary describes what the reader is
+        # looking at. Without these the paragraph could only speak about per-type subtotals, and a
+        # reader comparing it against the detail table found the two talking about different things.
+        # Amounts as strings, like every other figure in this payload: a float here is a rounding
+        # the model would then quote back.
+        "detail_items": [
+            {"description": r.get("description"), "classification": r.get("classification"),
+             "amount": str(r["amount"]) if r.get("amount") is not None else None,
+             "currency": r.get("currency"), "counterparty": r.get("counterparty"),
+             "note": r.get("note_number"), "page": r.get("page"),
+             "restates_another_note": bool(r.get("duplicate_of"))}
+            for r in result.detail_items
+        ],
+        "detail_totals": [
+            {"amount": str(t["amount"]) if t.get("amount") is not None else None,
+             "currency": t.get("currency"),
+             "item_count": t.get("item_count"), "unpriced": t.get("unpriced"),
+             "duplicates_excluded": t.get("duplicates_excluded")}
+            for t in result.detail_totals
+        ],
     }
 
 
@@ -775,5 +900,8 @@ def enhance_with_llm(provider: LlmProvider, result: ContingentLiabilitiesResult,
     enhanced = ContingentLiabilitiesResult(
         narrative.summary_paragraph or result.summary_paragraph,
         result.classified_summary, unclassified,
-        result.status, [*result.flags, "LLM_NARRATIVE"])
+        result.status, [*result.flags, "LLM_NARRATIVE"],
+        # CARRIED THROUGH UNCHANGED. The model rewrites prose; it never touches the detail table or
+        # its totals, which is what makes "nothing here can change a total" true of the table too.
+        result.detail_items, result.detail_totals)
     return enhanced, meta

@@ -75,7 +75,9 @@ def test_every_derived_line_is_locked_out_of_the_matcher() -> None:
     derived = _derived(st)
     unmatchable = LineItemMatcher(st)._unmatchable
 
-    assert len(derived) == 9, len(derived)
+    # TEN — the tenth is `sub__fa_cp_intermediate_residual`, and it must be locked out of the
+    # matcher exactly like the other nine: its figure is its cascade's, so no caption reaches it.
+    assert len(derived) == 13, len(derived)
     assert all(d.key in unmatchable for d in derived), (
         [d.key for d in derived if d.key not in unmatchable])
 

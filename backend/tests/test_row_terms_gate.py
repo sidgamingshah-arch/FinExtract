@@ -119,24 +119,33 @@ def test_a_caption_that_only_shares_a_phrase_fragment_is_refused(shipped, key, c
     assert "shares no subject word" in why
 
 
-def test_what_the_narrowing_does_NOT_fix(shipped):
-    """THE LIMITATION, stated rather than discovered later.
+def test_the_limitation_this_recorded_is_now_closed(shipped):
+    """THE LIMITATION THIS TEST RECORDED, AND WHAT CLOSED IT — read deliberately, as it asked.
 
-    The container subtraction removes the vocabulary of THE LINE'S OWN note. A row term that names
-    a DIFFERENT note's container still contributes its tokens: `sub__operating_expense_depreciation`
-    reads the EXPENSES note (`note_terms`: "operating expenses", 經營開支), and carries 固定资产折旧
-    as a row term because that is a caption printed inside that note — so 资产 survives as
-    "discriminating" for it and the bare caption 固定资产 is still accepted.
+    It used to assert that `sub__operating_expense_depreciation` still ACCEPTED the bare container
+    caption 固定资产, and explained why: the container subtraction removes the vocabulary of the
+    line's OWN note, that line read the EXPENSES note (`note_terms`: "operating expenses", 經營開支),
+    and 固定资产 belongs to a different note — so 资产 survived as "discriminating" for it. The
+    docstring ended "a future change which DOES refuse it fails this test and is read
+    deliberately."
 
-    That is a weaker over-acceptance than the one fixed: 固定资产 is not a row of the expenses note,
-    so it should not be offered in the first place, and the note selection is what keeps it out.
-    Recorded here so the next narrowing has a measured starting point rather than a suspicion —
-    and so that a future change which DOES refuse it fails this test and is read deliberately.
+    WHAT MADE IT POSSIBLE. The depreciation children were restructured: they no longer each read
+    their own expense-function note, they share ONE note set — PBT, fixed assets, right-of-use,
+    CIP, investment property — and are told apart by their ROW naming the function. So the fixed
+    assets note IS now part of this line's own note vocabulary, and `discriminating_tokens`
+    subtracts the tokens of `note_terms` AND `note_title_any` (see its rule 2). 固定资产 is
+    therefore recognised as a container name rather than a row, and refused.
+
+    NOT A SIDE EFFECT WORTH HIDING: it is the same principle the subtraction was written for. The
+    over-acceptance survived only because the line's note vocabulary did not mention the container
+    the caption names; now it does.
     """
     item = {i.key: i for i in shipped.items}["sub__operating_expense_depreciation"]
-    ok, _why = caption_agrees_with_row_terms(item, "固定资产")
-    assert ok is True, ("this now refuses a foreign container caption — a genuine improvement; "
-                        "update this test and say what made it possible")
+    ok, why = caption_agrees_with_row_terms(item, "固定资产")
+    assert ok is False, why
+    # …and the line still accepts a caption that genuinely IS its row, so the narrowing did not
+    # simply refuse everything — which is the failure mode the test below this guards in general.
+    assert caption_agrees_with_row_terms(item, "折旧")[0] is True
 
 
 def test_no_shipped_line_is_left_with_nothing_to_match_on(shipped):
@@ -195,9 +204,27 @@ def test_every_part_carries_terms_in_both_scripts(shipped):
     term set — a silent loss of figures, which is the failure mode this floor must not create."""
     import re
     han = re.compile(r"[一-鿿]")
+    # ONLY THE PARTS THAT READ A NOTE. The floor exists because a part is matched against a printed
+    # CAPTION, and a part with no `note_source` is never matched against one: its figure is its own
+    # arithmetic. `sub__fa_cp_intermediate_residual` is the case — a derived diagnostic computed
+    # from the securities line's children, with no note to read and so no captions to score.
+    #
+    # THE EXEMPTION IS PROVED, NOT ASSERTED, below: every exempt part must be unreachable by the
+    # matcher, so this cannot become a way to smuggle a caption-matched part past the floor.
     parts = [i for i in shipped.items if getattr(i, "parent", "")]
     assert len(parts) >= 77
-    missing = [i.key for i in parts
+    reads_a_note = [i for i in parts if getattr(i, "note_source", None) is not None]
+    exempt = [i for i in parts if i not in reads_a_note]
+    assert all(i.type == "derived" or str(getattr(i, "alias_matching", "")) == "disabled"
+               or str(getattr(i, "extraction_mode", "")) == "derive" for i in exempt), (
+        "a part with no note source is exempt from the Han floor only because no caption can reach "
+        f"it; these are neither derived nor locked out of the matcher: "
+        f"{[i.key for i in exempt if i.type != 'derived'][:6]}")
+    assert all(not (getattr(i, "aliases", None) or ()) for i in exempt), (
+        "an exempt part declares an alias, so a deterministic tier could bind a caption to it with "
+        "nothing left to refuse the claim")
+
+    missing = [i.key for i in reads_a_note
                if not any(han.search(str(t))
                           for t in (getattr(i.note_source, "row_terms", None) or ()))]
     assert not missing, f"these parts carry no Han row terms: {missing[:6]}"
