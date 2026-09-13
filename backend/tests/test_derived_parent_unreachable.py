@@ -43,9 +43,11 @@ buckets. The concept it reads is an `OntologyMapping`, which is why the path loo
 `build_working_view` PROJECTS the line-item configuration into that view, so deleting an alias here
 deletes the veto there.
 
-So the aliases are restored, and the lesson is in the shape of the check rather than in the comment:
-a no-answer-changed probe over the matcher was the wrong instrument, because the alias index is read
-by something that is not the matcher. The figures comparison is what caught it.
+The aliases were restored, then removed again by directive with that cost accepted — see
+`test_no_derived_parent_carries_recognition` below for the figures and the traced mechanism. The
+lesson that survives all three steps is in the shape of the check rather than in any comment: a
+no-answer-changed probe over the matcher was the wrong instrument, because the alias index is read
+by something that is not the matcher. Comparing published figures is what caught it.
 """
 from __future__ import annotations
 
@@ -113,33 +115,40 @@ def test_no_derived_line_is_asked_about_or_given_a_note_probe() -> None:
     assert not [d.key for d in derived if d.key in selected]
 
 
-def test_a_derived_parents_aliases_are_kept_because_the_residual_sweep_reads_them() -> None:
-    """THE REGRESSION THIS FILE WAS WRITTEN FOR, from the other direction.
+def test_no_derived_parent_carries_recognition() -> None:
+    """REMOVED BY DIRECTIVE, WITH THE COST MEASURED AND ACCEPTED.
 
-    Deleting these 258 entries swept two ASSET captions into "other current liabilities" and moved
-    total assets by 12.3m on a real filing. `stages.residual._concept_captions` reads a concept's
-    aliases as a veto index, and `build_working_view` projects this configuration into the concepts
-    it reads — so an alias here is a sweep guard there, whatever the matcher does with it.
+    The 258 entries were deleted, restored, and deleted again. The middle step is the one worth
+    keeping, because it says what these aliases were for: `stages.residual._concept_captions` reads
+    a concept's aliases as a VETO index, and `build_working_view` projects this configuration into
+    the concepts it reads — so an alias here was also a sweep guard there. Removing them moves
+    published figures on a real filing:
 
-    Pinned on the two lines the filing actually exercised, and on the total, so the next author who
-    reads "reached by nothing" and reaches for the delete key fails here instead of on a balance
-    sheet.
+        2024 Annual Report, deterministic run
+          "Financial assets at fair value through profit or loss" (current assets)
+                                        -> bs_cl__other_current_liabilities
+          "Debt investment at fair value through other comprehensive income"
+                                        -> bs_cl__other_current_liabilities
+          "Financial assets at fair value through profit or loss" (non-current)
+                                        -> bs_nca__other_non_current_assets
+          14 calculated figures move with them; total assets 168,156,062 -> 180,447,374
+
+    Two of the three put an ASSET caption in a LIABILITY bucket. Traced: the row's `section_hint`
+    says CURRENT ASSETS and its resolved section is None, because a banner is SPENT once its own
+    subtotal is above the row ("Total current assets"), at which point the structure BELOW decides —
+    and below is current liabilities. That cascade is deliberate and measured against a different
+    filing. Eligibility rule 5, "the row's sign agrees with the section's sign_convention", is in
+    force and cannot catch it: an asset and a liability are both stored positive, so the guard has
+    no opinion. The bucket is flagged for review on four separate triggers, so the misplacement is
+    visible to a reviewer rather than silent — but the published figure is wrong until reviewed.
+
+    A SIDE guard — refusing a row whose banner names an asset section from a liability bucket — is
+    the fix and is NOT implemented here: it changes the residual sweep for every filing and is a
+    decision of its own.
     """
-    st = _set()
-    by_key = {d.key: d for d in st.items}
-    derived = {d.key for d in _derived(st)}
-
-    for key in ("bs_ca__secur_and_other_fincl_assets_cp",
-                "bs_nca__secur_and_other_fincl_assets_ltp"):
-        item = by_key[key]
-        assert key in derived, key
-        every = list(item.aliases) + [a for v in (item.aliases_i18n or {}).values() for a in v]
-        assert any("fair value through profit" in a.lower() for a in every), (
-            f"{key} lost the alias that keeps that caption out of the Others buckets")
-
-    carried = sum(len(by_key[k].aliases)
-                  + sum(len(v) for v in (by_key[k].aliases_i18n or {}).values())
-                  + len(by_key[k].regex_hints) + len(by_key[k].keyword_hints)
-                  + len(by_key[k].exclude_hints)
-                  for k in derived)
-    assert carried == 258, carried
+    for d in _derived(_set()):
+        assert not d.aliases, d.key
+        assert not d.aliases_i18n, d.key
+        assert not d.regex_hints, d.key
+        assert not d.keyword_hints, d.key
+        assert not d.exclude_hints, d.key

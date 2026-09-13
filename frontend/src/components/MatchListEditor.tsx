@@ -56,6 +56,47 @@ export const MODE_LABEL: Record<MatchMode, string> = {
   pattern: "matches the pattern",
 };
 
+/** WHAT EACH MODE ACTUALLY CATCHES, in a sentence with an example.
+ *
+ *  WHY THIS IS NOT OPTIONAL. The labels alone are a menu of near-synonyms: "is exactly" and "is
+ *  exactly (any spacing)" read as the same thing, "contains the words" and "scored by meaning" read
+ *  as the same thing, and nothing on the label says that the first four either FIRE OR DO NOT while
+ *  the last two behave completely differently. An author choosing between them was guessing, and
+ *  the measurement shows what guessing produced: 389 patterns written in a regex field where 389 of
+ *  them meant "this caption, be forgiving about the spaces".
+ *
+ *  EVERY EXAMPLE IS A CAPTION FROM THE SHIPPED SET, and each says what the mode does NOT catch as
+ *  well — which is the half that decides between two modes. */
+const MODE_HELP: Record<MatchMode, string> = {
+  exact:
+    "The caption exactly as the filing prints it, word for word. “Land use rights” matches that "
+    + "heading and nothing else — not “Prepaid land lease”, and not “Land use rights, net”.",
+  exact_loose:
+    "The same, but forgiving about spacing, hyphens and dash characters. “Accum Deprec & "
+    + "Impairment(-)” still matches when a filing prints two spaces, an en-dash or a full-width "
+    + "bracket. Still the WHOLE caption — nothing longer matches.",
+  starts:
+    "The caption begins with this. “Depreciation” catches “Depreciation of property, plant and "
+    + "equipment” and “Depreciation and amortisation”, but NOT “Accumulated depreciation”, because "
+    + "that does not start with it.",
+  ends:
+    "The caption ends with this. “(Gross)” catches “Trade Receivables(Gross)”. Useful for the "
+    + "qualifier a template appends and the filing may or may not.",
+  contains:
+    "Every one of these words appears somewhere in the caption, in any order. “trade receivable” "
+    + "catches “Net trade receivables” and “Trade and other receivables from related parties”. The "
+    + "widest of the matching modes, and the easiest to make too wide.",
+  scored:
+    "Plain words, RANKED rather than matched. Nothing fires or fails: a heading sharing most of "
+    + "these words ranks high, one sharing none ranks low, and the best few are used. This is what "
+    + "reaches a filing that words the line in a way nobody listed — which is why a note is found "
+    + "by meaning and a row is pinned by matching.",
+  pattern:
+    "A raw search pattern, shown exactly as stored, because this screen will not rewrite one it "
+    + "cannot read back safely. It appears only on a row that already IS one — every other mode "
+    + "writes the pattern for you. Of the 389 patterns in the shipped set, none needed this.",
+};
+
 /** Which field each mode writes to. Only the modes present here are offered. */
 export type ModeMap = Partial<Record<MatchMode, string>>;
 
@@ -292,6 +333,20 @@ export function MatchListEditor({
                     title="Store empty lists — not a default">Clear all</Button>
           )}
         </div>
+      )}
+      {editable && (
+        <p data-testid={`mode-help-${testid}`}
+           style={{ ...helpStyle, margin: "6px 0 0", lineHeight: 1.55 }}>
+          <b>{MODE_LABEL[draftMode]}</b>{" — "}{MODE_HELP[draftMode]}
+        </p>
+      )}
+      {editable && map.scored && (
+        <p style={{ ...helpStyle, margin: "5px 0 0", lineHeight: 1.55 }}>
+          The first modes MATCH — a caption either satisfies one or it does not, and a caption
+          nobody anticipated satisfies none of them. <b>Scored by meaning</b> RANKS instead, so an
+          unexpected wording still comes out somewhere rather than nowhere. Most lines want both:
+          matching for the wordings you know, scoring for the ones you do not.
+        </p>
       )}
     </FieldRow>
   );

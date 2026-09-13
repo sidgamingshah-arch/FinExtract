@@ -154,6 +154,16 @@ _EXTRACTION_MODE_DECISIONS = frozenset({
 # So the bound stays NAMED and narrow. `aliases` and `aliases_i18n` are already in `_SEED_LAG`
 # (the merged keys keep the configurator's own lists), which is why only three fields need to be
 # here at all — and a THIRD concept or a FOURTH field losing its recognition still fails this test.
+# NOW EVERY DERIVED PARENT, by directive. The 258 entries went, came back when the figures
+# comparison showed they were a residual-sweep veto, and went again when that cost was accepted —
+# see `tests/test_derived_parent_unreachable.py` for what it is. Read off the set so a tenth derived
+# line is covered without editing a list, while an EXTRACTED concept losing its recognition still
+# fails this test.
+def _derived_parents() -> frozenset[str]:
+    return frozenset(d.key for d in load_shipped_set().items
+                     if str(getattr(d.type, "value", d.type)) == "derived")
+
+
 _FACE_RECOGNITION_MOVED = frozenset({
     "bs_nca__due_from_related_parties_ltp", "is_pl__sales_revenues",
 })
@@ -377,8 +387,14 @@ def test_shipped_set_diverges_only_in_the_known_classes():
         # and the concepts must be those two.
         if field in _FACE_RECOGNITION_FIELDS and set(keys) <= _FACE_RECOGNITION_MOVED:
             continue
-        # …and `exclude_hints` on the four lines whose `confusable_with` pair became exclusions.
-        if field == "exclude_hints" and set(keys) <= _CONFUSABLE_CONVERTED:
+        # …the recognition fields on a DERIVED parent, which carries none any more…
+        if field in _FACE_RECOGNITION_FIELDS | {"aliases", "aliases_i18n", "exclude_hints"}                 and set(keys) <= _derived_parents():
+            continue
+        # …and `exclude_hints`, which diverges for BOTH reasons at once: the four lines whose
+        # `confusable_with` pair became exclusions gained some, and the derived parents lost theirs.
+        # Checked against the union, because a per-reason check passes only while one reason acts
+        # alone — and the first version of this allowance did exactly that and failed on the eight.
+        if field == "exclude_hints" and set(keys) <= _CONFUSABLE_CONVERTED | _derived_parents():
             continue
         # …and the two fields the config-screen work changed, bounded by COUNT so a wider
         # divergence still fails. See `_EXCLUDE_BLANKED` / `_DEFINITION_FOLDED` above.
