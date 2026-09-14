@@ -463,6 +463,18 @@ class ExtractionSettings(BaseModel):
     # close the difference in BOTH periods — but the placement is the model's judgement. Off, or
     # with no provider configured, the difference stays a review item instead.
     llm_gap_routing: bool = True
+    # ONE PRINTED FIGURE MAPPED ONTO TWO LINE ITEMS — ask which line it belongs on. Measured:
+    # `sub__ppe_depreciation` and `sub__fixed_asset_depreciation` both read 366,943,014.10 from one
+    # note, and their parent's rung adds all five asset lines, so the charge published doubled at
+    # 237,254,155.34 against a true 118,627,077.67. Detection needs no knowledge of the concepts —
+    # it is the same page, box and amount in one slot — but whether the figure belongs on both
+    # (different cuts of one disclosure) or on one alone is a judgement, so it is asked.
+    #
+    # ON BY DEFAULT AND SAFE OFF. With this false, or no provider configured, every contest is
+    # recorded and flagged for review and no figure moves, so the deterministic result is
+    # unchanged — the stage can only ever remove a figure on an explicit answer naming the line
+    # that keeps it.
+    llm_shared_figure_tiebreak: bool = True
     # Contingent Liabilities' narrative. The deterministic pass in services.contingent_liabilities
     # always classifies every item and computes every total from the filing's own figures — the
     # model never sees a number it was not given and never changes one. Enabled, it only rewrites

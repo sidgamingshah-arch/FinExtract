@@ -113,6 +113,7 @@ export const extraction: Record<Locale, Record<string, string>> = {
     "ex.stage.face_mapping_contract": "Face mapping checks",
     "ex.stage.note_tag_gate": "Note-reference gate",
     "ex.stage.structural": "Structural checks",
+    "ex.stage.shared_figures": "Shared figures",
     "ex.stage.segment": "Segment reporting",
   },
   zh: {
@@ -211,6 +212,7 @@ export const extraction: Record<Locale, Record<string, string>> = {
     "ex.stage.face_mapping_contract": "表内映射校验",
     "ex.stage.note_tag_gate": "附注引用校验",
     "ex.stage.structural": "结构校验",
+    "ex.stage.shared_figures": "共用数值",
     "ex.stage.segment": "分部报告",
   },
   ar: {
@@ -309,6 +311,7 @@ export const extraction: Record<Locale, Record<string, string>> = {
     "ex.stage.face_mapping_contract": "فحوص مطابقة الوجه",
     "ex.stage.note_tag_gate": "بوابة مرجع الإيضاح",
     "ex.stage.structural": "الفحوص الهيكلية",
+    "ex.stage.shared_figures": "الأرقام المشتركة",
     "ex.stage.segment": "التقارير القطاعية",
   },
   fr: {
@@ -407,6 +410,7 @@ export const extraction: Record<Locale, Record<string, string>> = {
     "ex.stage.face_mapping_contract": "Contrôles de mappage au bilan",
     "ex.stage.note_tag_gate": "Contrôle des renvois aux notes",
     "ex.stage.structural": "Contrôles structurels",
+    "ex.stage.shared_figures": "Montants partagés",
     "ex.stage.segment": "Information sectorielle",
   },
 };

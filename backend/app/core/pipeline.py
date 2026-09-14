@@ -59,6 +59,7 @@ def default_pipeline() -> Pipeline:
     from app.stages.face_mapping_contract import FaceMappingContractStage
     from app.stages.note_tag_gate import NoteTagGateStage
     from app.stages.segment import SegmentStage
+    from app.stages.shared_figures import SharedFiguresStage
 
     # Table reconstruction is performed inside the extract stage (native pages via the
     # PyMuPDF text layer + shared row_reconstruct; scanned pages via the OCR port), so there
@@ -127,6 +128,16 @@ def default_pipeline() -> Pipeline:
         # AFTER normalize (components must share a scale and sign before they are added) and
         # BEFORE reconcile (which has to check the assembled figure against a printed subtotal).
         AssembleComponentsStage(),
+        # THE MIRROR IMAGE OF THE STAGE ABOVE, and the reason it is a separate one. Component
+        # assembly answers "several printed rows are ONE line's figure"; this answers "one printed
+        # figure has been mapped onto SEVERAL lines" — same evidence, opposite direction, and the
+        # second is the one that publishes a number twice.
+        #
+        # AFTER every route that writes a figure (normalize, the line-item call, the note-sourced
+        # fills, assembly) so it sees the finished mapping, and BEFORE reconcile, which checks a
+        # printed subtotal against its components: a tie computed over a figure counted twice
+        # would report a tie that is not true, and the doubling would then look confirmed.
+        SharedFiguresStage(),
         ReconcileStage(),
         # Only notes cited from the face of the statements are published — after reconcile,
         # which needs every extracted note to check the note->face ties.

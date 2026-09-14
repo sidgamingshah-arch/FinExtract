@@ -77,6 +77,11 @@ class DocumentModel(BaseModel):
     # reconcile a printed subtotal with its components (see stages.gap_closing). Kept so the
     # routing is visible and auditable rather than an unexplained change of mapping.
     gap_routings: list[dict] = Field(default_factory=list)
+    # One printed figure claimed by two or more line items, and what was decided about each (see
+    # stages.shared_figures). Recorded whether or not a provider answered: a contest nobody
+    # resolved is a review item, and a figure the model moved off a line must be explicable
+    # afterwards — "the amount, the page, who claimed it, who kept it, and why".
+    shared_figures: list[dict] = Field(default_factory=list)
     # Contingent Liabilities' structured narrative + classified/unclassified tables (see
     # services.contingent_liabilities) — a paragraph and two small tables, not a single figure, so
     # it is kept here rather than forced into a LineItem's numeric ``value``.

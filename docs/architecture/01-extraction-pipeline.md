@@ -7,14 +7,14 @@ results are available (`app/core/pipeline.py::Pipeline.run`).
 
 ## Stages
 
-**Twenty-one stages, assembled by `app/core/pipeline.py::default_pipeline()`.** That
+**Twenty-two stages, assembled by `app/core/pipeline.py::default_pipeline()`.** That
 function is the only place the order is stated; `api/routes/extractions.py::pipeline_stage_names`
 reads the list off it rather than keeping a copy, and the run row records the list it was
 queued with. Do not add a third copy — the list below names each stage and its file, and
 its order is `default_pipeline()`'s:
 
 `ingest · integrity · language_detect · classify · extract · map_line_items · residual ·
-normalize · link_notes · line_item_llm · note_sourced · contingent_liabilities · assemble_components · reconcile · prune_notes · confidence ·
+normalize · link_notes · line_item_llm · note_sourced · contingent_liabilities · assemble_components · shared_figures · reconcile · prune_notes · confidence ·
 gap_closing · face_mapping_contract · note_tag_gate · structural · segment`
 
 **Why the list is four stages shorter, and why six output lines are now blank.** Five
@@ -273,21 +273,39 @@ The face and its cited notes are processed in this order:
     enumerates a caption:** which rows are components was decided by the configuration and the
     model. Runs after `normalize` (components must share a scale and sign before they are added)
     and before `reconcile` (which checks the assembled figure against a printed subtotal).
-14. **Reconcile** (`stages/reconcile.py` + `services/reconcile.py`) — the §20 subtraction
+14. **Shared figures** (`stages/shared_figures.py` + `services/shared_figures.py`) — ONE PRINTED
+    FIGURE CLAIMED BY TWO LINE ITEMS, and the model decides which it belongs on. The mirror image
+    of stage 13: component assembly answers "several printed rows are one line's figure", this
+    answers "one printed figure has been mapped onto several lines" — same evidence, opposite
+    direction, and the second is the one that publishes a number twice. Measured:
+    `sub__ppe_depreciation` and `sub__fixed_asset_depreciation` both read 366,943,014.10 from one
+    note, and their parent's rung sums all five asset lines, so the charge published doubled at
+    237,254,155.34 against a true 118,627,077.67.
+    Detection is deterministic and knows nothing about the concepts: the same printed cell (page
+    and box), or — for a note-sourced figure, which carries no provenance of its own — the note
+    rows its derivation trail names. A parent carrying its own child's figure is never a contest,
+    because that is the declared arithmetic. The decision is the provider's and has two shapes:
+    keep the figure on every line that claimed it (different cuts of one disclosure), or on one
+    alone. Runs *after* every stage that writes a figure and *before* `reconcile` — a tie checked
+    against a figure counted twice would report a tie that is not true. With no provider, or
+    `extraction.llm_shared_figure_tiebreak` off, every contest is recorded on
+    `doc.shared_figures` and flagged on the rows and NO figure moves.
+
+15. **Reconcile** (`stages/reconcile.py` + `services/reconcile.py`) — the §20 subtraction
     and the note→face tie grading (see [03-reconciliation](03-reconciliation.md)).
-15. **Prune notes** (`stages/prune_notes.py`) — publishes only the notes a face line
+16. **Prune notes** (`stages/prune_notes.py`) — publishes only the notes a face line
     actually references; accounting policies, governance tables and subsequent events are
     noise in the notes index, the export and the review queue. Runs *after* reconcile,
     which needs every extracted note to check the ties. Nothing is deleted from the source
     or from provenance — the log records exactly what was dropped.
-16. **Confidence** (`stages/confidence.py`) — sets the `validation` sub-signal on extracted
+17. **Confidence** (`stages/confidence.py`) — sets the `validation` sub-signal on extracted
     values from the checks available at this point (the balance-sheet identity per
     (basis, period), and the note→face tie from the reconcile report), so
     `ConfidenceVector.overall` is capped by participation in a failed check rather than
     reporting a clean OCR/mapping as confident. The row-based rule catalog that populates
     the review queue runs at the API layer instead — see
     [02-data-model-and-schemas](02-data-model-and-schemas.md#validation-engine-feeds-the-review-queue).
-17. **Gap closing** (`stages/gap_closing.py` + `services/gap_closing.py`) — a subtotal that
+18. **Gap closing** (`stages/gap_closing.py` + `services/gap_closing.py`) — a subtotal that
     still does not tie may be missing a line the mapper could not place. **Arithmetic
     proposes and the model disposes**: only a subset of leftovers that closes the gap in
     *both* periods within tolerance is offered (one period is a coincidence, two is
@@ -298,7 +316,7 @@ The face and its cited notes are processed in this order:
     and on a non-`stub` provider; with neither, the gap stays a review item, which is the
     honest outcome. Confirmed routings are kept on `DocumentModel.gap_routings` so the
     decision is inspectable rather than an unexplained change of mapping.
-18. **Face mapping contract** (`stages/face_mapping_contract.py`) — the final mapping
+19. **Face mapping contract** (`stages/face_mapping_contract.py`) — the final mapping
    invariant for a run carrying a line-item set. Every face row with a value must either have
    a canonical key or be a verified non-additive aggregate replaced by mapped components.
    Anything else receives a unique `engine_unclassified_face` key outside every line-item and
@@ -306,7 +324,7 @@ The face and its cited notes are processed in this order:
    any calculation. It is never assigned a neighbouring real line item merely to make the
    unmapped count zero. Extraction-only runs that carry no line-item set skip this gate because
    they are not mapping runs.
-19. **Note-tag gate** (`stages/note_tag_gate.py`) — a line declaring
+20. **Note-tag gate** (`stages/note_tag_gate.py`) — a line declaring
     `llm_only_if_note_tagged` reports **0** (or `""` for a phrase/prose line) where the face
     printed no note reference beside its row. Absence of the tag is a statement of
     non-disclosure, not a gap: a blank says "we did not find it", a zero says "the filing does
@@ -318,7 +336,7 @@ The face and its cited notes are processed in this order:
     by nothing; and it is above the structural checks, so a reconciliation cannot report a tie
     against a figure this stage removed. Its other half lives in `map_line_items`, which spends no
     provider call on such a row.
-20. **Structural** (`stages/structural.py` + `services/structural_checks.py`) — runs the
+21. **Structural** (`stages/structural.py` + `services/structural_checks.py`) — runs the
     arithmetic the template and the rulebook *declare*: template `rollup`s and statement
     `identities`, the rulebook's `validation.identities`, its
     `validation.cross_concept_guards` and its `validation.section_reconciliation`. Every
@@ -326,7 +344,7 @@ The face and its cited notes are processed in this order:
     carrying a classifiable `reason` (`services/coverage.py`), so partial coverage is
     visible rather than implied. A failure flags the participating line items and values.
 
-21. **Segment** (`stages/segment.py` + `services/buckets.py`) — files every face row and
+22. **Segment** (`stages/segment.py` + `services/buckets.py`) — files every face row and
     every note into the **thirteen face sections** an analyst reads a filing in, plus Others:
     the balance sheet's five (current / non-current assets, current / non-current
     liabilities, equity & reserves), the income statement's four (income, expenses,
