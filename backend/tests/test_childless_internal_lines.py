@@ -82,8 +82,12 @@ def test_the_template_subtotals_are_not_in_this_pass(shipped):
     # overshoot residual, and the three related-party Finds that `MAX_VALID` chooses between. Pinned
     # by name rather than by count, so a FIFTH becoming eligible is a test failure someone has to
     # look at — that is the whole guard, because anything published must never enter this pass.
-    assert {i.key for i in eligible} == {
-        RESIDUAL, "sub__rp_find_1", "sub__rp_find_2", "sub__rp_find_3"}, (
+    # ONE DELIBERATE LINE now: the securities overshoot residual. The three related-party Finds
+    # left this population when the spec made them EXTRACT items — they read the notes themselves
+    # instead of cascading over nine feeders, so they are no longer childless arithmetic lines.
+    # Pinned by name rather than by count, so a second becoming eligible is a failure someone has
+    # to look at — that is the whole guard.
+    assert {i.key for i in eligible} == {RESIDUAL}, (
         f"the eligible population changed: {sorted(i.key for i in eligible)}")
 
 

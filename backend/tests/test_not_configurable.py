@@ -155,7 +155,9 @@ def test_no_shipped_item_would_now_be_unloadable():
 
     raw = json.loads(SEED.read_text(encoding="utf-8"))
     shipped = load_line_item_set(raw, resolve=True)
-    assert len(shipped.items) == 543
+    # 527, not 543: the live configuration was exported into the shipped seed — see
+    # `test_retired_derivations.test_the_shipped_set_is_the_configuration_in_force`.
+    assert len(shipped.items) == 527
 
     declared = {f for f in _NOT_CONFIGURABLE for i in raw["items"] if f in i}
     assert declared, "no shipped item declares a refused field — then this test proves nothing"

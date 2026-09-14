@@ -441,21 +441,26 @@ def _pbt_note():
     ])
 
 
-def test_three_children_read_the_pbt_note_and_select_different_rows(shipped):
+def test_two_children_read_the_pbt_note_and_select_different_rows(shipped):
     """THE DEFECT THIS FIXED. `sub__pbt_oper_exp_depreciation` and `sub__pbt_depreciation` carried
     BYTE-IDENTICAL title, counting and veto lists — so they selected the same rows and were one
     figure under two names. P2 therefore always resolved with the TOTAL, the operating-expense line
-    was overstated by the cost-of-sales share, and P3/P4/P5 were unreachable on any filing whose
-    PBT note mentioned depreciation at all.
+    was overstated by the cost-of-sales share, and the later rungs were unreachable on any filing
+    whose PBT note mentioned depreciation at all.
 
-    Three children now read this note, and each is identified by the QUALIFIER in the caption
-    rather than by the note alone.
+    Each child is now identified by the QUALIFIER in the caption rather than by the note alone.
+
+    TWO CHILDREN, NOT THREE. `sub__pbt_cos_depreciation` — the reader of the note's cost-of-sales
+    callout — was retired deliberately, along with the cascade tier that consumed it. The
+    cost-of-sales parent now reaches that share by subtraction instead (COS_P2), which is the tier
+    that used to be COS_P3. See `test_the_cos_cascade_is_the_note_then_the_subtraction`.
     """
     doc, _ctx = _run(shipped, [_pbt_note()])
     assert _figure(doc, "sub__pbt_depreciation") == Decimal("5000")          # the total
-    assert _figure(doc, "sub__pbt_cos_depreciation") == Decimal("1800")      # the COS share
     assert _figure(doc, "sub__pbt_oper_exp_depreciation") == Decimal("3200")  # the oper-exp share
-    # And the split is internally consistent with the total it came from.
+    # The retired reader stays retired: nothing in the set claims the callout row directly.
+    assert not any(i.key == "sub__pbt_cos_depreciation" for i in shipped.items)
+    # The total is still the total — 5,000, not the 10,000 that summing all three rows would give.
     assert Decimal("1800") + Decimal("3200") == Decimal("5000")
 
 
@@ -466,13 +471,22 @@ def test_the_total_row_refuses_the_qualified_callouts(shipped):
     assert _figure(doc, "sub__pbt_depreciation") == Decimal("5000"), "the total absorbed a callout"
 
 
-def test_the_new_cos_rung_takes_the_pbt_notes_cost_of_sales_callout(shipped):
-    """COS_P2, added on review: many filings state the cost-of-sales share inside the PBT note and
-    nowhere else, having no separate cost-of-sales note. Above COS_P3 because a stated figure beats
-    one inferred by difference."""
-    doc, ctx = _run(shipped, [_pbt_note()])
-    assert _figure(doc, "is_pl__deprec_and_impairment_cos") == Decimal("1800")
-    assert any("rung COS_P2" in line for line in ctx.logs), ctx.logs
+def test_the_pbt_notes_cost_of_sales_callout_is_no_longer_read_directly(shipped):
+    """THE RETIRED TIER, pinned so it is not reinstated by accident.
+
+    A rung once read the PBT note's own cost-of-sales callout through
+    `sub__pbt_cos_depreciation`, on the reasoning that many filings state that share inside the PBT
+    note and nowhere else. Both the part and the rung were retired deliberately.
+
+    So a PBT note ALONE no longer gives the cost-of-sales parent a figure: COS_P1 needs the
+    dedicated cost-of-sales note, and COS_P2 needs the operating-expense parent to subtract from,
+    which a lone PBT note does not supply either. The line reports nothing rather than a share
+    inferred from one row — and nothing is the honest answer here, which is why this is a test and
+    not a gap.
+    """
+    doc, _ctx = _run(shipped, [_pbt_note()])
+    assert _figure(doc, "is_pl__deprec_and_impairment_cos") is None
+    assert not any(i.key == "sub__pbt_cos_depreciation" for i in shipped.items)
 
 
 def test_the_cost_of_sales_note_still_outranks_the_pbt_callout(shipped):
@@ -487,13 +501,20 @@ def test_the_cost_of_sales_note_still_outranks_the_pbt_callout(shipped):
     assert any("rung COS_P1" in line for line in ctx.logs), ctx.logs
 
 
-def test_the_cos_cascade_order_is_p1_then_the_new_p2_then_the_subtraction(shipped):
-    """The rungs are tried in declared order, so the order IS the precedence of sources."""
+def test_the_cos_cascade_is_the_note_then_the_subtraction(shipped):
+    """The rungs are tried in declared order, so the order IS the precedence of sources.
+
+    TWO RUNGS, NOT THREE. The middle tier — the PBT note's own cost-of-sales callout, read through
+    `sub__pbt_cos_depreciation` — was retired with its part, and the subtraction that was COS_P3 is
+    now COS_P2. The precedence that remains is the one that matters: a figure the filing STATES in
+    its cost-of-sales note beats one inferred by difference.
+    """
     cos = next(i for i in shipped.items if i.key == "is_pl__deprec_and_impairment_cos")
-    assert [r.id for r in cos.cascade] == ["COS_P1", "COS_P2", "COS_P3"]
-    # COS_P3 is still the subtraction, and still last.
-    refs = [(t.ref, t.sign) for t in cos.cascade[2].terms]
+    assert [r.id for r in cos.cascade] == ["COS_P1", "COS_P2"]
+    # The last rung is still the subtraction, and still last.
+    refs = [(t.ref, t.sign) for t in cos.cascade[-1].terms]
     assert ("is_pl__deprec_and_impairment_oper_exp", -1) in refs, refs
+    assert ("sub__pbt_depreciation", 1) in refs, refs
 
 
 def test_a_matrix_column_is_not_a_period(shipped):

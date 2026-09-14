@@ -383,12 +383,19 @@ def _prose_basis(doc) -> str:
 def _in_dependency_order(children_of: dict[str, list], defs: dict) -> list[tuple[str, list]]:
     """The parents, each after any parent its own cascade depends on.
 
-    WHY THE ORDER MATTERS. A rung term may name another PARENT rather than a part: the shipped set
-    has one, `is_pl__deprec_and_impairment_cos`'s COS_P3, which is
-    `sub__pbt_depreciation - is_pl__deprec_and_impairment_oper_exp`. Evaluated before the
-    operating-expense parent has been written, that term is missing and — being role `required` —
-    the rung cannot resolve. Sorted alphabetically, which is what this replaced, `cos` came first
-    every time, so COS_P3 was unreachable by construction.
+    WHY THE ORDER MATTERS. A rung term may name another PARENT rather than a part. The case this
+    was written for was `is_pl__deprec_and_impairment_cos`'s COS_P3, which was
+    `sub__pbt_depreciation - is_pl__deprec_and_impairment_oper_exp`: evaluated before the
+    operating-expense parent had been written, that term was missing and — being role `required` —
+    the rung could not resolve. Sorted alphabetically, which is what this replaced, `cos` came
+    first every time, so COS_P3 was unreachable by construction.
+
+    THAT RUNG IS GONE FROM THE SHIPPED SET — the cost-of-sales tier was retired deliberately along
+    with `sub__pbt_cos_depreciation`. The ordering still matters and is not to be removed with it:
+    `is_pl__deprec_and_impairment_oper_exp`'s P3/P4/P5 each deduct `sub__cos_depreciation`, a child
+    of the OTHER parent, so the two parents still have to be evaluated in dependency order. See the
+    comment at `_fill_parents`' `known` map for what goes wrong when they are not — an `adjustment`
+    term's absence resolves the rung WITHOUT the deduction, which is the silent direction.
 
     A SORT AND NOT A FULL TOPOLOGICAL WALK, deliberately. `services.line_items.build` already does
     the real ordering for the registry, and duplicating it here would be a second implementation of
@@ -593,8 +600,13 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
     # between the two depreciation parents:
     #
     #   oper_exp P3/P4/P5  deduct `sub__cos_depreciation`, a child of the COS parent
-    #   cos      COS_P3    needs `sub__pbt_depreciation` (a child of oper_exp) and the oper_exp
-    #                      parent itself
+    #   cos      COS_P3    needed `sub__pbt_depreciation` (a child of oper_exp) and the oper_exp
+    #                      parent itself — RETIRED, see below
+    #
+    # COS_P3 AND ITS PART ARE NO LONGER IN THE SHIPPED SET: the cost-of-sales tier was removed
+    # deliberately with `sub__pbt_cos_depreciation`. It is kept in this account because it is the
+    # clearer of the two failures and the one that explains why the ordering exists at all; the
+    # three oper_exp deductions are live and are what still depends on it.
     #
     # The two failed differently and the first is the dangerous one. `sub__cos_depreciation` is
     # role `adjustment`, so `_apply_terms` treats its absence as "does not apply" and the rung

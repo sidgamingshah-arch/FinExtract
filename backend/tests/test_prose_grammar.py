@@ -401,11 +401,14 @@ def test_a_subject_with_no_destination_is_allowed():
 
 
 def test_the_shipped_set_still_loads_and_every_prose_line_generates_patterns(shipped):
-    """The seven lines, end to end: each carries a destination, names a vocabulary the set has, and
-    compiles to four patterns — two per script."""
+    """The prose lines, end to end: each carries a destination, names a vocabulary the set has,
+    and compiles to four patterns — two per script.
+
+    SIX, NOT SEVEN. `sub__pbt_cos_depreciation` was the seventh and was retired deliberately along
+    with the cascade tier that read it."""
     prose = [i for i in shipped.items
              if getattr(getattr(i, "note_source", None), "prose_landed_in", None)]
-    assert len(prose) == 7, [i.key for i in prose]
+    assert len(prose) == 6, [i.key for i in prose]
     for item in prose:
         patterns = compile_for(item.note_source, shipped.prose_grammar)
         assert len(patterns) == 4, f"{item.key} generated {len(patterns)}"

@@ -478,9 +478,17 @@ def test_where_the_line_is_printed_reaches_the_request(shipped):
     # lines the string "StatementType.BALANCE SHEET".
     assert "StatementType" not in json.dumps(entry)
 
-    # A line tied to NO statement — the 77 note-read parts declare `statement: null` on purpose —
-    # carries no such key, rather than an empty string the model has to interpret.
-    part = next(i for i in shipped.items if i.note_source is not None)
+    # A line tied to NO statement carries no such key, rather than an empty string the model has
+    # to interpret.
+    #
+    # NOT EVERY NOTE-READ PART IS ONE ANY MORE. This used to take the first part with a
+    # `note_source` and assert it declared `statement: null`, on the reading that a part which
+    # reads a note belongs to no statement. That is no longer true of the set: the depreciation
+    # parts declare `statement: notes` deliberately, which says WHERE a caption may be read from,
+    # and is a different question from which statement a line is filed on. So the line this
+    # asserts about is chosen by the property under test.
+    part = next(i for i in shipped.items
+                if i.note_source is not None and i.statement is None)
     assert part.statement is None, part.key
     assert "printed_in" not in line_item_payload(part, ("7",))
 

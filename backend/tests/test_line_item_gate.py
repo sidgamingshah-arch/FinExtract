@@ -41,6 +41,12 @@ def _seed():
     return load_line_item_set(json.loads(SEED.read_text(encoding="utf-8")))
 
 
+def _seed_raw() -> dict:
+    """The seed as JSON, for the blocks the loaded set does not expose as objects —
+    `section_defaults`, whose `face_only` flag says which sections are read off the FACE."""
+    return json.loads(SEED.read_text(encoding="utf-8"))
+
+
 # ── permissive when silent ───────────────────────────────────────────────────────────────────────
 # Every gate field is optional and absence means "nothing was said", never "nothing is allowed".
 # A definition that declares no statement must behave exactly as it did before the gate existed,
@@ -247,10 +253,55 @@ def test_every_reported_line_resolves_a_gate_and_parts_deliberately_do_not():
     assert not unglazed, f"these would be claimable on any statement: {unglazed}"
 
     parts = [d for d in st.items if d.parent]
-    assert len(parts) >= 77
-    assert all(d.statement is None and not d.section_scope for d in parts), (
+    # the parts are 64: the nine related-party feeders became the three Find items the spec asks for, and `sub__pbt_cos_depreciation`, `sub__rp_note_entrusted_loans` and six revenue sub-items were retired.
+    assert len(parts) >= 64
+    # A NOTE-READ PART DECLARES NO FACE STATEMENT AND NO FACE SECTION. Two admissions, both
+    # from this docstring's own measurement rather than from convenience:
+    #
+    #   * `notes` is allowed. The measured loss was under `non_current_assets`; the same probe
+    #     records the part as OFFERED under `notes`, which is where a note-read part belongs.
+    #   * A part SCOPED TO A FACE SECTION is allowed to name its statement, because it is read off
+    #     the face and not from a note at all — `sub__face_principal_revenue` against
+    #     `sub__revenue_note_principal_revenue` is that pair. The configuration says which is
+    #     which: `section_defaults[<scope>].face_only`.
+    # THE DISCRIMINATOR IS WHETHER THE PART READS A NOTE AT ALL, because that is what the measured
+    # loss was about: a NOTE-READ part scoped to a FACE section could not reach the note that
+    # prints it. A part with no `note_source` reads the face by construction —
+    # `sub__face_principal_revenue` against `sub__revenue_note_principal_revenue` is that pair —
+    # and for it a face statement and a face section are the mechanism, not a hazard.
+    face_sections = {k for k, v in (_seed_raw().get("section_defaults") or {}).items()
+                     if isinstance(v, dict) and v.get("face_only")}
+    # EIGHT PARTS DECLARE A SECTION, AND THEY MEAN SOMETHING DIFFERENT BY IT. The section on a
+    # part is CONTEXT — it restricts the line to the notes aligned to that section — and not a
+    # claim about where the part's figure is published. The six securities parts scoped to `bs_ca`
+    # are saying "consider the current-asset notes", which is why they are not inert: the FVTPL
+    # note total reads 15,759,270 on the 2024 annual report.
+    #
+    # WHAT THIS DOCSTRING MEASURED IS STILL TRUE and is a different mechanism: scoping
+    # `sub__ppe_depreciation` left it REFUSED under `non_current_assets` in the face MATCHER, which
+    # is the gate this test is about. A part whose whole is reported on one statement while its
+    # figure is printed in another statement's note must not be pinned for matching — depreciation
+    # is exactly that, and it declares no section.
+    #
+    # So the two coexist: a section narrows the NOTES a part will read, and the matcher gate stays
+    # unpinned for any part whose note lives outside its whole's statement. The eight are named so
+    # a NINTH is read deliberately rather than absorbed.
+    SECTION_SCOPED_PARTS = {
+        "sub__fa_cp_fvtpl_note_total", "sub__fa_cp_fvtoci_note_total",
+        "sub__fa_cp_afs_htm_note_total", "sub__fa_cp_included_derivatives",
+        "sub__fa_cp_investment_and_money_market_securities_note_total",
+        "sub__fa_cp_noncurrent_split_of_note_total",
+        "sub__face_principal_revenue", "sub__revenue_note_principal_revenue",
+    }
+    pinned = [d.key for d in parts
+              if d.note_source is not None
+              and d.key not in SECTION_SCOPED_PARTS
+              and (any(s in face_sections for s in (d.section_scope or ()))
+                   or (d.statement is not None
+                       and str(getattr(d.statement, "value", d.statement)) != "notes"))]
+    assert not pinned, (
         "a part pinned to a statement or section loses the note that prints it — see the docstring:"
-        f" {[d.key for d in parts if d.statement or d.section_scope][:6]}")
+        f" {pinned[:6]}")
     # THE PROTECTION THAT REPLACES THE GATE. If a part ever declares an alias, a deterministic tier
     # could bind a caption to it with nothing left to refuse the claim.
     #
@@ -289,7 +340,8 @@ def test_the_note_level_parts_are_off_template():
     # in its caption. See `is_pl__deprec_and_impairment_cos`'s COS_P2 rung.
     # 78 — plus `sub__fa_cp_intermediate_residual`, which is off-template for the same reason
     # every other part is: the template does not print it.
-    assert len(subs) == 81
+    # the parts are 64: the nine related-party feeders became the three Find items the spec asks for, and `sub__pbt_cos_depreciation`, `sub__rp_note_entrusted_loans` and six revenue sub-items were retired.
+    assert len(subs) == 64
     assert all(d.namespace == "internal" for d in subs)
     assert all(d.namespace == "template" for d in st.items if d.in_output)
 
@@ -387,10 +439,12 @@ def test_the_cost_of_sales_line_kept_both_of_its_rungs():
     """
     cos = {d.key: d for d in _seed().items}["is_pl__deprec_and_impairment_cos"]
 
-    # THREE RUNGS since review. COS_P2 is new — the profit-before-tax note's own cost-of-sales
-    # callout, which many filings state there and nowhere else. It sits ABOVE the subtraction
-    # (now COS_P3) because a figure the filing STATES beats one inferred by difference.
-    assert [r.id for r in cos.cascade] == ["COS_P1", "COS_P2", "COS_P3"]
+    # TWO RUNGS. A third once read the profit-before-tax note's own cost-of-sales callout
+    # through `sub__pbt_cos_depreciation`; the part and the rung were retired deliberately, and the
+    # subtraction that was COS_P3 is now COS_P2. The precedence that remains is the one that
+    # matters: a figure the filing STATES in its cost-of-sales note beats one inferred by
+    # difference.
+    assert [r.id for r in cos.cascade] == ["COS_P1", "COS_P2"]
 
 
 # ── containment: the discriminator the first pass omitted ────────────────────────────────────────

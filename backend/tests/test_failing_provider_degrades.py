@@ -138,7 +138,8 @@ def test_the_focus_list_names_the_parts_and_not_only_the_wholes(shipped):
     nameable = [k for k in focus if k in by_key and asked_about(by_key[k])]
 
     assert len(focus) == 85, len(focus)
-    assert len(nameable) == 77, len(nameable)
+    # 60 nameable parts — see the item census in `test_retired_derivations`.
+    assert len(nameable) == 60, len(nameable)
     # THE UNREACHABLE ONES ARE THE WHOLES, every one of them — a part that turned up in this list
     # would mean the layer meant to be answerable had been withheld.
     assert all(not getattr(by_key[k], "parent", "") for k in withheld), withheld

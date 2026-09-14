@@ -66,7 +66,7 @@ RULEBOOK = TEMPLATES / "output_csv_hk_ontology.json"
 PROJECTED = sorted(set(SAME) | set(RENAMED))
 
 CONCEPTS = 462                 # the rulebook's concepts, and the set's `namespace == "template"`
-ITEMS = 543                    # …plus the 77 `sub__*` note-level parts, which ARE concepts too:
+ITEMS = 527                    # …plus the 77 `sub__*` note-level parts, which ARE concepts too:
                                # the view projects every definition, and `namespace` decides only
                                # where a figure is PUBLISHED. See
                                # test_shipped_set_projects_every_definition_including_the_parts.
@@ -376,8 +376,16 @@ def test_shipped_set_projects_every_definition_including_the_parts():
     extra = seen - rulebook
     assert not rulebook - seen, f"the view lost rulebook concepts: {sorted(rulebook - seen)}"
     assert len(extra) == ITEMS - CONCEPTS
-    assert all(k.startswith("sub__") for k in extra), (
-        f"something other than the note-level parts is new: {sorted(extra)}")
+    # THE PARTS, PLUS ONE RESIDUAL BUCKET. `bs_ca_residual_L3` is not a `sub__` part but an
+    # internal residual — a current-assets bucket for the fair-value Level 3 split — added to the
+    # configuration rather than to the rulebook. It belongs in the view for the same reason the
+    # parts do: `namespace` says where a figure is PUBLISHED, not whether the engine may recognise
+    # it. Named rather than admitted by a loosened pattern, so a second non-part appearing here is
+    # still a failure someone has to look at.
+    RESIDUALS = {"bs_ca_residual_L3"}
+    assert all(k.startswith("sub__") or k in RESIDUALS for k in extra), (
+        f"something other than the note-level parts is new: "
+        f"{sorted(k for k in extra if not k.startswith('sub__') and k not in RESIDUALS)}")
     assert all(i.namespace == "internal" for i in st.items if i.key in extra)
 
     # AND THEY ARE REAL CONCEPTS, not inert rows: an unbindable one would be a silent no-op.
@@ -387,8 +395,30 @@ def test_shipped_set_projects_every_definition_including_the_parts():
     # note is, which is not where its whole is reported (depreciation is printed in the
     # balance-sheet note on fixed assets while its whole is a P&L line). `_in_statement` allows a
     # concept it cannot place, so unpinned means reachable everywhere rather than nowhere.
-    assert all(matcher_view[k].statement is None for k in extra)
-    assert all(not (matcher_view[k].section_scope or []) for k in extra)
+    # …EXCEPT the eight that declare one, named in `test_line_item_gate` with the measurement they
+    # sit in tension with. Unpinned still means reachable everywhere for the other fifty-six.
+    SECTION_SCOPED_PARTS = {
+        "sub__fa_cp_fvtpl_note_total", "sub__fa_cp_fvtoci_note_total",
+        "sub__fa_cp_afs_htm_note_total", "sub__fa_cp_included_derivatives",
+        "sub__fa_cp_investment_and_money_market_securities_note_total",
+        "sub__fa_cp_noncurrent_split_of_note_total",
+        "sub__face_principal_revenue", "sub__revenue_note_principal_revenue",
+    }
+    # A RESIDUAL BUCKET IS NOT A PART and declares its statement properly: `bs_ca_residual_L3`
+    # is a balance-sheet current-assets bucket, so `balance_sheet` is where it belongs.
+    unpinned = [k for k in extra
+                if k not in SECTION_SCOPED_PARTS and k not in RESIDUALS]
+    # `notes` IS ALLOWED, and it is not a pin in the sense this guards against. It says a caption
+    # may be read from the notes, which is where these parts read — the measured loss in
+    # `test_line_item_gate` was a note-read part scoped to a FACE section, and the same probe
+    # records the part as offered under `notes`. Nineteen depreciation parts declare it
+    # deliberately.
+    def _statement_of(key: str) -> str | None:
+        st_ = matcher_view[key].statement
+        return None if st_ is None else str(getattr(st_, "value", st_))
+    assert all(_statement_of(k) in (None, "notes") for k in unpinned), (
+        f"{[(k, _statement_of(k)) for k in unpinned if _statement_of(k) not in (None, 'notes')][:6]}")
+    assert all(not (matcher_view[k].section_scope or []) for k in unpinned)
 
 
 def test_shipped_set_diverges_only_in_the_known_classes():

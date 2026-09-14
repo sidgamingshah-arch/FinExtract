@@ -75,7 +75,10 @@ def test_an_anchored_pattern_reaches_its_note_whatever_precedes_it(shipped):
     """THE CASE THIS FILE EXISTS FOR, on the shipped pattern rather than an invented one."""
     import re
 
-    item = {i.key: i for i in shipped.items}["sub__rp_other_receivables_note"]
+    # `sub__rp_other_receivables_note` was one of nine related-party FEEDERS collapsed into
+    # the three Find items the spec asks for. Find 2 absorbed its note titles, so the
+    # shipped anchored pattern this test exercises lives there now.
+    item = {i.key: i for i in shipped.items}["sub__rp_find_2"]
     patterns = [re.compile(p, re.IGNORECASE) for p in item.note_source.note_title_any]
     assert patterns, "the line declares no note pattern, so this test proves nothing"
 

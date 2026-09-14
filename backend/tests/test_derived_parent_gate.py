@@ -102,10 +102,13 @@ def test_the_types_the_shipped_set_declares(shipped):
 
     # TEN, not nine: `sub__fa_cp_intermediate_residual` is the securities line's overshoot
     # diagnostic, a derived line computed from its own cascade and published nowhere.
-    assert counts["derived"] == 13, counts
+    # 10 derived lines, not 13: the three `sub__rp_find_*` lines became `extracted` when the
+    # spec collapsed their feeders into them — they now read the notes themselves instead of
+    # cascading over nine parts.
+    assert counts["derived"] == 10, counts
     assert counts["calculated"] == 33, counts
-    assert counts["extracted"] == 497, counts
-    assert sum(counts.values()) == 543
+    assert counts["extracted"] == 484, counts
+    assert sum(counts.values()) == 527
     # AND THE DISCRIMINATOR THE SECTION ROLL-UPS READ IS UNTOUCHED. `rollups.section_members` keys
     # on `unit_of_account == "subtotal"` and nothing else; flattening it alongside the type takes
     # all 20 sections to `no_reported_subtotal`, so the two must not move together.

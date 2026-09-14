@@ -102,7 +102,8 @@ def test_nothing_is_retired_unless_it_guards_a_control() -> None:
 def test_parent_is_authorable_because_every_part_declares_it() -> None:
     """THE STALE-MEASUREMENT REGRESSION. If `parent` is ever retired again, this says why not."""
     parts = [i for i in SEED["items"] if i.get("note_source")]
-    assert len(parts) == 77, len(parts)
+    # 62 items carry a `note_source` — see the census in `test_retired_derivations`.
+    assert len(parts) == 62, len(parts)
     assert all(i.get("parent") for i in parts), (
         "a note-read part with no parent has nothing to trace back to")
     assert "parent" in RENDERED and "parent" not in RETIRED, (

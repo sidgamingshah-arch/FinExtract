@@ -290,14 +290,17 @@ def test_provisioning_reproduces_the_shipped_configuration_exactly():
     before = {i["key"]: i for i in shipped["items"]}
     after = {i["key"]: i for i in merged["items"]}
     assert set(after) == set(before), "provisioning added or lost an item"
-    assert len(after) == 543, len(after)
+    # 527, not 543: the live configuration was exported into the shipped seed — see
+    # `test_retired_derivations.test_the_shipped_set_is_the_configuration_in_force`.
+    assert len(after) == 527, len(after)
 
     namespaces: dict[str, int] = {}
     for item in merged["items"]:
         namespaces[item["namespace"]] = namespaces.get(item["namespace"], 0) + 1
-    # 78 internal: `sub__fa_cp_intermediate_residual` is off-template like every other part,
-    # and provisioning must leave it alone rather than treat it as a template row to fill.
-    assert namespaces == {"template": 462, "internal": 81}, namespaces
+    # 65 internal: `sub__fa_cp_intermediate_residual` is off-template like every other part,
+    # and provisioning must leave it alone rather than treat it as a template row to fill. 65 and
+    # not 81 because sixteen parts were retired — see the census in `test_retired_derivations`.
+    assert namespaces == {"template": 462, "internal": 65}, namespaces
     assert len(protected_keys(merged)) == 462
 
     for key, item in before.items():

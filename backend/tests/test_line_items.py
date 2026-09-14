@@ -578,7 +578,8 @@ def test_declared_fields_is_what_the_item_declared_not_what_it_inherited(client)
     # And the parts declare the two fields they were rescoped on, so the badge does NOT claim the
     # section supplied them.
     parts = [k for k, d in resolved.items() if d.parent]
-    assert len(parts) >= 77
+    # the parts are 64: the nine related-party feeders became the three Find items the spec asks for, and `sub__pbt_cos_depreciation`, `sub__rp_note_entrusted_loans` and six revenue sub-items were retired.
+    assert len(parts) >= 64
     assert all("section_scope" in declared[k] for k in parts), (
         [k for k in parts if "section_scope" not in declared[k]])
     # AND THE FOLD ITSELF, on a field the section still supplies. `statement` no longer demonstrates

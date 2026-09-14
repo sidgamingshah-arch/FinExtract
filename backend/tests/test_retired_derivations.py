@@ -432,7 +432,7 @@ def test_no_shipped_line_item_names_a_deleted_service_as_its_implementer():
     """
     raw = json.loads(_LINE_ITEMS_JSON.read_text(encoding="utf-8"))
     items = raw["items"]
-    assert len(items) == 543, f"the shipped set changed size ({len(items)}) — re-read this test"
+    assert len(items) == 527, f"the shipped set changed size ({len(items)}) — re-read this test"
 
     offenders = [
         (i.get("key"), i.get("implemented_by")) for i in items
@@ -482,3 +482,76 @@ def test_the_app_boots_with_the_four_stages_absent(client):
     missing-attribute error at startup rather than at run time."""
     response = client.get("/openapi.json")
     assert response.status_code == 200, response.text
+
+
+def test_the_shipped_set_is_the_configuration_in_force():
+    r"""THE SHIPPED SEED IS THE CONFIGURATION, and a fresh machine loads it.
+
+    WHY THIS TEST EXISTS, and it is the reason several counts in this suite moved. The
+    configuration used to live only in `line_item_versions` in one developer's `finex.db`: it was
+    authored through the UI, it was what every extraction actually ran against, and it was in no
+    repository. Nothing here could see it. Two consequences, both measured when it was finally
+    exported into this file:
+
+      * `sub__fa_cp_afs_htm_note_total` had an EMPTY `row_caption_any` at v33, v34, v39, v41 and
+        v43 — a line structurally incapable of producing a figure, for its whole recorded history,
+        invisible because no test reads a database.
+      * `is_pl__deprec_and_impairment_cos` had lost its COS_P3 tier when
+        `sub__pbt_cos_depreciation` was retired. Deliberate, but nothing recorded it.
+
+    THE CENSUS, so the numbers pinned across this suite have one explanation:
+
+        items 527 · parts 64 · items carrying a note_source 62
+        types: extracted 484, calculated 33, derived 10
+
+    527 and not 543 because the nine related-party FEEDERS were collapsed into the three Find items
+    the spec asks for, `sub__pbt_cos_depreciation` and `sub__rp_note_entrusted_loans` were retired,
+    and six revenue sub-items went in earlier sittings. Every one of the sixteen is a PART, which is
+    why the part counts fall further than the item count.
+
+    AND THE GUARANTEE ITSELF: `sample.reference.ensure_reference_data` publishes this file as a
+    `LineItemVersion` against an empty database, so a machine that clones the repository and starts
+    the services runs THIS configuration. That is asserted here against a real seeding run rather
+    than described, because "it is in git" and "it is what loads" are different claims and only the
+    second one matters.
+    """
+    import tempfile
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app.db.models import Base, LineItemVersion
+    from app.sample.reference import ensure_reference_data
+
+    raw = json.loads(_LINE_ITEMS_JSON.read_text(encoding="utf-8"))
+    shipped = {i["key"] for i in raw["items"]}
+    assert len(shipped) == 527, len(shipped)
+    # The line that could never produce a figure, now fixed — pinned so it cannot regress to empty.
+    afs = next(i for i in raw["items"] if i["key"] == "sub__fa_cp_afs_htm_note_total")
+    assert (afs.get("note_source") or {}).get("row_caption_any"), (
+        "sub__fa_cp_afs_htm_note_total has no row patterns again, so it can never produce a "
+        "figure — see this test's docstring")
+    # The retired cost-of-sales tier stays retired, referent and rung together.
+    assert "sub__pbt_cos_depreciation" not in shipped
+    cos = next(i for i in raw["items"] if i["key"] == "is_pl__deprec_and_impairment_cos")
+    assert [r.get("id") for r in (cos.get("cascade") or [])] == ["COS_P1", "COS_P2"]
+
+    with tempfile.TemporaryDirectory() as tmp:
+        engine = create_engine(f"sqlite:///{Path(tmp) / 'fresh.db'}")
+        Base.metadata.create_all(engine)
+        session = sessionmaker(bind=engine)()
+        try:
+            assert session.query(LineItemVersion).count() == 0, "the fresh database was not fresh"
+            ensure_reference_data(session)
+            rows = session.query(LineItemVersion).all()
+            assert len(rows) == 1, [r.version for r in rows]
+            seeded = {i["key"] for i in (rows[0].definition or {}).get("items", [])}
+            assert seeded == shipped, (
+                "a fresh machine would not run the configuration this repository carries: "
+                f"{len(shipped - seeded)} missing, {len(seeded - shipped)} extra")
+        finally:
+            # DISPOSE BEFORE THE DIRECTORY GOES. On Windows the open SQLite handle makes the
+            # temporary directory undeletable, and the cleanup error would fail a test whose
+            # assertions all passed.
+            session.close()
+            engine.dispose()

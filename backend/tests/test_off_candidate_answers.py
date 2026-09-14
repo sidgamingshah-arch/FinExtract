@@ -173,7 +173,8 @@ def test_a_part_OF_a_line_is_still_a_line_item(shipped):
     """
     matcher = OntologyMatcher(build_working_view(shipped), locale="en", settings=get_settings())
     parts = [i.key for i in shipped.items if getattr(i, "parent", "")]
-    assert len(parts) >= 77
+    # the parts are 64: the nine related-party feeders became the three Find items the spec asks for, and `sub__pbt_cos_depreciation`, `sub__rp_note_entrusted_loans` and six revenue sub-items were retired.
+    assert len(parts) >= 64
     assert all(k in matcher._by_key for k in parts), "a declared line item is not a concept"
     # Every definition, not a projection of them.
     assert len(matcher._by_key) == len(shipped.items)
