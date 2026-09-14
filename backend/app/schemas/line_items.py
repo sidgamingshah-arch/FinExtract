@@ -431,6 +431,31 @@ class SectionDefaults(BaseModel):
     face_only: bool | None = None
     analyst_bucket: str | None = None
 
+    def where(self) -> str:
+        """WHERE IN THE REPORT A LINE IN THIS SECTION LIVES — "face", "notes" or "either".
+
+        THE ONE DEFINITION OF THAT QUESTION, and it exists because there were two. The Line Items
+        screen's "Where in the report does this line live?" is this answer, and `routes.line_items`
+        computed it inline from `face_only` and `scopes` — so the pipeline, which needs the same
+        answer to decide which search to run, would have been a second reader deriving it a second
+        way. That is the shape of defect this codebase keeps finding: a control that reads like a
+        control and is consulted in one place only.
+
+        THREE VALUES, AND THE THIRD IS NOT A DEGENERATE CASE. `face_only` sections are read off the
+        statement; the `notes` section is read from the notes; and FIVE sections are neither —
+        `statement_setup_controls`, `supplemental_data`, `off_balance_sheet_data`,
+        `credit_compliance`, `capital_and_lease_commitments`. Those carry the run's own scalars and
+        the covenant/commitment disclosures, which are not printed on a face statement and are not
+        note breakdowns either. "either" means UNRESTRICTED — nothing was said about where to look —
+        and a reader must not treat it as "notes" or as "face". Measured on the shipped set: 60 of
+        527 items are in those five, and none of them declares a `note_source`.
+        """
+        if self.face_only:
+            return "face"
+        if any(str(getattr(s, "value", s)) == "notes" for s in (self.scopes or ())):
+            return "notes"
+        return "either"
+
 
 # ── unit_of_account, derived ──────────────────────────────────────────────────────────────────
 #

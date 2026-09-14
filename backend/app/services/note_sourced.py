@@ -47,6 +47,7 @@ import re
 from decimal import Decimal, InvalidOperation
 
 from app.services import derivation, prose_grammar
+from app.services.note_sections import open_to as _open_to
 # One split for every side of every comparison — see `line_item_notes`.
 from app.services.note_context import matches_title, subject_tokens
 
@@ -128,7 +129,8 @@ class NoteRowHit:
         self.period = period
 
 
-def select_rows(item, notes, periods: set[str] | None = None) -> list[NoteRowHit]:
+def select_rows(item, notes, periods: set[str] | None = None,
+                note_sections: dict[str, set[str]] | None = None) -> list[NoteRowHit]:
     """The note rows THIS item's `note_source` declares, across every note whose title matches.
 
     Three gates, in the order the declaration reads: the note's title must match, the row's caption
@@ -154,6 +156,18 @@ def select_rows(item, notes, periods: set[str] | None = None) -> list[NoteRowHit
         if not (_matches_title_any(title, titles)
                 or _matches_any(str(getattr(table, "note_number", "")),
                                                             titles)):
+            continue
+        # THE LINE'S SECTION NARROWS WHICH NOTES IT MAY READ. `section_scope` says where a line
+        # lives; until now the note path read it nowhere, so a line declaring `['bs_ca']` still
+        # considered every note in the filing. `note_sections` resolves a note's section through
+        # the note-to-face links, and `open_to` closes the door ONLY when the note resolves to
+        # exactly one section and this line names a different one — a note of unknown or of
+        # several sections stays open for everything, which is the same convention an empty
+        # `section_scope` already has. See `services.note_sections` for why: the signal reaches
+        # about 30% of notes, and narrowing on an absent signal would starve the context rather
+        # than sharpen it.
+        if note_sections is not None and not _open_to(
+                item, str(getattr(table, "note_number", "") or ""), note_sections):
             continue
         # DOES THIS NOTE STATE ITS PERIODS ON THE BLOCKS? If any row carries a block period, the
         # note is a movement table and its COLUMNS are asset classes — so no row in it may be read

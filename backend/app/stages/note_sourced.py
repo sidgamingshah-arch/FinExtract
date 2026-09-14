@@ -41,6 +41,15 @@ class NoteSourcedStage(Stage):
             ctx.log("note_sourced: no line item declares a note_source")
             return doc
 
+        # WHICH SECTION EACH NOTE IS ALIGNED TO, resolved once for the run rather than per line:
+        # the map is built from `doc.links` and every line is then narrowed against the same
+        # answer. `section_scope` had no reader in the note path before this — see
+        # `services.note_sections` for the signal it uses and how far it reaches.
+        from app.services.note_sections import note_sections as _resolve_note_sections
+        note_sections = _resolve_note_sections(doc, line_item_set)
+        ctx.log(f"note_sourced:section of {len(note_sections)} note(s) resolved from the "
+                f"note-to-face links")
+
         # A pattern that does not compile is the author's error and is named as such, once, before
         # any selection runs — so it is attributable to a line of configuration rather than showing
         # up as a line that mysteriously stayed empty.
@@ -69,7 +78,7 @@ class NoteSourcedStage(Stage):
         filled = touched = 0
         prose_filled = 0
         for item in items:
-            hits = note_sourced.select_rows(item, doc.notes, periods)
+            hits = note_sourced.select_rows(item, doc.notes, periods, note_sections)
             if not hits:
                 # A FIGURE THE FILING STATES ONLY IN PROSE, and this is the one route to it.
                 #
@@ -261,9 +270,35 @@ def _declared_items(line_item_set) -> list:
     ORDER MATTERS for `alternatives`: the first match wins, so the author's ordering IS the
     precedence of sources. Sorted here rather than trusting file order, so that precedence is a
     property of the configuration rather than of how the JSON happened to be written.
+
+    A LINE THAT LIVES ON THE FACE IS NOT FILLED FROM NOTES. "Where in the report does this line
+    live?" is one answer — `SectionDefaults.where()`, folded in from `inherits` — and it decides
+    WHICH SEARCH a line gets: `face` means the figure is claimed off the statement, so a
+    `note_source` on such a line is a declaration the pipeline must not act on.
+
+    IT IS A GUARD, NOT A CHANGE, and that is measured: of the 396 items in the twelve face sections
+    NONE declares a `note_source`, so nothing is excluded today. It exists because the failure it
+    prevents is silent — a face line quietly taking a figure out of a note reconciles against
+    nothing and looks plausible — and because the config screen now offers `note_source` on every
+    line, so the combination is one edit away.
+
+    NO SECTION MEANS OPEN. A line that names no `inherits` — the three related-party Find lines
+    are the shipped case — is not restricted to anything and keeps the note route. Absence is
+    "nothing was said", never "face", which is the same convention `section_scope` and `statement`
+    already use. The five `either` sections (`supplemental_data`, `credit_compliance`,
+    `capital_and_lease_commitments`, `off_balance_sheet_data`, `statement_setup_controls`) are open
+    for the same reason: they are neither face nor notes, and none of their 60 items declares a
+    `note_source` anyway.
     """
     items = getattr(line_item_set, "items", None) or []
     declared = [i for i in items if getattr(i, "note_source", None) is not None]
+    sections = getattr(line_item_set, "section_defaults", None) or {}
+
+    def _lives_on_the_face(item) -> bool:
+        section = sections.get(str(getattr(item, "inherits", "") or ""))
+        return section is not None and section.where() == "face"
+
+    declared = [i for i in declared if not _lives_on_the_face(i)]
     return sorted(declared, key=lambda i: (int(getattr(i, "order", 0) or 0), i.key))
 
 

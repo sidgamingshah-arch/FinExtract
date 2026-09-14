@@ -373,12 +373,11 @@ def _sections(st: LineItemSet) -> list[dict]:
         # `face_only` and `scopes` are the two declarations that place a section inside its
         # statement. Neither is authored per line any more — both are section policy, measured as
         # never varying within one — so reading them here is reading the section's own answer.
-        if section.face_only:
-            where = "face"
-        elif [s for s in (section.scopes or ()) if str(getattr(s, "value", s)) == "notes"]:
-            where = "notes"
-        else:
-            where = "either"
+        #
+        # READ THROUGH `SectionDefaults.where()`, which is now the one definition of it: the
+        # pipeline needs the same answer to decide which search a line gets, and deriving it twice
+        # is how the two come to disagree.
+        where = section.where()
         token = st.vocabulary.scope_tokens.get(key) or ""
         # UNDERSCORES OUT WHATEVER THE SOURCE. Some banners declare their own token as their first
         # heading (`income_and_expenses`), so folding only the fallback left engine spelling on the
