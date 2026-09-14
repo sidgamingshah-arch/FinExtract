@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 import statistics
+from decimal import Decimal
 
 from app.core.models.enums import Basis, LineRole
 from app.core.models.line_item import NoteItem, NotesTable
@@ -389,6 +390,156 @@ def _category_cells(rows: list[list[Word]], fmt=None) -> list[tuple[float, str]]
     return out if len(out) >= 2 else []
 
 
+# ── the period a MOVEMENT row belongs to ─────────────────────────────────────────────────────────
+#
+# An asset note's columns are asset CLASSES and its comparative year is a second block of ROWS, so
+# the year is printed on the block. Two devices do it, and both appear in the corpus:
+#
+#   * A CAPTION-ONLY HEADER OPENS a block — "For the year ended 31 December 2024" printed above the
+#     rows it governs, carrying no figures of its own. (right-of-use note 16, 2025041600195.pdf)
+#   * A BALANCE ANCHOR CLOSES one — "At 31 December 2023" printed below the movements it completes,
+#     carrying the closing balance per class. (property, plant and equipment note 15, same filing)
+#
+# The two read in opposite directions, which is why the distinction is drawn on whether the row
+# carries figures rather than on its wording. Getting it backwards is not a near miss: in note 15
+# the accumulated-depreciation block opens "At 1 January 2023" and the charge row beneath it is the
+# 2023 charge, while the NEXT charge row — after the 2023 closing balance — is 2024's. An
+# opens-above rule applied to a closing anchor would label both 2023.
+#
+# A SHORT CAPTION ONLY. "At the end of the reporting period the Group had contracted for …" begins
+# like an anchor and states a year, so prose is excluded by length; every anchor measured is under
+# forty characters.
+# The word boundary guards the LATIN arms only — "Additions" must not match the "at" arm. It cannot
+# guard the Han ones: there is no boundary between two Han characters, so `\b` after 截至 would
+# never match the date that follows it.
+_PERIOD_PREFIX = re.compile(
+    r"^\s*(?:(?:as\s+at|at|for\s+the\s+(?:year|period)\s+ended?"
+    r"|(?:year|period)\s+ended?)\b|於|于|截至)", re.I)
+_YEAR_IN_CAPTION = re.compile(r"(?:19|20)\d{2}")
+_MAX_ANCHOR_CHARS = 48
+# A row sits "at or below" an anchor within a line of it — the same slack `_category_for` allows,
+# and for the same reason: a caption and the figures it governs are not always on one baseline.
+_ANCHOR_TOL = 0.004
+# The total has to equal the rest of the row to within this share of itself. Not exact equality:
+# a filing rounds each class to the printed unit and the total to the same unit, so the column can
+# be off by a few units of the last digit without the row being anything other than a total.
+_TOTAL_TOLERANCE = 0.005
+
+
+# A TOKEN THAT IS PART OF A DATE, not a figure. Needed because a date's own numerals are read as
+# values: on right-of-use note 16 the row "As at 31 December 2024" reaches `_scan_row` as the label
+# "As at" and the values 31 and 2024, so the caption loses its year and the row looks — to a bare
+# "does it carry figures" test — exactly like a closing balance. Property, plant and equipment note
+# 15 keeps the same date inside its label, because its label column is wide enough to hold it. The
+# anchor text is therefore read off the WHOLE row, and a row "carries figures" only where something
+# survives this filter.
+_DATE_TOKEN = re.compile(
+    r"^(?:\d{1,2}(?:st|nd|rd|th)?|(?:19|20)\d{2}"
+    r"|jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?"
+    r"|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?"
+    r"|\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}|年|月|日)$", re.I)
+
+
+def _period_anchors(rows: list[list[Word]], fmt=None) -> list[tuple[float, int, bool]]:
+    """``(top y, year, carries_figures)`` for every row of this note that states a period.
+
+    ``carries_figures`` is what tells an opening header from a closing balance, and therefore which
+    direction the year applies in — see this block's comment.
+    """
+    out: list[tuple[float, int, bool]] = []
+    for row in rows:
+        if not row:
+            continue
+        _labels, _refs, value_words = _scan_row(row, fmt, extract_note_refs=False)
+        figures = [w for w in (value_words or ())
+                   if not _DATE_TOKEN.match(w.text.strip().strip(",.()"))]
+        # THE CAPTION IS THE ROW WITHOUT ITS FIGURES — and WITH its date, wherever the date landed.
+        # Reading the whole row would put a closing balance's six class amounts in the caption and
+        # push it past the length guard, which is how the PP&E anchors were missed; reading only the
+        # label words would drop the date on a narrow table, which is how the right-of-use anchors
+        # were missed. Excluding exactly the real figures is the one rule that holds for both.
+        skip = {id(w) for w in figures}
+        caption = " ".join(w.text for w in sorted(row, key=lambda w: w.bbox.x0)
+                           if id(w) not in skip).strip()
+        if not caption or len(caption) > _MAX_ANCHOR_CHARS \
+                or not _PERIOD_PREFIX.match(caption):
+            continue
+        year = _YEAR_IN_CAPTION.search(caption)
+        if year is None:
+            continue
+        out.append((min(w.bbox.y0 for w in row), int(year.group(0)), bool(figures)))
+    out.sort()
+    return out
+
+
+def _period_year_for(anchors: list[tuple[float, int, bool]], y: float | None) -> int | None:
+    """The year governing the row printed at ``y``, or None when this note states none.
+
+    Opening headers win where a note has them: a note that captions its blocks says so directly,
+    and a closing balance in the same note is then just one of the rows that block governs.
+    """
+    if not anchors or y is None:
+        return None
+    opens = [(top, year) for top, year, has_figures in anchors if not has_figures]
+    if opens:
+        found: int | None = None
+        for top, year in opens:
+            if top <= y + _ANCHOR_TOL:
+                found = year
+            else:
+                break
+        if found is not None:
+            return found
+    # No header opened this block, so the first closing balance BELOW the row completes it.
+    for top, year, has_figures in anchors:
+        if has_figures and top >= y - _ANCHOR_TOL:
+            return year
+    return None
+
+
+def _period_hint_for(anchors: list[tuple[float, int, bool]], newest: int | None,
+                     y: float | None) -> str:
+    """"current" / "prior" for the row printed at ``y``, or "" when the note states no period.
+
+    ONLY THE TWO SLOTS THE STATEMENTS HAVE. A note showing three years would put its oldest in
+    neither, and "" is the right answer for it: a figure with nowhere to go must not be published
+    into the nearest slot.
+    """
+    if newest is None:
+        return ""
+    year = _period_year_for(anchors, y)
+    if year is None:
+        return ""
+    if year == newest:
+        return "current"
+    return "prior" if year == newest - 1 else ""
+
+
+def _total_slot_of(li) -> str:
+    """The ``period_label`` of the value on this row that totals the others, else "".
+
+    ARITHMETIC, NOT A HEADER MATCH. The total is the figure equal to the sum of the rest of the
+    row. That holds in every script and survives a layout that omits the word "total" — and it is
+    self-checking, where a header match that picked the wrong column would publish one asset
+    class's charge as the whole charge with nothing to contradict it.
+
+    Three values minimum, so a two-column row whose component happens to equal its total cannot be
+    read either way round.
+    """
+    facts = [ev for ev in li.values.values() if getattr(ev, "value", None) is not None]
+    if len(facts) < 3:
+        return ""
+    amounts = [Decimal(str(ev.value)) for ev in facts]
+    whole = sum(amounts)
+    for i, ev in enumerate(facts):
+        rest = whole - amounts[i]
+        if rest == 0:
+            continue
+        if abs(amounts[i] - rest) <= abs(rest) * Decimal(str(_TOTAL_TOLERANCE)):
+            return str(getattr(ev, "period_label", "") or "")
+    return ""
+
+
 def _row_top(li) -> float | None:
     """Where a reconstructed row was printed, in page-normalised y.
 
@@ -553,7 +704,17 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                    source_text=" ".join(word.text for word in sec["words"]).strip())
         # The note's own 项目名称 column, if it has one — see `_category_cells` for the nine-row
         # block whose eight continuation rows named no receivable class at all without it.
-        cells = _category_cells(_group_rows(sec["words"], row_tolerance(sec["words"], source_kind)))
+        grouped = _group_rows(sec["words"], row_tolerance(sec["words"], source_kind))
+        cells = _category_cells(grouped)
+        # THE PERIOD STATED ON A BLOCK rather than on a column — read from the RAW rows, because the
+        # caption-only header that opens a block carries no figures and so is never built into an
+        # item. Same shape as the category pass above: scan the page's own rows, then attribute each
+        # reconstructed row by where it was printed.
+        anchors = _period_anchors(grouped)
+        # The latest year the note names is its current period. Decided per note, not from the
+        # document, because a note is self-contained about which years it shows and a filing whose
+        # face period was misread would otherwise mislabel every movement row.
+        newest = max((year for _y, year, _f in anchors), default=None)
         for li in items:
             # THE CAPTION DECIDES THE ROLE, EXCEPT WHERE THE BUILDER ALREADY KNEW. Almost every
             # row reaches here as ``LINE`` — the promotion that classifies a face row runs in
@@ -575,6 +736,10 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                           section_hint=li.section_hint,
                           group_hint=(li.group_hint
                                       or _category_for(cells, _row_top(li))),
+                          # Both empty unless this note states a period on its blocks AND this row
+                          # has a column that totals the others — a movement row and nothing else.
+                          period_hint=_period_hint_for(anchors, newest, _row_top(li)),
+                          total_slot=_total_slot_of(li),
                           provenance=li.values and next(iter(li.values.values())).provenance or None)
             for ev in li.values.values():
                 ni.set_value(ev)

@@ -54,6 +54,11 @@ from app.services.note_context import matches_title, subject_tokens
 # either. Both outcomes are reported by `fill`, which returns the refusals alongside the fills.
 _FLAGS = re.IGNORECASE
 
+# THE LABEL `row_reconstruct._column_periods` GIVES A COLUMN WHOSE PERIOD IT COULD NOT READ —
+# "col2", "col3", … past the first two positions. Bare, and only bare: "current:cost" names a
+# measure of a known period and "current_col3" a kept restatement of one, and both are real slots.
+_POSITIONAL_SLOT = re.compile(r"^col\d+$", re.IGNORECASE)
+
 
 def _compiled(patterns) -> list[tuple[str, re.Pattern | None]]:
     out: list[tuple[str, re.Pattern | None]] = []
@@ -150,6 +155,20 @@ def select_rows(item, notes, periods: set[str] | None = None) -> list[NoteRowHit
                 or _matches_any(str(getattr(table, "note_number", "")),
                                                             titles)):
             continue
+        # DOES THIS NOTE STATE ITS PERIODS ON THE BLOCKS? If any row carries a block period, the
+        # note is a movement table and its COLUMNS are asset classes — so no row in it may be read
+        # by column label, whether or not that row got a hint of its own.
+        #
+        # WHY THE WHOLE TABLE AND NOT JUST THE HINTED ROW. Measured on
+        # 8ad0c02c-46bb-4e21-9962-a8d6da4ecf81.pdf once the gate was widened to the charge captions:
+        # the movement rows that got no hint fell through to the column path, and because that
+        # document's face carries many columns its `periods` set contains "col3", "col4" and "col6"
+        # — so class columns arrived as periods and the line published 366,943,014.10 beside a prior
+        # of 118,627,077.67 against a current of 6,225,356.67. The `column_index` guard cannot catch
+        # them: these rows are not matrix rows, so they have no column index. The table's own
+        # evidence that its periods live on the ROW axis is what rules them out.
+        block_periods = any(str(getattr(r, "period_hint", "") or "")
+                            for r in (getattr(table, "items", None) or ()))
         for row in getattr(table, "items", None) or ():
             caption = getattr(row, "raw_label", "") or ""
             matched = _matches_any(caption, counts)
@@ -157,6 +176,48 @@ def select_rows(item, notes, periods: set[str] | None = None) -> list[NoteRowHit
                 continue
             if _matches_any(caption, vetoes):
                 continue
+            # A MOVEMENT ROW CARRIES ITS PERIOD ON THE BLOCK, NOT ON THE COLUMN. An asset note's
+            # columns are asset CLASSES and its comparative year is a second block of rows, so
+            # neither of the two guards below can read such a row: the class columns are exactly
+            # what `column_index` exists to refuse, and the positional labels a classed column
+            # falls back to ("col2") are exactly what `periods` exists to refuse. Both refusals
+            # are right about the column and wrong about the row.
+            #
+            # `notes_extract` resolves the two separately — which period the BLOCK is for, and
+            # which column TOTALS the row — and where it has both, they are the answer and the
+            # column-level guards do not apply. One figure per row, in the slot the note states.
+            #
+            # MEASURED, on 2025041600195.pdf: right-of-use note 16 prints the charge once per year
+            # and only the first column kept a period label, so this loop took that column from
+            # BOTH blocks and the line published 16,847 + 11,307 = 28,154 — a quantity that is not
+            # in the filing. It now publishes 77,707 current and 66,870 prior, which is what the
+            # note's total column states. Property, plant and equipment note 15 published nothing
+            # at all, because every value on a matrix row carries a `column_index`; it now
+            # publishes 566,457 and 498,784.
+            hint = str(getattr(row, "period_hint", "") or "")
+            total_slot = str(getattr(row, "total_slot", "") or "")
+            if hint and total_slot:
+                for value in (getattr(row, "values", None) or {}).values():
+                    if str(getattr(value, "period_label", "") or "") != total_slot:
+                        continue
+                    amount = _num(getattr(value, "value", None)
+                                  if getattr(value, "value", None) is not None
+                                  else getattr(value, "value_raw", None))
+                    if amount is None:
+                        continue
+                    hits.append(NoteRowHit(
+                        key=item.key, note_number=str(getattr(table, "note_number", "")),
+                        note_title=title, caption=caption, matched_by=matched,
+                        value=value, amount=amount,
+                        basis=_basis_of(value), period=hint))
+                continue
+
+            # A movement table's rows are readable ONLY through the block period. One that did not
+            # resolve — no anchor governs it, or no column totals it — contributes nothing, because
+            # the only thing left to read it by is a column label this note does not use for time.
+            if block_periods:
+                continue
+
             for value in (getattr(row, "values", None) or {}).values():
                 # A MATRIX COLUMN IS NOT A PERIOD. `ExtractedValue.column_index` is set only for a
                 # fact printed in a NAMED COMPONENT column — an industry segment, a class of
@@ -176,6 +237,25 @@ def select_rows(item, notes, periods: set[str] | None = None) -> list[NoteRowHit
                 # `current:cost` carrying 2,239,996,631.60 onto the REVENUE line. `periods` is the
                 # set the face declares — see the stage, which derives it from the document.
                 label = str(getattr(value, "period_label", "") or "")
+                # A POSITIONAL FALLBACK IS NOT A PERIOD. `col2`, `col3` … is what
+                # `row_reconstruct._column_periods` emits when it could read NEITHER a heading date
+                # nor a PRC period caption for a column — the label means "which period this is was
+                # not determined", so publishing a figure under it asserts a period the parser
+                # explicitly declined to name.
+                #
+                # THE `periods` FILTER BELOW CANNOT CATCH THEM, which is why this is separate.
+                # `periods` is the set the FACE declares, and a face whose own columns were
+                # unreadable declares the same fallbacks — measured on
+                # 8ad0c02c-46bb-4e21-9962-a8d6da4ecf81.pdf, whose set contains "col3", "col4" and
+                # "col6". So the note's class columns matched the face's unresolved ones and a
+                # depreciation line published 366,943,014.10 as a period figure. Reachable only
+                # once the row gate was widened to the charge captions, which is why nothing had
+                # found it before.
+                #
+                # NOT a `periods` membership question and not a movement-table question: no line
+                # should ever take a figure from a column whose period is unknown.
+                if _POSITIONAL_SLOT.match(label):
+                    continue
                 if periods is not None and label not in periods:
                     continue
                 amount = _num(getattr(value, "value", None)

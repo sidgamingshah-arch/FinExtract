@@ -356,6 +356,38 @@ class NoteItem(BaseModel):
     # is where breakdown-dimension captions live ("Mainland China", "Third parties"), so this is
     # the field that carries their meaning.
     group_hint: str = ""
+    # WHICH PERIOD THIS MOVEMENT ROW BELONGS TO — "current" or "prior", and "" when the note says
+    # nothing. Set only for a row inside an asset MOVEMENT table, where the period is stated on the
+    # BLOCK rather than on the column.
+    #
+    # WHY A ROW-AXIS PERIOD EXISTS AT ALL. An asset note's columns are asset CLASSES, and its
+    # comparative year is a second block of ROWS, so the year is printed once above or below a
+    # block and never beside the figure. Nothing else in the model can express that:
+    # ``ExtractedValue`` keys a figure by (basis, period), and on these rows the period slot is
+    # already spent on the class name ("Hotel property") or on a positional fallback ("col2").
+    #
+    # THE FAILURE IT FIXES, measured. ``sub__prepaid_lease_depreciation`` published 28,154 as the
+    # right-of-use depreciation charge on 2025041600195.pdf. That note prints the charge twice, once
+    # per year, and the only column whose label survived as a period was the first — so the line
+    # summed one asset class from 2024 with the same class from 2023: 16,847 + 11,307 = 28,154, a
+    # number that appears nowhere in the filing. The real charges are 77,707 and 66,870.
+    #
+    # NOT WRITTEN INTO ``values``. Adding a "current"-keyed figure to these rows would have been the
+    # smaller change and it is the wrong one: ``stages.reconcile`` builds a note's total by summing
+    # its details, so a row gaining a second figure would inflate that total and could turn an
+    # honest "unconfirmed" into a confident false tie. This field and ``total_slot`` are read by
+    # ``services.note_sourced.select_rows`` and by nothing else, so no existing consumer moves.
+    period_hint: str = ""
+    # THE ``period_label`` OF THE ONE VALUE ON THIS ROW THAT TOTALS THE OTHERS, and "" when no value
+    # does. Identified by arithmetic, not by reading a header: the total is the figure equal to the
+    # sum of the rest of the row, which is script-agnostic and self-checking, where a header match
+    # would have to know "Total", "合計", "總計" and every layout that omits the word.
+    #
+    # Needed because a movement row carries one figure PER ASSET CLASS and the line wants the charge
+    # for the whole class of assets. Summing every value on the row would double it — the classes
+    # and their total are all present — so the total column is named here rather than guessed at
+    # downstream.
+    total_slot: str = ""
     # THIS ROW'S CAPTION IS NOT THE FILING'S OWN. A note prints a block's total on a bare line —
     # the caption is the sub-heading two rows up, and a typesetter does not repeat it — so
     # reconstruction gives the row that heading and says here that it did. Two readers need to know:
