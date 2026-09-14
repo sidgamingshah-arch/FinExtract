@@ -1446,6 +1446,41 @@ export default function WorkspaceScreen() {
   const inspReported = inspPeriod === "current" ? selRowObj?.reported1 : selRowObj?.reported2;
   const inspShown = inspPeriod === "current" ? selRowObj?.v1 : selRowObj?.v2;
   const inspComputed = inspPeriod === "current" ? selRowObj?.calculated1 : selRowObj?.calculated2;
+
+  /** THE CITATION: every line that was added, by NAME, each one clickable to where it was printed.
+   *
+   *  WHAT THIS REPLACED. The arithmetic row rendered the server's `arithmetic` string, which the
+   *  template rollup builds from the component FIGURES alone — so a subtotal whose components were
+   *  mostly not extracted read "— + — + — + … + 106,070,122". As a citation that names nothing,
+   *  and the account of which lines were added was a sentence below it: "Computed from the 20
+   *  template lines below". A reader asking "what was added to get this" had to count dashes.
+   *
+   *  The labels were already served. Every contribution carries its label, its own figure for this
+   *  period, and the provenance of the page it was printed on — that is what `TraceRows` walks, and
+   *  it is what the citation is built from here, so the two cannot disagree.
+   *
+   *  AN ABSENT COMPONENT IS NAMED AND MARKED, not dropped. "Investment properties: not in this
+   *  document" is a fact about the filing; omitting it would make the list look like the whole of
+   *  what the subtotal is defined as, which is the opposite of a citation.
+   *
+   *  A FACT PRINTED TWICE GETS NO SIGN. `counted === false` marks evidence for the figure rather
+   *  than an addend of it — the same rule `TraceRows` applies — so it is listed without a "+" that
+   *  would make the line not add up. */
+  const citation = (selRowObj?.contributions ?? []).map((c, i) => {
+    const prov = inspPeriod === "current" ? c.source : c.source2;
+    const raw = inspPeriod === "current" ? c.v1 : c.v2;
+    const counted = (inspPeriod === "current" ? c.counted : c.counted2) !== false;
+    return {
+      at: (c.canonical_key ?? c.label ?? "") + "#" + i,
+      label: c.label ?? c.canonical_key ?? "",
+      figure: raw == null ? "not in this document" : present(raw),
+      absent: raw == null,
+      deducted: !!c.deducted || !counted,
+      src: (inspPeriod === "current" ? c.src : c.src2) ?? "",
+      jump: usingReal ? toPicked(prov ?? null, c.label ?? "") : null,
+    };
+  });
+  const onPickCitation = setPicked;
   // A calculated line's divergence from the printed figure is a finding, so the inspector states
   // it. The printed figure is never the line's value, but silence would hide the disagreement.
   const inspDiverges = inspOrigin === "calculated" && inspReported != null && inspShown != null
@@ -2164,10 +2199,45 @@ export default function WorkspaceScreen() {
                   <span style={{ fontFamily: font.mono, fontSize: 12, color: color.amberFg, fontWeight: 600 }}>ƒx</span>
                   <span
                     data-testid="inspector-arithmetic"
-                    style={{ fontFamily: font.mono, fontSize: 12, color: color.ink, flex: 1,
-                             wordBreak: "break-word" }}
+                    style={{ fontSize: 12, color: color.ink, flex: 1, wordBreak: "break-word",
+                             lineHeight: 1.7 }}
                   >
-                    {selRowObj?.arithmetic ?? selRowObj?.formula ?? ""}
+                    {/* THE ARITHMETIC NAMES THE LINES IT ADDS, not just their figures.
+                        `arithmetic` comes from the template rollup rendered from values alone, so a
+                        subtotal whose components were mostly not extracted read "— + — + — + … +
+                        106,070,122": as a citation it names nothing, and the account of WHICH lines
+                        were added was a sentence underneath saying there were twenty of them.
+                        The labels are already on `contributions`, one per addend with its own page,
+                        so the citation is built from those and each name stays clickable through to
+                        where it was printed. The figures-only rendering stays as the fallback,
+                        for a row that carries no contributions at all. */}
+                    {citation.length > 0
+                      ? citation.map((c, i) => (
+                          <span key={c.at}>
+                            {i > 0 && (
+                              <span style={{ fontFamily: font.mono, color: color.muted }}>
+                                {c.deducted ? " − " : " + "}
+                              </span>
+                            )}
+                            <span
+                              onClick={() => c.jump && onPickCitation(c.jump)}
+                              title={c.jump ? "Show " + c.src + " in the document"
+                                            : c.absent ? "Not found in this document" : undefined}
+                              style={{
+                                cursor: c.jump ? "pointer" : "default",
+                                color: c.absent ? color.muted : color.ink,
+                                textDecoration: c.jump ? "underline dotted" : "none",
+                                textDecorationColor: color.hairline2,
+                              }}
+                            >
+                              {c.label}
+                              <span style={{ fontFamily: font.mono, color: color.sec2 }}>
+                                {" "}{c.figure}
+                              </span>
+                            </span>
+                          </span>
+                        ))
+                      : (selRowObj?.arithmetic ?? selRowObj?.formula ?? "")}
                   </span>
                   <span style={{ fontFamily: font.mono, fontSize: 12, fontWeight: 600, color: color.indigo }}>
                     = {(inspPeriod === "current" ? selRowObj?.display1 : selRowObj?.display2)

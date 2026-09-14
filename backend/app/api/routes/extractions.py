@@ -807,7 +807,28 @@ def _serialize_rows(doc_model, working_view=None) -> list[dict]:
             "id": str(li.id),
             "source_label": li.source_label,
             "canonical_key": li.canonical_key,
-            "note": li.note_number,
+            # WHICH NOTE THIS ROW CITES — read through `cited_notes()`, the model's ONE definition
+            # of that question, and not off `note_number`.
+            #
+            # THE DEFECT THIS FIXES. This read `li.note_number`, which `LineItem`'s own docstring
+            # calls "the fallback for a row whose reference was scanned from the note column
+            # WITHOUT being parsed into a NoteRef". Every normally-scanned row stores its reference
+            # in `note_refs` (`row_reconstruct` and `excel_extract` both append a `NoteRef` there),
+            # so `note_number` is empty on all of them and this key came out null. Measured on a
+            # real extraction: `note` present on 80 statement rows, non-empty on ZERO — the
+            # Workspace's Note column is 56px of permanent blank, and every note chip, every
+            # click-through to the note a figure cites, was unreachable.
+            #
+            # `cited_notes()` was written because three stages had each rolled their own version of
+            # this and disagreed, "so a filing could have a note published but unlinked, or linked
+            # but filed in the wrong section". This row builder was a fourth, reading only the
+            # fallback. It falls back to `note_number` itself, so the shape that WAS working still
+            # works.
+            #
+            # BOTH REFERENCES TRAVEL. A row can cite different notes for the two periods ("10"
+            # current, "10a" prior) and the grid keeps both — collapsing to one drops the second
+            # linkage, which is why the frontend reads `note` and `note2`.
+            **_note_refs_of(li),
             # Where it was printed, which of the analyst sections it belongs to, and which extracted
             # notes detail it — see this function's docstring for why each has to travel with the row.
             "printed_in": (li.printed_in.value if li.printed_in else None),
@@ -825,6 +846,20 @@ def _serialize_rows(doc_model, working_view=None) -> list[dict]:
             "values": values,
         })
     return rows
+
+
+def _note_refs_of(li) -> dict:
+    """`{"note": …, "note2": …}` for one row, from `LineItem.cited_notes()`.
+
+    AS PRINTED AND IN CITATION ORDER, which is what `cited_notes()` guarantees — a note reference is
+    rendered, never arithmetic, and "10a" is not 10. Two at most because the grid has one Note
+    column and shows a second chip only where the periods cite different notes; a row citing three
+    is rare enough that the inspector is the right place for the rest, and silently showing two of
+    three in the column would be worse than showing two and saying so nowhere.
+    """
+    cited = [n for n in (li.cited_notes() or []) if n]
+    return {"note": cited[0] if cited else None,
+            "note2": cited[1] if len(cited) > 1 else None}
 
 
 def _bucket_index(doc_model) -> tuple[dict[str, str], dict[str, str]]:

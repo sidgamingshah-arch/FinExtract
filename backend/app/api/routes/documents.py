@@ -4760,6 +4760,24 @@ def _face_prefixes(template_def: dict | None) -> set[str]:
     return out
 
 
+def _cited_pair(group: list[dict]) -> dict:
+    """`{"note": …, "note2": …}` for a concept assembled from several printed lines.
+
+    The contributions' own references, de-duplicated and in citation order — so a concept combined
+    from ten lines that all cite note 7 shows one chip, and one whose current and prior figures cite
+    different notes shows both. Order is the filing's, not sorted: `note_sort_key` is for LISTING
+    notes, while here the first reference is the one the reader should follow first.
+    """
+    seen: list[str] = []
+    for x in group:
+        for n in (x.get("note"), x.get("note2")):
+            n = (n or "").strip()
+            if n and n not in seen:
+                seen.append(n)
+    return {"note": seen[0] if seen else None,
+            "note2": seen[1] if len(seen) > 1 else None}
+
+
 def _note_sort_key_str(no: str) -> tuple[int, int, str]:
     """Note numbers in the order a filing prints them: by chapter, then numerically, then any
     sub-letter.
@@ -5101,8 +5119,12 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
         return as_calculated({
             "id": key, "label": label or r.get("source_label"),
             "source_label": r.get("source_label"), "kind": kind,
-            "note": next((x.get("note") for x in group if x.get("note")), None),
-            "note2": None, "status": "edited" if edited else None,
+            # THE NOTES THE CONTRIBUTING LINES CITE, in the order they were cited, first two.
+            # `note2` was hardcoded None, so a concept whose periods cite different notes ("10"
+            # current, "10a" prior) lost the second linkage here even once the rows carried it —
+            # which is the exact case the grid keeps two chips for.
+            **_cited_pair(group),
+            "status": "edited" if edited else None,
             # WHERE THE FIGURE WAS PRINTED and WHICH ANALYST SECTION it belongs to, carried from the
             # contributing rows. Not the same question as ``origin`` below, which says whether the
             # figure was read off the document or typed by an analyst — a row can be printed on the
