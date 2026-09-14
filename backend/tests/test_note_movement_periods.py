@@ -49,7 +49,7 @@ import pytest
 
 from app.core.models.geometry import BBox
 from app.services.notes_extract import (
-    _period_anchors, _period_hint_for, _period_year_for, _total_slot_of)
+    _period_anchors, _period_hint_for, _period_year_for, _total_slot_of, _year_of)
 from app.services.row_reconstruct import Word
 
 
@@ -131,6 +131,49 @@ def test_a_date_is_not_a_figure():
     assert len(anchors) == 1, anchors
     _y, year, carries = anchors[0]
     assert (year, carries) == (2024, False)
+
+
+def test_a_year_written_in_han_numerals_is_read():
+    """THE SAME GAP, IN THE OTHER SCRIPT. A Traditional-Chinese filing dates its blocks
+    於二零二四年十二月三十一日, and the Arabic-numeral pattern matches none of it — so the block
+    periods resolved to nothing and its movement rows went unattributed, exactly as the English
+    PP&E note did before this pass.
+
+    MEASURED ON THE CORPUS: seven anchors are written this way, all on 2025042402029.pdf, and every
+    one was uncaught. A year is always spelled digit by digit (二零二四, never 二千零二十四), so
+    four digit characters immediately before 年 is the whole rule — 十 appears in a Han date only
+    in the month and day, which is why 十二月三十一日 cannot be mistaken for one.
+    """
+    assert _year_of("於二零二四年十二月三十一日") == 2024
+    assert _year_of("截至二零二四年十二月三十一日止年度") == 2024
+    assert _year_of("於二零二四年一月一日的成本，扣除累計減值") == 2024
+    assert _year_of("一九九八年") == 1998
+    # Arabic still works, and wins when a caption carries both spellings.
+    assert _year_of("At 31 December 2024") == 2024
+    assert _year_of("於2024年12月31日") == 2024
+
+
+def test_the_first_year_wins_when_a_caption_names_two():
+    """A shipped anchor names the close of one year and the open of the next in one row:
+    於二零二三年十二月三十一日及二零二四年一月一日. As a CLOSING anchor it governs the rows above it,
+    and those belong to the year that just ended — the first of the two."""
+    assert _year_of("於二零二三年十二月三十一日及二零二四年一月一日") == 2023
+
+
+def test_a_han_run_that_is_not_a_year_is_refused():
+    """Four digit characters before 年 is the shape, but not every such run is a year. A figure
+    with nowhere plausible to sit must not become one."""
+    assert _year_of("零零零零年") is None
+    assert _year_of("本期") is None
+    assert _year_of("其他應收款") is None
+
+
+def test_a_period_word_with_no_year_anchors_nothing():
+    """`本期` and `上期` say "this period" and "last period" and name no year, so they cannot be
+    mapped to current or prior. Measured: two appear in the corpus, and leaving them unmatched is
+    the right answer rather than a gap — a block with no year stays unattributed."""
+    rows = [_row("本期", 0.20), _row("Depreciation charge", 0.23, "1,000")]
+    assert _period_anchors(rows) == []
 
 
 def test_a_movement_caption_is_never_mistaken_for_an_anchor():

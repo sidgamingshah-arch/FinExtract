@@ -416,7 +416,44 @@ _PERIOD_PREFIX = re.compile(
     r"^\s*(?:(?:as\s+at|at|for\s+the\s+(?:year|period)\s+ended?"
     r"|(?:year|period)\s+ended?)\b|於|于|截至)", re.I)
 _YEAR_IN_CAPTION = re.compile(r"(?:19|20)\d{2}")
+# A YEAR WRITTEN IN HAN NUMERALS, which is how a Traditional-Chinese filing dates its blocks:
+# 於二零二四年十二月三十一日. Measured on the corpus, SEVEN anchors are written this way and the
+# Arabic-numeral pattern above matches none of them — so on that filing the block periods resolved
+# to nothing and the movement rows went unattributed, which is the same silent gap this whole pass
+# exists to close, in the other script.
+#
+# FOUR DIGITS, EXACTLY, and anchored to 年. A year is always written out digit by digit
+# (二零二四, 一九九八) rather than as a compound number, so there is no 二千零二十四 to parse and no
+# arithmetic to do — 十 appears in a Han DATE only in the month and day (十二月三十一日), which is
+# why matching a run of digit characters immediately before 年 cannot pick one up.
+_HAN_DIGITS = {"〇": 0, "零": 0, "一": 1, "二": 2, "三": 3, "四": 4,
+               "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+_HAN_YEAR_IN_CAPTION = re.compile(r"([〇零一二三四五六七八九]{4})\s*年")
 _MAX_ANCHOR_CHARS = 48
+
+
+def _year_of(caption: str) -> int | None:
+    """The year a period caption names, in either script, or None.
+
+    Arabic first because it is the common case and unambiguous; the Han reading is tried only when
+    that finds nothing, so a caption carrying both ("二零二三年 (2023)") resolves once.
+
+    THE FIRST YEAR IN THE CAPTION WINS, and one shipped anchor makes that a decision rather than an
+    accident: 於二零二三年十二月三十一日及二零二四年一月一日 names the closing balance of one year and
+    the opening of the next in a single row. As a CLOSING anchor it governs the rows above it, and
+    those belong to the year that just ended — the first of the two.
+    """
+    arabic = _YEAR_IN_CAPTION.search(caption or "")
+    if arabic is not None:
+        return int(arabic.group(0))
+    han = _HAN_YEAR_IN_CAPTION.search(caption or "")
+    if han is None:
+        return None
+    value = 0
+    for ch in han.group(1):
+        value = value * 10 + _HAN_DIGITS[ch]
+    # A four-digit run that is not a plausible reporting year is not a year: 零零零零 is not 0 AD.
+    return value if 1900 <= value <= 2100 else None
 # A row sits "at or below" an anchor within a line of it — the same slack `_category_for` allows,
 # and for the same reason: a caption and the figures it governs are not always on one baseline.
 _ANCHOR_TOL = 0.004
@@ -464,10 +501,11 @@ def _period_anchors(rows: list[list[Word]], fmt=None) -> list[tuple[float, int, 
         if not caption or len(caption) > _MAX_ANCHOR_CHARS \
                 or not _PERIOD_PREFIX.match(caption):
             continue
-        year = _YEAR_IN_CAPTION.search(caption)
+        # BOTH SCRIPTS, through one reader — see `_year_of`.
+        year = _year_of(caption)
         if year is None:
             continue
-        out.append((min(w.bbox.y0 for w in row), int(year.group(0)), bool(figures)))
+        out.append((min(w.bbox.y0 for w in row), year, bool(figures)))
     out.sort()
     return out
 

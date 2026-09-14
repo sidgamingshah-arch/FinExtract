@@ -18971,6 +18971,7 @@
      "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
      "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
      "^\\s*depreciation\\s*$",
+     "^\\s*amorti[sz]ation\\s*$",
      "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$"
     ],
     "row_caption_none": [
