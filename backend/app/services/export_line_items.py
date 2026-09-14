@@ -96,6 +96,54 @@ def _contributions(row: dict | None, basis: str) -> list[dict]:
     return contributions
 
 
+def _derived_how(row: dict | None, basis: str | None) -> str:
+    """The rung that computed a line, and what it could not include — for the "How" column.
+
+    WHY THAT COLUMN IS OTHERWISE BLANK ON EXACTLY THESE LINES. "How" renders `mapping_method`,
+    which is `LineItem.confidence.method` — a `MappingMethod`, and every member of that enum names
+    a way a printed CAPTION was matched to a concept (exact, rule, fuzzy, embedding, llm,
+    unmatched). A cascade-computed line is not matched from a caption at all, so the field is
+    correctly None and the cell came out empty for the lines whose provenance is least
+    self-evident: the derived ones, where the reader can see a formula but not which of the
+    author's several attempts produced it.
+
+    THE RUNG IS ALREADY RECORDED — `stages.note_sourced._fill_parents` stamps
+    `method: "cascade:<rung>"` and puts `rung:<id>` in the trail's flags — so this publishes what
+    the run already knows rather than computing anything new.
+
+    THE MISSING-TERM COUNT TRAVELS WITH IT, and that is the half that matters. Measured on
+    2025041600195: the operating-expense depreciation line published 644,164 from rung P4 with
+    `terms_missing:4`, and one of those four absent terms is the cost-of-sales DEDUCTION —
+    `sub__cos_depreciation` is role `adjustment`, so its absence does not fail the rung, it simply
+    does not apply. The figure is honest and the live formula beside it is honest, and neither can
+    say that the charge was published without a deduction the author declared. `rungs_refused`
+    reads the same way ("an earlier rung computed below zero and was passed over") and
+    `displaced_printed` says the cascade overrode a figure the filing printed.
+    """
+    store = (row or {}).get("derivation") or {}
+    if not isinstance(store, dict) or not store:
+        return ""
+    entry: dict = {}
+    if basis:
+        for period in ("current", "prior"):
+            candidate = store.get(f"{basis}:{period}")
+            if isinstance(candidate, dict) and candidate:
+                entry = candidate
+                break
+        if not entry:
+            entry = next((v for k, v in store.items()
+                          if isinstance(v, dict) and v and str(k).startswith(f"{basis}:")), {})
+    if not entry:
+        entry = next((v for v in store.values() if isinstance(v, dict) and v), {})
+    method = str(entry.get("method") or "")
+    if not method:
+        return ""
+    # Only the flags that qualify the FIGURE. `rung:<id>` is dropped as the method already names it.
+    notable = [f for f in (entry.get("flags") or [])
+               if str(f).startswith(("terms_missing:", "rungs_refused:", "displaced_printed:"))]
+    return " · ".join([method, *(str(f) for f in notable)])
+
+
 def _terms_formula(terms, row_of: dict[str, int], values: dict[str, float | None],
                    col: str, target: float | None) -> str | None:
     """A declared-`terms` formula as an Excel expression, or None when it must not be written.
@@ -321,7 +369,9 @@ def build_line_items_sheet(wb, line_item_set, rows: list[dict], *, period_cols, 
             if depth == 0:
                 cell.font = Font(bold=True)
 
-        ws.cell(r, how_col, (row or {}).get("mapping_method") or ("" if row else "not extracted")
+        ws.cell(r, how_col, (row or {}).get("mapping_method")
+                or _derived_how(row, contrib_basis)
+                or ("" if row else "not extracted")
                 ).font = Font(size=9, color="8A94A6")
         if row:
             values_list = row.get("values") or []

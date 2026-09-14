@@ -425,12 +425,25 @@ def _in_dependency_order(children_of: dict[str, list], defs: dict) -> list[tuple
     the rung could not resolve. Sorted alphabetically, which is what this replaced, `cos` came
     first every time, so COS_P3 was unreachable by construction.
 
-    THAT RUNG IS GONE FROM THE SHIPPED SET — the cost-of-sales tier was retired deliberately along
-    with `sub__pbt_cos_depreciation`. The ordering still matters and is not to be removed with it:
-    `is_pl__deprec_and_impairment_oper_exp`'s P3/P4/P5 each deduct `sub__cos_depreciation`, a child
-    of the OTHER parent, so the two parents still have to be evaluated in dependency order. See the
-    comment at `_fill_parents`' `known` map for what goes wrong when they are not — an `adjustment`
-    term's absence resolves the rung WITHOUT the deduction, which is the silent direction.
+    THAT PARTICULAR RUNG IS GONE — `sub__pbt_cos_depreciation` was retired with the cost-of-sales
+    tier — BUT THE ORDERING IS STILL LOAD-BEARING, and for a reason worth stating exactly, because
+    an earlier version of this docstring named the wrong one and a reader trusting it would protect
+    the wrong thing.
+
+    MEASURED ON THE SHIPPED SET. `is_pl__deprec_and_impairment_cos`'s surviving COS_P2 is
+    `sub__pbt_depreciation - is_pl__deprec_and_impairment_oper_exp`, both role `required`: it names
+    the OTHER PARENT, so `depends` sees it and this function places `cos` after `oper_exp`. It is
+    emitted LAST of the eight parents, and that is this sort doing its job — alphabetically `cos`
+    would come first, exactly the arrangement that made COS_P3 unreachable.
+
+    WHAT DOES *NOT* DEPEND ON THIS SORT, stated because it reads as though it should:
+    `oper_exp`'s P3/P4/P5 each deduct `sub__cos_depreciation`, and that is a CHILD key. Every ref
+    in `oper_exp`'s cascade is a `sub__*` child, none is a parent key, so `depends[oper_exp]` is
+    empty — and it needs to be, because children are filled in the pass BEFORE any parent cascade
+    is evaluated. What makes that deduction visible is the widened `known` map, not this order; see
+    the comment at `_fill_parents`' `known` for the 57,576 overstatement that proved it, and note
+    that the failure is silent in one direction — `sub__cos_depreciation` is role `adjustment`, so
+    its absence resolves the rung WITHOUT the deduction rather than failing it.
 
     A SORT AND NOT A FULL TOPOLOGICAL WALK, deliberately. `services.line_items.build` already does
     the real ordering for the registry, and duplicating it here would be a second implementation of
@@ -635,8 +648,10 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
     # between the two depreciation parents:
     #
     #   oper_exp P3/P4/P5  deduct `sub__cos_depreciation`, a child of the COS parent
-    #   cos      COS_P3    needed `sub__pbt_depreciation` (a child of oper_exp) and the oper_exp
-    #                      parent itself — RETIRED, see below
+    #   cos      COS_P2    `sub__pbt_depreciation - is_pl__deprec_and_impairment_oper_exp` — a
+    #                      child of oper_exp AND the oper_exp parent itself. STILL SHIPPED, and it
+    #                      is what `_in_dependency_order` detects to place `cos` last.
+    #   cos      COS_P3    the same shape, RETIRED with the cost-of-sales tier — see below
     #
     # COS_P3 AND ITS PART ARE NO LONGER IN THE SHIPPED SET: the cost-of-sales tier was removed
     # deliberately with `sub__pbt_cos_depreciation`. It is kept in this account because it is the
