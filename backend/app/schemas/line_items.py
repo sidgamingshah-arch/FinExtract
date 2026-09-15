@@ -118,7 +118,7 @@ OutputStructure = Literal["value", "phrase", "prose"]
 NoteSelection = Literal["cited_first", "any"]
 # WHERE AN `extracted` LINE'S FIGURE IS READ FROM — see `LineItemDef.route` for why this is one
 # question rather than the three implicit declarations it replaces, and why it is single-choice.
-Route = Literal["face", "note_tables", "prose"]
+Route = Literal["face", "note_tables", "prose", "anywhere"]
 
 # Where a caption may be READ FROM, in the order they are searched — a search ORDER, not a gate.
 # `notes` leads by default: a note states the figure the face only summarises, and for the eight

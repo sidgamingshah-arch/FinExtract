@@ -189,133 +189,20 @@ function Patterns({ label, values, tone }: { label: string; values: string[]; to
  *  `MEANING_SIMPLE` — which a formula line never gets. So the simple form for a calculated line was
  *  `label`, `type`, `terms`: three controls, no way to say what the line MEANS, on the population
  *  whose whole remaining surface is those four fields. */
-const COMMON_SIMPLE = ["label", "definition", "type"];
-
-/** What the line is, in words, plus the captions that reach it. Read by the matcher and the model,
- *  and therefore simple ONLY for a line either of them can reach. */
-const MEANING_SIMPLE = [
-  // `definition` is in `COMMON_SIMPLE` — every type needs it, not only the caption-matched ones.
-  //
-  // `exclude_criteria` IS NOT HERE — it is on the form, behind the advanced toggle. Measured
-  // before its values were cleared: 393 of 462 held ONE identical generated sentence ("Do not
-  // substitute another section, period, entity scope, currency or unit; do not double count a
-  // parent and its children"), which went to the model on every request and said nothing about
-  // the line. All 462 are now empty, so the simple form was offering an always-blank box on the
-  // question an author asks least often. The field keeps its place for the day somebody writes a
-  // real exclusion; it no longer takes a row on the form most authors see.
-  // RECOGNITION, WHICH IS ONE CONTROL OVER THREE FIELDS. `regex_hints` and `keyword_hints` were
-  // listed here beside `aliases` when each had its own editor; they are now rows in the collapsed
-  // list, which renders under `aliases`. Naming them here did nothing — `isSimple` is a set
-  // membership test and there is no control to admit.
-  //
-  // The three fields are still not interchangeable, which is why a row remembers which one it came
-  // from: `aliases` are captions folded through `normalize_label` and matched exactly,
-  // `regex_hints` match the raw caption AND the folded one, `keyword_hints` require every word to
-  // be present. The per-locale half writes `aliases_i18n[locale]` through the same control, with
-  // the locale selector in the band header.
-  "aliases",                  // 462 of 539, 461 distinct
-  // `prompt` WAS HERE — "the line's own instruction to the model". It is merged into `definition`,
-  // which the simple form already carries, so the instruction is still authorable on this form and
-  // there is no longer a second control to list.
-];
-
-/** WHERE A FIGURE MAY BE READ FROM — the note-sourcing block, simple for an extracted line because
- *  reading a figure out of a note is what most of the set's parts do.
+// `route` IS A BASIC FIELD, not an advanced one. It was omitted here and the form opens in
+// SIMPLE mode, so the control existed and nobody could see it — the exact failure this list is
+// for. "Where is this read from" is as fundamental as "what kind of line is this".
+/* THE SIMPLE-FORM ALLOWLISTS AND `simpleFieldsFor` ARE GONE, with the simple/advanced toggle.
  *
- *  THE PATTERN AND TERM LISTS COME WITH THE SWITCH, and that is not a liberty. `note_source` is
- *  only a BoolField — whether a note is read at all — and the lists under it are what say WHICH
- *  note and which of its rows. They render only while the switch is on, so promoting the switch
- *  alone would put a control on the simple form that reveals nothing when you use it.
+ * They were `COMMON_SIMPLE`, `MEANING_SIMPLE` and `NOTE_SOURCE_SIMPLE`, combined per type into the
+ * set `isSimple` tested. The idea was sound — show the fields that decide THIS kind of line — and
+ * the mechanism was a second inventory of which controls matter, which has to be kept in step with
+ * the form by hand. It fell out of step the first time it was touched: `route`, the question "where
+ * is this figure read from", was added to the form and not to these lists, so the control rendered
+ * and no author could see it, because the form opened in simple mode.
  *
- *  Both halves are here because they answer the same two questions in two different ways: the
- *  `*_any`/`*_none` regexes MATCH, the `*_terms` lists SCORE. A line whose phrasing nobody
- *  anticipated is reached by the second and not by the first, which is the whole reason the
- *  semantic half exists.
- *
- *  THE THIRD ROUTE IS PROSE — a figure the filing states in a sentence and tabulates nowhere — and
- *  it is the one part of this block that takes no regex at all. It used to: four hand-written
- *  patterns per line, 28 across the seven lines that have one, averaging 300 characters. Split
- *  structurally, every one was the same three parts, and across those seven lines two of the three
- *  were byte identical:
- *
- *      what figure            identical on all 7   -> `prose_grammar.subjects`, named per line
- *      how it is placed       identical on all 7   -> `prose_grammar.connective`, shared outright
- *      WHERE IT LANDED        the only difference  -> `note_source.prose_landed_in`, in words
- *
- *  So the simple form asks the two questions a line actually answers, and `prose_any` stays behind
- *  the advanced toggle as the escape hatch it has become. */
-const NOTE_SOURCE_SIMPLE = [
-  "note_source",
-  // THREE PAIRED CONTROLS AND THE PROSE ONE. `note_terms`, `row_terms` and `row_terms_none` were
-  // listed here as their own controls and are now `scored by meaning` rows inside the pattern
-  // control each belongs with — so the names below are the four controls that exist.
-  "note_source.note_title_any", "note_source.row_caption_any", "note_source.row_caption_none",
-  // THE PROSE ROUTE, IN WORDS. `prose_any` is NOT here: it is the raw escape hatch now and belongs
-  // behind the advanced toggle, where a control nobody should reach for first belongs.
-  "note_source.prose_subject", "note_source.prose_landed_in",
-  // WHETHER THE MODEL IS ASKED, AND WITH WHAT. Both are conditional on `extract`, so on a line
-  // that never reaches the model they are withheld with a reason rather than shown here.
-  "note_selection", "llm_only_if_note_tagged",
-];
-
-/** The simple form for one line, by its type.
- *
- *  `cascade` and `implemented_by` are already forced onto a derived line's form by `requiredNow`
- *  — without them the save is refused with no control to answer the refusal. Naming them here is
- *  what makes them the FIRST thing an author of a derived line sees, rather than controls that
- *  appear because a validator complained. */
-function simpleFieldsFor(type: string): Set<string> {
-  const out = [...COMMON_SIMPLE];
-  if (type === "derived") {
-    // THE CASCADE, AND NOTHING THAT MATCHES A CAPTION. A derived line's figure is its cascade's:
-    // no caption, alias, regex or semantic probe reaches it, and the model is never offered it.
-    // So the simple form is the rungs and where they may read from, and every recognition field is
-    // not merely advanced but WITHHELD with a reason (see `withheldReason`).
-    //
-    // `aliases` WAS HERE AND IS GONE. It was added on the measurement that
-    // `is_pl__sales_revenues` publishes 4,995,768 off the face by its alias with no rung firing —
-    // which was true, and was the short-circuit worth removing rather than a route worth keeping:
-    // a figure that arrives on the parent means no rung ran, so the record loses which of the
-    // filing's disclosures it came from. The face figure now enters through rung P1, whose part
-    // carries the recognition.
-    //
-    // `definition` and the criteria stay advanced for the same reason they always did: their
-    // readers are the description tier and the model, and neither sees a derived line.
-    //
-    // `extraction_mode` WAS HERE AND IS RETIRED: `type` is now the only field saying how a figure
-    // is obtained, and this control was the other half of the crossed naming that caused it to be
-    // read for the wrong question.
-    //
-    // `note_use` IS HERE, AND A CASCADE IS NOT SUFFICIENT WITHOUT IT. The permission is read off
-    // the PARENT, not the part — `stages/note_sourced._note_permission`, "Read off the PARENT,
-    // because the parent is the concept being filled" — and the gate refuses the whole fill when
-    // it is not `decomposition_allowed`. Measured, exactly ONE item in the set overrides its
-    // section default for this field: `notes__contingent_liabilities` declares
-    // `decomposition_allowed` where the `notes` section says `evidence_only`. Without that
-    // override its six-rung cascade publishes blank on every filing. So "a derived line only needs
-    // its rule" is false by one item, and that item is one of the eight focus lines.
-    out.push("cascade", "implemented_by", "inherits", "note_use");
-  } else if (type === "calculated") {
-    // A SUBTOTAL NEEDS NOTHING BUT ITS TYPE. Its components are named by the template's
-    // `rollup: {op: "sum", children: [...]}`, and `services/export.py` evaluates them from there —
-    // so the config asserts nothing about the arithmetic and there is nothing to author. `terms`
-    // is on the form for the arithmetic line that names its own inputs instead of inheriting the
-    // template's, which is what `requiredNow` still forces.
-    out.push("terms");
-  } else {
-    out.push(...MEANING_SIMPLE, ...NOTE_SOURCE_SIMPLE, "inherits", "statements", "section_scope",
-             // TO BE SOURCED FROM A NOTE OR THE FACE — the one gate switch the spec keeps per
-             // line. `face_only` is retired beside it: 462 of 539 items declare it with ONE
-             // distinct value and it never varies inside a section, so it is section policy.
-             // `section_disambiguation` WAS HERE. Its 395 values held 13 distinct strings,
-             // every one `"Bind only to {statement} / {section}."` — the line's own gate restated,
-             // and named by engine key. The BANNER (`section_scope`) is what actually settles a
-             // contested caption: 170 of this set's collisions are same-statement, different
-             // sub-heading, and it is already on this form.
-             "note_use");
-  }
-  return new Set(out);
-}
+ * The filtering that remains is DERIVED and cannot drift: `withheldReason` removes the controls
+ * this line's own selections make meaningless, and says why. */
 
 /** THE TWO CONTROLS THAT ARE ON THE FORM AND MUST NOT BE OFFERED.
  *
@@ -489,9 +376,37 @@ function MasterPrompt({ versionId, served, canEdit }: {
  */
 function withheldReason(name: string, sel: {
   type: string; extractionMode: string; aliasMatching: string; outputStructure: string;
-  faceOnly: boolean;
+  faceOnly: boolean; route: string;
 }): string | null {
-  const { type, extractionMode, aliasMatching, faceOnly } = sel;
+  const { type, extractionMode, aliasMatching, faceOnly, route } = sel;
+
+  // ── THE ROUTE DECIDES WHICH SEARCH IS CONFIGURABLE ────────────────────────────────────────
+  //
+  // A line read off the FACE is not read out of a note, so every note control is a question about
+  // a search that will not run — and worse than merely useless: `stages.note_sourced` REFUSES to
+  // act on a `face` line, so a note_source authored here would be stored, shown, and silently
+  // never consulted. That is the exact shape of defect this screen keeps removing.
+  //
+  // `anywhere` CONSTRAINS NOTHING, so it withholds nothing. An unset route also withholds
+  // nothing — nothing has been said, so nothing is ruled out yet.
+  if (route === "face" && (name === "note_source" || name.startsWith("note_source.")
+                           || name === "note_selection" || name === "llm_only_if_note_tagged")) {
+    return "this line is read off the face of the statement, so no note is searched for it — "
+         + "choose a note route above if its figure is disclosed in a note instead";
+  }
+  // A `prose` line's figure is a SENTENCE, and the row search is skipped outright, so the row
+  // patterns are inert. The note TITLE patterns are not — they still choose which note to read the
+  // sentence out of — so they stay.
+  if (route === "prose" && (name === "note_source.row_caption_any"
+                            || name === "note_source.row_caption_none")) {
+    return "this line's figure is read from a sentence, so the row search is skipped entirely — "
+         + "these patterns would select nothing";
+  }
+  // And the mirror: a line that is only ever tabulated has no sentence to parse. Left on for
+  // `note_tables` because prose is its FALLBACK when no row matches — see `stages.note_sourced`.
+  if (route === "face" && name.startsWith("note_source.prose")) {
+    return "this line is read off the face, so no sentence in a note is parsed for it";
+  }
 
   // ── SERVER-ENFORCED ────────────────────────────────────────────────────────────────────────
   // THE `prompt` WITHHOLDING IS GONE with the field. It read "a prompt is only sent for an
@@ -666,7 +581,10 @@ const WHERE_SUFFIX: Record<string, string> = {
 const GROUP_FIELDS = {
   // `route` — where an extracted line's figure is read from. In `identity` because it belongs
   // beside `type`: the type decides whether the question applies at all.
-  identity: ["type", "route", "inherits"],
+  // `inherits` WAS HERE. Its control is gone — placing is authored as `statements` +
+  // `section_scope` — so listing it would inflate this banner's count over a control that is
+  // not rendered, which is the drift `tests/test_form_field_lists.py` holds this list to.
+  identity: ["type", "route"],
   // `prompt` WAS HERE, beside `definition`. Merged into it — one prose field holds what this line
   // is and anything else the model should know, because two keys carrying the same author's answer
   // to the same question is a question too many.
@@ -748,7 +666,7 @@ const CONDITIONAL_FIELDS = [
  */
 function withheldFields(
   sel: { type: string; extractionMode: string; aliasMatching: string; outputStructure: string;
-         faceOnly: boolean },
+         faceOnly: boolean; route: string },
   errors: Record<string, string>,
 ): Map<string, string> {
   const out = new Map<string, string>();
@@ -933,7 +851,17 @@ function Detail(p: EditorProps) {
   // SIMPLE BY DEFAULT. The screen used to open all 73 controls at once, which is how a
   // configuration screen becomes unreadable: the eight fields that define a line sat among sixty
   // that override a section default or serve a case arising on four lines out of 475.
-  const [mode, setMode] = useState<"simple" | "advanced">("simple");
+  // THE SIMPLE / ADVANCED SPLIT IS GONE. It hid controls by a per-type allowlist
+  // (`simpleFieldsFor`), and the failure it caused is the one worth recording: `route` — the
+  // question "where is this line's figure read from" — was added to the form and NOT to that
+  // allowlist, so the control existed, rendered, and was invisible to every author, because the
+  // form opened in simple mode. A second inventory of which fields matter is a second thing to
+  // keep in step, and it fell out of step immediately.
+  //
+  // WHAT REPLACES IT is filtering that is DERIVED rather than listed: `withheldReason` removes the
+  // controls this line's own selections make meaningless (a note route's patterns on a face line,
+  // a cascade on an extracted one), and `showInapplicable` reveals them with their reason. That
+  // cannot drift, because it is computed from the selections themselves.
   // WHICH ROUTE'S CONFIGURATION IS ON SHOW. Two tabs, because the two routes are answerable
   // independently and must not be read as one form: the LLM tab is what the model is told, and the
   // deterministic tab is the recognition evidence the lexical readers match on and that is never
@@ -991,14 +919,15 @@ function Detail(p: EditorProps) {
     // and never off the draft: `face_only` is one of the fields the section declares and an item
     // may no longer override, which is why there is no `g(...)` here.
     faceOnly: item.face_only === true,
+    // THE ROUTE, so the note and prose controls follow the author's choice IMMEDIATELY rather
+    // than after a save. Read through `g` like the other draftable selections.
+    route: String(g("route", item.route ?? null) ?? ""),
   };
   /** What this line's own selections withhold. Derived from `sel`, so it follows the author's
    *  choice of type immediately rather than after a save. */
   const withheld = withheldFields(sel, errors);
   /** The simple form for THIS line's type, recomputed from the draft so switching the type
    *  re-cuts the form at once rather than after a save. */
-  const simple = simpleFieldsFor(sel.type);
-  const isSimple = (name: string) => simple.has(name);
 
   const fld = (name: string, render: (error?: string) => ReactNode) => {
     // THE ONE FILTER POINT. Every control on this screen goes through `fld`, so what a reader is
@@ -1012,7 +941,6 @@ function Detail(p: EditorProps) {
     if (RETIRED_FIELDS.has(name) && !forced) return null;
     // A field the server refused is shown WHATEVER the mode, because hiding the control a refusal
     // is addressed to leaves an author with a message and nothing to act on.
-    if (mode === "simple" && !isSimple(name) && !errors[name] && !forced) return null;
     // THE TAB, last of the filters and for the same reason the mode is next-to-last: a field the
     // server REFUSED is shown whatever the tab, because hiding the control a refusal is addressed
     // to leaves an author with a message and nothing to act on.
@@ -1045,7 +973,7 @@ function Detail(p: EditorProps) {
     // `tests/test_form_field_lists.py` exists to keep out of the three name lists and which this
     // would reintroduce at render time.
     if (!errors[n] && tabOf(n) !== tab) return false;
-    return mode === "advanced" || isSimple(n) || !!errors[n] || forced;
+    return true;
   };
   const idx = (name: string) => indexErrors[name];
 
@@ -1193,44 +1121,8 @@ function Detail(p: EditorProps) {
               </button>
             ))}
           </div>
-          {/* SIMPLE / ADVANCED. Simple is the fields that decide THIS KIND of line — a different
-              set for an extracted line, a derived one and an arithmetic one; advanced is every
-              override and every mechanism. A field the server REFUSED is shown in either mode —
-              hiding the control a refusal is addressed to leaves an author with a message and
-              nothing to act on. */}
-          <div role="group" aria-label="How much configuration to show"
-               style={{ display: "flex", border: `1px solid ${color.cardBorder}`,
-                         borderRadius: radius.control, overflow: "hidden" }}>
-            {(["simple", "advanced"] as const).map((m) => (
-              <button key={m} onClick={() => setMode(m)} aria-pressed={mode === m}
-                      data-testid={`li-mode-${m}`}
-                      style={{ fontSize: 11, cursor: "pointer", padding: "3px 10px", border: 0,
-                                textTransform: "capitalize",
-                                background: mode === m ? color.indigo : "transparent",
-                                color: mode === m ? "#fff" : color.sec2 }}>
-                {m}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
-      {mode === "simple" && (
-        <p style={{ margin: "0 0 10px", fontSize: 10.5, color: color.muted }}>
-          {sel.type === "derived"
-            ? <>The fields that decide a <b>derived</b> line: the cascade that computes it, and
-                whether a printed row may fill it where no rung resolves. Its definition, its
-                aliases and its note patterns are under <b>Advanced</b> — nothing reads them on a
-                line the matcher and the model are both never asked about.</>
-            : sel.type === "calculated" || sel.type === "intermediate"
-              ? <>The fields that decide a <b>{sel.type}</b> line: the signed terms it is summed
-                  from. Its definition and its note patterns are under <b>Advanced</b> — this
-                  line's figure is arithmetic over other lines, not something read off a page.</>
-              : <>The fields that define this line: what it means, which captions reach it, and
-                  which note its figure may be read out of. <b>Advanced</b> adds the section
-                  overrides and the assembly rules — needed on a minority of lines, and inherited
-                  from the section otherwise.</>}
-        </p>
-      )}
 
       {/* WHAT THIS LINE'S OWN SELECTIONS TOOK OFF THE FORM, stated rather than left to be noticed.
           A control that is absent and a control withheld for a reason look identical on a screen,
@@ -1345,7 +1237,8 @@ function Detail(p: EditorProps) {
             options={vocab?.routes ?? []}
             labelOf={(v) => ({ face: "The face of the statement",
                                note_tables: "A note's table rows",
-                               prose: "A sentence in a note" } as Record<string, string>)[v] ?? v}
+                               prose: "A sentence in a note",
+                               anywhere: "Anywhere — do not constrain it" } as Record<string, string>)[v] ?? v}
             helpOf={(v) => ({
               face: "claimed off the printed statement by the recognition patterns on the "
                   + "Deterministic tab. A note-source block on such a line is never acted on",
@@ -1354,46 +1247,30 @@ function Detail(p: EditorProps) {
                          + "as a fallback",
               prose: "read out of a SENTENCE only — the row search is skipped entirely. For a "
                    + "figure the filing states in words and tabulates nowhere",
+              anywhere: "looked for on the face AND in the note rows AND in prose — nothing is "
+                      + "ruled out. Choose this for a line printed differently from one filing "
+                      + "to the next",
             } as Record<string, string>)[v]}
-            help={<>The one question that decides which search runs for this line. <b>Not chosen
-                  yet</b> is not the same as <b>the face</b>: it means nothing has been said, and
-                  the line is read the way it was before this question existed — so an older
-                  configuration is not silently re-routed.</>}
+            help={<>The one question that decides which search runs for this line. Pick
+                  <b> Anywhere</b> to rule nothing out. <b>Not chosen yet</b> is not the same
+                  thing: it means nothing has been said at all, and the line is read the way it
+                  was before this question existed — so an older configuration is not silently
+                  re-routed.</>}
             value={g("route", item.route ?? null)}
             onChange={(v) => patch({ route: v })}
             error={e} inherited={inh("route", item.route ?? null)} />
         ))}
-        {fld("inherits", (e) => (
-          <SelectField<string>
-            label="Where in the report does this line live?" testid="inherits"
-            editable={editable} reason={lockReason}
-            nullLabel="not chosen yet"
-            groupOf={(v) => (v === FULL_REPORT ? "Not tied to a statement"
-              : sectionsByKey[v]?.statement_label ?? "Other")}
-            labelOf={(v) => (v === FULL_REPORT
-              ? "The whole report — looked for anywhere"
-              : `${sectionsByKey[v]?.label ?? v}${WHERE_SUFFIX[sectionsByKey[v]?.where ?? ""] ?? ""}`)}
-            help={<>Choose the statement and the sub-heading this line is printed under, in one
-                  step: the section you pick supplies the statement, the banners the line may be
-                  claimed under, and how its figure is measured. A line pointed at the wrong
-                  section is not found at all, and correcting this is usually the fix.
-                  <br />Pick <b>the whole report</b> for a line that is not printed on any
-                  statement — the note-level parts are all authored this way, and it is what puts
-                  them deliberately outside the gate rather than looking like an omission.
-                  {fromTemplate && (
-                    <>
-                      <br /><b>The template already places this line</b> under{" "}
-                      <b>{sectionsByKey[fromTemplate.section]?.label
-                          ?? fromTemplate.section}</b> in{" "}
-                      <b>{fromTemplate.statement.replace(/_/g, " ")}</b>, and the value above
-                      agrees with it. Changing it here makes this line disagree with the template
-                      it is published against — which is occasionally right, and never accidental.
-                    </>
-                  )}</>}
-            options={placingOptions}
-            value={placing} onChange={(v) => patch(placingPatch(v))}
-            error={e} inherited={inh("statement", item.statement)} />
-        ))}
+        {/* `inherits` — "Where in the report does this line live?" — IS GONE AS A CONTROL and is
+            not gone as a value. It asked the placing question a THIRD way: the section it named
+            supplied the statement and the banners, which are now both authored directly as
+            "Statements it may be claimed on" and "Section banners it may sit under". Three
+            answers to one question is how they drift, and this was the indirect one — an author
+            had to know which section id implied which statement.
+
+            THE FIELD STILL RESOLVES. 523 of the shipped items declare it and it still supplies the
+            NON-placing defaults (`match_priority`, `analyst_bucket`, `face_only`,
+            `note_use_rationale`) through `loader.resolve_inherits`. It stays writable by upload so
+            those sets keep working; what is gone is the invitation to answer placing with it. */}
       </Group>
 
       {/* ── 2. MEANING ────────────────────────────────────────────────────────────────────────
@@ -1802,7 +1679,7 @@ function Detail(p: EditorProps) {
             {/* WHAT THOSE WORDS BECAME, so the screen is not asking anyone to trust it. Generated
                 server-side and read-only — shown only when there is something to show, and only in
                 advanced, because an author who is happy with the phrases never needs it. */}
-            {mode === "advanced" && (item.prose_compiled ?? []).length > 0 && (
+            {(item.prose_compiled ?? []).length > 0 && (
               <LockedRow label="Compiled to" testid="note_source-prose_compiled"
                          value={(item.prose_compiled ?? []).map((p, at) => (
                            <div key={at} style={{ marginBottom: 3, wordBreak: "break-all" }}>{p}</div>

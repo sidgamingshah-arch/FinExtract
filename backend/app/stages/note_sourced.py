@@ -331,7 +331,7 @@ def route_of(item) -> str:
     nothing is read as `note_tables`, which is what carrying a `note_source` has always meant.
     """
     route = str(getattr(item, "route", "") or "")
-    return route if route in ("face", "note_tables", "prose") else "note_tables"
+    return route if route in ("face", "note_tables", "prose", "anywhere") else "note_tables"
 
 
 def _write(row: LineItem, basis: str, period: str, amount: Decimal) -> None:

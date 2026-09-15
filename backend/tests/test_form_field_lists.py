@@ -63,8 +63,10 @@ def _names(text: str) -> list[str]:
 
 
 RENDERED = set(re.findall(r'\{fld\("([^"]+)"', SRC))
-SIMPLE = {name: _names(_block(f"const {name} = [", "];"))
-          for name in ("COMMON_SIMPLE", "MEANING_SIMPLE", "NOTE_SOURCE_SIMPLE")}
+# `SIMPLE` WAS HERE — the per-type simple-form allowlists (`COMMON_SIMPLE`, `MEANING_SIMPLE`,
+# `NOTE_SOURCE_SIMPLE`) read out of the source. The simple/advanced toggle is gone and so are they,
+# for the reason the two retired tests below record: a second inventory of which controls matter has
+# to be kept in step by hand, and it fell out of step the first time it was touched.
 GROUPED = _names(_block("const GROUP_FIELDS", "} as const;"))
 CONDITIONAL = set(_names(_block("const CONDITIONAL_FIELDS", "\n];")))
 RETIRED = set(_names(_block("const RETIRED_FIELDS = new Set([", "]);")))
@@ -133,28 +135,23 @@ def test_the_band_numbers_cover_the_groups_that_render() -> None:
     assert bands == rendered_bands, f"BANDS={sorted(bands)} vs rendered={sorted(rendered_bands)}"
 
 
-def test_the_simple_form_lists_name_only_controls_that_exist() -> None:
-    """`simpleFieldsFor` builds each type's simple form from these lists, and `isSimple` is a plain
-    set membership — so a name with no control behind it contributes nothing and says nothing.
-
-    THE DRIFT THIS CAUGHT, and it is the same class as the three lists above. `COMMON_SIMPLE` was
-    `["label", "statement", "type"]`. The `statement` control went when the section chose it, so
-    the entry was dead — and `definition` was reachable only through `MEANING_SIMPLE`, which only a
-    caption-matched line gets. The simple form for a CALCULATED line was therefore `label`, `type`,
-    `terms`: three controls and no way to say what the line means, on the population whose entire
-    remaining surface is those four fields.
-    """
-    for name, names in SIMPLE.items():
-        assert not set(names) - RENDERED, f"{name} names controls that do not exist: "                                           f"{sorted(set(names) - RENDERED)}"
-
-
-def test_every_type_can_say_what_the_line_means() -> None:
-    """`definition` is declared by 539 of 539 lines and is the one prose field BOTH paths read —
-    the payload sends it and `line_item_notes.blended_probe` scores note headings against it. A
-    type whose simple form omits it has no way to author the field the whole set uses."""
-    assert "definition" in SIMPLE["COMMON_SIMPLE"], SIMPLE["COMMON_SIMPLE"]
-    assert "definition" not in SIMPLE["MEANING_SIMPLE"], (
-        "listed twice — `COMMON_SIMPLE` already gives it to every type")
+# TWO TESTS RETIRED HERE, and what they were guarding is worth keeping written down.
+#
+# `test_the_simple_form_lists_name_only_controls_that_exist` held the simple-form allowlists to the
+# same identity as the three lists above — a name with no control behind it contributes nothing.
+# It had already caught one drift: `COMMON_SIMPLE` was `["label", "statement", "type"]` after the
+# `statement` control went, so the entry was dead, and `definition` was reachable only through
+# `MEANING_SIMPLE`, which only a caption-matched line got — the simple form for a CALCULATED line
+# was `label`, `type`, `terms`, with no way to say what the line means.
+#
+# `test_every_type_can_say_what_the_line_means` pinned `definition` into `COMMON_SIMPLE` for exactly
+# that reason.
+#
+# BOTH ARE MOOT: there is no simple form. The lists are deleted and every control is on the form,
+# with `withheldReason` removing the ones this line's selections make meaningless and saying why.
+# That filtering is DERIVED from the selections, so it cannot fall out of step the way a hand-kept
+# allowlist did — which is what the second drift proved, when `route` was added to the form and not
+# to `COMMON_SIMPLE` and the control rendered invisibly to every author.
 
 
 # ── the two tabs, and the contract that the deterministic one cannot reach the model ──────────

@@ -1546,7 +1546,7 @@ export type NoteSelection = "cited_first" | "any";
  *    note_tables  out of a cited note's table rows, with the prose fallback behind it
  *    prose        out of a sentence, for a figure the filing tabulates nowhere — skips the rows
  */
-export type Route = "face" | "note_tables" | "prose";
+export type Route = "face" | "note_tables" | "prose" | "anywhere";
 /** Where a caption may be READ FROM, in search order — not a gate. The tokens are
  *  `StatementType`'s own: this list once said `income_statement` and `changes_in_equity`, neither
  *  of which the backend knows (it says `profit_and_loss` and `equity_changes`), so a scope sent
