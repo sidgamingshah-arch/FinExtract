@@ -112,7 +112,16 @@ def test_the_fields_the_v2_spec_removed_are_all_refused():
 
 
 def test_the_count_someone_has_to_justify():
-    """24 of 51 wire fields refused.
+    """24 of 52 wire fields refused.
+
+    52 SINCE `route` ARRIVED — where an extracted line's figure is read from: the face, a note's
+    table rows, or prose. It is a question the configuration never asked and instead INFERRED from
+    three declarations that had to agree (`SectionDefaults.where()`, itself derived from
+    `face_only` and `scopes`; whether a `note_source` object was present; and whether that object
+    carried prose patterns). An author could satisfy two and not the third, and the failure was
+    silent — a line read from nowhere, or a face line quietly taking a figure out of a note, which
+    reconciles against nothing. One asked question replaces three inferred ones, so the wire is one
+    field wider and the surface is smaller.
 
     24 SINCE `note_use` WENT. It asked whether a cited note may SUPPLY a line's figure or only
     corroborate it — "notes are evidence for a face amount, never an independent source of one,
@@ -161,7 +170,7 @@ def test_the_count_someone_has_to_justify():
     It was 26 until the audit found that `in_output`, `namespace` and `order` cannot be refused:
     the template has no row for an off-template PART (measured: 0 of the 77 appear in it), so it
     cannot decide a part's delivery, and refusing them made parts unauthorable."""
-    assert len(_EDITABLE_FIELDS) == 51, len(_EDITABLE_FIELDS)
+    assert len(_EDITABLE_FIELDS) == 52, len(_EDITABLE_FIELDS)
     assert len(_NOT_CONFIGURABLE) == 24, len(_NOT_CONFIGURABLE)
 
 

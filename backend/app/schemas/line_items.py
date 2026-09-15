@@ -116,6 +116,9 @@ OutputStructure = Literal["value", "phrase", "prose"]
 # is the default because a preparer's reference is not an inference; `any` says rank by score alone,
 # for the line whose printed reference is known to point at the wrong disclosure.
 NoteSelection = Literal["cited_first", "any"]
+# WHERE AN `extracted` LINE'S FIGURE IS READ FROM — see `LineItemDef.route` for why this is one
+# question rather than the three implicit declarations it replaces, and why it is single-choice.
+Route = Literal["face", "note_tables", "prose"]
 
 # Where a caption may be READ FROM, in the order they are searched — a search ORDER, not a gate.
 # `notes` leads by default: a note states the figure the face only summarises, and for the eight
@@ -520,6 +523,33 @@ class LineItemDef(BaseModel):
     # "derive"`` concept is never offered to the model at all (`mapping._unmatchable`), so a prompt
     # authored on one would be text that is never sent — the kind of configuration that looks like
     # it is working because nothing contradicts it.
+    # WHERE THIS LINE'S FIGURE IS READ FROM — one choice, asked only of an `extracted` line.
+    #
+    #   face         off the statement itself, by the deterministic caption readers
+    #   note_tables  out of a cited note's TABLE ROWS (with the prose fallback below)
+    #   prose        out of a SENTENCE, for a figure the filing tabulates nowhere
+    #
+    # ONE QUESTION REPLACING THREE IMPLICIT ONES. This was never asked, and was inferred from three
+    # separate declarations that had to agree: `SectionDefaults.where()` (derived in turn from
+    # `face_only` and `scopes`), the presence of a `note_source` object, and — for prose — whether
+    # that object happened to carry `prose_subject` / `prose_any`. An author could satisfy any two
+    # and not the third, and the failure was silent: a line quietly read from nowhere, or a face
+    # line quietly taking a figure out of a note, which reconciles against nothing and looks
+    # plausible.
+    #
+    # SINGLE-CHOICE, DELIBERATELY, and the cost is worth recording. Measured on the shipped set: 60
+    # items declare a `note_source`, of which 54 are rows-only and 6 carry prose patterns — and all
+    # 6 of those ALSO carry row patterns, because prose is a FALLBACK in `stages.note_sourced`
+    # (tried only when no row matched) rather than an alternative. Those 6 are the depreciation
+    # splits, and the fallback is load-bearing: on one reference filing the operating-expense share
+    # is stated only in a footnote, and on others the same line is a printed row. So all 6 migrate
+    # to `note_tables` and the prose fallback stays in code. `route` says where a line is PRIMARILY
+    # read from; `prose` is for a line that is only ever a sentence, and it skips the row search.
+    #
+    # `None` MEANS NOTHING WAS SAID, and is not "face": a set authored before this field existed is
+    # read the way it always was (see `stages.note_sourced._declared_items`), so adding the question
+    # does not silently re-route an existing configuration.
+    route: Route | None = None
     prompt: str = ""
     # MERGED INTO `definition` ON LOAD — see `_merge_prompt_into_definition` below. `prompt` stays
     # declared so a set written before the merge still parses, and it is emptied as it is folded so

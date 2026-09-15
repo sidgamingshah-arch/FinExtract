@@ -193,6 +193,12 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
     # it joins `_NOT_COHERENT_WITH_THE_REST` for the same reason the flag above does — the combined
     # body round-trips `extraction_mode: "extract_or_derive"`.
     "note_selection": ("note_selection", "patterns"),
+    # WHERE AN EXTRACTED LINE'S FIGURE IS READ FROM — the one question that replaced three implicit
+    # declarations (`SectionDefaults.where()`, the presence of a `note_source`, and whether that
+    # object carried prose patterns) which an author could satisfy two of and not the third.
+    # `note_tables` is the value the 60 note-sourced lines migrated to; `prose` skips the row
+    # search; `face` keeps the line out of `stages.note_sourced` entirely.
+    "route": ("route", "note_tables"),
     "note_use": ("note_use", "decomposition_allowed"),
     "face_only": ("face_only", True),
     # THE OBJECT THAT REPLACED THE 162-ALTERNATIVE WHITELIST (`_QUALIFYING_RE`, which refused a

@@ -60,7 +60,7 @@ import { color, font, radius } from "../theme";
 import type {
   TermsOp,
   LineItemDef, LineItemEdit,
-  LineItemSetInfo,
+  LineItemSetInfo, Route,
   LineItemType, LineItemVocab,
   NoteSource,
  NoteSelection,} from "../types";
@@ -498,6 +498,14 @@ function withheldReason(name: string, sel: {
   // extracted line, and this one is ${type}" — mirroring `_coherent`'s refusal. `prompt` is merged
   // into `definition`, which is legal on EVERY line type, so there is nothing left to withhold and
   // the refusal it mirrored can no longer fire.
+  // THE ROUTE IS ONLY A QUESTION FOR AN `extracted` LINE, because it is the only type that READS
+  // anything: a calculated line sums its parts and a derived one runs its cascade, so neither has
+  // a place it is read from. Withheld with a reason rather than simply absent — the banner then
+  // says why the control is not there, which is the difference between a considered omission and
+  // a form that looks incomplete.
+  if (name === "route" && type !== "extracted") {
+    return `only an extracted line is read from somewhere, and this one is ${type} — its figure comes from its own arithmetic, so there is no face, note or sentence to read`;
+  }
   // `_coherent`: terms are REQUIRED for calculated/intermediate and meaningless otherwise.
   if (name === "terms" && !["calculated", "intermediate"].includes(type)) {
     return `terms are the inputs of an arithmetic line; a ${type} line does not have any`;
@@ -656,7 +664,9 @@ const WHERE_SUFFIX: Record<string, string> = {
 };
 
 const GROUP_FIELDS = {
-  identity: ["type", "inherits"],
+  // `route` — where an extracted line's figure is read from. In `identity` because it belongs
+  // beside `type`: the type decides whether the question applies at all.
+  identity: ["type", "route", "inherits"],
   // `prompt` WAS HERE, beside `definition`. Merged into it — one prose field holds what this line
   // is and anything else the model should know, because two keys carrying the same author's answer
   // to the same question is a question too many.
@@ -681,6 +691,7 @@ const GROUP_FIELDS = {
 const CONDITIONAL_FIELDS = [
   // `prompt` WAS HERE — withheld on a line the model is never asked about. Merged into
   // `definition`, which every line type may carry, so it is conditional on nothing.
+  "route",
   "terms", "cascade", "implemented_by",
   // withheld on a line the model is never asked about — see withheldReason
   "llm_only_if_note_tagged", "note_selection",
@@ -1238,6 +1249,44 @@ function Detail(p: EditorProps) {
               if (v === "intermediate") drop("in_output");
             }}
             error={e} />
+        ))}
+        {/* WHERE THE FIGURE IS READ FROM — asked only of an extracted line, because it is the only
+            type that reads anything: a calculated line sums its parts and a derived one runs its
+            cascade. One asked question replacing three inferred ones that had to agree — the
+            section's `where()`, the presence of a note-source block, and whether that block
+            carried prose patterns. An author could satisfy two and not the third, and every way of
+            getting it wrong was silent.
+
+            RENDERED THROUGH `fld` UNCONDITIONALLY, with `withheldReason` doing the hiding — not
+            wrapped in `type === "extracted" &&`. That wrapper worked and was wrong twice over: it
+            broke the one-inventory-of-itself invariant `tests/test_form_field_lists.py` enforces
+            (it finds controls by scanning for the fld call site, so a name in `GROUP_FIELDS` with
+            no such call inflates the banner's count), and it made the control silently ABSENT on a
+            calculated line where every other conditional control says why it is not there. */}
+        {fld("route", (e) => (
+          <SelectField<Route>
+            label="Where is this line's figure read from?" testid="route"
+            editable={editable} reason={lockReason} nullable nullLabel="not chosen yet"
+            options={vocab?.routes ?? []}
+            labelOf={(v) => ({ face: "The face of the statement",
+                               note_tables: "A note's table rows",
+                               prose: "A sentence in a note" } as Record<string, string>)[v] ?? v}
+            helpOf={(v) => ({
+              face: "claimed off the printed statement by the recognition patterns on the "
+                  + "Deterministic tab. A note-source block on such a line is never acted on",
+              note_tables: "read out of the rows of a cited note, selected by the note-source "
+                         + "block below. If no row matches, a sentence in the same note is tried "
+                         + "as a fallback",
+              prose: "read out of a SENTENCE only — the row search is skipped entirely. For a "
+                   + "figure the filing states in words and tabulates nowhere",
+            } as Record<string, string>)[v]}
+            help={<>The one question that decides which search runs for this line. <b>Not chosen
+                  yet</b> is not the same as <b>the face</b>: it means nothing has been said, and
+                  the line is read the way it was before this question existed — so an older
+                  configuration is not silently re-routed.</>}
+            value={g("route", item.route ?? null)}
+            onChange={(v) => patch({ route: v })}
+            error={e} inherited={inh("route", item.route ?? null)} />
         ))}
         {fld("inherits", (e) => (
           <SelectField<string>

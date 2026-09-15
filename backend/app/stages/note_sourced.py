@@ -78,7 +78,13 @@ class NoteSourcedStage(Stage):
         filled = touched = 0
         prose_filled = 0
         for item in items:
-            hits = note_sourced.select_rows(item, doc.notes, periods, note_sections)
+            # A `prose` LINE SKIPS THE ROW SEARCH. Its figure is a sentence and nothing else, so
+            # running the row selection first would let a coincidental caption match publish a
+            # tabulated number on a line the author said is never tabulated. `note_tables` — the
+            # value every migrated line carries — searches rows and keeps the prose FALLBACK below,
+            # which is what the six depreciation splits need.
+            hits = ([] if route_of(item) == "prose"
+                    else note_sourced.select_rows(item, doc.notes, periods, note_sections))
             if not hits:
                 # A FIGURE THE FILING STATES ONLY IN PROSE, and this is the one route to it.
                 #
@@ -295,11 +301,37 @@ def _declared_items(line_item_set) -> list:
     sections = getattr(line_item_set, "section_defaults", None) or {}
 
     def _lives_on_the_face(item) -> bool:
+        """Whether this line's figure is read off the STATEMENT rather than out of a note.
+
+        THE LINE'S OWN `route` ANSWERS IT NOW, where this used to infer the answer from the section
+        the line inherits. That inference is exactly what `route` replaces: `where()` is derived
+        from `face_only` and `scopes`, so "is this a face line" was two derivations away from
+        anything an author wrote, and an author who declared a `note_source` on a face line had no
+        way to see that the pipeline would refuse to act on it.
+
+        `route: None` KEEPS THE OLD READING, so a set authored before the field existed behaves
+        exactly as it did — the section inference is the fallback, not the primary. Adding the
+        question re-routes nothing on its own.
+        """
+        route = str(getattr(item, "route", "") or "")
+        if route:
+            return route == "face"
         section = sections.get(str(getattr(item, "inherits", "") or ""))
         return section is not None and section.where() == "face"
 
     declared = [i for i in declared if not _lives_on_the_face(i)]
     return sorted(declared, key=lambda i: (int(getattr(i, "order", 0) or 0), i.key))
+
+
+def route_of(item) -> str:
+    """This line's note route, with the legacy inference behind it — the ONE reader of that fallback.
+
+    `prose` skips the row search entirely; `note_tables` searches rows and falls back to prose;
+    `face` never reaches this stage at all (`_declared_items` filters it). A line that declares
+    nothing is read as `note_tables`, which is what carrying a `note_source` has always meant.
+    """
+    route = str(getattr(item, "route", "") or "")
+    return route if route in ("face", "note_tables", "prose") else "note_tables"
 
 
 def _write(row: LineItem, basis: str, period: str, amount: Decimal) -> None:

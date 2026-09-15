@@ -1537,6 +1537,16 @@ export type OutputStructure = "value" | "phrase" | "prose";
  *  were never alternatives: a pattern-named note is passed unconditionally and scoring ADDS to it,
  *  so `patterns` only removed the line from the semantic pass. All 539 lines declared neither. */
 export type NoteSelection = "cited_first" | "any";
+
+/** WHERE AN `extracted` LINE'S FIGURE IS READ FROM — one choice, and one question replacing three
+ *  implicit ones (`SectionDefaults.where()`, the presence of a `note_source`, and whether that
+ *  object carried prose patterns, which an author could satisfy two of and not the third).
+ *
+ *    face         off the statement itself, by the deterministic caption readers
+ *    note_tables  out of a cited note's table rows, with the prose fallback behind it
+ *    prose        out of a sentence, for a figure the filing tabulates nowhere — skips the rows
+ */
+export type Route = "face" | "note_tables" | "prose";
 /** Where a caption may be READ FROM, in search order — not a gate. The tokens are
  *  `StatementType`'s own: this list once said `income_statement` and `changes_in_equity`, neither
  *  of which the backend knows (it says `profit_and_loss` and `equity_changes`), so a scope sent
@@ -1723,6 +1733,10 @@ export interface LineItemDef {
   /** Whether a note the filing itself cites beside this line's face caption is offered first.
    *  `cited_first` by default; `any` ranks by score alone. */
   note_selection: NoteSelection;
+  /** WHERE THIS LINE'S FIGURE IS READ FROM — one choice, asked only of an `extracted` line.
+   *  `null` means nothing was said, which is NOT "face": a set authored before the field existed
+   *  is read the way it always was. */
+  route?: Route | null;
   aliases: string[];
   /** Per-locale aliases; the matcher folds every locale into one index. */
   aliases_i18n: Record<string, string[]>;
@@ -1905,6 +1919,7 @@ export interface LineItemEdit {
   allow_contra?: boolean;
   llm_only_if_note_tagged?: boolean;
   note_selection?: NoteSelection;
+  route?: Route | null;
   /** `null` disables note sourcing for this line entirely. */
   note_source?: NoteSource | null;
   note_use?: LineItemNoteUse | null;
@@ -2010,6 +2025,9 @@ export interface LineItemVocab {
   types: LineItemType[];
   output_structures: OutputStructure[];
   note_selections: NoteSelection[];
+  /** Where an extracted line's figure is read from — served so the control offers exactly the
+   *  three routes the pipeline implements. */
+  routes: Route[];
   value_scopes: ValueScope[];
   extraction_modes: LineItemExtractionMode[];
   alias_matching: LineItemAliasMatching[];

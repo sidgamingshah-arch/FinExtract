@@ -609,3 +609,127 @@ def test_the_allowlist_comes_from_the_face_not_from_a_literal(shipped):
             for li in doc.line_items if li.canonical_key == "sub__rd_depreciation"
             for ev in li.values.values() if ev.value is not None]}
     assert got == {"current": "10", "prior": "20", "prior_2": "30"}, got
+
+
+# ── the route: where an extracted line's figure is read from ──────────────────────────────────
+#
+# ONE ASKED QUESTION replacing three inferred ones. Before `route`, "is this a note line" was
+# answered by `SectionDefaults.where()` (itself derived from `face_only` and `scopes`), "does it
+# have a note route" by whether a `note_source` object was present, and "is it prose" by whether
+# that object happened to carry `prose_subject`/`prose_any`. An author could satisfy two of the
+# three and not the last, and every way of getting it wrong was silent.
+
+def test_a_face_route_line_is_not_filled_from_a_note(shipped):
+    """`route: "face"` keeps a line out of this stage even when it declares a note_source.
+
+    The guard existed before, keyed on the section the line inherits; it is now the line's own
+    declaration. Asserted because the failure it prevents is the quiet kind — a face line taking a
+    figure out of a note reconciles against nothing and looks entirely plausible on the statement.
+    """
+    edited = shipped.model_copy(deep=True)
+    by_key = {i.key: i for i in edited.items}
+    probe = by_key["sub__cos_depreciation"].model_copy(deep=True)
+    probe.key = "sub__probe_face_routed"
+    probe.parent = ""
+    probe.route = "face"
+
+    # THE POSITIVE CONTROL, and it is here because this test passed VACUOUSLY when first written:
+    # the note was titled "Property, plant and equipment" and `sub__cos_depreciation` selects its
+    # note by `cost of sales`, so NOTHING was selected and the assertion below held for entirely
+    # the wrong reason. An identical line differing only in its route proves the note really does
+    # match, so a `None` above can only be the route.
+    control = probe.model_copy(deep=True)
+    control.key = "sub__probe_control"
+    control.route = "note_tables"
+
+    edited.items += [probe, control]
+
+    doc, _ctx = _run(edited, [NotesTable(
+        note_number="8", title="Cost of sales",
+        items=[_note_row("Depreciation of property, plant and equipment", "4321")])])
+
+    assert _figure(doc, "sub__probe_control") == Decimal("4321"), (
+        "the control must be filled, or this test proves nothing about the route")
+    assert _figure(doc, "sub__probe_face_routed") is None
+
+
+def test_a_prose_route_line_skips_the_row_search(shipped):
+    """`route: "prose"` means the figure is a SENTENCE and nothing else.
+
+    A `note_tables` line searches rows and falls back to prose; a `prose` line does not search rows
+    at all. Without that, a coincidental caption match would publish a tabulated number on a line
+    its author said is never tabulated — and the number would look right, because it came off a
+    real extracted row in the right note.
+
+    Proved by giving the same line a note whose row DOES match its patterns and asserting nothing
+    is taken from it: the row route is what is switched off, not the matching.
+    """
+    edited = shipped.model_copy(deep=True)
+    by_key = {i.key: i for i in edited.items}
+
+    rows_only = by_key["sub__cos_depreciation"].model_copy(deep=True)
+    rows_only.key = "sub__probe_rows"
+    rows_only.parent = ""
+    rows_only.route = "note_tables"
+
+    prose_only = rows_only.model_copy(deep=True)
+    prose_only.key = "sub__probe_prose"
+    prose_only.route = "prose"
+
+    edited.items += [rows_only, prose_only]
+
+    # THE NOTE TITLE MATTERS: `sub__cos_depreciation` selects its note by `cost of sales`, not by
+    # the asset note. Titled wrongly, every assertion below would pass for the wrong reason —
+    # nothing selected because no note matched, rather than nothing selected because of the route.
+    notes = [NotesTable(note_number="8", title="Cost of sales",
+                        items=[_note_row("Depreciation of property, plant and equipment", "4321")])]
+    doc, _ctx = _run(edited, notes)
+
+    # Identical configuration, identical note — the ROUTE is the only difference between them.
+    assert _figure(doc, "sub__probe_rows") == Decimal("4321")
+    assert _figure(doc, "sub__probe_prose") is None
+
+
+def test_a_line_that_declares_no_route_is_read_the_way_it_always_was(shipped):
+    """`route: None` IS NOT "face" — it means nothing was said, and the section inference stands.
+
+    This is what makes the field safe to add: a set authored before `route` existed behaves exactly
+    as it did, so introducing the question re-routes no shipped figure. The 67 shipped items left
+    unset are the `either` and `notes` sections that declare no note_source anyway.
+    """
+    edited = shipped.model_copy(deep=True)
+    by_key = {i.key: i for i in edited.items}
+    probe = by_key["sub__cos_depreciation"].model_copy(deep=True)
+    probe.key = "sub__probe_unset"
+    probe.parent = ""
+    probe.route = None
+    edited.items.append(probe)
+
+    doc, _ctx = _run(edited, [NotesTable(
+        note_number="8", title="Cost of sales",
+        items=[_note_row("Depreciation of property, plant and equipment", "4321")])])
+
+    # `sub__cos_depreciation` inherits `notes`, so the legacy inference reads it from the note.
+    assert _figure(doc, "sub__probe_unset") == Decimal("4321")
+
+
+def test_every_shipped_note_sourced_line_declares_note_tables(shipped):
+    """THE MIGRATION, asserted rather than assumed.
+
+    All 60 shipped lines carrying a `note_source` migrated to `note_tables`, including the 6 that
+    carry prose patterns — because for those 6 prose is a FALLBACK and not an alternative. On one
+    reference filing the operating-expense share of depreciation is stated only in a footnote; on
+    others the same line is a printed row. Routing those 6 to `prose` would have emptied them on
+    every filing that tabulates them, which is why single-choice `route` means "primarily read
+    from" and the fallback stays in code.
+    """
+    declared = [i for i in shipped.items if getattr(i, "note_source", None) is not None]
+    assert len(declared) == 60, len(declared)
+    assert {i.route for i in declared} == {"note_tables"}, sorted(
+        {(i.key, i.route) for i in declared if i.route != "note_tables"})
+
+    with_prose = [i for i in declared
+                  if (i.note_source.prose_subject or i.note_source.prose_any)]
+    assert len(with_prose) == 6, [i.key for i in with_prose]
+    assert all(i.note_source.row_caption_any or i.note_source.row_terms for i in with_prose), (
+        "a prose-carrying line with no row patterns would have been a genuine `prose` route")

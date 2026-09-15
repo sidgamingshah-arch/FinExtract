@@ -76,7 +76,7 @@ from app.schemas.line_items import (
     LineItemDef,
     LineItemSet,
     LineItemType,
-    NoteSelection, OutputStructure,
+    NoteSelection, OutputStructure, Route,
     MappingVocabulary,
     Namespace,
     NoteSource,
@@ -533,6 +533,9 @@ def _vocabulary(st: LineItemSet) -> dict:
         # The three output structures, so the control cannot offer a fourth.
         "output_structures": _literal_values(OutputStructure),
         "note_selections": _literal_values(NoteSelection),
+        # WHERE AN EXTRACTED LINE IS READ FROM — face, note tables or prose. Served so the control
+        # offers exactly the three the pipeline implements and no fourth.
+        "routes": _literal_values(Route),
         "value_scopes": _literal_values(ValueScope),
         "extraction_modes": _literal_values(ExtractionMode),
         "alias_matching": _literal_values(AliasMatching),
@@ -1123,6 +1126,7 @@ class ItemEdit(BaseModel):
     allow_contra: bool | None = None
     llm_only_if_note_tagged: bool | None = None
     note_selection: NoteSelection | None = None
+    route: Route | None = None
     note_source: NoteSource | None = None
     note_use: NoteUse | None = None
     face_only: bool | None = None
@@ -1213,6 +1217,7 @@ _EDIT_SCALARS: dict[str, str] = {
     "allow_contra": "allow_contra",
     "llm_only_if_note_tagged": "llm_only_if_note_tagged",
     "note_selection": "note_selection",
+    "route": "route",
     "note_use": "note_use",
     "face_only": "face_only",
     "is_gross_parent": "is_gross_parent",
