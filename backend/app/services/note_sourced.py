@@ -129,6 +129,37 @@ class NoteRowHit:
         self.period = period
 
 
+def _table_basis(table, value) -> str:
+    """The basis a note row's figure belongs to — the NOTE'S, where the note declares one.
+
+    A CSRC filing repeats every material balance for the parent company alone, under the chapter
+    heading 母公司财务报表(主要)项目注释, and `notes_extract` already marks those tables
+    `basis=STANDALONE` from that heading. Its comment states the intent exactly: "the note's
+    ``basis`` is set from it, so a consumer computing a consolidated figure can decline a
+    company-only note instead of summing across bases." This reader was not that consumer — it took
+    the basis off the row's VALUE, which is read from the note's own columns and says nothing about
+    whose statements the note explains — so the producer honoured the distinction and nothing
+    downstream did.
+
+    MEASURED ON 1223214527, a Shenzhen-listed filing whose revenue note is printed twice. Note
+    七、35 (the group's, p179) reads 411,974,409.31 and note 十八、4 (the parent's, p206) reads
+    408,721,552.34, both captioned 主营业务, and `sub__revenue_note_principal_revenue` filed both
+    under `consolidated`. Which one reached the published figure was decided by nothing better than
+    which pages the classifier happened to read as notes: it published the PARENT's 408,721,552.34
+    as the group's revenue, and with page detection widened it published their sum,
+    820,695,961.65 — against the 42,223.93 万元 (422,239,300, principal plus other business) the
+    filing states in its own MD&A.
+
+    So a company-only note's rows go to STANDALONE and stop contesting the consolidated slot. The
+    row's own basis is kept wherever the note declares none, which is every English filing and every
+    chapter that is not the parent company's — the note-level signal narrows, it never invents.
+    """
+    declared = getattr(table, "basis", None)
+    if declared is None:
+        return _basis_of(value)
+    return str(getattr(declared, "value", declared) or "") or _basis_of(value)
+
+
 def select_rows(item, notes, periods: set[str] | None = None,
                 note_sections: dict[str, set[str]] | None = None) -> list[NoteRowHit]:
     """The note rows THIS item's `note_source` declares, across every note whose title matches.
@@ -223,7 +254,7 @@ def select_rows(item, notes, periods: set[str] | None = None,
                         key=item.key, note_number=str(getattr(table, "note_number", "")),
                         note_title=title, caption=caption, matched_by=matched,
                         value=value, amount=amount,
-                        basis=_basis_of(value), period=hint))
+                        basis=_table_basis(table, value), period=hint))
                 continue
 
             # A movement table's rows are readable ONLY through the block period. One that did not
@@ -281,7 +312,7 @@ def select_rows(item, notes, periods: set[str] | None = None,
                     key=item.key, note_number=str(getattr(table, "note_number", "")),
                     note_title=title, caption=caption, matched_by=matched,
                     value=value, amount=amount,
-                    basis=_basis_of(value),
+                    basis=_table_basis(table, value),
                     period=str(getattr(value, "period_label", "") or "")))
     return hits
 

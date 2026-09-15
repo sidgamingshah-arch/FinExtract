@@ -17284,7 +17284,12 @@
      "销售费用",
      "营业费用",
      "分销费用",
-     "销售及市场推广开支"
+     "销售及市场推广开支",
+     "selling and marketing",
+     "selling expenses",
+     "selling and distribution",
+     "distribution costs",
+     "marketing expenses"
     ],
     "row_terms": [
      "depreciation",
@@ -17436,7 +17441,10 @@
      "管理费用",
      "一般及行政费用",
      "行政费用",
-     "一般及管理费用"
+     "一般及管理费用",
+     "general and administrative",
+     "administrative expenses",
+     "g& a expenses"
     ],
     "row_terms": [
      "投資物業折舊",
