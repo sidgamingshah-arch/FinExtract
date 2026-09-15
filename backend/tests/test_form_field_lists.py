@@ -155,3 +155,93 @@ def test_every_type_can_say_what_the_line_means() -> None:
     assert "definition" in SIMPLE["COMMON_SIMPLE"], SIMPLE["COMMON_SIMPLE"]
     assert "definition" not in SIMPLE["MEANING_SIMPLE"], (
         "listed twice — `COMMON_SIMPLE` already gives it to every type")
+
+
+# ── the two tabs, and the contract that the deterministic one cannot reach the model ──────────
+
+DETERMINISTIC_TAB = set(_names(_block("const DETERMINISTIC_FIELDS = new Set([", "]);")))
+
+
+def test_the_deterministic_tab_is_exactly_what_the_request_withholds() -> None:
+    """THE TWO-ROUTE CONTRACT, asserted ACROSS THE LANGUAGE BOUNDARY.
+
+    The screen promises that the deterministic tab cannot change what the model is asked — that is
+    the whole reason it is a separate tab and the reason it may be left blank. The promise is kept
+    in Python (`services.line_item_llm.line_item_payload` sends none of those fields) and MADE in
+    TypeScript (`DETERMINISTIC_FIELDS`), and nothing connects the two.
+
+    So this does. For every field the screen files under "Patterns", the payload built from an item
+    carrying a value for it must contain no trace of that value. A field added to the tab that the
+    payload still sends would be a lie on the screen; a field REMOVED from the payload but left off
+    the tab is merely untidy, and is the other assertion below.
+    """
+    from app.services.line_item_config import load_shipped_set
+    from app.services.line_item_llm import line_item_payload
+
+    st = load_shipped_set()
+    # The line with the most authored recognition of any in the set — 39 row regexes, 51 row terms,
+    # aliases and a full prose block — so every field on the tab has a value to leak.
+    item = next(i for i in st.items if i.key == "sub__cp_other_receivables_rp")
+    payload = line_item_payload(item, ("24",))
+
+    ns = item.note_source
+    values: dict[str, list[str]] = {
+        "aliases": list(item.aliases or ()),
+        "exclude_hints": list(item.exclude_hints or ()),
+        "note_source.row_caption_any": list(ns.row_caption_any or ()),
+        "note_source.row_caption_none": list(ns.row_caption_none or ()),
+        "note_source.prose_any": list(ns.prose_any or ()),
+        "note_source.prose_landed_in": list(ns.prose_landed_in or ()),
+        # paired into the same control as the regex lists above, so they are on the tab too
+        "note_source.row_terms": list(ns.row_terms or ()),
+        "note_source.row_terms_none": list(ns.row_terms_none or ()),
+    }
+    assert any(values[f] for f in values), "the fixture must carry recognition, or this is vacuous"
+
+    # STRUCTURAL, NOT SUBSTRING, and the first version of this test got that wrong. Serialising the
+    # payload and looking for each authored string inside it reported three fields as leaking —
+    # because `row_terms_none` contains "advances", "ities" and "back", and `row_caption_any`
+    # contains 关联方, every one of which legitimately occurs inside the line's own DEFINITION prose.
+    # The contract is not "these characters never appear"; it is "the request carries no field
+    # holding these lists". So assert on keys and on whole values.
+    ALLOWED_KEYS = {"key", "label", "notes_supplied", "definition", "exclude", "printed_in",
+                    "sign_convention"}
+    assert set(payload) <= ALLOWED_KEYS, (
+        f"the request grew a key the two-route split has not been reasoned about: "
+        f"{sorted(set(payload) - ALLOWED_KEYS)}")
+
+    # And no value in the request IS one of the deterministic lists, whatever key it arrived under —
+    # which catches a rename as well as an addition.
+    sent_lists = [v for v in payload.values() if isinstance(v, list)]
+    for field, vals in values.items():
+        if not vals:
+            continue
+        assert list(vals) not in sent_lists, f"{field} is sent to the model under some key"
+        # `notes_supplied` is a list of note numbers; nothing else list-shaped may overlap a
+        # recognition list at all, which is a stronger and still false-positive-free check.
+        for sent in sent_lists:
+            shared = set(map(str, sent)) & set(map(str, vals))
+            assert not shared, f"{field} shares {sorted(shared)[:3]} with a list in the request"
+
+
+def test_every_field_on_the_deterministic_tab_is_a_real_control() -> None:
+    """The tab is a filter over controls, so a name with no control filters nothing — the same
+    identity the three lists above are held to, for the same reason."""
+    assert not DETERMINISTIC_TAB - RENDERED, sorted(DETERMINISTIC_TAB - RENDERED)
+
+
+def test_the_tab_split_leaves_the_meaning_fields_on_the_llm_side() -> None:
+    """THE OTHER DIRECTION, because a tab that swallowed the definition would be worse than no tab.
+
+    `definition` is the whole of what the model is told about a line after the prompt merge, and
+    the placing and assembly questions decide which request is made at all. None of them may drift
+    onto the patterns tab, where an author would not think to look.
+    """
+    must_stay = {"definition", "exclude_criteria", "label", "type", "route", "statements",
+                 "section_scope", "parent", "order", "terms", "cascade",
+                 "note_source", "note_source.note_title_any",
+                 "llm_only_if_note_tagged", "note_selection"}
+    on_the_wrong_tab = sorted(must_stay & DETERMINISTIC_TAB)
+    assert not on_the_wrong_tab, on_the_wrong_tab
+    # And they are real controls, so the assertion is not about names nobody renders.
+    assert must_stay <= RENDERED, sorted(must_stay - RENDERED)

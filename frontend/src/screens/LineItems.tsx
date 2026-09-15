@@ -690,6 +690,40 @@ const GROUP_FIELDS = {
   assembly: ["terms", "cascade", "implemented_by"],
 } as const;
 
+/** WHICH TAB EACH CONTROL BELONGS ON — the two-route split, as data.
+ *
+ *  THE CONTRACT THIS RENDERS. The DETERMINISTIC tab holds the recognition evidence: the strings and
+ *  patterns the lexical readers match on (`services.mapping`'s alias index,
+ *  `note_sourced.select_rows`). None of it is sent to the model — `line_item_payload` withholds
+ *  every one of these fields — so a blank deterministic tab and a filled one put the SAME request
+ *  to the model, and an answer is attributable to the definition alone. Everything else is the LLM
+ *  tab: what the line MEANS, where it is placed, where it is read from, and how it is assembled.
+ *
+ *  KEYED BY FIELD, NOT BY GROUP, and that is what makes it a one-line change rather than JSX
+ *  surgery. `fld` is the one filter every control passes through, so the tab is applied there and
+ *  the groups keep their existing shape — a group whose controls are all on the other tab simply
+ *  reports `visible: false`, which `Group` already handles. It also keeps the note-source block
+ *  splittable: `MatchListEditor` edits a regex list AND its terms list as ONE control
+ *  (`row_caption_any` with `row_terms`), so those cannot be separated — and they do not need to be,
+ *  because both are deterministic. The note pair (`note_title_any` with `note_terms`) is note
+ *  IDENTIFICATION, which decides WHICH notes are supplied to the request, so it stays on the LLM
+ *  tab where its effect is.
+ *
+ *  ANYTHING UNLISTED IS THE LLM TAB. Default-to-LLM rather than default-to-deterministic because a
+ *  new field is far more likely to be authored meaning than a new match pattern, and because the
+ *  failure directions are not symmetric: a meaning field hidden on the wrong tab is merely hard to
+ *  find, while a pattern field that quietly reaches the model breaks the contract above. */
+const DETERMINISTIC_FIELDS = new Set([
+  // Caption recognition — the alias index and the rule tier.
+  "aliases", "exclude_hints",
+  // Row selection inside a note. Each of these is one `MatchListEditor` over a regex list and its
+  // paired terms list, which is why `row_terms`/`row_terms_none` need no entry of their own.
+  "note_source.row_caption_any", "note_source.row_caption_none",
+  // Prose patterns. The prose ROUTE is an LLM-tab question (`route`); these are how a sentence is
+  // matched once that route is chosen.
+  "note_source.prose_subject", "note_source.prose_landed_in", "note_source.prose_any",
+]);
+
 const CONDITIONAL_FIELDS = [
   // `prompt` WAS HERE — withheld on a line the model is never asked about. Merged into
   // `definition`, which every line type may carry, so it is conditional on nothing.
@@ -900,6 +934,15 @@ function Detail(p: EditorProps) {
   // configuration screen becomes unreadable: the eight fields that define a line sat among sixty
   // that override a section default or serve a case arising on four lines out of 475.
   const [mode, setMode] = useState<"simple" | "advanced">("simple");
+  // WHICH ROUTE'S CONFIGURATION IS ON SHOW. Two tabs, because the two routes are answerable
+  // independently and must not be read as one form: the LLM tab is what the model is told, and the
+  // deterministic tab is the recognition evidence the lexical readers match on and that is never
+  // sent. `DETERMINISTIC_FIELDS` is the membership; anything unlisted is the LLM tab.
+  //
+  // LLM FIRST, because it is the tab an author has to fill: a line with a definition and a placing
+  // works with the deterministic tab entirely blank, and the reverse is not true.
+  const [tab, setTab] = useState<"llm" | "deterministic">("llm");
+  const tabOf = (name: string) => (DETERMINISTIC_FIELDS.has(name) ? "deterministic" : "llm");
   // OFF by default: the point of the conditional rules is that a control the line cannot use is not
   // on the form. The escape hatch exists so the withholding is auditable rather than mysterious —
   // an author who wants to see what was taken away, and why, can.
@@ -970,6 +1013,10 @@ function Detail(p: EditorProps) {
     // A field the server refused is shown WHATEVER the mode, because hiding the control a refusal
     // is addressed to leaves an author with a message and nothing to act on.
     if (mode === "simple" && !isSimple(name) && !errors[name] && !forced) return null;
+    // THE TAB, last of the filters and for the same reason the mode is next-to-last: a field the
+    // server REFUSED is shown whatever the tab, because hiding the control a refusal is addressed
+    // to leaves an author with a message and nothing to act on.
+    if (!errors[name] && tabOf(name) !== tab) return null;
     return (
       <div data-testid={`li-field-${name}`} key={name}>
         <div data-testid={errors[name] ? `li-field-error-${name}` : undefined}>
@@ -993,6 +1040,11 @@ function Detail(p: EditorProps) {
     const forced = requiredNow(n, sel);
     if (withheldReason(n, sel) && !forced && !showInapplicable && !errors[n]) return false;
     if (RETIRED_FIELDS.has(n) && !forced) return false;
+    // THE TAB, mirroring `fld` — a banner that counts controls the active tab is not showing
+    // announces four fields over a group displaying none, which is the drift
+    // `tests/test_form_field_lists.py` exists to keep out of the three name lists and which this
+    // would reintroduce at render time.
+    if (!errors[n] && tabOf(n) !== tab) return false;
     return mode === "advanced" || isSimple(n) || !!errors[n] || forced;
   };
   const idx = (name: string) => indexErrors[name];
@@ -1120,6 +1172,27 @@ function Detail(p: EditorProps) {
                             background: "transparent", color: color.sec2 }}>
             {allShut ? "Open all sections" : "Collapse all sections"}
           </button>
+          {/* LLM / DETERMINISTIC. The two routes into a line, kept apart because they are answered
+              independently: the LLM tab is everything the model is told about this line, and the
+              deterministic tab is the strings and patterns the lexical readers match on — which
+              `line_item_payload` withholds entirely, so filling it cannot change what the model is
+              asked. Blank is a valid deterministic tab. */}
+          <div role="group" aria-label="Which route's configuration to show"
+               style={{ display: "flex", border: `1px solid ${color.cardBorder}`,
+                         borderRadius: radius.control, overflow: "hidden" }}>
+            {([["llm", "Meaning"], ["deterministic", "Patterns"]] as const).map(([t, lab]) => (
+              <button key={t} onClick={() => setTab(t)} aria-pressed={tab === t}
+                      data-testid={`li-tab-${t}`}
+                      title={t === "llm"
+                        ? "What this line is, where it sits and how it is assembled — everything the model is told"
+                        : "Aliases and match patterns for the deterministic readers. Never sent to the model; may be left blank"}
+                      style={{ fontSize: 11, cursor: "pointer", padding: "3px 10px", border: 0,
+                                background: tab === t ? color.indigo : "transparent",
+                                color: tab === t ? "#fff" : color.sec2 }}>
+                {lab}
+              </button>
+            ))}
+          </div>
           {/* SIMPLE / ADVANCED. Simple is the fields that decide THIS KIND of line — a different
               set for an extracted line, a derived one and an arithmetic one; advanced is every
               override and every mechanism. A field the server REFUSED is shown in either mode —
