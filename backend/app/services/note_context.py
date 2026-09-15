@@ -494,6 +494,23 @@ def dedupe_prose(pieces: list[str]) -> str:
     return "\n".join(kept)
 
 
+# A CONTINUATION MARKER, so a note printed across pages is still recognised as ONE note when its
+# later fragments re-title themselves "SEGMENT INFORMATION (CONTINUED)" / 附註（續）.
+_CONTINUED = re.compile(r"[（(]\s*(?:continued|cont'?d\.?|續|续)\s*[)）]"
+                        r"|continued|（續）|（续）", re.I)
+
+
+def _same_note_key(title: str) -> str:
+    """A note heading reduced to what decides whether two fragments are the SAME note.
+
+    The enumerator goes (`_LEAD`, for the reason `title_variants` gives), the continuation marker
+    goes, whitespace goes, and case folds. What is left is the heading's identity.
+    """
+    text = _CONTINUED.sub("", title or "")
+    text = _LEAD.sub("", text)
+    return re.sub(r"\s+", "", text).strip().lower()
+
+
 def identified_notes(line_item_set, notes, *, cited=None) -> list[dict]:
     """Every note a `note_source` declaration names, IN FULL — all rows and all prose.
 
@@ -648,8 +665,10 @@ def identified_notes(line_item_set, notes, *, cited=None) -> list[dict]:
     # distinct string, which is the property `note_sourced.resolve_sources` needs: it verifies a
     # prose-stated amount against the note's own text, and an amount printed on three pages still
     # appears once.
-    by_number: dict[str, dict] = {}
-    order: list[str] = []
+    by_number: dict[tuple[str, str], dict] = {}
+    order: list[tuple[str, str]] = []
+    # The last heading seen under each number, so a fragment with none of its own continues it.
+    last_title: dict[str, str] = {}
     for table in notes or ():
         title = getattr(table, "title", "") or ""
         number = str(getattr(table, "note_number", "") or "")
@@ -676,7 +695,31 @@ def identified_notes(line_item_set, notes, *, cited=None) -> list[dict]:
                 figures[str(getattr(ev, "period_label", "") or "?")] = str(ev.value)
             rows.append({"caption": caption, **({"figures": figures} if figures else {})})
 
-        key = number or title
+        # ONE ENTRY PER NOTE, WHICH IS NOT THE SAME AS ONE PER NUMBER.
+        #
+        # Keying on the number alone pools tables that merely SHARE a number, and on a CAS filing
+        # they routinely are not one note: the Han-chapter numbering restarts per chapter and the
+        # extractor's number is not always the filing's. Measured across thirteen filings, seven
+        # have colliding numbers — on 10972689 the number "2" carries FIFTEEN distinct headings and
+        # 21 numbers collide; on d84d0937 十七、1 carries nineteen and 35 collide.
+        #
+        # WHAT THAT DID TO A REQUEST, and it is why this is not cosmetic. Hubei's 十九、4 is
+        # 营业收入和营业成本, the note holding the revenue rows. It reached the model pooled under
+        # ）本期计提、收回或转回的坏账准备情况 — a bad-debt provision heading — with six rows mixing the
+        # provision movement and the revenue figures. The note WAS passed and was unusable: a
+        # heading that describes none of its rows is worse than an absent note, because the model
+        # has no way to know the label is wrong.
+        #
+        # A CONTINUATION STILL MERGES, which is the property the comment above this loop defends: a
+        # fragment with no heading of its own continues the last note under that number, and one
+        # re-titled "(CONTINUED)" reduces to the same key. Only a genuinely DIFFERENT heading opens
+        # a new entry.
+        same = _same_note_key(title)
+        if not same:
+            same = last_title.get(number, "")
+        else:
+            last_title[number] = same
+        key = (number, same) if number else ("", same or title)
         acc = by_number.get(key)
         if acc is None:
             # THE FIRST FRAGMENT'S TITLE IS THE NOTE'S. A later one is a continuation line —
@@ -684,6 +727,10 @@ def identified_notes(line_item_set, notes, *, cited=None) -> list[dict]:
             acc = {"note": number, "title": title, "_for": set(), "_rows": [], "_prose": []}
             by_number[key] = acc
             order.append(key)
+        elif not (acc.get("title") or "").strip() and (title or "").strip():
+            # The note's first fragment carried no heading and a later one does — take it, so the
+            # entry is not labelled with the empty string when the filing did title the note.
+            acc["title"] = title
         acc["_for"].update(wanted_by)
         acc["_rows"].extend(rows)
         prose = (getattr(table, "source_text", "") or "").strip()
