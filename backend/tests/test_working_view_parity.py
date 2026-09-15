@@ -403,6 +403,17 @@ def test_shipped_set_projects_every_definition_including_the_parts():
         "sub__fa_cp_investment_and_money_market_securities_note_total",
         "sub__fa_cp_noncurrent_split_of_note_total",
         "sub__face_principal_revenue", "sub__revenue_note_principal_revenue",
+        # THE FOUR ASSET-DEPRECIATION PARTS, scoped to `bs_nca` to mean "consider the non-current
+        # asset notes" — the same CONTEXT sense the six securities parts give `bs_ca`, and named
+        # here for the same reason the list exists: so an addition is read deliberately.
+        "sub__ppe_depreciation", "sub__fixed_asset_depreciation",
+        "sub__investment_property_depreciation", "sub__cip_depreciation",
+        # AND THE ONE PART THAT READS THE CASH-FLOW FACE. `sub__cfo_depreciation` has no
+        # `note_source` at all: the depreciation add-back is printed on the face of an indirect
+        # cash-flow statement, so `statement: cash_flow` and `section_scope: ['cf_oper_indirect']`
+        # are the mechanism by which it is read, not a pin that cuts it off from a note it never
+        # reads. `sub__face_principal_revenue` above is the same shape for the income statement.
+        "sub__cfo_depreciation",
     }
     # A RESIDUAL BUCKET IS NOT A PART and declares its statement properly: `bs_ca_residual_L3`
     # is a balance-sheet current-assets bucket, so `balance_sheet` is where it belongs.

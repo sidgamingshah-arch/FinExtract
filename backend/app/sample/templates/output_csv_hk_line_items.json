@@ -17055,10 +17055,10 @@
      "property\\s+and\\s+equipment|物業及設備|物业及设备"
     ],
     "row_caption_any": [
-     "(?:depreciation|amortisation|amortization).{0,40}(?:research\\s+and\\s+development\\s+expenses|research\\s+and\\s+development\\s+costs|r\\&d\\s+expenses|r\\&d\\s+costs)",
-     "(?:research\\s+and\\s+development\\s+expenses|research\\s+and\\s+development\\s+costs|r\\&d\\s+expenses|r\\&d\\s+costs).{0,40}(?:depreciation|amortisation|amortization)",
      "(?:研发开支|研发费用|研究及开发开支|研究及开发费用|研究与开发开支|研究与开发费用).{0,12}(?:折旧|折舊|摊销|攤銷)",
-     "(?:折旧|折舊|摊销|攤銷).{0,12}(?:研发开支|研发费用|研究及开发开支|研究及开发费用|研究与开发开支|研究与开发费用)"
+     "(?:折旧|折舊|摊销|攤銷).{0,12}(?:研发开支|研发费用|研究及开发开支|研究及开发费用|研究与开发开支|研究与开发费用)",
+     "(?:depreciation|amortisation|amortization).{0,40}(?:research\\s+and\\s+development\\s+expenses|research\\s+and\\s+development\\s+costs|r\\&d\\s+expenses|r\\&d\\s+costs)",
+     "(?:research\\s+and\\s+development\\s+expenses|research\\s+and\\s+development\\s+costs|r\\&d\\s+expenses|r\\&d\\s+costs).{0,40}(?:depreciation|amortisation|amortization)"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -17115,7 +17115,6 @@
     ],
     "note_terms": [
      "research and development",
-     "r&d expenses",
      "研究及開發開支",
      "研發開支",
      "研发费用",
@@ -17123,16 +17122,9 @@
      "研发支出",
      "研究开发费用",
      "研究与开发",
-     "software development costs"
+     "Operating profit or loss"
     ],
     "row_terms": [
-     "depreciation of investment property",
-     "depreciation of fixed assets",
-     "depreciation of property plant and equipment",
-     "depreciation of construction in progress",
-     "depreciation of right of use assets",
-     "amortisation of prepaid lease payments",
-     "release of prepaid lease payments",
      "depreciation",
      "投資物業折舊",
      "固定資產折舊",
@@ -17158,7 +17150,8 @@
      "折舊與攤銷",
      "折舊和攤銷",
      "摊销",
-     "攤銷"
+     "攤銷",
+     "Depreciation included in research or development costs"
     ],
     "row_terms_none": [
      "opening",
@@ -17194,8 +17187,8 @@
    },
    "statement": "notes",
    "section_scope": [],
-   "definition": "The depreciation and amortisation charge borne by research and development activity for the period — one expense component of that function, not the cost of the function as a whole. It is disclosed as a depreciation or amortisation row within the note that breaks down research and development expenses, which a filing may head research and development, R&D expenses, or the Traditional or Simplified Chinese equivalents. It is not that note's own research and development expense total, nor the research and development caption on the face of the income statement, and it is not an accumulated, opening, closing, disposal or impairment amount lifted from an asset movement schedule.",
-   "prompt": "Take only the depreciation row itemised inside the research and development expense note, never that note's own total research and development expense. Depreciation rows inside the note that R&D note names.",
+   "definition": "Depreciation costs associated with Research and Development. From the context identify the prose that call out depreciation associated with R&D expenses. Never consider the total R&D expense only the depreciation considered in the same.",
+   "prompt": "Ensure that if the values are identified in different notes, do not blindly add the values - Values across various property / Fixed Asset / Right of use assets can be added to arrive at this but values across Profit before taxation note and fixed asset note can never be added.\nAT most time these values come in sentences where there are multiple depreciation values called out in the same line, generally the values in bracket are previous year values. Also, the tag appropriate values to different depreciation by the order as mostly the sentence ends with respectively. \nFor example: Depreciation\tof\tHK$1,694,000\t(2023:\tHK$195,000)\tand\tHK$22,422,000\t(2023: HK$18,035,000) have been included in cost of sales and administrative and other operating expenses, respectively. In the above example 1,694,000 should go into COS depreciation and 22,422,000 should go into depreciation of administrative or depreciation of other operating expense for 2024. and the values inside bracket for 2023.",
    "note_selection": "any",
    "note_use": "decomposition_allowed"
   },
@@ -17265,7 +17258,8 @@
      "^\\s*additions?\\b|\\badditions\\s+(?:during|for)\\b",
      "writ(?:e|ten|ing)[\\s.\\-]?off",
      "^cost\\s+of\\s+sales$",
-     "^sales$"
+     "^Sales$",
+     "Sales$"
     ],
     "prose_any": [],
     "prose_subject": "depreciation",
@@ -17283,11 +17277,6 @@
      "销售及推广费用"
     ],
     "note_terms": [
-     "selling and marketing",
-     "selling expenses",
-     "selling and distribution",
-     "distribution costs",
-     "marketing expenses",
      "銷售及市場推廣開支",
      "銷售開支",
      "銷售及分銷開支",
@@ -17298,13 +17287,6 @@
      "销售及市场推广开支"
     ],
     "row_terms": [
-     "depreciation of investment property",
-     "depreciation of fixed assets",
-     "depreciation of property plant and equipment",
-     "depreciation of construction in progress",
-     "depreciation of right of use assets",
-     "amortisation of prepaid lease payments",
-     "release of prepaid lease payments",
      "depreciation",
      "投資物業折舊",
      "固定資產折舊",
@@ -17330,13 +17312,10 @@
      "折舊與攤銷",
      "折舊和攤銷",
      "摊销",
-     "攤銷"
+     "攤銷",
+     "Depreciation or Amortization associated with Selling & Marketing expenses"
     ],
     "row_terms_none": [
-     "opening",
-     "closing",
-     "disposal",
-     "write off",
      "transfer",
      "reclassification",
      "exchange difference",
@@ -17366,8 +17345,8 @@
    },
    "statement": "notes",
    "section_scope": [],
-   "definition": "The depreciation and amortisation charge borne by selling, distribution and marketing activity for the period — the depreciation component of that function, not the whole cost of selling and distributing. It is disclosed as a depreciation or amortisation row within the note that breaks down selling, distribution or marketing expenses, however the filing heads it: selling expenses, selling and marketing, selling and distribution, distribution costs, or the Traditional or Simplified Chinese equivalents. It is not that note's own selling or distribution expense total, nor the selling and distribution caption on the face of the income statement, and it is not an accumulated, opening, closing, disposal or impairment amount from an asset movement schedule.",
-   "prompt": "Take the depreciation or amortisation row inside the selling, distribution or marketing expense note, never that note's own selling or distribution expense total. Depreciation rows inside the note that Selling & marketing note names.",
+   "definition": "Depreciation costs associated with selling & marketing. From the context identify the prose that call out depreciation associated with selling & marketting expenses. Never consider the total selling & marketting expense only the depreciation considered in the same.",
+   "prompt": "Ensure that if the values are identified in different notes, do not blindly add the values - Values across various property / Fixed Asset / Right of use assets can be added to arrive at this but values across Profit before taxation note and fixed asset note can never be added.\nAT most time these values come in sentences where there are multiple depreciation values called out in the same line, generally the values in bracket are previous year values. Also, the tag appropriate values to different depreciation by the order as mostly the sentence ends with respectively. \nFor example: Depreciation\tof\tHK$1,694,000\t(2023:\tHK$195,000)\tand\tHK$22,422,000\t(2023: HK$18,035,000) have been included in cost of sales and administrative and other operating expenses, respectively. In the above example 1,694,000 should go into COS depreciation and 22,422,000 should go into depreciation of administrative or depreciation of other operating expense for 2024. and the values inside bracket for 2023.",
    "note_selection": "any",
    "note_use": "decomposition_allowed"
   },
@@ -17452,9 +17431,6 @@
      "一般及管理费用"
     ],
     "note_terms": [
-     "general and administrative",
-     "administrative expenses",
-     "g& a expenses",
      "一般及行政開支",
      "行政開支",
      "管理费用",
@@ -17463,14 +17439,6 @@
      "一般及管理费用"
     ],
     "row_terms": [
-     "depreciation of investment property",
-     "depreciation of fixed assets",
-     "depreciation of property plant and equipment",
-     "depreciation of construction in progress",
-     "depreciation of right of use assets",
-     "amortisation of prepaid lease payments",
-     "release of prepaid lease payments",
-     "depreciation",
      "投資物業折舊",
      "固定資產折舊",
      "物業廠房及設備折舊",
@@ -17495,7 +17463,10 @@
      "折舊與攤銷",
      "折舊和攤銷",
      "摊销",
-     "攤銷"
+     "攤銷",
+     "Depreciation",
+     "Amortization",
+     "depreciation included in administrative or general expenses"
     ],
     "row_terms_none": [
      "opening",
@@ -17531,8 +17502,8 @@
    },
    "statement": "notes",
    "section_scope": [],
-   "definition": "The depreciation and amortisation charge borne by general and administrative activity for the period — the depreciation component of administrative overhead, not the overhead itself. It is disclosed as a depreciation or amortisation row within the note that breaks down administrative or general and administrative expenses, which a filing may head administrative expenses, general and administrative expenses, G&A expenses, or the Traditional or Simplified Chinese equivalents. It is not that note's own administrative expense total, nor the administrative expenses line on the face of the income statement, and it is not an accumulated, opening, closing, disposal or impairment amount taken from an asset movement schedule.",
-   "prompt": "Take the depreciation or amortisation row inside the administrative expense note, never that note's own administrative expense total. Depreciation rows inside the note that G&A note names.",
+   "definition": "Depreciation costs associated with general and administrative activity. From the context identify the prose that call out depreciation associated with general and administrative expenses. Never consider the total general and administrative expense only the depreciation considered in the same.",
+   "prompt": "Ensure that if the values are identified in different notes, do not blindly add the values - Values across various property / Fixed Asset / Right of use assets can be added to arrive at this but values across Profit before taxation note and fixed asset note can never be added.\nAT most time these values come in sentences where there are multiple depreciation values called out in the same line, generally the values in bracket are previous year values. Also, the tag appropriate values to different depreciation by the order as mostly the sentence ends with respectively. \nFor example: Depreciation\tof\tHK$1,694,000\t(2023:\tHK$195,000)\tand\tHK$22,422,000\t(2023: HK$18,035,000) have been included in cost of sales and administrative and other operating expenses, respectively. In the above example 1,694,000 should go into COS depreciation and 22,422,000 should go into depreciation of administrative or depreciation of other operating expense for 2024. and the values inside bracket for 2023.\nSo the above example since both administrative and other operating expense has not been segregated for the second value of depreciation, do not claim the value, it shall be claimed by other operating expense.",
    "note_selection": "any",
    "note_use": "decomposition_allowed"
   },
@@ -17627,13 +17598,6 @@
      "其他经营费用"
     ],
     "row_terms": [
-     "depreciation of investment property",
-     "depreciation of fixed assets",
-     "depreciation of property plant and equipment",
-     "depreciation of construction in progress",
-     "depreciation of right of use assets",
-     "amortisation of prepaid lease payments",
-     "release of prepaid lease payments",
      "depreciation",
      "投資物業折舊",
      "固定資產折舊",
@@ -17659,7 +17623,8 @@
      "折舊與攤銷",
      "折舊和攤銷",
      "摊销",
-     "攤銷"
+     "攤銷",
+     "Depreciation or Amortization in other operating expenses"
     ],
     "row_terms_none": [
      "opening",
@@ -17695,8 +17660,8 @@
    },
    "statement": "notes",
    "section_scope": [],
-   "definition": "The depreciation and amortisation charge borne by other operating expenses for the period — the depreciation portion of that expense category, a component necessarily smaller than the category it sits inside, and never the category itself. It is disclosed as a depreciation or amortisation row within the note that breaks down operating expenses, which a filing may head operating expenses, operating costs, other operating expenses, or the Traditional or Simplified Chinese equivalents. It is not the expense total reported at the foot of that note, and it is not the other operating expenses line printed on the face of the income statement; those are the container this figure sits in, and taking either in its place overstates depreciation charged to operating expenses by the whole of the rest of the category. It is likewise not an accumulated, opening, closing, disposal or impairment amount from an asset movement schedule.",
-   "prompt": "Take only the depreciation or amortisation row itemised inside the operating expenses note, never that note's expense subtotal and never the other operating expenses line on the face of the income statement. Depreciation rows inside the note that Other operating expenses note names.",
+   "definition": "Depreciation costs associated with other operating expense. From the context identify the prose that call out depreciation associated with other operating expense. Never consider the total other operating expense only the depreciation considered in the same.",
+   "prompt": "Ensure that if the values are identified in different notes, do not blindly add the values - Values across various property / Fixed Asset / Right of use assets can be added to arrive at this but values across Profit before taxation note and fixed asset note can never be added.\nAT most time these values come in sentences where there are multiple depreciation values called out in the same line, generally the values in bracket are previous year values. Also, the tag appropriate values to different depreciation by the order as mostly the sentence ends with respectively. \nFor example: Depreciation\tof\tHK$1,694,000\t(2023:\tHK$195,000)\tand\tHK$22,422,000\t(2023: HK$18,035,000) have been included in cost of sales and administrative and other operating expenses, respectively. In the above example 1,694,000 should go into COS depreciation and 22,422,000 should go into depreciation of administrative or depreciation of other operating expense for 2024. and the values inside bracket for 2023.\nSo the above example since both administrative and other operating expense has not been segregated for the second value of depreciation, claim the value, it shall not be claimed by general & administrative expense depreciation.",
    "note_selection": "any",
    "note_use": "decomposition_allowed"
   },
@@ -17793,7 +17758,8 @@
     "prose_landed_in": [],
     "note_terms": [
      "property plant and equipment",
-     "物業廠房及設備"
+     "物業廠房及設備",
+     "Property Plant & Equipment"
     ],
     "row_terms": [
      "depreciation of investment property",
@@ -17862,12 +17828,16 @@
      "外币折算",
      "到期",
      "账面原值",
-     "账面价值"
+     "账面价值",
+     "Accumulated",
+     "Net Assets"
     ]
    },
    "statement": "notes",
-   "section_scope": [],
-   "definition": "The depreciation charged for the period on property, plant and equipment, including right-of-use assets where the note presents them together — the charge recognised in profit or loss during the period, whatever functions it was charged to. It is disclosed as the depreciation line of the movement schedule inside the property, plant and equipment note, or in the fixed asset or right-of-use asset note of a filing that heads that asset class differently, in English or in Chinese. It is not the accumulated depreciation carried at either end of the period, nor the cost or net carrying amount of the assets, and it is not the depreciation attributable to operating expenses alone, because this charge still contains the share borne by cost of sales.",
+   "section_scope": [
+    "bs_nca"
+   ],
+   "definition": "The total depreciation charged for the period on property, plant and equipment, including right-of-use assets where the note presents them together — the charge recognised in profit or loss during the period, whatever functions it was charged to. It is disclosed as the depreciation line of the movement schedule inside the property, plant and equipment note, or in the fixed asset or right-of-use asset note of a filing that heads that asset class differently, in English or in Chinese. It is not the accumulated depreciation carried at either end of the period, nor the cost or net carrying amount of the assets.",
    "prompt": "Take the period's depreciation charge from the asset note's movement schedule, not the accumulated depreciation balance or carrying amount, and treat it as depreciation for all functions rather than the operating-expense share. Depreciation rows inside the note that PP&E note names.",
    "note_use": "decomposition_allowed",
    "note_selection": "any"
@@ -18046,7 +18016,9 @@
      "外币折算",
      "到期",
      "账面原值",
-     "账面价值"
+     "账面价值",
+     "Accumulated",
+     "Net Lease"
     ]
    },
    "statement": "notes",
@@ -18218,12 +18190,16 @@
      "外币折算",
      "到期",
      "账面原值",
-     "账面价值"
+     "账面价值",
+     "Accumulated",
+     "Net Assets"
     ]
    },
    "statement": "notes",
-   "section_scope": [],
-   "definition": "The depreciation charged for the period on fixed assets — the period's charge, in a filing that names its tangible asset class fixed assets rather than property, plant and equipment. It is disclosed as the depreciation line of the movement schedule inside the fixed assets note, under that heading or its Traditional or Simplified Chinese equivalent. It is not the accumulated depreciation balance shown alongside it, nor the original cost or net book value of the assets, and it is not confined to operating expenses, because the charge disclosed here also covers the share borne by cost of sales.",
+   "section_scope": [
+    "bs_nca"
+   ],
+   "definition": "The depreciation charged for the period on fixed assets — the period's charge, in a filing that names its tangible asset class fixed assets rather than property, plant and equipment. It is disclosed as the depreciation line of the movement schedule inside the fixed assets note, under that heading or its Traditional or Simplified Chinese equivalent. It is not the accumulated depreciation balance shown alongside it, nor the original cost or net book value of the assets.",
    "prompt": "Take the current period depreciation charge from the fixed assets note, never the accumulated depreciation, original cost or net book value columns beside it. Depreciation rows inside the note that Fixed assets note names.",
    "note_use": "decomposition_allowed",
    "note_selection": "any"
@@ -18392,11 +18368,15 @@
      "外币折算",
      "到期",
      "账面原值",
-     "账面价值"
+     "账面价值",
+     "Accumulated",
+     "Net investment property"
     ]
    },
    "statement": "notes",
-   "section_scope": [],
+   "section_scope": [
+    "bs_nca"
+   ],
    "definition": "The depreciation charged for the period on investment property — the systematic charge recognised by a filing that carries its investment property at cost less depreciation. It is disclosed as the depreciation line of the movement schedule inside the investment property note, under that heading or its Traditional or Simplified Chinese equivalent. It is not a fair value gain or loss, revaluation movement or impairment recognised on the same properties, and it is not the carrying amount, the accumulated depreciation or the rental income disclosed in the same note.",
    "prompt": "Take the period's depreciation charge on investment property, never a fair value or revaluation movement, an impairment, or the property's carrying amount. Depreciation rows inside the note that Investment property note names.",
    "note_selection": "any",
@@ -18564,11 +18544,14 @@
      "外币折算",
      "到期",
      "账面原值",
-     "账面价值"
+     "账面价值",
+     "Accumulated"
     ]
    },
    "statement": "notes",
-   "section_scope": [],
+   "section_scope": [
+    "bs_nca"
+   ],
    "definition": "The depreciation charged for the period on construction in progress — the charge recognised on assets still presented under that caption, which arises only where a filing depreciates them before completion. It is disclosed as the depreciation line of the movement schedule inside the construction in progress note, under that heading or its Chinese equivalent. It is not additions or costs capitalised during the period, nor an amount transferred out on completion to property, plant and equipment, and it is not the construction in progress balance carried at either end of the period.",
    "prompt": "Take only the depreciation charge shown for construction in progress, never additions, capitalised costs, transfers out on completion, or the closing balance. Depreciation rows inside the note that Construction in progress note names.",
    "note_selection": "any",
@@ -18581,167 +18564,18 @@
    "parent": "is_pl__deprec_and_impairment_oper_exp",
    "order": 10,
    "namespace": "internal",
-   "inherits": "notes",
-   "note_source": {
-    "note_title_any": [
-     "cash\\s+flow\\s+from\\s+operating\\s+activities|cash\\s+generated\\s+from\\s+operations|reconciliation\\s+of\\s+profit\\s+before\\s+taxation\\s+to\\s+cash|經營活動所得現金流量|除稅前溢利與經營所得現金的對賬|现金流量表补充资料|将净利润调节为经营活动现金流量|净利润调节为经营活动的?现金流量|经营活动产生的现金流量"
-    ],
-    "row_caption_any": [
-     "depreciation\\s+of\\s+investment\\s+propert",
-     "depreciation\\s+of\\s+fixed\\s+assets",
-     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
-     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
-     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
-     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "^\\s*depreciation\\s*$",
-     "投資物業折舊",
-     "固定資產折舊",
-     "物業[,、]?\\s*廠房及設備折舊",
-     "在建工程折舊",
-     "使用權資產折舊",
-     "預付租賃款項攤銷",
-     "預付租賃款項轉出",
-     "^折舊$",
-     "投资性房地产折旧",
-     "投资物业折旧",
-     "固定资产折旧",
-     "在建工程折旧",
-     "使用权资产折旧",
-     "预付租赁款项摊销",
-     "^折旧$",
-     "^折旧费$",
-     "折旧费用",
-     "^\\s*折旧[及与和]?摊销\\s*$",
-     "^\\s*折舊[及與和]?攤銷\\s*$",
-     "^\\s*摊销\\s*$",
-     "^\\s*攤銷\\s*$",
-     "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$"
-    ],
-    "row_caption_none": [
-     "^\\s*at\\s+\\d",
-     "^\\s*at\\s+(?:1|31)",
-     "opening",
-     "closing",
-     "disposal",
-     "write.?off",
-     "transfer",
-     "reclassif",
-     "exchange\\s+difference",
-     "acquisition",
-     "impairment",
-     "累計",
-     "期初",
-     "期末",
-     "處置",
-     "轉撥",
-     "滙兌",
-     "匯兌",
-     "收購",
-     "減值",
-     "累计",
-     "期初",
-     "期末",
-     "处置",
-     "转拨",
-     "转出",
-     "汇兑",
-     "收购",
-     "减值",
-     "外币折算",
-     "到期",
-     "账面原值",
-     "账面价值"
-    ],
-    "prose_any": [],
-    "prose_subject": "",
-    "prose_landed_in": [],
-    "note_terms": [
-     "cash flow from operating activities",
-     "cash generated from operations",
-     "reconciliation of profit before taxation to cash",
-     "經營活動所得現金流量",
-     "除稅前溢利與經營所得現金的對賬",
-     "现金流量表补充资料",
-     "将净利润调节为经营活动现金流量",
-     "净利润调节为经营活动的现金流量",
-     "经营活动产生的现金流量"
-    ],
-    "row_terms": [
-     "depreciation of investment property",
-     "depreciation of fixed assets",
-     "depreciation of property plant and equipment",
-     "depreciation of construction in progress",
-     "depreciation of right of use assets",
-     "amortisation of prepaid lease payments",
-     "release of prepaid lease payments",
-     "depreciation",
-     "投資物業折舊",
-     "固定資產折舊",
-     "物業廠房及設備折舊",
-     "在建工程折舊",
-     "使用權資產折舊",
-     "預付租賃款項攤銷",
-     "預付租賃款項轉出",
-     "折舊",
-     "投资性房地产折旧",
-     "投资物业折旧",
-     "固定资产折旧",
-     "在建工程折旧",
-     "使用权资产折旧",
-     "预付租赁款项摊销",
-     "折旧",
-     "折旧费",
-     "折旧费用",
-     "折旧及摊销",
-     "折旧与摊销",
-     "折旧和摊销",
-     "折舊及攤銷",
-     "折舊與攤銷",
-     "折舊和攤銷",
-     "摊销",
-     "攤銷",
-     "amortisation",
-     "amortization and depreciation",
-     "amortization"
-    ],
-    "row_terms_none": [
-     "opening",
-     "closing",
-     "disposal",
-     "write off",
-     "transfer",
-     "reclassification",
-     "exchange difference",
-     "acquisition",
-     "impairment",
-     "累計",
-     "期初",
-     "期末",
-     "處置",
-     "轉撥",
-     "滙兌",
-     "匯兌",
-     "收購",
-     "減值",
-     "累计",
-     "处置",
-     "转拨",
-     "转出",
-     "汇兑",
-     "收购",
-     "减值",
-     "外币折算",
-     "到期",
-     "账面原值",
-     "账面价值"
-    ]
-   },
-   "statement": null,
-   "section_scope": [],
-   "definition": "The depreciation and amortisation added back to profit in reconciling it to cash generated from operations — a non-cash charge for the whole group, covering every function to which depreciation was charged. It is disclosed in the operating section of the cash flow statement or in the note reconciling profit before taxation to operating cash flow, which a filing may head cash generated from operations, cash flow from operating activities, or their Chinese equivalents including a supplementary cash flow schedule. It is not the operating-expense share of depreciation by itself, since it still contains the share borne by cost of sales, and it is not the other non-cash add-backs — impairment losses, provisions, fair value movements or losses on disposal — listed beside it in the same reconciliation.",
-   "prompt": "Take the depreciation and amortisation add-back line only, treat it as depreciation for all functions rather than the operating-expense share, and never fold in the impairment or other non-cash add-backs beside it. The cash-flow add-back is the last resort: it is the whole group's depreciation, so it needs the cost-of-sales share deducted.",
-   "note_use": "decomposition_allowed"
+   "inherits": "cf_oper_indirect",
+   "note_source": null,
+   "statement": "cash_flow",
+   "section_scope": [
+    "cf_oper_indirect"
+   ],
+   "definition": "The depreciation and amortisation added back to profit in reconciling it to cash generated from operations — a non-cash charge for the whole group, covering every function to which depreciation was charged. ",
+   "prompt": "Take the depreciation and amortisation add-back line only",
+   "note_use": "evidence_only",
+   "keyword_hints": [
+    "depreciation"
+   ]
   },
   {
    "key": "sub__pbt_oper_exp_depreciation",
@@ -18917,13 +18751,15 @@
      "外币折算",
      "到期",
      "账面原值",
-     "账面价值"
+     "账面价值",
+     "cost of sales",
+     "depreciation included in cost of sales"
     ]
    },
    "statement": null,
    "section_scope": [],
-   "definition": "The depreciation or amortisation that the profit-before-tax note states was charged to an operating-expense function — administrative, general and administrative, selling, distribution, marketing, operating, or research and development. The qualifier in the caption is what makes it this figure: the note commonly discloses several depreciation amounts, and only the one tied to one of those functions belongs here. It is disclosed in the note itemising what profit or loss before taxation is arrived at after charging, or under the Traditional or Simplified Chinese equivalent of that profit-before-tax heading. It is not the note's unqualified total depreciation row, and it is not the amount the same note qualifies as charged to cost of sales; both read as depreciation in the same place but are different quantities.",
-   "prompt": "Take only the depreciation amount whose caption names an operating-expense function, never the note's unqualified total depreciation nor the amount it qualifies as charged to cost of sales. The operating-expense depreciation callout inside the profit-before-tax note. Identified by the QUALIFIER in the caption (administrative, selling, distribution, operating, R&D) rather than by the note alone — three children read this note and identical patterns would make them one figure under three names.",
+   "definition": "The depreciation or amortisation that the profit-before-tax note states was charged to an operating-expense function — administrative, general and administrative, selling, distribution, marketing, operating, or research and development or other operating expenses. The qualifier in the caption is what makes it this figure: the note commonly discloses several depreciation amounts, and only the one tied to one of those functions belongs here. It is disclosed in the note itemising what profit or loss before taxation is arrived at after charging, or under the Traditional or Simplified Chinese equivalent of that profit-before-tax heading. It is not the note's unqualified total depreciation row, and it is not the amount the same note qualifies as charged to cost of sales; both read as depreciation in the same place but are different quantities.",
+   "prompt": "Take only the depreciation amount whose caption names an operating-expense function, never the note's unqualified total depreciation nor the amount it qualifies as charged to cost of sales. The operating-expense depreciation callout inside the profit-before-tax note. Identified by the QUALIFIER in the caption (administrative, selling, distribution, operating, R&D, other oprating) rather than by the note alone.",
    "note_selection": "any",
    "note_use": "decomposition_allowed"
   },
@@ -19008,8 +18844,6 @@
      "到期",
      "账面原值",
      "账面价值",
-     "(?:depreciation|amortisation|amortization).{0,40}cost\\s+of\\s+(?:sales|revenue|revenues|goods\\s+sold|services|inventories)",
-     "cost\\s+of\\s+(?:sales|revenue|revenues|goods\\s+sold|services|inventories).{0,40}(?:depreciation|amortisation|amortization)",
      "(?:銷售|銷貨|服務)成本.{0,12}(?:折舊|攤銷)",
      "(?:折舊|攤銷).{0,12}(?:計入|列入|包括(?:於|在))?(?:銷售|銷貨|服務)成本",
      "(?:销售|营业|主营业务|服务)成本.{0,12}(?:折旧|摊销)",
@@ -19104,8 +18938,6 @@
      "到期",
      "账面原值",
      "账面价值",
-     "depreciation",
-     "amortisation",
      "amortization cost of sales",
      "revenue",
      "revenues",
@@ -19142,7 +18974,6 @@
      "operating expenses",
      "research and development",
      "general and administrative expenses",
-     "r&d depreciation",
      "行政",
      "銷售及分銷",
      "分銷",
@@ -19377,7 +19208,8 @@
      "^\\s*合計\\s*$|^\\s*總計\\s*$|^\\s*總額\\s*$|^\\s*總和\\s*$",
      "^\\s*合计\\s*$|^\\s*总计\\s*$|^\\s*总额\\s*$|^\\s*总和\\s*$",
      "(?:金融資產|投資|證券|存款|工具|產品|基金|債券)(?:總額|總計|合計)\\s*$",
-     "(?:金融资产|投资|证券|存款|工具|产品|基金|债券)(?:总额|总计|合计)\\s*$"
+     "(?:金融资产|投资|证券|存款|工具|产品|基金|债券)(?:总额|总计|合计)\\s*$",
+     "^Current\\s+portion\\s+of\\s+FVTPL$"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -19422,8 +19254,6 @@
      "financial assets at fair value through profitor loss",
      "financial assets at fvtpl",
      "fvtpl",
-     "held for trading investments",
-     "securities",
      "按公平值計入損益表的",
      "之金融資產",
      "以公平值計入損益的",
@@ -19464,7 +19294,8 @@
      "投资",
      "证券",
      "产品",
-     "债券总额"
+     "债券总额",
+     "Current portion of FVTPL"
     ],
     "row_terms_none": [
      "balance at",
@@ -19500,8 +19331,6 @@
      "非流动",
      "長期",
      "长期",
-     "into current assets",
-     "portion",
      "流動",
      "流动",
      "即期",
@@ -19540,7 +19369,6 @@
      "债务证券",
      "total assets",
      "liabilities",
-     "current assets",
      "liability",
      "負債",
      "负债",
@@ -19712,7 +19540,8 @@
      "投资",
      "证券",
      "产品",
-     "债券总额"
+     "债券总额",
+     "Current portion of FVTOCI"
     ],
     "row_terms_none": [
      "balance at",
@@ -19748,8 +19577,6 @@
      "非流动",
      "長期",
      "长期",
-     "into current assets",
-     "portion",
      "流動",
      "流动",
      "即期",
@@ -19759,7 +19586,6 @@
      "计入流动",
      "total derivatives",
      "derivative financial instruments",
-     "assets",
      "衍生",
      "衍生金融工具",
      "other receivables",
@@ -19780,15 +19606,11 @@
      "un quoted",
      "上市",
      "非上市",
-     "equity securities",
-     "debt securities",
      "股本證券",
      "債務證券",
      "股本证券",
      "债务证券",
-     "total assets",
      "liabilities",
-     "current assets",
      "liability",
      "負債",
      "负债",
@@ -19912,7 +19734,8 @@
      "匯兌|滙兌|汇兑|外幣折算|外币折算",
      "收購|收购",
      "累計|累计",
-     "账面原值|賬面原值"
+     "账面原值|賬面原值",
+     "^FVTPL$"
     ],
     "prose_any": [],
     "prose_subject": "",
@@ -20039,9 +19862,7 @@
      "債務證券",
      "股本证券",
      "债务证券",
-     "total assets",
      "liabilities",
-     "current assets",
      "liability",
      "負債",
      "负债",
@@ -20089,14 +19910,15 @@
      "賬面原值",
      "FVTOCI",
      "Fair Value through Other comprehensive income",
-     "Non Current Assets"
+     "Non Current Assets",
+     "FVTPL"
     ]
    },
    "statement": null,
    "section_scope": [
     "bs_ca"
    ],
-   "definition": "The closing total carrying amount that a note on available-for-sale financial assets, or a note on held-to-maturity financial assets, reports for the holdings it classifies as current assets, taken from each such note's own total row where a filing prints both headings as separate notes. It is disclosed under those pre-IFRS-9 headings, including their forms as available-for-sale or held-to-maturity investments or securities and the Traditional and Simplified Chinese equivalents. Because these headings themselves contain the words sale and maturity, it is not a proceeds-from-sale, disposal, redemption or amount-received-on-maturity row, all of which are movements during the period rather than the balance held at the reporting date. It is also not a listed or unlisted, equity- or debt-securities class subtotal inside the note, not an impairment or loss-allowance line, and not the total of the FVTPL or FVTOCI note.",
+   "definition": "The closing total carrying amount that a note on available-for-sale financial assets, or a note on held-to-maturity financial assets, reports for the holdings it classifies as current assets, taken from each such note's own total row where a filing prints both headings as separate notes. It is disclosed under those pre-IFRS-9 headings, including their forms as available-for-sale or held-to-maturity investments or securities and the Traditional and Simplified Chinese equivalents. Because these headings themselves contain the words sale and maturity, it is not a proceeds-from-sale, disposal, redemption or amount-received-on-maturity row, all of which are movements during the period rather than the balance held at the reporting date. It is also not a listed or unlisted, equity- or debt-securities class subtotal inside the note, not an impairment or loss-allowance line, and not part of FVTPL or FVTOCI.",
    "prompt": "Take each available-for-sale or held-to-maturity note's own closing total and never a sale, disposal, redemption or maturity movement row that the heading's own wording invites, nor a class subtotal inside the note. The pre-IFRS-9 headings still printed by many filings: available-for-sale financial assets and held-to-maturity financial assets (spec 5.1). One child because a filing that prints both prints them as two separately titled notes and this child reads each note's own total row; it never sums a total with its components (spec 3.3). Note the veto asymmetry that made this child possible: the shared veto list must not contain a bare 'sale', 'maturity', 出售 or 到期, since those substrings live inside these two headings — they are anchored (^出售, 到期贖回) throughout this family for that reason.",
    "note_use": "decomposition_allowed",
    "keyword_hints": [
@@ -20245,8 +20067,6 @@
      "非流动",
      "長期",
      "长期",
-     "into current assets",
-     "portion",
      "流動",
      "流动",
      "即期",
@@ -20256,7 +20076,6 @@
      "计入流动",
      "total derivatives",
      "derivative financial instruments",
-     "assets",
      "衍生",
      "衍生金融工具",
      "other receivables",
@@ -20283,9 +20102,7 @@
      "債務證券",
      "股本证券",
      "债务证券",
-     "total assets",
      "liabilities",
-     "current assets",
      "liability",
      "負債",
      "负债",
@@ -20330,13 +20147,15 @@
      "累計",
      "累计",
      "账面原值",
-     "賬面原值"
+     "賬面原值",
+     "FVTPL",
+     "FVTOCI"
     ]
    },
    "statement": "notes",
    "section_scope": [],
-   "definition": "The closing total carrying amount that a note dedicated to debt investments reports for the holdings it classifies as current assets, disclosed under headings such as debt investments, other debt investments or debt instruments at amortised cost and the Traditional and Simplified Chinese equivalents, including the PRC-GAAP form for creditor-right investments. It is that note's own total across the debt instruments it lists, at the reporting date. It is not the debt-securities or debt-instrument component row shown inside a FVTOCI, available-for-sale or held-to-maturity note, whose amount is already carried by that note's own total, so reading it here would count the same holdings twice. Nor is it a maturity-analysis, impairment or movement row inside the debt-investments note, nor a non-current debt investments amount.",
-   "prompt": "Total of all debt investments included in current assets but should be fair value or AFS or HTM or other marketable securities",
+   "definition": "The closing total carrying amount that a note dedicated to debt investments reports for the holdings it classifies as current assets, disclosed under headings such as debt investments, other debt investments or debt instruments at amortised cost and the Traditional and Simplified Chinese equivalents, including the PRC-GAAP form for creditor-right investments. It is that note's own total across the debt instruments it lists, at the reporting date. It is not the debt-securities or debt-instrument component row shown inside a FVTPL/FVTOCI, available-for-sale or held-to-maturity note, whose amount is already carried by that note's own total, so reading it here would count the same holdings twice. Nor is it a maturity-analysis, impairment or movement row inside the debt-investments note, nor a non-current debt investments amount.",
+   "prompt": "Total of all debt investments included in current assets but should not be fair value or AFS or HTM or other marketable securities",
    "note_use": "decomposition_allowed"
   },
   {
@@ -20483,8 +20302,6 @@
      "非流动",
      "長期",
      "长期",
-     "into current assets",
-     "portion",
      "流動",
      "流动",
      "即期",
@@ -20494,7 +20311,6 @@
      "计入流动",
      "total derivatives",
      "derivative financial instruments",
-     "assets",
      "衍生",
      "衍生金融工具",
      "other receivables",
@@ -20520,10 +20336,7 @@
      "股本證券",
      "債務證券",
      "股本证券",
-     "债务证券",
-     "total assets",
      "liabilities",
-     "current assets",
      "liability",
      "負債",
      "负债",
@@ -20569,7 +20382,9 @@
      "累计",
      "账面原值",
      "賬面原值",
-     "Other financial assets"
+     "Other financial assets",
+     "FVTPL",
+     "FVTOCI"
     ]
    },
    "statement": "notes",
@@ -20724,8 +20539,6 @@
      "非流动",
      "長期",
      "长期",
-     "into current assets",
-     "portion",
      "流動",
      "流动",
      "即期",
@@ -20735,7 +20548,6 @@
      "计入流动",
      "total derivatives",
      "derivative financial instruments",
-     "assets",
      "衍生",
      "衍生金融工具",
      "other receivables",
@@ -20762,9 +20574,7 @@
      "債務證券",
      "股本证券",
      "债务证券",
-     "total assets",
      "liabilities",
-     "current assets",
      "liability",
      "負債",
      "负债",
@@ -20809,7 +20619,9 @@
      "累計",
      "累计",
      "账面原值",
-     "賬面原值"
+     "賬面原值",
+     "FVTPL",
+     "FVTOCI"
     ]
    },
    "statement": null,
@@ -21624,9 +21436,7 @@
      "fair\\s+value\\s+hierarch(?:y|ies)|fair\\s+value\\s+measurements?|fair\\s+value\\s+(?:hierarchy\\s+)?of\\s+financial\\s+instruments|fair\\s+value\\s+disclosures?|公平值層級|公平值計量|公平值等級|金融工具公平值層級|公平值层级|公允价值层级|公允价值计量|公允价值等级|金融工具公允价值层级"
     ],
     "row_caption_any": [
-     "^\\s*level\\s*3\\s*(?:total)?\\s*$",
      "level\\s*3\\s*[^A-Za-z0-9]{0,5}\\s*total",
-     "total\\s+(?:of\\s+)?level\\s*3",
      "level\\s*(?:3|three)\\b.{0,40}total",
      "^\\s*level\\s*(?:3|three)\\b.{0,30}$",
      "第三級總額|第三層級總額|第三級合計|第三級別總額|^\\s*第三級\\s*$|^\\s*第三層級\\s*$",
@@ -21668,11 +21478,7 @@
      "金融工具公允价值层级"
     ],
     "row_terms": [
-     "level 3 total",
-     "total of level 3",
      "level 3",
-     "three total",
-     "three",
      "第三級總額",
      "第三層級總額",
      "第三級合計",
@@ -21703,9 +21509,7 @@
      "負債",
      "负债",
      "grand total",
-     "total assets",
      "liabilities",
-     "financial assets",
      "合計",
      "總計",
      "合计",
@@ -21786,7 +21590,7 @@
     "is_pl"
    ],
    "definition": "Revenue or turnover or sales earned in the period as printed on the face of the income statement itself — the top line in most cases, stated before cost of sales and other revenue generally. It is read from the consolidated statement of profit or loss, comprehensive income or income statement. ",
-   "prompt": "For certain type of entities like Banks / Financial institutions, this maybe names as Interest Income.",
+   "prompt": "For certain type of entities like Banks / Financial institutions, this maybe named as Interest Income.",
    "aliases": [
     "Sales(Revenues)",
     "Turnover/Sales/Revenues",
@@ -21828,7 +21632,6 @@
    "inherits": "notes",
    "note_source": {
     "note_title_any": [
-     "(?:营业收入|營業收入)(?:\\s*[和及与與、]\\s*(?:营业成本|營業成本|成本))?|(?:营业收入|營業收入)和成本|revenue\\s+and\\s+cost\\s+of\\s+(?:sales|revenue|sales\\s+and\\s+services)",
      "turnover\\s+and\\s+other\\s+revenue",
      "revenue,?\\s+other\\s+income\\s+and\\s+gains?",
      "revenue\\s+and\\s+other\\s+income\\s+and\\s+gains?",
@@ -21847,22 +21650,12 @@
      "^\\s*其中\\s*[:：]?\\s*主營業務(?:收入)?(?!\\s*成本)",
      "^\\s*主營業務(?:營業)?收入(?:合計|總計|小計|總額|淨額)",
      "^\\s*(?:主营业务|主營業務)收入\\s*[（(][^)）]{0,30}[)）]",
-     "^\\s*(?:revenue|revenues)\\s*$",
-     "^\\s*turnover\\s*$",
-     "^\\s*sales\\s*$",
-     "^\\s*(?:net\\s+)?sales\\s+(?:revenue|revenues)\\s*$",
-     "^\\s*(?:revenue|revenues|turnover|sales)\\s*[（(][^)）]{0,30}[)）]\\s*$",
-     "^\\s*revenue\\s+from\\s+principal\\s+(?:operations|operating\\s+activities|activities|business)\\s*$",
-     "^\\s*principal\\s+(?:operations|operating|business|activities)\\s+(?:revenue|revenues|income)\\s*$",
-     "^\\s*revenue\\s+from\\s+(?:the\\s+)?(?:main|core)\\s+(?:operations|business|activities)\\s*$",
-     "^\\s*(?:main|core)\\s+(?:business|operating)\\s+(?:revenue|revenues|income)\\s*$",
      "^\\s*revenue\\s+from\\s+contracts\\s+with\\s+customers\\s*$",
      "^\\s*revenue\\s+from\\s+external\\s+customers\\s*$",
      "^\\s*(?:營業額|营业额)\\s*$",
      "^\\s*(?:对外|對外)(?:交易)?收入\\s*$",
      "^\\s*(?:来自|來自)客[户戶]合同的?收入\\s*$",
      "^\\s*客[户戶]合同收入\\s*$",
-     "^\\s*total\\s+turnover\\b",
      "total\\s+turnover\\s+from\\s+contracts\\s+with\\s+customers",
      "revenue\\s+from\\s+contracts\\s+with\\s+customers\\s*(?:總計|总计)?\\s*$",
      "營業額總計|营业额总计|收入合計|收入合计",
@@ -21873,7 +21666,8 @@
      "by\\s+(?:product|segment|region|geograph\\w*|channel|market|business\\s+line|industry|location)",
      "(?:行业|行業|产品|產品|地区|地區|区域|區域|渠道)(?:分[类類])?\\s*(?:小计|小計|合计|合計)",
      "from\\s+other\\s+source",
-     "\\bother\\s+income\\b|其他收入(?!及)"
+     "\\bother\\s+income\\b|其他收入(?!及)",
+     "^Other\\s+Income$"
     ],
     "prose_any": [],
     "prose_subject": "",
@@ -21884,14 +21678,14 @@
      "營業成本",
      "成本",
      "營業收入和成本",
-     "revenue and cost of sales",
      "revenue",
      "sales and services",
      "營業收入及营业成本",
      "營業收入与营业成本",
      "營業收入與营业成本",
      "營業收入营业成本",
-     "Sales"
+     "Sales",
+     "Operating income"
     ],
     "row_terms": [
      "主营业务收入!成本",
@@ -21922,22 +21716,11 @@
      "turnover",
      "sales",
      "net sales revenue",
-     "sales（",
-     "sales（）",
-     "sales）",
-     "revenue from principal operations",
      "operating activities",
-     "activities",
-     "business",
-     "principal operations",
      "operating",
      "activities revenue",
-     "income",
-     "revenue from the main",
      "core operations",
-     "main",
      "core business",
-     "operating revenue",
      "revenue from contracts with customers",
      "revenue from external customers",
      "營業額",
@@ -21948,8 +21731,7 @@
      "來自客户合同的收入",
      "來自客戶合同的收入",
      "客户合同收入",
-     "客戶合同收入",
-     "Income"
+     "客戶合同收入"
     ],
     "row_terms_none": [
      "分",
@@ -21971,30 +21753,25 @@
      "銷售方式",
      "銷售渠道",
      "銷售模式",
-     "by product",
-     "segment",
-     "region",
-     "geograph",
-     "channel",
-     "market",
-     "business line",
-     "industry",
-     "location",
      "行业",
      "渠道分类小计",
      "小計",
      "合计",
      "合計",
      "渠道分類小计",
-     "Expense"
+     "Expense",
+     "Other Income",
+     "Total Income",
+     "Total turnover",
+     "Total Sales"
     ]
    },
    "statement": "notes",
    "section_scope": [
     "notes"
    ],
-   "definition": "Revenue / Turnover / Sales which relates to the principal line of operations and not anything else. Identify the values in the note and then decide which line items should be considered as revenue from principal operations. It purely depends on which industry/industries is the entity operating in.",
-   "prompt": "Ensure when you are adding up values you do not add up values across different brakdowns as it could lead to double counting. So thing like breakup by country, segment, etc. may not be factored into summation when there is a table already being used.",
+   "definition": "Objective is to identify what is the breakup of revenue provided in the note and then classify each of the line item as principal business or not. Principal business is identified basis the industries the entity is operating in, sometime the entity itself might provide other income/other revenue in the breakup which can be kept aside and rest can be consumed. Never consume total revenue or sub totals as a part of this line item.\nFor example: Interest income should be considered if the entity has banking / FI operations, Rental Income should be considered if there is real estate exposure.",
+   "prompt": "Ensure when you are adding up values you do not add up values across different brakdowns as it could lead to double counting. So thing like breakup by country, segment, etc. may not be factored into summation when there is a table already being used.\n",
    "note_use": "decomposition_allowed",
    "exclude_criteria": [
     "Other income"
@@ -25669,7 +25446,8 @@
      "^\\s*总(?:计|额)\\s*$",
      "^\\s*总(?:计|额)\\s*[:：]",
      "(?:金融资产|债务投资|债权投资|投资证券|结构性存款)(?:总额|总计|合计)",
-     "^\\s*账面(?:净值|价值)"
+     "^\\s*账面(?:净值|价值)",
+     "^Non-?current\\s+portion\\s+of\\s+FVTPL$"
     ],
     "row_caption_none": [
      "^\\s*(?:as\\s+)?at\\s+\\d",
@@ -25869,7 +25647,8 @@
      "投资证券",
      "结构性存款总额",
      "账面净值",
-     "价值"
+     "价值",
+     "Non-current portion of FVTPL"
     ],
     "row_terms_none": [
      "balances at",
@@ -25939,7 +25718,6 @@
      "level 2",
      "level 3",
      "current portion",
-     "assets",
      "classified as current",
      "included in current assets",
      "repayable within one",
@@ -26063,7 +25841,8 @@
      "合营公司",
      "企业",
      "长期股权投资",
-     "账面原值"
+     "账面原值",
+     "FVTOCI"
     ]
    },
    "statement": null,
@@ -26104,7 +25883,8 @@
      "^\\s*总(?:计|额)\\s*$",
      "^\\s*总(?:计|额)\\s*[:：]",
      "(?:金融资产|债务投资|债权投资|投资证券|结构性存款)(?:总额|总计|合计)",
-     "^\\s*账面(?:净值|价值)"
+     "^\\s*账面(?:净值|价值)",
+     "^Non-?current\\s+portion\\s+of\\s+FVTOCI$"
     ],
     "row_caption_none": [
      "^\\s*(?:as\\s+)?at\\s+\\d",
@@ -26308,7 +26088,8 @@
      "投资证券",
      "结构性存款总额",
      "账面净值",
-     "价值"
+     "价值",
+     "Non-current portion of FVTOCI"
     ],
     "row_terms_none": [
      "balances at",
@@ -26378,7 +26159,6 @@
      "level 2",
      "level 3",
      "current portion",
-     "assets",
      "classified as current",
      "included in current assets",
      "repayable within one",
@@ -26502,7 +26282,8 @@
      "合营公司",
      "企业",
      "长期股权投资",
-     "账面原值"
+     "账面原值",
+     "FVTPL"
     ]
    },
    "statement": null,
@@ -26687,7 +26468,9 @@
      "于(?:联营|合营|关联方|子公司)",
      "^\\s*(?:联营|合营)(?:公司|企业)",
      "长期股权投资",
-     "账面原值"
+     "账面原值",
+     "^FVTPL$",
+     "^FVTOCI$"
     ],
     "prose_any": [],
     "prose_subject": "",
@@ -26819,7 +26602,6 @@
      "level 2",
      "level 3",
      "current portion",
-     "assets",
      "classified as current",
      "included in current assets",
      "repayable within one",
@@ -26943,7 +26725,9 @@
      "合营公司",
      "企业",
      "长期股权投资",
-     "账面原值"
+     "账面原值",
+     "FVTPL",
+     "FVTOCI"
     ]
    },
    "statement": null,
@@ -27254,7 +27038,6 @@
      "level 2",
      "level 3",
      "current portion",
-     "assets",
      "classified as current",
      "included in current assets",
      "repayable within one",
@@ -27378,7 +27161,9 @@
      "合营公司",
      "企业",
      "长期股权投资",
-     "账面原值"
+     "账面原值",
+     "FVTPL",
+     "FVTOCI"
     ]
    },
    "statement": null,
@@ -27687,7 +27472,6 @@
      "level 2",
      "level 3",
      "current portion",
-     "assets",
      "classified as current",
      "included in current assets",
      "repayable within one",
@@ -27811,7 +27595,9 @@
      "合营公司",
      "企业",
      "长期股权投资",
-     "账面原值"
+     "账面原值",
+     "FVTPL",
+     "FVTOCI"
     ]
    },
    "statement": null,
@@ -28119,7 +27905,6 @@
      "level 2",
      "level 3",
      "current portion",
-     "assets",
      "classified as current",
      "included in current assets",
      "repayable within one",
@@ -28243,7 +28028,9 @@
      "合营公司",
      "企业",
      "长期股权投资",
-     "账面原值"
+     "账面原值",
+     "FVTPL",
+     "FVTOCI"
     ]
    },
    "statement": null,
@@ -28550,7 +28337,6 @@
      "level 2",
      "level 3",
      "current portion",
-     "assets",
      "classified as current",
      "included in current assets",
      "repayable within one",
@@ -28674,7 +28460,9 @@
      "合营公司",
      "企业",
      "长期股权投资",
-     "账面原值"
+     "账面原值",
+     "FVTPL",
+     "FVTOCI"
     ]
    },
    "statement": null,
@@ -28984,7 +28772,6 @@
      "level 2",
      "level 3",
      "current portion",
-     "assets",
      "classified as current",
      "included in current assets",
      "repayable within one",
@@ -29108,7 +28895,9 @@
      "合营公司",
      "企业",
      "长期股权投资",
-     "账面原值"
+     "账面原值",
+     "FVTPL",
+     "FVTOCI"
     ]
    },
    "statement": null,

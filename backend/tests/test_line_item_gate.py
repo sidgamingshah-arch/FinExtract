@@ -292,6 +292,18 @@ def test_every_reported_line_resolves_a_gate_and_parts_deliberately_do_not():
         "sub__fa_cp_investment_and_money_market_securities_note_total",
         "sub__fa_cp_noncurrent_split_of_note_total",
         "sub__face_principal_revenue", "sub__revenue_note_principal_revenue",
+        # FOUR MORE, READ DELIBERATELY RATHER THAN ABSORBED — which is what the note above asks of
+        # a ninth. The asset-depreciation parts were scoped to `bs_nca`, and they mean by it exactly
+        # what the six securities parts mean by `bs_ca`: CONTEXT, "consider the non-current asset
+        # notes", not a claim about where the charge is published. Each reads the movement table of
+        # the class it names — property plant and equipment, fixed assets, investment property,
+        # construction in progress — and every one of those notes decomposes a `bs_nca` face row, so
+        # the section names the notes that print them rather than excluding them.
+        #
+        # `statement: notes` is set on all four, so the second limb of the condition below does not
+        # reach them either; it is the face-section scope alone that needed naming here.
+        "sub__ppe_depreciation", "sub__fixed_asset_depreciation",
+        "sub__investment_property_depreciation", "sub__cip_depreciation",
     }
     pinned = [d.key for d in parts
               if d.note_source is not None

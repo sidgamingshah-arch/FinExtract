@@ -102,8 +102,16 @@ def test_nothing_is_retired_unless_it_guards_a_control() -> None:
 def test_parent_is_authorable_because_every_part_declares_it() -> None:
     """THE STALE-MEASUREMENT REGRESSION. If `parent` is ever retired again, this says why not."""
     parts = [i for i in SEED["items"] if i.get("note_source")]
-    # 62 items carry a `note_source` — see the census in `test_retired_derivations`.
-    assert len(parts) == 62, len(parts)
+    # 61 items carry a `note_source` — see the census in `test_retired_derivations`.
+    #
+    # SIXTY-TWO UNTIL `sub__cfo_depreciation` STOPPED READING A NOTE. It was moved to the cash-flow
+    # section and its `note_source` removed outright (`inherits` notes -> cf_oper_indirect,
+    # `statement` none -> cash_flow, `note_use` decomposition_allowed -> evidence_only), which is
+    # coherent: the depreciation add-back is printed ON THE FACE of an indirect cash-flow statement,
+    # so a line that takes it there needs no note. It declares that with
+    # `section_scope: ['cf_oper_indirect']` against `section_defaults[...].face_only`, the same way
+    # `sub__face_principal_revenue` declares it for the income statement.
+    assert len(parts) == 61, len(parts)
     assert all(i.get("parent") for i in parts), (
         "a note-read part with no parent has nothing to trace back to")
     assert "parent" in RENDERED and "parent" not in RETIRED, (
