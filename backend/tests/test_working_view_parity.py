@@ -414,6 +414,10 @@ def test_shipped_set_projects_every_definition_including_the_parts():
         # are the mechanism by which it is read, not a pin that cuts it off from a note it never
         # reads. `sub__face_principal_revenue` above is the same shape for the income statement.
         "sub__cfo_depreciation",
+        # AND FIND 1, which reads the balance-sheet face for the same reason: no
+        # `note_source`, and `section_scope: ['bs_nca']` is the mechanism by which it is
+        # read rather than a pin cutting it off from a note it does not read.
+        "sub__rp_find_1",
     }
     # A RESIDUAL BUCKET IS NOT A PART and declares its statement properly: `bs_ca_residual_L3`
     # is a balance-sheet current-assets bucket, so `balance_sheet` is where it belongs.

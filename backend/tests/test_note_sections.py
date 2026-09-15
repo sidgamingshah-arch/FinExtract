@@ -199,15 +199,29 @@ def test_a_face_section_line_is_not_offered_the_note_route():
 
 
 def test_no_section_keeps_the_note_route():
-    """NO SECTION MEANS OPEN. The three related-party Find lines name no `inherits`, and absence is
-    "nothing was said" — never "face"."""
+    """NO SECTION MEANS OPEN. The related-party Find lines name no `inherits`, and absence is
+    "nothing was said" — never "face".
+
+    FIND 1 IS NO LONGER AMONG THEM, and that is the point of this change rather than a casualty of
+    it. Its label has always read "related-party receivables in the BALANCE SHEET" while Find 2 and
+    Find 3 read the notes, and it nevertheless carried a `note_source` — so the face reading its
+    name reserves was taken by nothing and all three Finds competed over the same note text. It now
+    declares `section_scope: ['bs_nca']` against a `face_only` section, the way
+    `sub__face_principal_revenue` declares the income statement, and reads the row the balance
+    sheet prints.
+
+    So the assertion below is about the two that still read notes, and Find 1 is asserted OUT of
+    the note route — a regression in either direction is what this now catches."""
     from app.services.line_item_config import load_shipped_set
     from app.stages.note_sourced import _declared_items
 
     st = load_shipped_set()
     selected = {i.key for i in _declared_items(st)}
-    for key in ("sub__rp_find_1", "sub__rp_find_2", "sub__rp_find_3"):
+    for key in ("sub__rp_find_2", "sub__rp_find_3"):
         assert key in selected, f"{key} lost the note route"
+    assert "sub__rp_find_1" not in selected, (
+        "Find 1 reads the balance-sheet face; a note route for it would restore the contest "
+        "between the three Finds that removing its note_source resolved")
 
 
 def test_where_is_one_definition_with_three_answers():

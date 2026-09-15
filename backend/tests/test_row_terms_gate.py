@@ -176,7 +176,9 @@ def test_no_shipped_line_is_left_with_nothing_to_match_on(shipped):
     # rather than a note — `note_source` removed, `section_scope: ['cf_oper_indirect']` — and this
     # test's subject is note ROW terms, which a line that reads no rows has none of and needs none
     # of. A floor rather than an equality so a part gaining terms does not fail it.
-    assert len(judged) >= 61
+    # 60 now: `sub__rp_find_1` reads the balance-sheet face rather than a note, so it carries
+    # no note ROW terms and needs none — the same reason `sub__cfo_depreciation` is exempt.
+    assert len(judged) >= 60
     for item in judged:
         terms = [str(x) for x in item.note_source.row_terms]
         every = {tok for term in terms for tok in subject_tokens(term)}

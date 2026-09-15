@@ -102,7 +102,12 @@ def test_nothing_is_retired_unless_it_guards_a_control() -> None:
 def test_parent_is_authorable_because_every_part_declares_it() -> None:
     """THE STALE-MEASUREMENT REGRESSION. If `parent` is ever retired again, this says why not."""
     parts = [i for i in SEED["items"] if i.get("note_source")]
-    # 61 items carry a `note_source` — see the census in `test_retired_derivations`.
+    # 60 items carry a `note_source` — see the census in `test_retired_derivations`.
+    #
+    # SIXTY-ONE UNTIL FIND 1 STOPPED READING A NOTE. `sub__rp_find_1` is labelled
+    # "related-party receivables in the BALANCE SHEET" and now reads that face, declared as
+    # `section_scope: ['bs_nca']` against a `face_only` section; its two siblings keep the
+    # note readings their own labels describe.
     #
     # SIXTY-TWO UNTIL `sub__cfo_depreciation` STOPPED READING A NOTE. It was moved to the cash-flow
     # section and its `note_source` removed outright (`inherits` notes -> cf_oper_indirect,
@@ -111,7 +116,7 @@ def test_parent_is_authorable_because_every_part_declares_it() -> None:
     # so a line that takes it there needs no note. It declares that with
     # `section_scope: ['cf_oper_indirect']` against `section_defaults[...].face_only`, the same way
     # `sub__face_principal_revenue` declares it for the income statement.
-    assert len(parts) == 61, len(parts)
+    assert len(parts) == 60, len(parts)
     assert all(i.get("parent") for i in parts), (
         "a note-read part with no parent has nothing to trace back to")
     assert "parent" in RENDERED and "parent" not in RETIRED, (
