@@ -144,6 +144,33 @@ _TITLE_NEGATIVE = re.compile(
     # test_a_chinese_statement_title_below_a_completed_table_is_recognised). The words differ;
     # the shapes do not.
     r"|[資资][產产][負负][債债][表报][日]?[後后][事][項项]|[日][後后][事][項项]"
+    #
+    # TWO MORE SHAPES OF THE SAME SWALLOWING, measured on a 287-page CAS filing (10972689):
+    #
+    #   78、现金流量表项目          note 78, "cash flow statement ITEMS" — PDF p.227. It matched
+    #                            现金流量表 STRONG at 0.95 and carried pp.228-230 as continuations.
+    #   资产负债表日存在的重要承诺    "significant commitments existing AT the balance sheet DATE"
+    #                            — PDF p.268, read as a balance-sheet face.
+    #
+    # A statement name with 项目 after it names that statement's LINE ITEMS, which is what a CAS
+    # filing calls the note decomposing them — 合并财务报表项目注释 heads the whole notes block. And
+    # 资产负债表日 is a DATE: whatever follows, the heading is about the date, so this generalises
+    # the 日后事项 arm above rather than sitting beside it as a second special case.
+    #
+    # THE DATE ARM REQUIRES A NON-DIGIT AFTER 日, which is what keeps it off a real title. A PRC
+    # balance sheet heads its page 合并资产负债表 with 2024年12月31日 under it, and
+    # `_title_candidates` joins adjacent lines into one candidate — so the text tested here really
+    # can be "合并资产负债表 2024年12月31日". There 日 ends the candidate and the lookahead fails;
+    # in 资产负债表日存在 and 资产负债表日后事项 a Han character follows and it matches.
+    #
+    # BOTH ARMS ONLY EVER REFUSE A TITLE. They cannot admit a page the lexicon did not already
+    # match, which is why they are shipped while the numbered-heading widening they were developed
+    # alongside is not: that one changes `PageFeat.note_heading` on every page of every filing and
+    # moved 6,605 of 13,772 figures across six CAS filings, including a tenfold collapse in
+    # 3bfe0c0e's gross profit. Measured separately, these two move nothing.
+    r"|(?:[資资][產产][負负][債债]|[利][潤润]|[損损]益|[現现]金流[量動动]|[權权]益[變变][動动]"
+    r"|[財财][務务][報报])[報报]?表\s*[項项]目"
+    r"|[資资][產产][負负][債债][表报]\s*日(?=[^\d\s])"
     r"|^\s*(?:contents|index|目[錄录])\s*$", re.I)
 
 # Statement-ish but unresolved. Logged onto the document so lexicon coverage is measurable instead of
