@@ -542,22 +542,28 @@ def test_an_explicit_null_is_stored_as_null_and_beats_the_section(client, probe)
     inherits ``bs_ca``, which declares ``note_use: evidence_only``, and a null that was dropped
     instead of stored would come back carrying the section's value.
 
-    ON SURVIVING FIELDS. This used ``match_priority``, ``analyst_bucket`` and ``face_only``, all
-    three of which are now refused outright as no longer configurable — so the patch was rejected
-    before the null-handling it exists to prove was ever exercised. The property is about how an
-    explicit ``null`` is treated, not about any particular field, so it moves to fields a surface
-    still offers: ``note_source`` as the nullable object, and ``note_use`` as the nullable scalar
-    that ``SectionDefaults`` also declares — which is the half that costs something, and the reason
-    the section entry above carries it.
+    ON SURVIVING FIELDS, and this test has now moved TWICE for the same reason — which is itself
+    the point worth recording. It used ``match_priority``, ``analyst_bucket`` and ``face_only``
+    until all three were refused as no longer configurable, then ``note_use``, which is refused
+    too: decomposition is always allowed, so the question is gone. Each time, the patch was
+    rejected before the null-handling it exists to prove was ever exercised.
+
+    The property is about how an explicit ``null`` is TREATED, not about any particular field, so
+    it moves again — to ``note_source`` as the nullable object and ``statement`` as the nullable
+    scalar ``SectionDefaults`` also declares (``bs_ca`` declares ``balance_sheet``), which is the
+    half that costs something. ``statement`` is the ONLY such scalar left: of the twelve fields
+    ``SectionDefaults`` carries, eight are refused and the other three are not nullable on
+    ``LineItemDef``. If it is ever retired or made multi-valued, this test needs the same move and
+    there will be nothing obvious to move it to.
     """
     _tpl, cfg = probe
     new_id = _saved(client, cfg["id"], {"key": _EDITED, "note_source": None,
-                                        "note_use": None})
+                                        "statement": None})
     stored = _stored(client, new_id)
-    for field in ("note_source", "note_use"):
+    for field in ("note_source", "statement"):
         assert field in stored, f"{field}: an explicit null was dropped rather than stored"
         assert stored[field] is None, f"{field}: {stored[field]!r}"
-    assert _in_force(client)["note_use"] is None, (
+    assert _in_force(client)["statement"] is None, (
         "the item declares 'nothing said'; the section's value must not be folded back in")
 
 

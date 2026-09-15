@@ -265,15 +265,20 @@ def _note_permitted_decompositions(ontology, template) -> list[tuple[str, list[s
     """
     from app.services.rollups import calculated_nodes
 
-    permitted = {m.canonical_key for m in ontology.mappings
-                 if getattr(m, "note_use", None) == "decomposition_allowed"}
-    if not permitted:
-        return []
+    # THE `note_use` OPT-IN IS GONE — decomposition is always allowed, so every mapped concept is
+    # eligible and the `permitted` set it was filtered through admitted all of them.
+    #
+    # THIS ONE DID WIDEN, and it is the only place hardcoding the permission changed anything.
+    # Measured: 457 of 527 resolved to `decomposition_allowed` and 70 to `evidence_only`, and those
+    # 70 — the covenant, supplemental, off-balance-sheet, capital-commitment and statement-setup
+    # lines — are now eligible here too. What still gates them is everything below, which is where
+    # the protection always was and which the removed comment said so explicitly: one filed face
+    # row carrying the aggregate, a CITED NOTE printing at least two of the declared children, the
+    # same section, and the components accounting for the aggregate in every column. A covenant
+    # threshold satisfies none of that on any filing seen, because nothing cites a note beside it.
     section_of = {m.canonical_key: tuple(m.section_scope or ()) for m in ontology.mappings}
     out: list[tuple[str, list[str], str]] = []
     for key, node in calculated_nodes(template).items():
-        if key not in permitted:
-            continue
         own = section_of.get(key, ())
         if len(own) != 1:
             # No single home section, so the section-scoped match below has no scope to ask under.
@@ -988,8 +993,11 @@ class MapOntologyStage:
         for parent in doc.line_items:
             key = parent.canonical_key or ""
             mapping = by_key.get(key)
+            # `mapping.note_use != "decomposition_allowed"` WAS A TERM OF THIS CONDITION. Removed
+            # with the question: decomposition is always allowed, so it refused nothing that the
+            # three surviving terms do not already refuse — a single home section, and the row
+            # actually CITING a note, which is what makes a breakdown available to read at all.
             if (not mapping or key in seen or key in calculated
-                    or mapping.note_use != "decomposition_allowed"
                     or len(mapping.section_scope or []) != 1
                     or not _cited_notes([parent])):
                 continue

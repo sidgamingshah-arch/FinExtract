@@ -173,7 +173,7 @@
    ],
    "temporality": "instant",
    "face_only": false,
-   "note_use": "evidence_only",
+   "note_use": "decomposition_allowed",
    "sign_convention": "either",
    "match_priority": 90
   },
@@ -184,7 +184,7 @@
    ],
    "temporality": "instant",
    "face_only": false,
-   "note_use": "evidence_only",
+   "note_use": "decomposition_allowed",
    "sign_convention": "either",
    "match_priority": 75
   },
@@ -195,7 +195,7 @@
    ],
    "temporality": "instant",
    "face_only": false,
-   "note_use": "evidence_only",
+   "note_use": "decomposition_allowed",
    "sign_convention": "either",
    "match_priority": 80
   },
@@ -206,7 +206,7 @@
    ],
    "temporality": "instant",
    "face_only": false,
-   "note_use": "evidence_only",
+   "note_use": "decomposition_allowed",
    "sign_convention": "either",
    "match_priority": 95
   },
@@ -217,7 +217,7 @@
    ],
    "temporality": "instant",
    "face_only": false,
-   "note_use": "evidence_only",
+   "note_use": "decomposition_allowed",
    "sign_convention": "either",
    "match_priority": 85
   },
@@ -228,7 +228,7 @@
    ],
    "temporality": "duration",
    "face_only": false,
-   "note_use": "evidence_only",
+   "note_use": "decomposition_allowed",
    "sign_convention": "either",
    "match_priority": 80,
    "scopes": [
@@ -18570,7 +18570,7 @@
     "cf_oper_indirect"
    ],
    "definition": "The depreciation and amortisation added back to profit in reconciling it to cash generated from operations — a non-cash charge for the whole group, covering every function to which depreciation was charged.\n\nTake the depreciation and amortisation add-back line only",
-   "note_use": "evidence_only",
+   "note_use": "decomposition_allowed",
    "keyword_hints": [
     "depreciation"
    ],
@@ -21658,7 +21658,7 @@
    "regex_hints": [
     "^Sales\\(Revenues\\)$"
    ],
-   "note_use": "evidence_only",
+   "note_use": "decomposition_allowed",
    "exclude_criteria": [
     "Other income",
     "Other revenue"

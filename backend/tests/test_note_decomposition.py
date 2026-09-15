@@ -362,34 +362,50 @@ def tax_split(rulebook, template):
     return _run(make_tax_note_split_pdf(), rulebook, template)
 
 
-def test_the_note_permitted_arm_admits_only_what_both_definitions_authorise(rulebook, template):
-    """Neither half is inferred, and on the hkfrs pair that admits exactly one aggregate.
+def test_the_note_permitted_arm_admits_every_rollup_with_one_home_section(rulebook, template):
+    """WHAT THIS ARM NOW ADMITS, and it is a CANDIDATE list rather than a permission.
 
-    A candidate needs BOTH: a template ``rollup`` naming its components, and a concept whose
-    ``note_use`` permits a note to be the source. ``hkfrs_hk_china_ontology.json`` permits it on the
-    tax section alone — its author's stated intent, not a limitation here — so this is also the
-    assertion that the default really is a refusal.
+    It used to need BOTH a template ``rollup`` naming components AND a concept whose ``note_use``
+    permitted a note to be the source, and on the hkfrs pair that admitted exactly ONE aggregate —
+    the tax total — because hkfrs marked 180 of its 183 concepts ``evidence_only``. That assertion
+    was as much a test of the data as of the code, and it said so.
 
-    THE "EXACTLY ONE" IS THE FILE'S, NOT THE FUNCTION'S. This asserts one admitted pair because the
-    fixture loads hkfrs with ``hkfrs_hk_china_template.json``; the same call on
-    ``output_csv_hk_ontology.json`` + ``output_csv_hk_v1_template.json`` admits 52. So a change that
-    made this function permissive on the output_csv pair would not move this assertion — it is a
-    test of the hkfrs data as much as of the code.
+    ``note_use`` is no longer a question: decomposition is always allowed. So the opt-in is gone
+    and what remains is the structural half — a template rollup, and a single home section for the
+    section-scoped match below to ask under. Measured on the hkfrs pair: **17 admitted**, up from
+    1, and they are exactly the statement subtotals and totals.
+
+    THIS IS THE ONE PLACE REMOVING ``note_use`` WIDENED ANYTHING, and the widening is of a
+    SHORTLIST, not of an outcome. Every gate that actually protects the split is downstream and
+    unchanged: one filed face row carrying the aggregate, a CITED NOTE printing at least two of the
+    declared children, the same section, and the components accounting for the aggregate in every
+    column. A subtotal whose row cites no note reaches none of it — which is why the tests below,
+    which exercise the real path, do not move.
     """
     from app.stages.map_ontology import _note_permitted_decompositions
 
     admitted = _note_permitted_decompositions(rulebook, template.model_dump(mode="json"))
-    assert admitted == [("pl_tax_expense__total_tax_expense",
-                         ["pl_tax_expense__current_tax", "pl_tax_expense__deferred_tax"],
-                         "pl_s5_tax_expense")]
+    keys = [a[0] for a in admitted]
 
-    # THE OVERRIDE, asserted rather than assumed: 180 of hkfrs's 183 concepts say ``evidence_only``
-    # and are therefore refused, whatever the template declares about them.
-    permitted = {m.canonical_key for m in rulebook.mappings
-                 if m.note_use == "decomposition_allowed"}
-    assert len(permitted) == 3, permitted
+    assert len(admitted) == 17, keys
+    # The pair the retired assertion named is still there, with the same children and section.
+    assert ("pl_tax_expense__total_tax_expense",
+            ["pl_tax_expense__current_tax", "pl_tax_expense__deferred_tax"],
+            "pl_s5_tax_expense") in admitted
+    # And every admitted entry satisfies the two STRUCTURAL conditions that are left, so the
+    # shortlist cannot have grown for some third reason nobody named.
+    section_of = {m.canonical_key: tuple(m.section_scope or ()) for m in rulebook.mappings}
+    for key, children, section in admitted:
+        assert len(section_of.get(key, ())) == 1, f"{key} has no single home section"
+        assert section_of[key][0] == section
+        assert len(children) >= 2, f"{key} would have nothing to split into"
+
+    # `note_use` IS NO LONGER CONSULTED, asserted directly: hkfrs still declares `evidence_only`
+    # widely, and that no longer removes anything from the shortlist.
     refused = {m.canonical_key for m in rulebook.mappings if m.note_use == "evidence_only"}
-    assert len(refused) > 100 and "bs_current_assets__cash_and_cash_equivalents" in refused
+    assert len(refused) > 100, len(refused)
+    assert any(k in refused for k in keys), (
+        "the shortlist must now contain concepts the old opt-in would have refused")
 
 
 def test_the_face_total_is_replaced_by_the_components_the_note_prints(tax_split):

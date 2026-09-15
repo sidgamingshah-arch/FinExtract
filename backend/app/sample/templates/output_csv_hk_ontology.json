@@ -427,7 +427,7 @@
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
    "face_only": false,
-   "note_use": "evidence_only",
+   "note_use": "decomposition_allowed",
    "sign_convention": "either",
    "match_priority": 90,
    "include": [
@@ -447,7 +447,7 @@
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
    "face_only": false,
-   "note_use": "evidence_only",
+   "note_use": "decomposition_allowed",
    "sign_convention": "either",
    "match_priority": 75,
    "include": [
@@ -467,7 +467,7 @@
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
    "face_only": false,
-   "note_use": "evidence_only",
+   "note_use": "decomposition_allowed",
    "sign_convention": "either",
    "match_priority": 80,
    "include": [
@@ -487,7 +487,7 @@
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
    "face_only": false,
-   "note_use": "evidence_only",
+   "note_use": "decomposition_allowed",
    "sign_convention": "either",
    "match_priority": 95,
    "include": [
@@ -507,7 +507,7 @@
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
    "face_only": false,
-   "note_use": "evidence_only",
+   "note_use": "decomposition_allowed",
    "sign_convention": "either",
    "match_priority": 85,
    "include": [
@@ -527,7 +527,7 @@
    "value_scope": "exclusive_leaf",
    "extraction_mode": "extract",
    "face_only": false,
-   "note_use": "evidence_only",
+   "note_use": "decomposition_allowed",
    "sign_convention": "either",
    "match_priority": 80,
    "include": [

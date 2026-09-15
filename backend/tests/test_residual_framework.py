@@ -790,15 +790,27 @@ def test_the_frameworks_notes_as_source_is_what_a_silent_concept_inherits(raw_on
             if li.canonical_key == "pl_expenses__others"] == ["Auditor's remuneration"]
 
 
-def test_note_use_evidence_only_closes_the_note_as_a_source(raw_ontology):
+def test_note_use_no_longer_closes_the_note_as_a_source(raw_ontology):
+    """`note_use` CANNOT CLOSE THE NOTE ANY MORE, and this asserts the removal.
+
+    It used to assert the opposite: with `note_use: evidence_only` on the section, the residual was
+    refused the note and a `notes_as_source_without_note_use` conflict was logged — "a residual
+    asking for the note while its section forbids it is a contradiction, reported."
+
+    Decomposition is always allowed now, so the section cannot forbid it and the conflict cannot
+    arise. What decides whether a residual reads a note is `residual_policy.notes_as_source` — the
+    framework's own declaration — which `test_a_residual_that_does_not_ask_for_the_note_never_gets_it`
+    below still pins. That is the one question instead of two that had to agree.
+    """
     raw = _note_sourcing_granted(raw_ontology)
     raw["section_defaults"]["pl_s2_expenses"]["note_use"] = "evidence_only"
     doc = _expenses_doc_with_note()
     ctx = _run(doc, _ontology(raw))
 
-    assert not [li for li in doc.line_items if li.canonical_key == "pl_expenses__others"]
-    # A residual asking for the note while its section forbids it is a contradiction, reported.
-    assert any("notes_as_source_without_note_use" in line for line in ctx.logs)
+    # The note IS read, despite the section still declaring `evidence_only` — the field is inert.
+    assert [li.source_label for li in doc.line_items
+            if li.canonical_key == "pl_expenses__others"] == ["Auditor's remuneration"]
+    assert not any("notes_as_source_without_note_use" in line for line in ctx.logs), ctx.logs
 
 
 def test_a_residual_that_does_not_ask_for_the_note_never_gets_it(raw_ontology):

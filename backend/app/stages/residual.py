@@ -484,14 +484,21 @@ def _residuals(ontology, terms: _Terms) -> list[_Residual]:
             res.conflicts.append(f"spans_sections:{'/'.join(sorted(scopes))}")
         notes = (bool(policy.notes_as_source) if _declared(policy, "notes_as_source")
                  else terms.notes_as_source)
-        # ``face_only`` and ``note_use`` are what decide whether a note may be a SOURCE at all:
-        # the global rule is "notes are evidence for a face amount, never an independent source of
-        # one, unless note_use is decomposition_allowed". A residual asking for the note without
-        # its section permitting it is a contradiction, not a permission.
-        permitted = m.note_use == "decomposition_allowed" or m.face_only is False
-        res.may_source_from_note = notes and permitted
-        if notes and not permitted:
-            res.conflicts.append("notes_as_source_without_note_use")
+        # THE PERMISSION TERM IS GONE. It read
+        # `permitted = m.note_use == "decomposition_allowed" or m.face_only is False`, on the
+        # global rule "notes are evidence for a face amount, never an independent source of one,
+        # unless note_use is decomposition_allowed". `note_use` is no longer a question —
+        # decomposition is always allowed — so the first disjunct is now always true and the
+        # expression collapses to True.
+        #
+        # IT WAS ALREADY EFFECTIVELY TRUE by the SECOND disjunct, which is why this changes nothing
+        # measurable: all 394 items that declare `face_only` declare it FALSE, so `face_only is
+        # False` already carried the permission for them. Whether the residual may read a note is
+        # decided by `notes_as_source` — the framework's own declaration — and that is what is left.
+        res.may_source_from_note = notes
+        # `notes_as_source_without_note_use` CANNOT ARISE any more and is no longer appended: it
+        # named the contradiction "this residual asks for the note and its section forbids it",
+        # and a section can no longer forbid it.
         if policy and policy.plug and terms.plug_forbidden:
             res.conflicts.append("plug_forbidden_by_framework")
         if m.derivation and terms.derivation_forbidden:

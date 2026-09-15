@@ -287,28 +287,31 @@ def test_the_stage_is_registered_in_the_one_pipeline_registry():
     assert names.index("note_sourced") > names.index("normalize"), names
 
 
-def test_a_concept_the_configuration_marks_evidence_only_is_not_filled_from_a_note(shipped):
-    """THE SET'S OWN RULE, enforced: "Notes are evidence for a face amount, never an independent
-    source of one, unless note_use is decomposition_allowed" (`global_rules.face_only_default`).
+def test_a_note_now_fills_its_parent_because_decomposition_is_always_allowed(shipped):
+    """THE `note_use` GATE IS GONE, and this asserts its removal rather than its behaviour.
 
-    `notes__contingent_liabilities` is one of the eight focus concepts and is `evidence_only`, so a
-    note may corroborate it and must not supply it. Asserted here because the rule lives in prose
-    in the configuration, and prose is not enforcement — and because the refusal must be LOUD: a
-    line left empty for a stated reason and a line left empty because nothing matched are
-    different facts, and only one of them is a decision.
+    It used to assert the set's own prose rule — "Notes are evidence for a face amount, never an
+    independent source of one, unless note_use is decomposition_allowed"
+    (`global_rules.face_only_default`) — by giving an `evidence_only` parent a child that WOULD
+    match and checking the parent stayed empty with a loud `REFUSED as a note source` log.
+
+    `note_use` is no longer a question: decomposition is always allowed. So the same scenario now
+    FILLS the parent, which is the whole of what removing the question means.
+
+    THE HONEST SCOPE OF THAT CHANGE, because the two statements are different and only one is a
+    no-op. On the SHIPPED configuration the gate could not fire — of the 70 items resolving to
+    `evidence_only`, none was a note-sourced parent, none carried a `note_source` and none had a
+    child, so no shipped figure moves. For an ARBITRARY set it could, and this test is that case:
+    it builds the parent-with-a-matching-child the shipped set does not contain. Keeping it as the
+    demonstration of the difference is more useful than deleting it.
     """
     from app.schemas.line_items import NoteSource
 
     edited = shipped.model_copy(deep=True)
     by_key = {i.key: i for i in edited.items}
-    # `notes__pledged_assets`, not `notes__contingent_liabilities`: the latter was moved to
-    # `decomposition_allowed` because a contingent liability is disclosed ONLY in the notes, so
-    # `evidence_only` made it unfillable by any route. The other seven `notes__` concepts keep
-    # the section default, and the rule under test is unchanged.
     PROBE = "notes__pledged_assets"
-    assert by_key[PROBE].note_use == "evidence_only"
 
-    # Give it a child that WOULD match, so the refusal is the only thing standing in the way.
+    # Give it a child that matches, exactly as the retired test did.
     child = by_key["sub__cos_depreciation"].model_copy(deep=True)
     child.key = "sub__probe_guarantees"
     child.parent = PROBE
@@ -323,12 +326,12 @@ def test_a_concept_the_configuration_marks_evidence_only_is_not_filled_from_a_no
     ctx.line_items = edited
     doc = NoteSourcedStage().run(doc, ctx)
 
-    # The CHILD is still filled — the selection worked, and the trail is worth having.
+    # The child is filled, as it always was — the selection was never what the gate stopped.
     assert _figure(doc, "sub__probe_guarantees") == Decimal("8000")
-    # The PARENT is not, and the log says why in the configuration's own terms.
-    assert _figure(doc, PROBE) is None
-    assert any("REFUSED as a note source" in line and "evidence_only" in line
-               for line in ctx.logs), ctx.logs
+    # And the PARENT is filled now, where it used to be refused.
+    assert _figure(doc, PROBE) == Decimal("8000")
+    # No refusal is logged, because there is no longer a permission to refuse on.
+    assert not any("REFUSED as a note source" in line for line in ctx.logs), ctx.logs
 
 
 def test_the_seven_concepts_that_permit_decomposition_are_not_blocked_by_the_gate(shipped):

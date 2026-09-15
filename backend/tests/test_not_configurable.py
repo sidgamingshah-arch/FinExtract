@@ -100,6 +100,10 @@ def test_the_fields_the_v2_spec_removed_are_all_refused():
         # on load, and the 61 shipped lines that carried both have been folded in place. Refused
         # here so a new one cannot be created by API call for a question no screen asks.
         "prompt",
+        # `note_use` — decomposition is ALWAYS allowed, so the question is gone and every reader of
+        # it was removed (`stages/note_sourced`, `stages/map_ontology`, `stages/residual`). The
+        # field stays on the wire and in the stored sets; nothing consults it.
+        "note_use",
     }
     assert set(_NOT_CONFIGURABLE) == expected, {
         "refused but not in the spec": sorted(set(_NOT_CONFIGURABLE) - expected),
@@ -108,7 +112,17 @@ def test_the_fields_the_v2_spec_removed_are_all_refused():
 
 
 def test_the_count_someone_has_to_justify():
-    """23 of 51 wire fields refused.
+    """24 of 51 wire fields refused.
+
+    24 SINCE `note_use` WENT. It asked whether a cited note may SUPPLY a line's figure or only
+    corroborate it — "notes are evidence for a face amount, never an independent source of one,
+    unless note_use is decomposition_allowed". Decomposition is always allowed now, and all three
+    readers are removed. Measured before removing: of the 70 items resolving to `evidence_only`,
+    ZERO were a note-sourced parent, ZERO carried a `note_source` and ZERO had a child, so the
+    `note_sourced` gate could not fire; `residual`'s term was already true via `face_only is
+    False` on all 394 items that declare it. The one real widening is `map_ontology`'s
+    note-permitted SHORTLIST, which went from 1 to 17 candidates on the hkfrs pair and is still
+    gated downstream by the cited note, the same section and the column arithmetic.
 
     23 SINCE `prompt` WAS MERGED INTO `definition`. The configuration asked the same author the
     same question twice — "what is this line" and "what else should the model be told about it" —
@@ -148,7 +162,7 @@ def test_the_count_someone_has_to_justify():
     the template has no row for an off-template PART (measured: 0 of the 77 appear in it), so it
     cannot decide a part's delivery, and refusing them made parts unauthorable."""
     assert len(_EDITABLE_FIELDS) == 51, len(_EDITABLE_FIELDS)
-    assert len(_NOT_CONFIGURABLE) == 23, len(_NOT_CONFIGURABLE)
+    assert len(_NOT_CONFIGURABLE) == 24, len(_NOT_CONFIGURABLE)
 
 
 @pytest.mark.parametrize("field,value", [

@@ -60,7 +60,7 @@ import { color, font, radius } from "../theme";
 import type {
   TermsOp,
   LineItemDef, LineItemEdit,
-  LineItemNoteUse, LineItemSetInfo,
+  LineItemSetInfo,
   LineItemType, LineItemVocab,
   NoteSource,
  NoteSelection,} from "../types";
@@ -80,10 +80,10 @@ const TYPE_TONE: Record<LineItemType, { bg: string; fg: string; label: string }>
 
 
 
-const NOTE_USE_HELP: Record<string, string> = {
-  evidence_only: "a cited note may evidence this figure but never be its source",
-  decomposition_allowed: "a cited note may be the SOURCE this line is read from",
-};
+// `NOTE_USE_HELP` WAS HERE, explaining the two values of a question that no longer exists:
+// `evidence_only` ("a cited note may evidence this figure but never be its source") and
+// `decomposition_allowed` ("a cited note may be the SOURCE this line is read from"). Decomposition
+// is always allowed now, so there is one behaviour and nothing to choose between.
 
 /** A fresh nullable sub-object, so switching one on writes a shape the loader accepts rather than
  *  a half-object the model then refuses. Every list starts EMPTY — a configured empty, which is
@@ -662,8 +662,8 @@ const GROUP_FIELDS = {
   // to the same question is a question too many.
   meaning: ["label", "definition", "exclude_criteria"],
   recognition: ["aliases", "exclude_hints"],
-  gate: ["section_scope", "note_selection", "llm_only_if_note_tagged",
-         "note_use", "note_source"],
+  // `note_use` WAS HERE. Removed with the question — decomposition is always allowed.
+  gate: ["section_scope", "note_selection", "llm_only_if_note_tagged", "note_source"],
   /** Rendered only while the `note_source` switch is on, so counted only then. */
   noteSource: ["note_source.note_title_any", "note_source.row_caption_any",
                "note_source.row_caption_none", "note_source.prose_subject",
@@ -1484,15 +1484,11 @@ function Detail(p: EditorProps) {
                      error={e}
                      inherited={inh("llm_only_if_note_tagged", item.llm_only_if_note_tagged)} />
         ))}
-        {fld("note_use", (e) => (
-          <SelectField<LineItemNoteUse>
-            label="What a cited note may be used for" testid="note_use" editable={editable} nullable
-            reason={lockReason} nullLabel="nothing said"
-            help="Three-valued: “nothing said” is NOT `evidence_only`."
-            options={vocab?.note_uses ?? []} helpOf={(v) => NOTE_USE_HELP[v]}
-            value={g("note_use", item.note_use)} onChange={(v) => patch({ note_use: v })}
-            error={e} inherited={inh("note_use", item.note_use)} />
-        ))}
+        {/* `note_use` WAS HERE — "What a cited note may be used for", three-valued over
+            decomposition_allowed / evidence_only / nothing-said. DECOMPOSITION IS NOW ALWAYS
+            ALLOWED, so the question is gone and the endpoint refuses the field. Every reader of it
+            has been removed; whether a note is read for this line is decided by the line's note
+            route, which is one question instead of two that had to agree. */}
 
         {/* NOTE SOURCE — the object that REPLACED a hard-coded heading list and a 162-alternative
             regex whitelist that refused a filing writing "Depreciation charge for the year".

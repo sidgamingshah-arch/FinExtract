@@ -1298,6 +1298,14 @@ _NOT_CONFIGURABLE: dict[str, str] = {
     # shipped seed has had its 61 such lines folded in place), and the field is refused here so a
     # new one cannot be created by API call for a question no screen asks.
     "prompt": "merged into `definition` — author the whole instruction there, in one field",
+    # DECOMPOSITION IS ALWAYS ALLOWED, so there is no question left to answer. `note_use` asked
+    # whether a cited note may SUPPLY a line's figure or only corroborate it; every reader of it
+    # has been removed (`stages/note_sourced`, `stages/map_ontology`, `stages/residual`), and on
+    # the shipped set the gate it drove could not fire — of the 70 items that resolved to
+    # `evidence_only`, none was a note-sourced parent, none carried a `note_source` and none had a
+    # child. What still decides whether a note is read is the line's own note route.
+    "note_use": "decomposition is always allowed — a line's note route decides whether a note is "
+                "read, not a separate permission",
     #
     # `in_output`, `namespace` AND `order` WERE HERE AND ARE NOT, and the reason is worth keeping
     # because the argument for refusing them was sound for most of the set and wrong where it
