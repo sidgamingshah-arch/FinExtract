@@ -588,3 +588,93 @@ def test_the_legitimate_variants_still_reroute():
     assert family_leaf_named_by("pl_profit_attributable_to__owners_of_the_parent",
                                "Total comprehensive income attributable to:") \
         == "pl_total_comprehensive_income_attributable_to__owners_of_the_parent"
+
+
+# ── the statement gate is a LIST, and that is what one caption on two statements needs ────────
+
+def _matcher(st):
+    from app.config import get_settings
+    from app.services.mapping import OntologyMatcher
+    from app.services.working_view import build_working_view
+    return OntologyMatcher(build_working_view(st), locale="en",
+                           settings=get_settings(), llm_provider=None)
+
+
+def test_the_list_gate_agrees_with_the_single_value_it_replaced():
+    """THE MIGRATION SAFETY PROPERTY, measured rather than argued.
+
+    `statements` supersedes the singular `statement`, and the singular is folded into it on load.
+    So on a set that declares only the singular — which is every shipped line — the list gate must
+    answer exactly what the single-value gate answered, or introducing the field silently re-gates
+    527 concepts and every subtotal still ties.
+    """
+    from app.services.line_item_config import load_shipped_set
+    from app.services.mapping import normalize_statement, statement_of_key
+
+    st = load_shipped_set()
+    m = _matcher(st)
+    statements = ["balance_sheet", "profit_and_loss", "cash_flow", "changes_in_equity",
+                  "notes", "statement_setup", "covenants_supplemental", None, "nonsense"]
+
+    def the_old_way(key: str, statement) -> bool:
+        want = normalize_statement(statement)
+        if want not in m._STATEMENTS:
+            return True
+        mm = m._by_key.get(key)
+        declared = normalize_statement(mm.statement) if mm is not None else ""
+        have = declared or statement_of_key(key)
+        return have is None or have == want
+
+    disagreements = [(k, s) for k in m._by_key for s in statements
+                     if m._in_statement(k, s) != the_old_way(k, s)]
+    assert not disagreements, disagreements[:20]
+    # And the comparison is not vacuous: the gate really does refuse things.
+    assert any(not m._in_statement(k, "cash_flow") for k in m._by_key)
+
+
+def test_a_caption_printed_on_two_statements_can_declare_both():
+    """WHAT THE SINGLE VALUE COULD NOT EXPRESS, and it was a refusal rather than a gap.
+
+    `_in_statement` returns False for a concept clearly on a DIFFERENT statement, so with one value
+    an author had to choose which printing to gate for and the other was actively refused — the row
+    is not merely unmatched but kept out of `allowed_keys`, so it lands in a residual with nothing
+    saying the gate did it.
+
+    `cf_oper_indirect__depreciation` is the real case: depreciation appears in the cash-flow
+    reconciliation AND on the income statement.
+    """
+    from app.services.line_item_config import load_shipped_set
+
+    st = load_shipped_set()
+    probe = next(i for i in st.items if i.key == "cf_oper_indirect__depreciation")
+
+    before = _matcher(st)
+    assert before._in_statement(probe.key, "cash_flow") is True
+    assert before._in_statement(probe.key, "profit_and_loss") is False, (
+        "the single-value gate must refuse the second printing, or this test proves nothing")
+
+    probe.statements = ["cash_flow", "profit_and_loss"]
+    after = _matcher(st)
+    assert after._in_statement(probe.key, "cash_flow") is True
+    assert after._in_statement(probe.key, "profit_and_loss") is True
+    # Still a gate, not an opt-out: a statement it does not name is still refused.
+    assert after._in_statement(probe.key, "balance_sheet") is False
+
+
+def test_an_empty_statements_list_is_unconstrained_not_forbidden():
+    """EMPTY MEANS "nothing was said" — the convention `section_scope` already uses.
+
+    Read the other way, an empty list would refuse the concept on every statement, which is the
+    difference between a line nobody has placed yet and a line placed nowhere.
+    """
+    from app.services.line_item_config import load_shipped_set
+
+    st = load_shipped_set()
+    probe = next(i for i in st.items if i.key == "cf_oper_indirect__depreciation")
+    probe.statement = None
+    probe.statements = []
+
+    m = _matcher(st)
+    # `statement_of_key` is the documented fallback and still places a `cf_` key on the cash flow,
+    # so the assertion is about the statements the KEY does not name.
+    assert m._in_statement(probe.key, "cash_flow") is True

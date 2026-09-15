@@ -303,7 +303,7 @@ function simpleFieldsFor(type: string): Set<string> {
     // template's, which is what `requiredNow` still forces.
     out.push("terms");
   } else {
-    out.push(...MEANING_SIMPLE, ...NOTE_SOURCE_SIMPLE, "inherits", "section_scope",
+    out.push(...MEANING_SIMPLE, ...NOTE_SOURCE_SIMPLE, "inherits", "statements", "section_scope",
              // TO BE SOURCED FROM A NOTE OR THE FACE — the one gate switch the spec keeps per
              // line. `face_only` is retired beside it: 462 of 539 items declare it with ONE
              // distinct value and it never varies inside a section, so it is section policy.
@@ -673,7 +673,9 @@ const GROUP_FIELDS = {
   meaning: ["label", "definition", "exclude_criteria"],
   recognition: ["aliases", "exclude_hints"],
   // `note_use` WAS HERE. Removed with the question — decomposition is always allowed.
-  gate: ["section_scope", "note_selection", "llm_only_if_note_tagged", "note_source"],
+  // `statements` beside `section_scope`: the two halves of the placing question, asked together.
+  gate: ["statements", "section_scope", "note_selection", "llm_only_if_note_tagged",
+         "note_source"],
   /** Rendered only while the `note_source` switch is on, so counted only then. */
   noteSource: ["note_source.note_title_any", "note_source.row_caption_any",
                "note_source.row_caption_none", "note_source.prose_subject",
@@ -1472,6 +1474,32 @@ function Detail(p: EditorProps) {
              question="Where may it be claimed from?"
              note="The gate is authored once per section and claimed by `inherits`; editing a
                    gate field here overrides the section for this line only.">
+        {/* THE OTHER HALF OF THE PLACING QUESTION, and it belongs beside the banners rather than a
+            group away: "which statements" and "which banners" are one question asked at two
+            levels, and this banner already asks it.
+
+            IT WAS NOT A CONTROL AT ALL before — the statement was a single value supplied by
+            `inherits` with no way to see or change it. Single was not merely narrow, it was
+            actively refusing: `_in_statement` returns False for a concept clearly on a different
+            statement, so a caption genuinely printed on two (depreciation on the income statement
+            and again in the cash-flow reconciliation) had one printing gated for and the other
+            REFUSED rather than merely unmatched, landing in a residual with nothing saying so. */}
+        {fld("statements", (e) => (
+          <StringListEditor label="Statements it may be claimed on" testid="statements"
+                            editable={editable}
+                            help={`EMPTY MEANS UNCONSTRAINED — claimable on any statement — and an
+                                  empty list is stored as empty, not re-defaulted. Several are
+                                  allowed, and that is the point: one caption is genuinely printed
+                                  on two statements, and with a single value the second printing
+                                  was refused rather than merely unmatched. The section chosen
+                                  below supplies this when the line says nothing.`}
+                            emptyText="Unconstrained — claimable on any statement."
+                            suggest={vocab?.statements}
+                            value={g("statements", item.statements ?? [])}
+                            onChange={(v) => patch({ statements: v })}
+                            error={e} indexErrors={idx("statements")}
+                            inherited={inh("statements", item.statements)} />
+        ))}
         {fld("section_scope", (e) => (
           <StringListEditor label="Section banners it may sit under" testid="section_scope"
                             editable={editable}

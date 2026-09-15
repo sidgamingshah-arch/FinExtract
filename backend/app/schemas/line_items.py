@@ -575,7 +575,31 @@ class LineItemDef(BaseModel):
     # validated, an inherited value is indistinguishable from an authored one and from a default.
     inherits: str | None = None
     # `None` means claimable on any statement — "nothing was said", not "nothing is allowed".
+    #
+    # SUPERSEDED BY `statements`, and kept because it is still how a set authored before the
+    # multi-select was written says this. `_merge_statement_into_statements` below folds it in, so
+    # every reader asks the LIST and there is no second answer to the same question.
     statement: StatementType | None = None
+    # THE STATEMENTS THIS LINE MAY BE CLAIMED ON — several, because one caption is genuinely printed
+    # on more than one.
+    #
+    # WHY A LIST, and the single value was a real constraint rather than a simplification. A line
+    # like depreciation is printed on the income statement AND in the cash-flow reconciliation; an
+    # interest figure appears on the P&L and again under financing activities. With one value, an
+    # author had to choose which printing to gate for and the other became a cross-statement
+    # refusal — `_in_statement` returns False for a concept "clearly on a different statement", so
+    # the second printing is not merely unmatched but actively refused, and the row lands in a
+    # residual with nothing saying the gate did it.
+    #
+    # EMPTY MEANS UNCONSTRAINED — "nothing was said", exactly as `section_scope` and the old
+    # singular `statement` mean it, and not "no statement is allowed". This is the convention the
+    # whole scoping layer already uses and the reason the gate's default is to ADMIT.
+    #
+    # PAIRED WITH `section_scope`, which was already a list and already authorable. The two halves
+    # of the placing question are now asked the same way — several statements, several banners —
+    # where before the statement was a single value the author could not even see (it was supplied
+    # by `inherits` and had no control).
+    statements: list[StatementType] = Field(default_factory=list)
     # The section banners this line item may be claimed under. EMPTY MEANS UNCONSTRAINED. The
     # rulebook spells the same idea with a sentinel (`['bs_top_level']` = no banner constrains
     # this concept); an empty list says it without a magic string.
@@ -778,6 +802,31 @@ class LineItemDef(BaseModel):
     # as the alternative the validator below accepts, but the shipped set names one for no line —
     # every derived line there carries a `cascade`, which is the configuration-driven route.
     implemented_by: str = ""
+
+    @model_validator(mode="after")
+    def _merge_statement_into_statements(self):
+        """Fold the singular `statement` into `statements`, so the gate has ONE thing to read.
+
+        The multi-select supersedes the single value, and the two must not coexist as separate
+        answers to "which statement is this line on" — that is the shape of defect this
+        configuration keeps finding, where one field is authored, another is consulted, and nothing
+        reports the disagreement.
+
+        THE SINGULAR IS NOT CLEARED, unlike the `prompt` fold above, and the asymmetry is
+        deliberate. `prompt` had one reader and merging it left nothing behind to disagree with.
+        `statement` is still read by `SectionDefaults`, by `ontology_projection`/`working_view`'s
+        field lists and by the reviewer workbook, so emptying it here would blank a column and
+        break the seed/rulebook parity check for no gain. It is folded IN, not moved: `statements`
+        becomes the authoritative list and the singular stays as the legacy spelling of its first
+        entry.
+
+        IDEMPOTENT, and it has to be: a set that already declares `statements` is left exactly as
+        it is, so a line whose list deliberately omits the section's inherited statement is not
+        silently given it back on every load.
+        """
+        if not self.statements and self.statement is not None:
+            self.statements = [self.statement]
+        return self
 
     @model_validator(mode="after")
     def _merge_prompt_into_definition(self):

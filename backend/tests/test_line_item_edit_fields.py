@@ -199,6 +199,11 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
     # `note_tables` is the value the 60 note-sourced lines migrated to; `prose` skips the row
     # search; `face` keeps the line out of `stages.note_sourced` entirely.
     "route": ("route", "note_tables"),
+    # EVERY STATEMENT THIS LINE MAY BE CLAIMED ON. A list because one caption is genuinely printed
+    # on two — depreciation on the income statement and again in the cash-flow reconciliation — and
+    # with the single `statement` an author had to pick one printing while the other was actively
+    # REFUSED by the gate rather than merely unmatched.
+    "statements": ("statements", ["profit_and_loss", "cash_flow"]),
     "note_use": ("note_use", "decomposition_allowed"),
     "face_only": ("face_only", True),
     # THE OBJECT THAT REPLACED THE 162-ALTERNATIVE WHITELIST (`_QUALIFYING_RE`, which refused a

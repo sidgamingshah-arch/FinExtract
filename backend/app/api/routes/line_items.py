@@ -1103,6 +1103,7 @@ class ItemEdit(BaseModel):
     # spelling the existing editor clears it with and that has to keep meaning "claimable
     # anywhere"; the token is checked against `StatementType` in the apply, attributed to the field.
     statement: str | None = None
+    statements: list[str] | None = None
     section_scope: list[str] | None = None
 
     # ── the structure of the tree ─────────────────────────────────────────────────────────────
@@ -1218,6 +1219,7 @@ _EDIT_SCALARS: dict[str, str] = {
     "llm_only_if_note_tagged": "llm_only_if_note_tagged",
     "note_selection": "note_selection",
     "route": "route",
+    "statements": "statements",
     "note_use": "note_use",
     "face_only": "face_only",
     "is_gross_parent": "is_gross_parent",
@@ -1806,6 +1808,23 @@ def edit_line_item(version_id: str, body: ItemEdit,
                                             f"{allowed}, or '' for 'claimable anywhere'"))
         else:
             writes["statement"] = statement
+    if "statements" in sent:
+        # THE SAME TREATMENT AS `section_scope`, because it is the same kind of declaration: a list
+        # whose EMPTY value is a real configuration ("claimable on any statement") and whose null is
+        # not. Validated member by member so a typo is named rather than silently narrowing the gate
+        # to nothing — an unrecognised statement would make `_statements_of` return a set the gate
+        # can never match, which refuses the concept everywhere and looks like a matching failure.
+        if body.statements is None:
+            errors.append(_err("statements", "statements is a list, so it has no null state — "
+                                             "send [] for 'claimable on any statement'"))
+        else:
+            allowed = [s.value for s in StatementType]
+            bad = [v for v in _clean_list(body.statements) if v not in allowed]
+            if bad:
+                errors.append(_err("statements", f"{bad!r} are not statements; expected values "
+                                                 f"from {allowed}"))
+            else:
+                writes["statements"] = _clean_list(body.statements)
     if "section_scope" in sent:
         if body.section_scope is None:
             errors.append(_err("section_scope", "section_scope is a list, so it has no null "

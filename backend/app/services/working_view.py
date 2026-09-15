@@ -134,6 +134,21 @@ def _concept_of(item: LineItemDef) -> dict:
     # `type` has a real default rather than an absent state — an undeclared `type` IS `extracted`,
     # so passing the resolved value through says exactly what the configuration means.
     out["item_type"] = str(item.type)
+    # `statements` FOR THE SAME REASON, and it is the field the statement gate actually reads
+    # (`services.mapping._statements_of`). Not in `SAME`, because it is DERIVED — the singular
+    # `statement` is folded into it on load — and round-tripping a derived field through the
+    # projection compares it against an absent value on the rulebook side.
+    #
+    # WRITTEN EVEN WHEN THE ITEM DID NOT DECLARE IT, because the resolved value is what the gate
+    # must see: an item that declares only `statement`, or inherits one from its section, has a
+    # one-entry list after the fold, and passing that through is what keeps the multi-select gate
+    # behaviourally identical to the single-value gate it replaced (measured: 0 disagreements over
+    # 527 keys x 9 statements). Omitting it would silently unconstrain every concept.
+    # `.value`, NOT `str()` — the trap this codebase already documents in
+    # `services.line_item_llm._entry_for`. `StatementType` subclasses str AND Enum, and
+    # `Enum.__str__` wins, so `str(StatementType.BALANCE_SHEET)` is `"StatementType.BALANCE_SHEET"`
+    # — which matches no member and fails validation on all 484 mappings that carry one.
+    out["statements"] = [getattr(s, "value", s) for s in (item.statements or ())]
     return out
 
 

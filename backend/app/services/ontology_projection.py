@@ -69,6 +69,12 @@ SAME: tuple[str, ...] = (
     "label", "definition", "prompt", "value_scope",
     "extraction_mode",
     "analyst_bucket", "aliases", "aliases_i18n", "keyword_hints", "regex_hints", "exclude_hints",
+    # `statements` IS NOT HERE, deliberately, and `item_type` is the precedent. It is a DERIVED
+    # field — `LineItemDef._merge_statement_into_statements` folds the singular `statement` into it
+    # on load — so a concept that declared only `statement` still arrives carrying both. Round-
+    # tripping it through the projection would then compare a derived value on one side against an
+    # absent one on the other and report 462 spurious divergences, which is what
+    # `test_working_view_parity` measured. `working_view._concept_of` writes it explicitly instead.
     "sign_rule", "inherits", "statement", "section_scope",
     "temporality", "face_only", "unit_of_account", "note_use", "note_use_rationale",
     "sign_convention", "match_priority", "alias_matching", "residual_policy",

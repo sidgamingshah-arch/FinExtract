@@ -2038,18 +2038,47 @@ class OntologyMatcher:
         declared = normalize_statement(m.statement) if m is not None else ""
         return declared or statement_of_key(canonical_key)
 
+    def _statements_of(self, canonical_key: str) -> frozenset[str]:
+        """EVERY statement the concept may be claimed on, or an empty set when nothing says.
+
+        THE PLURAL IS THE DECLARATION NOW. `statements` is a list because one caption is genuinely
+        printed on more than one statement — depreciation on the income statement and again in the
+        cash-flow reconciliation, interest on the P&L and again under financing — and with a single
+        value an author had to pick one printing and the other was actively REFUSED rather than
+        merely unmatched.
+
+        The singular `statement` is folded into the list on load
+        (`LineItemDef._merge_statement_into_statements`), so this reads one field and there is no
+        second answer. `statement_of_key` remains the fallback for a concept that declares neither,
+        exactly as it was, and exactly the argument `_sections_of` makes about sections.
+        """
+        m = self._by_key.get(canonical_key)
+        declared = {normalize_statement(s) for s in (getattr(m, "statements", None) or ())} if m else set()
+        declared.discard("")
+        if declared:
+            return frozenset(declared)
+        # Nothing in the list — fall back through the singular and then the key namespace, which is
+        # what `_statement_of` already does and the only reason it is still here.
+        one = self._statement_of(canonical_key)
+        return frozenset({one}) if one else frozenset()
+
     def _in_statement(self, canonical_key: str, statement: str | None) -> bool:
         """False only when the concept clearly belongs to a DIFFERENT statement than the caption.
 
         Unknown statements, and concepts that neither the rulebook nor their key namespace places on
         one, are always allowed — the constraint suppresses confident cross-statement errors without
         silently dropping concepts it cannot place.
+
+        ONE MATCH IS ENOUGH now that the declaration is a list: a concept printed on two statements
+        is admitted under either, which is the whole point of the multi-select. An EMPTY list means
+        nothing was said and admits everything — the same convention `section_scope` uses, and not
+        "no statement is allowed".
         """
         want = normalize_statement(statement)
         if want not in self._STATEMENTS:
             return True
-        have = self._statement_of(canonical_key)
-        return have is None or have == want
+        have = self._statements_of(canonical_key)
+        return not have or want in have
 
     def _section_of(self, text: str | None) -> str | None:
         return section_of_banner(text)

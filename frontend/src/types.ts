@@ -1737,6 +1737,9 @@ export interface LineItemDef {
    *  `null` means nothing was said, which is NOT "face": a set authored before the field existed
    *  is read the way it always was. */
   route?: Route | null;
+  /** Every statement this line may be claimed on. EMPTY MEANS UNCONSTRAINED — "nothing was
+   *  said", not "no statement is allowed", the same convention `section_scope` uses. */
+  statements?: string[];
   aliases: string[];
   /** Per-locale aliases; the matcher folds every locale into one index. */
   aliases_i18n: Record<string, string[]>;
@@ -1920,6 +1923,9 @@ export interface LineItemEdit {
   llm_only_if_note_tagged?: boolean;
   note_selection?: NoteSelection;
   route?: Route | null;
+  /** Every statement this line may be claimed on. A list, so a caption printed on two is
+   *  admitted under either; [] means unconstrained. Supersedes the singular `statement`. */
+  statements?: string[];
   /** `null` disables note sourcing for this line entirely. */
   note_source?: NoteSource | null;
   note_use?: LineItemNoteUse | null;

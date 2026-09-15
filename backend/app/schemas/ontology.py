@@ -196,6 +196,12 @@ class OntologyMapping(BaseModel):
     # ``extra='ignore'`` and the whole section layer would be inert.
     inherits: str | None = None
     statement: StatementType | None = None
+    # EVERY statement this concept may be claimed on — the plural the matcher's gate reads
+    # (`services.mapping._statements_of`). Carried here because the working view projects a
+    # `LineItemSet` onto this model on the way into the matcher, and a field with no home on
+    # `OntologyMapping` is silently dropped by `extra="ignore"` — which for a scoping field means
+    # the gate quietly stops constraining anything and every subtotal still ties.
+    statements: list[StatementType] = Field(default_factory=list)
     section_scope: list[str] = Field(default_factory=list)
     temporality: Temporality | None = None
     # ``None`` means "nothing was said", not "false": v1 rulebooks never expressed face-only-ness,

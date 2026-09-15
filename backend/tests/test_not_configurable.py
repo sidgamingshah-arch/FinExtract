@@ -112,7 +112,18 @@ def test_the_fields_the_v2_spec_removed_are_all_refused():
 
 
 def test_the_count_someone_has_to_justify():
-    """24 of 52 wire fields refused.
+    """24 of 53 wire fields refused.
+
+    53 SINCE `statements` ARRIVED — every statement a line may be claimed on, as a LIST. The
+    singular `statement` was not merely narrow, it was actively refusing: `_in_statement` returns
+    False for a concept "clearly on a different statement", so a caption genuinely printed on two —
+    depreciation on the income statement and again in the cash-flow reconciliation, interest on the
+    P&L and again under financing — had one printing gated for and the other REFUSED rather than
+    merely unmatched, landing in a residual with nothing saying the gate did it. The singular is
+    folded into the list on load and stays on the wire, so this is one field wider and one question
+    fewer: the two halves of placing (which statements, which banners) are now asked the same way,
+    where before `section_scope` was a list and the statement was a single value with no control at
+    all. Measured identical to the old gate over 527 keys x 9 statements: 0 disagreements.
 
     52 SINCE `route` ARRIVED — where an extracted line's figure is read from: the face, a note's
     table rows, or prose. It is a question the configuration never asked and instead INFERRED from
@@ -170,7 +181,7 @@ def test_the_count_someone_has_to_justify():
     It was 26 until the audit found that `in_output`, `namespace` and `order` cannot be refused:
     the template has no row for an off-template PART (measured: 0 of the 77 appear in it), so it
     cannot decide a part's delivery, and refusing them made parts unauthorable."""
-    assert len(_EDITABLE_FIELDS) == 52, len(_EDITABLE_FIELDS)
+    assert len(_EDITABLE_FIELDS) == 53, len(_EDITABLE_FIELDS)
     assert len(_NOT_CONFIGURABLE) == 24, len(_NOT_CONFIGURABLE)
 
 
