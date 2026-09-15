@@ -85,7 +85,20 @@ _MIN_PROSE_SENTENCE = 26
 
 # How many note NUMBERS similarity may add to `identified_notes`, over the whole document. See the
 # bound's own comment in `identified_notes` for why a per-line cap is not enough.
-_SEMANTIC_NOTE_BUDGET = 8
+#
+# UNBOUNDED BY DEFAULT, on instruction: pass the notes and their prose whole. The cap was eight,
+# and what it dropped was not noise — a note the similarity pass ranked ninth is still a note some
+# line's own configuration pointed at, and withholding it does not make the model abstain, it makes
+# the model tag a figure from a note it WAS given. That is the failure this removes.
+#
+# WHAT IT COSTS, stated because the number is known and is the reason a bound existed: lifting it
+# took one measured request from 30,407 tokens to 82,299. `identified_notes` is attached ONCE per
+# request rather than once per source item, so the cost is linear in the filing's notes and not
+# multiplied by the request's line count — the shape decision that makes this affordable at all.
+#
+# 0 MEANS UNLIMITED so the bound can be restored from configuration without another release; any
+# positive value is honoured exactly as before.
+_SEMANTIC_NOTE_BUDGET = 0
 
 
 # THE ENUMERATOR A HEADING ARRIVES WITH, AND WHY IT HAS TO BE STRIPPED BEFORE MATCHING.
@@ -607,7 +620,9 @@ def identified_notes(line_item_set, notes, *, cited=None) -> list[dict]:
                          for n in numbers}
         ranked = sorted(scored.items(),
                         key=lambda kv: (kv[0] not in cited_numbers, -kv[1][0]))
-        for note, (_score, keys) in ranked[:_SEMANTIC_NOTE_BUDGET]:
+        bounded = (ranked[:_SEMANTIC_NOTE_BUDGET] if _SEMANTIC_NOTE_BUDGET > 0
+                   else ranked)
+        for note, (_score, keys) in bounded:
             semantic_by_note[note] = keys
 
     # ONE ENTRY PER NOTE NUMBER, NOT ONE PER TABLE.
