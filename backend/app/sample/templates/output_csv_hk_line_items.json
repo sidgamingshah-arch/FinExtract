@@ -21604,7 +21604,11 @@
     "Turnover/Sales/Revenues",
     "Turnover",
     "Revenue",
-    "Sales"
+    "Sales",
+    "Revenues",
+    "Total revenue",
+    "Total revenues",
+    "Revenue from contracts with customers"
    ],
    "aliases_i18n": {
     "en": [
@@ -21612,7 +21616,11 @@
      "Turnover/Sales/Revenues",
      "Turnover",
      "Revenue",
-     "Sales"
+     "Sales",
+     "Revenues",
+     "Total revenue",
+     "Total revenues",
+     "Revenue from contracts with customers"
     ],
     "zh": [
      "主营业务收入",
