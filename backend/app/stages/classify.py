@@ -232,6 +232,31 @@ _NARRATIVE = re.compile(
 _NOTE_ONE = re.compile(r"(?m)^\s*(?:note\s*)?1[.)、]?\s+[A-Za-z一-鿿]{2,}")
 # A numbered note heading, e.g. "14. Cash and cash equivalents" / "14 现金及现金等价物".
 _NUMBERED_HEADING = re.compile(r"(?m)^\s*(?:note\s*)?\d{1,2}[.)、]?\s+[A-Za-z一-鿿]{2,}")
+# A NUMBERED NOTE HEADING IN THE CJK FORM — "10、存货", "78、现金流量表项目", "20、投资性房地产".
+#
+# WHY IT IS A SEPARATE PATTERN AND NOT AN ARM OF `_NUMBERED_HEADING`. That one requires WHITESPACE
+# after the number, and CJK typesetting puts none after an ideographic comma, so no numbered note
+# heading in a PRC CAS filing matches it — `PageFeat.note_heading` was False on every one of them,
+# costing the emission both halves of its note evidence (+2.5 for NOTES, -3.0 against FACE). What
+# remained was the numeric-density point, FACE +1.0 against NOTES +0.5, so FACE won each page by
+# 0.5; and with `(_FACE, _FACE)` free and `(_NOTES, _FACE)` at 3.0 the decode had no reason to
+# leave. Measured on a 287-page Shenzhen filing: 119 of 287 pages came out FACE, including a
+# 93-page unbroken run through the notes, every page of it at 0.45-0.53 confidence because no title
+# matched on any of them. A face page never becomes a note, so those disclosures were unreachable.
+#
+# RELAXING THE LATIN ARM INSTEAD IS WHAT MUST NOT BE DONE, and it was measured too. `_features`
+# sets `note_heading` from a `.search()` over the WHOLE page text, so anything that pattern gains it
+# gains on every page of every filing: "1 January 2024", "31 December 2024" and every
+# three-digit-then-word line on an untitled STATEMENT page would read as a note heading. Swept, that
+# moved 7,419 of 14,018 figures across seven filings and took turnover on one from 408,721,552 to
+# 820,695,961.
+#
+# SO THIS ONE IS POSITION-BOUNDED, and that is the whole safety of it: it is asked only of the
+# page's opening lines, through `_opens_with_zh_note_heading`, never of the page's body. A
+# statement's face page opens with its title and its column headings; "10、存货" at the top of a
+# page is a note heading and nothing else. The Latin behaviour is unchanged, byte for byte.
+_ZH_NUMBERED_HEADING = re.compile(r"^\s*(?:note\s*)?\d{1,3}[.、)]\s*[一-鿿]{2,}")
+
 # A page's repeating running header, skipped so a title is read from the page's own heading.
 _RUNNING_HEADER = re.compile(r"annual report|interim report|年報|年度報告|中期報告", re.I)
 _NUM_TOKEN = re.compile(r"\(?-?[\d,]+\.?\d*\)?")
@@ -612,6 +637,27 @@ def _opens_with_note_heading(lines: list[dict]) -> bool:
     return False
 
 
+def _opens_with_zh_note_heading(lines: list[dict]) -> bool:
+    """Whether a page OPENS with a CJK numbered note heading — see `_ZH_NUMBERED_HEADING`.
+
+    The same top-zone rule `_opens_with_note_heading` applies, and for the same reason its docstring
+    gives: a statement's continuation page is full of note REFERENCES and of rows beginning with a
+    figure, so asking whether the page CONTAINS such a heading somewhere answers a different
+    question than whether it starts one.
+    """
+    seen = 0
+    for line in lines:
+        text = (line.get("text") or "").strip()
+        if not text or _RUNNING_HEADER.search(text):
+            continue
+        if _ZH_NUMBERED_HEADING.match(text):
+            return True
+        seen += 1
+        if seen >= _TOP_LINES:
+            return False
+    return False
+
+
 def _page_lines(page) -> tuple[list[dict], float]:
     """Lines as (text, y, size, bold), top-down. Read from the span dict rather than plain text
     because a title's position and weight are evidence the decode uses."""
@@ -669,7 +715,8 @@ def _features(index: int, lines: list[dict], page_h: float, text: str) -> PageFe
     f.strong_title = f.statement is not None
 
     f.notes_banner = any(re.search(p, joined, re.I) for p in _NOTES_BANNER)
-    f.note_heading = bool(_NUMBERED_HEADING.search(text)) and not f.strong_title
+    f.note_heading = (bool(_NUMBERED_HEADING.search(text))
+                      or _opens_with_zh_note_heading(lines)) and not f.strong_title
     f.note_one = bool(_NOTE_ONE.search(text)) and not f.strong_title
     f.backmatter = bool(_BACKMATTER.search(joined))
 
@@ -739,7 +786,7 @@ def _emission(f: PageFeat, state: str) -> float:
     return s
 
 
-def _notes_follow_the_face(path: list[str], log=None) -> list[str]:
+def _notes_follow_the_face(path: list[str], log=None, feats: list | None = None) -> list[str]:
     """THE ORDERING INVARIANT: no notes page precedes the face of the statements.
 
     A filing states its statements and then explains them. The notes to the financial statements
@@ -774,7 +821,28 @@ def _notes_follow_the_face(path: list[str], log=None) -> list[str]:
     before the first statement was even reached, so the Group's own balance sheet could be read as
     the Company's re-presentation of it. Anchoring the notes to the face fixes that too.
     """
-    first_face = next((i for i, s in enumerate(path) if s == _FACE), None)
+    # THE ANCHOR MUST BE A PAGE THAT LOOKS LIKE A STATEMENT, not merely one the decode called FACE.
+    #
+    # Opening the path in FACE is free — `_decode` gives PRE and FACE the same opening score — and
+    # it SAVES the 1.0 that `(_PRE, _NOTES)` costs, so once the front matter carries enough note
+    # evidence the cheapest path becomes "FACE on page 1, NOTES from page 2". That anchors this
+    # invariant at index 0 and leaves every front-matter page in the notes. Measured on a 287-page
+    # CAS filing whose MD&A is itself full of numbered subsections: `other` fell from 68 pages to 6
+    # and a hundred pages of narrative, governance and segment tables were handed to the note
+    # extractor.
+    #
+    # `strong_title` is the right test because it is the evidence this function already reasons
+    # about: it may refuse a notes reading but never assert a statement, so the page it anchors to
+    # has to be one that asserted itself. Fail open to the previous behaviour when no feats are
+    # given or no face page carries a title — a filing whose statements are untitled still has its
+    # notes anchored by the decode's own first face page, which beats not anchoring at all.
+    titled = None
+    if feats:
+        titled = next((i for i, st in enumerate(path)
+                       if st == _FACE and i < len(feats)
+                       and getattr(feats[i], "strong_title", False)), None)
+    first_face = titled if titled is not None else next(
+        (i for i, s in enumerate(path) if s == _FACE), None)
     if first_face is None:
         if _NOTES in path and log:
             log("classify:notes_before_face=kept(no_face_page_in_filing)")
@@ -1016,7 +1084,7 @@ class ClassifyStage:
 
         path, margins = _decode(feats)
         # The notes explain statements already printed, so none of them precedes the face.
-        path = _notes_follow_the_face(path, log=ctx.log)
+        path = _notes_follow_the_face(path, log=ctx.log, feats=feats)
 
         # A statement runs across several pages and only the first is titled, so a face page with no
         # resolvable title inherits the last one named. Reset when the face run ends.
