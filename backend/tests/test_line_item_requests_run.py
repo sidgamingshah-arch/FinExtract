@@ -493,11 +493,20 @@ def test_where_the_line_is_printed_reaches_the_request(shipped):
     assert "printed_in" not in line_item_payload(part, ("7",))
 
 
-def test_what_a_line_declares_about_its_row_reaches_the_request(shipped):
-    """`row_terms` is the author's statement of the CONTENT's name as against the note HEADING's —
-    the container-for-content error this whole layer exists around. It is also the floor the answer
-    is checked against, so withholding it would grade the model against a constraint it was never
-    given."""
+def test_what_a_line_declares_about_its_row_does_NOT_reach_the_request(shipped):
+    """The DETERMINISTIC tab cannot reach the model, and this is the test of that contract.
+
+    This assertion used to be its own inverse: `row_terms` was sent as `row_is_called` on the
+    reading that the author's statement of what a row is called helps a model find it. The
+    configuration now separates the two routes — what an author writes to make the LEXICAL readers
+    recognise a caption (`aliases`, `row_caption_any`/`_none`, `row_terms`/`_none`) is never sent,
+    so a blank deterministic tab and a filled one put the SAME request to the model and an answer
+    is attributable to the definition alone.
+
+    Asserted on a line that carries the fields in quantity, so the test would fail loudly if any
+    one of them were re-added: the item chosen has both `row_terms` and `row_caption_any`
+    authored.
+    """
     from app.services.line_item_llm import line_item_payload
 
     item = next(i for i in shipped.items
@@ -505,5 +514,17 @@ def test_what_a_line_declares_about_its_row_reaches_the_request(shipped):
                 and getattr(getattr(i, "note_source", None), "row_terms", None))
     entry = line_item_payload(item, ("7",))
 
-    assert entry["row_is_called"] == list(item.note_source.row_terms)
+    # The line really does declare them — otherwise this test would pass vacuously.
+    assert item.note_source.row_terms, "fixture must carry row_terms for this to mean anything"
+
+    for withheld in ("row_is_called", "row_is_never_called", "row_caption_matches",
+                     "row_caption_must_not_match", "printed_as", "printed_as_by_language",
+                     # `prompt` is merged into `definition` on load, so there is no second
+                     # prose key for the model to read either.
+                     "instruction"):
+        assert withheld not in entry, f"{withheld} is a deterministic-route field and must not be sent"
+
+    # What the request DOES carry is the authored meaning and the placement — nothing lexical.
+    assert set(entry) <= {"key", "label", "notes_supplied", "definition", "exclude",
+                          "printed_in", "sign_convention"}
     assert entry["key"] == item.key and entry["notes_supplied"] == ["7"]

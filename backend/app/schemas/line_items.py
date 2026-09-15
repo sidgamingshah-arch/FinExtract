@@ -521,6 +521,12 @@ class LineItemDef(BaseModel):
     # authored on one would be text that is never sent — the kind of configuration that looks like
     # it is working because nothing contradicts it.
     prompt: str = ""
+    # MERGED INTO `definition` ON LOAD — see `_merge_prompt_into_definition` below. `prompt` stays
+    # declared so a set written before the merge still parses, and it is emptied as it is folded so
+    # there is exactly ONE field holding the authored words and no way for the two to disagree.
+    # Measured on the shipped set at the time of the merge: 462 items carried a definition alone,
+    # 61 carried BOTH, and 0 carried a prompt alone — so a merge that PICKED one would have dropped
+    # authored instruction on 61 lines, which is why this concatenates.
     # Whether it reaches the statement screens and the export. An intermediate never does; the
     # validator below enforces that rather than trusting whoever edits the file.
     in_output: bool = True
@@ -742,6 +748,40 @@ class LineItemDef(BaseModel):
     # as the alternative the validator below accepts, but the shipped set names one for no line —
     # every derived line there carries a `cascade`, which is the configuration-driven route.
     implemented_by: str = ""
+
+    @model_validator(mode="after")
+    def _merge_prompt_into_definition(self):
+        """Fold `prompt` into `definition`, so ONE field holds the authored words.
+
+        The configuration used to ask two prose questions about the same thing — "what is this
+        line" and "what else should the model be told about it" — and the split was never a real
+        distinction: both were authored by the same person, both went into the same request, and
+        the only thing that separated them was which key they arrived under. Merging them removes a
+        question without removing any words.
+
+        CONCATENATED, NEVER PICKED. Measured on the shipped set: 462 lines carried a `definition`
+        alone, 61 carried BOTH, 0 carried a `prompt` alone. Taking either field on its own would
+        have silently dropped authored instruction on those 61 — the failure mode this codebase
+        keeps finding, where configuration that is stored and shown stops being consulted.
+
+        FIRST of the `mode="after"` validators, deliberately. `_coherent` below REFUSES a prompt on
+        a line the model is never asked about (calculated / intermediate / derived); folding the
+        text into `definition` and clearing `prompt` here means that refusal can no longer fire on
+        a set that was valid before the merge, so the 8 derived lines whose instruction was moved
+        into `definition` when `description` was removed do not now fail to load. A definition is
+        legal on every line, which is the other reason it is the surviving field.
+
+        IDEMPOTENT: a set already merged has an empty `prompt` and is left exactly as it is, so
+        loading, saving and re-loading does not append the same paragraph twice.
+        """
+        extra = (self.prompt or "").strip()
+        if extra:
+            base = (self.definition or "").strip()
+            # Two sentences joined by a blank line rather than a space: they were authored as
+            # separate paragraphs and a reader of the merged field should still see the seam.
+            self.definition = f"{base}\n\n{extra}" if base else extra
+            self.prompt = ""
+        return self
 
     @model_validator(mode="after")
     def _derive_measurement(self):

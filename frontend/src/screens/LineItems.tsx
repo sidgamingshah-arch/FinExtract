@@ -214,9 +214,9 @@ const MEANING_SIMPLE = [
   // be present. The per-locale half writes `aliases_i18n[locale]` through the same control, with
   // the locale selector in the band header.
   "aliases",                  // 462 of 539, 461 distinct
-  // THE LINE'S OWN INSTRUCTION to the model, on the simple form because the model is only ever
-  // asked about an extracted line — so this is the one type where it does anything.
-  "prompt",                   // 77 of 539, 77 distinct
+  // `prompt` WAS HERE — "the line's own instruction to the model". It is merged into `definition`,
+  // which the simple form already carries, so the instruction is still authorable on this form and
+  // there is no longer a second control to list.
 ];
 
 /** WHERE A FIGURE MAY BE READ FROM — the note-sourcing block, simple for an extracted line because
@@ -494,10 +494,10 @@ function withheldReason(name: string, sel: {
   const { type, extractionMode, aliasMatching, faceOnly } = sel;
 
   // ── SERVER-ENFORCED ────────────────────────────────────────────────────────────────────────
-  // `_coherent`: a prompt is only ever sent for an `extracted` line, and is refused elsewhere.
-  if (name === "prompt" && type !== "extracted") {
-    return `a prompt is only sent for an extracted line, and this one is ${type} — its figure comes from arithmetic, so the model is never asked about it`;
-  }
+  // THE `prompt` WITHHOLDING IS GONE with the field. It read "a prompt is only sent for an
+  // extracted line, and this one is ${type}" — mirroring `_coherent`'s refusal. `prompt` is merged
+  // into `definition`, which is legal on EVERY line type, so there is nothing left to withhold and
+  // the refusal it mirrored can no longer fire.
   // `_coherent`: terms are REQUIRED for calculated/intermediate and meaningless otherwise.
   if (name === "terms" && !["calculated", "intermediate"].includes(type)) {
     return `terms are the inputs of an arithmetic line; a ${type} line does not have any`;
@@ -602,10 +602,16 @@ function withheldReason(name: string, sel: {
 function requiredNow(name: string, sel: { type: string; outputStructure: string }): boolean {
   if (["cascade", "implemented_by"].includes(name)) return sel.type === "derived";
   if (name === "terms") return ["calculated", "intermediate"].includes(sel.type);
-  // PROSE IS WRITTEN FROM THE PROMPT AND NOTHING ELSE, and the server refuses prose without one.
-  // So the moment an author chooses prose, the prompt has to be on the form whatever the mode —
-  // otherwise the save is refused with no control on screen to answer the refusal.
-  if (name === "prompt") return sel.outputStructure === "prose";
+  // THE `prompt` RULE IS GONE, and it was doubly dead before it went.
+  //
+  // It read `if (name === "prompt") return sel.outputStructure === "prose"` — prose is written
+  // from the prompt and the server refused prose without one, so the control had to be on the form
+  // for an author to answer that refusal. Both halves have since stopped being true:
+  // `output_structure` is retired (no line item declares it, so the condition could not fire), and
+  // `prompt` is now merged into `definition` and refused by the endpoint — so forcing it back on
+  // would put a control on the form that the server rejects, which is the exact clash
+  // `tests/test_not_configurable.py::test_a_control_the_form_forces_back_on_is_still_writable`
+  // exists to catch.
   return false;
 }
 
@@ -651,7 +657,10 @@ const WHERE_SUFFIX: Record<string, string> = {
 
 const GROUP_FIELDS = {
   identity: ["type", "inherits"],
-  meaning: ["label", "definition", "prompt", "exclude_criteria"],
+  // `prompt` WAS HERE, beside `definition`. Merged into it — one prose field holds what this line
+  // is and anything else the model should know, because two keys carrying the same author's answer
+  // to the same question is a question too many.
+  meaning: ["label", "definition", "exclude_criteria"],
   recognition: ["aliases", "exclude_hints"],
   gate: ["section_scope", "note_selection", "llm_only_if_note_tagged",
          "note_use", "note_source"],
@@ -670,7 +679,9 @@ const GROUP_FIELDS = {
 } as const;
 
 const CONDITIONAL_FIELDS = [
-  "prompt", "terms", "cascade", "implemented_by",
+  // `prompt` WAS HERE — withheld on a line the model is never asked about. Merged into
+  // `definition`, which every line type may carry, so it is conditional on nothing.
+  "terms", "cascade", "implemented_by",
   // withheld on a line the model is never asked about — see withheldReason
   "llm_only_if_note_tagged", "note_selection",
   // withheld on a DERIVED line, where a note source would fill the parent and skip its cascade.
@@ -1275,30 +1286,28 @@ function Detail(p: EditorProps) {
                      value={g("label", item.label)} onChange={(v) => patch({ label: v })}
                      error={e} inherited={inh("label", item.label)} />
         ))}
+        {/* ONE PROSE FIELD. `prompt` — "Extra instruction for this line, sent to the model" — was
+            rendered here as a second textarea, and the split was never a real distinction: the
+            same author answered both, and both arrived in the same request under different keys.
+            They are merged, so this control is the whole of what the model is told about this
+            line, and its help text now carries what the prompt's said. The endpoint refuses
+            `prompt` (`_NOT_CONFIGURABLE`) and any stored value is folded into `definition` on
+            load, so nothing an author already wrote is lost. */}
         {fld("definition", (e) => (
-          <TextArea label="Definition — the authoritative accounting meaning" testid="definition"
-                    editable={editable} rows={4} reason={lockReason}
-                    help="The accounting meaning of this line, in prose. When a printed caption does
-                          not match any alias, this is the text the model
-                          reads to decide whether the caption belongs here
-                          — so it is what resolves a wording nobody
-                          thought to list."
+          <TextArea label="Definition — what this line is, and anything else the model should know"
+                    testid="definition"
+                    editable={editable} rows={6} reason={lockReason}
+                    help="The accounting meaning of this line, in prose, PLUS any rule that applies
+                          to this line and nothing else. This is the whole
+                          of what the model is told about it — added to the
+                          master prompt, never replacing it, so the global
+                          policies still apply. It is also what resolves a
+                          printed wording nobody thought to list, because
+                          the recognition patterns on the Deterministic tab
+                          are never sent to the model."
                     value={g("definition", item.definition)}
                     onChange={(v) => patch({ definition: v ?? "" })}
                     error={e} inherited={inh("definition", item.definition)} />
-        ))}
-        {fld("prompt", (e) => (
-          <TextArea label="Extra instruction for this line, sent to the model" testid="prompt"
-                    editable={editable} rows={3} reason={lockReason}
-                    help="ADDED TO THE MASTER PROMPT, never replacing it — the global policies still
-                          apply. Sent only when this line is offered to the
-                          model as a candidate, so it is the place to put
-                          the one rule that applies to THIS line and
-                          nothing else. Required when the line outputs
-                          prose, because prose is written from it."
-                    value={g("prompt", item.prompt)}
-                    onChange={(v) => patch({ prompt: v ?? "" })}
-                    error={e} />
         ))}
         {fld("exclude_criteria", (e) => (
           <StringListEditor label="Does NOT count as this line" testid="exclude_criteria"

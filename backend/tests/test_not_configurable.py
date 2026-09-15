@@ -41,7 +41,11 @@ TEMPLATE_SCREEN_SENDS = frozenset({
 })
 
 # What `requiredNow` in `screens/LineItems.tsx` forces back onto the form despite retirement.
-FORCED_BACK_ON = frozenset({"cascade", "implemented_by", "terms", "prompt"})
+# `prompt` WAS HERE. `requiredNow` forced it onto the form when `output_structure` was `prose`,
+# because the server refused prose without one. `prompt` is now merged into `definition` and
+# refused by the endpoint, and the rule that forced it has been deleted from the form — so keeping
+# it here would assert a clash that no longer exists in either direction.
+FORCED_BACK_ON = frozenset({"cascade", "implemented_by", "terms"})
 
 
 def test_every_refused_field_is_actually_on_the_wire():
@@ -91,6 +95,11 @@ def test_the_fields_the_v2_spec_removed_are_all_refused():
         # values were sourcing instructions and went to `prompt` (77 extracted lines) and
         # `definition` (8 derived, which cannot carry a prompt).
         "pattern", "decomposition_rule",
+        # `prompt` is MERGED INTO `definition` rather than deleted: the field stays on the wire so
+        # a set authored before the merge still parses, `LineItemDef` folds it into `definition`
+        # on load, and the 61 shipped lines that carried both have been folded in place. Refused
+        # here so a new one cannot be created by API call for a question no screen asks.
+        "prompt",
     }
     assert set(_NOT_CONFIGURABLE) == expected, {
         "refused but not in the spec": sorted(set(_NOT_CONFIGURABLE) - expected),
@@ -99,7 +108,16 @@ def test_the_fields_the_v2_spec_removed_are_all_refused():
 
 
 def test_the_count_someone_has_to_justify():
-    """22 of 51 wire fields refused.
+    """23 of 51 wire fields refused.
+
+    23 SINCE `prompt` WAS MERGED INTO `definition`. The configuration asked the same author the
+    same question twice — "what is this line" and "what else should the model be told about it" —
+    and both answers went into the same request under different keys, so nothing distinguished them
+    but the key. Measured before merging: 462 lines carried a `definition` alone, 61 carried BOTH,
+    and 0 carried a `prompt` alone, so a merge that PICKED one would have dropped authored
+    instruction on 61 lines; it concatenates. The field stays on the wire (hence 51, not 50) and is
+    folded on load, so a set authored before the merge still works — what is refused is authoring a
+    NEW one for a question no screen asks.
 
     51 SINCE `terms_op` ARRIVED — how a calculated line's terms, or a cascade rung's, combine: sum,
     max, min or first. Added because the related-party spec's own selection rule is MAX_VALID(Find
@@ -130,7 +148,7 @@ def test_the_count_someone_has_to_justify():
     the template has no row for an off-template PART (measured: 0 of the 77 appear in it), so it
     cannot decide a part's delivery, and refusing them made parts unauthorable."""
     assert len(_EDITABLE_FIELDS) == 51, len(_EDITABLE_FIELDS)
-    assert len(_NOT_CONFIGURABLE) == 22, len(_NOT_CONFIGURABLE)
+    assert len(_NOT_CONFIGURABLE) == 23, len(_NOT_CONFIGURABLE)
 
 
 @pytest.mark.parametrize("field,value", [

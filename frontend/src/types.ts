@@ -1847,8 +1847,10 @@ export interface LineItemEdit {
   label?: string;
   description?: string;
   definition?: string;
-  /** Extra instruction for THIS line, appended to the master prompt inside this line's own
-   *  candidate entry. Refused unless the line is `extracted`. */
+  /** MERGED INTO `definition` — no longer configurable, and refused by the endpoint
+   *  (`_NOT_CONFIGURABLE`). It stays on the wire so a set authored before the merge still parses;
+   *  any stored value is folded into `definition` when the set is loaded. Author the whole
+   *  instruction — what the line is, plus any rule specific to it — in `definition`. */
   prompt?: string;
   /** A number, a phrase off the page, or prose written from `prompt`. Refused unless the line is
    *  `extracted`; `prose` is refused with no prompt to write it from. */

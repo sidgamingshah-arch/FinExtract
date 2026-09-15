@@ -238,25 +238,29 @@ class LineItemLlmStage(Stage):
                 # row, so it carries no caption to test, and an empty caption shares no word with
                 # anything. What verifies a prose amount is that it appears in the cited note's own
                 # text, which `resolve_sources` checks before returning it at all.
-                vetoes_bind = bool(getattr(ctx.settings.extraction,
-                                           "llm_vetoes_bind_model_answers", True))
-                for entry in resolved:
-                    if entry.get("prose"):
-                        continue
-                    caption = str(entry.get("caption") or "")
-                    ok, why = line_item_notes.caption_agrees_with_row_terms(item, caption)
-                    # AND THE AUTHOR'S OWN EXCLUSIONS, which this path ignored entirely. See
-                    # `line_item_notes.caption_is_vetoed`: 14,943 authored entries that the
-                    # deterministic routes enforce and an LLM answer was never tested against.
-                    if ok and vetoes_bind:
-                        vetoed, veto_why = line_item_notes.caption_is_vetoed(item, caption)
-                        if vetoed:
-                            ok, why = False, veto_why
-                    if not ok:
-                        entry["row_terms_refused"] = why
-                        ctx.log(f"line_item_llm:{key}: row_terms_refused "
-                                f"{str(entry.get('caption'))[:60]!r} — counted and flagged for "
-                                f"review ({why})")
+                # THE ROW_TERMS FLOOR AND THE VETO CHECK ARE GONE, and their removal is the other
+                # half of the two-route split rather than a relaxation decided here.
+                #
+                # `row_terms`, `row_terms_none`, `row_caption_any` and `row_caption_none` are
+                # DETERMINISTIC-route artefacts and are no longer sent to the model
+                # (`services.line_item_llm._entry_for` says why). Grading an answer against a
+                # constraint the request never carried is precisely the unfairness the split
+                # exists to remove: a filled deterministic tab would otherwise make the model's
+                # answers fail for reasons the model was never told, so the same definition would
+                # score differently depending on authoring the model cannot see.
+                #
+                # WHAT THIS GIVES UP, said plainly because it was a real signal: a model citing a
+                # row the author had explicitly vetoed ("accumulated depreciation" for a
+                # depreciation line) used to be counted, marked `row_terms_refused` and sent to
+                # review. It is now counted and NOT marked. The deterministic route still enforces
+                # every one of those vetoes on its own reading — `services.note_sourced.select_rows`
+                # applies `row_caption_none` and `row_terms_none` — so the exclusions are unenforced
+                # only on the route whose request never mentioned them.
+                #
+                # `extraction.llm_vetoes_bind_model_answers` is consequently unread. It is left in
+                # the settings schema rather than deleted: it is the switch this behaviour comes
+                # back on if the split is judged too strict, and removing it would make restoring
+                # it a schema change instead of a default change.
                 component = str(answer.role or "").lower() == "component"
                 figures, unverified = line_item_llm.combine_terms(
                     resolved, unresolved, list(answer.signs or ()), component,

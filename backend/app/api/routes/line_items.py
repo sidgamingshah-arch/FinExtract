@@ -1291,6 +1291,13 @@ _MODEL_TO_EDIT_FIELD: dict[str, str] = {"sign_convention": "sign_expectation"}
 _NOT_CONFIGURABLE: dict[str, str] = {
     # `type` is now the only field describing how a figure is obtained.
     "extraction_mode": "`type` says how a figure is obtained — extracted, calculated or derived",
+    # ONE PROSE FIELD. `definition` and `prompt` asked the same person the same question twice —
+    # "what is this line" and "what else should the model be told about it" — and both arrived in
+    # the same request under different keys. They are merged: `LineItemDef` folds any stored
+    # `prompt` into `definition` on load (so a set authored before the merge still works, and the
+    # shipped seed has had its 61 such lines folded in place), and the field is refused here so a
+    # new one cannot be created by API call for a question no screen asks.
+    "prompt": "merged into `definition` — author the whole instruction there, in one field",
     #
     # `in_output`, `namespace` AND `order` WERE HERE AND ARE NOT, and the reason is worth keeping
     # because the argument for refusing them was sound for most of the set and wrong where it

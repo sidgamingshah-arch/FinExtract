@@ -195,7 +195,10 @@ def line_item_payload(item, notes_for_item: tuple[str, ...]) -> dict:
     their own recognition (aliases, `aliases_i18n`, regex and keyword hints, `row_terms`), which is
     where it belongs: the parent is never asked about.
     """
-    ns = getattr(item, "note_source", None)
+    # `note_source` IS NOT READ HERE ANY MORE. Every field of it this function used to send is a
+    # DETERMINISTIC-route artefact (see the block below), and which NOTES the line is searched in —
+    # the half `note_source` still decides — reaches the request as `notes_supplied`, resolved by
+    # `services.line_item_notes` before the call rather than described to the model.
     entry: dict = {
         "key": item.key,
         "label": item.label or item.key,
@@ -212,16 +215,23 @@ def line_item_payload(item, notes_for_item: tuple[str, ...]) -> dict:
     # author had nothing to exclude, which is not the same as not having been asked.
     if exclude := list(getattr(item, "exclude_criteria", None) or ()):
         entry["exclude"] = exclude
-    # HOW THE FILING PRINTS IT, in both scripts. `aliases_i18n` is the per-locale half and it is
-    # carried whole rather than filtered to the document's locale: a PRC filing prints a bilingual
-    # heading as often as not, and the model is reading the notes rather than matching a string.
-    aliases = list(getattr(item, "aliases", None) or ())
-    if aliases:
-        entry["printed_as"] = aliases
-    i18n = getattr(item, "aliases_i18n", None) or {}
-    if i18n:
-        entry["printed_as_by_language"] = {
-            lang: list(values) for lang, values in i18n.items() if values}
+    # THE RECOGNITION FIELDS ARE NOT SENT, and that is now a contract rather than an omission.
+    #
+    # `aliases` / `aliases_i18n` used to travel as `printed_as` / `printed_as_by_language`, on the
+    # reading that knowing how a filing spells a line helps a model find its row. They are the
+    # DETERMINISTIC route's evidence — the alias index `services.mapping` matches on — and the
+    # configuration now separates the two routes explicitly: what an author writes to make the
+    # lexical matcher recognise a caption may not also steer the model, because then a blank
+    # deterministic tab and a filled one ask the model two different questions and no answer is
+    # attributable to the definition alone. An author who wants the model to know a spelling writes
+    # it in the definition, where it is visibly part of the instruction.
+    #
+    # The same rule removed `row_is_called` / `row_is_never_called` / `row_caption_matches` /
+    # `row_caption_must_not_match` below, and with them the `row_terms` floor the answer used to be
+    # graded against (`stages.line_item_llm`) — grading against a constraint the request never
+    # carried is the unfairness this split exists to remove. `row_terms` is still read by the
+    # DETERMINISTIC readers (`stages.map_ontology`, `services.note_sourced`), which is where it now
+    # belongs and its only remaining home.
     # WHERE THE LINE IS PRINTED, and it replaces a sentence that said the same thing in prose.
     #
     # `section_disambiguation` used to be sent here as `how_to_tell_it_apart`, on 375 of the 518
@@ -244,23 +254,11 @@ def line_item_payload(item, notes_for_item: tuple[str, ...]) -> dict:
     statement = str(getattr(raw, "value", raw) or "")
     if statement:
         entry["printed_in"] = _STATEMENT_LABEL.get(statement, statement.replace("_", " "))
-    if ns is not None:
-        # WHAT THE ROW IS CALLED, and the most useful field here of any of them. `row_terms` is the
-        # author's statement of the CONTENT's name as against the note HEADING's — the
-        # container-for-content error this whole layer exists around: a note heading names the
-        # container, a row caption names the content, and a probe blended from both scored 0.000
-        # against the very heading its line belongs to. It is also the floor the answer is checked
-        # against (`line_item_notes.caption_agrees_with_row_terms`), so withholding it would grade
-        # the model against a constraint it was never given.
-        for attr, name in (("row_terms", "row_is_called"),
-                           ("row_terms_none", "row_is_never_called"),
-                           ("row_caption_any", "row_caption_matches"),
-                           ("row_caption_none", "row_caption_must_not_match")):
-            values = list(getattr(ns, attr, None) or ())
-            if values:
-                entry[name] = values
-    if getattr(item, "prompt", ""):
-        entry["instruction"] = item.prompt
+    # `prompt` IS NO LONGER A SECOND FIELD. Definition and prompt are one authored thing now — the
+    # merge is done on the way in (`schemas.line_items.LineItemDef.definition`), so there is nothing
+    # left to append here and no `instruction` key. A set written before the merge still loads, and
+    # its `prompt` is folded into `definition` by the loader rather than re-appended here, so the
+    # request carries the same words either way and only one key can hold them.
     # WHETHER THIS LINE IS PRINTED AS A NEGATIVE. An expense disclosed in brackets and the same
     # expense disclosed unsigned are the same fact, and a locator told nothing about the
     # convention has no way to know a bracketed figure is the row it was looking for.

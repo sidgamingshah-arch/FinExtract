@@ -792,19 +792,31 @@ def test_the_two_sign_fields_are_two_questions(client, probe):
         "the refusal has to point at the field that CAN express the full vocabulary")
 
 
-def test_a_prompt_round_trips_on_an_extracted_line(client, probe):
-    """The per-line prompt, on the one type it is sent for.
+def test_a_prompt_is_refused_because_it_is_merged_into_the_definition(client, probe):
+    """``prompt`` is retired, and this asserts the retirement rather than the field.
 
-    Excluded from the combined patch above because that body sets `type: "calculated"` — see
-    `_NOT_COHERENT_WITH_THE_REST`. Tested here on its own so the field is still proved authorable.
+    It used to prove the field was authorable — "the per-line prompt, on the one type it is sent
+    for". The two prose fields asked the same author the same question twice and arrived in the
+    same request under different keys, so they are now ONE: `definition` carries the whole
+    instruction, `LineItemDef._merge_prompt_into_definition` folds any stored `prompt` into it on
+    load, and the shipped seed has had its 61 such lines folded in place.
+
+    What is worth holding is the same thing the neighbouring retirements hold: that the refusal
+    ARRIVES rather than the write silently succeeding. A field writable by API and visible on no
+    screen is a value nobody can see, review or explain — and for this field it would additionally
+    be words the request no longer has a key for.
     """
     _tpl, cfg = probe
-    wording = _ROUND_TRIP["prompt"][1]
+    before = len(_versions(client))
 
-    new_id = _saved(client, cfg["id"],
-                    {"key": _EDITED, "type": "extracted", "prompt": wording})
+    r = _patch(client, cfg["id"],
+               {"key": _EDITED, "type": "extracted", "prompt": _ROUND_TRIP["prompt"][1]})
 
-    assert _stored(client, new_id)["prompt"] == wording
+    assert r.status_code == 422, r.text
+    field, _index, shown = _refusal(r)
+    assert field == "prompt", r.text
+    assert "merged into `definition`" in shown, shown
+    assert len(_versions(client)) == before, "a refused edit must publish nothing"
 
 
 def test_output_structure_is_refused_because_no_line_declares_it(client, probe):
@@ -953,20 +965,43 @@ def test_text_output_is_refused_on_a_line_whose_value_is_arithmetic(client, prob
     assert any(f in fields for f in ("output_structure", "type")), fields
 
 
-def test_a_prompt_is_refused_on_a_line_the_model_is_never_asked_about(client, probe):
-    """A prompt on a calculated line would be stored, shown on the screen, and never sent.
+def test_a_prompt_on_any_line_is_folded_into_its_definition(client, probe):
+    """`prompt` IS NO LONGER A SEPARATE QUESTION, so there is nothing left to refuse.
 
-    That is indistinguishable from a prompt that is working, which is why it is a refusal rather
-    than something ignored — and the refusal is addressed to `prompt`, so the editor puts it on
-    that control rather than in a banner.
+    This test used to assert a 422: a prompt on a `calculated` line would have been stored, shown
+    and never sent, which is indistinguishable from one that works. The two prose fields are now
+    ONE — `LineItemDef._merge_prompt_into_definition` concatenates them on load — and a
+    `definition` is legal on every line whatever its type. So the edit is ACCEPTED and the words
+    survive in the field that is actually read.
+
+    That is the point of the merge rather than a weakening of the check: the old refusal existed
+    because the words would have gone nowhere, and after the merge they go somewhere. What must
+    still hold is that nothing is silently dropped, which is what this asserts.
     """
+    from app.api.routes.line_items import _NOT_CONFIGURABLE
+    from app.schemas.line_items import LineItemSet
+
     _tpl, cfg = probe
 
+    # 1. THE FIELD IS NO LONGER A QUESTION, so the endpoint refuses it — the same treatment every
+    #    other retired control gets, and for the same reason: a value accepted by API for a
+    #    question no screen asks is driving extraction unreviewably.
+    assert "prompt" in _NOT_CONFIGURABLE
     r = client.patch(f"{API}/line-items/versions/{cfg['id']}/items",
-                     json={"key": _EDITED, "type": "calculated",
-                           "terms": [{"ref": _EDITED, "sign": 1}],
-                           "prompt": "this would never be sent"})
-
+                     json={"key": _EDITED, "prompt": "authored for a question nobody asks"})
     assert r.status_code == 422, r.text
     fields = [e["field"] for e in r.json()["detail"]["errors"]]
     assert "prompt" in fields, fields
+
+    # 2. A SET AUTHORED BEFORE THE MERGE STILL LOADS, with neither half of its prose lost. This is
+    #    the half that makes the refusal safe: the words do not need re-authoring, they are folded.
+    legacy = LineItemSet.model_validate({
+        "line_items_key": "legacy_probe", "target_template_key": "t",
+        "items": [{"key": "legacy_line", "label": "Legacy",
+                   "definition": "What this line is.",
+                   "prompt": "And the extra instruction."}],
+    })
+    folded = legacy.items[0]
+    assert "What this line is." in folded.definition
+    assert "And the extra instruction." in folded.definition
+    assert folded.prompt == "", "prompt must be emptied by the fold"
