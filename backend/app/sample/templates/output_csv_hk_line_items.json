@@ -18583,6 +18583,44 @@
    "note_use": "evidence_only",
    "keyword_hints": [
     "depreciation"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Depreciation and amortisation",
+     "Depreciation and amortization",
+     "Depreciation of property, plant and equipment",
+     "Depreciation",
+     "Amortisation",
+     "Depreciation, depletion and amortisation",
+     "固定资产折旧、油气资产折耗、生产性生物资产折旧",
+     "固定資產折舊、油氣資產折耗、生產性生物資產折舊",
+     "折旧和摊销",
+     "折舊和攤銷",
+     "折旧与摊销",
+     "折舊與攤銷",
+     "固定资产折旧",
+     "固定資產折舊",
+     "折旧及摊销",
+     "折舊及攤銷"
+    ]
+   },
+   "aliases": [
+    "Depreciation and amortisation",
+    "Depreciation and amortization",
+    "Depreciation of property, plant and equipment",
+    "Depreciation",
+    "Amortisation",
+    "Depreciation, depletion and amortisation",
+    "固定资产折旧、油气资产折耗、生产性生物资产折旧",
+    "固定資產折舊、油氣資產折耗、生產性生物資產折舊",
+    "折旧和摊销",
+    "折舊和攤銷",
+    "折旧与摊销",
+    "折舊與攤銷",
+    "固定资产折旧",
+    "固定資產折舊",
+    "折旧及摊销",
+    "折舊及攤銷"
    ]
   },
   {
@@ -21608,7 +21646,13 @@
     "Revenues",
     "Total revenue",
     "Total revenues",
-    "Revenue from contracts with customers"
+    "Revenue from contracts with customers",
+    "营业总收入",
+    "營業總收入",
+    "营业额",
+    "營業額",
+    "收入总额",
+    "收入總額"
    ],
    "aliases_i18n": {
     "en": [
@@ -21620,7 +21664,13 @@
      "Revenues",
      "Total revenue",
      "Total revenues",
-     "Revenue from contracts with customers"
+     "Revenue from contracts with customers",
+     "营业总收入",
+     "營業總收入",
+     "营业额",
+     "營業額",
+     "收入总额",
+     "收入總額"
     ],
     "zh": [
      "主营业务收入",
@@ -21653,7 +21703,7 @@
      "revenue\\s+and\\s+other\\s+income\\s+and\\s+gains?",
      "收益[、，]?\\s*其他收入及收益|收入[、，]?\\s*其他收入及收",
      "營業額及其他收入|营业额及其他收入",
-     "收入與成本|收入与成本",
+     "收入[与與和及]\\s*(?:营业|營業|主营业务|主營業務)?\\s*成本",
      "^\\s*(?:note\\s+)?(?:\\d+[.、)]?\\s*)?(?:revenues?|turnover)\\s*$"
     ],
     "row_caption_any": [

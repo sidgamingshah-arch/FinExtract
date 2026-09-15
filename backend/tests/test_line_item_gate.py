@@ -334,7 +334,17 @@ def test_every_reported_line_resolves_a_gate_and_parts_deliberately_do_not():
     # as backlog item 13.
     #
     # WHAT THIS STILL GUARANTEES, and why it is kept: a THIRD part acquiring aliases fails here.
-    _FACE_PARTS_WITH_ALIASES = {"sub__rp_bs_face_receivables", "sub__face_principal_revenue"}
+    # A THIRD, AND IT IS PINNED, which is the condition the paragraph above says would make the
+    # exemption coherent. `sub__cfo_depreciation` reads the depreciation add-back off the face of an
+    # indirect cash-flow statement — no `note_source` at all — and carried NO aliases, so nothing
+    # could ever bind it: `asked_about` is True for it, it sits in `llm_focus_keys`, and the
+    # deterministic route had no caption to match. Unlike the general hazard named above it declares
+    # BOTH `statement: cash_flow` and `section_scope: ['cf_oper_indirect']`, so "Depreciation and
+    # amortisation" on it is bindable only where a cash-flow statement is being read, not from any
+    # statement at large. Its aliases include the standard CAS add-back line
+    # 固定资产折旧、油气资产折耗、生产性生物资产折旧 in both scripts.
+    _FACE_PARTS_WITH_ALIASES = {"sub__rp_bs_face_receivables", "sub__face_principal_revenue",
+                                "sub__cfo_depreciation"}
     aliased = [d.key for d in parts
                if (d.aliases or d.aliases_i18n) and d.key not in _FACE_PARTS_WITH_ALIASES]
     assert not aliased, (
