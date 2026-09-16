@@ -1812,14 +1812,6 @@ export interface LineItemDef {
    *  every save, and a generated field inside it would round-trip into storage and reappear as
    *  though someone had authored it. */
   prose_compiled?: string[];
-  /** WHERE THE BOUND TEMPLATE PLACES THIS LINE, when it places it at all.
-   *
-   *  Derived and read-only, served so the placing control can say the template settled the
-   *  statement and the section rather than asking an author to answer them again. Measured on the
-   *  configuration in force: the template places 462 of 534 lines and the configuration agrees
-   *  with it 462/462 on both fields. ABSENT for the other 72 — all `namespace: internal`
-   *  sub-line items, the note-read parts, which genuinely do author their own placing. */
-  template_placing?: { statement: string; section: string };
 }
 
 /** AN INLINE EDIT TO ONE LINE ITEM — the body of `PATCH /line-items/versions/{id}/items`, mirroring
@@ -2006,20 +1998,6 @@ export interface LineItemEdit {
  *  moment it exists. An editor offering a value the publish gate refuses is worse than no control
  *  at all — the author authors, saves, and is told no by a validator two layers down — so the
  *  controls are built from THESE lists and not from anything hardcoded in the frontend. */
-/** One of the eighteen sections, projected into the three questions that choose it.
- *
- *  `where` is read off the section's own `face_only` and `scopes`, neither of which is authored per
- *  line any more (both are section policy, measured as never varying within one). `label` is the
- *  filing's printed banner wording, via `scope_tokens` and `section_banners`, not a string the
- *  screen invents. */
-export interface LineItemSection {
-  key: string;
-  statement: StatementToken | "";
-  statement_label: string;
-  where: "face" | "notes" | "either";
-  label: string;
-}
-
 export interface LineItemVocab {
   statements: StatementToken[];
   scopes: SearchScope[];
@@ -2054,10 +2032,6 @@ export interface LineItemVocab {
    *  than from anything the client remembers, because a dangling value is not a load error but a
    *  silent no-op that leaves the item with no gate at all. */
   inherits_options: string[];
-  /** The same sections carrying what an author actually needs to pick one: the statement they
-   *  belong to, where inside it they sit, and the banner wording a filing prints. Derived on the
-   *  server from `section_defaults` plus the set's own banner vocabulary — see `_sections`. */
-  sections: LineItemSection[];
   /** THE SCOPE IDS this set uses — SUGGESTIONS, not a closed set: `section_scope` is a free list,
    *  and a filing printing an undeclared banner is exactly the case an author is here to handle.
    *

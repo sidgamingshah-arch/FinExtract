@@ -1149,6 +1149,13 @@ export default function ReviewScreen() {
                   <Button
                     variant="secondary"
                     testid="rv-orphan-withdraw"
+                    // THE NAME COMPUTED ABOVE, WHICH WAS NEVER PASSED. `ariaLabel` was added to
+                    // `ui.Button` for this control — its docstring names it — and `withdrawName`
+                    // was computed three lines above the list with the comment explaining why a
+                    // destructive control repeated down a list needs a per-row name. Neither
+                    // reached the button, so every copy announced "Withdraw acceptance" and
+                    // `withdrawName` sat unread; `noUnusedLocals` found it.
+                    ariaLabel={withdrawName}
                     // Lower-case on purpose: HTML attribute names fold case, so a camelCase key
                     // would reach the DOM as `data-subjectkey` and a test written against the
                     // spelling in this file would never match.

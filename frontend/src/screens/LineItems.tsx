@@ -565,19 +565,6 @@ function requiredNow(name: string, sel: { type: string; outputStructure: string 
  *  its measurement. Two inventories of the same form is the drift this comment warns about; one of
  *  them going stale is how a banner comes to announce four fields over a group showing three.
  */
-/** The sentinel for "not tied to a statement", which is not one of the eighteen section keys and
- *  must not collide with one. Underscored on both ends for the same reason a namespace is. */
-const FULL_REPORT = "__full_report__";
-
-/** What each section's `where` adds to its name in the list. Face and notes are worth saying;
- *  "either" is the absence of a restriction and saying so would put a parenthesis on five of
- *  eighteen rows to communicate nothing. */
-const WHERE_SUFFIX: Record<string, string> = {
-  face: " — on the face",
-  notes: " — in the notes",
-  either: "",
-};
-
 const GROUP_FIELDS = {
   // `route` — where an extracted line's figure is read from. In `identity` because it belongs
   // beside `type`: the type decides whether the question applies at all.
@@ -999,49 +986,6 @@ function Detail(p: EditorProps) {
   const BANDS = [1, 2, 3, 4, 5, 6];
   const allShut = BANDS.every((i) => shut[`g${i}`]);
   const setAll = (v: boolean) => setShut(Object.fromEntries(BANDS.map((i) => [`g${i}`, v])));
-
-  /** THE PLACING CONTROL'S THREE DERIVED PIECES.
-   *
-   *  `inherits` names one of the set's eighteen sections and the server validates it against
-   *  exactly that list, so the control's value is the section key. What the control SHOWS is the
-   *  statement it belongs to and the banner a filing prints, both served on `vocab.sections`.
-   *
-   *  THE FOURTH STATE IS NOT A SECTION. The 77 note-level parts declare `statement: null` and an
-   *  empty `section_scope` while still inheriting `notes` — deliberately outside the gate, because
-   *  a part is read out of a note rather than claimed off a statement face. As three separate
-   *  fields that reads as three omissions; as one option it reads as the decision it is. */
-  const sectionsByKey = Object.fromEntries((vocab?.sections ?? []).map((x) => [x.key, x]));
-  const statedStatement = g("statement", item.statement);
-  const statedScope = g("section_scope", item.section_scope) ?? [];
-  const isFullReport = statedStatement === null && statedScope.length === 0;
-  const placing = isFullReport ? FULL_REPORT : (g("inherits", item.inherits) ?? null);
-  const placingOptions = [...(vocab?.sections ?? []).map((x) => x.key), FULL_REPORT];
-  // WHETHER THE TEMPLATE ALREADY ANSWERED THIS, and it answered it for 462 of the 534 lines. Shown
-  // rather than enforced: the 72 it does not place are the internal sub-line items — the note-read
-  // parts, the lines an author edits most — so the control has to stay live for them, and a value
-  // the template settled is better explained than taken away. Only surfaced where it AGREES with
-  // what the line says; a disagreement is a real edit somebody made and the help text says so.
-  const fromTemplate = item.template_placing
-    && item.template_placing.section === (g("inherits", item.inherits) ?? null)
-    ? item.template_placing : null;
-  /** One choice, three fields — because the three are one decision and writing only `inherits`
-   *  would leave a part still carrying the statement it had before. */
-  const placingPatch = (v: string | null): Partial<LineItemEdit> => {
-    if (v === FULL_REPORT || v === null) {
-      // "THE WHOLE REPORT" AND "NOTHING CHOSEN" ARE THE SAME WRITE, and there is no separate
-      // "declares its own gate" option any more. A line with NO section inherits no policy at all,
-      // and `note_use` then resolves to the empty string — which `stages.note_sourced.
-      // _note_permission` reads as "a note may not fill this", so the line publishes blank on every
-      // filing. Offering that as a choice beside a working one is offering a trap; the control shows
-      // "not chosen yet" for a line that has not been placed and does not invite returning to it.
-      //
-      // The 77 parts are all authored exactly this way — `inherits: notes` for the section's
-      // policy, with `statement: null` and an empty `section_scope` to leave the gate.
-      return { inherits: g("inherits", item.inherits) || "notes",
-               statement: null, section_scope: [] };
-    }
-    return { inherits: v, statement: sectionsByKey[v]?.statement || null };
-  };
 
   const type = g<LineItemType>("type", item.type);
   const noteSource = g<NoteSource | null>("note_source", item.note_source);
