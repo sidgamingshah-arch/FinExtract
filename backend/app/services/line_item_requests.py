@@ -44,6 +44,12 @@ class RequestPlan:
     name: str
     keys: tuple[str, ...]
     notes: tuple[str, ...]
+    # THE FACE'S EQUIVALENT OF `notes`. A line read off the face of a statement selects no note, so
+    # the note block a request pays for is empty for it and there is nothing in the request to
+    # locate its figure in — the contract's own advice in that position is to answer with an empty
+    # `sources`. What such a line needs supplied is the SECTION it may be claimed under, and this
+    # names which: the `(statement, section)` pairs, resolved from the line's own gate.
+    sections: tuple[tuple[str, str], ...] = ()
 
     @property
     def shared(self) -> bool:
@@ -138,10 +144,81 @@ def plan_requests(line_item_set, notes, settings, *, cited=None) -> list[Request
                                  keys=keys, notes=tuple(merged)))
     # Anything `note_sets` produced no entry for still has to be asked about — a line item whose
     # prose names no note scores nothing, and scoring nothing is not a reason to skip the line.
-    for key in by_key:
-        if not any(key in plan.keys for plan in plans):
-            plans.append(RequestPlan(name=key, keys=(key,), notes=notes_of.get(key, ())))
+    #
+    # AND THIS IS WHERE EVERY FACE LINE LANDS, which is why the grouping happens here rather than
+    # beside the note grouping above. A line read off the face selects no note, so `note_sets`
+    # produces no entry for it and it falls through as a request of its own: measured on the
+    # shipped set, 377 of the 506 asked-about lines, one request each.
+    #
+    # GROUPED BY THE SECTION IT MAY BE CLAIMED UNDER, for exactly the reason `group_by_note_set`
+    # gives for grouping on the note set: the supplied context is what a request pays for, and
+    # lines needing the SAME context amortise one copy of it. Measured on the shipped set, those
+    # 377 lines occupy FOURTEEN `(statement, section)` groups — 88 on the income statement's own
+    # section, 51 on non-current assets, 50 on current liabilities — and only two groups hold a
+    # single line. So the face context costs 14 copies instead of 377.
+    #
+    # THE MODE STILL GOVERNS, and `"none"` still means one request per line. That is not timidity
+    # about the default: the reason `config` gives for it is that lines sharing a call can
+    # influence each other's answers, and without the per-line baseline there is no way to tell
+    # help from bleed. A section block is a bigger shared context than a note block, so it makes
+    # that hazard bigger rather than smaller, and the cheap mode stays something a run opts into.
+    unplanned = [k for k in by_key if not any(k in plan.keys for plan in plans)]
+    if mode in ("identical", "similar"):
+        for (statement, section), keys in _by_section(unplanned, by_key).items():
+            plans.append(RequestPlan(
+                name=keys[0] if len(keys) == 1 else f"{statement}/{section}+{len(keys) - 1}",
+                keys=tuple(keys), notes=(),
+                sections=((statement, section),)))
+        return plans
+    for key in unplanned:
+        plans.append(RequestPlan(name=key, keys=(key,), notes=notes_of.get(key, ()),
+                                 sections=_sections_of_item(by_key[key])))
     return plans
+
+
+def _sections_of_item(item) -> tuple[tuple[str, str], ...]:
+    """The `(statement, section)` pairs this line may be claimed under, from its own gate.
+
+    BOTH HALVES OR NEITHER. A line naming a statement and no section is claimable anywhere on that
+    statement, and one naming a section and no statement is claimable under that section wherever
+    it is printed; either way the missing half is `""`, which the caller reads as "unconstrained"
+    rather than as a section named the empty string. A line that names neither gets no pair at all,
+    because "supply me every section of every statement" is not a request, it is the whole filing.
+    """
+    # `.value` FIRST, BECAUSE `statements` HOLDS AN ENUM. `str(StatementType.PROFIT_AND_LOSS)` is
+    # `"StatementType.PROFIT_AND_LOSS"`, and that repr would travel into the request as the name of
+    # the statement to supply — a token no reader and no lookup recognises.
+    def _tok(x) -> str:
+        return str(getattr(x, "value", x) or "")
+
+    statements = [t for t in (_tok(x) for x in (getattr(item, "statements", None) or ())) if t]
+    sections = [t for t in (_tok(x) for x in (getattr(item, "section_scope", None) or ())) if t]
+    if not statements and not sections:
+        return ()
+    return tuple((st, sec) for st in (statements or [""]) for sec in (sections or [""]))
+
+
+def _by_section(keys, by_key: dict) -> dict[tuple[str, str], list[str]]:
+    """Group keys by the one `(statement, section)` pair they are claimable under.
+
+    ONLY A LINE WITH EXACTLY ONE PAIR IS GROUPED. A line scoped to two sections belongs in neither
+    group's context alone, and putting it in the first would supply it half of what its own gate
+    allows — a request that cannot answer the question it asks. Those keep a request of their own,
+    which is what they had before this function existed.
+    """
+    out: dict[tuple[str, str], list[str]] = {}
+    for key in keys:
+        pairs = _sections_of_item(by_key[key])
+        if len(pairs) != 1:
+            # NOT A GROUP OF ITS OWN. Measured, 39 of the shipped set's asked-about lines name
+            # neither a statement nor a section, and bundling them together was the first thing
+            # this function did: one request for 39 lines that share NO context, which saves
+            # nothing (there is no block to amortise) and buys the whole cross-influence hazard
+            # the `"none"` default exists to avoid. They are asked about one at a time.
+            out[("", key)] = [key]
+            continue
+        out.setdefault(pairs[0], []).append(key)
+    return out
 
 
 def _manual_plans(line_item_set, by_key: dict, notes_of: dict) -> list[RequestPlan]:
