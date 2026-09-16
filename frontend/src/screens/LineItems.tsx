@@ -737,10 +737,26 @@ function Group({ question, note, right, children, visible = true, index, count, 
         // (`configFields.isWideControl`), so the group does not know which fields it is holding
         // and does not have to.
         //
-        // `auto-fit` rather than a fixed count, so the same grid is two columns in today's ~580px
-        // pane and more when the pane is widened; 260px is the narrowest a labelled select reads
-        // at. `rowGap: 0` because `FieldRow` already carries its own bottom margin — setting both
-        // would double the spacing it was tuned with.
+        // `auto-fit` rather than a fixed count, so the grid falls to one column in a genuinely
+        // cramped pane instead of overflowing. `rowGap: 0` because `FieldRow` already carries its
+        // own bottom margin — setting both would double the spacing it was tuned with.
+        //
+        // THE MINIMUM IS 300px SO THIS IS TWO COLUMNS AND NOT THREE, and that number is a measured
+        // refusal rather than a taste. At 260px a third track fits once the list pane was capped
+        // (field grid 834px at 1440, and 3x260+2x14 = 808), and the third track is WORSE than no
+        // third track: `auto-fit` collapses a track only when NOTHING occupies it, so in any group
+        // holding a full-width control the spanning item keeps track 3 alive and the group's lone
+        // narrow field is squeezed into a third of the row. Measured, at 1440 with min 260:
+        // `type`/`route` rendered 410px each (group 01 has two narrow fields, so track 3 collapsed)
+        // while `label` and `order` rendered 269px with ~565px of blank space beside them, because
+        // groups 02 and 05 each pair one narrow field with a spanning one. A 269px select under a
+        // half-empty row is the complaint this grid was built to answer, arriving by a new route.
+        //
+        // At 300px the arithmetic refuses the third track outright: two need 614px, three need
+        // 928px, and the `maxWidth: 1320` on the screen root holds the field grid at ~834px however
+        // wide the window is. So every pixel the capped list pane gave up makes the TWO columns
+        // wider — 285px each before, 410px now — instead of adding a narrow one. If that cap is
+        // ever raised, this minimum is what has to be revisited with it.
         //
         // NO `grid-auto-flow: dense`, deliberately, although it would close the hole a spanning
         // control leaves beside the field above it (`label` sits alone next to an empty column
@@ -749,11 +765,16 @@ function Group({ question, note, right, children, visible = true, index, count, 
         // questionnaire whose groups are numbered and whose questions build on each other. A row
         // of whitespace is the cheaper of the two costs.
         <div style={{ padding: "11px 13px 1px", display: "grid", alignItems: "start",
-                       gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+                       gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
                        columnGap: 14, rowGap: 0 }}>
           {note && showNote && (
+            // `maxWidth` IN `ch`, because this is the one child that spans every column and it is
+            // PROSE. At the pane's new width the span is ~834px, which at 10.5px is about 150
+            // characters a line — roughly twice a readable measure. The span stays (the note
+            // belongs to the whole group, not to column one) and the line length is bounded
+            // instead.
             <p style={{ gridColumn: "1 / -1", margin: "0 0 11px", paddingLeft: 9, fontSize: 10.5,
-                         color: color.muted, lineHeight: 1.5,
+                         color: color.muted, lineHeight: 1.5, maxWidth: "94ch",
                          borderLeft: `2px solid ${color.indigoBorder2}` }}>
               {note}
             </p>
@@ -1799,7 +1820,14 @@ function Detail(p: EditorProps) {
                    decision.">
         {/* THE LOCKED ROWS TAKE THE WHOLE WIDTH AND PAIR UP INSIDE IT. `LockedRow` does not go
             through `FieldRow`, so it cannot declare its own span — and a `.map` is ONE grid item
-            however many rows it returns, which would otherwise stack all of them in one column. */}
+            however many rows it returns, which would otherwise stack all of them in one column.
+
+            AND THIS ONE KEEPS THE 260px MINIMUM the form grid gave up. Not an oversight: the
+            refusal above is about a track that survives only because a SPANNING control occupies
+            it, leaving a lone narrow field squeezed beside blank space. Nothing here spans — these
+            are uniform read-only label/value pairs — so a third column is filled rather than
+            half-empty, and at the pane's new width it shows nine locked rows in three columns
+            instead of six in two. */}
         <div style={{ gridColumn: "1 / -1", display: "grid", alignItems: "start",
                        gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", columnGap: 14 }}>
         {Object.entries(vocab?.not_editable ?? {}).map(([field, reason]) => {
@@ -2186,19 +2214,42 @@ export default function LineItemsScreen() {
     });
   };
 
+  // A ROW SPENDS ITS WIDTH ON WHAT DIFFERS, AND NOTHING ELSE — which is what let this column give
+  // 247px to the form (see the grid below).
+  //
+  // MEASURED ON THE SHIPPED 527-ITEM SET. `type` defaults to `extracted`
+  // (`schemas/line_items.py`) and only 47 items declare one, so the `Tag` printed the identical
+  // word "EXTRACTED" on 484 of 527 rows — roughly 79px of a ~400px text budget, spent to repeat
+  // itself 92% of the time. `in_output` defaults true and only 65 items are false, so the tick was
+  // `✓` on 462 of 527. Both columns were nearly constant, and both were charging fixed width for
+  // it.
+  //
+  // SO THE CHIP AND THE MARKER ARE EXCEPTIONS NOW, and the header row above is their legend rather
+  // than two column titles. THE DISTINCTION THIS RELIES ON: absence reads as the default, which is
+  // legible only because the default is stated where the rows are — a bare row is "extracted, in
+  // the output", and the type filter chips above the list still count all four types whether or not
+  // a row draws one. Nothing is hidden that varies; what went is the repetition.
+  //
+  // The label and the key BOTH STAY VISIBLE, on their own lines. That was the trade actually worth
+  // refusing: the key is the identifier an author searches by and the one `li-row-<key>` is built
+  // on, and demoting it to a `title` buys ~16px of row height by making it mouse-only. Removing
+  // what repeats costs nothing; removing what informs costs the identifier.
   const row = (d: LineItemDef, depth: number) => (
     <div key={d.key}>
       <div role="button" tabIndex={0} data-testid={`li-row-${d.key}`}
            aria-current={d.key === selected?.key}
            onClick={() => chooseKey(d.key)}
            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); chooseKey(d.key); } }}
-           style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10,
-                     alignItems: "center", padding: "8px 10px", cursor: "pointer",
+           style={{ display: "flex", alignItems: "center", gap: 8,
+                     padding: "7px 9px", cursor: "pointer",
                      borderRadius: 7, marginLeft: depth * 16,
                      background: d.key === selected?.key ? color.indigoTint2 : "transparent",
                      border: `1px solid ${d.key === selected?.key ? color.indigoBorder
                                                                   : "transparent"}` }}>
-        <span style={{ minWidth: 0 }}>
+        {/* FLEX, NOT `1fr auto auto`. A grid keeps both trailing tracks' gutters even when neither
+            the chip nor the marker is drawn, which is 92% of rows — so the two columns would go on
+            costing width after their contents became conditional. */}
+        <span style={{ flex: "1 1 auto", minWidth: 0 }}>
           <span style={{ fontSize: depth ? 12 : 12.5, color: depth ? color.sec : color.ink,
                           display: "block", overflow: "hidden", textOverflow: "ellipsis",
                           whiteSpace: "nowrap" }}>
@@ -2208,11 +2259,14 @@ export default function LineItemsScreen() {
                           display: "block", overflow: "hidden", textOverflow: "ellipsis",
                           whiteSpace: "nowrap" }}>{d.key}</span>
         </span>
-        <Tag type={d.type} />
-        <span style={{ width: 16, textAlign: "center", fontSize: 11, fontWeight: 700,
-                        color: d.in_output ? color.indigo : color.faint }}>
-          {d.in_output ? "✓" : "–"}
-        </span>
+        {d.type !== "extracted" && <Tag type={d.type} />}
+        {!d.in_output && (
+          <span title="not in the output template"
+                style={{ flex: "0 0 auto", fontSize: 9.5, fontWeight: 700, letterSpacing: 0.3,
+                          textTransform: "uppercase", color: color.faint }}>
+            off
+          </span>
+        )}
       </div>
       {d.children.map((k) => row(k, depth + 1))}
     </div>
@@ -2448,15 +2502,60 @@ rather than declaring it themselves">
           `alignItems: start`, so the list was ~475 rows tall and the detail sat at the TOP of a
           column that long — click a line near the bottom and its detail rendered thousands of
           pixels above where you were looking. Bounding each pane to the viewport and making the
-          detail sticky is what makes selecting a line show you that line. */}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(320px, 1fr) minmax(380px, 1.1fr)",
+          detail sticky is what makes selecting a line show you that line.
+
+          THE LIST IS CAPPED, NOT PROPORTIONED — `minmax(240px, 340px) minmax(380px, 1fr)` rather
+          than the `1fr : 1.1fr` it was. Two different things, and the difference is the point: a
+          proportional left track takes a share of every pixel the window ever gains, so widening
+          the screen widened a column that was already spending its width on ellipsised text. A
+          CAPPED one hands every further pixel to the form.
+
+          WHAT THE 340 IS CHOSEN AGAINST, measured on the shipped 527-item set: label length p90 is
+          46 characters and key length p90 is 48, and with the repeated chip gone (see `row`) the
+          text column at 340px is ~300px — about 47 label characters at 12.5px and about 48 mono
+          characters at 9.5px. So the p90 row still fits and only the tail ellipsises, which it
+          already did at 590px. The row's incompressible width is ~160px, so 240 is a real floor
+          and not a guess.
+
+          AND WHAT IT BUYS, measured in the browser rather than derived. At 1440 with the rail
+          collapsed the content box is 1256 (the `maxWidth: 1320` above includes its own padding),
+          so the tracks resolve to 340 / 900 instead of 590 / 650 and the form's field grid goes
+          from 584px to 834px. That does NOT add a column — `Group`'s minimum is 300px precisely so
+          it cannot, and the reason is written there — it makes the two columns WIDER: every narrow
+          control went from 285px to 410px, and every full-width one from 584px to 834px.
+
+          THE CASE THAT MATTERS MOST IS 1280, not 1440. At the width the test browser uses (and a
+          common laptop) the form was ONE column before this: 532px against the 534px two columns
+          then needed. It is now 742px, which is two columns of 364px. So the field grid landed in
+          the previous commit did nothing at all on a 1280 screen until this change.
+
+          `maxWidth: 1320` IS LEFT ALONE, deliberately. Raising it is a real further gain and a
+          separate lever, but every other screen in the app caps at 1080-1200 and centres
+          (`Export.tsx`, `Template.tsx`, `Review.tsx`), so lifting this one to 1600 would make it
+          the widest by 400px and put a visible container jump between screens.
+
+          THE NAV RAIL SHIFTS ALL OF THIS, which is worth knowing before it is discovered: it is
+          52px collapsed (the default) and 214px expanded. Measured with it EXPANDED, this change is
+          an improvement at every width rather than a trade: 1280 stays one column but widens from
+          447px to 580px; 1440 goes from one column of 531px to two of 363px; 1920 (where the 1320
+          cap binds) goes from two columns of 285px to two of 410px. The left track holds at 340px
+          in all six combinations, which is the whole point of capping it. */}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(240px, 340px) minmax(380px, 1fr)",
                      gap: 16, alignItems: "start" }}>
         <Card pad={10}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10,
-                         padding: "0 10px 8px", borderBottom: `1px solid ${color.hairline2}`,
+          {/* THE LEGEND FOR WHAT THE ROWS STOPPED REPEATING. This was three column titles over a
+              matching `1fr auto auto` row grid; the chip and the marker are exceptions now, so
+              there are no columns to title and what a reader needs instead is the default that a
+              bare row means. */}
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap",
+                         padding: "0 9px 8px", borderBottom: `1px solid ${color.hairline2}`,
                          fontSize: 10.5, fontWeight: 700, letterSpacing: 0.3, color: color.muted,
                          textTransform: "uppercase" }}>
-            <span>Line item</span><span>Type</span><span>Out</span>
+            <span>Line item</span>
+            <span style={{ fontWeight: 500, letterSpacing: 0, textTransform: "none",
+                            fontSize: 10, color: color.faint }}>
+              — extracted and in the output unless the row says otherwise
+            </span>
           </div>
           <div style={{ marginTop: 4, maxHeight: "calc(100vh - 300px)", minHeight: 220,
                          overflowY: "auto" }}>
