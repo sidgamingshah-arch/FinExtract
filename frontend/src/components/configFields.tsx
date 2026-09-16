@@ -474,7 +474,10 @@ export function BoolField({
  *
  *  `helpOf` prints EVERY option's consequence, not just the chosen one — `rollup` and
  *  `terms[].role` are choices that are only meaningful against the alternatives, and choosing
- *  `sum` where the parts are alternative restatements of one figure double-counts it. */
+ *  `sum` where the parts are alternative restatements of one figure double-counts it. It goes
+ *  BEHIND THE SAME ⓘ as `help`, composed into it, so one disclosure answers "tell me about this
+ *  field" and an author who has not asked is not shown four paragraphs about options they have not
+ *  chosen. See the comment in the body for what that cost on the real pane. */
 export function SelectField<T extends string>({
   label, help, error, inherited, editable, testid, value, onChange, options, labelOf, helpOf,
   groupOf, nullable, nullLabel = "nothing was said", reason,
@@ -506,9 +509,39 @@ export function SelectField<T extends string>({
       else grouped.push([name, [o]]);
     }
   }
+  // EVERY OPTION'S CONSEQUENCE, BEHIND THE SAME ⓘ AS `help` — not printed under the control.
+  //
+  // `helpOf` prints what EACH option does rather than only the chosen one, and that is deliberate:
+  // `rollup` and `terms[].role` are choices only meaningful against their alternatives, and picking
+  // `sum` where the parts are alternative restatements of one figure double-counts it. What was
+  // wrong was printing all of them UNASKED. Measured on the Line Items detail pane: `type` (3
+  // options) and `route` (4) put 807 characters — about seventeen rendered lines — above the second
+  // group, so the first thing an author met was a wall of prose explaining choices they had not
+  // made yet, and the questions the form is built around started below the fold.
+  //
+  // Composed into `help` rather than gated separately, so there is ONE disclosure per field and one
+  // `showHelp` deciding it. A second toggle beside the first would be two answers to "tell me about
+  // this field".
+  const optionHelp = helpOf && (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {options.map((o) => {
+        const on = o === value;
+        const h = helpOf(o);
+        if (!h) return null;
+        return (
+          <div key={o} style={{ color: on ? color.sec : color.muted }}>
+            <b style={{ color: on ? color.indigo : color.sec2 }}>{text(o)}</b>{" — "}{h}
+          </div>
+        );
+      })}
+    </div>
+  );
   return (
-    <FieldRow label={label} help={help} error={error} inherited={inherited} editable={editable}
-              testid={testid} reason={reason}>
+    <FieldRow label={label} error={error} inherited={inherited} editable={editable}
+              testid={testid} reason={reason}
+              help={help || optionHelp
+                ? <>{help}{help && optionHelp ? <div style={{ height: 6 }} /> : null}{optionHelp}</>
+                : undefined}>
       {editable ? (
         <select
           value={value ?? ""}
@@ -534,20 +567,6 @@ export function SelectField<T extends string>({
           {value === null
             ? <span style={{ color: color.muted }}>{nullLabel}</span>
             : text(value)}
-        </div>
-      )}
-      {helpOf && (
-        <div style={{ marginTop: 7, display: "flex", flexDirection: "column", gap: 4 }}>
-          {options.map((o) => {
-            const on = o === value;
-            const h = helpOf(o);
-            if (!h) return null;
-            return (
-              <div key={o} style={{ ...helpStyle, color: on ? color.sec : color.muted }}>
-                <b style={{ color: on ? color.indigo : color.sec2 }}>{text(o)}</b>{" — "}{h}
-              </div>
-            );
-          })}
         </div>
       )}
     </FieldRow>

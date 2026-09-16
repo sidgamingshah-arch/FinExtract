@@ -541,6 +541,16 @@ function requiredNow(name: string, sel: { type: string }): boolean {
  *  its measurement. Two inventories of the same form is the drift this comment warns about; one of
  *  them going stale is how a banner comes to announce four fields over a group showing three.
  */
+/** THE FOUR ROUTES, in the author's words rather than the engine's tokens. Module level because
+ *  the control and the withheld banner both name the chosen one, and two spellings of
+ *  "A note's table rows" is how they come to disagree. */
+const ROUTE_LABEL: Record<string, string> = {
+  face: "The face of the statement",
+  note_tables: "A note's table rows",
+  prose: "A sentence in a note",
+  anywhere: "Anywhere — do not constrain it",
+};
+
 const GROUP_FIELDS = {
   // `route` — where an extracted line's figure is read from. In `identity` because it belongs
   // beside `type`: the type decides whether the question applies at all.
@@ -888,6 +898,11 @@ function Detail(p: EditorProps) {
   /** What this line's own selections withhold. Derived from `sel`, so it follows the author's
    *  choice of type immediately rather than after a save. */
   const withheld = withheldFields(sel, errors);
+  // ON THIS TAB, because that is what "show them anyway" reveals. `withheld` is every withheld
+  // control on the line; `fld` then drops anything belonging to the other tab, AFTER the withheld
+  // check. So the banner counted eight and the escape hatch produced two or three — the exact
+  // mismatch it was written to prevent, a header announcing controls the group then shows none of.
+  const withheldHere = [...withheld.keys()].filter((n) => tabOf(n) === tab);
   /** The simple form for THIS line's type, recomputed from the draft so switching the type
    *  re-cuts the form at once rather than after a save. */
 
@@ -1019,12 +1034,17 @@ function Detail(p: EditorProps) {
                             background: "transparent", color: color.sec2 }}>
             {allShut ? "Open all sections" : "Collapse all sections"}
           </button>
-          {/* LLM / DETERMINISTIC. The two routes into a line, kept apart because they are answered
-              independently: the LLM tab is everything the model is told about this line, and the
-              deterministic tab is the strings and patterns the lexical readers match on — which
-              `line_item_payload` withholds entirely, so filling it cannot change what the model is
-              asked. Blank is a valid deterministic tab. */}
-          <div role="group" aria-label="Which route's configuration to show"
+          {/* MEANING / PATTERNS, which is a split by AUDIENCE: the Meaning tab is everything the
+              model is told about this line, and the Patterns tab is the strings and regexes the
+              lexical readers match on — which `line_item_payload` withholds entirely, so filling
+              it cannot change what the model is asked. Blank is a valid Patterns tab.
+    
+              THE WORD "ROUTE" IS NOT USED HERE ANY MORE. This group's label said "Which route's
+              configuration to show" while `route` is a FIELD two controls above, whose values are
+              face / note_tables / prose / anywhere — so the screen used one word for the thing an
+              author chooses and for the panel they are looking at. The tabs are named by what they
+              contain; `route` keeps the word. */}
+          <div role="group" aria-label="Which half of this line's configuration to show"
                style={{ display: "flex", border: `1px solid ${color.cardBorder}`,
                          borderRadius: radius.control, overflow: "hidden" }}>
             {([["llm", "Meaning"], ["deterministic", "Patterns"]] as const).map(([t, lab]) => (
@@ -1032,7 +1052,7 @@ function Detail(p: EditorProps) {
                       data-testid={`li-tab-${t}`}
                       title={t === "llm"
                         ? "What this line is, where it sits and how it is assembled — everything the model is told"
-                        : "Aliases and match patterns for the deterministic readers. Never sent to the model; may be left blank"}
+                        : "Aliases and match patterns the lexical readers match on. Never sent to the model; may be left blank"}
                       style={{ fontSize: 11, cursor: "pointer", padding: "3px 10px", border: 0,
                                 background: tab === t ? color.indigo : "transparent",
                                 color: tab === t ? "#fff" : color.sec2 }}>
@@ -1046,13 +1066,22 @@ function Detail(p: EditorProps) {
       {/* WHAT THIS LINE'S OWN SELECTIONS TOOK OFF THE FORM, stated rather than left to be noticed.
           A control that is absent and a control withheld for a reason look identical on a screen,
           and only one of them is a decision — the same rule `LockedRow` exists for. */}
-      {withheld.size > 0 && (
+      {withheldHere.length > 0 && (
         <p style={{ margin: "0 0 10px", fontSize: 10.5, color: color.muted }}>
-          {withheld.size} control{withheld.size === 1 ? "" : "s"} {withheld.size === 1 ? "does" : "do"}{" "}
+          {withheldHere.length} control{withheldHere.length === 1 ? "" : "s"}{" "}
+          {withheldHere.length === 1 ? "does" : "do"}{" "}
           not apply to {sel.type === "extracted" ? "an" : "a"} <b>{sel.type}</b> line
+          {/* NAMING THE ROUTE TOO, because on an extracted line it is usually the cause. `route:
+              face` alone withholds `note_source` and its six sub-fields, `note_selection` and
+              `llm_only_if_note_tagged` — nine controls. The banner said they "do not apply to an
+              extracted line", which is false: they apply perfectly well to an extracted line whose
+              route is a note's table rows. Both selections are named so the author can see which
+              control to change, and both are in the first group. */}
+          {sel.route && ROUTE_LABEL[sel.route]
+            ? <> read from <b>{ROUTE_LABEL[sel.route].toLowerCase()}</b></> : null}
           {sel.aliasMatching === "disabled" || sel.extractionMode === "derive"
             ? " with caption matching off" : ""}
-          {" "}and {withheld.size === 1 ? "is" : "are"} not shown.{" "}
+          {" "}and {withheldHere.length === 1 ? "is" : "are"} not shown.{" "}
           <button type="button" data-testid="li-show-inapplicable"
                   onClick={() => setShowInapplicable((v) => !v)}
                   style={{ border: 0, background: "transparent", padding: 0, fontSize: 10.5,
@@ -1098,11 +1127,17 @@ function Detail(p: EditorProps) {
           AND a per-line copy on 462 items, and measured, not one of the 462 differed from the
           statement its own section declares — one question with two answers, which is how they
           drift. The section chosen here supplies it. */}
+      {/* THE QUESTION NAMES WHAT IS IN THE GROUP. It asked "and where does it live?" over `type`
+          and `route` — the placing question moved out to group 04 as `statements` +
+          `section_scope` when the `inherits` control went, and its note still described the
+          section deciding which banners can reach the line, a control not in this group. A banner
+          promising an answer the group does not hold sends the author looking for a missing
+          control. */}
       <Group {...band(1, GROUP_FIELDS.identity)}
-             question="What kind of line is this, and where does it live?"
+             question="What kind of line is this, and where is its figure read from?"
              note="Everything below is read in the light of these two: a formula line takes no
-                   captions and is never shown to the model, and the section decides which
-                   statement and which banners can reach it.">
+                   captions and is never shown to the model, and the route decides whether the note
+                   and prose controls below apply at all.">
         {fld("type", (e) => (
           <SelectField<LineItemType>
             label="Type" testid="type" editable={editable} reason={lockReason}
@@ -1154,13 +1189,10 @@ function Detail(p: EditorProps) {
             label="Where is this line's figure read from?" testid="route"
             editable={editable} reason={lockReason} nullable nullLabel="not chosen yet"
             options={vocab?.routes ?? []}
-            labelOf={(v) => ({ face: "The face of the statement",
-                               note_tables: "A note's table rows",
-                               prose: "A sentence in a note",
-                               anywhere: "Anywhere — do not constrain it" } as Record<string, string>)[v] ?? v}
+            labelOf={(v) => ROUTE_LABEL[v] ?? v}
             helpOf={(v) => ({
               face: "claimed off the printed statement by the recognition patterns on the "
-                  + "Deterministic tab. A note-source block on such a line is never acted on",
+                  + "Patterns tab. A note-source block on such a line is never acted on",
               note_tables: "read out of the rows of a cited note, selected by the note-source "
                          + "block below. If no row matches, a sentence in the same note is tried "
                          + "as a fallback",
@@ -1223,7 +1255,7 @@ function Detail(p: EditorProps) {
                           master prompt, never replacing it, so the global
                           policies still apply. It is also what resolves a
                           printed wording nobody thought to list, because
-                          the recognition patterns on the Deterministic tab
+                          the recognition patterns on the Patterns tab
                           are never sent to the model."
                     value={g("definition", item.definition)}
                     onChange={(v) => patch({ definition: v ?? "" })}
