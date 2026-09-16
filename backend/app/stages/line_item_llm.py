@@ -325,8 +325,23 @@ class LineItemLlmStage(Stage):
         # `confidence.method` IS the non-interference signal, not a flag invented here:
         # `note_sourced._llm_holds` tests it, and the review queue and the export read the same
         # field to say where a figure came from. One spelling for "the model answered this".
+        # WHAT THIS SUPERSEDES, NAMED. The stamp below is unconditional, so a row the mapper had
+        # settled by exact caption at 1.0 came out carrying the model's own score — 0.9, 0.8 —
+        # with nothing anywhere saying it had ever been higher or that a deterministic answer had
+        # been replaced. Measured: an exact face match at 1.0 became `method=llm, mapping=0.9`, and
+        # the only way to know was to diff two runs.
+        #
+        # Recorded only when the model's score is LOWER, which is the case that reads as a
+        # regression to anyone auditing the row. A model agreeing at equal or better confidence is
+        # the stage working, and a flag for it would be noise on every answered line.
+        prior_method = str(row.confidence.method or "")
+        prior_mapping = float(row.confidence.mapping or 0.0)
         row.confidence.method = MappingMethod.LLM.value
         row.confidence.mapping = float(answer.confidence or 0.0)
+        if (prior_method and prior_method != MappingMethod.LLM.value
+                and prior_mapping > row.confidence.mapping):
+            row.confidence.flags.append(
+                f"llm_superseded_{prior_method}:{prior_mapping:.2f}")
         row.confidence.flags.append(f"line_item_llm:{len(resolved)} cited row(s)")
         # A FIGURE WITH AN UNVERIFIED TERM IN IT GOES TO REVIEW, and says which term.
         #
@@ -358,7 +373,8 @@ class LineItemLlmStage(Stage):
             if period == "prose":
                 written += self._write_prose(row, doc, amount, resolved, ctx, item)
                 continue
-            _write(row, basis, period, amount)
+            _write(row, basis, period, amount, by="line_item_llm",
+                   provenance=_cited_provenance(resolved))
             row.derivation = note_sourced.derivation.record(
                 row.derivation, basis=basis, period_label=period,
                 derivation=note_sourced.trail(
@@ -484,6 +500,38 @@ class LineItemLlmStage(Stage):
                 f"note {best.get('note')}"
                 + (f" (scaled by {scale})" if scale and scale != 1 else ""))
         return 1
+
+
+def _cited_provenance(resolved: list[dict]):
+    """A real `Provenance` for the row the model cited, so click-to-source lands on the right page.
+
+    `services.note_sourced.resolve_sources` keeps each citation's provenance as a PLAIN DICT — it
+    has to, because the same record goes into `derivation` and from there into a JSON column, and a
+    pydantic object reaching that flush ends the run (`services.derivation._json_safe_provenance`
+    records what that cost). So the object is rebuilt here, at the one place that needs an object
+    rather than a payload.
+
+    FILTERED TO THE MODEL'S OWN FIELDS, because the dicts are not all one shape: a matched row
+    carries a dumped `Provenance`, while `_prose_provenance` mints
+    `{"page_index": …, "source": "note_prose"}` and `source` is not a field — passing it through
+    would raise on a prose citation, the path least able to afford losing its page.
+
+    `page_index` is required and has no default, so a dict without one is skipped and the caller
+    keeps whatever the slot already had. None is the safe answer: `stages.note_sourced._write`
+    never clears a provenance, for the deduplication reason its own docstring gives.
+    """
+    from app.core.models.geometry import Provenance
+
+    fields = set(Provenance.model_fields)
+    for entry in resolved or ():
+        prov = entry.get("provenance")
+        if not isinstance(prov, dict) or prov.get("page_index") is None:
+            continue
+        try:
+            return Provenance(**{k: v for k, v in prov.items() if k in fields})
+        except Exception:  # noqa: BLE001 - a malformed citation must not end the run
+            continue
+    return None
 
 
 def _current_period(doc) -> str | None:
