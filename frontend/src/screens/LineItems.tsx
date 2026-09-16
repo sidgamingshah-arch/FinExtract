@@ -43,11 +43,12 @@
  * resolve by meaning rather than by string match, so they are at the top of the pane and not
  * behind a disclosure.
  */
-import { useState, type ReactNode } from "react";
+import { isValidElement, useState, type ReactNode } from "react";
 
 import {
   BoolField, InfoToggle, KeyPicker, LockedRow, NumberField, RungCards,
-  SelectField, StringListEditor, TermRows, TextArea, TextField, type KeyOption,
+  SelectField, StringListEditor, TermRows, TextArea, TextField, isWideControl,
+  type KeyOption,
 } from "../components/configFields";
 import { MatchListEditor } from "../components/MatchListEditor";
 import { RequestGroups } from "../components/RequestGroups";
@@ -726,10 +727,34 @@ function Group({ question, note, right, children, visible = true, index, count, 
         {right}
       </div>
       {open && (
-        <div style={{ padding: "11px 13px 1px" }}>
+        // A GRID, BECAUSE MOST OF THESE CONTROLS ARE NARROWER THAN THE PANE.
+        //
+        // A `<select>` holding the word "Extracted" does not need the full column width, and four
+        // of them stacked one per row pushed the next question below the fold — on the
+        // shipped set 484 of 527 items are `extracted`, whose form is mostly selects and short
+        // text. So a compact control takes one column and a control that needs the width spans
+        // every column. WHICH IS WHICH IS NOT DECIDED HERE: `fld` asks the rendered control
+        // (`configFields.isWideControl`), so the group does not know which fields it is holding
+        // and does not have to.
+        //
+        // `auto-fit` rather than a fixed count, so the same grid is two columns in today's ~580px
+        // pane and more when the pane is widened; 260px is the narrowest a labelled select reads
+        // at. `rowGap: 0` because `FieldRow` already carries its own bottom margin — setting both
+        // would double the spacing it was tuned with.
+        //
+        // NO `grid-auto-flow: dense`, deliberately, although it would close the hole a spanning
+        // control leaves beside the field above it (`label` sits alone next to an empty column
+        // because `definition` spans). `dense` backfills that hole with a LATER item, which makes
+        // the order an author reads differ from the order they tab through — and these fields are a
+        // questionnaire whose groups are numbered and whose questions build on each other. A row
+        // of whitespace is the cheaper of the two costs.
+        <div style={{ padding: "11px 13px 1px", display: "grid", alignItems: "start",
+                       gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+                       columnGap: 14, rowGap: 0 }}>
           {note && showNote && (
-            <p style={{ margin: "0 0 11px", paddingLeft: 9, fontSize: 10.5, color: color.muted,
-                         lineHeight: 1.5, borderLeft: `2px solid ${color.indigoBorder2}` }}>
+            <p style={{ gridColumn: "1 / -1", margin: "0 0 11px", paddingLeft: 9, fontSize: 10.5,
+                         color: color.muted, lineHeight: 1.5,
+                         borderLeft: `2px solid ${color.indigoBorder2}` }}>
               {note}
             </p>
           )}
@@ -922,10 +947,18 @@ function Detail(p: EditorProps) {
     // server REFUSED is shown whatever the tab, because hiding the control a refusal is addressed
     // to leaves an author with a message and nothing to act on.
     if (!errors[name] && tabOf(name) !== tab) return null;
+    // ONE COLUMN OF THE GROUP'S GRID, OR ALL OF THEM. This wrapper is the grid item — `FieldRow`'s
+    // own box is one level deeper and cannot span — so the width decision is taken here, off the
+    // CONTROL itself (`configFields.isWideControl`). Not off the field's name: a name list is a
+    // second inventory of the form and goes stale the first time a field changes control, which is
+    // the drift `GROUP_FIELDS` and the deleted simple-form allowlists each paid for.
+    const control = render(errors[name]);
+    const wide = isValidElement(control) && isWideControl(control);
     return (
-      <div data-testid={`li-field-${name}`} key={name}>
+      <div data-testid={`li-field-${name}`} key={name}
+           style={{ minWidth: 0, gridColumn: wide ? "1 / -1" : undefined }}>
         <div data-testid={errors[name] ? `li-field-error-${name}` : undefined}>
-          {render(errors[name])}
+          {control}
         </div>
         {/* Shown only while the author has asked to see inapplicable controls, so the reason
             arrives with the control it explains rather than as a list somewhere else. */}
@@ -1332,14 +1365,15 @@ function Detail(p: EditorProps) {
                                           keyword_hints: idx("keyword_hints") }} />
         ))}
         {locale === set.locale && (
-          <p style={{ fontSize: 10.5, color: color.sec2, margin: "-6px 0 12px", lineHeight: 1.5 }}>
+          <p style={{ gridColumn: "1 / -1", fontSize: 10.5, color: color.sec2,
+                       margin: "-6px 0 12px", lineHeight: 1.5 }}>
             <b style={{ fontFamily: font.mono }}>{locale}</b> is this set's default locale, so
             saving updates the base <span style={{ fontFamily: font.mono }}>aliases</span> list as
             well as <span style={{ fontFamily: font.mono }}>aliases_i18n[{locale}]</span>.
           </p>
         )}
         {otherLocales.length > 0 && (
-          <div style={{ marginBottom: 14 }}>
+          <div style={{ gridColumn: "1 / -1", marginBottom: 14 }}>
             {otherLocales.map((l) => (
               <Patterns key={l} label={`Aliases (${l}) — read-only here`}
                         values={perLocale[l] ?? []} />
@@ -1486,8 +1520,8 @@ function Detail(p: EditorProps) {
                      error={e} inherited={inh("note_source", item.note_source)} />
         ))}
         {noteSource && (
-          <div style={{ borderLeft: `2px solid ${color.indigoBorder2}`, paddingLeft: 11,
-                         marginBottom: 14 }}>
+          <div style={{ gridColumn: "1 / -1", paddingLeft: 11, marginBottom: 14,
+                         borderLeft: `2px solid ${color.indigoBorder2}` }}>
             {/* ── THE THREE QUESTIONS A NOTE SOURCE ANSWERS ───────────────────────────────
                 PAIRED, NOT MERGED. Each control holds one question's regex field AND its scored
                 twin, because a pattern and a term answer the same question by different means: a
@@ -1698,7 +1732,8 @@ function Detail(p: EditorProps) {
       <Group {...band(6, GROUP_FIELDS.assembly)} question="How is its figure obtained?"
              note="A calculated or intermediate line is a signed sum of terms; a derived line is
                    an ordered cascade of attempts, the first that resolves winning.">
-        <details open={type === "calculated" || type === "intermediate"}>
+        <details open={type === "calculated" || type === "intermediate"}
+                 style={{ gridColumn: "1 / -1" }}>
           <summary style={{ cursor: "pointer", fontSize: 11.5, fontWeight: 600,
                              color: color.ink2, marginBottom: 9 }}>
             The signed sum — for a <b>calculated</b> or <b>intermediate</b> line
@@ -1719,7 +1754,7 @@ function Detail(p: EditorProps) {
                       errorAt={(i, f) => (f === "ref" ? idx("terms")?.[i] : undefined)} />
           ))}
         </details>
-        <details open={type === "derived"} style={{ marginTop: 12 }}>
+        <details open={type === "derived"} style={{ gridColumn: "1 / -1", marginTop: 12 }}>
           <summary style={{ cursor: "pointer", fontSize: 11.5, fontWeight: 600,
                              color: color.ink2, marginBottom: 9 }}>
             The priority cascade — for a <b>derived</b> line
@@ -1762,6 +1797,11 @@ function Detail(p: EditorProps) {
              note="Withheld on purpose, each with the reason. Being silently absent and being
                    read-only for a reason look identical on a screen, and only one of them is a
                    decision.">
+        {/* THE LOCKED ROWS TAKE THE WHOLE WIDTH AND PAIR UP INSIDE IT. `LockedRow` does not go
+            through `FieldRow`, so it cannot declare its own span — and a `.map` is ONE grid item
+            however many rows it returns, which would otherwise stack all of them in one column. */}
+        <div style={{ gridColumn: "1 / -1", display: "grid", alignItems: "start",
+                       gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", columnGap: 14 }}>
         {Object.entries(vocab?.not_editable ?? {}).map(([field, reason]) => {
           // The VALUE for each locked field. `children` carries navigation, because the edit that
           // moves a child is possible — on the child's own detail, through `parent`.
@@ -1803,6 +1843,7 @@ function Detail(p: EditorProps) {
           return <LockedRow key={field} label={field} testid={field} value={value}
                             reason={reason} />;
         })}
+        </div>
       </Group>
 
       {/* ── THE SAVE BAR ─────────────────────────────────────────────────────────────────────

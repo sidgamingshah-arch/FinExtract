@@ -46,7 +46,7 @@
  * address one through its field wrapper (`[data-testid="field-face_only"] [data-testid="seg-true"]`)
  * rather than expecting `seg-true` to be unique on the screen.
  */
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useState, type CSSProperties, type ReactElement, type ReactNode } from "react";
 
 import { Button, Card, Segmented, Toggle } from "./ui";
 import { color, font, radius } from "../theme";
@@ -153,7 +153,7 @@ export function FieldRow({
   const [showHelp, setShowHelp] = useState(false);
   return (
     <div data-testid={testid ? `field-${testid}` : undefined}
-         style={{ marginBottom: 14 }}>
+         style={{ marginBottom: 14, minWidth: 0 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap",
                      marginBottom: 4 }}>
         <span style={labelStyle}>{label}</span>
@@ -1241,4 +1241,51 @@ export function RungCards({
       )}
     </FieldRow>
   );
+}
+
+/** THE CONTROLS THAT NEED THE WHOLE WIDTH OF A GROUP, keyed on the COMPONENT and not on the field.
+ *
+ *  `Group` lays its fields out as a grid: a `<select>` holding the word "Extracted" does not need
+ *  580 pixels, and four of them stacked one per row pushed the next question off the screen. Most
+ *  controls therefore take one column; a prose box, a key picker, a terms table and a cascade do
+ *  not read at half width.
+ *
+ *  KEYED ON THE COMPONENT so this is not a second inventory of the form. A set of FIELD NAMES is
+ *  exactly the drift `GROUP_FIELDS`, `RETIRED_FIELDS` and the deleted simple-form allowlists have
+ *  each cost: a name list goes stale the first time a field changes control. A component list goes
+ *  stale only when a control is added, and it is declared here, beside the controls.
+ *
+ *  Read through `isWideControl` by `screens/LineItems.tsx`'s `fld`, which renders the element that
+ *  IS the grid item — hence not a prop on `FieldRow`, whose own box sits one level too deep to
+ *  span. `MatchListEditor` lives in its own module and is added to this set there rather than
+ *  imported here, which would be a cycle. */
+export const WIDE_CONTROLS = new Set<unknown>([
+  TextArea, KeyPicker, TermRows, RungCards,
+]);
+
+/** WHETHER A RENDERED CONTROL CLAIMS THE WHOLE ROW — the set above, plus the one control whose
+ *  answer depends on how it was asked to render.
+ *
+ *  `StringListEditor` IS TWO CONTROLS UNDER ONE NAME. Its `plain` variant is wrapping pills over a
+ *  dashed add box, and every part of it already declares how to reflow (`flexWrap: "wrap"`, and
+ *  `flex: "1 1 190px"` with `minWidth: 150` on the input): the tokens it holds are statement names
+ *  and section ids, short by construction. Its other three variants (`mono`, `veto`, `prose`) build
+ *  a BORDERED TABLE, one row per value, holding regexes and prose — those do need the width.
+ *
+ *  MEASURED, which is why this distinction exists at all. `statements` and `section_scope` sit
+ *  beside each other in the placing group and are both `plain`; spanning them took two full rows of
+ *  a 584-pixel pane to show four pills, and pushed the note-sourcing question below the fold. They
+ *  pair on one row now.
+ *
+ *  `KeyPicker` stays in the set although it also renders wrapping pills: its chip carries a LABEL
+ *  AND A MONO KEY side by side and cannot wrap inside itself, so one chip for
+ *  `bs_nca__ppe` "Property, plant and equipment" overflows a half-width column rather than
+ *  reflowing in it. */
+export function isWideControl(el: ReactElement): boolean {
+  if (WIDE_CONTROLS.has(el.type)) return true;
+  if (el.type === StringListEditor) {
+    const variant = (el.props as { variant?: string }).variant ?? "plain";
+    return variant !== "plain";
+  }
+  return false;
 }
