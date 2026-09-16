@@ -36,16 +36,17 @@
  * Visual language: `Card`, `Button`, `Segmented` and `Toggle` from components/ui.tsx and the
  * `color`/`font`/`radius` tokens. Nothing new — the detail pane these sit in is already built.
  *
- * Copy is English in place, as on the Line Items screen it serves (that screen localizes only
- * `common.loading`); every label and help sentence is passed IN by the caller, so the field names
- * and their explanations stay next to the field table that decided them.
+ * Copy is English in place, as on the Line Items screen it serves — which now localizes nothing at
+ * all; its one `t()` call named a key no dictionary defined, so it printed the key. Every label and
+ * help sentence is passed IN by the caller, so the field names and their explanations stay next to
+ * the field table that decided them.
  *
  * TESTIDS: `FieldRow` stamps `data-testid="field-<name>"` when given `testid`. `Segmented` stamps
  * `seg-<option>` on its own options, which repeats across a form with several segmented controls —
  * address one through its field wrapper (`[data-testid="field-face_only"] [data-testid="seg-true"]`)
  * rather than expecting `seg-true` to be unique on the screen.
  */
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useState, type CSSProperties, type ReactElement, type ReactNode } from "react";
 
 import { Button, Card, Segmented, Toggle } from "./ui";
 import { color, font, radius } from "../theme";
@@ -152,7 +153,7 @@ export function FieldRow({
   const [showHelp, setShowHelp] = useState(false);
   return (
     <div data-testid={testid ? `field-${testid}` : undefined}
-         style={{ marginBottom: 14 }}>
+         style={{ marginBottom: 14, minWidth: 0 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap",
                      marginBottom: 4 }}>
         <span style={labelStyle}>{label}</span>
@@ -314,7 +315,13 @@ export function TextArea({
             const raw = e.target.value;
             onChange(nullable && raw === "" ? null : raw);
           }}
-          style={{ ...inputStyle(true, !!error), resize: "vertical", lineHeight: 1.55 }}
+          // A MEASURE, because this is the one control that holds PROSE and it spans every column
+          // of its group. With the list pane collapsed the span reaches ~1130px, which at this
+          // size is about 160 characters a line — roughly twice what is readable. The other
+          // full-width controls are tables (captions, terms, cascade rungs) and genuinely want the
+          // width, so the cap belongs here rather than on the span.
+          style={{ ...inputStyle(true, !!error), resize: "vertical", lineHeight: 1.55,
+                    maxWidth: "96ch" }}
         />
       ) : (
         <p style={{ margin: 0, fontSize: 12, lineHeight: 1.55,
@@ -460,47 +467,6 @@ export function BoolField({
   );
 }
 
-/** THREE states, because the field has three: `face_only`, and any other boolean where `null` is
- *  "nothing was said".
- *
- *  A checkbox over `face_only` asserts a policy the v1 sets were never written for — they simply
- *  never expressed it, and rendering that as `false` claims every one of them decided a note may
- *  be a source. */
-export function TriBoolField({
-  label, help, error, inherited, editable, testid, value, onChange,
-  trueLabel = "yes", falseLabel = "no", nullLabel = "nothing said", stateHelp,
-}: FieldProps & {
-  value: boolean | null;
-  onChange: (v: boolean | null) => void;
-  trueLabel?: string;
-  falseLabel?: string;
-  nullLabel?: string;
-  /** What each of the three states means, keyed by state. Printed for the current one. */
-  stateHelp?: { yes?: string; no?: string; unset?: string };
-}) {
-  const token = value === null ? "unset" : value ? "yes" : "no";
-  return (
-    <FieldRow label={label} help={help} error={error} inherited={inherited} editable={editable}
-              testid={testid}>
-      {editable ? (
-        <div style={{ display: "inline-block" }}>
-          <Segmented<"yes" | "no" | "unset">
-            options={[{ value: "yes", label: trueLabel }, { value: "no", label: falseLabel },
-                      { value: "unset", label: nullLabel }]}
-            value={token}
-            onChange={(v) => onChange(v === "unset" ? null : v === "yes")}
-          />
-        </div>
-      ) : (
-        <div style={{ fontSize: 12, color: value === null ? color.muted : color.ink }}>
-          {value === null ? nullLabel : value ? trueLabel : falseLabel}
-        </div>
-      )}
-      {stateHelp?.[token] && <Note>{stateHelp[token]}</Note>}
-    </FieldRow>
-  );
-}
-
 /** A closed vocabulary, built from what the SERVER served.
  *
  *  The options come from `LineItemVocab`, which the backend derives from the same `Literal[...]`
@@ -514,7 +480,10 @@ export function TriBoolField({
  *
  *  `helpOf` prints EVERY option's consequence, not just the chosen one — `rollup` and
  *  `terms[].role` are choices that are only meaningful against the alternatives, and choosing
- *  `sum` where the parts are alternative restatements of one figure double-counts it. */
+ *  `sum` where the parts are alternative restatements of one figure double-counts it. It goes
+ *  BEHIND THE SAME ⓘ as `help`, composed into it, so one disclosure answers "tell me about this
+ *  field" and an author who has not asked is not shown four paragraphs about options they have not
+ *  chosen. See the comment in the body for what that cost on the real pane. */
 export function SelectField<T extends string>({
   label, help, error, inherited, editable, testid, value, onChange, options, labelOf, helpOf,
   groupOf, nullable, nullLabel = "nothing was said", reason,
@@ -546,9 +515,39 @@ export function SelectField<T extends string>({
       else grouped.push([name, [o]]);
     }
   }
+  // EVERY OPTION'S CONSEQUENCE, BEHIND THE SAME ⓘ AS `help` — not printed under the control.
+  //
+  // `helpOf` prints what EACH option does rather than only the chosen one, and that is deliberate:
+  // `rollup` and `terms[].role` are choices only meaningful against their alternatives, and picking
+  // `sum` where the parts are alternative restatements of one figure double-counts it. What was
+  // wrong was printing all of them UNASKED. Measured on the Line Items detail pane: `type` (3
+  // options) and `route` (4) put 807 characters — about seventeen rendered lines — above the second
+  // group, so the first thing an author met was a wall of prose explaining choices they had not
+  // made yet, and the questions the form is built around started below the fold.
+  //
+  // Composed into `help` rather than gated separately, so there is ONE disclosure per field and one
+  // `showHelp` deciding it. A second toggle beside the first would be two answers to "tell me about
+  // this field".
+  const optionHelp = helpOf && (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {options.map((o) => {
+        const on = o === value;
+        const h = helpOf(o);
+        if (!h) return null;
+        return (
+          <div key={o} style={{ color: on ? color.sec : color.muted }}>
+            <b style={{ color: on ? color.indigo : color.sec2 }}>{text(o)}</b>{" — "}{h}
+          </div>
+        );
+      })}
+    </div>
+  );
   return (
-    <FieldRow label={label} help={help} error={error} inherited={inherited} editable={editable}
-              testid={testid} reason={reason}>
+    <FieldRow label={label} error={error} inherited={inherited} editable={editable}
+              testid={testid} reason={reason}
+              help={help || optionHelp
+                ? <>{help}{help && optionHelp ? <div style={{ height: 6 }} /> : null}{optionHelp}</>
+                : undefined}>
       {editable ? (
         <select
           value={value ?? ""}
@@ -576,120 +575,11 @@ export function SelectField<T extends string>({
             : text(value)}
         </div>
       )}
-      {helpOf && (
-        <div style={{ marginTop: 7, display: "flex", flexDirection: "column", gap: 4 }}>
-          {options.map((o) => {
-            const on = o === value;
-            const h = helpOf(o);
-            if (!h) return null;
-            return (
-              <div key={o} style={{ ...helpStyle, color: on ? color.sec : color.muted }}>
-                <b style={{ color: on ? color.indigo : color.sec2 }}>{text(o)}</b>{" — "}{h}
-              </div>
-            );
-          })}
-        </div>
-      )}
     </FieldRow>
   );
 }
 
 /* ── lists ──────────────────────────────────────────────────────────────────────────────────── */
-
-/** Where a value's ORDER is the value: `scopes`.
- *
- *  `scopes` is a search order, not a gate — `notes` leads by default because for the eight output
- *  lines the note is the authoritative source, and the first scope that yields a figure is the one
- *  published. A set of checkboxes cannot express that at all: it would render two different
- *  configurations identically and let a save silently reorder them. So the chosen scopes are rows,
- *  numbered, with up/down, and the remainder is an add-picker. */
-export function OrderedMultiSelect<T extends string>({
-  label, help, error, inherited, editable, testid, value, onChange, options, labelOf, addLabel,
-}: FieldProps & {
-  value: T[];
-  onChange: (v: T[]) => void;
-  options: readonly T[];
-  labelOf?: (v: T) => string;
-  addLabel?: string;
-}) {
-  const text = (v: T) => labelOf?.(v) ?? v;
-  const move = (i: number, by: number) => {
-    const j = i + by;
-    if (j < 0 || j >= value.length) return;
-    const next = value.slice();
-    [next[i], next[j]] = [next[j], next[i]];
-    onChange(next);
-  };
-  const rest = options.filter((o) => !value.includes(o));
-  return (
-    <FieldRow label={label} help={help} error={error} inherited={inherited} editable={editable}
-              testid={testid}>
-      <div style={{ border: `1px solid ${error ? color.redFg : color.hairline2}`,
-                     borderRadius: 7, background: color.rowAltBg }}>
-        {value.length === 0 && (
-          <div style={{ ...helpStyle, padding: "8px 10px" }}>
-            No scope listed — a configured empty, not a default.
-          </div>
-        )}
-        {value.map((v, i) => (
-          <div key={v} data-testid={`ordered-${v}`}
-               style={{ display: "grid", gridTemplateColumns: "18px 1fr auto", gap: 8,
-                         alignItems: "center", padding: "5px 8px",
-                         borderBottom: i === value.length - 1 ? "none"
-                                                              : `1px solid ${color.hairline}` }}>
-            <span style={{ fontFamily: font.mono, fontSize: 11, fontWeight: 600,
-                            color: color.indigo }}>{i + 1}</span>
-            <span style={{ fontSize: 12 }}>
-              {text(v)}
-              {i === 0 && value.length > 1 && (
-                <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase",
-                                letterSpacing: 0.3, color: color.greenFg, background: color.greenBg,
-                                padding: "1px 5px", borderRadius: 3, marginLeft: 6 }}>
-                  searched first
-                </span>
-              )}
-            </span>
-            {editable && (
-              <span style={{ display: "flex", gap: 4 }}>
-                <Button variant="ghost" style={smallBtn} title="Search this earlier"
-                        ariaLabel={`Move ${text(v)} earlier`} disabled={i === 0}
-                        onClick={() => move(i, -1)}>↑</Button>
-                <Button variant="ghost" style={smallBtn} title="Search this later"
-                        ariaLabel={`Move ${text(v)} later`} disabled={i === value.length - 1}
-                        onClick={() => move(i, 1)}>↓</Button>
-                <Button variant="secondary" style={smallBtn}
-                        ariaLabel={`Remove ${text(v)}`}
-                        onClick={() => onChange(value.filter((x) => x !== v))}>×</Button>
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
-      {editable && (
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 7,
-                       flexWrap: "wrap" }}>
-          {rest.length > 0 && (
-            <select
-              value=""
-              data-testid={testid ? `add-${testid}` : undefined}
-              onChange={(e) => { if (e.target.value) onChange([...value, e.target.value as T]); }}
-              style={{ ...inputStyle(true), width: "auto", maxWidth: 260, fontSize: 11.5,
-                        padding: "5px 9px", border: `1px dashed ${color.dashed}`,
-                        cursor: "pointer" }}
-            >
-              <option value="">{addLabel ?? "Add…"}</option>
-              {rest.map((o) => <option key={o} value={o}>{text(o)}</option>)}
-            </select>
-          )}
-          {value.length > 0 && (
-            <Button variant="secondary" style={smallBtn} onClick={() => onChange([])}
-                    title="Store an empty list — not a default">Clear all</Button>
-          )}
-        </div>
-      )}
-    </FieldRow>
-  );
-}
 
 /** Chips, an input, a delete per row, and a Clear all that yields `[]`.
  *
@@ -1357,4 +1247,51 @@ export function RungCards({
       )}
     </FieldRow>
   );
+}
+
+/** THE CONTROLS THAT NEED THE WHOLE WIDTH OF A GROUP, keyed on the COMPONENT and not on the field.
+ *
+ *  `Group` lays its fields out as a grid: a `<select>` holding the word "Extracted" does not need
+ *  580 pixels, and four of them stacked one per row pushed the next question off the screen. Most
+ *  controls therefore take one column; a prose box, a key picker, a terms table and a cascade do
+ *  not read at half width.
+ *
+ *  KEYED ON THE COMPONENT so this is not a second inventory of the form. A set of FIELD NAMES is
+ *  exactly the drift `GROUP_FIELDS`, `RETIRED_FIELDS` and the deleted simple-form allowlists have
+ *  each cost: a name list goes stale the first time a field changes control. A component list goes
+ *  stale only when a control is added, and it is declared here, beside the controls.
+ *
+ *  Read through `isWideControl` by `screens/LineItems.tsx`'s `fld`, which renders the element that
+ *  IS the grid item — hence not a prop on `FieldRow`, whose own box sits one level too deep to
+ *  span. `MatchListEditor` lives in its own module and is added to this set there rather than
+ *  imported here, which would be a cycle. */
+export const WIDE_CONTROLS = new Set<unknown>([
+  TextArea, KeyPicker, TermRows, RungCards,
+]);
+
+/** WHETHER A RENDERED CONTROL CLAIMS THE WHOLE ROW — the set above, plus the one control whose
+ *  answer depends on how it was asked to render.
+ *
+ *  `StringListEditor` IS TWO CONTROLS UNDER ONE NAME. Its `plain` variant is wrapping pills over a
+ *  dashed add box, and every part of it already declares how to reflow (`flexWrap: "wrap"`, and
+ *  `flex: "1 1 190px"` with `minWidth: 150` on the input): the tokens it holds are statement names
+ *  and section ids, short by construction. Its other three variants (`mono`, `veto`, `prose`) build
+ *  a BORDERED TABLE, one row per value, holding regexes and prose — those do need the width.
+ *
+ *  MEASURED, which is why this distinction exists at all. `statements` and `section_scope` sit
+ *  beside each other in the placing group and are both `plain`; spanning them took two full rows of
+ *  a 584-pixel pane to show four pills, and pushed the note-sourcing question below the fold. They
+ *  pair on one row now.
+ *
+ *  `KeyPicker` stays in the set although it also renders wrapping pills: its chip carries a LABEL
+ *  AND A MONO KEY side by side and cannot wrap inside itself, so one chip for
+ *  `bs_nca__ppe` "Property, plant and equipment" overflows a half-width column rather than
+ *  reflowing in it. */
+export function isWideControl(el: ReactElement): boolean {
+  if (WIDE_CONTROLS.has(el.type)) return true;
+  if (el.type === StringListEditor) {
+    const variant = (el.props as { variant?: string }).variant ?? "plain";
+    return variant !== "plain";
+  }
+  return false;
 }

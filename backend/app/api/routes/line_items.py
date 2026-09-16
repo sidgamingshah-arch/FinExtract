@@ -312,166 +312,6 @@ def _literal_values(annotation) -> list:
     """The tokens of a `Literal[...]` alias, in declaration order."""
     return list(get_args(annotation))
 
-
-# THE STATEMENTS UNDER THE NAMES A FILING PRINTS OVER THEM. `StatementType`'s members are engine
-# tokens (`profit_and_loss`), and a dropdown that offers one is asking an author to recognise a word
-# the document does not use. The same map exists in `services/line_item_llm` for the model's benefit;
-# they are deliberately separate because a screen and a prompt want different lengths of the same
-# name, and folding them together would settle that by accident.
-_STATEMENT_LABEL: dict[str, str] = {
-    "balance_sheet": "Balance sheet",
-    "profit_and_loss": "Profit or loss",
-    "cash_flow": "Cash flows",
-    "equity_changes": "Changes in equity",
-    "notes": "Notes to the accounts",
-    "covenants_supplemental": "Supplemental and covenant data",
-    "statement_setup": "Reporting setup",
-}
-
-
-def _shared_prefix(values: list[str]) -> str:
-    """The longest prefix every value starts with. `os.path.commonprefix` does this and is the only
-    reason that module would be imported here, which reads as a filesystem dependency in a routes
-    file."""
-    if not values:
-        return ""
-    head = values[0]
-    for value in values[1:]:
-        while head and not value.startswith(head):
-            head = head[:-1]
-    return head
-
-
-def _sections(st: LineItemSet) -> list[dict]:
-    """The 18 sections as the three questions an author actually has, not as 18 keys.
-
-    WHAT THIS REPLACES. `inherits_options` is `sorted(st.section_defaults)` — `bs_ca`, `bs_cl`,
-    `bs_equity`, `bs_nca`, `bs_ncl`, `capital_and_lease_commitments`, … — eighteen engine keys in
-    alphabetical order, which is the order that puts `cf_financing` before `credit_compliance` and
-    both before `is_oci`. An author choosing where a line lives had to know the key scheme.
-
-    MEASURED, THE KEYS DECOMPOSE EXACTLY, which is what makes this a projection and not an
-    invention: every section declares a `statement` (6 distinct over the 18), and `face_only` plus
-    `scopes` say WHERE inside it — 12 sections are face-only, `notes` searches the notes, and the 5
-    supplemental/setup sections are neither, meaning either. The banner label comes off the set's
-    own vocabulary: `scope_tokens` maps the section key to a banner token and
-    `section_banners[].headings` holds the printed wording, so "Non current assets" is the filing's
-    phrase rather than a string invented here.
-
-    `statement` IS DERIVED FROM THIS ON THE SCREEN, which is the point. It was a separate control
-    and a materialised per-line copy on 462 items, and measured, NOT ONE of the 462 differed from
-    the statement its own section declares. One question with two answers is how they drift.
-    """
-    banner_headings: dict[str, str] = {}
-    for banner in st.vocabulary.section_banners:
-        if banner.token and banner.headings:
-            banner_headings[banner.token] = str(banner.headings[0])
-
-    out: list[dict] = []
-    for key, section in st.section_defaults.items():
-        statement = str(getattr(section.statement, "value", section.statement) or "")
-        # `face_only` and `scopes` are the two declarations that place a section inside its
-        # statement. Neither is authored per line any more — both are section policy, measured as
-        # never varying within one — so reading them here is reading the section's own answer.
-        #
-        # READ THROUGH `SectionDefaults.where()`, which is now the one definition of it: the
-        # pipeline needs the same answer to decide which search a line gets, and deriving it twice
-        # is how the two come to disagree.
-        where = section.where()
-        token = st.vocabulary.scope_tokens.get(key) or ""
-        # UNDERSCORES OUT WHATEVER THE SOURCE. Some banners declare their own token as their first
-        # heading (`income_and_expenses`), so folding only the fallback left engine spelling on the
-        # screen for four of the eighteen.
-        heading = (banner_headings.get(token) or token or key).replace("_", " ").strip()
-        out.append({
-            "key": key,
-            "statement": statement,
-            "statement_label": _STATEMENT_LABEL.get(statement, statement.replace("_", " ")),
-            "where": where,
-            "label": heading[:1].upper() + heading[1:] if heading else key,
-        })
-
-    # TWO SECTIONS SHARING A LABEL ARE TWO UNPICKABLE OPTIONS. `cf_oper_indirect` and
-    # `cf_oper_direct` both fold to the banner "operating activities" — correctly, they ARE the same
-    # printed heading — and a dropdown offering it twice is a dropdown an author has to guess at.
-    # The distinguishing tail of the key is what separates them, and only where it has to.
-    seen: dict[tuple[str, str], list[dict]] = {}
-    for entry in out:
-        seen.setdefault((entry["statement"], entry["label"]), []).append(entry)
-    for (_stmt, _label), group in seen.items():
-        if len(group) < 2:
-            continue
-        shared = _shared_prefix([e["key"] for e in group])
-        for entry in group:
-            tail = entry["key"][len(shared):].strip("_").replace("_", " ")
-            if tail:
-                entry["label"] = f"{entry['label']} ({tail})"
-    # BY STATEMENT AND THEN BY DECLARATION ORDER, never alphabetically. A balance sheet prints
-    # non-current assets above current assets and the sections are declared in that order, so
-    # sorting on the key would reorder the statement to suit an engine's spelling.
-    order = list(_STATEMENT_LABEL)
-    out.sort(key=lambda s: (order.index(s["statement"]) if s["statement"] in order else len(order),
-                            list(st.section_defaults).index(s["key"])))
-    return out
-
-
-def _template_placing(session: Session, st: LineItemSet) -> dict[str, dict]:
-    """Each key the BOUND TEMPLATE places -> the statement and section it places it in.
-
-    WHY THE SCREEN NEEDS THIS. `statement` and `inherits` are two of the questions the placing
-    control asks, and for most lines the template has already answered both: measured on the
-    configuration in force against `output_csv_hk_v1`, the template places 462 of 534 lines and the
-    configuration agrees with it on the statement 462 times out of 462 and on the section 462 out of
-    462. A control that asks an author to re-answer a question the template settled is a control
-    offering them a way to contradict it.
-
-    SO THIS IS SERVED, NOT ENFORCED, and that is the whole of the judgement here. Deriving the two
-    fields and dropping them from the model was the original plan and the measurement argues against
-    it: the 72 lines the template does NOT place are all `namespace: internal` sub-line items — the
-    note-read parts — and those are exactly the lines an author edits most. They would still need
-    both controls, so removing the fields would buy nothing on the lines that matter and risk the
-    462 that are already correct. Badging them instead gives the clarity with no behaviour change,
-    and the screen can then say WHY a value is what it is rather than inviting a second opinion.
-
-    THE OTHER TEMPLATE DOES NOT AGREE, and the reason is worth recording rather than discovering
-    later: `hkfrs_hk_china_template` names its sections `bs_s5_equity` where this one says
-    `bs_equity`, so the same derivation against that template disagrees on every line it places.
-    That is not a defect — a set is bound to ONE template through `target_template_key` and this
-    reads the bound one — but it does mean the agreement above is a fact about this pair and not a
-    property of templates in general.
-    """
-    from app.db.models import TemplateVersion
-
-    row = session.execute(
-        select(TemplateVersion)
-        .where(TemplateVersion.template_key == st.target_template_key)
-        .order_by(TemplateVersion.version.desc())
-    ).scalars().first()
-    if row is None:
-        return {}
-    out: dict[str, dict] = {}
-
-    def walk(node: dict, statement: str, section: str) -> None:
-        key = node.get("canonical_key")
-        if isinstance(key, str) and key and key not in out:
-            out[key] = {"statement": statement, "section": section}
-        for kid in node.get("children") or ():
-            if isinstance(kid, dict):
-                walk(kid, statement, section)
-
-    for stmt in (row.definition or {}).get("statements") or ():
-        if not isinstance(stmt, dict):
-            continue
-        statement = str(stmt.get("type") or stmt.get("key") or "")
-        for sec in stmt.get("sections") or ():
-            if not isinstance(sec, dict):
-                continue
-            # The TOP-LEVEL section node names the section every descendant belongs to, which is
-            # the granularity `section_defaults` is keyed at.
-            walk(sec, statement, str(sec.get("canonical_key") or sec.get("node_id") or ""))
-    return out
-
-
 def _banner_vocabulary(st: LineItemSet):
     """The matcher's own `Vocabulary`, so the screen's idea of what constrains what is the engine's.
 
@@ -555,12 +395,8 @@ def _vocabulary(st: LineItemSet) -> dict:
         # options come from the set rather than from anything the client remembers.
         #
         # BOTH SPELLINGS ARE SERVED. `inherits_options` is the flat closed set the validator
-        # compares against; `sections` is the same eighteen carrying the statement they belong to,
-        # where inside it they sit, and the banner wording a filing prints — which is what lets the
-        # screen ask three plain questions instead of offering eighteen engine keys in alphabetical
-        # order. See `_sections`.
+        # compares against.
         "inherits_options": sorted(st.section_defaults),
-        "sections": _sections(st),
         "section_scope_tokens": sorted(scope_ids),
         # WHICH OF THOSE ACTUALLY CONSTRAIN ANYTHING, so the screen can say so instead of leaving
         # an author to find out that a choice changed nothing.
@@ -630,9 +466,6 @@ def get_line_items(template_key: str | None = None, session: Session = Depends(d
     stored = row.definition or {}
     raw_list = stored.get("items") if isinstance(stored, dict) else stored
     raw_items = {d.get("key"): d for d in (raw_list or []) if isinstance(d, dict)}
-    # Read once rather than per item: `payload` recurses, and this walks the whole template.
-    placing = _template_placing(session, st)
-
     def payload(d) -> dict:
         out = d.model_dump(mode="json")
         out["children"] = [payload(k) for k in reg.children_of(d.key)]
@@ -647,12 +480,6 @@ def get_line_items(template_key: str | None = None, session: Session = Depends(d
         # generated field inside it would round-trip into storage and reappear as though it had
         # been authored. Nothing outside `_EDIT_*` is ever written, so here it cannot.
         out["prose_compiled"] = prose_grammar.compile_for(d.note_source, st.prose_grammar)
-        # WHERE THE BOUND TEMPLATE PUTS THIS LINE, when it places it at all — so the screen can say
-        # that the statement and the section were settled by the template rather than asking an
-        # author to answer them again. Absent for the 72 internal sub-line items the template does
-        # not place; those genuinely do author their own. See `_template_placing`.
-        if (placed := placing.get(d.key)) is not None:
-            out["template_placing"] = placed
         return out
 
     roots = sorted((d for d in defs if not d.parent), key=lambda d: (d.order, d.key))

@@ -63,6 +63,23 @@ export function setStoredNavCollapsed(v: boolean): void {
   localStorage.setItem(NAV_KEY, v ? "1" : "0");
 }
 
+const LI_LIST_KEY = "finex.lineItems.listCollapsed";
+/** Whether the Line Items screen's list pane is put away. OPEN is the default, and the asymmetry
+ *  with the nav rail above is deliberate: the rail is a menu, and a menu hidden on a first visit
+ *  costs nothing because every screen has one. This list IS the Line Items screen's subject — 527
+ *  configured lines — so collapsing it by default would open the screen on a rail and a form for
+ *  whichever line happened to sort first, with no sign of what the screen is for.
+ *
+ *  An explicit choice is remembered; no choice yet means open. */
+export function getStoredLiListCollapsed(): boolean {
+  if (typeof localStorage === "undefined") return false;
+  return localStorage.getItem(LI_LIST_KEY) === "1";
+}
+export function setStoredLiListCollapsed(v: boolean): void {
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem(LI_LIST_KEY, v ? "1" : "0");
+}
+
 /** Error carrying the HTTP status so callers (e.g. auth gating) can special-case 401.
  *  `detail` is the server's own explanation when it sent one — editors show it verbatim
  *  rather than a generic failure, so a rejected value says WHY it was rejected.

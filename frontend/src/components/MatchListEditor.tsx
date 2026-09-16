@@ -33,7 +33,7 @@
  */
 import { useState } from "react";
 
-import { FieldRow, helpStyle, inputStyle, smallBtn } from "./configFields";
+import { FieldRow, WIDE_CONTROLS, helpStyle, inputStyle, smallBtn } from "./configFields";
 import { Button } from "./ui";
 import { color, font } from "../theme";
 
@@ -351,3 +351,8 @@ export function MatchListEditor({
     </FieldRow>
   );
 }
+
+// THE CAPTION LIST NEEDS THE WHOLE WIDTH TOO — a row is a mode select plus a pattern, and at half
+// width the pattern is the half that clips. Registered from here rather than listed in
+// `configFields.WIDE_CONTROLS` itself, because that module does not import this one.
+WIDE_CONTROLS.add(MatchListEditor);

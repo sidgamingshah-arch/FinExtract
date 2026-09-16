@@ -24,12 +24,16 @@
  * that is authorable in the schema and unreachable from here is a control the product claims to
  * have and does not.
  *
- * A SAVE PUBLISHES A NEW VERSION and never writes in place. A run pins the exact version it used,
- * so mutating a stored definition would retroactively change how a past run is explained; the
+ * A SAVE PUBLISHES, AND ONE VERSION PER SITTING. What it never does is rewrite a version somebody
+ * else authored or a run pins: `_publish_new_version` REPLACES the version in force when that
+ * version was authored in this session and no run pins it, and inserts `max + 1` otherwise
+ * (`tests/test_one_version_per_session.py`). So the first save of a sitting publishes v(n+1) and
+ * every save after it republishes v(n+1) in place — which is why the button no longer names a
+ * number, and the banner above the list states the one the server returned. Either way the
  * endpoint (`PATCH /line-items/versions/{id}/items`) re-validates the whole edited set against the
- * target template and stores a new row, and the caption above the list then names that row as the
- * one in force. A refusal is therefore information the author needs — it comes back addressed per
- * field and is printed on the control that caused it, in the server's own words.
+ * target template, and the caption above the list names the row now in force. A refusal is
+ * therefore information the author needs — it comes back addressed per field and is printed on the
+ * control that caused it, in the server's own words.
  *
  * WHAT THE FORM HAS TO GET RIGHT is stated once, on `components/configFields.tsx`, which owns
  * every control: absent / null / configured-empty are three different statements, a refusal
@@ -39,22 +43,23 @@
  * resolve by meaning rather than by string match, so they are at the top of the pane and not
  * behind a disclosure.
  */
-import { useState, type ReactNode } from "react";
+import { isValidElement, useState, type CSSProperties, type ReactNode } from "react";
 
 import {
   BoolField, InfoToggle, KeyPicker, LockedRow, NumberField, RungCards,
-  SelectField, StringListEditor, TermRows, TextArea, TextField, type KeyOption,
+  SelectField, StringListEditor, TermRows, TextArea, TextField, isWideControl,
+  type KeyOption,
 } from "../components/configFields";
 import { MatchListEditor } from "../components/MatchListEditor";
 import { RequestGroups } from "../components/RequestGroups";
 import { Button, Card } from "../components/ui";
-import { useT } from "../i18n";
 import { ApiError, refusalText } from "../lib/api";
 import {
   useAddLineItem, useDeleteLineItem, useEditLineItemConfig, useEditLineItemSet,
   useLineItems,
 } from "../lib/queries";
 import { useCan } from "../lib/rbac";
+import { useUI } from "../store";
 import { SCREENS } from "./config";
 import { color, font, radius } from "../theme";
 import type {
@@ -135,63 +140,6 @@ function Patterns({ label, values, tone }: { label: string; values: string[]; to
   );
 }
 
-/** ONE GROUP OF THE FORM, headed by the QUESTION it answers.
- *
- *  The headings are questions rather than field-category nouns because the author arrives with a
- *  question ("why did this caption land on the wrong line?") and not with a field name. */
-/** SIMPLE — the eight questions a configurator answers to make a line work.
- *
- *  73 editable fields was a schema browser, not a configuration screen. The cut is evidence-led,
- *  measured over the 475 shipped items: these are the fields an author sets to define a line at
- *  all, and between them they cover every line in the shipped set. Everything else is either an
- *  override of a section-level default or machinery for a case that arises on a handful of lines.
- *
- *  `aliases` and `definition` carry the most weight: aliases catch the wording a filing prints,
- *  and the definition is what resolves a wording nobody listed. `exclude_criteria` sharpens that.
- *  `inherits` decides where the line may be found and `type` how it gets a figure.
- */
-/** SIMPLE IS PER TYPE, NOT ONE LIST FOR EVERY LINE.
- *
- *  WHAT WAS WRONG WITH ONE LIST. `definition`, `aliases` and the include/exclude criteria are the
- *  fields that resolve a PRINTED CAPTION — they are read by the description-matching tier and they
- *  are the prose the model reasons over. A `derived` line has no caption to resolve: its figure is
- *  its cascade's, and it is never offered to the model (`_llm_withheld`). So on the nine derived
- *  lines the simple form opened with four prose boxes that nothing reads, and the one control that
- *  decides the figure — the cascade — was behind the advanced toggle. The same holds for the
- *  arithmetic types, whose figure is `terms`.
- *
- *  SO THE SPLIT IS A FUNCTION OF `type`, and each type's simple form is the fields that decide
- *  THAT kind of line:
- *
- *      extracted     read off the page      -> meaning, captions, note sourcing
- *      derived       a declared cascade     -> the cascade, and where it may read a printed row
- *      calculated /  arithmetic over other
- *      intermediate  lines                  -> the terms
- *
- *  EVERY TYPE KEEPS `COMMON`: what the line is called, what kind of line it is, whether it is
- *  delivered, and what kind of figure it holds. Nothing is removed from the screen — advanced
- *  still shows every control, and `requiredNow` still forces a control the server would refuse
- *  the save without.
- */
-/** WHAT EVERY LINE ITEM ANSWERS, whatever its type.
- *
- *  `in_output`, `output_structure` and `sign_expectation` were here and are gone: delivery is the
- *  template's decision, `output_structure` was declared by 0 of 539 items while sitting on the
- *  SIMPLE form, and the sign never varies inside a section so it is section policy.
- *
- *  `statement` WAS HERE AND IS GONE TOO, because the control is: the section chosen at the top
- *  supplies it, and measured, not one of the 462 per-line copies differed from its own section's
- *  value. A name in a simple-form list with no control behind it is the same dead entry the three
- *  field lists had accumulated — it silently contributes nothing.
- *
- *  `definition` IS HERE AND WAS NOT, which is a fix rather than a tidy. It is declared by 539 of
- *  539 lines, the most-authored field in the set, and it was reachable only through
- *  `MEANING_SIMPLE` — which a formula line never gets. So the simple form for a calculated line was
- *  `label`, `type`, `terms`: three controls, no way to say what the line MEANS, on the population
- *  whose whole remaining surface is those four fields. */
-// `route` IS A BASIC FIELD, not an advanced one. It was omitted here and the form opens in
-// SIMPLE mode, so the control existed and nobody could see it — the exact failure this list is
-// for. "Where is this read from" is as fundamental as "what kind of line is this".
 /* THE SIMPLE-FORM ALLOWLISTS AND `simpleFieldsFor` ARE GONE, with the simple/advanced toggle.
  *
  * They were `COMMON_SIMPLE`, `MEANING_SIMPLE` and `NOTE_SOURCE_SIMPLE`, combined per type into the
@@ -290,14 +238,30 @@ function MasterPrompt({ versionId, served, canEdit }: {
   const [text, setText] = useState(served);
   const save = useEditLineItemSet();
   // Re-seed when the server serves a different version, so a publish elsewhere is not overwritten
-  // by a stale draft still sitting in this box.
+  // by a stale draft still sitting in this box — BUT NEVER OVER TEXT THE AUTHOR HAS TYPED.
+  //
+  // WHY THAT MATTERED. `versionId` advances on every publish from this screen, the author's own
+  // line-item save included: all four mutations invalidate `["line-items"]` and
+  // `useEditLineItemConfig` awaits the refetch, so `inForce.id` has changed before this component
+  // renders again. Re-seeding unconditionally is a no-op whenever the box is clean, so its ONLY
+  // observable effect was to discard a prompt someone was in the middle of writing, with no
+  // message — save a line item, lose your prompt.
   //
   // KEYED ON `versionId` rather than on `served`. This one worked, because `served` is a string and
   // strings compare by value — but the same two lines in `RequestGroups`, where the value is an
   // array built with `?? []`, were an infinite re-render that took the screen down. Keying both on
   // the version removes the dependence on the served value's TYPE, and says what the trigger is.
-  const [seed, setSeed] = useState(versionId);
-  if (seed !== versionId) { setSeed(versionId); setText(served); }
+  // The served value is now CARRIED in the cell as well as compared against: cleanliness is
+  // "unchanged from what was served", and only the previous served text can answer that.
+  const [seed, setSeed] = useState({ id: versionId, served, stale: false });
+  if (seed.id !== versionId) {
+    // Clean against EITHER served value: equal to the old one means nothing was typed, equal to the
+    // new one means this version change IS the author's own save landing. Only a third value is a
+    // draft worth protecting.
+    const clean = text === seed.served || text === served;
+    setSeed({ id: versionId, served, stale: !clean });
+    if (clean) setText(served);
+  }
   const dirty = text !== served;
 
   return (
@@ -343,6 +307,15 @@ function MasterPrompt({ versionId, served, canEdit }: {
                   Discard
                 </button>
               )}
+              {seed.stale && dirty && (
+                // THE DRAFT SURVIVED A PUBLISH, so say what it is now measured against. Without
+                // this the author's text is silently editing a version that moved under it, which
+                // is a better outcome than losing the text but still not one to leave unstated.
+                <span data-testid="li-master-prompt-stale"
+                      style={{ fontSize: 11, color: color.sec2 }}>
+                  A new version was published while you were typing — saving replaces it with this.
+                </span>
+              )}
               {save.isError && (
                 <span style={{ fontSize: 11, color: color.redFg }}>
                   {refusalText(save.error as ApiError) ?? (save.error as Error)?.message}
@@ -375,7 +348,7 @@ function MasterPrompt({ versionId, served, canEdit }: {
  *  applies to `LockedRow`.
  */
 function withheldReason(name: string, sel: {
-  type: string; extractionMode: string; aliasMatching: string; outputStructure: string;
+  type: string; extractionMode: string; aliasMatching: string;
   faceOnly: boolean; route: string;
 }): string | null {
   const { type, extractionMode, aliasMatching, faceOnly, route } = sel;
@@ -522,7 +495,7 @@ function withheldReason(name: string, sel: {
  *  — so choosing "derived" would produce a refusal with no control on the screen to answer it. The
  *  same holds for `terms` on a calculated line, which is behind the advanced toggle.
  */
-function requiredNow(name: string, sel: { type: string; outputStructure: string }): boolean {
+function requiredNow(name: string, sel: { type: string }): boolean {
   if (["cascade", "implemented_by"].includes(name)) return sel.type === "derived";
   if (name === "terms") return ["calculated", "intermediate"].includes(sel.type);
   // THE `prompt` RULE IS GONE, and it was doubly dead before it went.
@@ -535,6 +508,11 @@ function requiredNow(name: string, sel: { type: string; outputStructure: string 
   // would put a control on the form that the server rejects, which is the exact clash
   // `tests/test_not_configurable.py::test_a_control_the_form_forces_back_on_is_still_writable`
   // exists to catch.
+  //
+  // THE PARAMETER WENT WITH THE RULE. `outputStructure` was that rule's only reader, and it was
+  // still declared on three `sel` signatures and still computed from a field
+  // `routes/line_items._NOT_CONFIGURABLE` refuses ("no line item declares this") — an input the
+  // next author would have had to keep supplying to a form that reads it nowhere.
   return false;
 }
 
@@ -565,17 +543,24 @@ function requiredNow(name: string, sel: { type: string; outputStructure: string 
  *  its measurement. Two inventories of the same form is the drift this comment warns about; one of
  *  them going stale is how a banner comes to announce four fields over a group showing three.
  */
-/** The sentinel for "not tied to a statement", which is not one of the eighteen section keys and
- *  must not collide with one. Underscored on both ends for the same reason a namespace is. */
-const FULL_REPORT = "__full_report__";
+/** THE FOUR ROUTES, in the author's words rather than the engine's tokens. Module level because
+ *  the control and the withheld banner both name the chosen one, and two spellings of
+ *  "A note's table rows" is how they come to disagree. */
+/** THE LIST TOGGLE, one style for both of its faces. It is the SAME control in two places — « in
+ *  the list's own header, » on the rail that replaces the list — carrying one `li-list-toggle`
+ *  testid, because it is one thing a reader learns and not two. */
+const smallToggleBtn: CSSProperties = {
+  font: "inherit", fontSize: 12, lineHeight: 1, cursor: "pointer",
+  padding: "3px 6px", borderRadius: radius.control,
+  border: `1px solid ${color.indigoBorder2}`,
+  background: color.indigoTint2, color: color.indigo,
+};
 
-/** What each section's `where` adds to its name in the list. Face and notes are worth saying;
- *  "either" is the absence of a restriction and saying so would put a parenthesis on five of
- *  eighteen rows to communicate nothing. */
-const WHERE_SUFFIX: Record<string, string> = {
-  face: " — on the face",
-  notes: " — in the notes",
-  either: "",
+const ROUTE_LABEL: Record<string, string> = {
+  face: "The face of the statement",
+  note_tables: "A note's table rows",
+  prose: "A sentence in a note",
+  anywhere: "Anywhere — do not constrain it",
 };
 
 const GROUP_FIELDS = {
@@ -665,7 +650,7 @@ const CONDITIONAL_FIELDS = [
  *  always read as empty there.
  */
 function withheldFields(
-  sel: { type: string; extractionMode: string; aliasMatching: string; outputStructure: string;
+  sel: { type: string; extractionMode: string; aliasMatching: string;
          faceOnly: boolean; route: string },
   errors: Record<string, string>,
 ): Map<string, string> {
@@ -679,6 +664,9 @@ function withheldFields(
 }
 
 /** ONE GROUP, UNDER A BANNER THAT ROLLS WITH THE SCROLL.
+ *
+ *  HEADED BY A QUESTION, not by a field-category noun, because the author arrives with a question
+ *  ("why did this caption land on the wrong line?") and not with a field name.
  *
  *  WHY THE BANNER STICKS. Even cut to one type's simple form the pane is taller than a viewport,
  *  and the question a control answers is the only thing that says what the control is FOR — an
@@ -750,10 +738,60 @@ function Group({ question, note, right, children, visible = true, index, count, 
         {right}
       </div>
       {open && (
-        <div style={{ padding: "11px 13px 1px" }}>
+        // A GRID, BECAUSE MOST OF THESE CONTROLS ARE NARROWER THAN THE PANE.
+        //
+        // A `<select>` holding the word "Extracted" does not need the full column width, and four
+        // of them stacked one per row pushed the next question below the fold — on the
+        // shipped set 484 of 527 items are `extracted`, whose form is mostly selects and short
+        // text. So a compact control takes one column and a control that needs the width spans
+        // every column. WHICH IS WHICH IS NOT DECIDED HERE: `fld` asks the rendered control
+        // (`configFields.isWideControl`), so the group does not know which fields it is holding
+        // and does not have to.
+        //
+        // `auto-fit` rather than a fixed count, so the grid falls to one column in a genuinely
+        // cramped pane instead of overflowing. `rowGap: 0` because `FieldRow` already carries its
+        // own bottom margin — setting both would double the spacing it was tuned with.
+        //
+        // THE MINIMUM IS A VARIABLE (`--li-field-min`, set on the two-pane grid) SO THIS STAYS TWO
+        // COLUMNS AT EVERY PANE WIDTH — 300px with the list open, 420px with it collapsed. A single
+        // literal cannot do that job: the number has to rise when the pane does, or collapsing the
+        // list makes fields smaller. See the two-pane grid for that arithmetic.
+        //
+        // TWO COLUMNS AND NOT THREE is a measured refusal rather than a taste. At 260px a third
+        // track fits once the list pane was capped
+        // (field grid 834px at 1440, and 3x260+2x14 = 808), and the third track is WORSE than no
+        // third track: `auto-fit` collapses a track only when NOTHING occupies it, so in any group
+        // holding a full-width control the spanning item keeps track 3 alive and the group's lone
+        // narrow field is squeezed into a third of the row. Measured, at 1440 with min 260:
+        // `type`/`route` rendered 410px each (group 01 has two narrow fields, so track 3 collapsed)
+        // while `label` and `order` rendered 269px with ~565px of blank space beside them, because
+        // groups 02 and 05 each pair one narrow field with a spanning one. A 269px select under a
+        // half-empty row is the complaint this grid was built to answer, arriving by a new route.
+        //
+        // At 300px the arithmetic refuses the third track outright: two need 614px, three need
+        // 928px, and the `maxWidth: 1320` on the screen root holds the field grid at ~834px however
+        // wide the window is. So every pixel the capped list pane gave up makes the TWO columns
+        // wider — 285px each before, 410px now — instead of adding a narrow one. If that cap is
+        // ever raised, this minimum is what has to be revisited with it.
+        //
+        // NO `grid-auto-flow: dense`, deliberately, although it would close the hole a spanning
+        // control leaves beside the field above it (`label` sits alone next to an empty column
+        // because `definition` spans). `dense` backfills that hole with a LATER item, which makes
+        // the order an author reads differ from the order they tab through — and these fields are a
+        // questionnaire whose groups are numbered and whose questions build on each other. A row
+        // of whitespace is the cheaper of the two costs.
+        <div style={{ padding: "11px 13px 1px", display: "grid", alignItems: "start",
+                       gridTemplateColumns: "repeat(auto-fit, minmax(var(--li-field-min, 300px), 1fr))",
+                       columnGap: 14, rowGap: 0 }}>
           {note && showNote && (
-            <p style={{ margin: "0 0 11px", paddingLeft: 9, fontSize: 10.5, color: color.muted,
-                         lineHeight: 1.5, borderLeft: `2px solid ${color.indigoBorder2}` }}>
+            // `maxWidth` IN `ch`, because this is the one child that spans every column and it is
+            // PROSE. At the pane's new width the span is ~834px, which at 10.5px is about 150
+            // characters a line — roughly twice a readable measure. The span stays (the note
+            // belongs to the whole group, not to column one) and the line length is bounded
+            // instead.
+            <p style={{ gridColumn: "1 / -1", margin: "0 0 11px", paddingLeft: 9, fontSize: 10.5,
+                         color: color.muted, lineHeight: 1.5, maxWidth: "94ch",
+                         borderLeft: `2px solid ${color.indigoBorder2}` }}>
               {note}
             </p>
           )}
@@ -826,7 +864,6 @@ interface EditorProps {
   keys: KeyOption[];
   canEdit: boolean;
   versionId: string | undefined;
-  versionNumber: number | undefined;
   locale: string;
   onLocale: (locale: string) => void;
   draft: Partial<LineItemEdit>;
@@ -842,8 +879,6 @@ interface EditorProps {
   onSave: () => void;
   onDiscard: () => void;
   onSelect: (key: string) => void;
-  aliasDraft: string;
-  onAliasDraft: (v: string) => void;
 }
 
 function Detail(p: EditorProps) {
@@ -914,7 +949,6 @@ function Detail(p: EditorProps) {
     type: String(g("type", item.type) ?? "extracted"),
     extractionMode: String(g("extraction_mode", item.extraction_mode) ?? "extract"),
     aliasMatching: String(g("alias_matching", item.alias_matching) ?? "enabled"),
-    outputStructure: String(g("output_structure", item.output_structure) ?? "value"),
     // THE PLACING, as the gate resolves it. Not item-writable, so it is read off the served item
     // and never off the draft: `face_only` is one of the fields the section declares and an item
     // may no longer override, which is why there is no `g(...)` here.
@@ -926,6 +960,11 @@ function Detail(p: EditorProps) {
   /** What this line's own selections withhold. Derived from `sel`, so it follows the author's
    *  choice of type immediately rather than after a save. */
   const withheld = withheldFields(sel, errors);
+  // ON THIS TAB, because that is what "show them anyway" reveals. `withheld` is every withheld
+  // control on the line; `fld` then drops anything belonging to the other tab, AFTER the withheld
+  // check. So the banner counted eight and the escape hatch produced two or three — the exact
+  // mismatch it was written to prevent, a header announcing controls the group then shows none of.
+  const withheldHere = [...withheld.keys()].filter((n) => tabOf(n) === tab);
   /** The simple form for THIS line's type, recomputed from the draft so switching the type
    *  re-cuts the form at once rather than after a save. */
 
@@ -945,10 +984,27 @@ function Detail(p: EditorProps) {
     // server REFUSED is shown whatever the tab, because hiding the control a refusal is addressed
     // to leaves an author with a message and nothing to act on.
     if (!errors[name] && tabOf(name) !== tab) return null;
+    // ONE COLUMN OF THE GROUP'S GRID, OR ALL OF THEM. This wrapper is the grid item — `FieldRow`'s
+    // own box is one level deeper and cannot span — so the width decision is taken here, off the
+    // CONTROL itself (`configFields.isWideControl`). Not off the field's name: a name list is a
+    // second inventory of the form and goes stale the first time a field changes control, which is
+    // the drift `GROUP_FIELDS` and the deleted simple-form allowlists each paid for.
+    const control = render(errors[name]);
+    const wide = isValidElement(control) && isWideControl(control);
     return (
-      <div data-testid={`li-field-${name}`} key={name}>
+      // AND A NARROW CONTROL HAS A CEILING, not just a column. Its track is `1fr`, so it takes
+      // whatever the row has spare — and `auto-fit` COLLAPSES a track nothing occupies, so a group
+      // holding exactly ONE narrow field gets one surviving track and hands it the entire row.
+      // Measured: a `calculated` line, whose `route` does not apply, rendered group 01 as a single
+      // `Type` dropdown 834px wide with the list pane open, and 1156px with it collapsed. A select
+      // holding the word "Calculated" is not more usable at 834px than at 420, and the complaint
+      // this grid answers was that these controls were the wrong size — too wide is that complaint
+      // too. 520px is about where a labelled select and a short text input stop gaining.
+      <div data-testid={`li-field-${name}`} key={name}
+           style={{ minWidth: 0, maxWidth: wide ? undefined : 520,
+                     gridColumn: wide ? "1 / -1" : undefined }}>
         <div data-testid={errors[name] ? `li-field-error-${name}` : undefined}>
-          {render(errors[name])}
+          {control}
         </div>
         {/* Shown only while the author has asked to see inapplicable controls, so the reason
             arrives with the control it explains rather than as a list somewhere else. */}
@@ -999,49 +1055,6 @@ function Detail(p: EditorProps) {
   const BANDS = [1, 2, 3, 4, 5, 6];
   const allShut = BANDS.every((i) => shut[`g${i}`]);
   const setAll = (v: boolean) => setShut(Object.fromEntries(BANDS.map((i) => [`g${i}`, v])));
-
-  /** THE PLACING CONTROL'S THREE DERIVED PIECES.
-   *
-   *  `inherits` names one of the set's eighteen sections and the server validates it against
-   *  exactly that list, so the control's value is the section key. What the control SHOWS is the
-   *  statement it belongs to and the banner a filing prints, both served on `vocab.sections`.
-   *
-   *  THE FOURTH STATE IS NOT A SECTION. The 77 note-level parts declare `statement: null` and an
-   *  empty `section_scope` while still inheriting `notes` — deliberately outside the gate, because
-   *  a part is read out of a note rather than claimed off a statement face. As three separate
-   *  fields that reads as three omissions; as one option it reads as the decision it is. */
-  const sectionsByKey = Object.fromEntries((vocab?.sections ?? []).map((x) => [x.key, x]));
-  const statedStatement = g("statement", item.statement);
-  const statedScope = g("section_scope", item.section_scope) ?? [];
-  const isFullReport = statedStatement === null && statedScope.length === 0;
-  const placing = isFullReport ? FULL_REPORT : (g("inherits", item.inherits) ?? null);
-  const placingOptions = [...(vocab?.sections ?? []).map((x) => x.key), FULL_REPORT];
-  // WHETHER THE TEMPLATE ALREADY ANSWERED THIS, and it answered it for 462 of the 534 lines. Shown
-  // rather than enforced: the 72 it does not place are the internal sub-line items — the note-read
-  // parts, the lines an author edits most — so the control has to stay live for them, and a value
-  // the template settled is better explained than taken away. Only surfaced where it AGREES with
-  // what the line says; a disagreement is a real edit somebody made and the help text says so.
-  const fromTemplate = item.template_placing
-    && item.template_placing.section === (g("inherits", item.inherits) ?? null)
-    ? item.template_placing : null;
-  /** One choice, three fields — because the three are one decision and writing only `inherits`
-   *  would leave a part still carrying the statement it had before. */
-  const placingPatch = (v: string | null): Partial<LineItemEdit> => {
-    if (v === FULL_REPORT || v === null) {
-      // "THE WHOLE REPORT" AND "NOTHING CHOSEN" ARE THE SAME WRITE, and there is no separate
-      // "declares its own gate" option any more. A line with NO section inherits no policy at all,
-      // and `note_use` then resolves to the empty string — which `stages.note_sourced.
-      // _note_permission` reads as "a note may not fill this", so the line publishes blank on every
-      // filing. Offering that as a choice beside a working one is offering a trap; the control shows
-      // "not chosen yet" for a line that has not been placed and does not invite returning to it.
-      //
-      // The 77 parts are all authored exactly this way — `inherits: notes` for the section's
-      // policy, with `statement: null` and an empty `section_scope` to leave the gate.
-      return { inherits: g("inherits", item.inherits) || "notes",
-               statement: null, section_scope: [] };
-    }
-    return { inherits: v, statement: sectionsByKey[v]?.statement || null };
-  };
 
   const type = g<LineItemType>("type", item.type);
   const noteSource = g<NoteSource | null>("note_source", item.note_source);
@@ -1100,12 +1113,17 @@ function Detail(p: EditorProps) {
                             background: "transparent", color: color.sec2 }}>
             {allShut ? "Open all sections" : "Collapse all sections"}
           </button>
-          {/* LLM / DETERMINISTIC. The two routes into a line, kept apart because they are answered
-              independently: the LLM tab is everything the model is told about this line, and the
-              deterministic tab is the strings and patterns the lexical readers match on — which
-              `line_item_payload` withholds entirely, so filling it cannot change what the model is
-              asked. Blank is a valid deterministic tab. */}
-          <div role="group" aria-label="Which route's configuration to show"
+          {/* MEANING / PATTERNS, which is a split by AUDIENCE: the Meaning tab is everything the
+              model is told about this line, and the Patterns tab is the strings and regexes the
+              lexical readers match on — which `line_item_payload` withholds entirely, so filling
+              it cannot change what the model is asked. Blank is a valid Patterns tab.
+    
+              THE WORD "ROUTE" IS NOT USED HERE ANY MORE. This group's label said "Which route's
+              configuration to show" while `route` is a FIELD two controls above, whose values are
+              face / note_tables / prose / anywhere — so the screen used one word for the thing an
+              author chooses and for the panel they are looking at. The tabs are named by what they
+              contain; `route` keeps the word. */}
+          <div role="group" aria-label="Which half of this line's configuration to show"
                style={{ display: "flex", border: `1px solid ${color.cardBorder}`,
                          borderRadius: radius.control, overflow: "hidden" }}>
             {([["llm", "Meaning"], ["deterministic", "Patterns"]] as const).map(([t, lab]) => (
@@ -1113,7 +1131,7 @@ function Detail(p: EditorProps) {
                       data-testid={`li-tab-${t}`}
                       title={t === "llm"
                         ? "What this line is, where it sits and how it is assembled — everything the model is told"
-                        : "Aliases and match patterns for the deterministic readers. Never sent to the model; may be left blank"}
+                        : "Aliases and match patterns the lexical readers match on. Never sent to the model; may be left blank"}
                       style={{ fontSize: 11, cursor: "pointer", padding: "3px 10px", border: 0,
                                 background: tab === t ? color.indigo : "transparent",
                                 color: tab === t ? "#fff" : color.sec2 }}>
@@ -1127,13 +1145,22 @@ function Detail(p: EditorProps) {
       {/* WHAT THIS LINE'S OWN SELECTIONS TOOK OFF THE FORM, stated rather than left to be noticed.
           A control that is absent and a control withheld for a reason look identical on a screen,
           and only one of them is a decision — the same rule `LockedRow` exists for. */}
-      {withheld.size > 0 && (
+      {withheldHere.length > 0 && (
         <p style={{ margin: "0 0 10px", fontSize: 10.5, color: color.muted }}>
-          {withheld.size} control{withheld.size === 1 ? "" : "s"} {withheld.size === 1 ? "does" : "do"}{" "}
+          {withheldHere.length} control{withheldHere.length === 1 ? "" : "s"}{" "}
+          {withheldHere.length === 1 ? "does" : "do"}{" "}
           not apply to {sel.type === "extracted" ? "an" : "a"} <b>{sel.type}</b> line
+          {/* NAMING THE ROUTE TOO, because on an extracted line it is usually the cause. `route:
+              face` alone withholds `note_source` and its six sub-fields, `note_selection` and
+              `llm_only_if_note_tagged` — nine controls. The banner said they "do not apply to an
+              extracted line", which is false: they apply perfectly well to an extracted line whose
+              route is a note's table rows. Both selections are named so the author can see which
+              control to change, and both are in the first group. */}
+          {sel.route && ROUTE_LABEL[sel.route]
+            ? <> read from <b>{ROUTE_LABEL[sel.route].toLowerCase()}</b></> : null}
           {sel.aliasMatching === "disabled" || sel.extractionMode === "derive"
             ? " with caption matching off" : ""}
-          {" "}and {withheld.size === 1 ? "is" : "are"} not shown.{" "}
+          {" "}and {withheldHere.length === 1 ? "is" : "are"} not shown.{" "}
           <button type="button" data-testid="li-show-inapplicable"
                   onClick={() => setShowInapplicable((v) => !v)}
                   style={{ border: 0, background: "transparent", padding: 0, fontSize: 10.5,
@@ -1179,11 +1206,17 @@ function Detail(p: EditorProps) {
           AND a per-line copy on 462 items, and measured, not one of the 462 differed from the
           statement its own section declares — one question with two answers, which is how they
           drift. The section chosen here supplies it. */}
+      {/* THE QUESTION NAMES WHAT IS IN THE GROUP. It asked "and where does it live?" over `type`
+          and `route` — the placing question moved out to group 04 as `statements` +
+          `section_scope` when the `inherits` control went, and its note still described the
+          section deciding which banners can reach the line, a control not in this group. A banner
+          promising an answer the group does not hold sends the author looking for a missing
+          control. */}
       <Group {...band(1, GROUP_FIELDS.identity)}
-             question="What kind of line is this, and where does it live?"
+             question="What kind of line is this, and where is its figure read from?"
              note="Everything below is read in the light of these two: a formula line takes no
-                   captions and is never shown to the model, and the section decides which
-                   statement and which banners can reach it.">
+                   captions and is never shown to the model, and the route decides whether the note
+                   and prose controls below apply at all.">
         {fld("type", (e) => (
           <SelectField<LineItemType>
             label="Type" testid="type" editable={editable} reason={lockReason}
@@ -1235,13 +1268,10 @@ function Detail(p: EditorProps) {
             label="Where is this line's figure read from?" testid="route"
             editable={editable} reason={lockReason} nullable nullLabel="not chosen yet"
             options={vocab?.routes ?? []}
-            labelOf={(v) => ({ face: "The face of the statement",
-                               note_tables: "A note's table rows",
-                               prose: "A sentence in a note",
-                               anywhere: "Anywhere — do not constrain it" } as Record<string, string>)[v] ?? v}
+            labelOf={(v) => ROUTE_LABEL[v] ?? v}
             helpOf={(v) => ({
               face: "claimed off the printed statement by the recognition patterns on the "
-                  + "Deterministic tab. A note-source block on such a line is never acted on",
+                  + "Patterns tab. A note-source block on such a line is never acted on",
               note_tables: "read out of the rows of a cited note, selected by the note-source "
                          + "block below. If no row matches, a sentence in the same note is tried "
                          + "as a fallback",
@@ -1304,7 +1334,7 @@ function Detail(p: EditorProps) {
                           master prompt, never replacing it, so the global
                           policies still apply. It is also what resolves a
                           printed wording nobody thought to list, because
-                          the recognition patterns on the Deterministic tab
+                          the recognition patterns on the Patterns tab
                           are never sent to the model."
                     value={g("definition", item.definition)}
                     onChange={(v) => patch({ definition: v ?? "" })}
@@ -1381,14 +1411,15 @@ function Detail(p: EditorProps) {
                                           keyword_hints: idx("keyword_hints") }} />
         ))}
         {locale === set.locale && (
-          <p style={{ fontSize: 10.5, color: color.sec2, margin: "-6px 0 12px", lineHeight: 1.5 }}>
+          <p style={{ gridColumn: "1 / -1", fontSize: 10.5, color: color.sec2,
+                       margin: "-6px 0 12px", lineHeight: 1.5 }}>
             <b style={{ fontFamily: font.mono }}>{locale}</b> is this set's default locale, so
             saving updates the base <span style={{ fontFamily: font.mono }}>aliases</span> list as
             well as <span style={{ fontFamily: font.mono }}>aliases_i18n[{locale}]</span>.
           </p>
         )}
         {otherLocales.length > 0 && (
-          <div style={{ marginBottom: 14 }}>
+          <div style={{ gridColumn: "1 / -1", marginBottom: 14 }}>
             {otherLocales.map((l) => (
               <Patterns key={l} label={`Aliases (${l}) — read-only here`}
                         values={perLocale[l] ?? []} />
@@ -1535,8 +1566,8 @@ function Detail(p: EditorProps) {
                      error={e} inherited={inh("note_source", item.note_source)} />
         ))}
         {noteSource && (
-          <div style={{ borderLeft: `2px solid ${color.indigoBorder2}`, paddingLeft: 11,
-                         marginBottom: 14 }}>
+          <div style={{ gridColumn: "1 / -1", paddingLeft: 11, marginBottom: 14,
+                         borderLeft: `2px solid ${color.indigoBorder2}` }}>
             {/* ── THE THREE QUESTIONS A NOTE SOURCE ANSWERS ───────────────────────────────
                 PAIRED, NOT MERGED. Each control holds one question's regex field AND its scored
                 twin, because a pattern and a term answer the same question by different means: a
@@ -1747,7 +1778,8 @@ function Detail(p: EditorProps) {
       <Group {...band(6, GROUP_FIELDS.assembly)} question="How is its figure obtained?"
              note="A calculated or intermediate line is a signed sum of terms; a derived line is
                    an ordered cascade of attempts, the first that resolves winning.">
-        <details open={type === "calculated" || type === "intermediate"}>
+        <details open={type === "calculated" || type === "intermediate"}
+                 style={{ gridColumn: "1 / -1" }}>
           <summary style={{ cursor: "pointer", fontSize: 11.5, fontWeight: 600,
                              color: color.ink2, marginBottom: 9 }}>
             The signed sum — for a <b>calculated</b> or <b>intermediate</b> line
@@ -1768,7 +1800,7 @@ function Detail(p: EditorProps) {
                       errorAt={(i, f) => (f === "ref" ? idx("terms")?.[i] : undefined)} />
           ))}
         </details>
-        <details open={type === "derived"} style={{ marginTop: 12 }}>
+        <details open={type === "derived"} style={{ gridColumn: "1 / -1", marginTop: 12 }}>
           <summary style={{ cursor: "pointer", fontSize: 11.5, fontWeight: 600,
                              color: color.ink2, marginBottom: 9 }}>
             The priority cascade — for a <b>derived</b> line
@@ -1811,6 +1843,18 @@ function Detail(p: EditorProps) {
              note="Withheld on purpose, each with the reason. Being silently absent and being
                    read-only for a reason look identical on a screen, and only one of them is a
                    decision.">
+        {/* THE LOCKED ROWS TAKE THE WHOLE WIDTH AND PAIR UP INSIDE IT. `LockedRow` does not go
+            through `FieldRow`, so it cannot declare its own span — and a `.map` is ONE grid item
+            however many rows it returns, which would otherwise stack all of them in one column.
+
+            AND THIS ONE KEEPS THE 260px MINIMUM the form grid gave up. Not an oversight: the
+            refusal above is about a track that survives only because a SPANNING control occupies
+            it, leaving a lone narrow field squeezed beside blank space. Nothing here spans — these
+            are uniform read-only label/value pairs — so a third column is filled rather than
+            half-empty, and at the pane's new width it shows nine locked rows in three columns
+            instead of six in two. */}
+        <div style={{ gridColumn: "1 / -1", display: "grid", alignItems: "start",
+                       gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", columnGap: 14 }}>
         {Object.entries(vocab?.not_editable ?? {}).map(([field, reason]) => {
           // The VALUE for each locked field. `children` carries navigation, because the edit that
           // moves a child is possible — on the child's own detail, through `parent`.
@@ -1852,6 +1896,7 @@ function Detail(p: EditorProps) {
           return <LockedRow key={field} label={field} testid={field} value={value}
                             reason={reason} />;
         })}
+        </div>
       </Group>
 
       {/* ── THE SAVE BAR ─────────────────────────────────────────────────────────────────────
@@ -1883,8 +1928,7 @@ function Detail(p: EditorProps) {
                     title={lockReason}>
               {p.saving
                 ? "Publishing…"
-                : `Save — publishes v${(p.versionNumber ?? 0) + 1}, which becomes the version the`
-                  + " next run pins"}
+                : "Save — publishes this configuration; the next run pins what it publishes"}
             </Button>
           </div>
         </div>
@@ -1894,7 +1938,6 @@ function Detail(p: EditorProps) {
 }
 
 export default function LineItemsScreen() {
-  const t = useT();
   const q = useLineItems();
   const canEdit = useCan("config:line_items");
   const save = useEditLineItemConfig();
@@ -1913,6 +1956,18 @@ export default function LineItemsScreen() {
   // structural half of the same fix.
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<LineItemType | null>(null);
+  // THE LIST PANE, PUT AWAY. Persisted per browser through the store, which is the `navCollapsed`
+  // shape exactly (`store.ts`, `lib/api.ts`) — so it is not React state and cannot re-seed during
+  // render, and all localStorage access stays inside `lib/api.ts`, which is an invariant of this
+  // repo rather than a convention.
+  //
+  // UP HERE WITH THE OTHER HOOKS, not down beside the filter state it reads. There is an early
+  // `return` for the loading card below (`if (!q.data)`), so a hook called after it runs on some
+  // renders and not others — React counts hooks, and the screen died with "Rendered more hooks
+  // than during the previous render" inside `ScreenErrorBoundary` the first time these two sat
+  // next to `filtering`.
+  const listCollapsed = useUI((st) => st.liListCollapsed);
+  const setListCollapsed = useUI((st) => st.setLiListCollapsed);
 
   // THE EDIT STATE. `draft` holds only the fields the author has TOUCHED — an untouched field is
   // never sent, because sending a field the item never declared turns an inherited value into a
@@ -1924,11 +1979,18 @@ export default function LineItemsScreen() {
   const [saved, setSaved] = useState<number | null>(null);
   // Null until the author chooses, so the set's own default locale is what is edited on arrival.
   const [localeSel, setLocaleSel] = useState<string | null>(null);
-  // THE ALIAS INPUT'S DRAFT, LIFTED. The Template screen learned this the hard way: a half-typed
-  // alias committed on blur is lost when the author types it and clicks Save directly, because the
-  // click can land before the blur. The save bar is in the same pane here, so the draft is held
-  // where the payload is built and folded in at save time.
-  const [aliasDraft, setAliasDraft] = useState("");
+  // THE ALIAS DRAFT WAS LIFTED HERE AND IS NOT ANY MORE, because it never arrived. The lift was
+  // written against `StringListEditor`, which takes `draft`/`onDraft` for exactly this; `aliases`
+  // has since moved to `MatchListEditor`, which holds its own draft (its `useState("")`) and takes
+  // neither prop. So `Detail` was handed `aliasDraft`/`onAliasDraft` and read neither: the cell was
+  // only ever set to "" by `resetDraft`, `pendingAlias` was therefore always empty, and the fold at
+  // save time could not fire.
+  //
+  // THE HAZARD IS REAL AND IS NOW UNADDRESSED, which is why this note stays. `MatchListEditor`
+  // commits on Enter AND on blur, so a caption typed and then clicked straight to Save can still
+  // lose the blur race. Re-lifting it means giving that component `draft`/`onDraft` — and
+  // `draftMode` with them, since a row is a pattern AND a mode — which is a change to a component
+  // with its own round-trip invariant (`MatchListEditor.roundtrip.mjs`), not a line here.
 
   if (q.isError) {
     return (
@@ -1947,7 +2009,13 @@ export default function LineItemsScreen() {
   if (!q.data) {
     return (
       <div style={{ padding: "28px 32px" }}>
-        <Card><div style={{ fontSize: 12.5, color: color.muted }}>{t("common.loading")}</div></Card>
+        {/* IN PLACE, BECAUSE THE KEY WAS DEFINED NOWHERE. This was `t("common.loading")`, the only
+            i18n lookup either this file or `configFields` made, and `common.loading` appears in no
+            locale of any dictionary — `translate` ends `?? key`, so the card printed the literal
+            string "common.loading" to the reader, in all four locales, on every first load. The
+            alternative was four dictionary entries to translate a word nobody sees for longer than
+            a fetch, leaving the screen's stated English-in-place policy with one exception. */}
+        <Card><div style={{ fontSize: 12.5, color: color.muted }}>Loading…</div></Card>
       </div>
     );
   }
@@ -2000,6 +2068,12 @@ export default function LineItemsScreen() {
 
   const filtering = !!needle || !!typeFilter;
   const hits = filtering ? flat.filter(hit) : [];
+
+  // A SEARCH OUTRANKS THE COLLAPSE, and that rule is the whole interaction: collapsing says "I am
+  // done browsing, give the form the width", and typing in the search box says "I need the list
+  // back". Without it a collapsed pane would answer a search with nothing visible — a search box
+  // wired to a hidden result set.
+  const listOpen = !listCollapsed || filtering;
   // EVERY KEY THE FILTERED LIST ACTUALLY DRAWS — each hit, plus the descendants `row` recurses
   // into. The two are not the same set, and mistaking one for the other made every sub-line item
   // of a searched parent unselectable.
@@ -2024,9 +2098,43 @@ export default function LineItemsScreen() {
     };
     hits.forEach(mark);
   }
+  // …AND A DRAFT IS NEVER RE-TARGETED, which is the other half of the same guard.
+  //
+  // `selected` is DERIVED, so it moves whenever the drawn set does — and `setQuery`/`setTypeFilter`
+  // change that set with nothing in their way, while `chooseKey` (the only path that warns and
+  // resets) is reached from the row click alone. `draft` is keyed by nothing but the selection and
+  // there is no effect anywhere in this file re-syncing it, so with a draft open, typing a
+  // non-matching search rendered the values authored for one line on another — and `onSave` builds
+  // `{ key: selected.key }`, so publishing put them on the SECOND line.
+  //
+  // While anything is drafted the selection therefore stays put, even once the filter stops drawing
+  // it. A clean pane still follows the list, which is what the paragraph above was written for: the
+  // cost of showing a line the list no longer offers is worth paying only to protect an edit.
+  const drafting = Object.keys(draft).length > 0;
   const selected = filtering
-    ? ((sel && drawn.has(sel) && byKey.get(sel)) || hits[0])
+    ? ((sel && (drafting || drawn.has(sel)) && byKey.get(sel)) || hits[0])
     : ((sel && byKey.get(sel)) || items[0]);
+
+  /** PUT THE LIST AWAY, OR BRING IT BACK — and clear the search that was holding it open.
+   *
+   *  A search outranks the collapse (see `listOpen`), so pressing collapse while filtering would
+   *  otherwise do nothing at all: the button would look broken. Collapsing therefore abandons the
+   *  search, which is what "I am done browsing" means.
+   *
+   *  AND IT PINS THE SELECTION FIRST, which is the part that is not cosmetic. While filtering, an
+   *  untouched `sel` leaves `selected` derived as `hits[0]`; clearing the query flips the branch
+   *  above to `items[0]`, so the form would silently re-target from the line the author was reading
+   *  to whichever line sorts first — and `onSave` builds its payload from `selected.key`. Naming
+   *  the current selection before the query goes is what keeps the pane on its line. */
+  const toggleList = () => {
+    const next = !listCollapsed;
+    if (next && filtering) {
+      if (selected) setSel(selected.key);
+      setQuery("");
+      setTypeFilter(null);
+    }
+    setListCollapsed(next);
+  };
 
   /* ── the draft, measured against what the server served ─────────────────────────────────── */
 
@@ -2055,7 +2163,6 @@ export default function LineItemsScreen() {
     setServerErrors({});
     setIndexErrors({});
     setFormError(null);
-    setAliasDraft("");
   };
 
   /** Selecting another line. Guarded when dirty: the draft belongs to ONE item (it is keyed by
@@ -2114,7 +2221,6 @@ export default function LineItemsScreen() {
       return;
     }
     if ("aliases" in draft) drop("aliases");
-    setAliasDraft("");
     setServerErrors((prev) => {
       const { aliases: _drop, ...rest } = prev;
       return rest;
@@ -2130,13 +2236,6 @@ export default function LineItemsScreen() {
     const edit: LineItemEdit = { key: selected.key, locale };
     const body = edit as unknown as Record<string, unknown>;
     for (const f of changed) body[f] = draft[f];
-    // Fold in a half-typed alias so a click on Save does not lose it (see `aliasDraft`).
-    const pendingAlias = aliasDraft.trim();
-    if (pendingAlias) {
-      const current = (("aliases" in draft ? draft.aliases : aliasesFor(selected, set, locale))
-                       ?? []) as string[];
-      if (!current.includes(pendingAlias)) body.aliases = [...current, pendingAlias];
-    }
     setServerErrors({});
     setIndexErrors({});
     setFormError(null);
@@ -2179,19 +2278,42 @@ export default function LineItemsScreen() {
     });
   };
 
+  // A ROW SPENDS ITS WIDTH ON WHAT DIFFERS, AND NOTHING ELSE — which is what let this column give
+  // 247px to the form (see the grid below).
+  //
+  // MEASURED ON THE SHIPPED 527-ITEM SET. `type` defaults to `extracted`
+  // (`schemas/line_items.py`) and only 47 items declare one, so the `Tag` printed the identical
+  // word "EXTRACTED" on 484 of 527 rows — roughly 79px of a ~400px text budget, spent to repeat
+  // itself 92% of the time. `in_output` defaults true and only 65 items are false, so the tick was
+  // `✓` on 462 of 527. Both columns were nearly constant, and both were charging fixed width for
+  // it.
+  //
+  // SO THE CHIP AND THE MARKER ARE EXCEPTIONS NOW, and the header row above is their legend rather
+  // than two column titles. THE DISTINCTION THIS RELIES ON: absence reads as the default, which is
+  // legible only because the default is stated where the rows are — a bare row is "extracted, in
+  // the output", and the type filter chips above the list still count all four types whether or not
+  // a row draws one. Nothing is hidden that varies; what went is the repetition.
+  //
+  // The label and the key BOTH STAY VISIBLE, on their own lines. That was the trade actually worth
+  // refusing: the key is the identifier an author searches by and the one `li-row-<key>` is built
+  // on, and demoting it to a `title` buys ~16px of row height by making it mouse-only. Removing
+  // what repeats costs nothing; removing what informs costs the identifier.
   const row = (d: LineItemDef, depth: number) => (
     <div key={d.key}>
       <div role="button" tabIndex={0} data-testid={`li-row-${d.key}`}
            aria-current={d.key === selected?.key}
            onClick={() => chooseKey(d.key)}
            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); chooseKey(d.key); } }}
-           style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10,
-                     alignItems: "center", padding: "8px 10px", cursor: "pointer",
+           style={{ display: "flex", alignItems: "center", gap: 8,
+                     padding: "7px 9px", cursor: "pointer",
                      borderRadius: 7, marginLeft: depth * 16,
                      background: d.key === selected?.key ? color.indigoTint2 : "transparent",
                      border: `1px solid ${d.key === selected?.key ? color.indigoBorder
                                                                   : "transparent"}` }}>
-        <span style={{ minWidth: 0 }}>
+        {/* FLEX, NOT `1fr auto auto`. A grid keeps both trailing tracks' gutters even when neither
+            the chip nor the marker is drawn, which is 92% of rows — so the two columns would go on
+            costing width after their contents became conditional. */}
+        <span style={{ flex: "1 1 auto", minWidth: 0 }}>
           <span style={{ fontSize: depth ? 12 : 12.5, color: depth ? color.sec : color.ink,
                           display: "block", overflow: "hidden", textOverflow: "ellipsis",
                           whiteSpace: "nowrap" }}>
@@ -2201,11 +2323,14 @@ export default function LineItemsScreen() {
                           display: "block", overflow: "hidden", textOverflow: "ellipsis",
                           whiteSpace: "nowrap" }}>{d.key}</span>
         </span>
-        <Tag type={d.type} />
-        <span style={{ width: 16, textAlign: "center", fontSize: 11, fontWeight: 700,
-                        color: d.in_output ? color.indigo : color.faint }}>
-          {d.in_output ? "✓" : "–"}
-        </span>
+        {d.type !== "extracted" && <Tag type={d.type} />}
+        {!d.in_output && (
+          <span title="not in the output template"
+                style={{ flex: "0 0 auto", fontSize: 9.5, fontWeight: 700, letterSpacing: 0.3,
+                          textTransform: "uppercase", color: color.faint }}>
+            off
+          </span>
+        )}
       </div>
       {d.children.map((k) => row(k, depth + 1))}
     </div>
@@ -2441,18 +2566,87 @@ rather than declaring it themselves">
           `alignItems: start`, so the list was ~475 rows tall and the detail sat at the TOP of a
           column that long — click a line near the bottom and its detail rendered thousands of
           pixels above where you were looking. Bounding each pane to the viewport and making the
-          detail sticky is what makes selecting a line show you that line. */}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(320px, 1fr) minmax(380px, 1.1fr)",
-                     gap: 16, alignItems: "start" }}>
+          detail sticky is what makes selecting a line show you that line.
+
+          THE LIST IS CAPPED, NOT PROPORTIONED — `minmax(240px, 340px) minmax(380px, 1fr)` rather
+          than the `1fr : 1.1fr` it was. Two different things, and the difference is the point: a
+          proportional left track takes a share of every pixel the window ever gains, so widening
+          the screen widened a column that was already spending its width on ellipsised text. A
+          CAPPED one hands every further pixel to the form.
+
+          WHAT THE 340 IS CHOSEN AGAINST, measured on the shipped 527-item set: label length p90 is
+          46 characters and key length p90 is 48, and with the repeated chip gone (see `row`) the
+          text column at 340px is ~300px — about 47 label characters at 12.5px and about 48 mono
+          characters at 9.5px. So the p90 row still fits and only the tail ellipsises, which it
+          already did at 590px. The row's incompressible width is ~160px, so 240 is a real floor
+          and not a guess.
+
+          AND WHAT IT BUYS, measured in the browser rather than derived. At 1440 with the rail
+          collapsed the content box is 1256 (the `maxWidth: 1320` above includes its own padding),
+          so the tracks resolve to 340 / 900 instead of 590 / 650 and the form's field grid goes
+          from 584px to 834px. That does NOT add a column — `Group`'s minimum is 300px precisely so
+          it cannot, and the reason is written there — it makes the two columns WIDER: every narrow
+          control went from 285px to 410px, and every full-width one from 584px to 834px.
+
+          THE CASE THAT MATTERS MOST IS 1280, not 1440. At the width the test browser uses (and a
+          common laptop) the form was ONE column before this: 532px against the 534px two columns
+          then needed. It is now 742px, which is two columns of 364px. So the field grid landed in
+          the previous commit did nothing at all on a 1280 screen until this change.
+
+          `maxWidth: 1320` IS LEFT ALONE, deliberately. Raising it is a real further gain and a
+          separate lever, but every other screen in the app caps at 1080-1200 and centres
+          (`Export.tsx`, `Template.tsx`, `Review.tsx`), so lifting this one to 1600 would make it
+          the widest by 400px and put a visible container jump between screens.
+
+          THE NAV RAIL SHIFTS ALL OF THIS, which is worth knowing before it is discovered: it is
+          52px collapsed (the default) and 214px expanded. Measured with it EXPANDED, this change is
+          an improvement at every width rather than a trade: 1280 stays one column but widens from
+          447px to 580px; 1440 goes from one column of 531px to two of 363px; 1920 (where the 1320
+          cap binds) goes from two columns of 285px to two of 410px. The left track holds at 340px
+          in all six combinations, which is the whole point of capping it.
+
+          COLLAPSED, THE LIST BECOMES A 44px RAIL and the form takes everything else
+          (`minmax(0, 1fr)`, not `1fr`: a bare `1fr` has `auto` for its minimum, so the form's own
+          260px-per-column content could push the track wider than the grid and scroll the page
+          sideways). The rows are UNMOUNTED rather than hidden — 527 of them, each with its own
+          click and key handlers.
+
+          AND `--li-field-min` MOVES WITH IT, which is not decoration. `Group`'s field grid is
+          `repeat(auto-fit, minmax(var(--li-field-min), 1fr))`, and the number has to rise when the
+          pane does or collapsing makes fields SMALLER: at 1440 collapsed the field grid is 1132px,
+          where a 300px minimum fits THREE tracks, and `auto-fit` keeps the third alive in any group
+          holding a spanning control — so `label` would render at 368px, narrower than the 410px it
+          gets with the list open. Giving the pane more room must never shrink a field. At 420px the
+          arithmetic stays at two tracks (two need 854px, three need 1288px), so every control gets
+          wider: 410 -> 559 at 1440, 364 -> 508 at 1280. */}
+      <div style={{ display: "grid", alignItems: "start", gap: 16,
+                     gridTemplateColumns: listOpen ? "minmax(240px, 340px) minmax(380px, 1fr)"
+                                                   : "44px minmax(0, 1fr)",
+                     ...({ "--li-field-min": listOpen ? "300px" : "420px" } as CSSProperties) }}>
+        {listOpen ? (
         <Card pad={10}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10,
-                         padding: "0 10px 8px", borderBottom: `1px solid ${color.hairline2}`,
+          {/* THE LEGEND FOR WHAT THE ROWS STOPPED REPEATING. This was three column titles over a
+              matching `1fr auto auto` row grid; the chip and the marker are exceptions now, so
+              there are no columns to title and what a reader needs instead is the default that a
+              bare row means. */}
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap",
+                         padding: "0 9px 8px", borderBottom: `1px solid ${color.hairline2}`,
                          fontSize: 10.5, fontWeight: 700, letterSpacing: 0.3, color: color.muted,
                          textTransform: "uppercase" }}>
-            <span>Line item</span><span>Type</span><span>Out</span>
+            {/* THE TOGGLE IS FIRST IN THIS PANE'S READING ORDER, so a keyboard reaches "put this
+                away" before tabbing through 527 rows to look for it. */}
+            <button type="button" data-testid="li-list-toggle" onClick={toggleList}
+                    aria-expanded={true} aria-controls="li-list"
+                    title="Put the list away and give the form the width"
+                    style={{ ...smallToggleBtn, marginRight: 1 }}>«</button>
+            <span>Line item</span>
+            <span style={{ fontWeight: 500, letterSpacing: 0, textTransform: "none",
+                            fontSize: 10, color: color.faint }}>
+              — extracted and in the output unless the row says otherwise
+            </span>
           </div>
-          <div style={{ marginTop: 4, maxHeight: "calc(100vh - 300px)", minHeight: 220,
-                         overflowY: "auto" }}>
+          <div id="li-list" style={{ marginTop: 4, maxHeight: "calc(100vh - 300px)",
+                                      minHeight: 220, overflowY: "auto" }}>
             {filtering
               ? (hits.length
                   ? hits.map((d) => (
@@ -2474,6 +2668,25 @@ rather than declaring it themselves">
               : items.map((d) => row(d, 0))}
           </div>
         </Card>
+        ) : (
+          /* THE RAIL. The count comes with it because it is the one thing the list was saying that
+             the form does not: how many lines this configuration has. Vertical text is the only
+             rotated text in this app, so it is one word and nothing depends on it rendering well. */
+          <Card pad={6} style={{ display: "flex", flexDirection: "column", alignItems: "center",
+                                  gap: 8, paddingBlock: 10 }}>
+            <button type="button" data-testid="li-list-toggle" onClick={toggleList}
+                    aria-expanded={false} aria-controls="li-list"
+                    title={`Show the list of ${flat.length} line items`}
+                    style={smallToggleBtn}>»</button>
+            <span style={{ fontFamily: font.mono, fontSize: 10, color: color.sec2,
+                            fontVariantNumeric: "tabular-nums" }}>{flat.length}</span>
+            <span aria-hidden="true"
+                  style={{ writingMode: "vertical-rl", fontSize: 9.5, fontWeight: 700,
+                            letterSpacing: 1.2, textTransform: "uppercase", color: color.faint }}>
+              Line items
+            </span>
+          </Card>
+        )}
         <Card>
           <div style={{ position: "sticky", top: 0, maxHeight: "calc(100vh - 240px)",
                          overflowY: "auto" }}>
@@ -2514,7 +2727,7 @@ rather than declaring it themselves">
             )}
             {selected
               ? <Detail item={selected} set={set} vocab={vocab} keys={keyOptions}
-                        canEdit={canEdit} versionId={inForce?.id} versionNumber={inForce?.version}
+                        canEdit={canEdit} versionId={inForce?.id}
                         locale={locale} onLocale={onLocale}
                         draft={draft} patch={patch} drop={drop}
                         errors={serverErrors} indexErrors={indexErrors} formError={formError}
@@ -2522,8 +2735,7 @@ rather than declaring it themselves">
                         changed={changed} summary={summary}
                         onSave={onSave}
                         onDiscard={() => { resetDraft(); setSaved(null); }}
-                        onSelect={chooseKey}
-                        aliasDraft={aliasDraft} onAliasDraft={setAliasDraft} />
+                        onSelect={chooseKey} />
               : <div style={{ fontSize: 12.5, color: color.muted }}>Select a line item.</div>}
           </div>
         </Card>

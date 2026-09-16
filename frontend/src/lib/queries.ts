@@ -647,10 +647,12 @@ export function usePublishLineItems() {
  *  `extraction_runs.line_item_version_id`. The definitions drive extraction, so the screen is an
  *  editor and this is the mutation behind it.
  *
- *  EVERY EDIT PUBLISHES A NEW VERSION, re-validated against the target template first — never an
- *  in-place write, because a past run pins the version it used and mutating a stored definition
- *  would retroactively change how that run is explained. `result.version` is the number to
- *  confirm with.
+ *  EVERY EDIT PUBLISHES, re-validated against the target template first, and ONE VERSION PER
+ *  SITTING: `_publish_new_version` replaces the version in force when that version was authored in
+ *  this session and no run pins it, and inserts `max + 1` otherwise. What is never rewritten is a
+ *  pinned version or somebody else's, because a past run pins the version it used and mutating
+ *  that definition would retroactively change how the run is explained. So the version number is
+ *  the SERVER'S to state — `result.version` — and not something the caller can predict.
  *
  *  WHY THESE THREE KEYS:
  *   * `line-items` — `GET /line-items` selects latest-stored-wins, so invalidating it is the whole

@@ -59,8 +59,21 @@ export function RequestGroups({ versionId, set, eligible, ineligible, canEdit }:
   // `MasterPrompt` has the identical shape and survives only because its `served` is a STRING
   // (`?? ""`), which compares by value. That is luck, not design, so both are now keyed on the
   // version — which is what the sentence above always said the trigger was.
-  const [seed, setSeed] = useState(versionId);
-  if (seed !== versionId) { setSeed(versionId); setDraft(served); }
+  // AND NEVER OVER A DRAFT THE AUTHOR HAS EDITED. `versionId` advances on every publish from the
+  // Line Items screen, the author's own line-item save included, so re-seeding unconditionally is
+  // a no-op whenever this card is clean and a silent discard whenever it is not. The served value
+  // is carried in the cell as well as compared against, because "unchanged from what was served"
+  // is a question only the PREVIOUS served value can answer — and compared by VALUE here, the same
+  // way `dirty` is below, for the `?? []` reason the paragraph above records.
+  const [seed, setSeed] = useState({ id: versionId, served, stale: false });
+  if (seed.id !== versionId) {
+    // Clean against either served value: equal to the old one means nothing was edited, equal to
+    // the new one means this version change is the author's own save landing.
+    const clean = JSON.stringify(draft) === JSON.stringify(seed.served)
+      || JSON.stringify(draft) === JSON.stringify(served);
+    setSeed({ id: versionId, served, stale: !clean });
+    if (clean) setDraft(served);
+  }
   const save = useEditLineItemSet();
 
   const named = new Set(draft.flatMap((g) => g.members));
@@ -201,6 +214,13 @@ export function RequestGroups({ versionId, set, eligible, ineligible, canEdit }:
                                   background: "transparent", color: color.sec2 }}>
                   Discard
                 </button>
+              )}
+              {seed.stale && dirty && (
+                // The edit survived a publish; say what it is now measured against.
+                <span data-testid="li-request-groups-stale"
+                      style={{ fontSize: 11, color: color.sec2 }}>
+                  A new version was published while you were editing — saving replaces it with this.
+                </span>
               )}
               {save.isError && (
                 <span style={{ fontSize: 11, color: color.redFg }}>
