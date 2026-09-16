@@ -156,3 +156,76 @@ def test_an_unopposed_answer_records_no_displacement(shipped):
     assert not [f for f in row.confidence.flags if "displaced_printed" in f], row.confidence.flags
     assert not [f for f in row.confidence.flags if f.startswith("llm_superseded_")], (
         row.confidence.flags)
+
+
+# ── AND THE OTHER HALF: THE MODEL OFFERS NO ALTERNATIVE ──────────────────────────────────────
+#
+# THE PRODUCT DECISION these pin: the printed number is kept where the model suggests no
+# alternative. It always was kept — no figure is written — but the row it sat on was taken over by
+# the answer that failed to locate it, which cost the figure its confidence AND silenced the one
+# route that might still have filled the line. See `_write_unanswered`.
+
+_NO_ALTERNATIVE = [{"note": "7", "caption": "a caption that is in no extracted row"}]
+
+
+def _run_unanswered(shipped, *, face: LineItem | None, sources=_NO_ALTERNATIVE, confidence=0.1):
+    doc = DocumentModel(filename="f.pdf")
+    doc.notes = _notes()
+    doc.line_items = [face] if face is not None else []
+    ctx = PipelineContext(raw_bytes=b"", settings=get_settings())
+    ctx.line_items = shipped
+    ctx.ontology = build_working_view(shipped)
+    ctx.settings.extraction.llm_mapping = True
+    ctx.settings.extraction.llm_focus_only = True
+    ctx.settings.extraction.llm_focus_keys = [SUB]
+    provider = _Answers([{"key": SUB, "confidence": confidence,
+                          "reason": "not stated in the supplied notes", "sources": sources}])
+    ctx.registry.register("llm", "answers", lambda: provider)
+    ctx.settings.llm.provider = "answers"
+    LineItemLlmStage().run(doc, ctx)
+    row = next(r for r in doc.line_items if r.canonical_key == SUB)
+    return row, next(iter(row.values.values()), None)
+
+
+def test_the_printed_figure_is_kept_when_the_model_offers_no_alternative(shipped):
+    _row, slot = _run_unanswered(shipped, face=_face_row())
+    assert slot is not None and slot.value == PRINTED, "the filing's own figure must survive"
+    assert slot.provenance.page_index == FACE_PAGE, "and keep its own page"
+
+
+def test_a_non_answer_does_not_destroy_the_deterministic_confidence(shipped):
+    """The defect: `exact` at 1.00 became `llm` at the model's own score for a citation that never
+    resolved, so the printed figure sorted to the bottom of a confidence-ordered review."""
+    row, _slot = _run_unanswered(shipped, face=_face_row())
+    assert row.confidence.method == "exact", f"method was taken over: {row.confidence.method}"
+    assert row.confidence.mapping == pytest.approx(1.0), row.confidence.mapping
+    assert "llm_located_nothing_kept_exact:1.00" in row.confidence.flags, row.confidence.flags
+
+
+def test_a_non_answer_does_not_stand_the_deterministic_route_down(shipped):
+    """The worse defect. `note_sourced._llm_holds` is true when the method ends in `llm` and the
+    slot holds a value — a face row's exact situation — so a model that located nothing silenced
+    the declared note route, the one thing that might still have filled the line."""
+    from app.stages.note_sourced import _llm_holds
+    row, _slot = _run_unanswered(shipped, face=_face_row())
+    assert not _llm_holds(row, "consolidated", "current"), (
+        "the note route is deferring to an answer that located nothing")
+
+
+def test_the_non_answer_is_still_recorded(shipped):
+    """Keeping the deterministic stamp must not cost the reviewer the model's account of itself —
+    that record is the whole reason `_write_unanswered` exists."""
+    row, _slot = _run_unanswered(shipped, face=_face_row())
+    flags = " ".join(row.confidence.flags)
+    assert "llm_answered_nothing_located:" in flags, row.confidence.flags
+    assert "llm_reason:not stated in the supplied notes" in row.confidence.flags
+    assert "llm_citation_unresolved:" in flags, row.confidence.flags
+
+
+def test_a_line_with_no_deterministic_answer_is_still_claimed(shipped):
+    """The guard the other way: with nothing to protect, "asked and found nothing" is the only
+    thing known about the line, so the model keeps the row and says so."""
+    row, slot = _run_unanswered(shipped, face=None)
+    assert slot is None, "no figure should be invented"
+    assert row.confidence.method == "llm", row.confidence.method
+    assert not [f for f in row.confidence.flags if f.startswith("llm_located_nothing_kept_")]

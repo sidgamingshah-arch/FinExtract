@@ -419,8 +419,36 @@ class LineItemLlmStage(Stage):
             row = LineItem(source_label=item.label or item.key, canonical_key=item.key)
             doc.line_items.append(row)
             by_concept[item.key] = row
-        row.confidence.method = MappingMethod.LLM.value
-        row.confidence.mapping = float(answer.confidence or 0.0)
+        # NOTHING WAS LOCATED, SO NOTHING IS CLAIMED. This used to stamp the method and the score
+        # unconditionally, and on a line the deterministic mapper had already settled that did two
+        # things neither of which anyone chose:
+        #
+        #   * IT DESTROYED THE DETERMINISTIC CONFIDENCE. A face row matched by exact caption at
+        #     1.0, on a request the model answered with an empty `sources`, came out reading
+        #     `llm / 0.00` — the printed figure still sitting there, its trustworthiness replaced
+        #     by a score that describes a citation which did not resolve. A reviewer sorting by
+        #     confidence saw the filing's own printed number at the bottom.
+        #   * IT STOOD THE DECLARED ROUTE DOWN. `note_sourced._llm_holds` is true when the method
+        #     ends in `llm` AND the slot holds a value, which is exactly a face row's situation —
+        #     so a model answering "I did not find it" made the deterministic note route defer as
+        #     if it had. The one route that might still have filled the line was silenced by the
+        #     route that could not.
+        #
+        # THE ANSWER IS STILL RECORDED — the flags below are the whole point of this method, and a
+        # non-answer with its refused citations is worth more to a reviewer than silence. What it
+        # no longer does is take ownership of a row it could not fill.
+        #
+        # A ROW WITH NO DETERMINISTIC ANSWER IS STILL CLAIMED, because there is nothing to protect
+        # and "the model was asked and found nothing" is then the only thing known about the line.
+        # `_llm_holds` stays false for it regardless: the slot has no value.
+        prior_method = str(row.confidence.method or "")
+        if prior_method and not prior_method.lower().endswith("llm"):
+            row.confidence.flags.append(
+                f"llm_located_nothing_kept_{prior_method}:"
+                f"{float(row.confidence.mapping or 0.0):.2f}")
+        else:
+            row.confidence.method = MappingMethod.LLM.value
+            row.confidence.mapping = float(answer.confidence or 0.0)
         row.confidence.flags.append(f"llm_answered_nothing_located:{len(unresolved)} citation(s)")
         if answer.reason:
             row.confidence.flags.append(f"llm_reason:{answer.reason}")
