@@ -139,7 +139,7 @@ class NoteSourcedStage(Stage):
                         ctx.log(f"note_sourced:{item.key}[{basis}:{hit.period}]: prose {amount} "
                                 f"NOT written — the model answered this row")
                         continue
-                    _write(row, basis, hit.period, amount)
+                    _write(row, basis, hit.period, amount, by="prose")
                     row.derivation = note_sourced.derivation.record(
                         row.derivation, basis=basis, period_label=hit.period,
                         derivation=note_sourced.trail(
@@ -196,7 +196,7 @@ class NoteSourcedStage(Stage):
                     ctx.log(f"note_sourced:{item.key}[{basis}:{period}]: {amount} NOT written — "
                             f"the model answered this row; its figure joins the cascade instead")
                     continue
-                _write(row, basis, period, amount)
+                _write(row, basis, period, amount, by="note_source")
                 row.derivation = note_sourced.derivation.record(
                     row.derivation, basis=basis, period_label=period,
                     derivation=note_sourced.trail(rollup=rollup, item_label=item.label or item.key,
@@ -334,15 +334,55 @@ def route_of(item) -> str:
     return route if route in ("face", "note_tables", "prose", "anywhere") else "note_tables"
 
 
-def _write(row: LineItem, basis: str, period: str, amount: Decimal) -> None:
+def _write(row: LineItem, basis: str, period: str, amount: Decimal,
+           *, by: str = "", provenance=None) -> None:
     """Put the figure on the row, replacing that slot if it already has one.
 
     Both `value` and `value_raw` are set to the same amount. `normalize` has already run, so there
     is no later pass to derive one from the other — and `value_raw` is what the audit trail and the
     reconciliation tolerances read.
+
+    IT USED TO REPLACE A PRINTED FIGURE IN SILENCE, and that is what `by` and `provenance` are for.
+    Measured with a spy provider: a face row matched by exact caption at confidence 1.0 holding
+    9999, plus a note row stating 5170, published 5170 with the 9999 nowhere — not in a flag, not in
+    the value, not in the trail. Three things were wrong with that and the first two are fixed here.
+
+      * THE DISPLACED FIGURE LEFT NO RECORD. It does now, as `<by>_displaced_printed:<figure>` on
+        the row's flags. The spelling follows the two precedents rather than inventing a third:
+        `stages.line_item_llm._write_prose` already appends `prose_value_displaced_printed:` for
+        exactly this case on the prose path, and the parent rollup below already appends
+        `note_sourced_differs_from_printed:`. `by` names the route that displaced it, because
+        "the model overrode the face" and "a declared note source overrode the face" are different
+        events to a reviewer and the flag was the only place left to tell them apart.
+      * THE PROVENANCE BECAME A LIE. Only `value`/`value_raw` were assigned, so `basis`,
+        `period_label`, `provenance` and `unit_ctx` still described the face row: click-to-source
+        highlighted the statement page while the number came off a note page, and the `derivation`
+        trail — which does carry the cited note and its own provenance — disagreed with the value
+        sitting next to it. A caller that knows where its figure came from now passes `provenance`
+        and it replaces the stale one.
+
+    AND IT IS NEVER CLEARED WHEN THERE IS NOTHING TO REPLACE IT WITH. That was the obvious fix and
+    it is measurably the wrong one: `periods.summable` deduplicates a fact printed twice only when
+    the caption, the amount AND the page all match, so a provenance-less value cannot be recognised
+    as a duplicate. The parent-rollup comment below records what that cost — 128,412 + 788,507 +
+    788,507 published as 1,705,426 for a line whose rung computes 788,507. So a stale provenance is
+    kept and NAMED (`<by>_kept_displaced_provenance`), which is a reviewer's problem to see rather
+    than a silent one either way.
+
+    THE THIRD DEFECT IS NOT HERE. `confidence.mapping` fell from the deterministic 1.0 to the
+    model's own score with nothing recording that it had been higher; that belongs where the stamp
+    is written, `stages.line_item_llm._write`.
     """
     for ev in (row.values or {}).values():
         if (_basis(ev) == basis and str(getattr(ev, "period_label", "") or "") == period):
+            printed = ev.value if ev.value is not None else ev.value_raw
+            displaced = printed is not None and printed != amount
+            if displaced:
+                row.confidence.flags.append(f"{by or 'value'}_displaced_printed:{printed}")
+            if provenance is not None:
+                ev.provenance = provenance
+            elif displaced and getattr(ev, "provenance", None) is not None:
+                row.confidence.flags.append(f"{by or 'value'}_kept_displaced_provenance")
             ev.value = amount
             ev.value_raw = amount
             return
@@ -352,7 +392,7 @@ def _write(row: LineItem, basis: str, period: str, amount: Decimal) -> None:
     except ValueError:
         basis_enum = Basis.CONSOLIDATED
     row.set_value(ExtractedValue(basis=basis_enum, period_label=period or None,
-                                 value=amount, value_raw=amount))
+                                 value=amount, value_raw=amount, provenance=provenance))
 
 
 def _basis(ev) -> str:
