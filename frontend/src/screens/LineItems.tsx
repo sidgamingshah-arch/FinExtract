@@ -24,12 +24,16 @@
  * that is authorable in the schema and unreachable from here is a control the product claims to
  * have and does not.
  *
- * A SAVE PUBLISHES A NEW VERSION and never writes in place. A run pins the exact version it used,
- * so mutating a stored definition would retroactively change how a past run is explained; the
+ * A SAVE PUBLISHES, AND ONE VERSION PER SITTING. What it never does is rewrite a version somebody
+ * else authored or a run pins: `_publish_new_version` REPLACES the version in force when that
+ * version was authored in this session and no run pins it, and inserts `max + 1` otherwise
+ * (`tests/test_one_version_per_session.py`). So the first save of a sitting publishes v(n+1) and
+ * every save after it republishes v(n+1) in place — which is why the button no longer names a
+ * number, and the banner above the list states the one the server returned. Either way the
  * endpoint (`PATCH /line-items/versions/{id}/items`) re-validates the whole edited set against the
- * target template and stores a new row, and the caption above the list then names that row as the
- * one in force. A refusal is therefore information the author needs — it comes back addressed per
- * field and is printed on the control that caused it, in the server's own words.
+ * target template, and the caption above the list names the row now in force. A refusal is
+ * therefore information the author needs — it comes back addressed per field and is printed on the
+ * control that caused it, in the server's own words.
  *
  * WHAT THE FORM HAS TO GET RIGHT is stated once, on `components/configFields.tsx`, which owns
  * every control: absent / null / configured-empty are three different statements, a refusal
@@ -48,7 +52,6 @@ import {
 import { MatchListEditor } from "../components/MatchListEditor";
 import { RequestGroups } from "../components/RequestGroups";
 import { Button, Card } from "../components/ui";
-import { useT } from "../i18n";
 import { ApiError, refusalText } from "../lib/api";
 import {
   useAddLineItem, useDeleteLineItem, useEditLineItemConfig, useEditLineItemSet,
@@ -290,14 +293,30 @@ function MasterPrompt({ versionId, served, canEdit }: {
   const [text, setText] = useState(served);
   const save = useEditLineItemSet();
   // Re-seed when the server serves a different version, so a publish elsewhere is not overwritten
-  // by a stale draft still sitting in this box.
+  // by a stale draft still sitting in this box — BUT NEVER OVER TEXT THE AUTHOR HAS TYPED.
+  //
+  // WHY THAT MATTERED. `versionId` advances on every publish from this screen, the author's own
+  // line-item save included: all four mutations invalidate `["line-items"]` and
+  // `useEditLineItemConfig` awaits the refetch, so `inForce.id` has changed before this component
+  // renders again. Re-seeding unconditionally is a no-op whenever the box is clean, so its ONLY
+  // observable effect was to discard a prompt someone was in the middle of writing, with no
+  // message — save a line item, lose your prompt.
   //
   // KEYED ON `versionId` rather than on `served`. This one worked, because `served` is a string and
   // strings compare by value — but the same two lines in `RequestGroups`, where the value is an
   // array built with `?? []`, were an infinite re-render that took the screen down. Keying both on
   // the version removes the dependence on the served value's TYPE, and says what the trigger is.
-  const [seed, setSeed] = useState(versionId);
-  if (seed !== versionId) { setSeed(versionId); setText(served); }
+  // The served value is now CARRIED in the cell as well as compared against: cleanliness is
+  // "unchanged from what was served", and only the previous served text can answer that.
+  const [seed, setSeed] = useState({ id: versionId, served, stale: false });
+  if (seed.id !== versionId) {
+    // Clean against EITHER served value: equal to the old one means nothing was typed, equal to the
+    // new one means this version change IS the author's own save landing. Only a third value is a
+    // draft worth protecting.
+    const clean = text === seed.served || text === served;
+    setSeed({ id: versionId, served, stale: !clean });
+    if (clean) setText(served);
+  }
   const dirty = text !== served;
 
   return (
@@ -342,6 +361,15 @@ function MasterPrompt({ versionId, served, canEdit }: {
                                   background: "transparent", color: color.sec2 }}>
                   Discard
                 </button>
+              )}
+              {seed.stale && dirty && (
+                // THE DRAFT SURVIVED A PUBLISH, so say what it is now measured against. Without
+                // this the author's text is silently editing a version that moved under it, which
+                // is a better outcome than losing the text but still not one to leave unstated.
+                <span data-testid="li-master-prompt-stale"
+                      style={{ fontSize: 11, color: color.sec2 }}>
+                  A new version was published while you were typing — saving replaces it with this.
+                </span>
               )}
               {save.isError && (
                 <span style={{ fontSize: 11, color: color.redFg }}>
@@ -813,7 +841,6 @@ interface EditorProps {
   keys: KeyOption[];
   canEdit: boolean;
   versionId: string | undefined;
-  versionNumber: number | undefined;
   locale: string;
   onLocale: (locale: string) => void;
   draft: Partial<LineItemEdit>;
@@ -1827,8 +1854,7 @@ function Detail(p: EditorProps) {
                     title={lockReason}>
               {p.saving
                 ? "Publishing…"
-                : `Save — publishes v${(p.versionNumber ?? 0) + 1}, which becomes the version the`
-                  + " next run pins"}
+                : "Save — publishes this configuration; the next run pins what it publishes"}
             </Button>
           </div>
         </div>
@@ -1838,7 +1864,6 @@ function Detail(p: EditorProps) {
 }
 
 export default function LineItemsScreen() {
-  const t = useT();
   const q = useLineItems();
   const canEdit = useCan("config:line_items");
   const save = useEditLineItemConfig();
@@ -1891,7 +1916,13 @@ export default function LineItemsScreen() {
   if (!q.data) {
     return (
       <div style={{ padding: "28px 32px" }}>
-        <Card><div style={{ fontSize: 12.5, color: color.muted }}>{t("common.loading")}</div></Card>
+        {/* IN PLACE, BECAUSE THE KEY WAS DEFINED NOWHERE. This was `t("common.loading")`, the only
+            i18n lookup either this file or `configFields` made, and `common.loading` appears in no
+            locale of any dictionary — `translate` ends `?? key`, so the card printed the literal
+            string "common.loading" to the reader, in all four locales, on every first load. The
+            alternative was four dictionary entries to translate a word nobody sees for longer than
+            a fetch, leaving the screen's stated English-in-place policy with one exception. */}
+        <Card><div style={{ fontSize: 12.5, color: color.muted }}>Loading…</div></Card>
       </div>
     );
   }
@@ -1968,8 +1999,21 @@ export default function LineItemsScreen() {
     };
     hits.forEach(mark);
   }
+  // …AND A DRAFT IS NEVER RE-TARGETED, which is the other half of the same guard.
+  //
+  // `selected` is DERIVED, so it moves whenever the drawn set does — and `setQuery`/`setTypeFilter`
+  // change that set with nothing in their way, while `chooseKey` (the only path that warns and
+  // resets) is reached from the row click alone. `draft` is keyed by nothing but the selection and
+  // there is no effect anywhere in this file re-syncing it, so with a draft open, typing a
+  // non-matching search rendered the values authored for one line on another — and `onSave` builds
+  // `{ key: selected.key }`, so publishing put them on the SECOND line.
+  //
+  // While anything is drafted the selection therefore stays put, even once the filter stops drawing
+  // it. A clean pane still follows the list, which is what the paragraph above was written for: the
+  // cost of showing a line the list no longer offers is worth paying only to protect an edit.
+  const drafting = Object.keys(draft).length > 0;
   const selected = filtering
-    ? ((sel && drawn.has(sel) && byKey.get(sel)) || hits[0])
+    ? ((sel && (drafting || drawn.has(sel)) && byKey.get(sel)) || hits[0])
     : ((sel && byKey.get(sel)) || items[0]);
 
   /* ── the draft, measured against what the server served ─────────────────────────────────── */
@@ -2458,7 +2502,7 @@ rather than declaring it themselves">
             )}
             {selected
               ? <Detail item={selected} set={set} vocab={vocab} keys={keyOptions}
-                        canEdit={canEdit} versionId={inForce?.id} versionNumber={inForce?.version}
+                        canEdit={canEdit} versionId={inForce?.id}
                         locale={locale} onLocale={onLocale}
                         draft={draft} patch={patch} drop={drop}
                         errors={serverErrors} indexErrors={indexErrors} formError={formError}

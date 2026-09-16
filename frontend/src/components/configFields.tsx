@@ -36,9 +36,10 @@
  * Visual language: `Card`, `Button`, `Segmented` and `Toggle` from components/ui.tsx and the
  * `color`/`font`/`radius` tokens. Nothing new — the detail pane these sit in is already built.
  *
- * Copy is English in place, as on the Line Items screen it serves (that screen localizes only
- * `common.loading`); every label and help sentence is passed IN by the caller, so the field names
- * and their explanations stay next to the field table that decided them.
+ * Copy is English in place, as on the Line Items screen it serves — which now localizes nothing at
+ * all; its one `t()` call named a key no dictionary defined, so it printed the key. Every label and
+ * help sentence is passed IN by the caller, so the field names and their explanations stay next to
+ * the field table that decided them.
  *
  * TESTIDS: `FieldRow` stamps `data-testid="field-<name>"` when given `testid`. `Segmented` stamps
  * `seg-<option>` on its own options, which repeats across a form with several segmented controls —
