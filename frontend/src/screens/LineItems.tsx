@@ -138,63 +138,6 @@ function Patterns({ label, values, tone }: { label: string; values: string[]; to
   );
 }
 
-/** ONE GROUP OF THE FORM, headed by the QUESTION it answers.
- *
- *  The headings are questions rather than field-category nouns because the author arrives with a
- *  question ("why did this caption land on the wrong line?") and not with a field name. */
-/** SIMPLE — the eight questions a configurator answers to make a line work.
- *
- *  73 editable fields was a schema browser, not a configuration screen. The cut is evidence-led,
- *  measured over the 475 shipped items: these are the fields an author sets to define a line at
- *  all, and between them they cover every line in the shipped set. Everything else is either an
- *  override of a section-level default or machinery for a case that arises on a handful of lines.
- *
- *  `aliases` and `definition` carry the most weight: aliases catch the wording a filing prints,
- *  and the definition is what resolves a wording nobody listed. `exclude_criteria` sharpens that.
- *  `inherits` decides where the line may be found and `type` how it gets a figure.
- */
-/** SIMPLE IS PER TYPE, NOT ONE LIST FOR EVERY LINE.
- *
- *  WHAT WAS WRONG WITH ONE LIST. `definition`, `aliases` and the include/exclude criteria are the
- *  fields that resolve a PRINTED CAPTION — they are read by the description-matching tier and they
- *  are the prose the model reasons over. A `derived` line has no caption to resolve: its figure is
- *  its cascade's, and it is never offered to the model (`_llm_withheld`). So on the nine derived
- *  lines the simple form opened with four prose boxes that nothing reads, and the one control that
- *  decides the figure — the cascade — was behind the advanced toggle. The same holds for the
- *  arithmetic types, whose figure is `terms`.
- *
- *  SO THE SPLIT IS A FUNCTION OF `type`, and each type's simple form is the fields that decide
- *  THAT kind of line:
- *
- *      extracted     read off the page      -> meaning, captions, note sourcing
- *      derived       a declared cascade     -> the cascade, and where it may read a printed row
- *      calculated /  arithmetic over other
- *      intermediate  lines                  -> the terms
- *
- *  EVERY TYPE KEEPS `COMMON`: what the line is called, what kind of line it is, whether it is
- *  delivered, and what kind of figure it holds. Nothing is removed from the screen — advanced
- *  still shows every control, and `requiredNow` still forces a control the server would refuse
- *  the save without.
- */
-/** WHAT EVERY LINE ITEM ANSWERS, whatever its type.
- *
- *  `in_output`, `output_structure` and `sign_expectation` were here and are gone: delivery is the
- *  template's decision, `output_structure` was declared by 0 of 539 items while sitting on the
- *  SIMPLE form, and the sign never varies inside a section so it is section policy.
- *
- *  `statement` WAS HERE AND IS GONE TOO, because the control is: the section chosen at the top
- *  supplies it, and measured, not one of the 462 per-line copies differed from its own section's
- *  value. A name in a simple-form list with no control behind it is the same dead entry the three
- *  field lists had accumulated — it silently contributes nothing.
- *
- *  `definition` IS HERE AND WAS NOT, which is a fix rather than a tidy. It is declared by 539 of
- *  539 lines, the most-authored field in the set, and it was reachable only through
- *  `MEANING_SIMPLE` — which a formula line never gets. So the simple form for a calculated line was
- *  `label`, `type`, `terms`: three controls, no way to say what the line MEANS, on the population
- *  whose whole remaining surface is those four fields. */
-// `route` IS A BASIC FIELD, not an advanced one. It was omitted here and the form opens in
-// SIMPLE mode, so the control existed and nobody could see it — the exact failure this list is
-// for. "Where is this read from" is as fundamental as "what kind of line is this".
 /* THE SIMPLE-FORM ALLOWLISTS AND `simpleFieldsFor` ARE GONE, with the simple/advanced toggle.
  *
  * They were `COMMON_SIMPLE`, `MEANING_SIMPLE` and `NOTE_SOURCE_SIMPLE`, combined per type into the
@@ -403,7 +346,7 @@ function MasterPrompt({ versionId, served, canEdit }: {
  *  applies to `LockedRow`.
  */
 function withheldReason(name: string, sel: {
-  type: string; extractionMode: string; aliasMatching: string; outputStructure: string;
+  type: string; extractionMode: string; aliasMatching: string;
   faceOnly: boolean; route: string;
 }): string | null {
   const { type, extractionMode, aliasMatching, faceOnly, route } = sel;
@@ -550,7 +493,7 @@ function withheldReason(name: string, sel: {
  *  — so choosing "derived" would produce a refusal with no control on the screen to answer it. The
  *  same holds for `terms` on a calculated line, which is behind the advanced toggle.
  */
-function requiredNow(name: string, sel: { type: string; outputStructure: string }): boolean {
+function requiredNow(name: string, sel: { type: string }): boolean {
   if (["cascade", "implemented_by"].includes(name)) return sel.type === "derived";
   if (name === "terms") return ["calculated", "intermediate"].includes(sel.type);
   // THE `prompt` RULE IS GONE, and it was doubly dead before it went.
@@ -563,6 +506,11 @@ function requiredNow(name: string, sel: { type: string; outputStructure: string 
   // would put a control on the form that the server rejects, which is the exact clash
   // `tests/test_not_configurable.py::test_a_control_the_form_forces_back_on_is_still_writable`
   // exists to catch.
+  //
+  // THE PARAMETER WENT WITH THE RULE. `outputStructure` was that rule's only reader, and it was
+  // still declared on three `sel` signatures and still computed from a field
+  // `routes/line_items._NOT_CONFIGURABLE` refuses ("no line item declares this") — an input the
+  // next author would have had to keep supplying to a form that reads it nowhere.
   return false;
 }
 
@@ -680,7 +628,7 @@ const CONDITIONAL_FIELDS = [
  *  always read as empty there.
  */
 function withheldFields(
-  sel: { type: string; extractionMode: string; aliasMatching: string; outputStructure: string;
+  sel: { type: string; extractionMode: string; aliasMatching: string;
          faceOnly: boolean; route: string },
   errors: Record<string, string>,
 ): Map<string, string> {
@@ -694,6 +642,9 @@ function withheldFields(
 }
 
 /** ONE GROUP, UNDER A BANNER THAT ROLLS WITH THE SCROLL.
+ *
+ *  HEADED BY A QUESTION, not by a field-category noun, because the author arrives with a question
+ *  ("why did this caption land on the wrong line?") and not with a field name.
  *
  *  WHY THE BANNER STICKS. Even cut to one type's simple form the pane is taller than a viewport,
  *  and the question a control answers is the only thing that says what the control is FOR — an
@@ -856,8 +807,6 @@ interface EditorProps {
   onSave: () => void;
   onDiscard: () => void;
   onSelect: (key: string) => void;
-  aliasDraft: string;
-  onAliasDraft: (v: string) => void;
 }
 
 function Detail(p: EditorProps) {
@@ -928,7 +877,6 @@ function Detail(p: EditorProps) {
     type: String(g("type", item.type) ?? "extracted"),
     extractionMode: String(g("extraction_mode", item.extraction_mode) ?? "extract"),
     aliasMatching: String(g("alias_matching", item.alias_matching) ?? "enabled"),
-    outputStructure: String(g("output_structure", item.output_structure) ?? "value"),
     // THE PLACING, as the gate resolves it. Not item-writable, so it is read off the served item
     // and never off the draft: `face_only` is one of the fields the section declares and an item
     // may no longer override, which is why there is no `g(...)` here.
@@ -1893,11 +1841,18 @@ export default function LineItemsScreen() {
   const [saved, setSaved] = useState<number | null>(null);
   // Null until the author chooses, so the set's own default locale is what is edited on arrival.
   const [localeSel, setLocaleSel] = useState<string | null>(null);
-  // THE ALIAS INPUT'S DRAFT, LIFTED. The Template screen learned this the hard way: a half-typed
-  // alias committed on blur is lost when the author types it and clicks Save directly, because the
-  // click can land before the blur. The save bar is in the same pane here, so the draft is held
-  // where the payload is built and folded in at save time.
-  const [aliasDraft, setAliasDraft] = useState("");
+  // THE ALIAS DRAFT WAS LIFTED HERE AND IS NOT ANY MORE, because it never arrived. The lift was
+  // written against `StringListEditor`, which takes `draft`/`onDraft` for exactly this; `aliases`
+  // has since moved to `MatchListEditor`, which holds its own draft (its `useState("")`) and takes
+  // neither prop. So `Detail` was handed `aliasDraft`/`onAliasDraft` and read neither: the cell was
+  // only ever set to "" by `resetDraft`, `pendingAlias` was therefore always empty, and the fold at
+  // save time could not fire.
+  //
+  // THE HAZARD IS REAL AND IS NOW UNADDRESSED, which is why this note stays. `MatchListEditor`
+  // commits on Enter AND on blur, so a caption typed and then clicked straight to Save can still
+  // lose the blur race. Re-lifting it means giving that component `draft`/`onDraft` — and
+  // `draftMode` with them, since a row is a pattern AND a mode — which is a change to a component
+  // with its own round-trip invariant (`MatchListEditor.roundtrip.mjs`), not a line here.
 
   if (q.isError) {
     return (
@@ -2043,7 +1998,6 @@ export default function LineItemsScreen() {
     setServerErrors({});
     setIndexErrors({});
     setFormError(null);
-    setAliasDraft("");
   };
 
   /** Selecting another line. Guarded when dirty: the draft belongs to ONE item (it is keyed by
@@ -2102,7 +2056,6 @@ export default function LineItemsScreen() {
       return;
     }
     if ("aliases" in draft) drop("aliases");
-    setAliasDraft("");
     setServerErrors((prev) => {
       const { aliases: _drop, ...rest } = prev;
       return rest;
@@ -2118,13 +2071,6 @@ export default function LineItemsScreen() {
     const edit: LineItemEdit = { key: selected.key, locale };
     const body = edit as unknown as Record<string, unknown>;
     for (const f of changed) body[f] = draft[f];
-    // Fold in a half-typed alias so a click on Save does not lose it (see `aliasDraft`).
-    const pendingAlias = aliasDraft.trim();
-    if (pendingAlias) {
-      const current = (("aliases" in draft ? draft.aliases : aliasesFor(selected, set, locale))
-                       ?? []) as string[];
-      if (!current.includes(pendingAlias)) body.aliases = [...current, pendingAlias];
-    }
     setServerErrors({});
     setIndexErrors({});
     setFormError(null);
@@ -2510,8 +2456,7 @@ rather than declaring it themselves">
                         changed={changed} summary={summary}
                         onSave={onSave}
                         onDiscard={() => { resetDraft(); setSaved(null); }}
-                        onSelect={chooseKey}
-                        aliasDraft={aliasDraft} onAliasDraft={setAliasDraft} />
+                        onSelect={chooseKey} />
               : <div style={{ fontSize: 12.5, color: color.muted }}>Select a line item.</div>}
           </div>
         </Card>
