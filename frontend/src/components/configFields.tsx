@@ -315,7 +315,13 @@ export function TextArea({
             const raw = e.target.value;
             onChange(nullable && raw === "" ? null : raw);
           }}
-          style={{ ...inputStyle(true, !!error), resize: "vertical", lineHeight: 1.55 }}
+          // A MEASURE, because this is the one control that holds PROSE and it spans every column
+          // of its group. With the list pane collapsed the span reaches ~1130px, which at this
+          // size is about 160 characters a line — roughly twice what is readable. The other
+          // full-width controls are tables (captions, terms, cascade rungs) and genuinely want the
+          // width, so the cap belongs here rather than on the span.
+          style={{ ...inputStyle(true, !!error), resize: "vertical", lineHeight: 1.55,
+                    maxWidth: "96ch" }}
         />
       ) : (
         <p style={{ margin: 0, fontSize: 12, lineHeight: 1.55,

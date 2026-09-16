@@ -43,7 +43,7 @@
  * resolve by meaning rather than by string match, so they are at the top of the pane and not
  * behind a disclosure.
  */
-import { isValidElement, useState, type ReactNode } from "react";
+import { isValidElement, useState, type CSSProperties, type ReactNode } from "react";
 
 import {
   BoolField, InfoToggle, KeyPicker, LockedRow, NumberField, RungCards,
@@ -59,6 +59,7 @@ import {
   useLineItems,
 } from "../lib/queries";
 import { useCan } from "../lib/rbac";
+import { useUI } from "../store";
 import { SCREENS } from "./config";
 import { color, font, radius } from "../theme";
 import type {
@@ -545,6 +546,16 @@ function requiredNow(name: string, sel: { type: string }): boolean {
 /** THE FOUR ROUTES, in the author's words rather than the engine's tokens. Module level because
  *  the control and the withheld banner both name the chosen one, and two spellings of
  *  "A note's table rows" is how they come to disagree. */
+/** THE LIST TOGGLE, one style for both of its faces. It is the SAME control in two places — « in
+ *  the list's own header, » on the rail that replaces the list — carrying one `li-list-toggle`
+ *  testid, because it is one thing a reader learns and not two. */
+const smallToggleBtn: CSSProperties = {
+  font: "inherit", fontSize: 12, lineHeight: 1, cursor: "pointer",
+  padding: "3px 6px", borderRadius: radius.control,
+  border: `1px solid ${color.indigoBorder2}`,
+  background: color.indigoTint2, color: color.indigo,
+};
+
 const ROUTE_LABEL: Record<string, string> = {
   face: "The face of the statement",
   note_tables: "A note's table rows",
@@ -741,8 +752,13 @@ function Group({ question, note, right, children, visible = true, index, count, 
         // cramped pane instead of overflowing. `rowGap: 0` because `FieldRow` already carries its
         // own bottom margin — setting both would double the spacing it was tuned with.
         //
-        // THE MINIMUM IS 300px SO THIS IS TWO COLUMNS AND NOT THREE, and that number is a measured
-        // refusal rather than a taste. At 260px a third track fits once the list pane was capped
+        // THE MINIMUM IS A VARIABLE (`--li-field-min`, set on the two-pane grid) SO THIS STAYS TWO
+        // COLUMNS AT EVERY PANE WIDTH — 300px with the list open, 420px with it collapsed. A single
+        // literal cannot do that job: the number has to rise when the pane does, or collapsing the
+        // list makes fields smaller. See the two-pane grid for that arithmetic.
+        //
+        // TWO COLUMNS AND NOT THREE is a measured refusal rather than a taste. At 260px a third
+        // track fits once the list pane was capped
         // (field grid 834px at 1440, and 3x260+2x14 = 808), and the third track is WORSE than no
         // third track: `auto-fit` collapses a track only when NOTHING occupies it, so in any group
         // holding a full-width control the spanning item keeps track 3 alive and the group's lone
@@ -765,7 +781,7 @@ function Group({ question, note, right, children, visible = true, index, count, 
         // questionnaire whose groups are numbered and whose questions build on each other. A row
         // of whitespace is the cheaper of the two costs.
         <div style={{ padding: "11px 13px 1px", display: "grid", alignItems: "start",
-                       gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+                       gridTemplateColumns: "repeat(auto-fit, minmax(var(--li-field-min, 300px), 1fr))",
                        columnGap: 14, rowGap: 0 }}>
           {note && showNote && (
             // `maxWidth` IN `ch`, because this is the one child that spans every column and it is
@@ -976,8 +992,17 @@ function Detail(p: EditorProps) {
     const control = render(errors[name]);
     const wide = isValidElement(control) && isWideControl(control);
     return (
+      // AND A NARROW CONTROL HAS A CEILING, not just a column. Its track is `1fr`, so it takes
+      // whatever the row has spare — and `auto-fit` COLLAPSES a track nothing occupies, so a group
+      // holding exactly ONE narrow field gets one surviving track and hands it the entire row.
+      // Measured: a `calculated` line, whose `route` does not apply, rendered group 01 as a single
+      // `Type` dropdown 834px wide with the list pane open, and 1156px with it collapsed. A select
+      // holding the word "Calculated" is not more usable at 834px than at 420, and the complaint
+      // this grid answers was that these controls were the wrong size — too wide is that complaint
+      // too. 520px is about where a labelled select and a short text input stop gaining.
       <div data-testid={`li-field-${name}`} key={name}
-           style={{ minWidth: 0, gridColumn: wide ? "1 / -1" : undefined }}>
+           style={{ minWidth: 0, maxWidth: wide ? undefined : 520,
+                     gridColumn: wide ? "1 / -1" : undefined }}>
         <div data-testid={errors[name] ? `li-field-error-${name}` : undefined}>
           {control}
         </div>
@@ -1931,6 +1956,18 @@ export default function LineItemsScreen() {
   // structural half of the same fix.
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<LineItemType | null>(null);
+  // THE LIST PANE, PUT AWAY. Persisted per browser through the store, which is the `navCollapsed`
+  // shape exactly (`store.ts`, `lib/api.ts`) — so it is not React state and cannot re-seed during
+  // render, and all localStorage access stays inside `lib/api.ts`, which is an invariant of this
+  // repo rather than a convention.
+  //
+  // UP HERE WITH THE OTHER HOOKS, not down beside the filter state it reads. There is an early
+  // `return` for the loading card below (`if (!q.data)`), so a hook called after it runs on some
+  // renders and not others — React counts hooks, and the screen died with "Rendered more hooks
+  // than during the previous render" inside `ScreenErrorBoundary` the first time these two sat
+  // next to `filtering`.
+  const listCollapsed = useUI((st) => st.liListCollapsed);
+  const setListCollapsed = useUI((st) => st.setLiListCollapsed);
 
   // THE EDIT STATE. `draft` holds only the fields the author has TOUCHED — an untouched field is
   // never sent, because sending a field the item never declared turns an inherited value into a
@@ -2031,6 +2068,12 @@ export default function LineItemsScreen() {
 
   const filtering = !!needle || !!typeFilter;
   const hits = filtering ? flat.filter(hit) : [];
+
+  // A SEARCH OUTRANKS THE COLLAPSE, and that rule is the whole interaction: collapsing says "I am
+  // done browsing, give the form the width", and typing in the search box says "I need the list
+  // back". Without it a collapsed pane would answer a search with nothing visible — a search box
+  // wired to a hidden result set.
+  const listOpen = !listCollapsed || filtering;
   // EVERY KEY THE FILTERED LIST ACTUALLY DRAWS — each hit, plus the descendants `row` recurses
   // into. The two are not the same set, and mistaking one for the other made every sub-line item
   // of a searched parent unselectable.
@@ -2071,6 +2114,27 @@ export default function LineItemsScreen() {
   const selected = filtering
     ? ((sel && (drafting || drawn.has(sel)) && byKey.get(sel)) || hits[0])
     : ((sel && byKey.get(sel)) || items[0]);
+
+  /** PUT THE LIST AWAY, OR BRING IT BACK — and clear the search that was holding it open.
+   *
+   *  A search outranks the collapse (see `listOpen`), so pressing collapse while filtering would
+   *  otherwise do nothing at all: the button would look broken. Collapsing therefore abandons the
+   *  search, which is what "I am done browsing" means.
+   *
+   *  AND IT PINS THE SELECTION FIRST, which is the part that is not cosmetic. While filtering, an
+   *  untouched `sel` leaves `selected` derived as `hits[0]`; clearing the query flips the branch
+   *  above to `items[0]`, so the form would silently re-target from the line the author was reading
+   *  to whichever line sorts first — and `onSave` builds its payload from `selected.key`. Naming
+   *  the current selection before the query goes is what keeps the pane on its line. */
+  const toggleList = () => {
+    const next = !listCollapsed;
+    if (next && filtering) {
+      if (selected) setSel(selected.key);
+      setQuery("");
+      setTypeFilter(null);
+    }
+    setListCollapsed(next);
+  };
 
   /* ── the draft, measured against what the server served ─────────────────────────────────── */
 
@@ -2539,9 +2603,27 @@ rather than declaring it themselves">
           an improvement at every width rather than a trade: 1280 stays one column but widens from
           447px to 580px; 1440 goes from one column of 531px to two of 363px; 1920 (where the 1320
           cap binds) goes from two columns of 285px to two of 410px. The left track holds at 340px
-          in all six combinations, which is the whole point of capping it. */}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(240px, 340px) minmax(380px, 1fr)",
-                     gap: 16, alignItems: "start" }}>
+          in all six combinations, which is the whole point of capping it.
+
+          COLLAPSED, THE LIST BECOMES A 44px RAIL and the form takes everything else
+          (`minmax(0, 1fr)`, not `1fr`: a bare `1fr` has `auto` for its minimum, so the form's own
+          260px-per-column content could push the track wider than the grid and scroll the page
+          sideways). The rows are UNMOUNTED rather than hidden — 527 of them, each with its own
+          click and key handlers.
+
+          AND `--li-field-min` MOVES WITH IT, which is not decoration. `Group`'s field grid is
+          `repeat(auto-fit, minmax(var(--li-field-min), 1fr))`, and the number has to rise when the
+          pane does or collapsing makes fields SMALLER: at 1440 collapsed the field grid is 1132px,
+          where a 300px minimum fits THREE tracks, and `auto-fit` keeps the third alive in any group
+          holding a spanning control — so `label` would render at 368px, narrower than the 410px it
+          gets with the list open. Giving the pane more room must never shrink a field. At 420px the
+          arithmetic stays at two tracks (two need 854px, three need 1288px), so every control gets
+          wider: 410 -> 559 at 1440, 364 -> 508 at 1280. */}
+      <div style={{ display: "grid", alignItems: "start", gap: 16,
+                     gridTemplateColumns: listOpen ? "minmax(240px, 340px) minmax(380px, 1fr)"
+                                                   : "44px minmax(0, 1fr)",
+                     ...({ "--li-field-min": listOpen ? "300px" : "420px" } as CSSProperties) }}>
+        {listOpen ? (
         <Card pad={10}>
           {/* THE LEGEND FOR WHAT THE ROWS STOPPED REPEATING. This was three column titles over a
               matching `1fr auto auto` row grid; the chip and the marker are exceptions now, so
@@ -2551,14 +2633,20 @@ rather than declaring it themselves">
                          padding: "0 9px 8px", borderBottom: `1px solid ${color.hairline2}`,
                          fontSize: 10.5, fontWeight: 700, letterSpacing: 0.3, color: color.muted,
                          textTransform: "uppercase" }}>
+            {/* THE TOGGLE IS FIRST IN THIS PANE'S READING ORDER, so a keyboard reaches "put this
+                away" before tabbing through 527 rows to look for it. */}
+            <button type="button" data-testid="li-list-toggle" onClick={toggleList}
+                    aria-expanded={true} aria-controls="li-list"
+                    title="Put the list away and give the form the width"
+                    style={{ ...smallToggleBtn, marginRight: 1 }}>«</button>
             <span>Line item</span>
             <span style={{ fontWeight: 500, letterSpacing: 0, textTransform: "none",
                             fontSize: 10, color: color.faint }}>
               — extracted and in the output unless the row says otherwise
             </span>
           </div>
-          <div style={{ marginTop: 4, maxHeight: "calc(100vh - 300px)", minHeight: 220,
-                         overflowY: "auto" }}>
+          <div id="li-list" style={{ marginTop: 4, maxHeight: "calc(100vh - 300px)",
+                                      minHeight: 220, overflowY: "auto" }}>
             {filtering
               ? (hits.length
                   ? hits.map((d) => (
@@ -2580,6 +2668,25 @@ rather than declaring it themselves">
               : items.map((d) => row(d, 0))}
           </div>
         </Card>
+        ) : (
+          /* THE RAIL. The count comes with it because it is the one thing the list was saying that
+             the form does not: how many lines this configuration has. Vertical text is the only
+             rotated text in this app, so it is one word and nothing depends on it rendering well. */
+          <Card pad={6} style={{ display: "flex", flexDirection: "column", alignItems: "center",
+                                  gap: 8, paddingBlock: 10 }}>
+            <button type="button" data-testid="li-list-toggle" onClick={toggleList}
+                    aria-expanded={false} aria-controls="li-list"
+                    title={`Show the list of ${flat.length} line items`}
+                    style={smallToggleBtn}>»</button>
+            <span style={{ fontFamily: font.mono, fontSize: 10, color: color.sec2,
+                            fontVariantNumeric: "tabular-nums" }}>{flat.length}</span>
+            <span aria-hidden="true"
+                  style={{ writingMode: "vertical-rl", fontSize: 9.5, fontWeight: 700,
+                            letterSpacing: 1.2, textTransform: "uppercase", color: color.faint }}>
+              Line items
+            </span>
+          </Card>
+        )}
         <Card>
           <div style={{ position: "sticky", top: 0, maxHeight: "calc(100vh - 240px)",
                          overflowY: "auto" }}>

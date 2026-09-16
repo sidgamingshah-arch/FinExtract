@@ -14,8 +14,9 @@
 import { create } from "zustand";
 
 import {
-  getStoredActiveDoc, getStoredNavCollapsed, getStoredPinnedRun, getToken, setStoredActiveDoc,
-  setStoredNavCollapsed, setStoredPinnedRun, setStoredToken,
+  getStoredActiveDoc, getStoredLiListCollapsed, getStoredNavCollapsed, getStoredPinnedRun,
+  getToken, setStoredActiveDoc, setStoredLiListCollapsed, setStoredNavCollapsed,
+  setStoredPinnedRun, setStoredToken,
 } from "./lib/api";
 import type { Basis, ExportFmt, ExtractMode, Locale, StatementKey } from "./types";
 
@@ -56,6 +57,9 @@ interface UIState {
   exportFmt: ExportFmt;
   /** Navigation rail collapsed to icons. Persisted, and collapsed by default. */
   navCollapsed: boolean;
+  /** Line Items' list pane, put away so the form can have the width. Read by one screen,
+   *  like `navCollapsed` is read only by `NavRail`. */
+  liListCollapsed: boolean;
 
   setLocale: (l: Locale) => void;
   /** Adopt the deployment's configured default output language (from GET /settings). A no-op
@@ -79,6 +83,7 @@ interface UIState {
   setPinnedRunId: (id: string | null) => void;
   setFmt: (f: ExportFmt) => void;
   setNavCollapsed: (v: boolean) => void;
+  setLiListCollapsed: (v: boolean) => void;
 }
 
 export const useUI = create<UIState>((set, get) => ({
@@ -104,6 +109,7 @@ export const useUI = create<UIState>((set, get) => ({
   pinnedRunId: getStoredPinnedRun(getStoredActiveDoc()),
   exportFmt: "excel",
   navCollapsed: getStoredNavCollapsed(),
+  liListCollapsed: getStoredLiListCollapsed(),
 
   setLocale: (locale) => set({ locale, localeChosen: true }),
   hydrateDefaultLocale: (locale) => {
@@ -144,6 +150,10 @@ export const useUI = create<UIState>((set, get) => ({
   setNavCollapsed: (navCollapsed) => {
     setStoredNavCollapsed(navCollapsed);
     set({ navCollapsed });
+  },
+  setLiListCollapsed: (liListCollapsed) => {
+    setStoredLiListCollapsed(liListCollapsed);
+    set({ liListCollapsed });
   },
 }));
 
