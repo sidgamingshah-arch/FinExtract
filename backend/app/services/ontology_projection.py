@@ -172,17 +172,20 @@ def project_concept(m: Any) -> dict:
     # concept no table names is returned exactly as before.
     # `RENAMED` maps `canonical_key` onto `key`, so the concept is read for its own key rather
     # than the projected dict — which carries the renamed one.
+    # A FILTER, NOT A RESHAPE, and the difference is what `tests/test_working_view_parity` is for.
+    # That test asserts the working view is the exact inverse of this projection, so an emptied
+    # list must stay an emptied LIST rather than becoming an absent key: two rulebook concepts
+    # already ship `aliases_i18n: {"en": [...], "zh": []}`, and dropping the empty locale made
+    # nine concepts round-trip differently. Keeping the shape means that with a clean rulebook the
+    # curation is a no-op and parity holds — and that a rulebook which DOES carry a denied alias
+    # breaks parity loudly instead of being quietly repaired here.
     ckey = str(getattr(m, "canonical_key", "") or "")
     if "aliases" in out:
         out["aliases"] = spec_alias_curation.curate_aliases(ckey, out["aliases"])
-        if not out["aliases"]:
-            del out["aliases"]
     if "aliases_i18n" in out:
-        kept = {loc: spec_alias_curation.curate_aliases(ckey, vals)
-                for loc, vals in out["aliases_i18n"].items()}
-        out["aliases_i18n"] = {loc: vals for loc, vals in kept.items() if vals}
-        if not out["aliases_i18n"]:
-            del out["aliases_i18n"]
+        out["aliases_i18n"] = {
+            loc: spec_alias_curation.curate_aliases(ckey, vals)
+            for loc, vals in out["aliases_i18n"].items()}
 
     # A HARD-CODED CORRECTION, TURNED INTO DATA. `mapping._KEY_SECTION_OVERRIDES` holds one entry:
     # `is_pl__minority_interests_pl` -> `profit_attributable_to`. The concept declares `is_pl`,
