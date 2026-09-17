@@ -12504,30 +12504,16 @@
     "Unreal Gain(Loss) Fixed Assets",
     "Revaluation of Fixed assets",
     "Revaluation of Property, plant and equipment",
-    "Land revaluation reserve",
-    "Other comprehensive income/loss for the year"
+    "Land revaluation reserve"
    ],
    "aliases_i18n": {
     "en": [
      "Unreal Gain(Loss) Fixed Assets",
      "Revaluation of Fixed assets",
      "Revaluation of Property, plant and equipment",
-     "Land revaluation reserve",
-     "Other comprehensive income/loss for the year"
+     "Land revaluation reserve"
     ],
-    "zh": [
-     "不会重分类进损益的项目",
-     "不會重新分類至損益的項目",
-     "以公允价值计量且其变动计入其他综合收益的权益工具投资公允价值变动",
-     "以后不能重分类进损益的项目",
-     "其他全面亏损",
-     "其他全面收益",
-     "年内其他全面亏损",
-     "年内其他全面收入",
-     "年内其他全面收益",
-     "年内其他全面收益/（亏损）",
-     "重新计量设定受益计划"
-    ]
+    "zh": []
    },
    "keyword_hints": [
     "Unreal Gain(Loss) Fixed Assets"
@@ -12538,7 +12524,11 @@
    "match_priority": 10,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "namespace": "template",
-   "route": "face"
+   "route": "face",
+   "statements": [
+    "equity_changes",
+    "profit_and_loss"
+   ]
   },
   {
    "key": "is_oci__unreal_gain_loss_invest_prpty",
@@ -12547,23 +12537,14 @@
    "definition": "Extract the reported value for 'Unreal Gain(Loss) Invest Prpty' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
     "Unreal Gain(Loss) Invest Prpty",
-    "Investment properties revaluation",
-    "Other comprehensive income/loss for the year"
+    "Investment properties revaluation"
    ],
    "aliases_i18n": {
     "en": [
      "Unreal Gain(Loss) Invest Prpty",
-     "Investment properties revaluation",
-     "Other comprehensive income/loss for the year"
+     "Investment properties revaluation"
     ],
-    "zh": [
-     "其他全面亏损",
-     "其他全面收益",
-     "年内其他全面亏损",
-     "年内其他全面收入",
-     "年内其他全面收益",
-     "年内其他全面收益/（亏损）"
-    ]
+    "zh": []
    },
    "keyword_hints": [
     "Unreal Gain(Loss) Invest Prpty"
@@ -12574,7 +12555,11 @@
    "match_priority": 10,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "namespace": "template",
-   "route": "face"
+   "route": "face",
+   "statements": [
+    "equity_changes",
+    "profit_and_loss"
+   ]
   },
   {
    "key": "is_oci__unreal_gain_loss_investments",
@@ -12585,7 +12570,6 @@
     "Unreal Gain(Loss) Investments",
     "Gain/ Loss on Financial assets at fair value through other comprehensive income",
     "Unrealised gain/loss on financial assets",
-    "Other comprehensive income/loss for the year",
     "Changes in fair values of financial assets at fair value through other comprehensive income"
    ],
    "aliases_i18n": {
@@ -12593,16 +12577,10 @@
      "Unreal Gain(Loss) Investments",
      "Gain/ Loss on Financial assets at fair value through other comprehensive income",
      "Unrealised gain/loss on financial assets",
-     "Other comprehensive income/loss for the year",
      "Changes in fair values of financial assets at fair value through other comprehensive income"
     ],
     "zh": [
-     "其他全面亏损",
-     "其他全面收益",
-     "年内其他全面亏损",
-     "年内其他全面收入",
-     "年内其他全面收益",
-     "年内其他全面收益/（亏损）"
+     "以公允价值计量且其变动计入其他综合收益的权益工具投资公允价值变动"
     ]
    },
    "keyword_hints": [
@@ -12614,7 +12592,11 @@
    "match_priority": 10,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "namespace": "template",
-   "route": "face"
+   "route": "face",
+   "statements": [
+    "equity_changes",
+    "profit_and_loss"
+   ]
   },
   {
    "key": "is_oci__deferred_hedging_gain_loss",
@@ -12623,23 +12605,14 @@
    "definition": "Extract the reported value for 'Deferred Hedging Gain(Loss)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
     "Deferred Hedging Gain(Loss)",
-    "Reserve for hedging instruments",
-    "Other comprehensive income/loss for the year"
+    "Reserve for hedging instruments"
    ],
    "aliases_i18n": {
     "en": [
      "Deferred Hedging Gain(Loss)",
-     "Reserve for hedging instruments",
-     "Other comprehensive income/loss for the year"
+     "Reserve for hedging instruments"
     ],
-    "zh": [
-     "其他全面亏损",
-     "其他全面收益",
-     "年内其他全面亏损",
-     "年内其他全面收入",
-     "年内其他全面收益",
-     "年内其他全面收益/（亏损）"
-    ]
+    "zh": []
    },
    "keyword_hints": [
     "Deferred Hedging Gain(Loss)"
@@ -12650,7 +12623,11 @@
    "match_priority": 10,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "namespace": "template",
-   "route": "face"
+   "route": "face",
+   "statements": [
+    "equity_changes",
+    "profit_and_loss"
+   ]
   },
   {
    "key": "is_oci__derivatives_fmv_adjustment",
@@ -12659,14 +12636,12 @@
    "definition": "Extract the reported value for 'Derivatives FMV Adjustment' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
     "Derivatives FMV Adjustment",
-    "Reserve for Derivatives",
-    "included in Notes"
+    "Reserve for Derivatives"
    ],
    "aliases_i18n": {
     "en": [
      "Derivatives FMV Adjustment",
-     "Reserve for Derivatives",
-     "included in Notes"
+     "Reserve for Derivatives"
     ]
    },
    "keyword_hints": [
@@ -12678,7 +12653,11 @@
    "match_priority": 10,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "namespace": "template",
-   "route": "face"
+   "route": "face",
+   "statements": [
+    "equity_changes",
+    "profit_and_loss"
+   ]
   },
   {
    "key": "is_oci__minimum_pension_liability_adj",
@@ -12688,23 +12667,16 @@
    "aliases": [
     "Minimum Pension Liability Adj",
     "Reserve for retirement benefit funds",
-    "Pension liability adjustment",
-    "Other comprehensive income/loss for the year"
+    "Pension liability adjustment"
    ],
    "aliases_i18n": {
     "en": [
      "Minimum Pension Liability Adj",
      "Reserve for retirement benefit funds",
-     "Pension liability adjustment",
-     "Other comprehensive income/loss for the year"
+     "Pension liability adjustment"
     ],
     "zh": [
-     "其他全面亏损",
-     "其他全面收益",
-     "年内其他全面亏损",
-     "年内其他全面收入",
-     "年内其他全面收益",
-     "年内其他全面收益/（亏损）"
+     "重新计量设定受益计划"
     ]
    },
    "keyword_hints": [
@@ -12716,7 +12688,11 @@
    "match_priority": 10,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "namespace": "template",
-   "route": "face"
+   "route": "face",
+   "statements": [
+    "equity_changes",
+    "profit_and_loss"
+   ]
   },
   {
    "key": "is_oci__other_equity_and_reserves_adj",
@@ -12753,7 +12729,11 @@
    ],
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "namespace": "template",
-   "route": "face"
+   "route": "face",
+   "statements": [
+    "equity_changes",
+    "profit_and_loss"
+   ]
   },
   {
    "key": "is_oci__total_other_comprehensive_income",
@@ -12763,16 +12743,24 @@
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Total Other Comprehensive Income",
-    "Other Comprehensive Income"
+    "Other Comprehensive Income",
+    "Other comprehensive income/loss for the year"
    ],
    "aliases_i18n": {
     "en": [
      "Total Other Comprehensive Income",
-     "Other Comprehensive Income"
+     "Other Comprehensive Income",
+     "Other comprehensive income/loss for the year"
     ],
     "zh": [
      "其他综合收益的税后净额",
-     "归属母公司所有者的其他综合收益的税后净额"
+     "归属母公司所有者的其他综合收益的税后净额",
+     "其他全面亏损",
+     "其他全面收益",
+     "年内其他全面亏损",
+     "年内其他全面收入",
+     "年内其他全面收益",
+     "年内其他全面收益/（亏损）"
     ]
    },
    "keyword_hints": [
@@ -12819,7 +12807,11 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "statements": [
+    "equity_changes",
+    "profit_and_loss"
+   ]
   },
   {
    "key": "is_retained__cash_div_pref_shares",

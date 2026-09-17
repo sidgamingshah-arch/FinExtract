@@ -13662,8 +13662,7 @@
     "Unreal Gain(Loss) Fixed Assets",
     "Revaluation of Fixed assets",
     "Revaluation of Property, plant and equipment",
-    "Land revaluation reserve",
-    "Other comprehensive income/loss for the year"
+    "Land revaluation reserve"
    ],
    "keyword_hints": [
     "Unreal Gain(Loss) Fixed Assets"
@@ -13696,23 +13695,14 @@
      "Unreal Gain(Loss) Fixed Assets",
      "Revaluation of Fixed assets",
      "Revaluation of Property, plant and equipment",
-     "Land revaluation reserve",
-     "Other comprehensive income/loss for the year"
+     "Land revaluation reserve"
     ],
-    "zh": [
-     "不会重分类进损益的项目",
-     "不會重新分類至損益的項目",
-     "以公允价值计量且其变动计入其他综合收益的权益工具投资公允价值变动",
-     "以后不能重分类进损益的项目",
-     "其他全面亏损",
-     "其他全面收益",
-     "年内其他全面亏损",
-     "年内其他全面收入",
-     "年内其他全面收益",
-     "年内其他全面收益/（亏损）",
-     "重新计量设定受益计划"
-    ]
-   }
+    "zh": []
+   },
+   "statements": [
+    "equity_changes",
+    "profit_and_loss"
+   ]
   },
   {
    "canonical_key": "is_oci__unreal_gain_loss_invest_prpty",
@@ -13720,8 +13710,7 @@
    "definition": "Extract the reported value for 'Unreal Gain(Loss) Invest Prpty' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
     "Unreal Gain(Loss) Invest Prpty",
-    "Investment properties revaluation",
-    "Other comprehensive income/loss for the year"
+    "Investment properties revaluation"
    ],
    "keyword_hints": [
     "Unreal Gain(Loss) Invest Prpty"
@@ -13752,18 +13741,14 @@
    "aliases_i18n": {
     "en": [
      "Unreal Gain(Loss) Invest Prpty",
-     "Investment properties revaluation",
-     "Other comprehensive income/loss for the year"
+     "Investment properties revaluation"
     ],
-    "zh": [
-     "其他全面亏损",
-     "其他全面收益",
-     "年内其他全面亏损",
-     "年内其他全面收入",
-     "年内其他全面收益",
-     "年内其他全面收益/（亏损）"
-    ]
-   }
+    "zh": []
+   },
+   "statements": [
+    "equity_changes",
+    "profit_and_loss"
+   ]
   },
   {
    "canonical_key": "is_oci__unreal_gain_loss_investments",
@@ -13773,7 +13758,6 @@
     "Unreal Gain(Loss) Investments",
     "Gain/ Loss on Financial assets at fair value through other comprehensive income",
     "Unrealised gain/loss on financial assets",
-    "Other comprehensive income/loss for the year",
     "Changes in fair values of financial assets at fair value through other comprehensive income"
    ],
    "keyword_hints": [
@@ -13807,18 +13791,16 @@
      "Unreal Gain(Loss) Investments",
      "Gain/ Loss on Financial assets at fair value through other comprehensive income",
      "Unrealised gain/loss on financial assets",
-     "Other comprehensive income/loss for the year",
      "Changes in fair values of financial assets at fair value through other comprehensive income"
     ],
     "zh": [
-     "其他全面亏损",
-     "其他全面收益",
-     "年内其他全面亏损",
-     "年内其他全面收入",
-     "年内其他全面收益",
-     "年内其他全面收益/（亏损）"
+     "以公允价值计量且其变动计入其他综合收益的权益工具投资公允价值变动"
     ]
-   }
+   },
+   "statements": [
+    "equity_changes",
+    "profit_and_loss"
+   ]
   },
   {
    "canonical_key": "is_oci__deferred_hedging_gain_loss",
@@ -13826,8 +13808,7 @@
    "definition": "Extract the reported value for 'Deferred Hedging Gain(Loss)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
     "Deferred Hedging Gain(Loss)",
-    "Reserve for hedging instruments",
-    "Other comprehensive income/loss for the year"
+    "Reserve for hedging instruments"
    ],
    "keyword_hints": [
     "Deferred Hedging Gain(Loss)"
@@ -13858,18 +13839,14 @@
    "aliases_i18n": {
     "en": [
      "Deferred Hedging Gain(Loss)",
-     "Reserve for hedging instruments",
-     "Other comprehensive income/loss for the year"
+     "Reserve for hedging instruments"
     ],
-    "zh": [
-     "其他全面亏损",
-     "其他全面收益",
-     "年内其他全面亏损",
-     "年内其他全面收入",
-     "年内其他全面收益",
-     "年内其他全面收益/（亏损）"
-    ]
-   }
+    "zh": []
+   },
+   "statements": [
+    "equity_changes",
+    "profit_and_loss"
+   ]
   },
   {
    "canonical_key": "is_oci__derivatives_fmv_adjustment",
@@ -13877,8 +13854,7 @@
    "definition": "Extract the reported value for 'Derivatives FMV Adjustment' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
     "Derivatives FMV Adjustment",
-    "Reserve for Derivatives",
-    "included in Notes"
+    "Reserve for Derivatives"
    ],
    "keyword_hints": [
     "Derivatives FMV Adjustment"
@@ -13903,10 +13879,13 @@
    "aliases_i18n": {
     "en": [
      "Derivatives FMV Adjustment",
-     "Reserve for Derivatives",
-     "included in Notes"
+     "Reserve for Derivatives"
     ]
-   }
+   },
+   "statements": [
+    "equity_changes",
+    "profit_and_loss"
+   ]
   },
   {
    "canonical_key": "is_oci__minimum_pension_liability_adj",
@@ -13915,8 +13894,7 @@
    "aliases": [
     "Minimum Pension Liability Adj",
     "Reserve for retirement benefit funds",
-    "Pension liability adjustment",
-    "Other comprehensive income/loss for the year"
+    "Pension liability adjustment"
    ],
    "keyword_hints": [
     "Minimum Pension Liability Adj"
@@ -13948,18 +13926,16 @@
     "en": [
      "Minimum Pension Liability Adj",
      "Reserve for retirement benefit funds",
-     "Pension liability adjustment",
-     "Other comprehensive income/loss for the year"
+     "Pension liability adjustment"
     ],
     "zh": [
-     "其他全面亏损",
-     "其他全面收益",
-     "年内其他全面亏损",
-     "年内其他全面收入",
-     "年内其他全面收益",
-     "年内其他全面收益/（亏损）"
+     "重新计量设定受益计划"
     ]
-   }
+   },
+   "statements": [
+    "equity_changes",
+    "profit_and_loss"
+   ]
   },
   {
    "canonical_key": "is_oci__other_equity_and_reserves_adj",
@@ -14015,7 +13991,11 @@
      "Other Equity & Reserves Adj",
      "Share of other comprehensive income of joint ventures"
     ]
-   }
+   },
+   "statements": [
+    "equity_changes",
+    "profit_and_loss"
+   ]
   },
   {
    "canonical_key": "is_oci__total_other_comprehensive_income",
@@ -14023,7 +14003,8 @@
    "definition": "Calculated target using the exact formula retained in the supplied template: =SUM({is_oci__unreal_gain_loss_fixed_assets}:{is_oci__other_equity_and_reserves_adj})",
    "aliases": [
     "Total Other Comprehensive Income",
-    "Other Comprehensive Income"
+    "Other Comprehensive Income",
+    "Other comprehensive income/loss for the year"
    ],
    "keyword_hints": [
     "Total Other Comprehensive Income"
@@ -14054,13 +14035,24 @@
    "aliases_i18n": {
     "en": [
      "Total Other Comprehensive Income",
-     "Other Comprehensive Income"
+     "Other Comprehensive Income",
+     "Other comprehensive income/loss for the year"
     ],
     "zh": [
      "其他综合收益的税后净额",
-     "归属母公司所有者的其他综合收益的税后净额"
+     "归属母公司所有者的其他综合收益的税后净额",
+     "其他全面亏损",
+     "其他全面收益",
+     "年内其他全面亏损",
+     "年内其他全面收入",
+     "年内其他全面收益",
+     "年内其他全面收益/（亏损）"
     ]
-   }
+   },
+   "statements": [
+    "equity_changes",
+    "profit_and_loss"
+   ]
   },
   {
    "canonical_key": "is_retained__cash_div_pref_shares",

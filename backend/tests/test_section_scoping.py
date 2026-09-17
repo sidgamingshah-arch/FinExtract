@@ -600,15 +600,29 @@ def _matcher(st):
                            settings=get_settings(), llm_provider=None)
 
 
-# THE ONE SET OF LINES THAT DECLARES THE LIST, and therefore the one documented departure from the
-# parity property below. The seven `is_retained` movements are printed in the statement of changes
-# in equity, not on the income statement their section names, so each declares
-# `statements: [equity_changes, profit_and_loss]` — see `tests/test_equity_statement_gate.py`.
+# THE LINES THAT DECLARE THE LIST, and therefore the documented departures from the parity
+# property below. Two sections, migrated for the same reason and with different force:
+#
+#   * the seven `is_retained` movements are a CORRECTION. Dividends declared, transfers to
+#     statutory reserves and prior-period restatements are printed in the statement of changes in
+#     equity and NOT on the income statement their section names, so the gate was refusing them on
+#     the one statement whose captions they are — see `tests/test_equity_statement_gate.py`.
+#   * the eight `is_oci` lines are a WIDENING. Other comprehensive income is genuinely printed on
+#     the statement of profit or loss and other comprehensive income AND as columns of the
+#     statement of changes in equity, so unlike the retained movements neither statement was wrong.
+#
+# Both declare `statements: [equity_changes, profit_and_loss]`, and `mapping._in_statement` admits a
+# concept under ANY statement it declares, so each is a widening that takes nothing away. The test
+# below pins exactly that: no migrated line may lose a statement the single-value gate admitted.
 _DECLARES_THE_LIST = (
     "is_retained__cash_div_pref_shares", "is_retained__proposed_cash_dividends",
     "is_retained__cash_div_common_shares", "is_retained__stock_dividends_nc",
     "is_retained__transfer_to_reserves", "is_retained__prior_period_adjustments",
     "is_retained__other_adj_to_retained_profits",
+    "is_oci__unreal_gain_loss_fixed_assets", "is_oci__unreal_gain_loss_invest_prpty",
+    "is_oci__unreal_gain_loss_investments", "is_oci__deferred_hedging_gain_loss",
+    "is_oci__derivatives_fmv_adjustment", "is_oci__minimum_pension_liability_adj",
+    "is_oci__other_equity_and_reserves_adj", "is_oci__total_other_comprehensive_income",
 )
 
 

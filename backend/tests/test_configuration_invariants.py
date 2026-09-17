@@ -41,7 +41,12 @@ _NOT_A_COLUMN = {"bs_ca_residual_L3"}
 
 #: Aliases claimed by two lines with nothing able to choose between them. A RATCHET — see the
 #: module docstring. Lower it when ties are resolved; never raise it to make a change pass.
-_UNBREAKABLE_TIE_CEILING = 140
+#:
+#: 140 -> 69 when the `is_oci` section's shared vocabulary was resolved: five of its eight lines
+#: carried the SECTION TOTAL's caption alongside their own, on one statement in one section at
+#: equal priority, which was the largest unbreakable cluster in the set. The caption now belongs to
+#: `is_oci__total_other_comprehensive_income` alone.
+_UNBREAKABLE_TIE_CEILING = 69
 
 
 @pytest.fixture(scope="module")

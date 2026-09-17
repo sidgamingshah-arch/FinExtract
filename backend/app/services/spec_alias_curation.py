@@ -331,7 +331,41 @@ _A_NET_COLUMN_IS_NOT_ITS_HALVES = (
     r"^营业外收入$", r"^营业外支出$", r"^營業外收入$", r"^營業外支出$",
 )
 
+# THE OCI TOTAL'S CAPTION IS NOT ANY ONE OCI COMPONENT'S. Five of the eight `is_oci` lines
+# carried the generic "Other comprehensive income/loss for the year" and its Chinese forms — the
+# caption of the SECTION TOTAL — alongside their own. All five sit on one statement in one section
+# at equal priority with no label owner, so that shared vocabulary WAS the largest unbreakable tie
+# cluster in the configuration: declaration order picked a winner and the other four were
+# unreachable for the caption whatever a filing printed. Measured, denying it here and giving it to
+# `is_oci__total_other_comprehensive_income` — whose label it is — takes the set's unbreakable ties
+# from 140 to 69.
+#
+# `^included in Notes$` on the derivatives line is the same defect in a different dress: a phrase
+# describing WHERE a figure is disclosed is not a caption, and it named no concept at all.
+_THE_OCI_TOTAL_IS_NOT_A_COMPONENT = (
+    r"^Other comprehensive income/loss for the year$",
+    r"^其他全面(?:收益|亏损)$",
+    r"^年内其他全面(?:收益|收入|亏损)",
+)
+_A_DISCLOSURE_NOTE_IS_NOT_A_CAPTION = (r"^included in Notes$",)
+# AND THE COMPONENT-LEVEL REFINEMENTS the same review found: a remeasurement of a defined-benefit
+# plan is a pension movement rather than a fixed-asset revaluation, and an FVTOCI equity-instrument
+# fair-value change belongs to the investments line.
+_NOT_THE_FIXED_ASSET_REVALUATION = (
+    r"^(?:不会重分类进损益的项目|不會重新分類至損益的項目|以后不能重分类进损益的项目)$",
+    r"^重新计量设定受益计划$",
+    r"^以公允价值计量且其变动计入其他综合收益的权益工具投资公允价值变动$",
+)
+
 _BORROWED_CAPTION_DENIALS: dict[str, tuple[str, ...]] = {
+    # The OCI section: the total's caption denied on its components. See the rules above.
+    "is_oci__unreal_gain_loss_fixed_assets": (*_THE_OCI_TOTAL_IS_NOT_A_COMPONENT,
+                                              *_NOT_THE_FIXED_ASSET_REVALUATION),
+    "is_oci__unreal_gain_loss_invest_prpty": _THE_OCI_TOTAL_IS_NOT_A_COMPONENT,
+    "is_oci__unreal_gain_loss_investments": _THE_OCI_TOTAL_IS_NOT_A_COMPONENT,
+    "is_oci__deferred_hedging_gain_loss": _THE_OCI_TOTAL_IS_NOT_A_COMPONENT,
+    "is_oci__minimum_pension_liability_adj": _THE_OCI_TOTAL_IS_NOT_A_COMPONENT,
+    "is_oci__derivatives_fmv_adjustment": _A_DISCLOSURE_NOTE_IS_NOT_A_CAPTION,
     "is_pl__other_non_operating_inc_exp": _A_NET_COLUMN_IS_NOT_ITS_HALVES,
     # See the four rules above this table for what each denial measured.
     "is_pl__profit_for_the_year": _ATTRIBUTION_IS_NOT_THE_TOTAL,
