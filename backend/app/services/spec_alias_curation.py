@@ -248,8 +248,30 @@ _HEADING_IS_NOT_A_LINE_ITEM = (r"^Related Party Transactions$",)
 # is a COLUMN HEADER of the statement of changes in equity, so it names the column a movement is
 # printed under and never the movement itself. The movement vocabulary the seven now carry is
 # authored per line (see the set's `metadata.changes`) and is not governed here.
+# `Undistributed profits` IS THE SAME BALANCE IN ENGLISH, and its measurement is the worst of the
+# three: the caption was matchable ONLY on the wrong statement, to the wrong line.
+#
+#     match("Undistributed profits", statement="profit_and_loss")
+#         -> is_retained__cash_div_pref_shares, EXACT      (first of six at priority 10)
+#     match("Undistributed profits", statement="balance_sheet")
+#         -> None, UNMATCHED   — the balance line did not own its own caption
+#
+# So the redirect here ADDS as well as denies: the caption goes onto
+# `bs_equity__retained_profits`, whose Chinese already includes 未分配利润 — its exact translation —
+# so the two scripts of that concept now agree about what it answers to. Denying without adding
+# would have left the caption matching nothing anywhere, which is honest and still loses the line.
+#
+# AND THE RULEBOOK CARRIES ALL OF IT TOO, which is where the first pass at this stopped short.
+# `output_csv_hk_ontology.json` declares `Undistributed profits` and the four Chinese spellings on
+# the same seven concepts — 40 aliases in all — and `services.ontology_projection.SAME` copies
+# `aliases`/`aliases_i18n` into a line-item definition VERBATIM. So cleaning only the line-item
+# set left the defect one `scripts/build_line_items.py` run from coming back. The rulebook is
+# cleaned to match, the projection now curates what it copies, and
+# `tests/test_spec_alias_curation.py::test_the_committed_ontology_already_satisfies_every_denial`
+# covers this table as well as the other two so the artefact and the rules cannot drift apart
+# again.
 _SECTION_NAME_IS_NOT_A_MOVEMENT = (
-    r"^Retained Profits$",
+    r"^Retained Profits$", r"^Undistributed profits$",
     r"^保留溢利$", r"^未分配利润$", r"^留存收益$", r"^累计亏损$",
 )
 

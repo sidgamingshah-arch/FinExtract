@@ -13,7 +13,8 @@ import pytest
 
 from app.services.spec_alias_curation import (
     ALIAS_DENIALS, CONTINGENT, COS, DUE_FROM_RP, OPER_EXP, OTHER_RECV_CP, OTHER_RECV_LTP, SALES,
-    SECUR_CP, SECUR_LTP, _FOREIGN_CAPTION_DENIALS, curate_aliases, denied_aliases,
+    SECUR_CP, SECUR_LTP, _BORROWED_CAPTION_DENIALS, _FOREIGN_CAPTION_DENIALS, curate_aliases,
+    denied_aliases,
 )
 
 ONTOLOGY = Path(__file__).resolve().parents[1] / "app/sample/templates/output_csv_hk_ontology.json"
@@ -157,9 +158,16 @@ def test_the_committed_ontology_already_satisfies_every_denial():
 
     This is what makes the two safety nets one: if the generated file ever drifts from the rules
     the generator applies, this fails whichever side moved.
+
+    ALL THREE TABLES, and it used to be two. `_BORROWED_CAPTION_DENIALS` was left out, so the
+    rulebook could carry an alias that table denies and nothing said so — and it did: 40 of them
+    across the seven `is_retained` concepts, "Undistributed profits" plus the four Chinese
+    spellings of the retained-earnings balance. That mattered because
+    `services.ontology_projection` copies `aliases`/`aliases_i18n` into the line-item set, so a
+    clean-up of the set alone survived only until the next projection.
     """
     raw = json.loads(ONTOLOGY.read_text(encoding="utf-8"))
-    governed = {**ALIAS_DENIALS, **_FOREIGN_CAPTION_DENIALS}
+    governed = {**ALIAS_DENIALS, **_FOREIGN_CAPTION_DENIALS, **_BORROWED_CAPTION_DENIALS}
     offending: dict[str, list[str]] = {}
     for mapping in raw["mappings"]:
         key = mapping["canonical_key"]

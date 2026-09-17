@@ -27,6 +27,7 @@ import copy
 from enum import Enum
 from typing import Any
 
+from app.services import spec_alias_curation
 from app.services.mapping import _KEY_SECTION_OVERRIDES
 
 # Ontology field -> line-item field, where the merge deliberately renamed it. `exclude` is the
@@ -155,6 +156,33 @@ def project_concept(m: Any) -> dict:
         if value is None or value == [] or value == {}:
             continue                     # absent stays absent; a default is not a declaration
         out[field] = _jsonable(value)
+
+    # THE ALIAS DENIALS APPLY TO WHAT IS PROJECTED, and until this they did not.
+    #
+    # `aliases` and `aliases_i18n` are in `SAME`, so they were copied out of the rulebook
+    # VERBATIM — which meant `services.spec_alias_curation` governed the rulebook build
+    # (`scripts/build_output_csv_template.py` curates as it writes) and the line-item set only for
+    # as long as nobody re-projected. Measured: the shipped rulebook declared 40 denied aliases
+    # across the seven `is_retained` concepts, so one `scripts/build_line_items.py` run would have
+    # put every one of them back into the file a RUN reads.
+    #
+    # Filtered HERE rather than in the script, because this is the function that copies them and
+    # `build_definitions` is called from more than one place (the build script, and
+    # `tests/test_pdf_extract`'s configuration helper). A denial is keyed by canonical key, so a
+    # concept no table names is returned exactly as before.
+    # `RENAMED` maps `canonical_key` onto `key`, so the concept is read for its own key rather
+    # than the projected dict — which carries the renamed one.
+    ckey = str(getattr(m, "canonical_key", "") or "")
+    if "aliases" in out:
+        out["aliases"] = spec_alias_curation.curate_aliases(ckey, out["aliases"])
+        if not out["aliases"]:
+            del out["aliases"]
+    if "aliases_i18n" in out:
+        kept = {loc: spec_alias_curation.curate_aliases(ckey, vals)
+                for loc, vals in out["aliases_i18n"].items()}
+        out["aliases_i18n"] = {loc: vals for loc, vals in kept.items() if vals}
+        if not out["aliases_i18n"]:
+            del out["aliases_i18n"]
 
     # A HARD-CODED CORRECTION, TURNED INTO DATA. `mapping._KEY_SECTION_OVERRIDES` holds one entry:
     # `is_pl__minority_interests_pl` -> `profit_attributable_to`. The concept declares `is_pl`,

@@ -14025,8 +14025,7 @@
    "label": "Cash Div Pref Shares(-)",
    "definition": "Extract the reported value for 'Cash Div Pref Shares(-)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
-    "Cash Div Pref Shares(-)",
-    "Undistributed profits"
+    "Cash Div Pref Shares(-)"
    ],
    "keyword_hints": [
     "Cash Div Pref Shares(-)"
@@ -14057,15 +14056,9 @@
    "section_disambiguation": "Bind only to Income Statement / is_retained.",
    "aliases_i18n": {
     "en": [
-     "Cash Div Pref Shares(-)",
-     "Undistributed profits"
+     "Cash Div Pref Shares(-)"
     ],
-    "zh": [
-     "保留溢利",
-     "未分配利润",
-     "留存收益",
-     "累计亏损"
-    ]
+    "zh": []
    }
   },
   {
@@ -14077,7 +14070,6 @@
     "Proposed dividends",
     "declared dividends",
     "Proposed final dividends",
-    "Undistributed profits",
     "Subsequent events",
     "Event after the reporting period"
    ],
@@ -14114,16 +14106,10 @@
      "Proposed dividends",
      "declared dividends",
      "Proposed final dividends",
-     "Undistributed profits",
      "Subsequent events",
      "Event after the reporting period"
     ],
-    "zh": [
-     "保留溢利",
-     "未分配利润",
-     "留存收益",
-     "累计亏损"
-    ]
+    "zh": []
    }
   },
   {
@@ -14135,8 +14121,7 @@
     "Common share dividends",
     "Dividends",
     "Cash dividends",
-    "distribution of cash dividends",
-    "Undistributed profits"
+    "distribution of cash dividends"
    ],
    "keyword_hints": [
     "Cash Div Common Shares(-)"
@@ -14171,15 +14156,9 @@
      "Common share dividends",
      "Dividends",
      "Cash dividends",
-     "distribution of cash dividends",
-     "Undistributed profits"
+     "distribution of cash dividends"
     ],
-    "zh": [
-     "保留溢利",
-     "未分配利润",
-     "留存收益",
-     "累计亏损"
-    ]
+    "zh": []
    }
   },
   {
@@ -14190,8 +14169,7 @@
     "Stock Dividends(NC)(-)",
     "stock dividends",
     "Bank stock dividends",
-    "Other stock dividends",
-    "Undistributed profits"
+    "Other stock dividends"
    ],
    "keyword_hints": [
     "Stock Dividends(NC)(-)"
@@ -14225,15 +14203,9 @@
      "Stock Dividends(NC)(-)",
      "stock dividends",
      "Bank stock dividends",
-     "Other stock dividends",
-     "Undistributed profits"
+     "Other stock dividends"
     ],
-    "zh": [
-     "保留溢利",
-     "未分配利润",
-     "留存收益",
-     "累计亏损"
-    ]
+    "zh": []
    }
   },
   {
@@ -14241,8 +14213,7 @@
    "label": "Transfer to Reserves(-)",
    "definition": "Extract the reported value for 'Transfer to Reserves(-)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
-    "Transfer to Reserves(-)",
-    "Undistributed profits"
+    "Transfer to Reserves(-)"
    ],
    "keyword_hints": [
     "Transfer to Reserves(-)"
@@ -14273,15 +14244,9 @@
    "section_disambiguation": "Bind only to Income Statement / is_retained.",
    "aliases_i18n": {
     "en": [
-     "Transfer to Reserves(-)",
-     "Undistributed profits"
+     "Transfer to Reserves(-)"
     ],
-    "zh": [
-     "保留溢利",
-     "未分配利润",
-     "留存收益",
-     "累计亏损"
-    ]
+    "zh": []
    }
   },
   {
@@ -14292,8 +14257,7 @@
     "Prior Period Adjustments",
     "Prior year adjustments",
     "Opening adjustments",
-    "Effect of change in accounting policy",
-    "Undistributed profits"
+    "Effect of change in accounting policy"
    ],
    "keyword_hints": [
     "Prior Period Adjustments"
@@ -14327,15 +14291,9 @@
      "Prior Period Adjustments",
      "Prior year adjustments",
      "Opening adjustments",
-     "Effect of change in accounting policy",
-     "Undistributed profits"
+     "Effect of change in accounting policy"
     ],
-    "zh": [
-     "保留溢利",
-     "未分配利润",
-     "留存收益",
-     "累计亏损"
-    ]
+    "zh": []
    }
   },
   {
@@ -14383,12 +14341,7 @@
     "en": [
      "Other Adj to Retained Profits"
     ],
-    "zh": [
-     "保留溢利",
-     "未分配利润",
-     "留存收益",
-     "累计亏损"
-    ]
+    "zh": []
    },
    "never_sweep": [
     "is_pl__profit_for_the_year",

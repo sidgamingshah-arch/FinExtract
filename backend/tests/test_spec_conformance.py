@@ -433,6 +433,66 @@ def test_a_retained_movement_line_does_not_claim_the_balance_in_chinese(line_ite
         f"changes in equity, so it names the column a movement prints under, never the movement")
 
 
+# ── and the same balance in English ───────────────────────────────────────────────────────────
+# "Undistributed profits" is the English of 未分配利润 and was on six of the seven. Its measurement
+# is the worst of the three, because the caption was matchable ONLY where it is wrong:
+#     match("Undistributed profits", statement="profit_and_loss")
+#         -> is_retained__cash_div_pref_shares, EXACT   (first of six at priority 10)
+#     match("Undistributed profits", statement="balance_sheet")
+#         -> None, UNMATCHED   — the balance line did not carry its own caption
+# So the denial ADDS as well as removes: the caption moves onto the concept whose Chinese already
+# includes the exact translation, and the two scripts of that concept now agree.
+RETAINED_BALANCE_EN = "Undistributed profits"
+
+
+@pytest.mark.parametrize("key", list(RETAINED_MOVEMENTS))
+def test_a_retained_movement_line_does_not_claim_the_balance_in_english(line_items, key):
+    assert normalize_label(RETAINED_BALANCE_EN) not in _line_item_aliases(line_items[key]), (
+        f"{key} carries {RETAINED_BALANCE_EN!r}, which names the retained-earnings BALANCE and "
+        f"belongs to {EQUITY_RETAINED}")
+
+
+def test_the_equity_concept_gained_the_english_balance_caption(line_items):
+    """The redirect, and it is an ADDITION — this concept did not carry the caption before, which
+    is why the alias was matchable on the income statement and nowhere else."""
+    assert normalize_label(RETAINED_BALANCE_EN) in _line_item_aliases(line_items[EQUITY_RETAINED])
+
+
+def test_an_english_balance_caption_binds_the_balance_and_not_a_movement(line_item_matcher):
+    on_pl = line_item_matcher.match(RETAINED_BALANCE_EN, statement="profit_and_loss", section=None)
+    assert (getattr(on_pl, "canonical_key", None) or "") not in RETAINED_MOVEMENTS, (
+        f"{RETAINED_BALANCE_EN} still binds {on_pl.canonical_key} on the income statement")
+    on_bs = line_item_matcher.match(RETAINED_BALANCE_EN, statement="balance_sheet", section=None)
+    assert getattr(on_bs, "canonical_key", None) == EQUITY_RETAINED, (
+        f"{RETAINED_BALANCE_EN} must now reach {EQUITY_RETAINED} on the balance sheet, not "
+        f"{getattr(on_bs, 'canonical_key', None)}")
+
+
+def test_the_projection_cannot_put_a_denied_alias_back(line_items):
+    """THE DOOR THE FIRST PASS LEFT OPEN. `ontology_projection.SAME` copies `aliases` and
+    `aliases_i18n` out of the rulebook verbatim, so cleaning the line-item set alone lasted only
+    until the next `scripts/build_line_items.py` run — and the rulebook declared all 40 of these.
+    Projecting the shipped rulebook must now reproduce a set with none of them.
+    """
+    from app.schemas.loader import load_ontology
+    from app.services.ontology_projection import build_definitions
+    from app.services.spec_alias_curation import denied_aliases
+
+    ont = load_ontology(json.loads(ONTOLOGY.read_text(encoding="utf-8")), resolve=True)
+    projected = {i["key"]: i for i in build_definitions(list(ont.mappings), [])[0]}
+    offending = {}
+    for key in RETAINED_MOVEMENTS:
+        entry = projected.get(key)
+        if entry is None:
+            continue
+        present = list(entry.get("aliases") or [])
+        for vals in (entry.get("aliases_i18n") or {}).values():
+            present += vals
+        if removed := denied_aliases(key, present):
+            offending[key] = removed
+    assert offending == {}, offending
+
+
 def test_the_equity_concept_keeps_its_chinese_balance_vocabulary(line_items):
     """Refuse-and-redirect, the Chinese half. The four spellings must still reach the concept
     whose label they are, or the denial has cost a Chinese filing its retained-earnings line."""

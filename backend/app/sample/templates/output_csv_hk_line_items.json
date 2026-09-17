@@ -15,7 +15,8 @@
    "declaration order follows the rulebook, so ties decided by order agree",
    "the eight output lines no longer name a service implementer. The five derivation services were REMOVED - deprec_impairment (~208 enumerated entries), contingent_liabilities (~172, its NUMBER only; its narrative disclosure survives), secur_fincl_assets (~91), related_party_receivables (~73), sales_revenues (~18): ~562 hand-enumerated note titles, row captions and formula variants in all. `implemented_by` is therefore deleted from all eight and every figure must now come from configuration. The six cascade-less lines - is_pl__sales_revenues, bs_ca__secur_and_other_fincl_assets_cp, bs_nca__secur_and_other_fincl_assets_ltp, bs_nca__due_from_related_parties_ltp, bs_ca__other_receivables_cp, notes__contingent_liabilities - are now `extracted`, since a `derived` line with neither a cascade nor an implementer is refused by LineItemDef; the two depreciation lines stay `derived` on their own cascades (P1-P5 and COS_P1/COS_P2). Cells these services used to fill go blank until the configuration reads them off a caption - that is the intended outcome, so do not reinstate a service name here. Mirrored in output_csv_hk_line_items_configured.json, which is the assembly half of this file",
    "authored expected_components prose on the 11 exclusive_residual buckets (3-4 caption phrases each, 37 in total): the payload block services.mapping._residual_expectations publishes as \"captions_with_no_dedicated_concept\" was empty on every statement, so an empty canonical_key was never a licensed answer. Each phrase was checked against all 462 concepts' labels and aliases in its own section; hkfrs_hk_china_ontology.json's wording was NOT copied - \"Bank overdrafts\", \"Pension surplus\", \"Right-of-use assets\", \"Biological assets\", \"Contract liabilities\", \"Bills receivable\", \"Merger reserve\", \"Deposits paid for acquisition of land\", \"Donations\" and \"Sales taxes and surcharges\" all have dedicated concepts here and would have routed real money into a sweep",
-   "replaced the zh aliases on the seven is_retained movement lines. All seven carried the identical list 保留溢利 / 未分配利润 / 留存收益 / 累计亏损 — four spellings of the retained-earnings BALANCE, which is bs_equity__retained_profits' own label and the is_retained SECTION's name, not any movement inside it. Provenance: scripts/enrich_output_csv_primary_aliases.py copies Chinese across by matching the ENGLISH alias, and hkfrs_hk_china_ontology.json's bs_equity__retained_earnings carries exactly those four against 'Retained profits' — which all seven lines then carried. spec_alias_curation._SECTION_NAME_IS_NOT_A_MOVEMENT later denied the English caption; the Chinese it had already pulled across was left stranded. Measured before this: 未分配利润 on a profit_and_loss page matched is_retained__cash_div_pref_shares EXACT at 1.0 (first of seven tied at priority 10) while the captions those lines are actually printed under — 对所有者（或股东）的分配, 提取法定盈余公积 — matched nothing. Each line now carries the CAS 所有者权益变动表 wording for its own movement plus the HK equivalent; the four balance spellings stay on bs_equity__retained_profits alone, which is the refuse-and-redirect the English side already used. The residual bucket is_retained__other_adj_to_retained_profits gets none: residual_framework.prohibitions says it is never populated by an alias match."
+   "replaced the zh aliases on the seven is_retained movement lines. All seven carried the identical list 保留溢利 / 未分配利润 / 留存收益 / 累计亏损 — four spellings of the retained-earnings BALANCE, which is bs_equity__retained_profits' own label and the is_retained SECTION's name, not any movement inside it. Provenance: scripts/enrich_output_csv_primary_aliases.py copies Chinese across by matching the ENGLISH alias, and hkfrs_hk_china_ontology.json's bs_equity__retained_earnings carries exactly those four against 'Retained profits' — which all seven lines then carried. spec_alias_curation._SECTION_NAME_IS_NOT_A_MOVEMENT later denied the English caption; the Chinese it had already pulled across was left stranded. Measured before this: 未分配利润 on a profit_and_loss page matched is_retained__cash_div_pref_shares EXACT at 1.0 (first of seven tied at priority 10) while the captions those lines are actually printed under — 对所有者（或股东）的分配, 提取法定盈余公积 — matched nothing. Each line now carries the CAS 所有者权益变动表 wording for its own movement plus the HK equivalent; the four balance spellings stay on bs_equity__retained_profits alone, which is the refuse-and-redirect the English side already used. The residual bucket is_retained__other_adj_to_retained_profits gets none: residual_framework.prohibitions says it is never populated by an alias match.",
+   "moved the English alias 'Undistributed profits' off the six is_retained movement lines and onto bs_equity__retained_profits — the same borrowed-balance defect the zh change above fixed. Measured before this, it was matchable ONLY where it is wrong: 'Undistributed profits' on a profit_and_loss page matched is_retained__cash_div_pref_shares EXACT (first of six tied at priority 10) while on a balance_sheet page it matched NOTHING, because the balance line did not own its own caption. So this denial adds as well as removes: the concept whose Chinese already includes 未分配利润, the exact translation, now answers to the English too and the two scripts agree. AND THE RULEBOOK CARRIED ALL OF IT: output_csv_hk_ontology.json declared 'Undistributed profits' plus the four Chinese spellings on the same seven concepts (40 aliases), and services.ontology_projection.SAME copies aliases/aliases_i18n verbatim — so the zh change above would have been undone by the next scripts/build_line_items.py run. The rulebook is cleaned to match, the projection now curates what it copies, and the ontology conformance test covers all three denial tables instead of two."
   ],
   "breaking_changes": [
    "the set is now 475 definitions, not 21"
@@ -5225,7 +5226,8 @@
     "Accumulated loss",
     "Earning/Profit for the year",
     "Retained earnings Appropriated",
-    "Retained earnings Unappropriated"
+    "Retained earnings Unappropriated",
+    "Undistributed profits"
    ],
    "aliases_i18n": {
     "en": [
@@ -5235,7 +5237,8 @@
      "Accumulated loss",
      "Earning/Profit for the year",
      "Retained earnings Appropriated",
-     "Retained earnings Unappropriated"
+     "Retained earnings Unappropriated",
+     "Undistributed profits"
     ],
     "zh": [
      "保留溢利",
@@ -12781,13 +12784,11 @@
    "label": "Cash Div Pref Shares(-)",
    "definition": "Extract the reported value for 'Cash Div Pref Shares(-)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
-    "Cash Div Pref Shares(-)",
-    "Undistributed profits"
+    "Cash Div Pref Shares(-)"
    ],
    "aliases_i18n": {
     "en": [
-     "Cash Div Pref Shares(-)",
-     "Undistributed profits"
+     "Cash Div Pref Shares(-)"
     ],
     "zh": [
      "优先股股利",
@@ -12819,7 +12820,6 @@
     "Proposed dividends",
     "declared dividends",
     "Proposed final dividends",
-    "Undistributed profits",
     "Subsequent events",
     "Event after the reporting period"
    ],
@@ -12829,7 +12829,6 @@
      "Proposed dividends",
      "declared dividends",
      "Proposed final dividends",
-     "Undistributed profits",
      "Subsequent events",
      "Event after the reporting period"
     ],
@@ -12864,8 +12863,7 @@
     "Common share dividends",
     "Dividends",
     "Cash dividends",
-    "distribution of cash dividends",
-    "Undistributed profits"
+    "distribution of cash dividends"
    ],
    "aliases_i18n": {
     "en": [
@@ -12873,8 +12871,7 @@
      "Common share dividends",
      "Dividends",
      "Cash dividends",
-     "distribution of cash dividends",
-     "Undistributed profits"
+     "distribution of cash dividends"
     ],
     "zh": [
      "对所有者（或股东）的分配",
@@ -12908,16 +12905,14 @@
     "Stock Dividends(NC)(-)",
     "stock dividends",
     "Bank stock dividends",
-    "Other stock dividends",
-    "Undistributed profits"
+    "Other stock dividends"
    ],
    "aliases_i18n": {
     "en": [
      "Stock Dividends(NC)(-)",
      "stock dividends",
      "Bank stock dividends",
-     "Other stock dividends",
-     "Undistributed profits"
+     "Other stock dividends"
     ],
     "zh": [
      "股票股利",
@@ -12946,13 +12941,11 @@
    "label": "Transfer to Reserves(-)",
    "definition": "Extract the reported value for 'Transfer to Reserves(-)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
-    "Transfer to Reserves(-)",
-    "Undistributed profits"
+    "Transfer to Reserves(-)"
    ],
    "aliases_i18n": {
     "en": [
-     "Transfer to Reserves(-)",
-     "Undistributed profits"
+     "Transfer to Reserves(-)"
     ],
     "zh": [
      "提取盈余公积",
@@ -12985,16 +12978,14 @@
     "Prior Period Adjustments",
     "Prior year adjustments",
     "Opening adjustments",
-    "Effect of change in accounting policy",
-    "Undistributed profits"
+    "Effect of change in accounting policy"
    ],
    "aliases_i18n": {
     "en": [
      "Prior Period Adjustments",
      "Prior year adjustments",
      "Opening adjustments",
-     "Effect of change in accounting policy",
-     "Undistributed profits"
+     "Effect of change in accounting policy"
     ],
     "zh": [
      "前期差错更正",
