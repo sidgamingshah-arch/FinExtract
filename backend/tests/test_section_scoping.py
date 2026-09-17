@@ -600,19 +600,23 @@ def _matcher(st):
                            settings=get_settings(), llm_provider=None)
 
 
-def test_the_list_gate_agrees_with_the_single_value_it_replaced():
-    """THE MIGRATION SAFETY PROPERTY, measured rather than argued.
+# THE ONE SET OF LINES THAT DECLARES THE LIST, and therefore the one documented departure from the
+# parity property below. The seven `is_retained` movements are printed in the statement of changes
+# in equity, not on the income statement their section names, so each declares
+# `statements: [equity_changes, profit_and_loss]` — see `tests/test_equity_statement_gate.py`.
+_DECLARES_THE_LIST = (
+    "is_retained__cash_div_pref_shares", "is_retained__proposed_cash_dividends",
+    "is_retained__cash_div_common_shares", "is_retained__stock_dividends_nc",
+    "is_retained__transfer_to_reserves", "is_retained__prior_period_adjustments",
+    "is_retained__other_adj_to_retained_profits",
+)
 
-    `statements` supersedes the singular `statement`, and the singular is folded into it on load.
-    So on a set that declares only the singular — which is every shipped line — the list gate must
-    answer exactly what the single-value gate answered, or introducing the field silently re-gates
-    527 concepts and every subtotal still ties.
-    """
+
+def _statement_gate_probe():
     from app.services.line_item_config import load_shipped_set
     from app.services.mapping import normalize_statement, statement_of_key
 
-    st = load_shipped_set()
-    m = _matcher(st)
+    m = _matcher(load_shipped_set())
     statements = ["balance_sheet", "profit_and_loss", "cash_flow", "changes_in_equity",
                   "notes", "statement_setup", "covenants_supplemental", None, "nonsense"]
 
@@ -625,11 +629,50 @@ def test_the_list_gate_agrees_with_the_single_value_it_replaced():
         have = declared or statement_of_key(key)
         return have is None or have == want
 
-    disagreements = [(k, s) for k in m._by_key for s in statements
+    return m, statements, the_old_way
+
+
+def test_the_list_gate_agrees_with_the_single_value_it_replaced():
+    """THE MIGRATION SAFETY PROPERTY, measured rather than argued.
+
+    `statements` supersedes the singular `statement`, and the singular is folded into it on load.
+    So on a line that declares only the singular the list gate must answer exactly what the
+    single-value gate answered, or introducing the field silently re-gates 527 concepts and every
+    subtotal still ties.
+
+    IT USED TO SAY "WHICH IS EVERY SHIPPED LINE", and that premise expired the moment a line was
+    migrated. Seven now declare the list — `_DECLARES_THE_LIST` — so they are excluded here and
+    characterised in the test below rather than being allowed to weaken this one. The property is
+    unchanged for the other 520.
+    """
+    m, statements, the_old_way = _statement_gate_probe()
+
+    disagreements = [(k, s) for k in m._by_key if k not in _DECLARES_THE_LIST
+                     for s in statements
                      if m._in_statement(k, s) != the_old_way(k, s)]
     assert not disagreements, disagreements[:20]
     # And the comparison is not vacuous: the gate really does refuse things.
     assert any(not m._in_statement(k, "cash_flow") for k in m._by_key)
+
+
+def test_a_migrated_line_only_ever_widens_what_the_single_value_admitted():
+    """THE SHAPE OF THE EXCEPTION, so a migration cannot quietly NARROW a line.
+
+    `_in_statement` admits a concept under any statement it declares, so adding an entry can only
+    ever admit more. That is the property worth pinning: wherever the single-value gate said yes
+    the list gate must still say yes, and the seven must differ from it on exactly one statement —
+    the equity statement they were migrated for.
+    """
+    m, statements, the_old_way = _statement_gate_probe()
+
+    narrowed = [(k, s) for k in _DECLARES_THE_LIST for s in statements
+                if the_old_way(k, s) and not m._in_statement(k, s)]
+    assert not narrowed, f"a migrated line lost a statement it used to be admitted on: {narrowed}"
+
+    widened = {k: sorted(s for s in statements
+                         if m._in_statement(k, s) and not the_old_way(k, s))
+               for k in _DECLARES_THE_LIST}
+    assert widened == {k: ["changes_in_equity"] for k in _DECLARES_THE_LIST}, widened
 
 
 def test_a_caption_printed_on_two_statements_can_declare_both():
