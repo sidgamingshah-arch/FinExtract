@@ -330,11 +330,17 @@ def route_of(item) -> str:
     `face` never reaches this stage at all (`_declared_items` filters it). A line that declares
     nothing is read as `note_tables`, which is what carrying a `note_source` has always meant.
 
-    `anywhere` IS `note_tables` HERE, and its own behaviour is one gate away: it searches rows and
-    falls back to prose exactly as `note_tables` does, and what distinguishes it is that
-    `services.note_sections.open_to` refuses to narrow its note search to its own section. That is
-    the route's only effect in the pipeline — see that function for why it is the only constraint
-    the route can honestly lift.
+    `anywhere` IS `note_tables` HERE, and that is still true: it searches rows and falls back to
+    prose exactly as `note_tables` does. What distinguishes it lives outside this stage, in three
+    places — `services.note_sections.open_to` refuses to narrow its note search to its own
+    section, `services.pdf_extract` reconstructs EVERY page when any line declares it, and
+    `services.line_item_llm` supplies those pages and accepts a citation naming one.
+
+    `note_tables` AND `prose` NOW REFUSE THE FACE, which is not this function's doing and is worth
+    saying here because this is where a reader comes to learn what a route means. The refusal is
+    enforced where a face figure is actually written — `stages.map_ontology` for the deterministic
+    proposal, `stages.line_item_llm` for a citation — and the predicate both read is
+    `services.line_item_routes.may_read_face`.
     """
     route = str(getattr(item, "route", "") or "")
     return route if route in ("face", "note_tables", "prose", "anywhere") else "note_tables"

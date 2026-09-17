@@ -239,6 +239,39 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     if not targets:
         targets = list(doc.pages)
 
+    # A LINE DECLARED `anywhere` MEANS EVERY PAGE, and this is where that has to be honoured.
+    #
+    # The route's name promised the whole filing and it could not deliver it — a page nothing
+    # reconstructs has no rows, so "search everywhere" had nowhere to search. `note_sections.
+    # open_to` lifting the section narrowing was the only behaviour the route had, and that only
+    # widens which NOTES a line may read. The pages beyond the statements and the notes — a
+    # directors' report, a five-year summary, an unclassified schedule — were never read at all,
+    # by any route.
+    #
+    # GATED ON THE CONFIGURATION, NOT ON A SETTING. Reading every page costs a reconstruction pass
+    # per page and puts rows with no statement and no note into `doc.line_items`, so it happens
+    # only where an author asked for it. None of the shipped 527 lines declares `anywhere`, so this
+    # widening costs a shipped run nothing.
+    #
+    # WHAT SUCH A ROW IS AND IS NOT. It is a printed caption with figures and a page provenance,
+    # citable by page (`services.face_context.other_page_rows`). It is NOT a statement row: its
+    # page carries no statement, so it reaches no alias matching in `stages.map_ontology` through
+    # the statement gate, and the units its figures are stated in are the DOCUMENT's rather than a
+    # verified page scale — `stages.line_item_llm` flags a figure taken off one for that reason.
+    from app.services import line_item_routes
+
+    if line_item_routes.any_reads_every_page(getattr(ctx, "line_items", None)):
+        # BY INDEX, NOT BY OBJECT. `PageSource` is a pydantic model and compares by field value,
+        # so two blank pages of the same size are `==` and an identity test written as `not in`
+        # would report a page already targeted as newly widened.
+        already = {int(getattr(t, "index", -1)) for t in targets}
+        widened = [p for p in doc.pages if int(getattr(p, "index", -1)) not in already]
+        if widened:
+            targets = list(doc.pages)
+            ctx.log(f"extract:anywhere_route_widened_pages={len(widened)} "
+                    f"(a line declares route=anywhere, so every page is reconstructed and not "
+                    f"only the statements and the notes)")
+
     # Honour an explicit user page scope (from the Page Scope screen): keep only pages the
     # user chose to include. An empty selection is treated as "no restriction" so a stray
     # empty list can never silently extract nothing.

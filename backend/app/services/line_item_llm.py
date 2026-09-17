@@ -49,7 +49,8 @@ from typing import ClassVar
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.services import line_item_notes, line_item_requests, note_context, note_sourced
+from app.services import (line_item_notes, line_item_requests, line_item_routes, note_context,
+                          note_sourced)
 from app.services.mapping import SourceRef
 
 
@@ -65,19 +66,32 @@ REPLY_CONTRACT = (
     "WHERE ITS FIGURE IS PRINTED. You are not choosing what the line is — the line, its "
     "definition and its inclusions are given to you.\n"
     "\n"
-    "TWO PLACES A FIGURE IS PRINTED, and each entry of `sources` names ONE of them:\n"
+    "THREE PLACES A FIGURE IS PRINTED, and each entry of `sources` names ONE of them:\n"
     "- A NOTE ROW. Give the note number in `note` and the row caption in `caption`. The notes "
     "under `notes` are the ones this line's configuration selected.\n"
     "- A ROW ON THE FACE OF A STATEMENT. Give the statement token in `statement` — the same token "
     "the line carries as `statement` — and the row caption in `caption`, and leave `note` empty. "
     "The rows under `statement_rows` are that statement as the filing prints it, in order.\n"
+    "- A ROW ON ANY OTHER PAGE, where `other_pages` is supplied. Give that block's `page` number "
+    "in `page` and the row caption in `caption`, and leave the note and the statement empty. "
+    "These are the pages of the filing that are neither a statement nor a note, and only a line "
+    "whose `read_from` says the whole filing may cite one.\n"
+    "\n"
+    "EACH LINE SAYS WHERE IT MAY BE READ FROM (`read_from`), and a citation outside that is "
+    "refused. A line read from a note's rows carries no `statement` token and no statement rows "
+    "of its own — its figure is in a note, and a row on the face is not it, however closely the "
+    "caption matches. A line read from the face carries the statement and its printed rows.\n"
     "\n"
     "A SUPPLIED STATEMENT ROW MAY ALREADY NAME A LINE (`line`). That is the answer the lexical "
     "reader already reached for it, and it is what you are being asked about:\n"
     "- To CONFIRM it, cite that row. The figure is unchanged and your agreement is recorded.\n"
     "- To CORRECT it, cite the row you believe is this line's instead. The figure moves, and what "
     "it replaced is recorded.\n"
-    "- To leave it alone, answer with an empty `sources`. The printed figure stands.\n"
+    "- To leave it alone, answer with an empty `sources`. The printed figure stands — UNLESS you "
+    "have given that same printed row to a DIFFERENT line, in which case the row belongs to that "
+    "line and this one is left empty. A printed row states one line's figure, so citing it for "
+    "one line is also saying it is not another's. Where two lines could take the same row, cite "
+    "it for the one you mean and leave the other empty deliberately.\n"
     "\n"
     "- Answer with the line item's `key`, exactly as given. Never a key that was not given to "
     "you, and never more than one answer for the same key.\n"
@@ -99,9 +113,10 @@ REPLY_CONTRACT = (
     "in the entry's `amount`, with the sentence in `quote`. It is checked against the note's own "
     "text and refused if it is not there, so give it exactly as printed and never round, convert "
     "or infer one.\n"
-    "- Do not cite a note or a statement that was not supplied to you. If this line's figure is "
-    "in neither what you were given, say so with an empty `sources` — that is a valid and useful "
-    "answer, and where a statement row already named this line it leaves that figure standing.\n"
+    "- Do not cite a note or a statement that was not supplied to you, and do not cite a place "
+    "this line's `read_from` excludes. If this line's figure is in nothing you were given, say so "
+    "with an empty `sources` — that is a valid and useful answer, and where a statement row "
+    "already named this line it leaves that figure standing.\n"
     "- Return calibrated confidence in [0,1] — high only where the caption is unambiguous — and "
     "in `reason`, which criterion or wording makes the rows you named this line's. Each row's own "
     "page, note and caption are recovered here, so `reason` is the one part of the trace only you "
@@ -191,6 +206,15 @@ _STATEMENT_LABEL: dict[str, str] = {
 }
 
 
+#: What each route permits, in the request's own words. Keyed by the token an author declares.
+_ROUTE_LABEL = {
+    "face": "the face of its statement only — its figure is not in a note",
+    "note_tables": "a row of one of its notes only — its figure is not on the face of a statement",
+    "prose": "a sentence in one of its notes only — its figure is not on the face of a statement",
+    "anywhere": "anywhere in the filing — a statement, a note, or any other page supplied",
+}
+
+
 def line_item_payload(item, notes_for_item: tuple[str, ...]) -> dict:
     """One line item as the model is shown it — its own configuration, and nothing else's.
 
@@ -274,7 +298,28 @@ def line_item_payload(item, notes_for_item: tuple[str, ...]) -> dict:
         # reader's label ("Consolidated statement of financial position (balance sheet)") while
         # `services.face_context` keys its blocks by the token, and a model asked to match one
         # against the other is being asked to guess at a mapping neither side states.
-        entry["statement"] = statement
+        # ONLY FOR A LINE THAT MAY BE READ OFF THE FACE. The token is the JOIN KEY a citation
+        # names to point at a printed statement row, so sending it to a line whose route says the
+        # statement is not its source is an invitation to cite a row that will then be refused
+        # (`services.note_sourced.resolve_sources`, `allow_face=False`). `printed_in` stays either
+        # way: "Notes to the financial statements" is where those 19 lines say they are printed,
+        # and it is prose rather than a key the model can cite.
+        if line_item_routes.may_read_face(item):
+            entry["statement"] = statement
+    # WHERE THIS LINE MAY BE READ FROM, said in one word rather than left to be inferred.
+    #
+    # The routes are not all the same question and the request used to express none of them. A
+    # `note_tables` line is not "a line that happens to have notes attached" — its author said the
+    # figure is printed in a note and NOT on the statement — and a request that merely omitted the
+    # statement block left the model to guess whether the statement was absent or forbidden. The
+    # four values are the four routes, spelled for a reader rather than as engine tokens, and
+    # `line_item_llm.REPLY_CONTRACT` says what each one permits a citation to name.
+    #
+    # OMITTED FOR A LINE THAT DECLARES NO ROUTE, which is 100 of the 506 asked-about lines.
+    # Absence is "nothing was said", and stating a permission the author never wrote would make
+    # the silent majority read as the permissive route by assertion instead of by convention.
+    if route := line_item_routes.declared_route(item):
+        entry["read_from"] = _ROUTE_LABEL[route]
     # `prompt` IS NO LONGER A SECOND FIELD. Definition and prompt are one authored thing now — the
     # merge is done on the way in (`schemas.line_items.LineItemDef.definition`), so there is nothing
     # left to append here and no `instruction` key. A set written before the merge still loads, and
@@ -289,7 +334,8 @@ def line_item_payload(item, notes_for_item: tuple[str, ...]) -> dict:
 
 
 def build_request(plan, by_key: dict, notes_of: dict, identified: list[dict],
-                  face: list[dict] | None = None) -> dict:
+                  face: list[dict] | None = None,
+                  other_pages: list[dict] | None = None) -> dict:
     """The user message for one request: the lines, then the notes and the statement they share.
 
     THE NOTES GO ONCE, BESIDE THE LINES, not inside each one. That is the entire saving grouping
@@ -309,6 +355,13 @@ def build_request(plan, by_key: dict, notes_of: dict, identified: list[dict],
     `face` DEFAULTS TO NONE RATHER THAN BEING REQUIRED, so every existing caller — the audit
     scripts among them — keeps working and a run with no face context is the behaviour that was
     there before.
+
+    `other_pages` IS THE `anywhere` ROUTE'S OWN BLOCK, and it is supplied only to a request that
+    holds a line declaring that route. It is `services.face_context.other_page_rows` — the printed
+    rows of the pages that are neither a statement nor a note, which exist at all only because
+    that declaration widened the extractor. Sent last because it is the least likely place a
+    figure is printed and the most expensive block to read: it is every remaining page of the
+    filing, where the note and statement blocks are a selection.
     """
     wanted = set(plan.notes)
     out = {
@@ -323,6 +376,11 @@ def build_request(plan, by_key: dict, notes_of: dict, identified: list[dict],
     # — the same reason `line_item_payload` omits an empty `exclude`.
     if face:
         out["statement_rows"] = face
+    # SAME RULE, ONE LEVEL WIDER: omitted entirely when empty rather than sent as an empty list,
+    # so a request for a line with no `anywhere` declaration says nothing about other pages rather
+    # than saying there are none.
+    if other_pages:
+        out["other_pages"] = other_pages
     return out
 
 
@@ -473,7 +531,8 @@ def plan_and_notes(line_item_set, notes, settings, *, doc=None):
     return plans, by_key, notes_of, identified
 
 
-def resolve(answer: LineItemAnswer, notes, face=None
+def resolve(answer: LineItemAnswer, notes, face=None, *, allow_face: bool = True,
+            pages=None, allow_pages: bool = False
             ) -> tuple[list[dict], list[dict], dict[str, Decimal]]:
     """``(resolved, unresolved, figures)`` for one answer. The model supplies none of the figures.
 
@@ -481,7 +540,17 @@ def resolve(answer: LineItemAnswer, notes, face=None
     than a note is looked up in. It defaults to None so a caller with no document (the audit
     scripts) keeps working, and a citation naming a statement then reports unresolved rather than
     silently resolving against the notes.
+
+    `allow_face=False` is a line whose route says the face is not its source — `note_tables` or
+    `prose`. Its request carries no statement block and a citation naming one is refused with that
+    as the reason (`services.note_sourced.resolve_sources`).
+
+    `pages` / `allow_pages` are the same pair for the `anywhere` route: the index of the rows on
+    pages that are neither a statement nor a note, and whether THIS line may cite one. Both are
+    off by default, so a caller that knows nothing about the route keeps the behaviour it had.
     """
-    resolved, unresolved = note_sourced.resolve_sources(answer.sources, notes, face)
+    resolved, unresolved = note_sourced.resolve_sources(answer.sources, notes, face,
+                                                        allow_face=allow_face,
+                                                        pages=pages, allow_pages=allow_pages)
     component = str(answer.role or "").strip().lower() == "component"
     return resolved, unresolved, figures_of(resolved, list(answer.signs or ()), component)

@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.services import line_item_notes
+from app.services import line_item_notes, line_item_routes
 
 
 @dataclass(frozen=True)
@@ -174,6 +174,35 @@ def plan_requests(line_item_set, notes, settings, *, cited=None) -> list[Request
         plans.append(RequestPlan(name=key, keys=(key,), notes=notes_of.get(key, ()),
                                  sections=_sections_of_item(by_key[key])))
     return plans
+
+
+def face_statements(plan, by_key: dict) -> set[str]:
+    """The statement tokens whose PRINTED ROWS this plan may be supplied, given its lines' routes.
+
+    WHAT IT REPLACES: `{st for st, _sec in plan.sections}`, read straight off the plan. That set
+    describes where the plan's lines are GATED, which is not the same question as where they may
+    be READ FROM — a line declared `note_tables` is gated to a statement and forbidden the face,
+    and the old set handed its request the statement's rows anyway.
+
+    THE FILTER IS PER KEY, NOT PER PLAN, because a plan can mix. The note-set grouping puts lines
+    together by the notes they select and knows nothing about their routes, so one request can
+    carry a face line and a note-only line; supplying the block on the strength of the face line is
+    right, and it is the note-only line's CITATION that is then refused
+    (`services.note_sourced.resolve_sources`, `allow_face=False`). What this stops is the other
+    case — a plan whose lines are ALL note-only being sent a statement it must not read.
+
+    EMPTY MEANS NO BLOCK. `services.face_context.face_rows` returns nothing for an empty set, which
+    is the behaviour a run had before the block existed.
+    """
+    eligible = [by_key[k] for k in (getattr(plan, "keys", None) or ())
+                if k in by_key and line_item_routes.may_read_face(by_key[k])]
+    if not eligible:
+        return set()
+    declared = {st for st, _sec in (getattr(plan, "sections", None) or ()) if st}
+    if not declared:
+        return set()
+    own = {st for item in eligible for st, _sec in _sections_of_item(item) if st}
+    return declared & own
 
 
 def _sections_of_item(item) -> tuple[tuple[str, str], ...]:

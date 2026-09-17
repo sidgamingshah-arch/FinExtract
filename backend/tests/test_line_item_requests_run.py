@@ -531,6 +531,13 @@ def test_what_a_line_declares_about_its_row_does_NOT_reach_the_request(shipped):
     # What it adds is a JOIN: `services.face_context` keys its statement blocks by the token, and a
     # model asked to match "Consolidated statement of financial position (balance sheet)" against
     # `balance_sheet` is being asked to guess at a mapping neither side states.
+    #
+    # `read_from` IS ADMISSIBLE ON THE SAME GROUND. It is the `route` — which of the statement, a
+    # note's rows, a note's prose or the whole filing this line's figure may be taken from — and
+    # the resolver now ENFORCES it (`services.note_sourced.resolve_sources`, `allow_face` and
+    # `allow_pages`). Carrying no lexical evidence, it is the opposite of the withheld fields: a
+    # constraint the answer is graded against has to be in the request, which is the whole
+    # principle the two-route split rests on.
     assert set(entry) <= {"key", "label", "notes_supplied", "definition", "exclude",
-                          "printed_in", "statement", "sign_convention"}
+                          "printed_in", "statement", "read_from", "sign_convention"}
     assert entry["key"] == item.key and entry["notes_supplied"] == ["7"]

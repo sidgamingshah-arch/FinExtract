@@ -39,7 +39,7 @@ from app.core.models.line_item import LineItem
 from app.core.stage import PipelineContext, Stage
 from app.ports.registry import registry
 from app.services import (face_context, line_item_llm, line_item_notes, line_item_requests,
-                          note_sourced)
+                          line_item_routes, note_sourced)
 from app.services.mapping import authored_guidance
 from app.services.working_view import build_working_view
 # ONE WRITER FOR A FIGURE, so the two routes into a line cannot disagree about what writing one
@@ -169,14 +169,37 @@ class LineItemLlmStage(Stage):
 
         by_concept = {li.canonical_key: li for li in doc.line_items if li.canonical_key}
         filled = answered = unresolved_total = 0
+        # WHICH PRINTED FACE ROW WENT TO WHICH LINE, and which lines are still standing on one the
+        # model did not answer about. Both are collected across the WHOLE run and reconciled after
+        # the last request, because the two facts arrive in either order: the request that claims a
+        # row can be made long after the request that left another line standing on it.
+        # `_reconcile_claimed_printed_rows` says what is then done.
+        claimed_face_rows: dict[str, str] = {}
+        kept_printed: list[tuple[str, LineItem]] = []
         calls = failures = 0
         for done, plan in enumerate(plans, start=1):
-            # THE STATEMENT THIS REQUEST'S LINES ARE GATED TO, supplied once beside them. A face
-            # line selects no note, so without this its request carries nothing to locate a figure
-            # in — see `services.face_context`. Built per plan rather than once per document
+            # THE STATEMENT THIS REQUEST'S LINES MAY BE READ FROM, supplied once beside them. A
+            # face line selects no note, so without this its request carries nothing to locate a
+            # figure in — see `services.face_context`. Built per plan rather than once per document
             # because a plan names its own statements and another plan's statement is noise.
-            face = face_context.face_rows(doc, {st for st, _sec in (plan.sections or ())})
-            request = line_item_llm.build_request(plan, by_key, notes_of, identified, face)
+            #
+            # THE ROUTE DECIDES, NOT THE GATE. `plan.sections` says where the lines are GATED; a
+            # line declared `note_tables` or `prose` is gated to a statement and forbidden to take
+            # a figure off it, so `face_statements` intersects the gate with the routes before the
+            # block is built. A plan whose lines are all note-only gets no statement block at all.
+            face = face_context.face_rows(
+                doc, line_item_requests.face_statements(plan, by_key))
+            # AND THE PAGES THAT ARE NEITHER, for a request holding a line that declares
+            # `anywhere`. Those pages are reconstructed only because such a line exists
+            # (`services.pdf_extract`), so for every other request this is empty and the block is
+            # omitted. Built per plan rather than once per run for the same reason the statement
+            # block is: a request that may not cite these pages should not be paying to read them.
+            other_pages = (face_context.other_page_rows(doc)
+                           if any(k in by_key and line_item_routes.reads_every_page(by_key[k])
+                                  for k in plan.keys)
+                           else [])
+            request = line_item_llm.build_request(plan, by_key, notes_of, identified, face,
+                                                  other_pages)
             if not request["line_items"]:
                 continue
             try:
@@ -216,8 +239,18 @@ class LineItemLlmStage(Stage):
                     continue
                 seen.add(key)
                 item = by_key[key]
-                resolved, unresolved, _ = line_item_llm.resolve(answer, doc.notes,
-                                                               face_context.face_index(doc))
+                # THE SAME FENCE ON THE WAY BACK. Supplying no statement block does not stop
+                # a model naming a statement token anyway, and a caption that matches a printed
+                # face row would then resolve — publishing, for a line whose author said the
+                # figure is in a note, the statement row the request never showed it. Refused by
+                # `resolve_sources` and named as itself, so the flag on the row says the PLACE was
+                # wrong rather than the caption.
+                may_face = line_item_routes.may_read_face(item)
+                may_pages = line_item_routes.reads_every_page(item)
+                resolved, unresolved, _ = line_item_llm.resolve(
+                    answer, doc.notes, face_context.face_index(doc), allow_face=may_face,
+                    pages=face_context.other_page_index(doc) if may_pages else None,
+                    allow_pages=may_pages)
                 unresolved_total += len(unresolved)
                 for bad in unresolved:
                     ctx.log(f"line_item_llm:{key}: citation NOT resolved "
@@ -275,11 +308,29 @@ class LineItemLlmStage(Stage):
                     # NOTHING WAS LOCATED AND NOTHING WAS EVEN CLAIMED. No figure can be published,
                     # so the answer is recorded on the row instead of vanishing — `_write_unanswered`
                     # says why, so the review queue and the workspace can show what the model said.
-                    self._write_unanswered(doc, by_concept, item, answer, unresolved, ctx)
+                    self._write_unanswered(doc, by_concept, item, answer, unresolved, ctx,
+                                           kept_printed)
                     continue
                 answered += 1
                 filled += self._write(doc, by_concept, item, answer, resolved, figures, ctx,
                                       unverified)
+                # THE CITATION IS ALSO A CLAIM. A printed face row states ONE line's figure, so
+                # naming it here is also saying it is not any other line's — recorded by row
+                # identity rather than by caption, because two statements can print the same words.
+                for entry in resolved:
+                    if not (entry.get("on_face") and entry.get("row_id")):
+                        continue
+                    rid = str(entry["row_id"])
+                    first = claimed_face_rows.setdefault(rid, item.key)
+                    if first != item.key:
+                        # TWO LINES GIVEN THE SAME PRINTED ROW. Both publish it — the figures are
+                        # already written by the time this is known, and this pass withholds a
+                        # figure only from a line the model answered EMPTY, which neither of these
+                        # is. Said out loud because it is the model contradicting itself about a
+                        # row, and the first claimant is the owner only because it was asked first.
+                        ctx.log(f"line_item_llm:{item.key}: cites a printed row already given to "
+                                f"{first} ({str(entry.get('caption') or '')[:48]!r}) — both lines "
+                                f"publish it")
             missing = sorted(asked - seen)
             if missing:
                 # Said out loud: these lines were paid for and came back unanswered. They fall to
@@ -288,8 +339,10 @@ class LineItemLlmStage(Stage):
                 ctx.log(f"line_item_llm:unanswered({plan.name}) {missing}")
             ctx.emit_step(done, len(plans), "line-item request")
 
+        blanked = self._reconcile_claimed_printed_rows(kept_printed, claimed_face_rows, ctx)
         ctx.log(f"line_item_llm:calls={calls} failed={failures} lines_answered={answered} "
-                f"figures_written={filled} citations_unresolved={unresolved_total}")
+                f"figures_written={filled} citations_unresolved={unresolved_total}"
+                + (f" printed_rows_blanked_because_claimed_elsewhere={blanked}" if blanked else ""))
         if calls and answered:
             # A NEW STRATEGY LABEL, because the two existing ones would both be untrue here.
             #
@@ -365,6 +418,21 @@ class LineItemLlmStage(Stage):
                 f" ({what})")
         if unverified:
             row.confidence.flags.append(f"llm_unverified_terms:{len(unverified)}")
+        # A FIGURE OFF A PAGE THAT IS NEITHER A STATEMENT NOR A NOTE CARRIES AN UNVERIFIED SCALE,
+        # and that is said on the row rather than assumed away. `stages.normalize` reads the units
+        # a STATEMENT page declares — "RMB'000", "人民币万元" — and scales the document by them; a
+        # page the classifier could not name declares nothing this run resolved, so its figures
+        # were scaled by the document's units with nothing confirming those units apply to that
+        # page. The figure is real and its magnitude is a step less certain than a statement's, so
+        # the line goes to review with the page named. Only the `anywhere` route can reach one
+        # (`services.note_sourced.resolve_sources`, `allow_pages`).
+        off_statement = sorted({int(e["page"]) for e in resolved
+                                if e.get("off_statement") and e.get("page") is not None})
+        if off_statement:
+            row.confidence.flags.append(
+                "llm_off_statement_page_scale_unverified:page "
+                + ", ".join(str(n) for n in off_statement))
+            row.confidence.flags.append("low_mapping_confidence")
         if answer.reason:
             # The model's own stated justification, surfaced rather than only logged: a reviewer
             # asking why these rows are this line sees the reasoning and not only a score. Each
@@ -406,7 +474,7 @@ class LineItemLlmStage(Stage):
         return written
 
     def _write_unanswered(self, doc, by_concept: dict, item, answer, unresolved: list[dict],
-                          ctx) -> int:
+                          ctx, kept_printed: list | None = None) -> int:
         """The model answered and NOTHING could be located. Record the answer anyway.
 
         WHAT THIS REPLACES: `if not resolved: continue`. Nothing whatever reached the row — no
@@ -447,11 +515,21 @@ class LineItemLlmStage(Stage):
         # A ROW WITH NO DETERMINISTIC ANSWER IS STILL CLAIMED, because there is nothing to protect
         # and "the model was asked and found nothing" is then the only thing known about the line.
         # `_llm_holds` stays false for it regardless: the slot has no value.
+        #
+        # AND KEEPING IT IS PROVISIONAL, which is the one thing this branch cannot settle on its
+        # own. "The model found nothing for this line" and "the model gave this line's printed row
+        # to another line" are both empty answers here, and only the first means the printed figure
+        # is still this line's. The row is recorded in `kept_printed` and the question is settled
+        # after the last request — see `_reconcile_claimed_printed_rows`.
         prior_method = str(row.confidence.method or "")
         if prior_method and not prior_method.lower().endswith("llm"):
             row.confidence.flags.append(
                 f"llm_located_nothing_kept_{prior_method}:"
                 f"{float(row.confidence.mapping or 0.0):.2f}")
+            if kept_printed is not None and any(
+                    getattr(ev, "value", None) is not None
+                    for ev in (row.values or {}).values()):
+                kept_printed.append((item.key, row))
         else:
             row.confidence.method = MappingMethod.LLM.value
             row.confidence.mapping = float(answer.confidence or 0.0)
@@ -465,6 +543,59 @@ class LineItemLlmStage(Stage):
         ctx.log(f"line_item_llm:{item.key}: answered but nothing located — "
                 f"{len(unresolved)} citation(s) recorded on the row, no figure written")
         return 0
+
+    @staticmethod
+    def _reconcile_claimed_printed_rows(kept_printed: list[tuple[str, LineItem]],
+                                        claimed: dict[str, str], ctx) -> int:
+        """A line kept its printed figure — unless the model gave that printed row to another line.
+
+        THE CASE THIS EXISTS FOR. Two lines can plausibly take the same printed caption; the model
+        is asked about both; it cites the row for ONE of them and answers the other with an empty
+        `sources`. Both halves of that answer are deliberate — the empty one is the model saying
+        "not this line" — and until this pass only the first half was acted on. The second line
+        went on publishing the very figure that had just been established as somebody else's, so
+        the filing's number appeared twice under two names, and the duplicate was the one carrying
+        a deterministic 1.0 confidence.
+
+        BLANK IS THE ANSWER, NOT REVIEW. There is no figure to show: the printed row states one
+        line's figure and the model said which line that is. Leaving it and flagging it would mean
+        an export whose totals count the same printed number twice, which no downstream
+        reconciliation can unpick — `periods.summable` deduplicates only when caption, amount AND
+        page all match, and these two rows differ in caption and page.
+
+        AND IT IS AN EMPTY LINE, NOT A REMOVED ROW. `canonical_key` and the flags stay, so the
+        audit trail still says the line was considered, what it had been showing, and which line
+        took it. The figures go, which is what makes `note_sourced._llm_holds` false for the row —
+        so a declared note source may still fill the line from its note, which is exactly the
+        second chance a line whose face row was reassigned should get.
+
+        THE OTHER EMPTY ANSWER IS UNTOUCHED. A line the model simply could not locate, whose
+        printed row nobody else claimed, keeps its figure and its deterministic confidence — that
+        is what `_write_unanswered` decided and this pass does not revisit it.
+        """
+        if not kept_printed or not claimed:
+            return 0
+        blanked = 0
+        for key, row in kept_printed:
+            owner = claimed.get(str(getattr(row, "id", "") or ""))
+            if not owner or owner == key:
+                continue
+            printed = [str(ev.value) for ev in (row.values or {}).values()
+                       if getattr(ev, "value", None) is not None]
+            row.values = {}
+            row.confidence.flags.append(f"llm_printed_row_claimed_by:{owner}")
+            if printed:
+                row.confidence.flags.append(
+                    f"llm_printed_row_withheld:{','.join(sorted(set(printed))[:4])}")
+            # THE REVIEW FLAG, because an emptied line is a thing a reviewer should be shown. It is
+            # the same flag `map_ontology` raises for a doubtful mapping, so the queue selects on
+            # one spelling rather than on a second invented here.
+            row.confidence.flags.append("low_mapping_confidence")
+            blanked += 1
+            ctx.log(f"line_item_llm:{key}: printed figure withheld — the model gave that printed "
+                    f"row to {owner}, so this line is left empty"
+                    + (f" (was {printed[0]})" if printed else ""))
+        return blanked
 
     @staticmethod
     def _write_prose(row, doc, amount, resolved: list[dict], ctx, item) -> int:

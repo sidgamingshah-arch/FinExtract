@@ -144,3 +144,119 @@ def face_index(doc) -> list[tuple[str, str, object]]:
         page = _page_of(row)
         out.append((stmt_of_page.get(page if page is not None else -1, ""), caption, row))
     return out
+
+
+def _pages_that_are_neither(doc) -> dict[int, object]:
+    """The pages that are NEITHER a note NOR a classified statement face, by index.
+
+    THE COMPLEMENT OF WHAT IS NORMALLY READ, stated as the same predicate
+    `services.pdf_extract` selects its targets with, inverted — a notes page, or a page whose
+    classifier verdict is one of the active statements, is read on every run; everything else is
+    read only because a line declares `route: anywhere`. Keeping the two in one shape matters: a
+    page that drifted between the two definitions would either be offered as an "other" page while
+    already being in the statement block, or be reconstructed and then shown to nobody.
+    """
+    from app.core.models.enums import PageKind
+    from app.services.statements import ACTIVE_STATEMENTS
+
+    out: dict[int, object] = {}
+    for page in (getattr(doc, "pages", None) or ()):
+        if getattr(page, "kind", None) is PageKind.NOTES:
+            continue
+        if str(getattr(page, "statement", "") or "") in ACTIVE_STATEMENTS:
+            continue
+        out[int(getattr(page, "index", -1))] = page
+    return out
+
+
+def _is_printed(row) -> bool:
+    """Whether this row was READ OFF A PAGE, rather than synthesised by the requesting stage.
+
+    `stages.line_item_llm._write` CREATES A ROW for a line that had none, and gives it the cited
+    row's provenance — so it lands on the cited page and, with nothing excluding it, would appear
+    in the next request's block as though the filing had printed it there. Its caption is the
+    LINE'S LABEL, not a printed caption, so a later citation could match a row nobody typeset.
+
+    `confidence.method` is the test because this stage is the only writer of `llm` onto a face row
+    at this point in the pipeline, and it is the same field `_llm_holds` and the export already
+    read to mean "the model answered this".
+
+    ASKED ONLY OF THE OTHER-PAGE BLOCK, and `face_rows` has the same exposure. It is left alone
+    here rather than fixed in passing: the statement blocks are what every run sends, so changing
+    which rows they carry is a behaviour change to measure against filings rather than to slip in
+    beside a new route.
+    """
+    return not str(getattr(getattr(row, "confidence", None), "method", "") or "").lower().endswith(
+        "llm")
+
+
+def other_page_rows(doc) -> list[dict]:
+    """The printed rows of every page that is neither a statement nor a note. One entry per page.
+
+    WHAT `route: anywhere` IS FOR, and what it could not reach until the extractor was widened to
+    read these pages at all (`services.pdf_extract`). A five-year summary, a directors' report
+    table, a schedule the classifier could not name — each prints captions with figures beside
+    them, and no other route can see any of it.
+
+    KEYED BY PAGE, because a page is all the identity such a row has. It sits on no statement (its
+    page carries no statement verdict, or one outside the active set) and inside no note, so the
+    two join keys every other block uses are both absent. `page` is the page's POSITION IN THE
+    FILE, 1-based, and `printed_page` is the folio the page prints when it prints one — both,
+    because they routinely differ by several pages and a reader checking the work needs the folio
+    while the citation is resolved against the position.
+
+    A ROW WITH NO FIGURE OR NO CAPTION IS OMITTED, for the same two reasons `face_rows` omits
+    them: a caption with nothing beside it cannot be where a figure is printed, and a figure with
+    no caption cannot be cited.
+
+    NO DETERMINISTIC PROPOSAL TRAVELS WITH THESE ROWS, and there is none to travel. `stages.
+    map_ontology` gates a caption match on the page's statement, so a page with no statement
+    reaches no alias index — these rows are unclaimed by construction, which is why the block
+    carries no `line` key where `face_rows` does.
+    """
+    others = _pages_that_are_neither(doc)
+    by_page: dict[int, list[dict]] = {}
+    for row in (getattr(doc, "line_items", None) or ()):
+        page = _page_of(row)
+        if page is None or page not in others:
+            continue
+        if not _is_printed(row):
+            continue
+        caption = (getattr(row, "source_label", "") or "").strip()
+        if not caption:
+            continue
+        figures = _figures(row)
+        if not figures:
+            continue
+        by_page.setdefault(page, []).append({"caption": caption, "figures": figures})
+    out: list[dict] = []
+    for page in sorted(by_page):
+        entry: dict = {"page": page + 1, "rows": by_page[page]}
+        if folio := str(getattr(others[page], "printed_page", "") or "").strip():
+            entry["printed_page"] = folio
+        out.append(entry)
+    return out
+
+
+def other_page_index(doc) -> list[tuple[int, str, object]]:
+    """`(page, caption, row)` for every row `other_page_rows` shows — what a citation resolves in.
+
+    `page` IS THE SAME 1-BASED NUMBER THE BLOCK SHOWS, so the model copies back what it was given
+    and no side converts. A citation whose page is off by one resolves to nothing rather than to
+    the neighbouring page's row, because the caption has to match as well — the same belt-and-
+    braces the statement arm uses, and the reason a mis-cited page is reported instead of silently
+    publishing the wrong figure.
+    """
+    others = _pages_that_are_neither(doc)
+    out: list[tuple[int, str, object]] = []
+    for row in (getattr(doc, "line_items", None) or ()):
+        if not _is_printed(row):
+            continue
+        caption = (getattr(row, "source_label", "") or "").strip()
+        if not caption:
+            continue
+        page = _page_of(row)
+        if page is None or page not in others:
+            continue
+        out.append((page + 1, caption, row))
+    return out

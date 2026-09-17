@@ -1542,9 +1542,16 @@ export type NoteSelection = "cited_first" | "any";
  *  implicit ones (`SectionDefaults.where()`, the presence of a `note_source`, and whether that
  *  object carried prose patterns, which an author could satisfy two of and not the third).
  *
- *    face         off the statement itself, by the deterministic caption readers
- *    note_tables  out of a cited note's table rows, with the prose fallback behind it
- *    prose        out of a sentence, for a figure the filing tabulates nowhere — skips the rows
+ *    face         off the statement itself, and no note is searched
+ *    note_tables  out of a cited note's table rows, with the prose fallback behind it, and NOT
+ *                 off the statement
+ *    prose        out of a sentence, for a figure the filing tabulates nowhere — skips the rows,
+ *                 and NOT off the statement
+ *    anywhere     any of the above, plus the pages that are neither a statement nor a note
+ *
+ *  IT IS EXCLUSIVE IN BOTH DIRECTIONS. A `face` line never reads a note, and a note route never
+ *  reads the statement — the latter is recent, because the stage that binds a printed statement
+ *  caption to a line did not read this field until it did.
  */
 export type Route = "face" | "note_tables" | "prose" | "anywhere";
 /** Where a caption may be READ FROM, in search order — not a gate. The tokens are

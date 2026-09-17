@@ -555,7 +555,8 @@ def bad_patterns(item) -> list[str]:
 
 # ── resolving what the MODEL cited ────────────────────────────────────────────────────────────
 
-def resolve_sources(sources, notes, face=None) -> tuple[list[dict], list[dict]]:
+def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
+                    pages=None, allow_pages: bool = False) -> tuple[list[dict], list[dict]]:
     """Match each citation the model gave against the extracted rows. Returns (resolved, unresolved).
 
     WHY THIS EXISTS RATHER THAN TRUSTING THE CITATION. The candidates offered to the model are
@@ -572,6 +573,19 @@ def resolve_sources(sources, notes, face=None) -> tuple[list[dict], list[dict]]:
     A CITATION THAT RESOLVES TO NOTHING IS RETURNED AS UNRESOLVED, not dropped and not believed.
     The caller keeps the mapping and flags it, because "the model cited a row we cannot find" and
     "the model cited nothing" are different failures and only one of them is the model's.
+
+    `allow_face=False` REFUSES A STATEMENT CITATION OUTRIGHT, for a line whose route says its figure
+    is printed in a note (`services.line_item_routes.may_read_face`). Refused HERE and named as
+    itself rather than by handing the arm an empty face index: an empty index reports "no printed
+    row on balance_sheet matches that caption", which tells an author the caption was wrong when
+    what was wrong was the place. A run has both states — a filing with no classified face pages
+    really does have no face rows — so they must be distinguishable in the flag a reviewer reads.
+
+    `pages` / `allow_pages` ARE THE THIRD INDEX, and the narrowest. `services.face_context.
+    other_page_index` holds the rows of pages that are neither a statement nor a note, which exist
+    at all only because a line declares `route: anywhere` and the extractor was widened for it
+    (`services.pdf_extract`). Refused by DEFAULT, because every other route's author said where the
+    figure is printed and a citation pointing outside that is an answer to a question nobody asked.
     """
     import re as _re
 
@@ -601,6 +615,66 @@ def resolve_sources(sources, notes, face=None) -> tuple[list[dict], list[dict]]:
         want_cap = norm(getattr(ref, "caption", ""))
         quote = (getattr(ref, "quote", "") or "").strip()
 
+        # A CITATION THAT NAMES A PAGE AND NOTHING ELSE IS LOOKED UP OFF THE STATEMENTS AND THE
+        # NOTES ALTOGETHER — the `anywhere` route's own index. Taken FIRST and returning either
+        # way, the same rule the statement arm follows and for the same reason: the three indexes
+        # are alternatives, and falling through from a page citation to a note would publish a
+        # note's figure for a citation that said page 12.
+        want_page = getattr(ref, "page", None)
+        want_stmt = str(getattr(ref, "statement", "") or "").strip()
+        if want_page is not None and not want_note and not want_stmt:
+            if not allow_pages:
+                unresolved.append({
+                    "at": at, "note": "", "statement": "", "page": int(want_page),
+                    "caption": getattr(ref, "caption", ""), "quote": quote,
+                    "why": ("this line is not read from pages outside the statements and the "
+                            "notes — only a line whose route is `anywhere` may cite one")})
+                continue
+            on_page = next(((pg, cap, row) for pg, cap, row in (pages or ())
+                            if int(pg) == int(want_page) and want_cap
+                            and ((got := norm(cap)) and (want_cap in got or got in want_cap))),
+                           None)
+            if on_page is None:
+                elsewhere = sorted({int(pg) for pg, cap, _r in (pages or ())
+                                    if want_cap and (g := norm(cap))
+                                    and (want_cap in g or g in want_cap)
+                                    and int(pg) != int(want_page)})
+                unresolved.append({
+                    "at": at, "note": "", "statement": "", "page": int(want_page),
+                    "caption": getattr(ref, "caption", ""), "quote": quote,
+                    "why": (f"no row on page {int(want_page)} matches that caption"
+                            + (f" — it is on page {', '.join(str(n) for n in elsewhere)}"
+                               if elsewhere else ""))})
+                continue
+            pg, caption, row = on_page
+            figures, prov = {}, None
+            for ev in (getattr(row, "values", None) or {}).values():
+                if getattr(ev, "column_index", None) is not None:
+                    continue
+                if getattr(ev, "value", None) is None:
+                    continue
+                figures[str(getattr(ev, "period_label", "") or "?")] = str(ev.value)
+                if prov is None:
+                    prov = derivation._json_safe_provenance(getattr(ev, "provenance", None))
+            if not figures:
+                unresolved.append({
+                    "at": at, "note": "", "statement": "", "page": int(pg),
+                    "caption": getattr(ref, "caption", ""), "quote": quote,
+                    "why": "that row is printed with no figure beside it"})
+                continue
+            # `off_statement` IS WHAT THE CALLER FLAGS ON, and it is not a detail. A figure on a
+            # statement page is stated in the units that page declares, which `stages.normalize`
+            # resolved and scaled; a page the classifier could not name declares nothing, so the
+            # scale applied to it is the DOCUMENT's and nothing verified it for this page. The
+            # figure is real and its scale is unverified, and only the caller can say so on the
+            # row (`stages.line_item_llm._write`).
+            resolved.append({"at": at, "note": "", "statement": "", "title": "",
+                             "page": int(pg), "caption": caption, "figures": figures,
+                             "provenance": prov, "quote": quote, "on_face": False,
+                             "off_statement": True,
+                             "row_id": str(getattr(row, "id", "") or "")})
+            continue
+
         # A CITATION THAT NAMES A STATEMENT IS LOOKED UP ON THE FACE, not in the notes.
         #
         # Taken first and returning either way, because the two indexes are alternatives rather
@@ -609,7 +683,13 @@ def resolve_sources(sources, notes, face=None) -> tuple[list[dict], list[dict]]:
         # note's figure for a citation that said "the face". The statement mismatch is reported as
         # itself for the same reason — "that caption is on another statement" tells an author
         # something "no such row" does not.
-        want_stmt = str(getattr(ref, "statement", "") or "").strip()
+        if want_stmt and not want_note and not allow_face:
+            unresolved.append({
+                "at": at, "note": "", "statement": want_stmt,
+                "caption": getattr(ref, "caption", ""), "quote": quote,
+                "why": ("this line is read from its notes, not from the face of a statement — "
+                        f"a row on {want_stmt} cannot be its source")})
+            continue
         if want_stmt and not want_note:
             on_face = next(((st, cap, row) for st, cap, row in face_rows
                             if st == want_stmt and want_cap
@@ -644,9 +724,17 @@ def resolve_sources(sources, notes, face=None) -> tuple[list[dict], list[dict]]:
                     "caption": getattr(ref, "caption", ""), "quote": quote,
                     "why": "that row is printed with no figure beside it"})
                 continue
+            # THE ROW'S OWN IDENTITY TRAVELS WITH THE RESOLVED CITATION, and it is the only
+            # thing here that is not text. `stages.line_item_llm` needs to know WHICH printed row
+            # a citation claimed, not merely which caption: a face row is the deterministic
+            # proposal for exactly one line, so a citation naming it on ANOTHER line's answer has
+            # moved that printed figure, and the line it was proposed for must not go on showing
+            # it. A caption cannot answer that — two statements can print the same words — so the
+            # row's `id` is carried and compared.
             resolved.append({"at": at, "note": "", "statement": st, "title": "",
                              "caption": caption, "figures": figures, "provenance": prov,
-                             "quote": quote, "on_face": True})
+                             "quote": quote, "on_face": True,
+                             "row_id": str(getattr(row, "id", "") or "")})
             continue
 
         hit = None

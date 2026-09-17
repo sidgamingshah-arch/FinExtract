@@ -40,7 +40,7 @@ from app.core.models.enums import (AllocationStatus, Basis, LineRole, MappingMet
                                    PrintedIn)
 from app.core.models.line_item import ExtractedValue, LineItem
 from app.core.stage import PipelineContext
-from app.services import line_item_notes
+from app.services import line_item_notes, line_item_routes
 from app.services.caption_shape import prose_reasons
 from app.services.mapping import (
     OntologyMatcher,
@@ -649,6 +649,7 @@ class MapOntologyStage:
         _cfg_items = getattr(getattr(ctx, "line_items", None), "items", None) or ()
         _cfg_by_key = {i.key: i for i in _cfg_items}
         row_terms_refused = 0
+        route_refused = 0
         for done, li in enumerate(doc.line_items, start=1):
             res = matcher.match(li.source_label, statement=_statement_of(li),
                                 section=li.section_hint)
@@ -677,12 +678,40 @@ class MapOntologyStage:
                     ctx.log(f"map_line_items:row_terms_refused "
                             f"{res.canonical_key} <- {(li.source_label or '')[:60]!r} ({why})")
                     res = None
+            # THE LINE'S ROUTE REFUSES THE FACE, and this is the only place that can enforce it.
+            #
+            # `route: note_tables` and `route: prose` say the figure is printed in a NOTE. Every
+            # other reader of the field honoured that; this loop did not read the field at all, so
+            # a note-only line was still bound to whatever printed statement caption its aliases
+            # matched — and that binding is what the whole deterministic proposal downstream rests
+            # on. The line then carried a face figure its author had said was not its source, and
+            # nothing in the run said so.
+            #
+            # REFUSED, NOT FLAGGED, for the reason the row-terms gate above gives: a face row bound
+            # to a note-only line is a figure from the wrong place, and a wrong figure that
+            # publishes is worse than an empty line the note route then fills. All 60 lines that
+            # declare `note_tables` in the shipped set declare a `note_source` as well, so the
+            # route they asked for is the route that reads them.
+            #
+            # SILENCE IS NOT A REFUSAL — `line_item_routes.may_read_face` is true for a line that
+            # declares no route, which is 100 of the 506 asked-about lines. See that module.
+            if res is not None and target is not None and not line_item_routes.may_read_face(target):
+                route_refused += 1
+                ctx.log(f"map_line_items:route_refused_face "
+                        f"{res.canonical_key} <- {(li.source_label or '')[:60]!r} "
+                        f"(route={line_item_routes.declared_route(target)}: this line is read from "
+                        f"its notes, so a printed statement row is not its figure)")
+                res = None
             if res is not None and _apply(li, res):
                 mapped += 1
             # Every 10 rows, not every row: a filing carries hundreds and each report is a small
             # database write.
             if done % 10 == 0 or done == total_rows:
                 ctx.emit_step(done, total_rows, "row")
+        if route_refused:
+            ctx.log(f"map_line_items:route_refused_face_rows={route_refused} "
+                    f"(each row's caption matched a line declared note_tables or prose, whose "
+                    f"figure is printed in a note rather than on the statement)")
         if row_terms_refused:
             ctx.log(f"map_line_items:row_terms_refused_answers={row_terms_refused} "
                     f"(the caption shares no subject word with the line's own row terms — most "

@@ -525,9 +525,21 @@ class LineItemDef(BaseModel):
     # it is working because nothing contradicts it.
     # WHERE THIS LINE'S FIGURE IS READ FROM — one choice, asked only of an `extracted` line.
     #
-    #   face         off the statement itself, by the deterministic caption readers
-    #   note_tables  out of a cited note's TABLE ROWS (with the prose fallback below)
-    #   prose        out of a SENTENCE, for a figure the filing tabulates nowhere
+    #   face         off the statement itself, and no note is searched
+    #   note_tables  out of a cited note's TABLE ROWS (with the prose fallback below), and NOT off
+    #                the statement
+    #   prose        out of a SENTENCE, for a figure the filing tabulates nowhere, and NOT off the
+    #                statement
+    #   anywhere     any of the above, plus the pages that are neither a statement nor a note —
+    #                which are reconstructed at all only because a line declares this
+    #
+    # IT IS EXCLUSIVE IN BOTH DIRECTIONS NOW, and for most of this field's life it was exclusive in
+    # only one. `stages.note_sourced._declared_items` always refused to read a note for a `face`
+    # line; nothing refused the reverse, because the stage that binds a printed statement caption
+    # to a line (`stages.map_ontology`) did not read this field. So `note_tables` meant "a note's
+    # rows, and also the face" whatever an author intended by it. Both stages that can put a face
+    # figure on a line now consult `services.line_item_routes.may_read_face`, which is the one
+    # reader of this field's meaning.
     #
     # ONE QUESTION REPLACING THREE IMPLICIT ONES. This was never asked, and was inferred from three
     # separate declarations that had to agree: `SectionDefaults.where()` (derived in turn from

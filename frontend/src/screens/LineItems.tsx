@@ -361,8 +361,9 @@ function withheldReason(name: string, sel: {
   // never consulted. That is the exact shape of defect this screen keeps removing.
   //
   // `anywhere` WIDENS rather than constrains — it lifts the section narrowing on the note search
-  // (`services.note_sections.open_to`) — so it withholds nothing. An unset route also withholds
-  // nothing: nothing has been said, so nothing is ruled out yet.
+  // (`services.note_sections.open_to`) and reaches the pages that are neither statements nor
+  // notes — so it withholds nothing. An unset route also withholds nothing: nothing has been
+  // said, so nothing is ruled out yet.
   if (route === "face" && (name === "note_source" || name.startsWith("note_source.")
                            || name === "note_selection" || name === "llm_only_if_note_tagged")) {
     return "this line is read off the face of the statement, so no note is searched for it — "
@@ -559,17 +560,21 @@ const smallToggleBtn: CSSProperties = {
 
 /** THE FOUR ROUTES, in the author's words rather than the engine's tokens.
  *
- *  WHAT THIS QUESTION ACTUALLY DECIDES, because the labels used to overstate it. The face is
- *  searched for EVERY line whatever this says: the printed-caption match runs in a different stage
- *  which never reads this field, so no value here can stop a caption being claimed. What the field
- *  governs is the NOTE search — whether it runs, whether it reads rows or only sentences, and
- *  whether it is narrowed to the line's own section. So these read as "and also …" rather than as
- *  "only from …", which is what they were saying before. */
+ *  THE LABELS SAY "ONLY" AGAIN, AND THIS TIME THEY MEAN IT. They used to read "and the face"
+ *  because the face was searched for every line whatever this field said — the printed-caption
+ *  match ran in a stage that never read the field, so no value here could stop a caption being
+ *  claimed. That is no longer true: `stages.map_ontology` reads the route and REFUSES to bind a
+ *  printed statement caption to a `note_tables` or `prose` line, and `stages.line_item_llm`
+ *  refuses a citation naming a statement for the same lines. A note route now excludes the face.
+ *
+ *  `anywhere` IS THE WIDEST AND SAYS SO. It reads the statements, every note without the section
+ *  narrowing, AND the pages that are neither — a five-year summary, a schedule the classifier
+ *  could not name. Those pages are reconstructed only because a line declares this route. */
 const ROUTE_LABEL: Record<string, string> = {
   face: "The statement only — no note searched",
-  note_tables: "A note's rows, and the face",
-  prose: "A sentence in a note, and the face",
-  anywhere: "Any note, and the face",
+  note_tables: "A note's rows only — not the statement",
+  prose: "A sentence in a note only — not the statement",
+  anywhere: "Anywhere in the filing — statements, every note, and any other page",
 };
 
 const GROUP_FIELDS = {
@@ -1282,23 +1287,25 @@ function Detail(p: EditorProps) {
               face: "no note is searched for it. The printed caption still has to be recognised "
                   + "by the patterns on the Patterns tab, and a note-source block on such a line "
                   + "is never acted on",
-              note_tables: "its notes are searched as well — the rows of the notes the "
-                         + "note-source block below selects, and a sentence in the same note if "
-                         + "no row matches",
-              prose: "its notes are searched as well, but for a SENTENCE only — the row search is "
-                   + "skipped entirely. For a figure the filing states in words and tabulates "
-                   + "nowhere",
-              anywhere: "as above, and the note search is NOT narrowed to this line's own "
-                      + "section: a note that belongs to another section is still read. Choose it "
-                      + "for a figure disclosed somewhere different from one filing to the next",
+              note_tables: "its figure is read out of the rows of the notes the note-source "
+                         + "block below selects, or a sentence in the same note if no row "
+                         + "matches. A printed row on the STATEMENT is refused for it, however "
+                         + "closely the caption matches",
+              prose: "its figure is read out of a SENTENCE in one of its notes — the row search "
+                   + "is skipped entirely, and a printed row on the statement is refused. For a "
+                   + "figure the filing states in words and tabulates nowhere",
+              anywhere: "the statements, every note without the section narrowing, and the pages "
+                      + "that are neither — those pages are reconstructed only because a line "
+                      + "asks for this. Choose it for a figure disclosed somewhere different "
+                      + "from one filing to the next",
             } as Record<string, string>)[v]}
-            help={<>Every line is matched against the printed statement whatever this says — the
-                  caption match runs elsewhere and does not read this field. What this decides is
-                  the <b>note</b> search: whether it runs at all, whether it reads rows or only
-                  sentences, and whether it is narrowed to this line&rsquo;s section.
-                  <b> Not chosen yet</b> is not the same as <b>Any note</b>: it means nothing has
-                  been said, and the line is read the way it was before this question existed, so
-                  an older configuration is not silently re-routed.</>}
+            help={<>This decides <b>where the figure may come from</b>, and it is now exclusive
+                  in both directions: a note route refuses a printed row on the statement, and
+                  the face route searches no note. It also decides how the note search runs —
+                  rows or only sentences, and whether it is narrowed to this line&rsquo;s section.
+                  <b> Not chosen yet</b> is not the same as <b>Anywhere</b>: it means nothing has
+                  been said, so nothing is ruled out and the line is read the way it was before
+                  this question existed. An older configuration is not silently re-routed.</>}
             value={g("route", item.route ?? null)}
             onChange={(v) => patch({ route: v })}
             error={e} inherited={inh("route", item.route ?? null)} />

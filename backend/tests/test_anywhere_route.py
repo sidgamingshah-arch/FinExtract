@@ -1,4 +1,4 @@
-"""`anywhere` MEANT NOTHING, AND NOW MEANS ONE THING — the gate it lifts.
+"""`anywhere` MEANT NOTHING, AND NOW LIFTS THE NOTE NARROWING — the gate, tested here alone.
 
 NEW FILE -> backend/tests/test_anywhere_route.py
 
@@ -13,18 +13,24 @@ passed it through to a stage that never branched on it. So:
 
 It was decorative in every configuration, and zero of the shipped 527 lines declare it.
 
-WHAT IT CANNOT DO, so that the label stops promising it. It cannot make the face be searched,
-because the face already is: `stages.map_ontology` never reads `route`, so every line is
-caption-matchable whatever the field says — which also means no route can stop a caption being
-claimed. And it cannot reach a page outside the statements and the notes, because nothing
-reconstructs those pages at all (`services.pdf_extract`'s target set is NOTES pages plus FACE pages
-with a resolved statement).
+WHAT THIS FILE COVERS, AND WHAT IT NO LONGER CLAIMS TO BE ALL OF IT. `note_sections.open_to`
+narrows which notes a line may read: closed only when a note resolves to exactly one section and
+the line names a different one. A line whose author wrote "do not constrain it" should not then
+have its note search closed against another section's note, so `anywhere` is open to every note.
+These tests are what stop that going back to meaning nothing.
 
-WHAT IT NOW DOES. `note_sections.open_to` narrows which notes a line may read: closed only when a
-note resolves to exactly one section and the line names a different one. A line whose author wrote
-"do not constrain it" should not then have its note search closed against another section's note,
-so `anywhere` is open to every note. That is the whole of the route's behaviour, and these tests
-are what stop it going back to meaning nothing.
+TWO SENTENCES THAT USED TO STAND HERE ARE GONE, because both stopped being true:
+
+  * "It cannot make the face be searched, because the face already is." The face was searched for
+    every line whatever the route said, and it is not any more — `stages.map_ontology` reads the
+    field and refuses a printed statement caption for a `note_tables` or `prose` line. See
+    `tests/test_route_exclusivity.py`. `anywhere` is unaffected: it is the widest route, so it
+    keeps the face.
+  * "It cannot reach a page outside the statements and the notes, because nothing reconstructs
+    those pages." `services.pdf_extract` now reconstructs every page when a line declares this
+    route, those pages are supplied as `other_pages`, and a citation may name one. See
+    `tests/test_anywhere_all_pages.py`. That sentence described the target set rather than a limit
+    of the route, and the target set is what changed.
 """
 from __future__ import annotations
 

@@ -33,6 +33,8 @@ said", never "nothing is allowed".
 """
 from __future__ import annotations
 
+from app.services import line_item_routes
+
 
 def note_sections(doc, line_item_set) -> dict[str, set[str]]:
     """`{note_number: {section_scope_id, …}}` for every note whose section could be resolved.
@@ -87,15 +89,24 @@ def open_to(item, note_number: str, sections: dict[str, set[str]]) -> bool:
     `note_tables`; without one the note stage never saw the line at all, so it behaved as `face`.
     It was decorative in every configuration, and zero of the shipped 527 lines declare it.
 
-    SO THIS IS THE ONE CONSTRAINT IT CAN HONESTLY LIFT. The route cannot stop the face being
-    searched — `stages.map_ontology` never reads the field, so every line is caption-matchable
-    whatever its route says — and it cannot reach a page outside the statements and the notes,
-    because nothing reconstructs those pages (`services.pdf_extract`'s target set is NOTES pages
-    plus FACE pages with a resolved statement). What it CAN do is stop this narrowing: a line whose
-    author wrote "do not constrain it" should not then have its note search closed against a note
-    that resolved to one section.
+    THIS IS ONE OF THE ROUTE'S THREE EFFECTS, and the only one in this file. What it does here is
+    stop the narrowing: a line whose author wrote "do not constrain it" should not then have its
+    note search closed against a note that resolved to one section. The other two are elsewhere
+    and both were added after this docstring first claimed the route could reach neither:
+
+      * `services.pdf_extract` RECONSTRUCTS EVERY PAGE when any line declares `anywhere`. The
+        sentence that used to stand here — that the route cannot reach a page outside the
+        statements and the notes, because nothing reconstructs those pages — described the target
+        set rather than a limit of the route, and the target set is what changed.
+      * `services.note_sourced.resolve_sources` accepts a citation naming one of those pages, and
+        `services.face_context.other_page_rows` supplies them, for `anywhere` lines only.
+
+    AND THE ROUTE STILL CANNOT STOP THE FACE BEING SEARCHED, because it does not want to:
+    `anywhere` is the widest route, so `line_item_routes.may_read_face` is true for it. It is
+    `note_tables` and `prose` that refuse the face now, and `stages.map_ontology` reads the field
+    to enforce it.
     """
-    if str(getattr(item, "route", "") or "") == "anywhere":
+    if line_item_routes.reads_every_page(item):
         return True
     scope = {str(s) for s in (getattr(item, "section_scope", None) or ()) if s}
     if not scope:

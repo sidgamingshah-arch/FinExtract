@@ -97,6 +97,19 @@ class SourceRef(BaseModel):
                                                   "(e.g. \"balance_sheet\"), when the figure is "
                                                   "on the FACE rather than in a note; leave the "
                                                   "note empty then")
+    # A PAGE THAT IS NEITHER A STATEMENT NOR A NOTE IS THE THIRD PLACE A FIGURE IS PRINTED, and
+    # until this field no citation could reach one. A five-year summary, a directors' report table,
+    # a schedule the classifier could not name: those pages are reconstructed only for a line that
+    # declares `route: anywhere` (`services.pdf_extract`), supplied as `other_pages`
+    # (`services.face_context.other_page_rows`), and cited by the `page` number that block gives —
+    # the page's 1-BASED POSITION IN THE FILE, copied back as given.
+    #
+    # `note`, `statement` AND `page` ARE THREE ALTERNATIVES, not a chain. The caption must match as
+    # well, so a page cited one out reports unresolved rather than resolving to its neighbour.
+    page: int | None = Field(default=None, description="the page number as given in `other_pages`, "
+                                                       "when the figure is printed on a page that "
+                                                       "is neither a statement nor a note; leave "
+                                                       "the note and the statement empty then")
     caption: str = Field(default="", description="the row caption, quoted as the document prints it")
     quote: str = Field(default="", description="the sentence it came from, when the figure is "
                                                "stated in prose rather than in a table row")

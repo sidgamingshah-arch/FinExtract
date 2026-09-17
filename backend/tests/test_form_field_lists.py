@@ -201,8 +201,14 @@ def test_the_deterministic_tab_is_exactly_what_the_request_withholds() -> None:
     # contains 关联方, every one of which legitimately occurs inside the line's own DEFINITION prose.
     # The contract is not "these characters never appear"; it is "the request carries no field
     # holding these lists". So assert on keys and on whole values.
+    # `read_from` IS THE ROUTE, NOT RECOGNITION. It says which PLACES this line's figure may be
+    # taken from — the statement, a note's rows, a note's prose, the whole filing — which is the
+    # same question `printed_in` half-answers and which the resolver now enforces
+    # (`services.note_sourced.resolve_sources`, `allow_face`/`allow_pages`). A request that did not
+    # carry it invited a citation the run would then refuse, and refusing a citation the request
+    # implicitly permitted is the same unfairness as grading against a withheld constraint.
     ALLOWED_KEYS = {"key", "label", "notes_supplied", "definition", "exclude", "printed_in",
-                    "sign_convention"}
+                    "statement", "read_from", "sign_convention"}
     assert set(payload) <= ALLOWED_KEYS, (
         f"the request grew a key the two-route split has not been reasoned about: "
         f"{sorted(set(payload) - ALLOWED_KEYS)}")

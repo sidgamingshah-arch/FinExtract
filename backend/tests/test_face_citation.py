@@ -15,7 +15,9 @@ outcomes the contract now promises are each expressible as a citation already:
   * CORRECT — cite a different row. The figure moves, and `note_sourced._write` records what it
     displaced and moves the provenance with it.
   * LEAVE — answer with an empty `sources`. `_write_unanswered` keeps the printed figure and no
-    longer takes the row's method or score.
+    longer takes the row's method or score. THAT KEEP IS PROVISIONAL, and the qualification is
+    tested next door: where the model gave this line's printed row to a DIFFERENT line, the row
+    belongs to that line and this one is emptied — `tests/test_claimed_printed_row.py`.
 
 `note` AND `statement` ARE ALTERNATIVES, NOT A FALLBACK CHAIN, and the tests below pin that: a
 caption appearing both in a note and on the face is a different fact in each, so a citation naming
