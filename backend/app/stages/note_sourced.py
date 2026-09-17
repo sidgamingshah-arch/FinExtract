@@ -329,6 +329,12 @@ def route_of(item) -> str:
     `prose` skips the row search entirely; `note_tables` searches rows and falls back to prose;
     `face` never reaches this stage at all (`_declared_items` filters it). A line that declares
     nothing is read as `note_tables`, which is what carrying a `note_source` has always meant.
+
+    `anywhere` IS `note_tables` HERE, and its own behaviour is one gate away: it searches rows and
+    falls back to prose exactly as `note_tables` does, and what distinguishes it is that
+    `services.note_sections.open_to` refuses to narrow its note search to its own section. That is
+    the route's only effect in the pipeline — see that function for why it is the only constraint
+    the route can honestly lift.
     """
     route = str(getattr(item, "route", "") or "")
     return route if route in ("face", "note_tables", "prose", "anywhere") else "note_tables"

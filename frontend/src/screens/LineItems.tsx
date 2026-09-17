@@ -360,8 +360,9 @@ function withheldReason(name: string, sel: {
   // act on a `face` line, so a note_source authored here would be stored, shown, and silently
   // never consulted. That is the exact shape of defect this screen keeps removing.
   //
-  // `anywhere` CONSTRAINS NOTHING, so it withholds nothing. An unset route also withholds
-  // nothing — nothing has been said, so nothing is ruled out yet.
+  // `anywhere` WIDENS rather than constrains — it lifts the section narrowing on the note search
+  // (`services.note_sections.open_to`) — so it withholds nothing. An unset route also withholds
+  // nothing: nothing has been said, so nothing is ruled out yet.
   if (route === "face" && (name === "note_source" || name.startsWith("note_source.")
                            || name === "note_selection" || name === "llm_only_if_note_tagged")) {
     return "this line is read off the face of the statement, so no note is searched for it — "
@@ -556,11 +557,19 @@ const smallToggleBtn: CSSProperties = {
   background: color.indigoTint2, color: color.indigo,
 };
 
+/** THE FOUR ROUTES, in the author's words rather than the engine's tokens.
+ *
+ *  WHAT THIS QUESTION ACTUALLY DECIDES, because the labels used to overstate it. The face is
+ *  searched for EVERY line whatever this says: the printed-caption match runs in a different stage
+ *  which never reads this field, so no value here can stop a caption being claimed. What the field
+ *  governs is the NOTE search — whether it runs, whether it reads rows or only sentences, and
+ *  whether it is narrowed to the line's own section. So these read as "and also …" rather than as
+ *  "only from …", which is what they were saying before. */
 const ROUTE_LABEL: Record<string, string> = {
-  face: "The face of the statement",
-  note_tables: "A note's table rows",
-  prose: "A sentence in a note",
-  anywhere: "Anywhere — do not constrain it",
+  face: "The statement only — no note searched",
+  note_tables: "A note's rows, and the face",
+  prose: "A sentence in a note, and the face",
+  anywhere: "Any note, and the face",
 };
 
 const GROUP_FIELDS = {
@@ -1270,22 +1279,26 @@ function Detail(p: EditorProps) {
             options={vocab?.routes ?? []}
             labelOf={(v) => ROUTE_LABEL[v] ?? v}
             helpOf={(v) => ({
-              face: "claimed off the printed statement by the recognition patterns on the "
-                  + "Patterns tab. A note-source block on such a line is never acted on",
-              note_tables: "read out of the rows of a cited note, selected by the note-source "
-                         + "block below. If no row matches, a sentence in the same note is tried "
-                         + "as a fallback",
-              prose: "read out of a SENTENCE only — the row search is skipped entirely. For a "
-                   + "figure the filing states in words and tabulates nowhere",
-              anywhere: "looked for on the face AND in the note rows AND in prose — nothing is "
-                      + "ruled out. Choose this for a line printed differently from one filing "
-                      + "to the next",
+              face: "no note is searched for it. The printed caption still has to be recognised "
+                  + "by the patterns on the Patterns tab, and a note-source block on such a line "
+                  + "is never acted on",
+              note_tables: "its notes are searched as well — the rows of the notes the "
+                         + "note-source block below selects, and a sentence in the same note if "
+                         + "no row matches",
+              prose: "its notes are searched as well, but for a SENTENCE only — the row search is "
+                   + "skipped entirely. For a figure the filing states in words and tabulates "
+                   + "nowhere",
+              anywhere: "as above, and the note search is NOT narrowed to this line's own "
+                      + "section: a note that belongs to another section is still read. Choose it "
+                      + "for a figure disclosed somewhere different from one filing to the next",
             } as Record<string, string>)[v]}
-            help={<>The one question that decides which search runs for this line. Pick
-                  <b> Anywhere</b> to rule nothing out. <b>Not chosen yet</b> is not the same
-                  thing: it means nothing has been said at all, and the line is read the way it
-                  was before this question existed — so an older configuration is not silently
-                  re-routed.</>}
+            help={<>Every line is matched against the printed statement whatever this says — the
+                  caption match runs elsewhere and does not read this field. What this decides is
+                  the <b>note</b> search: whether it runs at all, whether it reads rows or only
+                  sentences, and whether it is narrowed to this line&rsquo;s section.
+                  <b> Not chosen yet</b> is not the same as <b>Any note</b>: it means nothing has
+                  been said, and the line is read the way it was before this question existed, so
+                  an older configuration is not silently re-routed.</>}
             value={g("route", item.route ?? null)}
             onChange={(v) => patch({ route: v })}
             error={e} inherited={inh("route", item.route ?? null)} />

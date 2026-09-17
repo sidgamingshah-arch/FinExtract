@@ -67,8 +67,9 @@ def note_sections(doc, line_item_set) -> dict[str, set[str]]:
 def open_to(item, note_number: str, sections: dict[str, set[str]]) -> bool:
     """Whether this line may read that note, under its own `section_scope`.
 
-    FOUR WAYS TO BE OPEN, and only one way to be closed:
+    FIVE WAYS TO BE OPEN, and only one way to be closed:
 
+      * the line's route is `anywhere` — see below;
       * the line declares no `section_scope` — unconstrained, nothing was said;
       * the note's section could not be resolved — 70% of them, see the module docstring;
       * the note is cited from SEVERAL sections, so it belongs to none of them exclusively;
@@ -77,7 +78,25 @@ def open_to(item, note_number: str, sections: dict[str, set[str]]) -> bool:
     Closed only when the note resolves to exactly one section and the line names a different one.
     That is the whole narrowing: it removes a note that is definitively another section's, and
     nothing else.
+
+    `anywhere` IS WHAT MAKES THAT FIRST ARM, and it is the route's only behaviour anywhere in the
+    pipeline. Measured before this: `anywhere` was accepted by the schema, offered by the config
+    screen, described there as "looked for on the face AND in the note rows AND in prose — nothing
+    is constrained", and then read by exactly one line of code — `note_sourced.route_of`, which
+    passed it through to a stage that never branched on it. With a `note_source` it behaved as
+    `note_tables`; without one the note stage never saw the line at all, so it behaved as `face`.
+    It was decorative in every configuration, and zero of the shipped 527 lines declare it.
+
+    SO THIS IS THE ONE CONSTRAINT IT CAN HONESTLY LIFT. The route cannot stop the face being
+    searched — `stages.map_ontology` never reads the field, so every line is caption-matchable
+    whatever its route says — and it cannot reach a page outside the statements and the notes,
+    because nothing reconstructs those pages (`services.pdf_extract`'s target set is NOTES pages
+    plus FACE pages with a resolved statement). What it CAN do is stop this narrowing: a line whose
+    author wrote "do not constrain it" should not then have its note search closed against a note
+    that resolved to one section.
     """
+    if str(getattr(item, "route", "") or "") == "anywhere":
+        return True
     scope = {str(s) for s in (getattr(item, "section_scope", None) or ()) if s}
     if not scope:
         return True
