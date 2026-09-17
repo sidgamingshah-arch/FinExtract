@@ -14,7 +14,8 @@
    "absorbed all 462 rulebook concepts: 454 projected, 8 merged with configured assembly, 13 configurator-only parts",
    "declaration order follows the rulebook, so ties decided by order agree",
    "the eight output lines no longer name a service implementer. The five derivation services were REMOVED - deprec_impairment (~208 enumerated entries), contingent_liabilities (~172, its NUMBER only; its narrative disclosure survives), secur_fincl_assets (~91), related_party_receivables (~73), sales_revenues (~18): ~562 hand-enumerated note titles, row captions and formula variants in all. `implemented_by` is therefore deleted from all eight and every figure must now come from configuration. The six cascade-less lines - is_pl__sales_revenues, bs_ca__secur_and_other_fincl_assets_cp, bs_nca__secur_and_other_fincl_assets_ltp, bs_nca__due_from_related_parties_ltp, bs_ca__other_receivables_cp, notes__contingent_liabilities - are now `extracted`, since a `derived` line with neither a cascade nor an implementer is refused by LineItemDef; the two depreciation lines stay `derived` on their own cascades (P1-P5 and COS_P1/COS_P2). Cells these services used to fill go blank until the configuration reads them off a caption - that is the intended outcome, so do not reinstate a service name here. Mirrored in output_csv_hk_line_items_configured.json, which is the assembly half of this file",
-   "authored expected_components prose on the 11 exclusive_residual buckets (3-4 caption phrases each, 37 in total): the payload block services.mapping._residual_expectations publishes as \"captions_with_no_dedicated_concept\" was empty on every statement, so an empty canonical_key was never a licensed answer. Each phrase was checked against all 462 concepts' labels and aliases in its own section; hkfrs_hk_china_ontology.json's wording was NOT copied - \"Bank overdrafts\", \"Pension surplus\", \"Right-of-use assets\", \"Biological assets\", \"Contract liabilities\", \"Bills receivable\", \"Merger reserve\", \"Deposits paid for acquisition of land\", \"Donations\" and \"Sales taxes and surcharges\" all have dedicated concepts here and would have routed real money into a sweep"
+   "authored expected_components prose on the 11 exclusive_residual buckets (3-4 caption phrases each, 37 in total): the payload block services.mapping._residual_expectations publishes as \"captions_with_no_dedicated_concept\" was empty on every statement, so an empty canonical_key was never a licensed answer. Each phrase was checked against all 462 concepts' labels and aliases in its own section; hkfrs_hk_china_ontology.json's wording was NOT copied - \"Bank overdrafts\", \"Pension surplus\", \"Right-of-use assets\", \"Biological assets\", \"Contract liabilities\", \"Bills receivable\", \"Merger reserve\", \"Deposits paid for acquisition of land\", \"Donations\" and \"Sales taxes and surcharges\" all have dedicated concepts here and would have routed real money into a sweep",
+   "replaced the zh aliases on the seven is_retained movement lines. All seven carried the identical list 保留溢利 / 未分配利润 / 留存收益 / 累计亏损 — four spellings of the retained-earnings BALANCE, which is bs_equity__retained_profits' own label and the is_retained SECTION's name, not any movement inside it. Provenance: scripts/enrich_output_csv_primary_aliases.py copies Chinese across by matching the ENGLISH alias, and hkfrs_hk_china_ontology.json's bs_equity__retained_earnings carries exactly those four against 'Retained profits' — which all seven lines then carried. spec_alias_curation._SECTION_NAME_IS_NOT_A_MOVEMENT later denied the English caption; the Chinese it had already pulled across was left stranded. Measured before this: 未分配利润 on a profit_and_loss page matched is_retained__cash_div_pref_shares EXACT at 1.0 (first of seven tied at priority 10) while the captions those lines are actually printed under — 对所有者（或股东）的分配, 提取法定盈余公积 — matched nothing. Each line now carries the CAS 所有者权益变动表 wording for its own movement plus the HK equivalent; the four balance spellings stay on bs_equity__retained_profits alone, which is the refuse-and-redirect the English side already used. The residual bucket is_retained__other_adj_to_retained_profits gets none: residual_framework.prohibitions says it is never populated by an alias match."
   ],
   "breaking_changes": [
    "the set is now 475 definitions, not 21"
@@ -12789,10 +12790,12 @@
      "Undistributed profits"
     ],
     "zh": [
-     "保留溢利",
-     "未分配利润",
-     "留存收益",
-     "累计亏损"
+     "优先股股利",
+     "优先股现金股利",
+     "分配优先股股利",
+     "其他权益工具持有者分配",
+     "其他权益工具持有人分配",
+     "優先股股息"
     ]
    },
    "keyword_hints": [
@@ -12831,10 +12834,13 @@
      "Event after the reporting period"
     ],
     "zh": [
-     "保留溢利",
-     "未分配利润",
-     "留存收益",
-     "累计亏损"
+     "拟派现金股利",
+     "拟分配现金股利",
+     "拟派股利",
+     "拟宣派现金股利",
+     "擬派股息",
+     "擬派末期股息",
+     "建議派付股息"
     ]
    },
    "keyword_hints": [
@@ -12871,10 +12877,15 @@
      "Undistributed profits"
     ],
     "zh": [
-     "保留溢利",
-     "未分配利润",
-     "留存收益",
-     "累计亏损"
+     "对所有者（或股东）的分配",
+     "对股东的分配",
+     "分配股利",
+     "现金股利",
+     "普通股股利",
+     "普通股现金股利",
+     "已派股息",
+     "已宣派股息",
+     "派付股息"
     ]
    },
    "keyword_hints": [
@@ -12909,10 +12920,13 @@
      "Undistributed profits"
     ],
     "zh": [
-     "保留溢利",
-     "未分配利润",
-     "留存收益",
-     "累计亏损"
+     "股票股利",
+     "送股",
+     "以未分配利润转增股本",
+     "以未分配利润转增资本",
+     "盈余公积转增资本（或股本）",
+     "以股代息",
+     "股份股息"
     ]
    },
    "keyword_hints": [
@@ -12941,10 +12955,14 @@
      "Undistributed profits"
     ],
     "zh": [
-     "保留溢利",
-     "未分配利润",
-     "留存收益",
-     "累计亏损"
+     "提取盈余公积",
+     "提取法定盈余公积",
+     "提取任意盈余公积",
+     "提取一般风险准备",
+     "提取法定公益金",
+     "轉撥至儲備",
+     "轉撥至法定儲備",
+     "转入储备"
     ]
    },
    "keyword_hints": [
@@ -12979,10 +12997,14 @@
      "Undistributed profits"
     ],
     "zh": [
-     "保留溢利",
-     "未分配利润",
-     "留存收益",
-     "累计亏损"
+     "前期差错更正",
+     "前期差错更正的影响",
+     "会计政策变更",
+     "会计政策变更的影响",
+     "以前年度损益调整",
+     "前期調整",
+     "追溯調整",
+     "會計政策變更之影響"
     ]
    },
    "keyword_hints": [
@@ -13007,12 +13029,6 @@
    "aliases_i18n": {
     "en": [
      "Other Adj to Retained Profits"
-    ],
-    "zh": [
-     "保留溢利",
-     "未分配利润",
-     "留存收益",
-     "累计亏损"
     ]
    },
    "keyword_hints": [

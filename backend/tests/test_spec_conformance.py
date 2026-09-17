@@ -388,6 +388,134 @@ def test_the_equity_concept_keeps_its_own_label_as_an_alias(mappings):
     assert "retained profits" in _normalized(mappings[EQUITY_RETAINED])
 
 
+# ── the same borrowed caption in Chinese ──────────────────────────────────────────────────────
+# THE ENGLISH DENIAL LANDED AND THE CHINESE IT HAD ALREADY PULLED ACROSS STAYED. `scripts/
+# enrich_output_csv_primary_aliases.py` transfers Chinese by matching the ENGLISH wording, and
+# `hkfrs_hk_china_ontology.json`'s `bs_equity__retained_earnings` files exactly these four against
+# "Retained profits" — so while all seven movement lines carried that borrowed English caption,
+# all seven were handed the four Chinese spellings, and denying the English one did not take them
+# back. Measured on the shipped line-item set before the clean-up:
+#     match("未分配利润", statement="profit_and_loss")
+#         -> is_retained__cash_div_pref_shares, 1.0, EXACT   (first of seven tied at priority 10)
+#     match("对所有者（或股东）的分配", statement="profit_and_loss")   -> None, UNMATCHED
+#     match("提取法定盈余公积", statement="profit_and_loss")          -> None, UNMATCHED
+# A Chinese filing therefore got a confident wrong answer on the caption that names the BALANCE
+# and an honest refusal on the two captions these lines exist to read.
+RETAINED_BALANCE_ZH = ["保留溢利", "未分配利润", "留存收益", "累计亏损"]
+
+# What each line's movement is actually called, CAS 所有者权益变动表 wording with the HK equivalent.
+# One caption per line is enough to pin the redirect; the full lists live in the configuration.
+RETAINED_MOVEMENT_ZH = {
+    "is_retained__cash_div_pref_shares": "其他权益工具持有者分配",
+    "is_retained__proposed_cash_dividends": "拟派现金股利",
+    "is_retained__cash_div_common_shares": "对所有者（或股东）的分配",
+    "is_retained__stock_dividends_nc": "以未分配利润转增股本",
+    "is_retained__transfer_to_reserves": "提取法定盈余公积",
+    "is_retained__prior_period_adjustments": "前期差错更正",
+}
+
+
+def _line_item_aliases(entry: dict) -> set[str]:
+    out = list(entry.get("aliases") or [])
+    for per_locale in (entry.get("aliases_i18n") or {}).values():
+        out += per_locale
+    return {normalize_label(a) for a in out}
+
+
+@pytest.mark.parametrize("key", list(RETAINED_MOVEMENTS))
+def test_a_retained_movement_line_does_not_claim_the_balance_in_chinese(line_items, key):
+    present = sorted(_line_item_aliases(line_items[key])
+                     & {normalize_label(z) for z in RETAINED_BALANCE_ZH})
+    assert present == [], (
+        f"{key} carries {present}: these are four spellings of the retained-earnings BALANCE — "
+        f"{EQUITY_RETAINED}' own label and the is_retained SECTION's name — not a movement inside "
+        f"it. tests/test_equity_matrix.py shows 保留溢利 is a COLUMN HEADER of the statement of "
+        f"changes in equity, so it names the column a movement prints under, never the movement")
+
+
+def test_the_equity_concept_keeps_its_chinese_balance_vocabulary(line_items):
+    """Refuse-and-redirect, the Chinese half. The four spellings must still reach the concept
+    whose label they are, or the denial has cost a Chinese filing its retained-earnings line."""
+    have = _line_item_aliases(line_items[EQUITY_RETAINED])
+    missing = sorted(z for z in RETAINED_BALANCE_ZH if normalize_label(z) not in have)
+    assert missing == [], f"{EQUITY_RETAINED} lost {missing}: the redirect has nowhere to land"
+
+
+@pytest.mark.parametrize("key,caption", sorted(RETAINED_MOVEMENT_ZH.items()))
+def test_each_retained_movement_line_carries_its_own_chinese_caption(line_items, key, caption):
+    """The positive half, and the reason the denial is not simply a deletion. Removing the
+    borrowed balance spellings without authoring the movement wording would leave these seven
+    lines with no Chinese vocabulary at all — unmatched on a PRC filing rather than wrongly
+    matched, which is better and is still not the line being read."""
+    assert normalize_label(caption) in _line_item_aliases(line_items[key])
+
+
+def test_the_retained_residual_bucket_is_given_no_chinese_vocabulary(line_items):
+    """The seventh line is the section's residual, and it gets the denial without the authoring.
+
+    `residual_framework.prohibitions` says a bucket is "never populated by alias, regex or
+    embedding match" and it declares `alias_matching: disabled`, so movement wording authored here
+    would contradict the bucket's own definition. The stranded spellings still go —
+    `_BORROWED_CAPTION_DENIALS` records why it denies them on this key regardless of the lock.
+    """
+    entry = line_items["is_retained__other_adj_to_retained_profits"]
+    assert not (entry.get("aliases_i18n") or {}).get("zh")
+
+
+@pytest.fixture(scope="module")
+def line_item_matcher():
+    """The matcher A RUN uses, built off the line-item set rather than the generator's rulebook.
+
+    `resolve=True` folds the section layer in, which is what turns statement scoping on — and
+    statement scoping is half of this defect: `_prefer_label_owners` answered 未分配利润 correctly
+    with no statement in hand, and the wrong answer only appeared once scoping removed the label
+    owner from the candidate set on a profit-and-loss page.
+    """
+    from app.schemas.line_items import load_line_item_set
+    from app.services.mapping import OntologyMatcher
+    from app.services.working_view import build_working_view
+
+    raw = json.loads(LINE_ITEMS.read_text(encoding="utf-8"))
+    return OntologyMatcher(build_working_view(load_line_item_set(raw, resolve=True)))
+
+
+@pytest.mark.parametrize("caption", RETAINED_BALANCE_ZH)
+def test_a_chinese_balance_caption_no_longer_binds_a_movement_line(line_item_matcher, caption):
+    """THE BEHAVIOUR, not the configuration. Each of these matched a movement line EXACT at 1.0 on
+    a profit-and-loss page; each must now refuse there and still resolve on the balance sheet."""
+    on_pl = line_item_matcher.match(caption, statement="profit_and_loss", section=None)
+    assert (getattr(on_pl, "canonical_key", None) or "") not in RETAINED_MOVEMENTS, (
+        f"{caption} still binds {on_pl.canonical_key} on the income statement")
+    on_bs = line_item_matcher.match(caption, statement="balance_sheet", section=None)
+    assert getattr(on_bs, "canonical_key", None) == EQUITY_RETAINED, (
+        f"{caption} must still reach {EQUITY_RETAINED} on the balance sheet, not "
+        f"{getattr(on_bs, 'canonical_key', None)}")
+
+
+@pytest.mark.parametrize("key,caption", sorted(RETAINED_MOVEMENT_ZH.items()))
+def test_a_chinese_movement_caption_now_binds_its_own_line(line_item_matcher, key, caption):
+    """The other half, and the one that says the lines are now READABLE. Every one of these
+    returned None before the movement vocabulary was authored."""
+    got = line_item_matcher.match(caption, statement="profit_and_loss", section=None)
+    assert getattr(got, "canonical_key", None) == key, (
+        f"{caption} -> {getattr(got, 'canonical_key', None)}, expected {key}")
+
+
+def test_no_two_retained_lines_claim_the_same_chinese_caption(line_items):
+    """WHAT THE OLD LIST ACTUALLY COST, pinned so it cannot come back by a different route. Seven
+    lines sharing one identical vocabulary means declaration order picks the winner and six lines
+    are unreachable — so the fix is not only "the right words" but "a different set per line"."""
+    seen: dict[str, str] = {}
+    clashes: list[str] = []
+    for key in RETAINED_MOVEMENTS:
+        for alias in ((line_items[key].get("aliases_i18n") or {}).get("zh") or []):
+            norm = normalize_label(alias)
+            if norm in seen:
+                clashes.append(f"{alias} on both {seen[norm]} and {key}")
+            seen[norm] = key
+    assert clashes == [], clashes
+
+
 def test_every_denied_borrowed_caption_is_gone_from_the_configuration(line_items):
     """The curation has to hold on the file a RUN reads, and there is now exactly one of those.
 

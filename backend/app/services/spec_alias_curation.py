@@ -221,7 +221,37 @@ _PRE_TAX_PROFIT_IS_NOT_AMORTISATION = (
 # `bs_equity__retained_profits`' own label AND the name of the `is_retained` movement section, so
 # neither belongs to a movement line inside it. Both label owners are deliberately NOT touched.
 _HEADING_IS_NOT_A_LINE_ITEM = (r"^Related Party Transactions$",)
-_SECTION_NAME_IS_NOT_A_MOVEMENT = (r"^Retained Profits$",)
+# BOTH SCRIPTS OF ONE BORROWED CAPTION, and the Chinese half was stranded here for a while.
+#
+# `scripts/enrich_output_csv_primary_aliases.py` copies Chinese across by matching the ENGLISH
+# alias: for every alias a concept carries, it adds whatever Chinese `hkfrs_hk_china_ontology.json`
+# files under the same English wording. That file's `bs_equity__retained_earnings` carries
+# 留存收益 / 保留溢利 / 累计亏损 / 未分配利润 against "Retained profits" — so when all seven
+# movement lines carried the borrowed "Retained Profits", all seven were handed those four.
+# Denying the English caption below shut the conduit and did not clean up what had already come
+# through: the seven kept the four Chinese spellings after the English one was gone.
+#
+# Measured on the shipped line-item set before the clean-up, loaded the way a caller that intends
+# to MATCH loads it (`resolve=True`):
+#     match("未分配利润", statement="profit_and_loss")
+#         -> is_retained__cash_div_pref_shares, confidence 1.0, EXACT (first of seven at 10)
+#     match("未分配利润", statement="balance_sheet")
+#         -> bs_equity__retained_profits, confidence 1.0, EXACT              (correct)
+#     match("对所有者（或股东）的分配", …)  -> None, UNMATCHED   — the CAS caption for a dividend
+#     match("提取法定盈余公积", …)          -> None, UNMATCHED   — the CAS caption for a transfer
+# So a Chinese filing got a confident wrong answer on the balance caption and an honest refusal on
+# the movement captions the lines exist to read, which is the same shape of defect
+# `_FOREIGN_CAPTION_DENIALS` was written for one layer up.
+#
+# REFUSE-AND-REDIRECT, as ever: the four spellings stay on `bs_equity__retained_profits`, whose
+# label they are, and `tests/test_equity_matrix.py` shows why they cannot be a movement's — 保留溢利
+# is a COLUMN HEADER of the statement of changes in equity, so it names the column a movement is
+# printed under and never the movement itself. The movement vocabulary the seven now carry is
+# authored per line (see the set's `metadata.changes`) and is not governed here.
+_SECTION_NAME_IS_NOT_A_MOVEMENT = (
+    r"^Retained Profits$",
+    r"^保留溢利$", r"^未分配利润$", r"^留存收益$", r"^累计亏损$",
+)
 
 _BORROWED_CAPTION_DENIALS: dict[str, tuple[str, ...]] = {
     "is_pl__amort_and_impairment_intgbl": _PRE_TAX_PROFIT_IS_NOT_AMORTISATION,

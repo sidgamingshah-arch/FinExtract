@@ -172,3 +172,65 @@ def test_the_committed_ontology_already_satisfies_every_denial():
         if removed:
             offending[key] = removed
     assert offending == {}
+
+
+# ── the enrichment that copied a denied caption's Chinese across ──────────────────────────────
+
+def _enrichment():
+    """`scripts/enrich_output_csv_primary_aliases.py`, loaded by path — it is a script, not a
+    package module, so there is nothing to import by name."""
+    import importlib.util
+
+    path = Path(__file__).resolve().parents[1] / "scripts/enrich_output_csv_primary_aliases.py"
+    spec = importlib.util.spec_from_file_location("_enrich_primary_aliases", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_enrichment_refuses_to_copy_a_denied_chinese_spelling():
+    """HOW THE DENIAL WAS OUTFLANKED, pinned so it cannot happen again.
+
+    The transfer is keyed on the ENGLISH wording: for every alias a concept carries, whatever
+    Chinese the reference files under the same English is added. `bs_equity__retained_earnings`
+    files 未分配利润 and 保留溢利 against "Retained profits", so while the seven `is_retained`
+    movement lines carried that borrowed English caption they were handed both — and
+    `_SECTION_NAME_IS_NOT_A_MOVEMENT` denying the English one could not take the Chinese back.
+
+    Curating the transfer closes it in both directions: nothing denied is copied IN, and anything
+    an earlier run copied is removed the next time this runs.
+    """
+    enrich = _enrichment()
+    definition = {"mappings": [{
+        "canonical_key": "is_retained__cash_div_common_shares",
+        "label": "Cash Div Common Shares(-)",
+        "aliases": ["Retained Profits"],
+        "aliases_i18n": {},
+    }]}
+    reference = {"mappings": [{
+        "canonical_key": "bs_equity__retained_earnings", "label": "Retained profits",
+        "aliases": [], "aliases_i18n": {"zh": ["未分配利润", "保留溢利"]},
+    }]}
+
+    enrich.enrich(definition, reference)
+
+    assert not (definition["mappings"][0]["aliases_i18n"].get("zh")), (
+        "a denied Chinese spelling was copied onto a movement line by the English transfer")
+
+
+def test_the_enrichment_still_copies_a_chinese_spelling_nobody_denied():
+    """The control. Curating the transfer must not turn the whole script into a no-op — its job
+    is to give a concept the other script's wording, and only the denied pairs are refused."""
+    enrich = _enrichment()
+    definition = {"mappings": [{
+        "canonical_key": "bs_ca__cash_in_hand_and_at_banks", "label": "Cash at bank and on hand",
+        "aliases": ["Cash at bank and on hand"], "aliases_i18n": {},
+    }]}
+    reference = {"mappings": [{
+        "canonical_key": "bs_ca__cash", "label": "Cash at bank and on hand",
+        "aliases": [], "aliases_i18n": {"zh": ["银行存款及现金"]},
+    }]}
+
+    enrich.enrich(definition, reference)
+
+    assert "银行存款及现金" in definition["mappings"][0]["aliases_i18n"]["zh"]

@@ -3,6 +3,15 @@
 Copies Chinese aliases only where the same English label/alias exists in the shipped
 HKFRS China ontology. Covenant and supplemental mappings are intentionally excluded.
 The operation is idempotent and removes normalized duplicates within each locale.
+
+AND IT FILTERS WHAT IT COPIES THROUGH `spec_alias_curation`, which it did not do for most of its
+life. Transfer is keyed on the ENGLISH wording, so a concept carrying a BORROWED English alias was
+handed every Chinese spelling the reference files under that wording — and the curation that later
+denied the English caption could not reach the Chinese already copied across. Measured: all seven
+`is_retained` movement lines carried "Retained Profits", so all seven were handed
+`bs_equity__retained_earnings`' 留存收益 / 保留溢利 / 累计亏损 / 未分配利润, and kept them after the
+English denial landed (see `_SECTION_NAME_IS_NOT_A_MOVEMENT`). Curating the transfer is what makes
+the denial hold on a re-run instead of needing a second clean-up after every one.
 """
 from __future__ import annotations
 
@@ -11,6 +20,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from app.services.mapping import normalize_label
+from app.services.spec_alias_curation import curate_aliases
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "app" / "sample" / "templates" / "output_csv_hk_ontology.json"
@@ -73,7 +83,12 @@ def enrich(definition: dict, reference: dict) -> tuple[int, int]:
         for alias in english:
             transferred.update(chinese_index.get(normalize_label(alias), set()))
         transferred.update(MAINLAND_CORE_ALIASES.get(key, []))
-        chinese = _unique([*(localized.get("zh") or []), *sorted(transferred)])
+        # THE DENIALS APPLY TO WHAT IS COPIED IN, not only to what the generator harvested. Both
+        # the incoming transfer and whatever the concept already carries go through, so the pass
+        # is also a clean-up: a spelling a denial reached after an earlier run copied it is
+        # removed the next time this runs rather than surviving until somebody notices.
+        chinese = curate_aliases(key, _unique([*(localized.get("zh") or []),
+                                               *sorted(transferred)]))
         if chinese != localized.get("zh", []):
             added_chinese += len(set(map(normalize_label, chinese))
                                 - set(map(normalize_label, localized.get("zh") or [])))
