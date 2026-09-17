@@ -845,7 +845,8 @@
     ],
     "zh": [
      "物业、厂房及设备",
-     "物业及设备"
+     "物业及设备",
+     "物業、廠房及設備"
     ]
    },
    "keyword_hints": [
@@ -2650,7 +2651,8 @@
      "按金及预付款项",
      "预付款项、其他应收款及其他资产",
      "预付款项、按金及其他应收款项",
-     "预付款项及其他应收款项"
+     "预付款项及其他应收款项",
+     "长期应收款"
     ]
    },
    "keyword_hints": [
@@ -3957,8 +3959,7 @@
     ],
     "zh": [
      "一年内到期的非流动资产",
-     "其他流动资产",
-     "合同资产"
+     "其他流动资产"
     ]
    },
    "keyword_hints": [
@@ -4070,7 +4071,8 @@
      "贸易应收款、预付款项及其他应收款",
      "预付款项、其他应收款及其他资产",
      "预付款项、按金及其他应收款项",
-     "预付款项及其他应收款项"
+     "预付款项及其他应收款项",
+     "贸易及其他应收款项"
     ]
    },
    "keyword_hints": [
@@ -4120,7 +4122,8 @@
     "zh": [
      "应收账款",
      "应收账款及票据",
-     "贸易应收款项及票据"
+     "贸易应收款项及票据",
+     "贸易应收款项"
     ]
    },
    "keyword_hints": [
@@ -5013,7 +5016,8 @@
      "法定盈余公积",
      "盈余公积",
      "资本储备",
-     "资本公积"
+     "资本公积",
+     "其他资本公积"
     ]
    },
    "keyword_hints": [
@@ -5708,13 +5712,15 @@
    "aliases": [
     "Perpetual Bond",
     "Perpetual securities",
-    "Perptual capital instruments"
+    "Perptual capital instruments",
+    "Perpetual capital securities"
    ],
    "aliases_i18n": {
     "en": [
      "Perpetual Bond",
      "Perpetual securities",
-     "Perptual capital instruments"
+     "Perptual capital instruments",
+     "Perpetual capital securities"
     ],
     "zh": [
      "其他权益工具",
@@ -5938,7 +5944,10 @@
     "Due to directors",
     "Loan from directors",
     "Advance from directors",
-    "Directors' current account"
+    "Directors' current account",
+    "Amounts due to a director",
+    "Amount due to a director",
+    "Amounts due to directors"
    ],
    "aliases_i18n": {
     "en": [
@@ -5946,7 +5955,10 @@
      "Due to directors",
      "Loan from directors",
      "Advance from directors",
-     "Directors' current account"
+     "Directors' current account",
+     "Amounts due to a director",
+     "Amount due to a director",
+     "Amounts due to directors"
     ]
    },
    "keyword_hints": [
@@ -6792,21 +6804,13 @@
    "definition": "Calculated target using the exact formula retained in the supplied template: =SUM({bs_ncl__ltd_bank}:{bs_ncl__other_provisions_ltp})",
    "extraction_mode": "extract_or_derive",
    "aliases": [
-    "Total Non-Current Liabilities",
-    "Perpetual securities",
-    "Perptual capital instruments"
+    "Total Non-Current Liabilities"
    ],
    "aliases_i18n": {
     "en": [
-     "Total Non-Current Liabilities",
-     "Perpetual securities",
-     "Perptual capital instruments"
+     "Total Non-Current Liabilities"
     ],
     "zh": [
-     "其他权益工具",
-     "可转换优先股",
-     "永续债",
-     "永续资本证券",
      "非流动负债合计",
      "非流动负债总计",
      "非流动负债总额"
@@ -7461,7 +7465,10 @@
     "Due to directors",
     "Loan from directors",
     "Advance from directors",
-    "Directors' current account"
+    "Directors' current account",
+    "Amounts due to a director",
+    "Amount due to a director",
+    "Amounts due to directors"
    ],
    "aliases_i18n": {
     "en": [
@@ -7469,7 +7476,10 @@
      "Due to directors",
      "Loan from directors",
      "Advance from directors",
-     "Directors' current account"
+     "Directors' current account",
+     "Amounts due to a director",
+     "Amount due to a director",
+     "Amounts due to directors"
     ]
    },
    "keyword_hints": [
@@ -8355,7 +8365,8 @@
      "流动应付账款",
      "贸易及其他应付款",
      "贸易应付款、其他应付款及应计费用",
-     "贸易应付款项及票据"
+     "贸易应付款项及票据",
+     "贸易及其他应付款项"
     ]
    },
    "keyword_hints": [
@@ -8398,7 +8409,8 @@
      "应付账款及票据",
      "应付贸易款项",
      "流动应付账款",
-     "贸易应付款项及票据"
+     "贸易应付款项及票据",
+     "贸易应付款项"
     ]
    },
    "keyword_hints": [
@@ -9491,7 +9503,8 @@
      "其他收入及收益",
      "其他收入及收益净额",
      "其他收益",
-     "其他经营收入"
+     "其他经营收入",
+     "其他业务收入"
     ]
    },
    "keyword_hints": [
@@ -9928,7 +9941,8 @@
     "zh": [
      "其他经营开支",
      "其他营业成本",
-     "其他营运成本"
+     "其他营运成本",
+     "其他业务成本"
     ]
    },
    "keyword_hints": [
@@ -10443,13 +10457,17 @@
    "aliases": [
     "Goodwill Amortization",
     "Goodwill written off",
-    "Amortisation of Goodwill"
+    "Amortisation of Goodwill",
+    "Impairment loss on goodwill",
+    "Impairment of goodwill"
    ],
    "aliases_i18n": {
     "en": [
      "Goodwill Amortization",
      "Goodwill written off",
-     "Amortisation of Goodwill"
+     "Amortisation of Goodwill",
+     "Impairment loss on goodwill",
+     "Impairment of goodwill"
     ]
    },
    "keyword_hints": [
@@ -10751,7 +10769,6 @@
     "Other interest incomes",
     "Interest income from loan receivables/other receivables/finance lease receivables",
     "interest income from related party",
-    "Finance cost",
     "Bank interest"
    ],
    "aliases_i18n": {
@@ -10761,7 +10778,6 @@
      "Other interest incomes",
      "Interest income from loan receivables/other receivables/finance lease receivables",
      "interest income from related party",
-     "Finance cost",
      "Bank interest"
     ],
     "zh": [
@@ -11057,7 +11073,6 @@
      "利息费用",
      "融资成本",
      "财务成本",
-     "财务费用",
      "银行及其他借款之利息开支"
     ]
    },
@@ -11155,12 +11170,20 @@
    "aliases_i18n": {
     "en": [
      "Net Interest Income(Expense)"
+    ],
+    "zh": [
+     "财务费用"
     ]
    },
    "keyword_hints": [
     "Net Interest Income(Expense)"
    ],
-   "sign_rule": {},
+   "sign_rule": {
+    "flip_if_label_matches": [
+     "财务费用",
+     "財務費用"
+    ]
+   },
    "inherits": "is_pl",
    "face_only": false,
    "match_priority": 100,
@@ -11247,7 +11270,8 @@
     "Dividend income from subsidiaries",
     "Dividend income from / Share of result of Associates/ related parties/ associates / fellow subsidiaries",
     "Share of profits and losses of associates",
-    "Share of profit and loss of associates"
+    "Share of profit and loss of associates",
+    "Share of results of associates"
    ],
    "aliases_i18n": {
     "en": [
@@ -11255,7 +11279,8 @@
      "Dividend income from subsidiaries",
      "Dividend income from / Share of result of Associates/ related parties/ associates / fellow subsidiaries",
      "Share of profits and losses of associates",
-     "Share of profit and loss of associates"
+     "Share of profit and loss of associates",
+     "Share of results of associates"
     ],
     "zh": [
      "对联营企业和合营企业的投资收益",
@@ -11287,7 +11312,8 @@
     "Share of results of Joint ventures/JV",
     "Dividend income from Jointly controlled entities / Joint ventures/JV",
     "Share of profits and losses of joint ventures",
-    "Share of profit and loss of joint ventures"
+    "Share of profit and loss of joint ventures",
+    "Share of profits of joint ventures"
    ],
    "aliases_i18n": {
     "en": [
@@ -11296,7 +11322,8 @@
      "Share of results of Joint ventures/JV",
      "Dividend income from Jointly controlled entities / Joint ventures/JV",
      "Share of profits and losses of joint ventures",
-     "Share of profit and loss of joint ventures"
+     "Share of profit and loss of joint ventures",
+     "Share of profits of joint ventures"
     ],
     "zh": [
      "合营公司",
@@ -11912,14 +11939,33 @@
     "FMV adj on investment properties",
     "Fair value changes on investment properties",
     "Fair value losses on investment properties, net",
-    "Fair value gains on investment properties, net"
+    "Fair value gains on investment properties, net",
+    "Fair value gain on investment properties",
+    "Fair value loss on investment properties",
+    "Fair value gains on investment properties",
+    "Increase in fair value of investment properties",
+    "Decrease in fair value of investment properties",
+    "Net gain from fair value adjustment on investment properties"
    ],
    "aliases_i18n": {
     "en": [
      "FMV adj on investment properties",
      "Fair value changes on investment properties",
      "Fair value losses on investment properties, net",
-     "Fair value gains on investment properties, net"
+     "Fair value gains on investment properties, net",
+     "Fair value gain on investment properties",
+     "Fair value loss on investment properties",
+     "Fair value gains on investment properties",
+     "Increase in fair value of investment properties",
+     "Decrease in fair value of investment properties",
+     "Net gain from fair value adjustment on investment properties"
+    ],
+    "zh": [
+     "投资性房地产公允价值变动收益",
+     "投资性房地产公允价值变动损益",
+     "投资物业公允价值变动",
+     "投资物业公平值变动",
+     "投资物业公平值收益"
     ]
    },
    "keyword_hints": [
@@ -12410,8 +12456,6 @@
      "年度亏损",
      "年度利润",
      "年度溢利",
-     "归属于母公司所有者的净利润",
-     "归属于母公司股东的净利润",
      "期内亏损",
      "期间利润",
      "本年净利润",
@@ -13322,7 +13366,9 @@
     "Share of profits and losses of associates",
     "Share of profits and losses of joint ventures",
     "Share of profit and loss of associates",
-    "Share of profit and loss of joint ventures"
+    "Share of profit and loss of joint ventures",
+    "Share of results of associates",
+    "Share of profits of joint ventures"
    ],
    "aliases_i18n": {
     "en": [
@@ -13332,7 +13378,9 @@
      "Share of profits and losses of associates",
      "Share of profits and losses of joint ventures",
      "Share of profit and loss of associates",
-     "Share of profit and loss of joint ventures"
+     "Share of profit and loss of joint ventures",
+     "Share of results of associates",
+     "Share of profits of joint ventures"
     ],
     "zh": [
      "合营公司",
@@ -13891,14 +13939,16 @@
     "Income Taxes Paid(Indirect)",
     "Hong Kong profits tax paid, net",
     "Chinese Mainland taxes paid, net",
-    "Overseas taxes paid, net"
+    "Overseas taxes paid, net",
+    "Income tax paid"
    ],
    "aliases_i18n": {
     "en": [
      "Income Taxes Paid(Indirect)",
      "Hong Kong profits tax paid, net",
      "Chinese Mainland taxes paid, net",
-     "Overseas taxes paid, net"
+     "Overseas taxes paid, net",
+     "Income tax paid"
     ]
    },
    "keyword_hints": [
@@ -14051,14 +14101,18 @@
     "Cash Flows Oper Activ(Indirect)",
     "Net cash flows from operating activities",
     "Net cash flows from/(used in) operating activities",
-    "Net cash flows used in operating activities"
+    "Net cash flows used in operating activities",
+    "Net cash generated from operating activities",
+    "Net cash used in operating activities"
    ],
    "aliases_i18n": {
     "en": [
      "Cash Flows Oper Activ(Indirect)",
      "Net cash flows from operating activities",
      "Net cash flows from/(used in) operating activities",
-     "Net cash flows used in operating activities"
+     "Net cash flows used in operating activities",
+     "Net cash generated from operating activities",
+     "Net cash used in operating activities"
     ],
     "zh": [
      "经营活动产生的现金流量净额",
@@ -14214,12 +14268,16 @@
    "definition": "Extract the reported value for 'Cash Receipts from Customers' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
     "Cash Receipts from Customers",
-    "Net cash used in/generated from operating activities(Direct)"
+    "Cash received from sales of goods and rendering of services",
+    "Cash received from customers",
+    "Receipts from customers"
    ],
    "aliases_i18n": {
     "en": [
      "Cash Receipts from Customers",
-     "Net cash used in/generated from operating activities(Direct)"
+     "Cash received from sales of goods and rendering of services",
+     "Cash received from customers",
+     "Receipts from customers"
     ],
     "zh": [
      "销售商品、提供劳务收到的现金"
@@ -14242,11 +14300,17 @@
    "label": "Cash Paid to Suppliers",
    "definition": "Extract the reported value for 'Cash Paid to Suppliers' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
-    "Cash Paid to Suppliers"
+    "Cash Paid to Suppliers",
+    "Cash paid for goods and services",
+    "Cash paid to suppliers for goods and services",
+    "Payments to suppliers"
    ],
    "aliases_i18n": {
     "en": [
-     "Cash Paid to Suppliers"
+     "Cash Paid to Suppliers",
+     "Cash paid for goods and services",
+     "Cash paid to suppliers for goods and services",
+     "Payments to suppliers"
     ],
     "zh": [
      "购买商品、接受劳务支付的现金"
@@ -14270,12 +14334,14 @@
    "definition": "Extract the reported value for 'Cash Paid to Employees' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
     "Cash Paid to Employees",
-    "Net cash used in/generated from operating activities(Direct)"
+    "Cash paid to and on behalf of employees",
+    "Payments to employees"
    ],
    "aliases_i18n": {
     "en": [
      "Cash Paid to Employees",
-     "Net cash used in/generated from operating activities(Direct)"
+     "Cash paid to and on behalf of employees",
+     "Payments to employees"
     ],
     "zh": [
      "支付给职工以及为职工支付的现金"
@@ -14352,11 +14418,13 @@
    "definition": "Calculated target using the exact formula retained in the supplied template: =SUM({cf_oper_direct__cash_receipts_from_customers}:{cf_oper_direct__borrowing_costs_paid})",
    "extraction_mode": "extract_or_derive",
    "aliases": [
-    "Cash Flows Oper Activ(Direct)"
+    "Cash Flows Oper Activ(Direct)",
+    "Net cash used in/generated from operating activities(Direct)"
    ],
    "aliases_i18n": {
     "en": [
-     "Cash Flows Oper Activ(Direct)"
+     "Cash Flows Oper Activ(Direct)",
+     "Net cash used in/generated from operating activities(Direct)"
     ]
    },
    "keyword_hints": [
@@ -15753,19 +15821,27 @@
     "Net Foreign Exchange Difference",
     "Effect of foreign exchange rate changes",
     "Exchange gains(loss) on cash and cash equivalents",
-    "Effect of foreign exchange rate changes, net"
+    "Effect of foreign exchange rate changes, net",
+    "Effect of foreign exchange rate changes on cash and cash equivalents",
+    "Effect of changes in foreign exchange rates",
+    "Effect of changes in exchange rates on cash and cash equivalents"
    ],
    "aliases_i18n": {
     "en": [
      "Net Foreign Exchange Difference",
      "Effect of foreign exchange rate changes",
      "Exchange gains(loss) on cash and cash equivalents",
-     "Effect of foreign exchange rate changes, net"
+     "Effect of foreign exchange rate changes, net",
+     "Effect of foreign exchange rate changes on cash and cash equivalents",
+     "Effect of changes in foreign exchange rates",
+     "Effect of changes in exchange rates on cash and cash equivalents"
     ],
     "zh": [
      "汇兑调整",
      "汇率变动的影响",
-     "汇率变动的影响净额"
+     "汇率变动的影响净额",
+     "汇率变动对现金及现金等价物的影响",
+     "汇率变动对现金及现金等价物的影响额"
     ]
    },
    "keyword_hints": [
@@ -15787,18 +15863,26 @@
    "aliases": [
     "Beg of Period-Cash & Cash Equiv",
     "Cash and Cash Equivalents at beginning of the year",
-    "Cash and cash equivalents at beginning of year"
+    "Cash and cash equivalents at beginning of year",
+    "Cash and cash equivalents at beginning of period",
+    "Cash and cash equivalents at the beginning of the year",
+    "Cash and cash equivalents at beginning of the reporting period"
    ],
    "aliases_i18n": {
     "en": [
      "Beg of Period-Cash & Cash Equiv",
      "Cash and Cash Equivalents at beginning of the year",
-     "Cash and cash equivalents at beginning of year"
+     "Cash and cash equivalents at beginning of year",
+     "Cash and cash equivalents at beginning of period",
+     "Cash and cash equivalents at the beginning of the year",
+     "Cash and cash equivalents at beginning of the reporting period"
     ],
     "zh": [
      "年初",
      "年初现金及现金等价物",
-     "期初现金及现金等价物"
+     "期初现金及现金等价物",
+     "期初现金及现金等价物余额",
+     "现金及现金等价物的期初余额"
     ]
    },
    "keyword_hints": [
@@ -15821,18 +15905,26 @@
    "aliases": [
     "End of Period-Cash & Cash Equiv",
     "Cash and Cash Equivalents at end of the year",
-    "Cash and cash equivalents at end of year"
+    "Cash and cash equivalents at end of year",
+    "Cash and cash equivalents at end of period",
+    "Cash and cash equivalents at the end of the year",
+    "Cash and cash equivalents at end of the reporting period"
    ],
    "aliases_i18n": {
     "en": [
      "End of Period-Cash & Cash Equiv",
      "Cash and Cash Equivalents at end of the year",
-     "Cash and cash equivalents at end of year"
+     "Cash and cash equivalents at end of year",
+     "Cash and cash equivalents at end of period",
+     "Cash and cash equivalents at the end of the year",
+     "Cash and cash equivalents at end of the reporting period"
     ],
     "zh": [
      "年末",
      "年末现金及现金等价物",
-     "期末现金及现金等价物"
+     "期末现金及现金等价物",
+     "期末现金及现金等价物余额",
+     "现金及现金等价物的期末余额"
     ]
    },
    "keyword_hints": [
@@ -19866,7 +19958,10 @@
    ],
    "exclude_hints": [
     "FVOCI",
-    "other comprehensive income"
+    "other comprehensive income",
+    "investment propert",
+    "投资性房地产",
+    "投资物业"
    ],
    "route": "note_tables"
   },
@@ -20108,7 +20203,10 @@
    ],
    "exclude_hints": [
     "Proft & loss",
-    "Profit and loss"
+    "Profit and loss",
+    "investment propert",
+    "投资性房地产",
+    "投资物业"
    ],
    "route": "note_tables"
   },
@@ -22010,7 +22108,12 @@
    "keyword_hints": [
     "fair value"
    ],
-   "route": "note_tables"
+   "route": "note_tables",
+   "exclude_hints": [
+    "investment propert",
+    "投资性房地产",
+    "投资物业"
+   ]
   },
   {
    "key": "sub__face_principal_revenue",
@@ -22036,10 +22139,6 @@
     "Total revenue",
     "Total revenues",
     "Revenue from contracts with customers",
-    "营业总收入",
-    "營業總收入",
-    "营业额",
-    "營業額",
     "收入总额",
     "收入總額"
    ],
@@ -22054,10 +22153,6 @@
      "Total revenue",
      "Total revenues",
      "Revenue from contracts with customers",
-     "营业总收入",
-     "營業總收入",
-     "营业额",
-     "營業額",
      "收入总额",
      "收入總額"
     ],
@@ -22076,7 +22171,12 @@
     "Other income",
     "Other revenue"
    ],
-   "route": "face"
+   "route": "face",
+   "exclude_hints": [
+    "营业收入",
+    "营业总收入",
+    "^(?:[一二三四五六七八九十]+、|其中：)?\\s*(?:收益|营业额|销售收入|客户合约收益)$"
+   ]
   },
   {
    "key": "sub__revenue_note_principal_revenue",

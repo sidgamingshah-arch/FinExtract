@@ -275,7 +275,60 @@ _SECTION_NAME_IS_NOT_A_MOVEMENT = (
     r"^保留溢利$", r"^未分配利润$", r"^留存收益$", r"^累计亏损$",
 )
 
+# ── the attribution tail, the CAS aggregates, and three more borrowed captions ────────────────
+# All of these were MEASURED on the shipped matcher before being denied, and each was a confident
+# wrong number rather than a near miss. They go in this table and not in `_FOREIGN_CAPTION_DENIALS`
+# because that one's membership is pinned to the two amortisation concepts by its own test.
+#
+# PROFIT ATTRIBUTABLE TO OWNERS IS NOT PROFIT FOR THE YEAR. They differ by minority interests, and
+# `is_pl__profit_for_the_year` is `exclusive_leaf`, so a filing printing both rows published
+# whichever the reader reached last — and where two rows DO reach one key the engine SUMS them
+# (measured: `periods.concept_value` returned 1400.0 for 1000 + 400), which is worse again. There
+# is no attributable line to redirect to and the template's columns are fixed, so THE FIGURE IS
+# LOST rather than relocated: an unmatched attribution row keeps its review flag, which a silently
+# wrong bottom line did not. `stages.residual._ATTRIBUTION` already recognises all four spellings
+# and excludes them from the sweep, so nothing downstream absorbs them either.
+_ATTRIBUTION_IS_NOT_THE_TOTAL = (
+    r"^归属于母公司", r"^歸屬於母公司", r"^本公司(拥有人|擁有人)",
+    r"^Profit attributable to owners", r"^Loss attributable to owners",
+    r"^Profit attributable to shareholders",
+)
+
+# 财务费用 IS AN AGGREGATE, NOT THE INTEREST CHARGE. Under CAS it nets interest expense, interest
+# income, exchange differences and bank charges, and every PRC filing itemises it in a note.
+# Bound to `is_pl__interest_expense` it overstated gross interest and broke interest coverage — the
+# ratio the credit file exists for. Redirected to `is_pl__net_interest_income_expense`, which is
+# the net concept, with a `sign_rule.flip_if_label_matches` on that line because the CAS row is
+# printed as a charge. The English "Finance cost" singular is denied on `is_pl__interest_income`
+# for the mirror reason: a cost is not income. The PLURAL "Finance costs" is left alone.
+_CAS_FINANCE_COSTS_IS_NOT_INTEREST_EXPENSE = (r"^财务费用$", r"^財務費用$")
+_A_FINANCE_COST_IS_NOT_INTEREST_INCOME = (r"^Finance cost$",)
+
+# A PERPETUAL INSTRUMENT IS NOT THE LIABILITIES TOTAL. Six captions naming perpetual securities,
+# other equity instruments and convertible preference shares were claimed by
+# `bs_ncl__total_non_current_liabilities` — a SUBTOTAL — so an instrument row published as the
+# section's total. `bs_ncl__perpetual_bond` is the leaf and carries them instead.
+_AN_INSTRUMENT_IS_NOT_THE_TOTAL = (
+    r"^Perpetual securities$", r"^Perptual capital instruments$",
+    r"^其他权益工具$", r"^可转换优先股$", r"^永续债$", r"^永续资本证券$",
+)
+
+# THE SECTION'S OWN TOTAL IS NOT ONE OF ITS RECEIPTS. Two direct-method cash-flow leaves claimed
+# "Net cash used in/generated from operating activities(Direct)", which is
+# `cf_oper_direct__cash_flows_oper_activ_direct` — the section total. Denied on the leaves, which
+# keep their own captions. Seed-only in effect: the rulebook never carried the alias.
+_THE_SECTION_TOTAL_IS_NOT_A_RECEIPT = (
+    r"^Net cash used in/generated from operating activities\(Direct\)$",)
+
 _BORROWED_CAPTION_DENIALS: dict[str, tuple[str, ...]] = {
+    # See the four rules above this table for what each denial measured.
+    "is_pl__profit_for_the_year": _ATTRIBUTION_IS_NOT_THE_TOTAL,
+    "is_pl__interest_expense": _CAS_FINANCE_COSTS_IS_NOT_INTEREST_EXPENSE,
+    "is_pl__interest_income": _A_FINANCE_COST_IS_NOT_INTEREST_INCOME,
+    "bs_ncl__total_non_current_liabilities": _AN_INSTRUMENT_IS_NOT_THE_TOTAL,
+    "cf_oper_direct__cash_receipts_from_customers": _THE_SECTION_TOTAL_IS_NOT_A_RECEIPT,
+    "cf_oper_direct__cash_paid_to_employees": _THE_SECTION_TOTAL_IS_NOT_A_RECEIPT,
+
     "is_pl__amort_and_impairment_intgbl": _PRE_TAX_PROFIT_IS_NOT_AMORTISATION,
     # Land use rights ARE an intangible, but they are one named intangible; the bare caption is
     # the sibling leaf's. Its own "Land use rights" vocabulary is untouched.
