@@ -525,6 +525,12 @@ def test_what_a_line_declares_about_its_row_does_NOT_reach_the_request(shipped):
         assert withheld not in entry, f"{withheld} is a deterministic-route field and must not be sent"
 
     # What the request DOES carry is the authored meaning and the placement — nothing lexical.
+    # `statement` IS ADMISSIBLE AND THE REST OF THIS LIST IS NOT A MATTER OF TASTE. It is the
+    # TOKEN form of `printed_in`, which this request already carries — `printed_in` is derived from
+    # it — so it adds no information the model did not have and no lexical evidence of any kind.
+    # What it adds is a JOIN: `services.face_context` keys its statement blocks by the token, and a
+    # model asked to match "Consolidated statement of financial position (balance sheet)" against
+    # `balance_sheet` is being asked to guess at a mapping neither side states.
     assert set(entry) <= {"key", "label", "notes_supplied", "definition", "exclude",
-                          "printed_in", "sign_convention"}
+                          "printed_in", "statement", "sign_convention"}
     assert entry["key"] == item.key and entry["notes_supplied"] == ["7"]

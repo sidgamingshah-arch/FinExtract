@@ -254,6 +254,11 @@ def line_item_payload(item, notes_for_item: tuple[str, ...]) -> dict:
     statement = str(getattr(raw, "value", raw) or "")
     if statement:
         entry["printed_in"] = _STATEMENT_LABEL.get(statement, statement.replace("_", " "))
+        # THE TOKEN AS WELL AS THE PROSE, so the line can be joined to its rows. `printed_in` is a
+        # reader's label ("Consolidated statement of financial position (balance sheet)") while
+        # `services.face_context` keys its blocks by the token, and a model asked to match one
+        # against the other is being asked to guess at a mapping neither side states.
+        entry["statement"] = statement
     # `prompt` IS NO LONGER A SECOND FIELD. Definition and prompt are one authored thing now — the
     # merge is done on the way in (`schemas.line_items.LineItemDef.definition`), so there is nothing
     # left to append here and no `instruction` key. A set written before the merge still loads, and
@@ -267,8 +272,9 @@ def line_item_payload(item, notes_for_item: tuple[str, ...]) -> dict:
     return entry
 
 
-def build_request(plan, by_key: dict, notes_of: dict, identified: list[dict]) -> dict:
-    """The user message for one request: the lines, then the notes they share.
+def build_request(plan, by_key: dict, notes_of: dict, identified: list[dict],
+                  face: list[dict] | None = None) -> dict:
+    """The user message for one request: the lines, then the notes and the statement they share.
 
     THE NOTES GO ONCE, BESIDE THE LINES, not inside each one. That is the entire saving grouping
     buys and it is a shape decision rather than a budget one: measured on the reference filing the
@@ -276,15 +282,32 @@ def build_request(plan, by_key: dict, notes_of: dict, identified: list[dict]) ->
     twelve-line group would be about a megabyte — which fails a provider outright rather than
     merely costing more. Each line says which of them ITS configuration selected
     (`notes_supplied`), so a shared request is still answerable line by line.
+
+    AND THE STATEMENT GOES THE SAME WAY, for a line that has no notes to be given. A face line
+    selects none, so its note block is empty and the contract's advice in that position is to
+    answer with an empty `sources` — 343 of the 506 asked-about lines. `face` is
+    `services.face_context.face_rows`, the printed rows of the statements this request's lines are
+    gated to; it is supplied once for the same reason the notes are, and each line says which
+    statement is its own (`printed_in`, already sent).
+
+    `face` DEFAULTS TO NONE RATHER THAN BEING REQUIRED, so every existing caller — the audit
+    scripts among them — keeps working and a run with no face context is the behaviour that was
+    there before.
     """
     wanted = set(plan.notes)
-    return {
+    out = {
         "line_items": [line_item_payload(by_key[k], notes_of.get(k, ()))
                        for k in plan.keys if k in by_key],
         # Only the notes THIS request's lines selected. An identified note for a line in another
         # request is not context, it is noise the model has to rule out.
         "notes": [n for n in identified if str(n.get("note", "")) in wanted] if wanted else [],
     }
+    # OMITTED ENTIRELY WHEN EMPTY, not sent as `[]`. A key whose value says nothing still costs the
+    # model a line to read and invites it to infer that the statement was looked for and not found
+    # — the same reason `line_item_payload` omits an empty `exclude`.
+    if face:
+        out["statement_rows"] = face
+    return out
 
 
 def _amount(text: str) -> Decimal | None:

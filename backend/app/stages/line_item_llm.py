@@ -38,7 +38,7 @@ from app.core.models.enums import MappingMethod
 from app.core.models.line_item import LineItem
 from app.core.stage import PipelineContext, Stage
 from app.ports.registry import registry
-from app.services import (line_item_llm, line_item_notes, line_item_requests,
+from app.services import (face_context, line_item_llm, line_item_notes, line_item_requests,
                           note_sourced)
 from app.services.mapping import authored_guidance
 from app.services.working_view import build_working_view
@@ -171,7 +171,12 @@ class LineItemLlmStage(Stage):
         filled = answered = unresolved_total = 0
         calls = failures = 0
         for done, plan in enumerate(plans, start=1):
-            request = line_item_llm.build_request(plan, by_key, notes_of, identified)
+            # THE STATEMENT THIS REQUEST'S LINES ARE GATED TO, supplied once beside them. A face
+            # line selects no note, so without this its request carries nothing to locate a figure
+            # in — see `services.face_context`. Built per plan rather than once per document
+            # because a plan names its own statements and another plan's statement is noise.
+            face = face_context.face_rows(doc, {st for st, _sec in (plan.sections or ())})
+            request = line_item_llm.build_request(plan, by_key, notes_of, identified, face)
             if not request["line_items"]:
                 continue
             try:
