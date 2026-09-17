@@ -124,3 +124,68 @@ def test_stage_records_units_from_a_face_page(monkeypatch):
     assert doc.unit_context is not None
     assert doc.unit_context.units_label == "thousand"
     assert doc.unit_context.currency == "CNY"
+
+
+# ── A FACE PAGE WHOSE STATEMENT NEVER RESOLVED IS NOT A STATEMENT PAGE ───────────────────────
+#
+# `DocumentModel.face_pages` returns every page the classifier called FACE whatever became of its
+# statement, and detection reads the first twelve of them — so a page that merely LOOKED like a
+# statement face could declare the scale for the whole filing.
+#
+# MEASURED ON BOTH REFERENCE FILINGS. 000709: 50 FACE pages, 4 of the 12 scanned with no resolved
+# statement, three at indices 6-8 AHEAD of the first real statement page at 81. 688008: 22 FACE
+# pages, 5 of 12 unresolved at 144-148. Neither filing's unresolved pages declare a scale, so both
+# detect correctly today — by luck, not by design.
+#
+# `services.pdf_extract` already refuses exactly these pages when choosing what to reconstruct, and
+# a page not trusted to yield a ROW should not be trusted to declare the units every row is read in.
+
+
+def _doc_with_statements(*, resolved: dict[int, str], unresolved=(), pages: int = 200):
+    """A document whose FACE pages carry a statement for `resolved` and none for `unresolved`."""
+    doc = DocumentModel(filename="ar.pdf", fmt=DocFormat.PDF)
+    faces = set(resolved) | set(unresolved)
+    doc.pages = [PageSource(index=i,
+                            kind=PageKind.FACE if i in faces else PageKind.OTHER,
+                            statement=resolved.get(i))
+                 for i in range(pages)]
+    return doc
+
+
+def test_a_scale_on_an_unresolved_face_page_is_ignored(monkeypatch):
+    """THE HARDENING. The unresolved page comes FIRST in document order, which is what made it win:
+    a bond-section table headed 单位：万元 would have set the scale for every figure in the filing."""
+    doc = _doc_with_statements(resolved={81: "balance_sheet"}, unresolved=(6,))
+    got = _detect(monkeypatch, {0: "Annual Report 2024", 1: "",
+                                6: "公司债券 单位：万元",
+                                81: "合并资产负债表 单位：元 人民币"}, doc)
+    assert got is not None
+    assert got.units_label is None, f"took the scale off an unresolved page: {got.units_label}"
+    assert got.scale_factor == Decimal(1)
+    assert got.source_bbox_page is None
+
+
+def test_the_window_is_not_spent_on_unresolved_pages(monkeypatch):
+    """COVERAGE, THE OTHER HALF. Thirteen unresolved faces used to fill the twelve-page window
+    entirely and push the real statement out of it; now they are not candidates at all."""
+    doc = _doc_with_statements(resolved={120: "balance_sheet"},
+                               unresolved=tuple(range(6, 19)))
+    texts = {0: "Annual Report 2024", 1: ""}
+    texts.update({i: "五年财务摘要" for i in range(6, 19)})
+    texts[120] = "合并资产负债表 人民幣千元"
+    got = _detect(monkeypatch, texts, doc)
+    assert got is not None and got.units_label == "thousand", got
+    assert got.source_bbox_page == 120
+
+
+def test_a_filing_that_resolves_no_statement_still_detects(monkeypatch):
+    """THE FALLBACK, and it is load-bearing rather than defensive: one filing in the corpus resolves
+    no note or face section at all, and every other test in this file builds its faces WITHOUT a
+    statement. Filtering with no fallback would have starved detection instead of sharpening it —
+    the same convention `pdf_extract` uses for its own target set, where absence of a signal means
+    unconstrained and never "nothing is allowed"."""
+    doc = _doc_with_statements(resolved={}, unresolved=(102,))
+    got = _detect(monkeypatch, {0: "Annual Report 2023", 1: "", 102: PAGE_102}, doc)
+    assert got is not None and got.units_label == "thousand", got
+    assert got.currency == "CNY"
+    assert got.source_bbox_page == 102

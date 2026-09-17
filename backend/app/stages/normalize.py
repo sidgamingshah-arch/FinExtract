@@ -169,8 +169,33 @@ def _detect_units(ctx: PipelineContext, fmt: str, doc: DocumentModel | None = No
     In an annual report the declaration lives on the *statement* pages (p.100+), not the cover,
     so the front matter is scanned first (a cover banner still wins when present) and then each
     statement face. A chunk only ends the search once it yields a scale: a stray currency
-    mention in the front matter must not pre-empt the real "RMB'000" column head further in."""
+    mention in the front matter must not pre-empt the real "RMB'000" column head further in.
+
+    A FACE PAGE WHOSE STATEMENT NEVER RESOLVED IS NOT A STATEMENT PAGE, and this scan used to
+    treat it as one. `DocumentModel.face_pages` returns every page the classifier called FACE
+    whatever became of its statement, and this reads the first twelve of them — so a page that
+    merely LOOKED like a statement face could declare the scale for the whole filing.
+
+    MEASURED, ON BOTH REFERENCE FILINGS. 000709: 50 FACE pages, and 4 of the 12 the scan saw had
+    no resolved statement — three of them at indices 6-8, AHEAD of the first real statement page
+    at 81. 688008: 22 FACE pages, 5 of the 12 unresolved (indices 144-148). Neither filing's
+    unresolved pages happen to declare a scale, so both currently detect correctly — by luck
+    rather than by design. A bond-section table, a five-year summary or a segment schedule that
+    does declare one would set the scale for every figure in the document.
+
+    SO THE SCAN NOW ASKS THE SAME QUESTION THE EXTRACTOR ALREADY ASKS. `services.pdf_extract`
+    refuses exactly these pages when it chooses what to reconstruct (`p.statement in
+    ACTIVE_STATEMENTS`), and a page not trusted to yield a ROW should not be trusted to declare
+    the units every row is read in. It also buys coverage rather than costing it: all twelve
+    slots now hold real statement pages instead of four or five being spent on pages that are
+    not statements at all.
+
+    AND IT FALLS BACK RATHER THAN STARVING. Where no face page resolved a statement — one filing
+    in the corpus resolves none — the filter would leave only the front matter, so the unfiltered
+    faces are used instead. That is the same convention `pdf_extract` applies to its own target
+    set: absence of a signal means "unconstrained", never "nothing is allowed"."""
     from app.services.derived import document_text
+    from app.services.statements import ACTIVE_STATEMENTS
 
     try:
         pages = document_text(ctx.raw_bytes or b"", fmt)
@@ -180,7 +205,9 @@ def _detect_units(ctx: PipelineContext, fmt: str, doc: DocumentModel | None = No
     # (page index for provenance, text) chunks in scan order; front matter is one chunk so a
     # scale and currency split across the first two pages still combine, as they always have.
     chunks: list[tuple[int | None, str]] = [(None, " ".join(t for _, t in pages[:2]))]
-    for page in (doc.face_pages() if doc is not None else [])[:_MAX_FACE_SCAN]:
+    faces = doc.face_pages() if doc is not None else []
+    resolved = [p for p in faces if str(getattr(p, "statement", "") or "") in ACTIVE_STATEMENTS]
+    for page in (resolved or faces)[:_MAX_FACE_SCAN]:
         chunks.append((page.index, by_index.get(page.index, "")))
 
     currency: str | None = None
