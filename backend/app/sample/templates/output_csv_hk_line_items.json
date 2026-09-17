@@ -11914,10 +11914,7 @@
      "Disposal of intangible assets",
      "Operating profit"
     ],
-    "zh": [
-     "营业外支出",
-     "营业外收入"
-    ]
+    "zh": []
    },
    "keyword_hints": [
     "Other Non-Operating Inc(Exp)"
@@ -11928,7 +11925,8 @@
    "match_priority": 10,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "namespace": "template",
-   "route": "face"
+   "route": "face",
+   "rollup": "sum"
   },
   {
    "key": "is_pl__fmv_adj_on_investment_properties",
@@ -36310,6 +36308,93 @@
    },
    "terms": [],
    "route": "note_tables"
+  },
+  {
+   "key": "sub__non_operating_income",
+   "label": "Non-operating income (face row)",
+   "definition": "The income-statement row a mainland filing prints as 营业外收入 — non-operating income: gains outside ordinary operating activity that CAS presents on this line (government grants unrelated to ordinary activity presented here, penalty and compensation income, donations received, gains on debt restructuring). Read OFF THE FACE of the income statement, above 利润总额. It is one of the two halves of the template's single net column Other Non-Operating Inc(Exp), which is its parent and which sums the two. It is NOT 其他收益, NOT 投资收益 and NOT 资产处置收益 — each of those has its own template line — and it is not the net of income and expense.",
+   "exclude_criteria": [],
+   "inherits": "is_pl",
+   "parent": "is_pl__other_non_operating_inc_exp",
+   "type": "extracted",
+   "namespace": "internal",
+   "sign_rule": {},
+   "route": "face",
+   "sign_convention": "positive_expected",
+   "match_priority": 15,
+   "aliases": [
+    "Non-operating income",
+    "Non-operating revenue",
+    "Non-operating gains"
+   ],
+   "keyword_hints": [
+    "Non-operating income",
+    "Non-operating revenue",
+    "Non-operating gains"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Non-operating income",
+     "Non-operating revenue",
+     "Non-operating gains"
+    ],
+    "zh": [
+     "营业外收入"
+    ]
+   },
+   "in_output": false,
+   "statement": "profit_and_loss",
+   "section_scope": [
+    "is_pl"
+   ],
+   "order": 1,
+   "note_use": "decomposition_allowed"
+  },
+  {
+   "key": "sub__non_operating_expenses",
+   "label": "Non-operating expenses (face row)",
+   "definition": "The income-statement row a mainland filing prints as 营业外支出 — non-operating expenses: losses outside ordinary operating activity that CAS presents on this line (donations made, penalties and fines paid, extraordinary losses, losses on debt restructuring). Read OFF THE FACE of the income statement, above 利润总额, where CAS prints it as an UNSIGNED POSITIVE magnitude that the statement's own arithmetic deducts. It is one of the two halves of the template's single net column Other Non-Operating Inc(Exp), which is its parent and which sums the two, so this part must carry the figure NEGATIVE — see its sign_rule, which negates the CAS caption only, and its negative_expected sign_convention, which flags any remaining positive for review rather than coercing it.",
+   "exclude_criteria": [],
+   "inherits": "is_pl",
+   "parent": "is_pl__other_non_operating_inc_exp",
+   "type": "extracted",
+   "namespace": "internal",
+   "sign_rule": {
+    "flip_if_label_matches": [
+     "营业外支出",
+     "營業外支出"
+    ]
+   },
+   "route": "face",
+   "sign_convention": "negative_expected",
+   "match_priority": 15,
+   "aliases": [
+    "Non-operating expenses",
+    "Non-operating expenditure",
+    "Non-operating losses"
+   ],
+   "keyword_hints": [
+    "Non-operating expenses",
+    "Non-operating expenditure",
+    "Non-operating losses"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Non-operating expenses",
+     "Non-operating expenditure",
+     "Non-operating losses"
+    ],
+    "zh": [
+     "营业外支出"
+    ]
+   },
+   "in_output": false,
+   "statement": "profit_and_loss",
+   "section_scope": [
+    "is_pl"
+   ],
+   "order": 2,
+   "note_use": "decomposition_allowed"
   }
  ],
  "others_master": {

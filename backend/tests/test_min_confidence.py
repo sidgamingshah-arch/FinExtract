@@ -105,7 +105,7 @@ def test_the_shipped_set_still_loads_and_matches_after_the_removal():
 
     # 527, not 543: the live configuration was exported into the shipped seed — see
     # `test_retired_derivations.test_the_shipped_set_is_the_configuration_in_force`.
-    assert len(st.items) == 527
+    assert len(st.items) == 529  # 529 since the two 营业外 face parts split the template's single net Other Non-Operating Inc(Exp) column
     assert m.match("total assets", "balance_sheet", "CURRENT ASSETS").key == "bs_ca__total_assets"
 
 

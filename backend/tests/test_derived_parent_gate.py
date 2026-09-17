@@ -107,8 +107,10 @@ def test_the_types_the_shipped_set_declares(shipped):
     # cascading over nine parts.
     assert counts["derived"] == 10, counts
     assert counts["calculated"] == 33, counts
-    assert counts["extracted"] == 484, counts
-    assert sum(counts.values()) == 527
+    # 486 since the two 营业外 face parts were added — both `extracted`, because each is a
+    # printed row read off the income statement rather than a figure computed from others.
+    assert counts["extracted"] == 486, counts
+    assert sum(counts.values()) == 529  # 529 since the two 营业外 face parts split the template's single net Other Non-Operating Inc(Exp) column
     # AND THE DISCRIMINATOR THE SECTION ROLL-UPS READ IS UNTOUCHED. `rollups.section_members` keys
     # on `unit_of_account == "subtotal"` and nothing else; flattening it alongside the type takes
     # all 20 sections to `no_reported_subtotal`, so the two must not move together.

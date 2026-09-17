@@ -320,7 +320,19 @@ _AN_INSTRUMENT_IS_NOT_THE_TOTAL = (
 _THE_SECTION_TOTAL_IS_NOT_A_RECEIPT = (
     r"^Net cash used in/generated from operating activities\(Direct\)$",)
 
+# A NET COLUMN IS NOT EITHER OF ITS HALVES. CAS prints 营业外收入 and 营业外支出 as two face rows either
+# side of 利润总额, and both bound `is_pl__other_non_operating_inc_exp` — whose label
+# "Other Non-Operating Inc(Exp)" says the template holds ONE NET column. Two rows reaching one key
+# are SUMMED, so the column published income PLUS expense where it should publish income MINUS
+# expense. The two halves are now `sub__` parts that roll up into it, the expense part carrying a
+# `sign_rule.flip_if_label_matches` because CAS prints it as an unsigned magnitude the statement's
+# own arithmetic deducts. The parent keeps its own label and its other vocabulary.
+_A_NET_COLUMN_IS_NOT_ITS_HALVES = (
+    r"^营业外收入$", r"^营业外支出$", r"^營業外收入$", r"^營業外支出$",
+)
+
 _BORROWED_CAPTION_DENIALS: dict[str, tuple[str, ...]] = {
+    "is_pl__other_non_operating_inc_exp": _A_NET_COLUMN_IS_NOT_ITS_HALVES,
     # See the four rules above this table for what each denial measured.
     "is_pl__profit_for_the_year": _ATTRIBUTION_IS_NOT_THE_TOTAL,
     "is_pl__interest_expense": _CAS_FINANCE_COSTS_IS_NOT_INTEREST_EXPENSE,

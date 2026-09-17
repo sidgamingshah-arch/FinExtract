@@ -343,8 +343,14 @@ def test_every_reported_line_resolves_a_gate_and_parts_deliberately_do_not():
     # amortisation" on it is bindable only where a cash-flow statement is being read, not from any
     # statement at large. Its aliases include the standard CAS add-back line
     # 固定资产折旧、油气资产折耗、生产性生物资产折旧 in both scripts.
+    # THE TWO 营业外 PARTS ARE NAMED HERE FOR THE REASON THIS SET ACCEPTS `sub__cfo_depreciation`:
+    # both declare a statement (profit_and_loss) AND a section_scope (is_pl), so the alias is
+    # bindable only where an income statement is being read, which is the gate the assertion below
+    # is worried about the absence of. Named rather than widening the predicate, so a part that
+    # declares aliases and NO gate still fails.
     _FACE_PARTS_WITH_ALIASES = {"sub__rp_bs_face_receivables", "sub__face_principal_revenue",
-                                "sub__cfo_depreciation"}
+                                "sub__cfo_depreciation",
+                                "sub__non_operating_income", "sub__non_operating_expenses"}
     aliased = [d.key for d in parts
                if (d.aliases or d.aliases_i18n) and d.key not in _FACE_PARTS_WITH_ALIASES]
     assert not aliased, (
@@ -363,7 +369,10 @@ def test_the_note_level_parts_are_off_template():
     # 78 — plus `sub__fa_cp_intermediate_residual`, which is off-template for the same reason
     # every other part is: the template does not print it.
     # the parts are 64: the nine related-party feeders became the three Find items the spec asks for, and `sub__pbt_cos_depreciation`, `sub__rp_note_entrusted_loans` and six revenue sub-items were retired.
-    assert len(subs) == 64
+    # 66 since the two 营业外 face parts were added: CAS prints non-operating income and
+    # expense as two rows either side of 利润总额 and the template holds one net column, so the
+    # halves are parts that roll up into it rather than a second column.
+    assert len(subs) == 66
     assert all(d.namespace == "internal" for d in subs)
     assert all(d.namespace == "template" for d in st.items if d.in_output)
 

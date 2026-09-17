@@ -66,7 +66,7 @@ RULEBOOK = TEMPLATES / "output_csv_hk_ontology.json"
 PROJECTED = sorted(set(SAME) | set(RENAMED))
 
 CONCEPTS = 462                 # the rulebook's concepts, and the set's `namespace == "template"`
-ITEMS = 527                    # …plus the 77 `sub__*` note-level parts, which ARE concepts too:
+ITEMS = 529                    # …plus the 77 `sub__*` note-level parts, which ARE concepts too:
                                # the view projects every definition, and `namespace` decides only
                                # where a figure is PUBLISHED. See
                                # test_shipped_set_projects_every_definition_including_the_parts.
@@ -418,6 +418,13 @@ def test_shipped_set_projects_every_definition_including_the_parts():
         # `note_source`, and `section_scope: ['bs_nca']` is the mechanism by which it is
         # read rather than a pin cutting it off from a note it does not read.
         "sub__rp_find_1",
+        # AND THE TWO 营业外 HALVES, which read the INCOME-STATEMENT face and have no `note_source`
+        # either — the same shape as `sub__cfo_depreciation` and `sub__face_principal_revenue`
+        # above. CAS prints 营业外收入 and 营业外支出 as two rows either side of 利润总额 and the template
+        # holds ONE net column, so the halves are parts that roll up into it. `statement:
+        # profit_and_loss` and `section_scope: ['is_pl']` are the mechanism by which each is read
+        # off that face, not a pin cutting it off from a note neither reads.
+        "sub__non_operating_income", "sub__non_operating_expenses",
     }
     # A RESIDUAL BUCKET IS NOT A PART and declares its statement properly: `bs_ca_residual_L3`
     # is a balance-sheet current-assets bucket, so `balance_sheet` is where it belongs.

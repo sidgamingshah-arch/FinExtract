@@ -432,7 +432,7 @@ def test_no_shipped_line_item_names_a_deleted_service_as_its_implementer():
     """
     raw = json.loads(_LINE_ITEMS_JSON.read_text(encoding="utf-8"))
     items = raw["items"]
-    assert len(items) == 527, f"the shipped set changed size ({len(items)}) — re-read this test"
+    assert len(items) == 529, f"the shipped set changed size ({len(items)}) — re-read this test"
 
     offenders = [
         (i.get("key"), i.get("implemented_by")) for i in items
@@ -525,7 +525,7 @@ def test_the_shipped_set_is_the_configuration_in_force():
 
     raw = json.loads(_LINE_ITEMS_JSON.read_text(encoding="utf-8"))
     shipped = {i["key"] for i in raw["items"]}
-    assert len(shipped) == 527, len(shipped)
+    assert len(shipped) == 529, len(shipped)
     # The line that could never produce a figure, now fixed — pinned so it cannot regress to empty.
     afs = next(i for i in raw["items"] if i["key"] == "sub__fa_cp_afs_htm_note_total")
     assert (afs.get("note_source") or {}).get("row_caption_any"), (

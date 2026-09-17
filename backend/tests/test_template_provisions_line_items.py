@@ -292,7 +292,8 @@ def test_provisioning_reproduces_the_shipped_configuration_exactly():
     assert set(after) == set(before), "provisioning added or lost an item"
     # 527, not 543: the live configuration was exported into the shipped seed — see
     # `test_retired_derivations.test_the_shipped_set_is_the_configuration_in_force`.
-    assert len(after) == 527, len(after)
+    # 529 since the two 营业外 face parts split the template's single net non-operating column.
+    assert len(after) == 529, len(after)
 
     namespaces: dict[str, int] = {}
     for item in merged["items"]:
@@ -300,7 +301,10 @@ def test_provisioning_reproduces_the_shipped_configuration_exactly():
     # 65 internal: `sub__fa_cp_intermediate_residual` is off-template like every other part,
     # and provisioning must leave it alone rather than treat it as a template row to fill. 65 and
     # not 81 because sixteen parts were retired — see the census in `test_retired_derivations`.
-    assert namespaces == {"template": 462, "internal": 65}, namespaces
+    # 67 internal since the two 营业外 face parts were added — CAS prints non-operating income
+    # and expense as two rows and the template holds one net column, so the halves are
+    # parts. The template split is unchanged at 462, which is the property this pins.
+    assert namespaces == {"template": 462, "internal": 67}, namespaces
     assert len(protected_keys(merged)) == 462
 
     for key, item in before.items():
