@@ -41,6 +41,8 @@ at 88 lines on one statement that fails the provider outright rather than merely
 """
 from __future__ import annotations
 
+from app.services.mapping import normalize_statement
+
 
 def _figures(row) -> dict[str, str]:
     """The row's figures by period label.
@@ -84,10 +86,23 @@ def face_rows(doc, statements) -> list[dict]:
     A row with no figure at all is omitted: it is a heading or a spacer, and a caption with nothing
     beside it cannot be the answer to "where is this line's figure printed".
     """
-    want = {str(s) for s in (statements or ()) if str(s)}
+    # BOTH SIDES THROUGH THE FOLD, because one statement has two spellings and this join is where
+    # that bites. `StatementType` — what a line DECLARES — spells it `equity_changes`; the page
+    # classifier and every downstream caller say `changes_in_equity`. So a line gated to the
+    # statement of changes in equity asked for `equity_changes`, no page carried that, and the
+    # block came back EMPTY: the model was shown nothing for the one statement whose rows it most
+    # needs supplied, and the failure looked like "this filing has no such page".
+    #
+    # `mapping.normalize_statement` is the designated owner of the fold — see `_STATEMENT_SPELLINGS`
+    # there, whose own comment says a declaration the gate cannot compare to the classifier's
+    # verdict scopes nothing. The other three statements spell the same either way, so this is a
+    # no-op for them and the equity statement is the whole of its effect.
+    want = {normalize_statement(str(s)) for s in (statements or ()) if str(s)}
+    want.discard("")
     if not want:
         return []
-    stmt_of_page = {int(getattr(p, "index", -1)): str(getattr(p, "statement", "") or "")
+    stmt_of_page = {int(getattr(p, "index", -1)):
+                    normalize_statement(str(getattr(p, "statement", "") or ""))
                     for p in (getattr(doc, "pages", None) or ())}
 
     by_statement: dict[str, list[tuple[int, dict]]] = {}
@@ -134,7 +149,11 @@ def face_index(doc) -> list[tuple[str, str, object]]:
     A ROW WITH NO CAPTION IS OMITTED, because a citation is matched BY caption and an empty one
     would match every citation whose own caption normalised to nothing.
     """
-    stmt_of_page = {int(getattr(p, "index", -1)): str(getattr(p, "statement", "") or "")
+    # FOLDED, for the reason `face_rows` gives at length: the two sides of this join spell the
+    # equity statement differently, and a citation naming the spelling its own line declares must
+    # resolve against the spelling the page carries.
+    stmt_of_page = {int(getattr(p, "index", -1)):
+                    normalize_statement(str(getattr(p, "statement", "") or ""))
                     for p in (getattr(doc, "pages", None) or ())}
     out: list[tuple[str, str, object]] = []
     for row in (getattr(doc, "line_items", None) or ()):

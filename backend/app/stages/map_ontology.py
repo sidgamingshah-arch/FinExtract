@@ -650,6 +650,7 @@ class MapOntologyStage:
         _cfg_by_key = {i.key: i for i in _cfg_items}
         row_terms_refused = 0
         route_refused = 0
+        matrix_refused = 0
         for done, li in enumerate(doc.line_items, start=1):
             res = matcher.match(li.source_label, statement=_statement_of(li),
                                 section=li.section_hint)
@@ -695,6 +696,52 @@ class MapOntologyStage:
             #
             # SILENCE IS NOT A REFUSAL — `line_item_routes.may_read_face` is true for a line that
             # declares no route, which is 100 of the 506 asked-about lines. See that module.
+            # A ROW WHOSE EVERY FIGURE IS A MATRIX COLUMN IS NOT CLAIMED, and this is the guard
+            # that makes opening the equity gate safe rather than regressive.
+            #
+            # A statement of changes in equity is a MATRIX: its columns are equity components and
+            # its rows are movements, so `row_reconstruct`'s matrix path files each cell with a
+            # `column_index` and a `period_label` that is the COLUMN HEADER — "Retained profits",
+            # "Non-controlling interests", "Total equity" — not a period. Measured on
+            # `tests/test_equity_matrix`'s fixture: "Dividends paid to non-controlling
+            # shareholders" carries two values, both `column_index`, labelled by component.
+            #
+            # EVERY CONSUMER THAT PUBLISHES A FIGURE SKIPS SUCH A VALUE, deliberately and with its
+            # own reasons: `services.face_context._figures`, `services.note_context`, and
+            # `services.note_sourced` in four places, whose comment states it outright — "a matrix
+            # column is not a period", and "every value on a matrix row carries a `column_index`".
+            # So a matrix row bound to a line publishes NOTHING.
+            #
+            # WHY REFUSE RATHER THAN BIND AND PUBLISH NOTHING. Binding is not free: the row leaves
+            # the unclassified set, so `stages.face_mapping_contract` stops giving it a stable
+            # storage key and the `requires_concept_review` flag, and the review queue's
+            # off-template category stops seeing it. The line gets a `canonical_key` and no
+            # figure, and the row loses the only record that says a figure is sitting there
+            # unplaced. Refusing keeps today's behaviour exactly.
+            #
+            # WHAT IS STILL MISSING, stated because the refusal is a boundary and not a fix. A
+            # movement line wants ONE cell — `is_retained__transfer_to_reserves` wants the amount
+            # under the retained-earnings column — and nothing in the configuration says which
+            # component column a line reads. The vocabulary to identify one already exists
+            # (`bs_equity__retained_profits` carries every spelling of that column's header, in
+            # both scripts), but which column a line takes is a DECLARATION nobody has made, and
+            # inferring it from the key namespace is the shortcut this file's own gate comments
+            # refuse elsewhere. Until that declaration exists the honest outcome is an unplaced
+            # row a reviewer can see.
+            #
+            # A NON-MATRIX EQUITY PAGE IS UNAFFECTED, which is where the widened gate pays off
+            # today: `_maybe_matrix` returns None when it cannot detect a matrix, the page is read
+            # by the ordinary comparative path, its rows carry real period labels and no column
+            # index, and they bind and publish like any other face row.
+            if (res is not None and li.values
+                    and all(getattr(ev, "column_index", None) is not None
+                            for ev in li.values.values())):
+                matrix_refused += 1
+                ctx.log(f"map_line_items:matrix_column_row_not_claimed "
+                        f"{res.canonical_key} <- {(li.source_label or '')[:60]!r} (every figure on "
+                        f"this row is a matrix COLUMN, which no consumer publishes as a line's "
+                        f"figure; the row stays unclassified so it is visible for review)")
+                res = None
             if res is not None and target is not None and not line_item_routes.may_read_face(target):
                 route_refused += 1
                 ctx.log(f"map_line_items:route_refused_face "
@@ -708,6 +755,11 @@ class MapOntologyStage:
             # database write.
             if done % 10 == 0 or done == total_rows:
                 ctx.emit_step(done, total_rows, "row")
+        if matrix_refused:
+            ctx.log(f"map_line_items:matrix_column_rows_not_claimed={matrix_refused} "
+                    f"(a statement of changes in equity files each cell under a component COLUMN, "
+                    f"and no consumer publishes a column as a line's figure — see the refusal in "
+                    f"this stage for the declaration that is still missing)")
         if route_refused:
             ctx.log(f"map_line_items:route_refused_face_rows={route_refused} "
                     f"(each row's caption matched a line declared note_tables or prose, whose "

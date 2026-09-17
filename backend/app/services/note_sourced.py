@@ -589,6 +589,11 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
     """
     import re as _re
 
+    # LOCAL, because `services.mapping` imports THIS module at module level — a module-level
+    # import of the fold is a circular one. `mapping.normalize_statement` is still the single
+    # owner of the equity statement's two spellings; this is only where it is reached from.
+    from app.services.mapping import normalize_statement
+
     def norm(text: str) -> str:
         return _re.sub(r"[^0-9a-z一-鿿]+", "", (text or "").lower())
 
@@ -621,7 +626,13 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
         # are alternatives, and falling through from a page citation to a note would publish a
         # note's figure for a citation that said page 12.
         want_page = getattr(ref, "page", None)
-        want_stmt = str(getattr(ref, "statement", "") or "").strip()
+        # FOLDED TO THE CLASSIFIER'S SPELLING. A line gated to the statement of changes in equity
+        # carries `equity_changes` (the `StatementType` value) and the face index is keyed
+        # `changes_in_equity` (the page's verdict), so an unfolded comparison refused every equity
+        # citation and reported it as "no printed row on equity_changes matches that caption" —
+        # a diagnostic that sends an author to fix a caption when the spelling was the problem.
+        want_stmt = normalize_statement(
+            str(getattr(ref, "statement", "") or "").strip())
         if want_page is not None and not want_note and not want_stmt:
             if not allow_pages:
                 unresolved.append({

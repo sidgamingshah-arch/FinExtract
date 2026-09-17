@@ -16,7 +16,8 @@
    "the eight output lines no longer name a service implementer. The five derivation services were REMOVED - deprec_impairment (~208 enumerated entries), contingent_liabilities (~172, its NUMBER only; its narrative disclosure survives), secur_fincl_assets (~91), related_party_receivables (~73), sales_revenues (~18): ~562 hand-enumerated note titles, row captions and formula variants in all. `implemented_by` is therefore deleted from all eight and every figure must now come from configuration. The six cascade-less lines - is_pl__sales_revenues, bs_ca__secur_and_other_fincl_assets_cp, bs_nca__secur_and_other_fincl_assets_ltp, bs_nca__due_from_related_parties_ltp, bs_ca__other_receivables_cp, notes__contingent_liabilities - are now `extracted`, since a `derived` line with neither a cascade nor an implementer is refused by LineItemDef; the two depreciation lines stay `derived` on their own cascades (P1-P5 and COS_P1/COS_P2). Cells these services used to fill go blank until the configuration reads them off a caption - that is the intended outcome, so do not reinstate a service name here. Mirrored in output_csv_hk_line_items_configured.json, which is the assembly half of this file",
    "authored expected_components prose on the 11 exclusive_residual buckets (3-4 caption phrases each, 37 in total): the payload block services.mapping._residual_expectations publishes as \"captions_with_no_dedicated_concept\" was empty on every statement, so an empty canonical_key was never a licensed answer. Each phrase was checked against all 462 concepts' labels and aliases in its own section; hkfrs_hk_china_ontology.json's wording was NOT copied - \"Bank overdrafts\", \"Pension surplus\", \"Right-of-use assets\", \"Biological assets\", \"Contract liabilities\", \"Bills receivable\", \"Merger reserve\", \"Deposits paid for acquisition of land\", \"Donations\" and \"Sales taxes and surcharges\" all have dedicated concepts here and would have routed real money into a sweep",
    "replaced the zh aliases on the seven is_retained movement lines. All seven carried the identical list 保留溢利 / 未分配利润 / 留存收益 / 累计亏损 — four spellings of the retained-earnings BALANCE, which is bs_equity__retained_profits' own label and the is_retained SECTION's name, not any movement inside it. Provenance: scripts/enrich_output_csv_primary_aliases.py copies Chinese across by matching the ENGLISH alias, and hkfrs_hk_china_ontology.json's bs_equity__retained_earnings carries exactly those four against 'Retained profits' — which all seven lines then carried. spec_alias_curation._SECTION_NAME_IS_NOT_A_MOVEMENT later denied the English caption; the Chinese it had already pulled across was left stranded. Measured before this: 未分配利润 on a profit_and_loss page matched is_retained__cash_div_pref_shares EXACT at 1.0 (first of seven tied at priority 10) while the captions those lines are actually printed under — 对所有者（或股东）的分配, 提取法定盈余公积 — matched nothing. Each line now carries the CAS 所有者权益变动表 wording for its own movement plus the HK equivalent; the four balance spellings stay on bs_equity__retained_profits alone, which is the refuse-and-redirect the English side already used. The residual bucket is_retained__other_adj_to_retained_profits gets none: residual_framework.prohibitions says it is never populated by an alias match.",
-   "moved the English alias 'Undistributed profits' off the six is_retained movement lines and onto bs_equity__retained_profits — the same borrowed-balance defect the zh change above fixed. Measured before this, it was matchable ONLY where it is wrong: 'Undistributed profits' on a profit_and_loss page matched is_retained__cash_div_pref_shares EXACT (first of six tied at priority 10) while on a balance_sheet page it matched NOTHING, because the balance line did not own its own caption. So this denial adds as well as removes: the concept whose Chinese already includes 未分配利润, the exact translation, now answers to the English too and the two scripts agree. AND THE RULEBOOK CARRIED ALL OF IT: output_csv_hk_ontology.json declared 'Undistributed profits' plus the four Chinese spellings on the same seven concepts (40 aliases), and services.ontology_projection.SAME copies aliases/aliases_i18n verbatim — so the zh change above would have been undone by the next scripts/build_line_items.py run. The rulebook is cleaned to match, the projection now curates what it copies, and the ontology conformance test covers all three denial tables instead of two."
+   "moved the English alias 'Undistributed profits' off the six is_retained movement lines and onto bs_equity__retained_profits — the same borrowed-balance defect the zh change above fixed. Measured before this, it was matchable ONLY where it is wrong: 'Undistributed profits' on a profit_and_loss page matched is_retained__cash_div_pref_shares EXACT (first of six tied at priority 10) while on a balance_sheet page it matched NOTHING, because the balance line did not own its own caption. So this denial adds as well as removes: the concept whose Chinese already includes 未分配利润, the exact translation, now answers to the English too and the two scripts agree. AND THE RULEBOOK CARRIED ALL OF IT: output_csv_hk_ontology.json declared 'Undistributed profits' plus the four Chinese spellings on the same seven concepts (40 aliases), and services.ontology_projection.SAME copies aliases/aliases_i18n verbatim — so the zh change above would have been undone by the next scripts/build_line_items.py run. The rulebook is cleaned to match, the projection now curates what it copies, and the ontology conformance test covers all three denial tables instead of two.",
+   "opened the statement gate on the seven is_retained movement lines: each now declares statements: [equity_changes, profit_and_loss] where it declared only the section's profit_and_loss. Every one of them is a movement in retained earnings — dividends declared, transfers to statutory reserves, prior-period restatements — which a filing prints in the statement of changes in equity (所有者权益变动表) and not on the income statement, so the gate refused them on the one statement whose captions they are and admitted them on one whose captions they are not. Measured after the change: 提取法定盈余公积 and 对所有者（或股东）的分配 resolve on changes_in_equity AND on profit_and_loss, and still refuse balance_sheet. profit_and_loss is kept rather than replaced because the CSRC's older profit-distribution format prints 利润分配 at the foot of the income statement, and mapping._in_statement admits a concept under ANY statement it declares — so this is a widening, never a move. TWO THINGS TRAVEL WITH IT, both recorded in the commit: services.face_context now folds the equity statement's two spellings (StatementType says equity_changes, the page classifier says changes_in_equity) so the block and the citations for these lines are not silently empty; and stages.map_ontology refuses to claim a row whose every figure is a MATRIX COLUMN, because no consumer publishes such a value — see that refusal for what is still missing."
   ],
   "breaking_changes": [
    "the set is now 475 definitions, not 21"
@@ -12808,7 +12809,11 @@
    "match_priority": 10,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "namespace": "template",
-   "route": "face"
+   "route": "face",
+   "statements": [
+    "equity_changes",
+    "profit_and_loss"
+   ]
   },
   {
    "key": "is_retained__proposed_cash_dividends",
@@ -12851,7 +12856,11 @@
    "match_priority": 10,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "namespace": "template",
-   "route": "face"
+   "route": "face",
+   "statements": [
+    "equity_changes",
+    "profit_and_loss"
+   ]
   },
   {
    "key": "is_retained__cash_div_common_shares",
@@ -12894,7 +12903,11 @@
    "match_priority": 10,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "namespace": "template",
-   "route": "face"
+   "route": "face",
+   "statements": [
+    "equity_changes",
+    "profit_and_loss"
+   ]
   },
   {
    "key": "is_retained__stock_dividends_nc",
@@ -12933,7 +12946,11 @@
    "match_priority": 10,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "namespace": "template",
-   "route": "face"
+   "route": "face",
+   "statements": [
+    "equity_changes",
+    "profit_and_loss"
+   ]
   },
   {
    "key": "is_retained__transfer_to_reserves",
@@ -12967,7 +12984,11 @@
    "match_priority": 10,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "namespace": "template",
-   "route": "face"
+   "route": "face",
+   "statements": [
+    "equity_changes",
+    "profit_and_loss"
+   ]
   },
   {
    "key": "is_retained__prior_period_adjustments",
@@ -13007,7 +13028,11 @@
    "match_priority": 10,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "namespace": "template",
-   "route": "face"
+   "route": "face",
+   "statements": [
+    "equity_changes",
+    "profit_and_loss"
+   ]
   },
   {
    "key": "is_retained__other_adj_to_retained_profits",
@@ -13043,7 +13068,11 @@
    ],
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "namespace": "template",
-   "route": "face"
+   "route": "face",
+   "statements": [
+    "equity_changes",
+    "profit_and_loss"
+   ]
   },
   {
    "key": "cf_oper_indirect__net_profit_loss",
