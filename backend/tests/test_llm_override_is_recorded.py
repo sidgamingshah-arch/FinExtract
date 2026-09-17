@@ -57,6 +57,25 @@ PRINTED, CITED = Decimal("9999"), Decimal("280961")
 CITE = [{"note": "7", "caption": "Depreciation of right-of-use assets"}]
 
 
+@pytest.fixture(autouse=True)
+def _restore_extraction_settings():
+    """`get_settings` IS `@lru_cache`D, so the settings object is shared with the whole suite.
+
+    These tests turn the provider on and narrow the focus list; leaving either in place is
+    invisible here and fatal elsewhere — measured, it took
+    `test_failing_provider_degrades.py::test_the_focus_list_names_the_parts_and_not_only_the_wholes`
+    down while passing in isolation, which is the worst way for a test to be wrong.
+    """
+    st = get_settings()
+    ex = st.extraction
+    was = (ex.llm_mapping, ex.llm_focus_only, list(ex.llm_focus_keys or ()), st.llm.provider)
+    try:
+        yield
+    finally:
+        (ex.llm_mapping, ex.llm_focus_only, ex.llm_focus_keys, st.llm.provider) = (
+            was[0], was[1], was[2], was[3])
+
+
 @pytest.fixture(scope="module")
 def shipped():
     return load_line_item_set(json.loads(SEED.read_text(encoding="utf-8")), resolve=True)

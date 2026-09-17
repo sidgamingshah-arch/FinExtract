@@ -61,17 +61,31 @@ from app.services.mapping import SourceRef
 # opinion about how a statement should be READ travels in the authored guidance instead
 # (`LineItemSet.prompt`, via `mapping.authored_guidance`), which is why the two are separate.
 REPLY_CONTRACT = (
-    "You locate figures in a financial statement's NOTES. For each line item you are given, say "
-    "WHERE IN THE SUPPLIED NOTES its figure is printed. You are not choosing what the line is — "
-    "the line, its definition and its inclusions are given to you.\n"
+    "You locate figures in a filing's financial statements. For each line item you are given, say "
+    "WHERE ITS FIGURE IS PRINTED. You are not choosing what the line is — the line, its "
+    "definition and its inclusions are given to you.\n"
+    "\n"
+    "TWO PLACES A FIGURE IS PRINTED, and each entry of `sources` names ONE of them:\n"
+    "- A NOTE ROW. Give the note number in `note` and the row caption in `caption`. The notes "
+    "under `notes` are the ones this line's configuration selected.\n"
+    "- A ROW ON THE FACE OF A STATEMENT. Give the statement token in `statement` — the same token "
+    "the line carries as `statement` — and the row caption in `caption`, and leave `note` empty. "
+    "The rows under `statement_rows` are that statement as the filing prints it, in order.\n"
+    "\n"
+    "A SUPPLIED STATEMENT ROW MAY ALREADY NAME A LINE (`line`). That is the answer the lexical "
+    "reader already reached for it, and it is what you are being asked about:\n"
+    "- To CONFIRM it, cite that row. The figure is unchanged and your agreement is recorded.\n"
+    "- To CORRECT it, cite the row you believe is this line's instead. The figure moves, and what "
+    "it replaced is recorded.\n"
+    "- To leave it alone, answer with an empty `sources`. The printed figure stands.\n"
     "\n"
     "- Answer with the line item's `key`, exactly as given. Never a key that was not given to "
     "you, and never more than one answer for the same key.\n"
-    "- An answer IS its `sources`. Each entry names the note and quotes the row CAPTION as the "
-    "document prints it; the caption is matched back against the extracted rows to recover the "
-    "page and the figure, so a paraphrase cannot be resolved. An answer with no `sources` is "
-    "read as \"this filing does not state this line\", which is a valid and useful answer — give "
-    "it rather than citing a row you are unsure of.\n"
+    "- An answer IS its `sources`. Each entry names where the row is — a note or a statement — and "
+    "quotes the row CAPTION as the document prints it; the caption is matched back against the "
+    "extracted rows to recover the page and the figure, so a paraphrase cannot be resolved. Give "
+    "an empty `sources` rather than citing a row you are unsure of: it is a valid and useful "
+    "answer, and it leaves any figure already found standing.\n"
     "- SEVERAL ROWS MAY MAKE UP ONE LINE. Name all of them: a note that splits a total by "
     "function prints a row per function and the line is their sum. Set `role` to \"component\" "
     "and give each entry's `sign` — -1 where the row is SUBTRACTED, +1 where it is added. Set "
@@ -85,8 +99,9 @@ REPLY_CONTRACT = (
     "in the entry's `amount`, with the sentence in `quote`. It is checked against the note's own "
     "text and refused if it is not there, so give it exactly as printed and never round, convert "
     "or infer one.\n"
-    "- Do not cite a note that was not supplied to you. The notes below are the ones this line's "
-    "own configuration selected; if its figure is not in them, say so with an empty `sources`.\n"
+    "- Do not cite a note or a statement that was not supplied to you. If this line's figure is "
+    "in neither what you were given, say so with an empty `sources` — that is a valid and useful "
+    "answer, and where a statement row already named this line it leaves that figure standing.\n"
     "- Return calibrated confidence in [0,1] — high only where the caption is unambiguous — and "
     "in `reason`, which criterion or wording makes the rows you named this line's. Each row's own "
     "page, note and caption are recovered here, so `reason` is the one part of the trace only you "
@@ -100,8 +115,9 @@ class LineItemAnswer(BaseModel):
     key: str = Field(description="the line item key you were given, verbatim")
     sources: list[SourceRef] = Field(
         default_factory=list,
-        description="the note rows this line's figure is printed on; empty means the supplied "
-                    "notes do not state this line")
+        description="the rows this line's figure is printed on — note rows, face rows, or both; "
+                    "empty means neither the supplied notes nor the supplied statement state it, "
+                    "and leaves any figure already found standing")
     # "whole" | "component". Deliberately a plain string rather than an enum: a model answering
     # outside the pair must be readable as an unexpected answer and defaulted, not rejected as a
     # schema violation that costs the whole reply.
@@ -457,8 +473,15 @@ def plan_and_notes(line_item_set, notes, settings, *, doc=None):
     return plans, by_key, notes_of, identified
 
 
-def resolve(answer: LineItemAnswer, notes) -> tuple[list[dict], list[dict], dict[str, Decimal]]:
-    """``(resolved, unresolved, figures)`` for one answer. The model supplies none of the figures."""
-    resolved, unresolved = note_sourced.resolve_sources(answer.sources, notes)
+def resolve(answer: LineItemAnswer, notes, face=None
+            ) -> tuple[list[dict], list[dict], dict[str, Decimal]]:
+    """``(resolved, unresolved, figures)`` for one answer. The model supplies none of the figures.
+
+    `face` is `services.face_context.face_index(doc)` — what a citation naming a STATEMENT rather
+    than a note is looked up in. It defaults to None so a caller with no document (the audit
+    scripts) keeps working, and a citation naming a statement then reports unresolved rather than
+    silently resolving against the notes.
+    """
+    resolved, unresolved = note_sourced.resolve_sources(answer.sources, notes, face)
     component = str(answer.role or "").strip().lower() == "component"
     return resolved, unresolved, figures_of(resolved, list(answer.signs or ()), component)

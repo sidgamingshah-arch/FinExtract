@@ -555,7 +555,7 @@ def bad_patterns(item) -> list[str]:
 
 # ── resolving what the MODEL cited ────────────────────────────────────────────────────────────
 
-def resolve_sources(sources, notes) -> tuple[list[dict], list[dict]]:
+def resolve_sources(sources, notes, face=None) -> tuple[list[dict], list[dict]]:
     """Match each citation the model gave against the extracted rows. Returns (resolved, unresolved).
 
     WHY THIS EXISTS RATHER THAN TRUSTING THE CITATION. The candidates offered to the model are
@@ -585,6 +585,7 @@ def resolve_sources(sources, notes) -> tuple[list[dict], list[dict]]:
             caption = getattr(row, "raw_label", "") or ""
             if caption:
                 rows.append((number, caption, row, table))
+    face_rows = list(face or ())
 
     resolved: list[dict] = []
     unresolved: list[dict] = []
@@ -599,6 +600,55 @@ def resolve_sources(sources, notes) -> tuple[list[dict], list[dict]]:
         want_note = str(getattr(ref, "note", "") or "").strip()
         want_cap = norm(getattr(ref, "caption", ""))
         quote = (getattr(ref, "quote", "") or "").strip()
+
+        # A CITATION THAT NAMES A STATEMENT IS LOOKED UP ON THE FACE, not in the notes.
+        #
+        # Taken first and returning either way, because the two indexes are alternatives rather
+        # than a fallback chain: a caption that happens to appear in both a note and on the face is
+        # a DIFFERENT fact in each, and falling through from one to the other would publish the
+        # note's figure for a citation that said "the face". The statement mismatch is reported as
+        # itself for the same reason — "that caption is on another statement" tells an author
+        # something "no such row" does not.
+        want_stmt = str(getattr(ref, "statement", "") or "").strip()
+        if want_stmt and not want_note:
+            on_face = next(((st, cap, row) for st, cap, row in face_rows
+                            if st == want_stmt and want_cap
+                            and ((got := norm(cap)) and (want_cap in got or got in want_cap))),
+                           None)
+            if on_face is None:
+                # EMPTY IS NOT A STATEMENT. A face row whose page resolved none carries "", and
+                # reporting it read "it is on " with nothing after it — a diagnostic worse than
+                # none, because it asserts the caption was found somewhere nameable.
+                elsewhere = sorted({st for st, cap, _r in face_rows
+                                    if st and want_cap and (g := norm(cap))
+                                    and (want_cap in g or g in want_cap) and st != want_stmt})
+                unresolved.append({
+                    "at": at, "note": "", "statement": want_stmt,
+                    "caption": getattr(ref, "caption", ""), "quote": quote,
+                    "why": (f"no printed row on {want_stmt} matches that caption"
+                            + (f" — it is on {', '.join(elsewhere)}" if elsewhere else ""))})
+                continue
+            st, caption, row = on_face
+            figures, prov = {}, None
+            for ev in (getattr(row, "values", None) or {}).values():
+                if getattr(ev, "column_index", None) is not None:
+                    continue
+                if getattr(ev, "value", None) is None:
+                    continue
+                figures[str(getattr(ev, "period_label", "") or "?")] = str(ev.value)
+                if prov is None:
+                    prov = derivation._json_safe_provenance(getattr(ev, "provenance", None))
+            if not figures:
+                unresolved.append({
+                    "at": at, "note": "", "statement": st,
+                    "caption": getattr(ref, "caption", ""), "quote": quote,
+                    "why": "that row is printed with no figure beside it"})
+                continue
+            resolved.append({"at": at, "note": "", "statement": st, "title": "",
+                             "caption": caption, "figures": figures, "provenance": prov,
+                             "quote": quote, "on_face": True})
+            continue
+
         hit = None
         if want_cap:
             for number, caption, row, table in rows:

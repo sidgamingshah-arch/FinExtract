@@ -216,7 +216,8 @@ class LineItemLlmStage(Stage):
                     continue
                 seen.add(key)
                 item = by_key[key]
-                resolved, unresolved, _ = line_item_llm.resolve(answer, doc.notes)
+                resolved, unresolved, _ = line_item_llm.resolve(answer, doc.notes,
+                                                               face_context.face_index(doc))
                 unresolved_total += len(unresolved)
                 for bad in unresolved:
                     ctx.log(f"line_item_llm:{key}: citation NOT resolved "

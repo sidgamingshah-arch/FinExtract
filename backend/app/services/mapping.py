@@ -83,6 +83,20 @@ class SourceRef(BaseModel):
     """
 
     note: str = Field(default="", description="the note number as printed, e.g. \"7\" or \"七、9\"")
+    # THE FACE OF A STATEMENT IS A PLACE A FIGURE IS PRINTED TOO, and until this field there was no
+    # way to cite one. A line read off the face selects no note, so its request's note block is
+    # empty — 343 of the 506 asked-about lines — and the only citation the schema could express
+    # named a note that was not there. The statement's printed rows are now supplied
+    # (`services.face_context`), so this is how a citation points at one: the statement TOKEN, which
+    # the request carries on each line as `statement` and on each block as `statement`, so both
+    # sides of the join are stated rather than guessed.
+    #
+    # `note` AND `statement` ARE ALTERNATIVES, not a pair. A row is printed in a note or on the
+    # face, and `resolve_sources` looks the citation up in whichever index the citation names.
+    statement: str = Field(default="", description="the statement token this row is printed on "
+                                                  "(e.g. \"balance_sheet\"), when the figure is "
+                                                  "on the FACE rather than in a note; leave the "
+                                                  "note empty then")
     caption: str = Field(default="", description="the row caption, quoted as the document prints it")
     quote: str = Field(default="", description="the sentence it came from, when the figure is "
                                                "stated in prose rather than in a table row")

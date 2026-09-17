@@ -117,3 +117,30 @@ def face_rows(doc, statements) -> list[dict]:
         rows = [e for _p, e in sorted(by_statement[statement], key=lambda pe: pe[0])]
         out.append({"statement": statement, "rows": rows})
     return out
+
+
+def face_index(doc) -> list[tuple[str, str, object]]:
+    """`(statement, caption, row)` for every printed face row, for resolving a citation against.
+
+    THE RESOLVER'S SIDE OF THE BLOCK ABOVE. `face_rows` builds what the model is SHOWN; this builds
+    what a citation is looked up IN, and the two must agree about which rows exist or the model can
+    be shown a row it is then told does not resolve.
+
+    NO STATEMENT FILTER HERE, deliberately, where `face_rows` takes one. A citation names the
+    statement itself, so filtering twice would mean a model that cited the right caption under the
+    wrong statement got "no such row" instead of a statement mismatch — and those are different
+    facts to report. `resolve_sources` compares the statement and says which it was.
+
+    A ROW WITH NO CAPTION IS OMITTED, because a citation is matched BY caption and an empty one
+    would match every citation whose own caption normalised to nothing.
+    """
+    stmt_of_page = {int(getattr(p, "index", -1)): str(getattr(p, "statement", "") or "")
+                    for p in (getattr(doc, "pages", None) or ())}
+    out: list[tuple[str, str, object]] = []
+    for row in (getattr(doc, "line_items", None) or ()):
+        caption = getattr(row, "source_label", "") or ""
+        if not caption:
+            continue
+        page = _page_of(row)
+        out.append((stmt_of_page.get(page if page is not None else -1, ""), caption, row))
+    return out
