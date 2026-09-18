@@ -35398,6 +35398,11 @@
        "sign": 1
       },
       {
+       "ref": "bs_ca__trade_receivables_related_parties",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
        "ref": "bs_nca__due_from_subsidiaries",
        "role": "any_of",
        "sign": 1
@@ -35418,7 +35423,20 @@
        "sign": 1
       }
      ],
-     "note": "FIND 1 — the spec's first reading: the related-party amounts the BALANCE SHEET ITSELF prints, within Other receivables, Current portion of long-term receivables, Long-term receivables and Loans and advances, current and non-current, excluding entrusted loans. A SUM OF LINES ALREADY MAPPED, not a caption reader. The face never prints an 'of which related parties' split inside 其他应收款; what it prints, when it discloses related-party receivables at all, is a dedicated ROW — Due from related parties, Amounts due from fellow subsidiaries, 应收关联方款项 — and this template already has a column for each of them. So Find 1 is the total of those rows. Giving it aliases of its own would have put a second claimant on every one of those captions at equal priority with no label owner, which is the unbreakable-alias-tie shape the configuration invariants hold at zero. EVERY TERM IS any_of, so a filing disclosing one such row answers with that one, and a filing disclosing none leaves Find 1 empty rather than publishing zero — `_apply_terms` returns None for an empty base precisely so a sum over absent lines does not assert the filing reported nil. WHAT IS DELIBERATELY NOT A TERM. The six entrusted-loan columns, because the spec excludes them in its own words (但不包括委托贷款). The two trade related-party columns, because trade receivables are none of the four captions the spec lists — and Trade-and-other-receivables in particular is an aggregate mixing a caption the spec excludes with one it includes, which cannot be split on the face; Find 2 and Find 3 read the note's own split instead. bs_nca__invest_in_jvs_and_partnerships, because an equity investment is not a receivable. AND ITS OWN PARENT, bs_nca__due_from_related_parties_ltp, which is both the face row 'Due from Related Parties(LTP)' and the column whose MAX_VALID rung selects between the three Finds. Naming it here would feed that rung's own output back into its input. The printed figure is not lost: a rung that resolves from no term at all declines, and the printed value then stands."
+     "note": "FIND 1 — the spec's first reading: the related-party amounts the BALANCE SHEET ITSELF prints, current and non-current, excluding entrusted loans. A SUM OF LINES ALREADY MAPPED, not a caption reader. The face never prints an 'of which related parties' split inside 其他应收款; what it prints, when it discloses related-party receivables at all, is a dedicated ROW — Due from related parties, Amounts due from fellow subsidiaries, 应收关联方款项 — and this template already has a column for each of them. So Find 1 is the total of those rows. Giving it aliases of its own would have put a second claimant on every one of those captions at equal priority with no label owner, which is the unbreakable-alias-tie shape the configuration invariants hold at zero. TRADE RECEIVABLES ARE INCLUDED, and that is WIDER than the four captions the spec lists. The spec names Other receivables, Current portion of long-term receivables, Long-term receivables and Loans and advances, none of which is trade; including the related-party trade receivable is a deliberate instruction on top of that text, so the figure this rung produces is 'related-party receivables on the face' rather than 'the spec's four captions on the face'. Recorded here because the difference is invisible in the number. EVERY TERM IS any_of, so a filing disclosing one such row answers with that one, and a filing disclosing none leaves Find 1 empty rather than publishing zero — `_apply_terms` returns None for an empty base precisely so a sum over absent lines does not assert the filing reported nil. WHAT IS DELIBERATELY NOT A TERM. The six entrusted-loan columns, because the spec excludes them in its own words (但不包括委托贷款). bs_nca__invest_in_jvs_and_partnerships, because an equity investment is not a receivable. The trade-AND-other aggregate, which is the FALLBACK rung below rather than a term here — see it for why. AND ITS OWN PARENT, bs_nca__due_from_related_parties_ltp, which is both the face row 'Due from Related Parties(LTP)' and the column whose MAX_VALID rung selects between the three Finds. Naming it here would feed that rung's own output back into its input. The printed figure is not lost: a rung that resolves from no term at all declines, and the printed value then stands."
+    },
+    {
+     "id": "FACE_AGGREGATE",
+     "terms_op": "sum",
+     "refuse_negative": true,
+     "terms": [
+      {
+       "ref": "bs_ca__trade_and_other_receivables_related_parties",
+       "role": "any_of",
+       "sign": 1
+      }
+     ],
+     "note": "THE AGGREGATE CAPTION, AND ONLY WHEN NOTHING SPECIFIC WAS PRINTED. 'Trade and other receivables — related parties' contains BOTH halves of what FACE_SUM adds up separately: its trade part is bs_ca__trade_receivables_related_parties and its other part is bs_ca__due_from_related_parties_cp. Summing it beside them would count the same balance twice, and on a filing that prints the specific rows the specific rows are the better reading anyway. So it is a RUNG BELOW rather than a term above: `evaluate` tries each rung in order and skips one that resolves nothing (`if not got.resolved: continue`), so this is reached only when no specific related-party receivable row was printed at all — which is the filing whose whole related-party receivable would otherwise be missed. Same shape as bs_ca__other_receivables_cp's CP_P1/CP_P2 pair."
     }
    ],
    "note_use": "decomposition_allowed",

@@ -850,26 +850,24 @@ def test_find_1_sums_the_related_party_rows_the_balance_sheet_prints(shipped):
         ("bs_ca__due_from_related_parties_cp", "1000"),
         ("bs_ca__due_from_jvs_and_partnerships", "250"),
         ("bs_nca__due_from_sholder_ltp", "400"),
+        ("bs_ca__trade_receivables_related_parties", "700"),
     ])
-    assert got.get("sub__rp_find_1") == Decimal("1650")
+    assert got.get("sub__rp_find_1") == Decimal("2350")
 
 
-def test_find_1_excludes_entrusted_loans_and_trade(shipped):
+def test_find_1_excludes_entrusted_loans(shipped):
     """THE SPEC'S OWN EXCLUSION, in its own words: 但不包括委托贷款.
 
-    And trade, because the four captions the spec lists — Other receivables, Current portion of
-    long-term receivables, Long-term receivables, Loans and advances — are all non-trade. Both
-    exclusions are expressed by NOT naming those columns as terms, so there is no pattern to get
-    wrong.
+    Expressed by NOT naming the six entrusted-loan columns as terms, so there is no pattern to get
+    wrong. TRADE IS NOT EXCLUDED — see the test below; that is wider than the four captions the
+    spec lists and is a deliberate instruction on top of them.
     """
     got, _ctx = _rp_run(shipped, [
         ("bs_ca__due_from_related_parties_cp", "1000"),
         ("bs_ca__entrusted_loan_receivables_related_parties_cp", "9999"),
         ("bs_nca__entrusted_loan_receivables_shareholders_ltp", "8888"),
-        ("bs_ca__trade_receivables_related_parties", "5555"),
     ])
-    assert got.get("sub__rp_find_1") == Decimal("1000"), (
-        "an entrusted loan or a trade receivable reached Find 1")
+    assert got.get("sub__rp_find_1") == Decimal("1000"), "an entrusted loan reached Find 1"
 
     # And a face that prints ONLY entrusted loans leaves Find 1 empty rather than reporting them.
     only_entrusted, _ctx = _rp_run(shipped, [
@@ -877,6 +875,43 @@ def test_find_1_excludes_entrusted_loans_and_trade(shipped):
         ("bs_nca__entrusted_loan_receivables_shareholders_ltp", "2000"),
     ])
     assert "sub__rp_find_1" not in only_entrusted
+
+
+def test_find_1_counts_related_party_trade_receivables(shipped):
+    """TRADE IS IN, AND IT IS WIDER THAN THE SPEC'S TEXT.
+
+    The spec names Other receivables, Current portion of long-term receivables, Long-term
+    receivables and Loans and advances — none of which is trade. Counting the related-party trade
+    receivable as well is a deliberate instruction on top of that, so what FACE_SUM produces is
+    "related-party receivables on the face" rather than "the spec's four captions on the face".
+    Pinned here because the difference is invisible in the number.
+    """
+    got, _ctx = _rp_run(shipped, [("bs_ca__trade_receivables_related_parties", "700")])
+    assert got.get("sub__rp_find_1") == Decimal("700")
+
+
+def test_the_trade_and_other_aggregate_is_a_fallback_and_never_double_counts(shipped):
+    """"Trade and other receivables — related parties" CONTAINS what FACE_SUM adds up separately.
+
+    Its trade half is `bs_ca__trade_receivables_related_parties` and its other half is
+    `bs_ca__due_from_related_parties_cp`, so summing it beside them counts the same balance twice.
+    It is therefore a RUNG BELOW rather than a term: `evaluate` skips a rung that resolves nothing,
+    so the aggregate is reached only when no specific related-party receivable row was printed —
+    the filing whose whole related-party receivable would otherwise be missed.
+    """
+    # Nothing specific printed: the aggregate answers.
+    alone, _ctx = _rp_run(shipped, [
+        ("bs_ca__trade_and_other_receivables_related_parties", "2500")])
+    assert alone.get("sub__rp_find_1") == Decimal("2500")
+
+    # Both printed: the specific rows win and the aggregate is ignored, so 1,700 and never 3,400.
+    both, _ctx = _rp_run(shipped, [
+        ("bs_ca__due_from_related_parties_cp", "1000"),
+        ("bs_ca__trade_receivables_related_parties", "700"),
+        ("bs_ca__trade_and_other_receivables_related_parties", "1700"),
+    ])
+    assert both.get("sub__rp_find_1") == Decimal("1700"), (
+        "the aggregate was summed beside the rows it contains, so the balance is counted twice")
 
 
 def test_find_1_reaches_the_column_that_selects_between_the_three(shipped):
