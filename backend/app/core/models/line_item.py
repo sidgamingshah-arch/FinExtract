@@ -426,6 +426,20 @@ class NotesTable(BaseModel):
     basis: Basis | None = None
     source_pages: list[int] = Field(default_factory=list)
     source_text: str = ""
+    #: THE NOTE'S NARRATIVE ONLY — its text with the lines it TABULATES removed. `None` means
+    #: nothing computed it (a hand-built table, or a route that does not need it), which readers
+    #: distinguish from `""`, "computed, and this note is all table".
+    #:
+    #: WHY IT IS A SEPARATE FIELD. `source_text` is every word of the section joined with spaces,
+    #: tables included, and three services want exactly that: `contingent_liabilities` classifies
+    #: the whole narrative, `note_context` offers the whole note to a model, and
+    #: `note_sourced._amount_in_text` checks a cited amount against anything the note printed.
+    #: Only the PROSE ROUTE must not see a table, and on China SCE 1966 it did: the flattened
+    #: profit-before-tax note has no sentence punctuation, so `select_prose` read the entire note
+    #: as ONE sentence, matched "depreciation … included in … operating expenses" across its
+    #: tabulated rows, and took the FIRST grouped amount in it — 17,475,980, the cost of properties
+    #: sold — as the operating-expense depreciation charge.
+    prose_text: str | None = None
     items: list[NoteItem] = Field(default_factory=list)
 
 

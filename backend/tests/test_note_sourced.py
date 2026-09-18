@@ -776,7 +776,7 @@ def test_a_note_sourced_line_declares_which_part_of_a_note_it_is_read_from(shipp
     declared = [i for i in shipped.items if getattr(i, "note_source", None) is not None]
     # 62: the other-receivables net's two readings each declare their own `note_source`, and the
     # parent they feed declares none.
-    assert len(declared) == 62, len(declared)
+    assert len(declared) == 63, len(declared)
 
     with_prose = [i for i in declared
                   if (i.note_source.prose_subject or i.note_source.prose_any)]

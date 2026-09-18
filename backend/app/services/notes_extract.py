@@ -410,6 +410,121 @@ _MAX_CATEGORY_CHARS = 24        # a category is a caption; a sentence in the mar
 _CJK_SENTENCE_MARK = re.compile(r"[，。；]")
 
 
+#: A grouped amount, as a filing writes one in prose — thousands separators required, which is what
+#: keeps years, note numbers and bare counts out. Same shape as `note_sourced._PROSE_AMOUNT`, which
+#: is what will read the sentence this decides to keep.
+_PROSE_GROUPED = re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?")
+
+
+def _amount_is_inline(row: list[Word]) -> bool:
+    """Whether this printed line states a grouped amount INSIDE a sentence rather than in a column.
+
+    A table row's figures are the rightmost things on its line, because they sit under the value
+    columns. A sentence states its figure and carries on — "…HK$529,841,000 (2024: HK$665,553,000)
+    ARE INCLUDED IN 'other operating expenses'" — so there are words to the right of the last
+    amount. That is the difference between the two, and it is the one the prose route has to see.
+
+    Refused for a line with no grouped amount at all: the question does not arise, and answering
+    it "no" is what leaves a caption-only lead-in where it belongs.
+    """
+    last = -1
+    for i, w in enumerate(row):
+        if _PROSE_GROUPED.search(w.text):
+            last = i
+    if last < 0:
+        return False
+    # A trailing footnote marker, note reference or bracket is not "carrying on".
+    for w in row[last + 1:]:
+        text = w.text.strip(" .,;:()（）[]*†#‡'\u2019\u201c\u201d")
+        if len(text) >= 2 and not _PROSE_GROUPED.search(w.text) and not text.isdigit():
+            return True
+    return False
+
+
+def _narrative_only(words: list[Word], items: list, source_kind: str) -> str:
+    """The section's text with the lines it TABULATES removed — the note's narrative.
+
+    WHY THE PROSE ROUTE NEEDS ITS OWN TEXT. `source_text` is every word of the section joined with
+    spaces, and a printed table flattens into it with no sentence punctuation at all — so
+    `note_sourced._sentences` returns the WHOLE NOTE as one sentence, a prose pattern matches
+    across rows that are nowhere near each other on the page, and the first grouped amount in the
+    note is taken as the figure. Measured on China SCE 1966's profit-before-tax note: the pattern
+    "depreciation … included in … operating expenses" matched the flattened table and
+    `sub__operating_expense_depreciation` published 17,475,980 — the note's FIRST amount, which is
+    its Cost of properties sold — as a depreciation charge, on both the operating-expense part and
+    the PBT callout, and on into the parent through rung P1.
+
+    A LINE IS TABULAR IF IT BECAME A ROW WHOSE CAPTION NAMES A LINE ITEM. Two halves, and the
+    second is what keeps the genuine case:
+
+      * a line that produced NO row is narrative — the lead-in to a table, a footnote, a
+        paragraph. Nothing tabulated it, so nothing here removes it.
+      * a line that DID produce a row may still be narrative, because the reconstructor will make
+        a row out of any line carrying a grouped amount — and the sentence this route exists for
+        carries two ("Depreciation charges of approximately HK$529,841,000 (2024: HK$665,553,000)
+        are included in 'other operating expenses'"). What tells the two apart is WHERE the amount
+        sits: a sentence states it INSIDE itself and goes on afterwards, while a table row puts it
+        in a column, so the amounts are the rightmost things on the line. `_amount_is_inline`
+        answers that, with `caption_shape.prose_reasons`' LENGTH test as a second way in for a
+        sentence that happens to end on its figure.
+
+        THE VERB TEST IS DELIBERATELY NOT USED HERE. `prose_reasons` calls a 60-character caption
+        with a finite verb prose, which is right for its own question and too loose for this one:
+        "Lease payments not included in the measurement of lease liabilities" is 66 characters and
+        contains "included", and it is a tabulated row of the measured note — kept by that branch,
+        with its two columns of figures, straight back into the narrative.
+
+    Bounded by the ROW as printed, not by the item: a wrapped caption spans two printed lines and
+    both belong to the row that absorbed them, which is why the y-band of the row's own words is
+    the test rather than the item's label bbox.
+    """
+    from app.services import caption_shape
+
+    rows = _group_rows(words, row_tolerance(words, source_kind))
+    inline = {i for i, row in enumerate(rows) if _amount_is_inline(row)}
+    # The y-midpoint of every line that became a row, against the caption that row carried.
+    #
+    # OFF THE VALUES, NOT THE ITEM. `build_line_items` returns `LineItem`s whose own `provenance`
+    # is unset — every box lives on the `ExtractedValue`s, and the label box is the same on all of
+    # them because it is the row's caption. Reading `item.provenance` found None on all thirteen
+    # rows of the measured note, so nothing was excluded and this returned the whole table.
+    #
+    # AND `source_label`, NOT `raw_label`: a `LineItem` carries the first and a `NoteItem` the
+    # second, and this is handed `LineItem`s. Asking for the wrong one returned "" for every row,
+    # which `prose_reasons` calls a line-item name — right by accident, and it would have kept no
+    # genuine narrative row either.
+    tabulated: list[tuple[float, float]] = []
+    for item in items or ():
+        label = str(getattr(item, "source_label", "")
+                    or getattr(item, "raw_label", "") or "")
+        # The LENGTH branch only — see the docstring for the tabulated row the verb branch kept.
+        long_prose = [r for r in caption_shape.prose_reasons(label) if "chars=" in r]
+        if long_prose:
+            continue                       # a sentence the reconstructor made a row of — keep it
+        for value in (getattr(item, "values", None) or {}).values():
+            prov = getattr(value, "provenance", None)
+            box = getattr(prov, "label_bbox", None) or getattr(prov, "bbox", None)
+            if box is not None:
+                tabulated.append((box.y0, box.y1))
+                break
+    if not tabulated:
+        return " ".join(w.text for w in words).strip()
+    # AN OVERLAP, NOT A MIDPOINT. A printed caption WRAPS — "Depreciation of property and" then
+    # "equipment" — and the row that absorbed both lines has a label box spanning them, whose
+    # midpoint falls in the WHITESPACE between them and so lies inside neither line's band. On the
+    # measured note that left one of the two lines of every wrapped caption in the narrative, with
+    # its figures: "Depreciation of property and 物業及設備折舊 equipment 14 80,427 70,896". Both
+    # lines belong to the row, and overlap is what says so.
+    kept: list[str] = []
+    for i, row in enumerate(rows):
+        lo = min(w.bbox.y0 for w in row)
+        hi = max(w.bbox.y1 for w in row)
+        if i not in inline and any(lo < y1 and y0 < hi for y0, y1 in tabulated):
+            continue
+        kept.extend(w.text for w in row)
+    return " ".join(kept).strip()
+
+
 def _category_cells(rows: list[list[Word]], fmt=None) -> list[tuple[float, str]]:
     """``(top y, caption)`` for each category cell printed in a note's OUTER label column.
 
@@ -812,7 +927,10 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                            # nothing. See `NotesTable.chapter_title`.
                            chapter_title=(chapter[2] if chapter and len(chapter) > 2
                                           else "") or "",
-                   source_text=" ".join(word.text for word in sec["words"]).strip())
+                   source_text=" ".join(word.text for word in sec["words"]).strip(),
+                           # THE NARRATIVE, for the PROSE route alone — see `_narrative_only` for
+                           # the figure a flattened table published as a depreciation charge.
+                           prose_text=_narrative_only(sec["words"], items, source_kind))
         # The note's own 项目名称 column, if it has one — see `_category_cells` for the nine-row
         # block whose eight continuation rows named no receivable class at all without it.
         grouped = _group_rows(sec["words"], row_tolerance(sec["words"], source_kind))

@@ -348,7 +348,7 @@ def test_an_exclusion_vetoes_the_rule_tier_too():
 def test_the_shipped_set_carries_the_whole_rulebook(shipped):
     # 527, not 543: the live configuration was exported into the shipped seed — see
     # `test_retired_derivations.test_the_shipped_set_is_the_configuration_in_force`.
-    assert len(shipped.by_key) == 535  # 535 since the other-receivables NET split into the two ways a note prints one — the 账面价值 COLUMN of a gross/allowance/net grid, and a row whose own reported amount is the net; one part holds one `measure`, and 000709 needs both readings
+    assert len(shipped.by_key) == 536  # 536 since the other-receivables line gained the interest-and-dividends-receivable component its own definition names: a filing that prints 应收利息/应收股利 as siblings of 其他应收款 has not put them inside it  # 535 since the other-receivables NET split into the two ways a note prints one — the 账面价值 COLUMN of a gross/allowance/net grid, and a row whose own reported amount is the net; one part holds one `measure`, and 000709 needs both readings
     assert len(shipped._alias_index) > 1900, "the alias vocabulary did not survive the merge"
 
 

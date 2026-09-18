@@ -489,7 +489,21 @@ def select_prose(item, notes, grammar=None) -> list[ProseHit]:
         # enumerator defeated the pattern withheld the sentence as well as the table.
         if not (_matches_title_any(title, titles) or _matches_any(number, titles)):
             continue
-        for sentence in _sentences(getattr(table, "source_text", "") or ""):
+        # THE NARRATIVE, NOT THE WHOLE NOTE. `prose_text` is the section's text with its tabulated
+        # lines removed (`notes_extract._narrative_only`); `None` means nothing computed it — a
+        # hand-built table, or a caller that supplied only `source_text` — and there the whole text
+        # is all there is. "" means "computed, and this note is all table", which must yield NO
+        # sentence rather than fall back to the table it just excluded.
+        #
+        # WHY THE ROUTE CANNOT SEE A TABLE. A printed table flattens into `source_text` with no
+        # sentence punctuation, so this loop received the entire note as ONE sentence: on China SCE
+        # 1966's profit-before-tax note a depreciation pattern matched across rows printed inches
+        # apart and the FIRST grouped amount in the note — 17,475,980, its Cost of properties sold
+        # — was published as the operating-expense depreciation charge.
+        narrative = getattr(table, "prose_text", None)
+        if narrative is None:
+            narrative = getattr(table, "source_text", "") or ""
+        for sentence in _sentences(narrative):
             matched = _matches_any(sentence, counts)
             if matched is None:
                 continue

@@ -81,3 +81,39 @@ def test_the_gross_and_allowance_parts_are_untouched_by_this():
     defs = _defs()
     assert defs["sub__cp_other_receivables_gross"].note_source.measure == ""
     assert defs["sub__cp_other_receivables_loss_allowance"].note_source.measure == ""
+
+
+# ── the definition named a component nothing read ─────────────────────────────────────────────
+
+def test_interest_and_dividends_receivable_are_a_component_of_the_line():
+    """THE MISMATCH THIS CLOSED. `bs_ca__other_receivables_cp`'s definition says the line covers
+    "interest and dividends receivable and other debtors", and no term of either rung read them.
+
+    A filing that breaks them out has NOT put them in its other-receivables figure. 河钢股份
+    000709's note lists 应收利息, 应收股利 and 其他应收款 as three siblings adding to one 合计, so
+    the net of the third alone was short by the second — 683,092,791.26 published against a
+    balance-sheet 其他应收款 of 913,899,591.26, a gap of exactly the 230,806,800.00 of 应收股利.
+    With the component read, all four of that filing's columns equal the note's own 合计, and so
+    does 澜起科技 688008's parent-company column (40,000,000.00 + 1,247,570,989.98).
+    """
+    defs = _defs()
+    line = defs["bs_ca__other_receivables_cp"]
+    assert "dividends receivable" in line.definition
+    for rung in line.cascade:
+        legs = [(t.ref, t.role, t.sign) for t in rung.terms]
+        assert ("sub__cp_interest_and_dividends_receivable", "any_of", 1) in legs, rung.id
+    # `any_of`, so a note that folds them into its other-receivables row — which identifies no
+    # such component — still resolves the rung on whatever it did identify.
+    got = evaluate(line, {"sub__cp_other_receivables_net": Decimal("683092791.26")})
+    assert got.value == Decimal("683092791.26")
+    got = evaluate(line, {"sub__cp_other_receivables_net": Decimal("683092791.26"),
+                          "sub__cp_interest_and_dividends_receivable": Decimal("230806800.00")})
+    assert got.value == Decimal("913899591.26")
+
+
+def test_the_component_reads_a_row_and_not_a_sentence():
+    """It is a tabulated row — 应收股利 with a figure beside it — so it declares `note_tables`. The
+    six functional depreciation splits are the set's only `prose` lines and this is not one."""
+    part = _defs()["sub__cp_interest_and_dividends_receivable"]
+    assert part.route == "note_tables"
+    assert not part.note_source.prose_subject
