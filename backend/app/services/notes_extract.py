@@ -162,6 +162,14 @@ _CJK_SENTENCE = re.compile(r"[，。；]")
 # Qualifying the note number with its chapter makes the two sides agree for the first time
 # (row_reconstruct._note_ref_value keeps the chapter for the same reason), and an English filing —
 # which prints no chapters — keeps bare numbers, byte for byte as before.
+# ①-⑳ and ⑴-⑽, translated to "(n)" so `_HEADING` reads them with the bracketed numbers it
+# already accepts. A mainland note nests three deep and these caption the innermost level.
+_CIRCLED_DIGITS = {
+    **{0x2460 + i: f"({i + 1})" for i in range(20)},      # ① … ⑳
+    **{0x2474 + i: f"({i + 1})" for i in range(20)},      # ⑴ … ⒇
+}
+
+
 _CHAPTER_HEADING = re.compile(r"^\s*(?P<ch>[一二三四五六七八九十]{1,3})\s*、\s*(?P<title>.{0,60})$")
 _CJK_UNITS = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5,
               "六": 6, "七": 7, "八": 8, "九": 9}
@@ -315,6 +323,24 @@ def _is_heading(row: list[Word]) -> tuple[str, str] | None:
     if values:
         return None
     text = " ".join(w.text for w in row).strip()
+    # A CIRCLED NUMERAL IS A HEADING TOO, and it opens the deepest level a mainland note uses:
+    # 十二、6 the note, （6）the table, ①应收项目 / ②应付项目 the sub-table inside THAT. Translated to
+    # the parenthesised form rather than matched separately, because `_HEADING` already accepts
+    # that and one spelling of "a number in brackets" is easier to reason about than two.
+    #
+    # WHY IT MATTERS MORE THAN AN EXTRA NOTE IN THE INDEX. `notes_extract` calls
+    # `row_reconstruct.build_line_items` once PER SECTION, and each call reads its own value bands
+    # and its own column grid. So a sub-table that opens no section shares the geometry of the one
+    # above it — and on 000709 page 196 the ②应付项目 payables table has TWO columns at x≈0.58 and
+    # x≈0.73 while the ①应收项目 receivables table above it has FOUR at 0.41/0.58/0.67/0.75. The
+    # payables columns land exactly on the receivables' 坏账准备 positions, so every related-party
+    # payable on that page was filed as a BAD-DEBT ALLOWANCE:
+    #
+    #     应付账款：唐山唐钢气体有限公司   current:allowance = 468,770,511.21
+    #
+    # — a figure no payables line can ever read, because nothing asks for an allowance there.
+    # Opening a section gives the sub-table its own bands and its own grid, which is the whole fix.
+    text = text.translate(_CIRCLED_DIGITS)
     starts_note = text.lower().startswith("note")
     m = _HEADING.match(text)
     if not m:
