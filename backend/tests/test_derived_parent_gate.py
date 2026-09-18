@@ -105,13 +105,15 @@ def test_the_types_the_shipped_set_declares(shipped):
     # 10 derived lines, not 13: the three `sub__rp_find_*` lines became `extracted` when the
     # spec collapsed their feeders into them — they now read the notes themselves instead of
     # cascading over nine parts.
-    assert counts["derived"] == 10, counts
+    # 11 since Find 1 became `derived`: the spec's first reading is a SUM over the related-party rows the balance sheet prints, so it is arithmetic over other lines rather than a row of its own.
+    assert counts["derived"] == 11, counts
     assert counts["calculated"] == 33, counts
+    # 487, not 488: Find 1 moved from `extracted` to `derived` (see the derived count above).
     # 486 since the two 营业外 face parts were added — both `extracted`, because each is a
     # printed row read off the income statement rather than a figure computed from others.
     # 488 since the two direct-method TAX parts were added, `extracted` for the same reason: each
     # is a row printed on the face of the cash-flow statement.
-    assert counts["extracted"] == 488, counts
+    assert counts["extracted"] == 487, counts
     assert sum(counts.values()) == 531  # 531 since the two direct-method TAX face parts split the template's single Income Taxes Paid(Direct) column, as the two 营业外 parts before them split Other Non-Operating Inc(Exp)
     # AND THE DISCRIMINATOR THE SECTION ROLL-UPS READ IS UNTOUCHED. `rollups.section_members` keys
     # on `unit_of_account == "subtotal"` and nothing else; flattening it alongside the type takes

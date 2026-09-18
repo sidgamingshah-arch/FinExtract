@@ -118,7 +118,9 @@ def test_the_shipped_set_asks_for_this_on_sixty_lines_and_no_more(shipped):
     refused = [i for i in asked if not line_item_routes.may_read_face(i)]
     # 510 since the two direct-method TAX face parts joined the set; both declare `route: face`,
     # so the ban's blast radius grows by exactly two, as it did for the two 营业外 parts.
-    assert len(asked) == 510, len(asked)
+    # 509, not 510: Find 1 stopped declaring a route at all. It is computed from other lines, so
+    # it reads neither the face nor the notes and the ban has nothing to bite on for it.
+    assert len(asked) == 509, len(asked)
     assert len(refused) == 60, len(refused)
     assert {line_item_routes.declared_route(i) for i in refused} == {"note_tables"}
     # Every one of them declares the note source the route sends it to, so the ban takes a figure

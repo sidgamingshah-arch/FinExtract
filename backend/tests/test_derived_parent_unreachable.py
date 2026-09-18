@@ -79,7 +79,8 @@ def test_every_derived_line_is_locked_out_of_the_matcher() -> None:
     # matcher exactly like the other nine: its figure is its cascade's, so no caption reaches it.
     # 10, not 13 — the three related-party Find lines are `extracted` now. See
     # `test_derived_parent_gate` for why.
-    assert len(derived) == 10, len(derived)
+    # 11 since Find 1 became `derived`: the spec's first reading is a SUM over the related-party rows the balance sheet prints, so it is arithmetic over other lines rather than a row of its own.
+    assert len(derived) == 11, len(derived)
     assert all(d.key in unmatchable for d in derived), (
         [d.key for d in derived if d.key not in unmatchable])
 

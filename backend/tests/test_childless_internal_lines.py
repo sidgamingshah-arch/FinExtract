@@ -82,12 +82,21 @@ def test_the_template_subtotals_are_not_in_this_pass(shipped):
     # overshoot residual, and the three related-party Finds that `MAX_VALID` chooses between. Pinned
     # by name rather than by count, so a FIFTH becoming eligible is a test failure someone has to
     # look at — that is the whole guard, because anything published must never enter this pass.
-    # ONE DELIBERATE LINE now: the securities overshoot residual. The three related-party Finds
-    # left this population when the spec made them EXTRACT items — they read the notes themselves
-    # instead of cascading over nine feeders, so they are no longer childless arithmetic lines.
-    # Pinned by name rather than by count, so a second becoming eligible is a failure someone has
-    # to look at — that is the whole guard.
-    assert {i.key for i in eligible} == {RESIDUAL}, (
+    # TWO DELIBERATE LINES: the securities overshoot residual, and Find 1.
+    #
+    # Find 2 and Find 3 left this population when the spec made them EXTRACT items reading the
+    # notes themselves rather than cascading over nine feeders. FIND 1 CAME BACK, and on the
+    # strength of what the balance sheet actually prints: the face never shows an "of which related
+    # parties" split inside 其他应收款, so the spec's first reading is the TOTAL of the dedicated
+    # related-party rows a filing prints — Due from related parties, Amounts due from fellow
+    # subsidiaries, 应收关联方款项 — each of which is already a column of this template. That is
+    # arithmetic over other lines, which is this pass, and it is why Find 1 shipped as a dead
+    # declaration until now: `note_source: null`, `terms: []`, `cascade: []`, no aliases, no route,
+    # not an `llm_focus_key`, so nothing in the pipeline could fill it.
+    #
+    # Pinned by name rather than by count, so a THIRD becoming eligible is a failure someone has to
+    # look at — that is the whole guard.
+    assert {i.key for i in eligible} == {RESIDUAL, "sub__rp_find_1"}, (
         f"the eligible population changed: {sorted(i.key for i in eligible)}")
 
 

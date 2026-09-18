@@ -241,22 +241,25 @@ class NoteSourcedStage(Stage):
         # slot, so the consolidated rows meet the consolidated rows and the standalone rows the
         # standalone ones. The identity guard below is what keeps a row the note walk already
         # added from joining twice.
-        for parent_key, kid_keys in _children_by_parent(all_items).items():
-            for kid in kid_keys:
-                item = next((i for i in all_items if i.key == kid), None)
-                if item is None:
-                    continue
-                for row in doc.line_items:
-                    if row.canonical_key != kid:
+        def _enrol_children_filled_elsewhere() -> None:
+            for parent_key, kid_keys in _children_by_parent(all_items).items():
+                for kid in kid_keys:
+                    item = next((i for i in all_items if i.key == kid), None)
+                    if item is None:
                         continue
-                    if not any(ev.value is not None
-                               for ev in (row.values or {}).values()):
-                        continue
-                    if any(r is row for _i, r in children_of.get(parent_key, [])):
-                        continue
-                    children_of.setdefault(parent_key, []).append((item, row))
-                    ctx.log(f"note_sourced:{parent_key}: child {kid} was filled elsewhere "
-                            f"(model or earlier stage) and joins the cascade")
+                    for row in doc.line_items:
+                        if row.canonical_key != kid:
+                            continue
+                        if not any(ev.value is not None
+                                   for ev in (row.values or {}).values()):
+                            continue
+                        if any(r is row for _i, r in children_of.get(parent_key, [])):
+                            continue
+                        children_of.setdefault(parent_key, []).append((item, row))
+                        ctx.log(f"note_sourced:{parent_key}: child {kid} was filled elsewhere "
+                                f"(model or earlier stage) and joins the cascade")
+
+        _enrol_children_filled_elsewhere()
 
         # THE PARENT IS FILLED IN A SECOND PASS, once all its children are known — because how they
         # combine is the PARENT's declaration, and answering it while walking the children would
@@ -271,6 +274,17 @@ class NoteSourcedStage(Stage):
         # computed from that line's note-sourced children and must therefore exist before any
         # parent cascade is evaluated.
         standalone = _fill_childless_internal(all_items, children_of, by_key, doc, ctx)
+        # AND ENROL AGAIN, because a line can be BOTH — an arithmetic line with no children of its
+        # own that is itself somebody's child. `sub__rp_find_1` is exactly that: the spec's first
+        # reading is a sum over the related-party rows the balance sheet prints, and it is one of
+        # the three readings its parent selects a maximum between.
+        #
+        # The sweep above ran before the pass that CREATES such a row, so the row did not exist to
+        # be enrolled and the parent never saw it: Find 1 computed 1,650 from three face lines and
+        # the column it feeds stayed empty. Enrolment writes no figures — it only records which
+        # rows are whose children — so running it twice is free, and the identity guard inside
+        # keeps a row already enrolled from joining a second time.
+        _enrol_children_filled_elsewhere()
         parents = _fill_parents(children_of, by_key, doc, ctx,
                                 _parent_rollup(all_items),
                                 {i.key: i for i in all_items})

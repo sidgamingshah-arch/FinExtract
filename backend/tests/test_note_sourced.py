@@ -807,3 +807,119 @@ def test_the_direct_method_tax_halves_net_on_their_own_parent(shipped):
 
     assert _figure(doc, parent, "current") == Decimal("-1348979592.42")
     assert _figure(doc, parent, "prior") == Decimal("-1892863170.97")
+
+
+# ── Find 1: the balance sheet's own related-party reading ────────────────────────────────────────
+
+_RP_PARENT = "bs_nca__due_from_related_parties_ltp"
+
+
+def _rp_run(shipped, pairs):
+    """A document whose face rows are already mapped, as `map_ontology` leaves them (stage 4; this
+    stage is 26), then this stage. Returns {canonical_key: current-period figure}."""
+    doc = DocumentModel(filename="f.pdf")
+    doc.line_items = [_face_row(key, key, {(Basis.CONSOLIDATED, "current"): amount})
+                      for key, amount in pairs]
+    ctx = PipelineContext(settings=get_settings())
+    ctx.line_items = shipped
+    doc = NoteSourcedStage().run(doc, ctx)
+    out: dict[str, Decimal] = {}
+    for li in doc.line_items:
+        for ev in li.values.values():
+            if ev.value is not None and str(ev.period_label or "") == "current":
+                out[li.canonical_key] = ev.value
+    return out, ctx
+
+
+def test_find_1_sums_the_related_party_rows_the_balance_sheet_prints(shipped):
+    """FIND 1 IS A SUM OF LINES ALREADY MAPPED, not a caption reader.
+
+    The face never prints an "of which related parties" split inside 其他应收款. What it prints,
+    when it discloses related-party receivables at all, is a dedicated ROW — Due from related
+    parties, Amounts due from fellow subsidiaries, 应收关联方款项 — and this template has a column
+    for each. So Find 1 totals those columns. Giving it aliases would have put a second claimant on
+    every one of those captions at equal priority with no label owner, which is the
+    unbreakable-alias-tie shape `test_configuration_invariants` holds at zero.
+
+    Find 1 shipped as a dead declaration — `note_source: null`, `statement: null`, `terms: []`,
+    `cascade: []`, no aliases, no route, and not among `config.toml`'s 85 `llm_focus_keys`. Nothing
+    in the pipeline could fill it, so "the highest of Find 1, Find 2 and Find 3" was a maximum over
+    at most two readings.
+    """
+    got, _ctx = _rp_run(shipped, [
+        ("bs_ca__due_from_related_parties_cp", "1000"),
+        ("bs_ca__due_from_jvs_and_partnerships", "250"),
+        ("bs_nca__due_from_sholder_ltp", "400"),
+    ])
+    assert got.get("sub__rp_find_1") == Decimal("1650")
+
+
+def test_find_1_excludes_entrusted_loans_and_trade(shipped):
+    """THE SPEC'S OWN EXCLUSION, in its own words: 但不包括委托贷款.
+
+    And trade, because the four captions the spec lists — Other receivables, Current portion of
+    long-term receivables, Long-term receivables, Loans and advances — are all non-trade. Both
+    exclusions are expressed by NOT naming those columns as terms, so there is no pattern to get
+    wrong.
+    """
+    got, _ctx = _rp_run(shipped, [
+        ("bs_ca__due_from_related_parties_cp", "1000"),
+        ("bs_ca__entrusted_loan_receivables_related_parties_cp", "9999"),
+        ("bs_nca__entrusted_loan_receivables_shareholders_ltp", "8888"),
+        ("bs_ca__trade_receivables_related_parties", "5555"),
+    ])
+    assert got.get("sub__rp_find_1") == Decimal("1000"), (
+        "an entrusted loan or a trade receivable reached Find 1")
+
+    # And a face that prints ONLY entrusted loans leaves Find 1 empty rather than reporting them.
+    only_entrusted, _ctx = _rp_run(shipped, [
+        ("bs_ca__entrusted_loan_receivables_related_parties_cp", "8000"),
+        ("bs_nca__entrusted_loan_receivables_shareholders_ltp", "2000"),
+    ])
+    assert "sub__rp_find_1" not in only_entrusted
+
+
+def test_find_1_reaches_the_column_that_selects_between_the_three(shipped):
+    """AN ORDERING GAP THAT MADE THE FIX INVISIBLE, pinned so it cannot come back.
+
+    Find 1 is BOTH an arithmetic line with no children of its own — computed by
+    `_fill_childless_internal` — and itself a child of the column that selects between the three
+    readings. The sweep that enrols "children filled elsewhere" ran BEFORE the pass that creates
+    such a row, so the row did not exist to be enrolled: Find 1 computed 1,650 and the column it
+    feeds stayed empty. Enrolment now runs again after the compute pass.
+    """
+    got, ctx = _rp_run(shipped, [
+        ("bs_ca__due_from_related_parties_cp", "1000"),
+        ("bs_ca__due_from_jvs_and_partnerships", "650"),
+    ])
+    assert got.get("sub__rp_find_1") == Decimal("1650")
+    assert got.get(_RP_PARENT) == Decimal("1650"), (
+        "Find 1 has a figure but the column that selects between the three Finds is empty — "
+        "the enrolment sweep no longer sees a row created by the compute pass")
+    assert any("rung MAX_VALID" in ln for ln in ctx.logs), ctx.logs[-5:]
+
+
+def test_the_selection_is_a_maximum_over_whichever_finds_answered(shipped):
+    """The spec's rule, both ways round, and the case where none answers.
+
+    A maximum and not a sum: the three Finds are three readings of ONE quantity, so summing would
+    count the same related-party receivable up to three times. And nothing disclosed anywhere
+    leaves the column EMPTY rather than publishing zero — `_apply_terms` returns None for an empty
+    base precisely so a total over absent lines does not assert the filing reported nil.
+    """
+    face_wins, _ = _rp_run(shipped, [
+        ("bs_ca__due_from_related_parties_cp", "1000"),
+        ("bs_ca__due_from_jvs_and_partnerships", "650"),
+        ("sub__rp_find_2", "300"),
+    ])
+    assert face_wins.get(_RP_PARENT) == Decimal("1650")
+
+    note_wins, _ = _rp_run(shipped, [
+        ("bs_ca__due_from_jvs_and_partnerships", "250"),
+        ("sub__rp_find_2", "9000"),
+    ])
+    assert note_wins.get(_RP_PARENT) == Decimal("9000")
+
+    silent, _ = _rp_run(shipped, [("bs_ca__inventories", "777")])
+    assert "sub__rp_find_1" not in silent
+    assert _RP_PARENT not in silent, "an undisclosed related-party balance published a figure"

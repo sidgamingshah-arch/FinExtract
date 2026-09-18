@@ -35367,21 +35367,61 @@
    "key": "sub__rp_find_1",
    "label": "Find 1 — related-party receivables in the balance sheet",
    "namespace": "internal",
-   "type": "extracted",
+   "type": "derived",
    "in_output": false,
    "parent": "bs_nca__due_from_related_parties_ltp",
    "statement": null,
    "section_scope": [
     "bs_ca",
-    "bs_nca",
-    "bs_cl",
-    "bs_ncl"
+    "bs_nca"
    ],
    "order": 10,
-   "cascade": [],
-   "note_selection": "any",
+   "cascade": [
+    {
+     "id": "FACE_SUM",
+     "terms_op": "sum",
+     "refuse_negative": true,
+     "terms": [
+      {
+       "ref": "bs_ca__due_from_related_parties_cp",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "bs_ca__due_from_jvs_and_partnerships",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "bs_ca__due_from_sholder_cp",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "bs_nca__due_from_subsidiaries",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "bs_nca__due_from_directors",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "bs_nca__due_from_mi",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "bs_nca__due_from_sholder_ltp",
+       "role": "any_of",
+       "sign": 1
+      }
+     ],
+     "note": "FIND 1 — the spec's first reading: the related-party amounts the BALANCE SHEET ITSELF prints, within Other receivables, Current portion of long-term receivables, Long-term receivables and Loans and advances, current and non-current, excluding entrusted loans. A SUM OF LINES ALREADY MAPPED, not a caption reader. The face never prints an 'of which related parties' split inside 其他应收款; what it prints, when it discloses related-party receivables at all, is a dedicated ROW — Due from related parties, Amounts due from fellow subsidiaries, 应收关联方款项 — and this template already has a column for each of them. So Find 1 is the total of those rows. Giving it aliases of its own would have put a second claimant on every one of those captions at equal priority with no label owner, which is the unbreakable-alias-tie shape the configuration invariants hold at zero. EVERY TERM IS any_of, so a filing disclosing one such row answers with that one, and a filing disclosing none leaves Find 1 empty rather than publishing zero — `_apply_terms` returns None for an empty base precisely so a sum over absent lines does not assert the filing reported nil. WHAT IS DELIBERATELY NOT A TERM. The six entrusted-loan columns, because the spec excludes them in its own words (但不包括委托贷款). The two trade related-party columns, because trade receivables are none of the four captions the spec lists — and Trade-and-other-receivables in particular is an aggregate mixing a caption the spec excludes with one it includes, which cannot be split on the face; Find 2 and Find 3 read the note's own split instead. bs_nca__invest_in_jvs_and_partnerships, because an equity investment is not a receivable. AND ITS OWN PARENT, bs_nca__due_from_related_parties_ltp, which is both the face row 'Due from Related Parties(LTP)' and the column whose MAX_VALID rung selects between the three Finds. Naming it here would feed that rung's own output back into its input. The printed figure is not lost: a rung that resolves from no term at all declines, and the printed value then stands."
+    }
+   ],
    "note_use": "decomposition_allowed",
-   "note_source": null,
    "terms": [],
    "definition": "The related-party receivable balance as the BALANCE SHEET ITSELF prints it — read off the face of the statement of financial position, under non-current assets, and never assembled from a note. This is the first of three readings of one quantity: Find 2 takes it from the four receivable notes and Find 3 from the related-party note, so this one exists precisely to supply the face's own figure for comparison with them. It is an amount owed TO the reporting entity by a related party — a fellow subsidiary, the immediate or ultimate holding company, a shareholder, a director, an associate, a joint venture — including an entrusted loan routed through a bank. Where the face prints no such row this reading is simply absent, and the parent's rule decides between the readings that are present.\n\nTake this from the face of the balance sheet, under non-current assets — not from any note. It is an ASSET, money owed TO the company: never take a 'due to', 'amounts due to' or 'payable to' caption, which are the liability-side lines and have their own entries. HKEX and PRC filings print this row under many wordings and these are all the same line: 'Due from related parties', 'Amounts due from related parties', 'Due from associates', 'Amounts due from associates', 'Due from jointly controlled entities', 'Due from joint ventures', 'Due from fellow subsidiaries', 'Due from a shareholder', 'Due from holding company', 'Due from immediate holding company', 'Due from directors', 'Loan to an associate', 'Loans to related parties', 'Advances to related parties', 'Entrusted loans to related parties'; and in Chinese 應收關聯方款項 / 应收关联方款项, 關聯方應收款 / 关联方应收款, 應收關聯公司款項 / 应收关联公司款项, 其他應收款－關聯方 / 其他应收款－关联方, 應收聯營公司款項 / 应收联营公司款项, 應收合營公司款項 / 应收合营公司款项, 應收股東款項 / 应收股东款项. Take the NON-CURRENT row: where the face splits the balance into current and non-current portions, the current portion belongs to a different line. A caption naming one specific related party still belongs here unless the template gives that party its own line, in which case prefer the more specific one."
   },
