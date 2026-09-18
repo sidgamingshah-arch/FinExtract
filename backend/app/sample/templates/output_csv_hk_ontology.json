@@ -6341,19 +6341,9 @@
    "canonical_key": "bs_ncl__due_to_related_parties_ltp",
    "label": "Due to Related Parties(LTP)",
    "definition": "Extract the reported value for 'Due to Related Parties(LTP)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
-   "aliases": [
-    "Due to Related Parties(LTP)",
-    "Due to related parties / Associates / JV/ Jointly controlled entities / fellow subsidiaries/Affiliates",
-    "Loan from related parties / Associates / JV/ Jointly controlled entities / fellow subsidiaries/Affiliates",
-    "Advance from related parties / Associates / JV/ Jointly controlled entities / fellow subsidiaries/Affiliates",
-    "Related parties / Associates / JV/ Jointly controlled entities / fellow subsidiaries/Affiliates' current account"
-   ],
-   "keyword_hints": [
-    "Due to Related Parties(LTP)"
-   ],
-   "regex_hints": [
-    "^Due\\s+to\\s+Related\\s+Parties\\(LTP\\)$"
-   ],
+   "aliases": [],
+   "keyword_hints": [],
+   "regex_hints": [],
    "include": [
     "Amounts or disclosures explicitly reported for Due to Related Parties(LTP) in Balance Sheet / bs_ncl."
    ],
@@ -6368,15 +6358,7 @@
    "face_only": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ncl.",
-   "aliases_i18n": {
-    "en": [
-     "Due to Related Parties(LTP)",
-     "Due to related parties / Associates / JV/ Jointly controlled entities / fellow subsidiaries/Affiliates",
-     "Loan from related parties / Associates / JV/ Jointly controlled entities / fellow subsidiaries/Affiliates",
-     "Advance from related parties / Associates / JV/ Jointly controlled entities / fellow subsidiaries/Affiliates",
-     "Related parties / Associates / JV/ Jointly controlled entities / fellow subsidiaries/Affiliates' current account"
-    ]
-   }
+   "aliases_i18n": {}
   },
   {
    "canonical_key": "bs_ncl__entrusted_loan_payables_shareholders_ltp",
@@ -8098,19 +8080,9 @@
    "canonical_key": "bs_cl__due_to_related_parties_cp",
    "label": "Due to Related Parties(CP)",
    "definition": "Extract the reported value for 'Due to Related Parties(CP)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
-   "aliases": [
-    "Due to Related Parties(CP)",
-    "Due to related parties / Associates / Jointly controlled entities / fellow subsidiaries/Affiliates",
-    "Loan from related parites / Associates / Jointly controlled entities / fellow subsidiaries/Affiliates",
-    "Advance from related parties / Associates / Jointly controlled entities / fellow subsidiaries/ Affiliates",
-    "Related parites / Associates / Jointly controlled entities / fellow subsidiaries / Affiliates' current account"
-   ],
-   "keyword_hints": [
-    "Due to Related Parties(CP)"
-   ],
-   "regex_hints": [
-    "^Due\\s+to\\s+Related\\s+Parties\\(CP\\)$"
-   ],
+   "aliases": [],
+   "keyword_hints": [],
+   "regex_hints": [],
    "include": [
     "Amounts or disclosures explicitly reported for Due to Related Parties(CP) in Balance Sheet / bs_cl."
    ],
@@ -8125,15 +8097,7 @@
    "face_only": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_cl.",
-   "aliases_i18n": {
-    "en": [
-     "Due to Related Parties(CP)",
-     "Due to related parties / Associates / Jointly controlled entities / fellow subsidiaries/Affiliates",
-     "Loan from related parites / Associates / Jointly controlled entities / fellow subsidiaries/Affiliates",
-     "Advance from related parties / Associates / Jointly controlled entities / fellow subsidiaries/ Affiliates",
-     "Related parites / Associates / Jointly controlled entities / fellow subsidiaries / Affiliates' current account"
-    ]
-   }
+   "aliases_i18n": {}
   },
   {
    "canonical_key": "bs_cl__entrusted_loan_payables_shareholders_cp",
@@ -9082,9 +9046,7 @@
    "keyword_hints": [
     "Trade payables- related parties"
    ],
-   "regex_hints": [
-    "^Trade\\s+payables[\\-–—]?\\s+related\\s+parties$"
-   ],
+   "regex_hints": [],
    "include": [
     "Amounts or disclosures explicitly reported for Trade payables- related parties in Balance Sheet / bs_cl."
    ],
@@ -9097,7 +9059,6 @@
     "bs_cl__trade_payables_cp"
    ],
    "value_scope": "exclusive_leaf",
-   "extraction_mode": "extract",
    "match_priority": 81,
    "alias_matching": "enabled",
    "inherits": "bs_cl",
@@ -9110,7 +9071,9 @@
      "Trade payables to related parties"
     ],
     "zh": []
-   }
+   },
+   "route": "face",
+   "terms": null
   },
   {
    "canonical_key": "bs_cl__trade_and_other_payables_related_parties",

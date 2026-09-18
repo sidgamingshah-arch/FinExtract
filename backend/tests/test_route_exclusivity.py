@@ -126,7 +126,7 @@ def test_the_shipped_set_asks_for_this_on_sixty_lines_and_no_more(shipped):
     # longer asked about — a derived parent's figure is its cascade's.
     # 61 since Find 3's two halves both read notes while Find 3 itself no longer declares a
     # route: the refused population grows by one for the same reason `asked` did.
-    assert len(refused) == 64, len(refused)   # 62 for the same reason the note-sourced count
+    assert len(refused) == 66, len(refused)   # 66 for the same reason the part count moved: the two related-party payable groups   # 62 for the same reason the note-sourced count
     # moved: two readings of the other-receivables net, each reading its own notes.
     # BOTH NOTE ROUTES, since the six functional depreciation splits declare `prose`: the ban is
     # about the FACE, and `note_tables` and `prose` refuse it for the same reason — the author said

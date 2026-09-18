@@ -3242,6 +3242,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                      page_chrome: frozenset[str] = frozenset(),
                      column_grid: ColumnGrid | None = None,
                      grid_out: list[ColumnGrid | None] | None = None,
+                     carry_group: str | None = None,
+                     group_out: list[str] | None = None,
                      known_captions: frozenset[str] | None = None) -> tuple[list[LineItem], int]:
     """Reconstruct line items from positioned words. Returns (items, next_ordinal).
 
@@ -3465,7 +3467,21 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     # rule or model should make it one; what makes that figure an under-provision of current tax is
     # the line above it. So the sub-heading is carried as its own field, available to a reader that
     # has failed on the caption, and it never touches the section gate.
-    group: str = ""
+    # SEEDED FROM THE PAGE BEFORE, when the caller says the note continues. A sub-heading is
+    # printed ONCE and the rows under it run until the next one — across a page break like any
+    # other, and a long mainland note breaks pages constantly. The heading was page-local, so the
+    # rows on the far side of the break lost the only thing that gives them a meaning.
+    #
+    # MEASURED ON 000709's related-party note, whose ②应付项目 table prints `长期应付款：` at the
+    # foot of one page and its single counterparty row, 河钢融资租赁有限公司 856,059,679.92, at
+    # the top of the next. That row reached `sub__rp_payable_ltp` by neither its caption (a company
+    # name) nor its group (empty), so the long-term payable to related parties published nothing.
+    # The same break loses 其他应收款 118,850.00 on the receivable side.
+    #
+    # `group_out`, when given, reports the heading still open when the page ended, the same way
+    # `grid_out` reports the grid — and the caller resets both on the same boundary that ends the
+    # note, so a page belonging to a different note cannot inherit a heading.
+    group: str = str(carry_group or "")
     # WHICH VALUED ROWS THIS SUB-HEADING HAS GATHERED — their ordinals, not just a count. An
     # uncaptioned figure below them is readable as their subtotal, and the row that gets promoted
     # CARRIES THIS LIST so nothing downstream has to guess which rows it totals. Guessing was a
@@ -3847,6 +3863,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             if min(w.bbox.x0 for w in label_words) > group_x0 + _INDENT_MIN:
                 block_ordinals.append(ordinal - 1)      # `ordinal` was incremented just above
                 block_value_x1s.extend(w.bbox.x1 for w in value_words)
+    if group_out is not None:
+        group_out.append(group)
     return items, ordinal
 
 

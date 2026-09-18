@@ -797,6 +797,8 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                         log=None,
                         carry_grid: ColumnGrid | None = None,
                         grid_out: list[ColumnGrid | None] | None = None,
+                        carry_group: str | None = None,
+                        group_out: list[str] | None = None,
                         chapter: list | None = None,
                         known_captions: frozenset[str] | None = None) -> list[NotesTable]:
     """Split a notes page into note sections and reconstruct each note's detail rows.
@@ -832,6 +834,12 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
     once, and the strictly-increasing rule that identifies one needs the highest ordinal seen so
     far. Passing it in makes every note number on the page chapter-qualified; passing None keeps
     the bare numbers an English filing has always had. See ``read_chapter``.
+
+    ``carry_group`` is the SUB-HEADING still open when the previous page ended, threaded for the
+    same reason as the grid and reported back through ``group_out``: a mainland note prints
+    `长期应付款：` at the foot of a page and its counterparty rows at the top of the next, and a
+    row whose caption is a company name has nothing else to identify it by. See
+    ``row_reconstruct.build_line_items``' own note on the field.
 
     ``carry_grid`` is the two-level column grid read from an earlier page of the note still open,
     and ``grid_out`` collects the grid each section was read with so the caller can carry it to
@@ -905,17 +913,26 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
         # different table, and letting it borrow the previous note's header would hand a four-column
         # grid to whatever four columns the next note happens to print — the same wrong-column
         # failure this closes, in the opposite direction.
+        open_group: list[str] = []
         items, _ = build_line_items(sec["words"], page_index=page_index,
                                     document_id=document_id, source_kind=source_kind,
                                     on_face=False, scope=scope, normalisation=normalisation,
                                     log=log,
                                     column_grid=(carry_grid if sec is carried else None),
-                                    grid_out=seen, known_captions=known_captions)
+                                    grid_out=seen,
+                                    carry_group=(carry_group if sec is carried else None),
+                                    group_out=open_group, known_captions=known_captions)
         # What the NEXT page inherits is the grid of the note still open when this page ended, so
         # the carry is whatever the last section was read with — None included.
         carry_grid = seen[0] if seen else None
         if grid_out is not None:
             grid_out.append(carry_grid)
+        # …and the same for the sub-heading, on the same boundary: only the CARRIED section — the
+        # one continuing the note the previous page left open — inherits it, and a section that
+        # opens a new note starts with none.
+        carry_group = open_group[0] if open_group else ""
+        if group_out is not None:
+            group_out.append(carry_group)
         if not items and not sec["title"]:
             continue
         table = NotesTable(note_number=qualified_note_number(chapter_numeral, sec["no"]),

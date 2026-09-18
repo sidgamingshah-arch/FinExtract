@@ -396,6 +396,11 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     # every page after the first reads its four columns positionally again — a 坏账准备 provision
     # back in the "prior" slot three rows later. Reset with `notes_carry`, on the same break.
     notes_grid = None
+    # The SUB-HEADING still open when the last NOTES page ended, carried for the same reason and
+    # reset on the same boundary. A mainland note prints `长期应付款：` at the foot of a page
+    # and its counterparty rows at the top of the next; a row whose caption is a company name has
+    # nothing else to identify it by. See `row_reconstruct.build_line_items`' `carry_group`.
+    notes_group: str | None = None
     # THE NOTES' TOP-LEVEL CHAPTER, as ``[numeral, highest ordinal seen]``. A mainland filing
     # numbers its notes WITHIN each chapter, so the chapter is half of a note's identity — see
     # ``notes_extract.read_chapter``. A mutable cell because the reader updates it while walking a
@@ -458,11 +463,13 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         if ps.kind == PageKind.NOTES:
             from app.services.notes_extract import extract_note_tables
             grids: list = []
+            groups: list = []
             tables = extract_note_tables(words, page_index=ps.index,
                                          document_id=doc.content_hash, source_kind=source_kind,
                                          scope=scope, normalisation=normalisation,
                                          carry_note=notes_carry, log=ctx.log,
                                          carry_grid=notes_grid, grid_out=grids,
+                                         carry_group=notes_group, group_out=groups,
                                          chapter=notes_chapter,
                                          known_captions=captions)
             doc.notes.extend(tables)
@@ -471,9 +478,11 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
             # The note still open when this page ended is the LAST section, so its grid — None
             # included — is what the next page's continuation inherits.
             notes_grid = grids[-1] if grids else None
+            notes_group = groups[-1] if groups else None
             continue
         notes_carry = None
         notes_grid = None
+        notes_group = None
         # ``ps.statement`` (from the classifier) is what tells the reconstructor that a page is a
         # component matrix rather than a two-column comparative; ``ctx.log`` records the cases
         # where a matrix page could not be attributed and was skipped.

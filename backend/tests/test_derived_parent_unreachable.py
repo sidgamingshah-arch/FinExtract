@@ -81,7 +81,7 @@ def test_every_derived_line_is_locked_out_of_the_matcher() -> None:
     # `test_derived_parent_gate` for why.
     # 11 since Find 1 became `derived`: the spec's first reading is a SUM over the related-party rows the balance sheet prints, so it is arithmetic over other lines rather than a row of its own.
     # 12 since Find 3 split into a gross half and an allowance half: the 关联方应收应付款项 note prints 账面余额 and 坏账准备 and no net column, so the 淨金額 the spec asks for is computed, which made Find 3 itself derived.
-    assert len(derived) == 14, len(derived)   # 13 since the other-receivables net became a
+    assert len(derived) == 16, len(derived)   # 16 with the two related-party PAYABLE parents — Due to Related Parties(CP) and its LTP twin — each computed from the group its note prints (其他应付款, 长期应付款). Their template aliases went with the change, for the reason this file holds: a derived parent's figure is its cascade's, and the compound labels they carried ("Due to related parties / Associates / Jointly controlled entities / fellow subsidiaries/Affiliates") matched nothing on any filing. The TRADE payable stayed on the face: `test_a_resolved_tie_kept_a_home_for_every_caption_it_split` pins "Trade payables to related parties" to it, and a derived parent is unmatchable.   # 13 since the other-receivables net became a
     # two-rung cascade; like every derived line it is now locked out of the matcher, which is
     # why its two leaves took its place in `llm_focus_keys`.
     assert all(d.key in unmatchable for d in derived), (

@@ -295,7 +295,7 @@ def test_provisioning_reproduces_the_shipped_configuration_exactly():
     # 529 since the two 营业外 face parts split the template's single net non-operating column.
     # 531 since the two direct-method TAX face parts split the template's single Income Taxes Paid(Direct) column, as the two 营业外 parts before them split Other Non-Operating Inc(Exp)
     # 533 since Find 3 split into a gross half and an allowance half: the 关联方应收应付款项 note prints 账面余额 and 坏账准备 and no net column, so the 淨金額 the spec asks for is computed.
-    assert len(after) == 538, len(after)   # 538 since the loss allowance split into its two readings — the 坏账准备 COLUMN of a measure grid and an allowance printed as its own ROW — which is what lets CP_P2 subtract it   # 536 since the other-receivables line gained the interest-and-dividends-receivable component its own definition names: a filing that prints 应收利息/应收股利 as siblings of 其他应收款 has not put them inside it   # 535 since the other-receivables NET split into the two ways a note prints one — the 账面价值 COLUMN of a gross/allowance/net grid, and a row whose own reported amount is the net; one part holds one `measure`, and 000709 needs both readings
+    assert len(after) == 540, len(after)   # 540 since the related-party PAYABLES gained the two readings the note prints as groups — 其他应付款 and 长期应付款 — which is what lets Due to Related Parties(CP) and its LTP twin publish at all   # 538 since the loss allowance split into its two readings — the 坏账准备 COLUMN of a measure grid and an allowance printed as its own ROW — which is what lets CP_P2 subtract it   # 536 since the other-receivables line gained the interest-and-dividends-receivable component its own definition names: a filing that prints 应收利息/应收股利 as siblings of 其他应收款 has not put them inside it   # 535 since the other-receivables NET split into the two ways a note prints one — the 账面价值 COLUMN of a gross/allowance/net grid, and a row whose own reported amount is the net; one part holds one `measure`, and 000709 needs both readings
 
     namespaces: dict[str, int] = {}
     for item in merged["items"]:
@@ -313,7 +313,7 @@ def test_provisioning_reproduces_the_shipped_configuration_exactly():
     # 73 internal: the other-receivables net's two readings are `internal` like every other
     # part — `in_output: false`, so neither claims a template column, and the template split
     # is still 462.
-    assert namespaces == {"template": 462, "internal": 76}, namespaces
+    assert namespaces == {"template": 462, "internal": 78}, namespaces   # 79 with the three related-party payable parts, one per group the note prints
     assert len(protected_keys(merged)) == 462
 
     for key, item in before.items():
