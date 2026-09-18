@@ -119,6 +119,48 @@ def test_unknown_statement_does_not_constrain(matcher):
     assert matcher.match("REVENUE 收益").canonical_key == "pl_income__revenue_from_operations"
 
 
+# ---- a caption named after its period ----------------------------------------------------
+
+def test_a_leading_year_is_a_candidate_spelling_not_part_of_the_name():
+    """A statement of changes in equity names a dividend after the year it was declared FOR —
+    "2021 final dividend 二零二一年末期股息" — and no rulebook can enumerate the years. So the
+    caption without its leading period is offered as one more candidate spelling, per script,
+    alongside the caption as printed.
+
+    Measured on China SCE: the row matched nothing, while both halves without their year match
+    `is_retained__cash_div_common_shares` exactly.
+    """
+    from app.services.mapping import label_segments
+
+    assert label_segments("2021 final dividend 二零二一年末期股息") == [
+        "2021 final dividend 二零二一年末期股息", "2021 final dividend", "二零二一年末期股息",
+        "final dividend 二零二一年末期股息", "final dividend", "末期股息"]
+
+
+def test_a_period_inside_a_caption_is_part_of_the_caption():
+    """Leading only. A year in the MIDDLE of a caption is usually what the caption is about, and
+    striking it would change what the row says."""
+    from app.services.mapping import label_segments
+
+    assert label_segments("Bonds due 2026") == ["Bonds due 2026"]
+    assert label_segments("Profit for the year ended 31 December 2023") == \
+        ["Profit for the year ended 31 December 2023"]
+    # A caption that is NOTHING but a period leaves nothing behind, and an empty spelling would
+    # match every concept whose alias list has a blank in it.
+    assert label_segments("2021") == ["2021"]
+    assert label_segments("二零二一年") == ["二零二一年"]
+
+
+def test_a_caption_with_no_year_gains_no_segment(matcher):
+    """The change is additive, so a filing whose captions carry no period is untouched."""
+    from app.services.mapping import label_segments
+
+    assert label_segments("Trade receivables 貿易應收款項") == [
+        "Trade receivables 貿易應收款項", "Trade receivables", "貿易應收款項"]
+    assert matcher.match("Trade receivables 貿易應收款項").canonical_key == \
+        "bs_current_assets__trade_receivables"
+
+
 # ---- header / non-line rows --------------------------------------------------------------
 
 @pytest.mark.parametrize("label", ["二零二三年 二零二二年", "2023 2022", "二零二三年"])

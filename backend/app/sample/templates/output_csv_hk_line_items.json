@@ -12822,7 +12822,12 @@
     "Common share dividends",
     "Dividends",
     "Cash dividends",
-    "distribution of cash dividends"
+    "distribution of cash dividends",
+    "Final dividend",
+    "Interim dividend",
+    "Interim dividends",
+    "末期股息",
+    "中期股息"
    ],
    "aliases_i18n": {
     "en": [
@@ -12830,7 +12835,10 @@
      "Common share dividends",
      "Dividends",
      "Cash dividends",
-     "distribution of cash dividends"
+     "distribution of cash dividends",
+     "Final dividend",
+     "Interim dividend",
+     "Interim dividends"
     ],
     "zh": [
      "对所有者（或股东）的分配",
@@ -12841,7 +12849,9 @@
      "普通股现金股利",
      "已派股息",
      "已宣派股息",
-     "派付股息"
+     "派付股息",
+     "末期股息",
+     "中期股息"
     ]
    },
    "keyword_hints": [
@@ -12868,14 +12878,23 @@
     "Stock Dividends(NC)(-)",
     "stock dividends",
     "Bank stock dividends",
-    "Other stock dividends"
+    "Other stock dividends",
+    "Scrip dividend",
+    "Scrip dividends",
+    "Issue of shares for scrip dividend",
+    "Shares issued for scrip dividend",
+    "以股代息發行股份"
    ],
    "aliases_i18n": {
     "en": [
      "Stock Dividends(NC)(-)",
      "stock dividends",
      "Bank stock dividends",
-     "Other stock dividends"
+     "Other stock dividends",
+     "Scrip dividend",
+     "Scrip dividends",
+     "Issue of shares for scrip dividend",
+     "Shares issued for scrip dividend"
     ],
     "zh": [
      "股票股利",
@@ -12884,7 +12903,8 @@
      "以未分配利润转增资本",
      "盈余公积转增资本（或股本）",
      "以股代息",
-     "股份股息"
+     "股份股息",
+     "以股代息發行股份"
     ]
    },
    "keyword_hints": [
@@ -12908,11 +12928,28 @@
    "label": "Transfer to Reserves(-)",
    "definition": "Extract the reported value for 'Transfer to Reserves(-)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
-    "Transfer to Reserves(-)"
+    "Transfer to Reserves(-)",
+    "Transfer to reserves",
+    "Transfer of reserves",
+    "Transfer from reserves",
+    "Transfer to statutory surplus reserve",
+    "Transfer to statutory reserve",
+    "Transfer to surplus reserve",
+    "Transfer statutory surplus reserve to retained profits",
+    "轉撥至法定盈餘儲備",
+    "儲備轉撥",
+    "法定盈餘儲備轉撥至保留溢利"
    ],
    "aliases_i18n": {
     "en": [
-     "Transfer to Reserves(-)"
+     "Transfer to Reserves(-)",
+     "Transfer to reserves",
+     "Transfer of reserves",
+     "Transfer from reserves",
+     "Transfer to statutory surplus reserve",
+     "Transfer to statutory reserve",
+     "Transfer to surplus reserve",
+     "Transfer statutory surplus reserve to retained profits"
     ],
     "zh": [
      "提取盈余公积",
@@ -12922,7 +12959,10 @@
      "提取法定公益金",
      "轉撥至儲備",
      "轉撥至法定儲備",
-     "转入储备"
+     "转入储备",
+     "轉撥至法定盈餘儲備",
+     "儲備轉撥",
+     "法定盈餘儲備轉撥至保留溢利"
     ]
    },
    "keyword_hints": [

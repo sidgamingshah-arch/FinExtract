@@ -43,7 +43,7 @@ def reconstruction_rules(ctx: PipelineContext) -> tuple[ScopeSelection | None,
 
 
 def _transpose_equity_matrix(doc: DocumentModel, ctx: PipelineContext) -> None:
-    """Turn the statement of changes in equity round, once every page has been read.
+    """Read the statement of changes in equity both ways round, once every page has been read.
 
     HERE AND NOT IN RECONSTRUCTION, because reconstruction reads one page and the answer needs the
     document: a filing printing one page per year has its PRIOR year's closing balance as the
@@ -55,8 +55,15 @@ def _transpose_equity_matrix(doc: DocumentModel, ctx: PipelineContext) -> None:
     note is read, no arithmetic is performed, and every value it appends is a cell of a printed
     balance row carrying that cell's own provenance.
     """
-    from app.services.equity_matrix import transpose_closing_balances
+    from app.services.equity_matrix import collapse_movement_rows, transpose_closing_balances
 
+    # THE MOVEMENTS FIRST, because both passes read the matrix's PRINTED rows and the transpose
+    # appends rows of its own. The movements pass ignores a row that is not between two balance
+    # rows of one page, so order is belt and braces rather than the only protection.
+    try:
+        collapse_movement_rows(doc, line_items=getattr(ctx, "line_items", None), log=ctx.log)
+    except Exception as exc:                      # a layout nobody anticipated must not lose the run
+        ctx.log(f"extract:equity_movements_failed:{exc}")
     try:
         transpose_closing_balances(doc, log=ctx.log)
     except Exception as exc:                      # a layout nobody anticipated must not lose the run

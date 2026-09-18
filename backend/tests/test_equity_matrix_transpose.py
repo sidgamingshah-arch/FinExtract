@@ -8,8 +8,8 @@ Measured before this existed: 32 of 32 rows on China SCE and 11 of 11 on 佳明�
 `engine_unclassified_face__changes_in_equity__unresolved_section__*`.
 
 `services.equity_matrix` transposes the BALANCE rows — each one restates a balance sheet's equity
-section at a date — and leaves the movements alone, there being no "dividends paid to
-non-controlling shareholders" column in the template for one to go in.
+section at a date. The MOVEMENT rows are read the other way round, one column down rather than one
+row across: see ``test_equity_matrix_movements.py``.
 """
 from __future__ import annotations
 
@@ -88,7 +88,11 @@ def test_the_component_becomes_the_caption_and_the_row_date_becomes_the_period()
     assert set(rows) == set(COMPONENTS)
     assert _values(rows["Retained profits"]) == {"current": "13503617", "prior": "21494667"}
     assert _values(rows["Issued capital"]) == {"current": "365138", "prior": "365138"}
-    assert any("current=2023-12-31 prior=2023-01-01" in m for m in logs), logs
+    # THE PRIOR PERIOD IS THE PREVIOUS CLOSE, not the second-latest balance date — which on this
+    # shape is 1 January 2023, the CURRENT year's opening balance. It happens to carry the same
+    # figures (an opening balance equals the close it follows), so the two readings agree here and
+    # would not on a filing that restates its opening balance.
+    assert any("current=2023-12-31 prior=2022-12-31" in m for m in logs), logs
 
 
 def test_the_latest_date_is_the_current_period_across_pages_not_within_one():
@@ -111,13 +115,29 @@ def test_a_movement_row_is_not_transposed():
 
 def test_one_balance_date_is_left_alone():
     """With a single date there is nothing to call the comparative, and labelling one column's
-    figures as both periods would report this year's balance as last year's."""
+    figures as both periods would report this year's balance as last year's.
+
+    A lone balance row is not even a CLOSE: nothing was printed above it to close, so the matrix
+    has no period at all.
+    """
     doc = _Doc([_balance("At 31 December 2023", "2023-12-31", 107,
                          dict(zip(COMPONENTS, ("1", "2", "3", "6"))))])
     logs: list[str] = []
     assert transpose_closing_balances(doc, log=logs.append) == 0
     assert len(doc.line_items) == 1
-    assert any("skipped(one balance date" in m for m in logs), logs
+    assert any("skipped(one closing date" in m for m in logs), logs
+
+
+def test_one_block_is_left_alone():
+    """An opening balance, its movements and one close: one period, and the same refusal."""
+    doc = _Doc([_balance("At 1 January 2023", "2023-01-01", 107,
+                         dict(zip(COMPONENTS, ("1", "2", "3", "6")))),
+                _movement("Loss for the year", 107, {"Retained profits": "-1"}),
+                _balance("At 31 December 2023", "2023-12-31", 107,
+                         dict(zip(COMPONENTS, ("1", "2", "2", "5"))))])
+    logs: list[str] = []
+    assert transpose_closing_balances(doc, log=logs.append) == 0
+    assert any("skipped(one closing date: 2023-12-31" in m for m in logs), logs
 
 
 def test_a_document_with_no_matrix_is_untouched():

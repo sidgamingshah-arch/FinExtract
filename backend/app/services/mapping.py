@@ -725,22 +725,47 @@ def normalize_label(text: str, patterns: CaptionPatterns | None = None) -> str:
     return text
 
 
-def label_segments(text: str, patterns: CaptionPatterns | None = None) -> list[str]:
-    """The caption plus its per-script halves (Latin-only and Han-only), longest first.
+# THE PERIOD A MOVEMENT IS CAPTIONED BY, at the head of its caption. A statement of changes in
+# equity names a dividend after the year it was declared FOR — "2021 final dividend",
+# 二零二一年末期股息 — and that year is not part of the concept's name: the same row is captioned
+# "2022 final dividend" the following year, and a rulebook cannot enumerate either. Measured on
+# China SCE: "2021 final dividend 二零二一年末期股息" matched nothing, while both halves without
+# their year match `is_retained__cash_div_common_shares` exactly.
+#
+# LEADING ONLY. A period INSIDE a caption is usually part of it ("Bonds due 2026", "Profit for the
+# year ended 31 December"), and a rule that struck those would change what the caption says.
+_LEADING_PERIOD = re.compile(
+    r"^\s*(?:[〇零一二三四五六七八九十]{2,6}年|(?:19|20)\d{2}\s*年?|fy\s*(?:19|20)?\d{2,4})"
+    r"\s*(?:[-–—/]\s*)?", re.IGNORECASE)
 
-    Returns just ``[text]`` for a single-script caption, so monolingual filings are unaffected.
+
+def label_segments(text: str, patterns: CaptionPatterns | None = None) -> list[str]:
+    """The caption, its per-script halves (Latin-only and Han-only), and each of those without a
+    leading period, longest first.
+
+    Returns just ``[text]`` for a single-script caption with no leading period, so monolingual
+    filings whose captions carry no year are unaffected.
+
+    THE SEGMENTS ARE CANDIDATE SPELLINGS, not a rewriting of the caption: `match` tries each for
+    exact-alias identity and the row keeps the label it was printed with. So a segment can only
+    give a caption one more way to be recognised.
 
     ``patterns`` carries a declared Han inventory, for the reason ``normalize_label`` gives —
     and the gate below is ``has_han``, whose range lives in ``services.han`` and is NOT the one
     declared here. See ``han_ranges``: the two sets differ today, and the gate is the narrower.
     """
     p = patterns or _CAPTION_PATTERNS
-    if not text or not has_han(text):
-        return [text]
-    han = " ".join(p.han_run.findall(text)).strip()
-    latin = p.han_run.sub(" ", text)
-    latin = re.sub(r"\s+", " ", latin).strip()
-    out = [text] + [p for p in (latin, han) if p and p != text]
+    parts = [text]
+    if text and has_han(text):
+        han = " ".join(p.han_run.findall(text)).strip()
+        latin = p.han_run.sub(" ", text)
+        latin = re.sub(r"\s+", " ", latin).strip()
+        parts += [part for part in (latin, han) if part and part != text]
+    out = list(parts)
+    for part in parts:
+        shorter = _LEADING_PERIOD.sub("", part).strip()
+        if shorter and shorter != part:
+            out.append(shorter)
     return list(dict.fromkeys(out))
 
 
