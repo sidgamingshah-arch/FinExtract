@@ -85,8 +85,30 @@ _HEADING = re.compile(
 # without it a simplified-Chinese "小计" was refused by the gate and then classifiable by the arm.
 # The failure direction was the safe one (a missed total stays a detail and the tie declines), which
 # is why nothing caught it.
+#
+# A NET-FLOW SUMMARY IS A TOTAL TOO, and it is the one shape whose caption does not open with a
+# total WORD. A disposal- or acquisition-of-subsidiaries note closes its cash block with
+#
+#     Cash and cash equivalents disposed of            (3,902)
+#     Cash consideration                              200,209
+#     Consideration receivables                             –
+#     Net inflow of cash and cash equivalents ...      196,307   <- the total of the three above
+#
+# and 200,209 - 3,902 = 196,307 exactly. Filed as a detail, that row is summed WITH the rows it
+# totals, so the note total comes to twice the figure the face cites and the tie can never confirm.
+# Measured on China SCE note 39: face 196,307, note total 392,614 — exactly double, in both
+# periods (585,780 -> 1,171,560).
+#
+# NARROW ON PURPOSE, because the failure direction here is not symmetric: a missed total stays a
+# detail and the tie declines (visible), while a detail wrongly read as a total is silently dropped
+# from the sum and the tie then confirms against too little. "Net" opens plenty of real detail
+# captions — net assets, net trade receivables, net book value — so only the cash-flow summary
+# forms are matched, and `of cash` is required rather than assumed. Measured over the corpus: four
+# rows match, all four are that summary line on SCE, and none on the two other filings.
 _NOTE_TOTAL = re.compile(
-    r"^\s*(total|sub-?total|合\s*計|總\s*計|小\s*計|合\s*计|总\s*计|小\s*计)", re.I)
+    r"^\s*(total|sub-?total|合\s*計|總\s*計|小\s*計|合\s*计|总\s*计|小\s*计"
+    r"|net\s+(?:cash\s+)?(?:in|out)flow(?:/?\(?(?:in|out)flow\)?)?\s+(?:of|in)\s+cash"
+    r"|現金及現金等價物(?:流[入出])?淨額|现金及现金等价物(?:流[入出])?净额)", re.I)
 # The subtotal arm of the same alternation, read separately only to tell the two roles apart. A
 # note's SUBTOTAL is a partial sum inside the note; its TOTAL is the figure the face cites. Both
 # are excluded from the details, so nothing downstream depends on getting the distinction right —

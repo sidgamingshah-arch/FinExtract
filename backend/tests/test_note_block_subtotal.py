@@ -475,16 +475,34 @@ def test_the_recovered_row_is_not_summed_into_the_note_total():
         return ReconcileStage().run(doc, PipelineContext(raw_bytes=b""))
 
     kept = _doc(LineRole.SUBTOTAL).reconciliation.entries
-    doubled = _doc(LineRole.LINE).reconciliation.entries
-    assert kept and doubled
+    mis_roled = _doc(LineRole.LINE).reconciliation.entries
+    assert kept and mis_roled
 
-    # Excluded: the note's details are the two LINE rows, so the note total ties the face exactly.
+    # Excluded by its ROLE: the note's details are the two LINE rows, so the note total ties the
+    # face exactly.
     assert kept[0].residual == Decimal("0"), kept[0]
     assert kept[0].tie_status == "tied", kept[0]
-    # Included: the subtotal joins the rows it totals and the note reports 6,000 for a 3,000 face
-    # figure — off by exactly the subtotal.
-    assert doubled[0].residual == Decimal("-3000"), doubled[0]
-    assert doubled[0].tie_status != "tied", doubled[0]
+
+    # AND EXCLUDED BY THE ARITHMETIC WHEN THE ROLE IS WRONG, which is a second, independent
+    # defence and is why this half no longer asserts a residual of -3,000.
+    #
+    # It used to. The assertion recorded what a mis-roled subtotal COSTS — it joins the rows it
+    # totals and the note reports 6,000 against a 3,000 face — and it was a fair characterisation
+    # while the role was the only thing standing between the two. It is not any more:
+    # `reconcile._self_summing_detail` reads a detail that equals the sum of the others as the
+    # note's own total when, and only when, dropping it makes the note tie the printed face. Here
+    # it does (3,000 = 1,000 + 2,000, and 3,000 is the face), so the tie survives the wrong role.
+    #
+    # That matters because the role cannot always be right: a movement schedule prints its opening
+    # and closing balances under the same words — both "At", with the date lost — so no caption
+    # test can tell the total from a detail. On China SCE five one-to-one ties were exactly twice
+    # the face for that reason.
+    #
+    # The WARNING that says which detail was re-read is asserted in `tests/test_reconcile`, not
+    # here: `reconcile_face` produces it but `ReconciliationEntry` carries no `warnings` field, so
+    # it does not survive the stage boundary.
+    assert mis_roled[0].residual == Decimal("0"), mis_roled[0]
+    assert mis_roled[0].tie_status == "tied", mis_roled[0]
 
 
 def test_the_log_separates_a_block_subtotal_from_a_note_to_face_tie():
@@ -786,3 +804,38 @@ def test_the_note_payload_carries_the_keys_a_reader_needs_to_join_a_check_to_its
 
     # Every other row says its caption is its own.
     assert all(r.get("caption_borrowed") is False for r in rows if r is not row)
+
+
+# ── the net-cash-flow summary, which is a total whose caption does not open with a total word ────
+
+def test_a_net_cash_flow_summary_is_read_as_the_notes_total():
+    """A DISPOSAL NOTE CLOSES ITS CASH BLOCK WITH A SUMMARY, not with the word "total".
+
+        Cash and cash equivalents disposed of            (3,902)
+        Cash consideration                              200,209
+        Consideration receivables                             –
+        Net inflow of cash and cash equivalents ...      196,307   <- the total of the three
+
+    200,209 - 3,902 = 196,307 exactly. Filed as a detail it is summed WITH the rows it totals, so
+    the note total came to twice the figure the face cites — measured on China SCE note 39, in both
+    periods (196,307 -> 392,614 and 585,780 -> 1,171,560), and the tie could never confirm.
+
+    Narrow on purpose: "Net" opens plenty of real detail captions, so only the cash-flow summary
+    forms match and `of cash` is required rather than assumed.
+    """
+    from app.core.models.enums import LineRole
+    from app.services.notes_extract import note_row_role
+
+    for caption in ("Net inflow of cash and cash equivalents in respect of the disposal",
+                    "Net outflow of cash and cash equivalents in respect of the acquisition",
+                    "Net inflow/(outflow) of cash and cash equivalents in respect of",
+                    "現金及現金等價物流入淨額"):
+        assert note_row_role(caption) is LineRole.TOTAL, caption
+
+    # …and the captions that must STAY details. Each one opens with "Net" or "Cash" and none of
+    # them is a total; a filing prints every one of these as an ordinary row.
+    for caption in ("Net assets disposed of", "Net trade receivables", "Net book value",
+                    "Net cash consideration", "Cash consideration 現金代價",
+                    "Cash and cash equivalents disposed of",
+                    "Net increase in cash and cash equivalents"):
+        assert note_row_role(caption) is LineRole.LINE, caption

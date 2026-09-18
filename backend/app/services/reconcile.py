@@ -111,6 +111,73 @@ class ReconcileOutput:
     warnings: list[str] = field(default_factory=list)
 
 
+def _self_summing_detail(oriented: list[tuple[str, Decimal]], face: Decimal,
+                         abs_eps: Decimal, rel_eps: Decimal) -> str | None:
+    """The id of the detail that is the OTHERS' TOTAL, or None when no single one is.
+
+    A NOTE'S OWN CLOSING LINE IS NOT A DETAIL, and its caption often cannot say so. A movement
+    schedule prints its opening and closing balances under the SAME words —
+
+        At 1 January 2023      129,132
+        Additions              158,605
+        Disposal of subsidiaries  (134,110)
+        At 31 December 2023    153,627      <- the total of the three above
+
+    — and where the date is lost from the caption (it is, on China SCE notes 19 and 33, both
+    truncated to "At") no prefix test can tell the closing balance from the opening one. Reading
+    the closing line as a detail sums it WITH the rows it totals, so the note total comes to twice
+    the figure the face cites and the tie can never confirm. `notes_extract._NOTE_TOTAL` catches
+    the captions that DO announce themselves — Total, Subtotal, 合計, and the net-cash-flow
+    summary — and this catches the rest, from the arithmetic instead of the words.
+
+    Measured on China SCE, where five one-to-one ties were exactly 2x the face for this reason:
+    notes 19 and 33 (movement schedules closing under "At"), note 24 ("Current portion" after a
+    non-current portion is deducted), note 27 ("Cash and cash equivalents" after restricted cash
+    is deducted) and note 39 ("Net inflow of cash and cash equivalents ...").
+
+    REFUSES AN AMBIGUOUS NOTE, and that is what keeps it from eating a real detail:
+
+      * at least two OTHER non-zero details, so a two-row note where the rows happen to be equal
+        has no candidate — in such a note each row trivially "totals" the other;
+      * exactly ONE candidate. If two details each equal the sum of the rest, the note does not
+        say which is the total and guessing would drop a real figure;
+      * a zero candidate never qualifies, because zero equals the sum of an empty set and of any
+        note whose details cancel.
+
+    The failure direction is the safe one either way: a missed total stays a detail, the residual
+    grows and the tie DECLINES visibly, which is the direction this module already prefers
+    everywhere. A wrongly-dropped detail would instead make a tie confirm against too little,
+    which is why the three refusals above are absolute rather than heuristic.
+    """
+    if len(oriented) < 3:
+        return None
+    total = sum((v for _i, v in oriented), Decimal(0))
+    tol = tolerance(face, abs_eps, rel_eps)
+    candidates: list[str] = []
+    for item_id, value in oriented:
+        if value == 0:
+            continue
+        others = total - value
+        if abs(others - value) > max(Decimal(1), rel_eps * abs(value)):
+            continue
+        if sum(1 for i2, v2 in oriented if i2 != item_id and v2 != 0) < 2:
+            continue
+        # THE FACE HAS TO CORROBORATE IT, and this is what makes the rule safe rather than a
+        # guess. Dropping the candidate is only an improvement if what remains TIES to the figure
+        # the filing printed on the face; if it does not, the arithmetic coincidence says nothing
+        # and the detail stays a detail.
+        #
+        # Without this the rule read three genuine details that happen to sum — 100, 200 and 300
+        # against a face of 600 — as two details and their total, and turned a note that tied
+        # exactly into an unconfirmed one. That is the UNSAFE direction: a wrongly dropped detail
+        # makes a tie confirm against too little, silently, where a missed total only makes the
+        # tie decline visibly.
+        if abs(face - others) > tol:
+            continue
+        candidates.append(item_id)
+    return candidates[0] if len(candidates) == 1 else None
+
+
 def tolerance(face: Decimal, abs_eps: Decimal, rel_eps: Decimal) -> Decimal:
     return max(abs_eps, (rel_eps * abs(face)))
 
@@ -129,16 +196,29 @@ def reconcile_face(inp: ReconcileInput) -> ReconcileOutput:
 
     # Dedupe details by id (guards N-notes→1-face double subtraction).
     seen: set[str] = set()
-    subtracted = Decimal(0)
-    note_total = Decimal(0)
+    kept: list[tuple[str, Decimal, bool]] = []
     for d in inp.details:
         if d.item_id in seen:
             warnings.append(f"duplicate detail {d.item_id} ignored")
             continue
         seen.add(d.item_id)
-        oriented = d.value * inp.note_orientation
+        kept.append((d.item_id, d.value * inp.note_orientation,
+                     d.maps_to_distinct_template_line))
+
+    # THE NOTE'S OWN TOTAL, WHERE ITS CAPTION DID NOT SAY SO — see `_self_summing_detail`.
+    own_total = _self_summing_detail([(i, v) for i, v, _m in kept], inp.raw_face_value,
+                                     inp.tolerance_abs, inp.tolerance_rel)
+    if own_total is not None:
+        warnings.append(f"detail {own_total} equals the sum of the others and is read as the "
+                        f"note's own total, not a detail")
+
+    subtracted = Decimal(0)
+    note_total = Decimal(0)
+    for item_id, oriented, maps in kept:
+        if item_id == own_total:
+            continue
         note_total += oriented
-        if d.maps_to_distinct_template_line:
+        if maps:
             subtracted += oriented
 
     reconciled = inp.raw_face_value - subtracted
