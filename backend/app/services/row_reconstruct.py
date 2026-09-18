@@ -1586,6 +1586,43 @@ _CAS_STATEMENT_LINE = re.compile(r"^[一二三四五六七八九十]+、\s*(?![0
 # and the note→face tie already reads it as one.
 _CAS_TOTAL_LINE = re.compile(r"(合计|合計|总计|總計|小计|小計)\s*$")
 
+# TWO STATEMENTS, ONE PAGE, TWO ENTITIES. A mainland filing prints its primary statements in
+# numbered pairs — 1、合并资产负债表 then 2、母公司资产负债表, 5、合并现金流量表 then
+# 6、母公司现金流量表 — and a short statement pair FITS ON ONE PAGE. Every other way this module
+# decides a basis is per-page or per-COLUMN: a two-basis header band attributes columns
+# (`_basis_bands`, the HKEX "Group | Company" layout), `PageSource.scope` covers a whole page, and
+# `company_only_markers` infers one entity for a whole page. None of them can change the answer
+# part-way DOWN a page, so on the page holding both cash-flow statements the classifier saw 合并
+# first — it is tested first, deliberately, so "the Company and its subsidiaries" is not read as
+# the Company — and filed the PARENT-COMPANY statement as the Group's.
+#
+# Measured on 000709, page 88, which carries both: 销售商品、提供劳务收到的现金 was emitted twice
+# as `consolidated|current`, once at 113,973,832,889.31 (the Group's) and once at
+# 92,143,224,538.02 (the Company's), and a concept reached by two rows is SUMMED — so the
+# consolidated cash receipts published 206 billion against a printed 114 billion. Every line of
+# both statements was affected, and 收到的税费返还 the same way.
+#
+# THE TITLE IS THE EVIDENCE and it is printed on its own line, which is why this is a y-ordered
+# switch rather than a fourth guess: the row naming the entity precedes the rows it governs, and
+# it names it explicitly. Recognised only when the title is EXHAUSTED by the pattern — a numbered
+# prefix, the entity, the statement — so that a note captioned 母公司现金流量表补充资料 does not
+# move the basis of the note it belongs to.
+_CAS_STATEMENT_TITLE_ENTITY = re.compile(
+    r"^\s*(?:[0-9０-９]{1,2}\s*[、.．]\s*)?(合并|合並|合併|母公司|本公司)\s*"
+    r"(?:资产负债表|資產負債表|利润表|利潤表|现金流量表|現金流量表|综合收益表|綜合收益表"
+    r"|所有者权益变动表|所有者權益變動表|股东权益变动表|股東權益變動表)\s*$")
+_CAS_TITLE_BASIS: dict[str, Basis] = {
+    "合并": Basis.CONSOLIDATED, "合並": Basis.CONSOLIDATED, "合併": Basis.CONSOLIDATED,
+    "母公司": Basis.STANDALONE, "本公司": Basis.STANDALONE,
+}
+
+
+def _title_entity_basis(label: str) -> Basis | None:
+    """The entity a mainland statement TITLE names, or None when the row is not such a title."""
+    m = _CAS_STATEMENT_TITLE_ENTITY.match(label or "")
+    return _CAS_TITLE_BASIS.get(m.group(1)) if m else None
+
+
 _CONSOL = re.compile(r"consolidat", re.IGNORECASE)
 _STANDALONE = re.compile(r"standalone|separate", re.IGNORECASE)
 # No column header is printed in the lower half of a page. This bounds the region below when the
@@ -3316,6 +3353,10 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     # second becomes the promoted row's `label_bbox`, since the caption it is given is the heading's.
     group_x0: float | None = None
     group_label_bbox: BBox | None = None
+    # See `_title_entity_basis`: the entity named by the most recent statement TITLE on this page,
+    # which governs every row below it until the next title. None until one is seen, so a page
+    # printing one statement behaves exactly as before.
+    title_basis: Basis | None = None
     for row in rows:
         label_words, note_ref, value_words = _scan_row(
             row, number_format, extract_note_refs=on_face)
@@ -3418,6 +3459,19 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                 promoted = True
 
         if not label or not value_words:
+            # A MAINLAND STATEMENT TITLE NAMING ITS ENTITY comes first, before the banner tests.
+            # It is a label-only row like a banner, but it scopes the BASIS rather than the
+            # section, and `_is_noise_row` below would otherwise drop it as a statement title with
+            # nothing recorded. On the face only: inside a note the same words are a cross
+            # reference, and relabelling a note's basis would break its tie to the face.
+            if on_face:
+                named = _title_entity_basis(label)
+                if named is not None:
+                    title_basis = named
+                    if log:
+                        log(f"extract:page={page_index}:entity_scope=statement_title"
+                            f"({named.value}:{label!r})")
+                    continue
             # A label-only banner ("NON-CURRENT LIABILITIES", 流動負債) carries no amount, but it
             # scopes every row beneath it — the same caption under two banners is two different
             # concepts. Remember it before dropping the row.
@@ -3578,6 +3632,15 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             xc = (vw.bbox.x0 + vw.bbox.x1) / 2
             col = _column_index(xc, value_bands)
             basis = col_basis[col] if col is not None else _basis_for(xc, bands)
+            # THE TITLE OUTRANKS A SINGLE-BASIS PAGE VERDICT AND NEVER A TWO-BASIS BAND. A band
+            # with two bases IS the HKEX "Group | Company" layout, where each column is attributed
+            # by caption geometry and titles do not stack; overriding that would throw away the
+            # only evidence that distinguishes those columns. A page with one basis for every
+            # column is the mainland layout, where the verdict came from the page as a whole and
+            # the title below it is the more specific statement of the same fact.
+            if title_basis is not None and len(set(col_basis.values()) | {
+                    b for b, _ in bands}) <= 1:
+                basis = title_basis
             # The column this figure is printed in decides its period, and the column's HEADING
             # decides which period that is. Order is the fallback for a page with no columnar
             # structure, and for a figure that sits under no column.

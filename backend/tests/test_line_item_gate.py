@@ -350,7 +350,9 @@ def test_every_reported_line_resolves_a_gate_and_parts_deliberately_do_not():
     # declares aliases and NO gate still fails.
     _FACE_PARTS_WITH_ALIASES = {"sub__rp_bs_face_receivables", "sub__face_principal_revenue",
                                 "sub__cfo_depreciation",
-                                "sub__non_operating_income", "sub__non_operating_expenses"}
+                                "sub__non_operating_income", "sub__non_operating_expenses",
+                                "sub__cf_direct_income_taxes_paid",
+                                "sub__cf_direct_tax_refunds_received"}
     aliased = [d.key for d in parts
                if (d.aliases or d.aliases_i18n) and d.key not in _FACE_PARTS_WITH_ALIASES]
     assert not aliased, (
@@ -372,7 +374,10 @@ def test_the_note_level_parts_are_off_template():
     # 66 since the two 营业外 face parts were added: CAS prints non-operating income and
     # expense as two rows either side of 利润总额 and the template holds one net column, so the
     # halves are parts that roll up into it rather than a second column.
-    assert len(subs) == 66
+    # 68 since the two direct-method TAX face parts were added, for the identical reason: CAS 31
+    # prints 支付的各项税费 and 收到的税费返还 on opposite sides of the operating section and the
+    # template holds one Income Taxes Paid(Direct) column.
+    assert len(subs) == 68
     assert all(d.namespace == "internal" for d in subs)
     assert all(d.namespace == "template" for d in st.items if d.in_output)
 

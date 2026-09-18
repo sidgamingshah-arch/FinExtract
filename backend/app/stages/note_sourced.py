@@ -223,19 +223,37 @@ class NoteSourcedStage(Stage):
             ctx.log(f"note_sourced:prose_figures={prose_filled} (a figure the filing states in a "
                     f"sentence rather than a row — see the note_sourced_prose flag on each row)")
 
+        # EVERY ROW CARRYING THE KEY, not `by_key`'s one. `by_key` is
+        # `{li.canonical_key: li for li in doc.line_items}` — last row wins — and a caption printed
+        # on TWO statement instances produces two rows for one child key. A mainland filing prints
+        # every primary statement twice, once consolidated and once for the parent company, so this
+        # is the normal case and not an edge: the second row overwrote the first in `by_key`, the
+        # cascade saw only it, and the parent came out carrying whichever entity's slots that row
+        # happened to hold.
+        #
+        # Measured on 000709 before this loop was widened: `is_pl__other_non_operating_inc_exp`
+        # published ONLY the parent company's 476,718,290.06 and had no consolidated figure at all,
+        # although both 营业外 halves carried consolidated slots (488,570,415.03 and -56,388,111.32,
+        # netting 432,182,303.71). A consolidated report served the parent company's number.
+        #
+        # Nothing here needs to choose between the rows, which is why taking all of them is the
+        # whole fix: `_fill_parents` groups its offers by (basis, period) and combines within a
+        # slot, so the consolidated rows meet the consolidated rows and the standalone rows the
+        # standalone ones. The identity guard below is what keeps a row the note walk already
+        # added from joining twice.
         for parent_key, kid_keys in _children_by_parent(all_items).items():
             for kid in kid_keys:
-                row = by_key.get(kid)
-                if row is None or not any(ev.value is not None
-                                          for ev in (row.values or {}).values()):
-                    continue
-                already = {c.key for _i, c in children_of.get(parent_key, [])
-                           if getattr(c, "key", None)}
-                if kid in already:
-                    continue
                 item = next((i for i in all_items if i.key == kid), None)
-                if item is not None and not any(
-                        r is row for _i, r in children_of.get(parent_key, [])):
+                if item is None:
+                    continue
+                for row in doc.line_items:
+                    if row.canonical_key != kid:
+                        continue
+                    if not any(ev.value is not None
+                               for ev in (row.values or {}).values()):
+                        continue
+                    if any(r is row for _i, r in children_of.get(parent_key, [])):
+                        continue
                     children_of.setdefault(parent_key, []).append((item, row))
                     ctx.log(f"note_sourced:{parent_key}: child {kid} was filled elsewhere "
                             f"(model or earlier stage) and joins the cascade")

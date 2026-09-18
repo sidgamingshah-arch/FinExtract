@@ -734,3 +734,53 @@ def test_a_resolved_tie_kept_a_home_for_every_caption_it_split():
                                       section=section).canonical_key
                for caption, statement, section, _want in cases}
     assert reached == {caption: want for caption, _s, _sec, want in cases}
+
+
+def test_a_finance_cost_total_keeps_the_only_column_it_has():
+    """"Finance costs" IS a total in a component's column, and denying it would be worse.
+
+    An HKFRS filing's "Finance costs" is the period's borrowing-cost TOTAL, and it is authored on
+    `is_pl__interest_expense`, one of the fifteen terms of the calculated
+    `is_pl__net_interest_income_expense`. Every other total-on-a-component caption in this rulebook
+    was denied. This one is kept, because the template prints no total-finance-costs column: the
+    family is fifteen components plus the net, so there is nowhere else for the figure to go, and a
+    denial would empty the net line for every filing that reports its finance cost on one row.
+
+    What this test pins is both halves of that reasoning, so a later tie-resolution pass cannot
+    delete the caption on the strength of the first half alone:
+
+      * the caption still reaches a column, and it is the one the template marks natural_negative;
+      * the CAS caption 财务费用 is NOT treated the same way, because it is a NET — CAS nets interest
+        income and exchange differences into it — and it belongs on the net line with a sign flip.
+
+    See `services.spec_alias_curation`, immediately above `_BORROWED_CAPTION_DENIALS`, for the
+    argument in full.
+    """
+    matcher = OntologyMatcher(_ontology(), llm_provider=None)
+
+    # `section="is_pl"`, which is what these concepts' `section_scope` names; the income statement
+    # has no printed sub-section banner that the rulebook scopes this family to.
+    assert matcher.match("Finance costs", statement="profit_and_loss",
+                         section="is_pl").canonical_key == "is_pl__interest_expense"
+    assert matcher.match("财务费用", statement="profit_and_loss",
+                         section="is_pl").canonical_key == \
+        "is_pl__net_interest_income_expense"
+
+    # The net line's formula is read from the LINE-ITEM set, where the terms are declared;
+    # `OntologyMapping` carries only the prose restatement of it in `definition`.
+    items = json.loads((SAMPLES / "output_csv_hk_line_items.json").read_text(encoding="utf-8"))
+    by_key = {i["key"]: i for i in items["items"]}
+    refs = [str(t.get("ref") or "")
+            for t in (by_key["is_pl__net_interest_income_expense"].get("terms") or [])]
+    assert "is_pl__interest_expense" in refs, (
+        "the component the total is parked in is no longer a term of the net line, so the figure "
+        "no longer reaches the net and the placement has stopped being defensible")
+
+    # The lowest priority in the family, which is what makes the parking safe: a filing that prints
+    # a more specific caption takes the figure off this column.
+    # One of the fifteen, `is_pl__bank_charge_and_interest_expense`, declares no priority of its
+    # own and takes the `is_pl` section default; the default is read here rather than treated as
+    # zero, which is what an absent field is NOT.
+    default = int(items["section_defaults"]["is_pl"].get("match_priority") or 0)
+    priorities = [int(by_key[r].get("match_priority") or default) for r in refs if r in by_key]
+    assert int(by_key["is_pl__interest_expense"]["match_priority"]) == min(priorities)

@@ -1426,3 +1426,69 @@ def make_statement_tail_then_title_pdf() -> bytes:
     c.showPage()
     c.save()
     return buf.getvalue()
+
+
+def make_two_cas_cash_flow_statements_on_one_page_pdf() -> bytes:
+    """TWO STATEMENTS, ONE PAGE, TWO ENTITIES — the mainland numbered-pair house style.
+
+    A PRC filing prints its primary statements in numbered pairs: the consolidated one, then the
+    parent company's immediately after. A cash-flow statement is short, so the pair FITS ON ONE
+    PAGE — 000709 prints 5、合并现金流量表 and 6、母公司现金流量表 both on page 88.
+
+    Every basis mechanism that existed before this fixture is per-page or per-COLUMN.
+    ``row_reconstruct._basis_bands`` wants a two-basis column header ("Group | Company") over the
+    figures, which the mainland layout never prints; ``PageSource.scope`` covers a whole page; and
+    ``company_only_markers`` infers one entity for a whole page. None of them can change the answer
+    part-way DOWN a page. The classifier tests 合并 first — deliberately, so "the Company and its
+    subsidiaries" is not read as the Company — so the whole page came out consolidated and the
+    PARENT COMPANY's statement was filed as the Group's. Both statements share every caption, so
+    the two rows meet on one concept and are summed.
+
+    Ground truth: the consolidated statement's receipts are 113,973,832,889.31 (2024) and the
+    parent company's are 92,143,224,538.02, taken from 000709 so the numbers are a real filing's.
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+
+    pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    _, height = A4
+
+    def _statement(y, title, rows):
+        c.setFont("STSong-Light", 12)
+        c.drawString(72, y, title)
+        y -= 20
+        c.setFont("STSong-Light", 8)
+        c.drawString(72, y, "项目")
+        c.drawRightString(400, y, "2024 年度")
+        c.drawRightString(500, y, "2023 年度")
+        c.drawString(72, y - 14, "一、经营活动产生的现金流量：")
+        y -= 14
+        for label, cur, pri in rows:
+            y -= 16
+            c.drawString(72, y, label)
+            c.drawRightString(400, y, cur)
+            c.drawRightString(500, y, pri)
+        return y - 24
+
+    c.setFont("STSong-Light", 8)
+    c.drawString(72, height - 40, "河钢股份有限公司 2024 年年度报告全文")
+
+    y = _statement(
+        height - 80, "5、合并现金流量表",
+        (("销售商品、提供劳务收到的现金", "113,973,832,889.31", "116,697,367,262.93"),
+         ("收到的税费返还", "134,180,854.19", "4,043,103.53"),
+         ("购买商品、接受劳务支付的现金", "98,104,194,148.18", "98,510,109,643.53"),
+         ("支付的各项税费", "1,483,160,446.61", "1,896,906,274.50")))
+    _statement(
+        y, "6、母公司现金流量表",
+        (("销售商品、提供劳务收到的现金", "92,143,224,538.02", "104,391,123,754.02"),
+         ("收到的税费返还", "126,110,577.41", "3,911,002.10"),
+         ("购买商品、接受劳务支付的现金", "80,201,336,447.77", "89,447,204,116.28"),
+         ("支付的各项税费", "1,102,884,993.05", "1,477,320,441.19")))
+    c.showPage()
+    c.save()
+    return buf.getvalue()

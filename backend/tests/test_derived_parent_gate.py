@@ -109,8 +109,10 @@ def test_the_types_the_shipped_set_declares(shipped):
     assert counts["calculated"] == 33, counts
     # 486 since the two 营业外 face parts were added — both `extracted`, because each is a
     # printed row read off the income statement rather than a figure computed from others.
-    assert counts["extracted"] == 486, counts
-    assert sum(counts.values()) == 529  # 529 since the two 营业外 face parts split the template's single net Other Non-Operating Inc(Exp) column
+    # 488 since the two direct-method TAX parts were added, `extracted` for the same reason: each
+    # is a row printed on the face of the cash-flow statement.
+    assert counts["extracted"] == 488, counts
+    assert sum(counts.values()) == 531  # 531 since the two direct-method TAX face parts split the template's single Income Taxes Paid(Direct) column, as the two 营业外 parts before them split Other Non-Operating Inc(Exp)
     # AND THE DISCRIMINATOR THE SECTION ROLL-UPS READ IS UNTOUCHED. `rollups.section_members` keys
     # on `unit_of_account == "subtotal"` and nothing else; flattening it alongside the type takes
     # all 20 sections to `no_reported_subtotal`, so the two must not move together.

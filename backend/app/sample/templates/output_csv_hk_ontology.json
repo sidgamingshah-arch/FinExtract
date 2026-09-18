@@ -15688,6 +15688,12 @@
     "zh": [
      "购买商品、接受劳务支付的现金"
     ]
+   },
+   "sign_rule": {
+    "flip_if_label_matches": [
+     "购买商品、接受劳务支付的现金",
+     "購買商品、接受勞務支付的現金"
+    ]
    }
   },
   {
@@ -15728,6 +15734,12 @@
     "zh": [
      "支付给职工以及为职工支付的现金"
     ]
+   },
+   "sign_rule": {
+    "flip_if_label_matches": [
+     "支付给职工以及为职工支付的现金",
+     "支付給職工以及為職工支付的現金"
+    ]
    }
   },
   {
@@ -15761,10 +15773,9 @@
     "en": [
      "Income Taxes Paid(Direct)"
     ],
-    "zh": [
-     "支付的各项税费"
-    ]
-   }
+    "zh": []
+   },
+   "rollup": "sum"
   },
   {
    "canonical_key": "cf_oper_direct__borrowing_costs_paid",

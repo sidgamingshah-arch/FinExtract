@@ -14215,7 +14215,12 @@
    "keyword_hints": [
     "Cash Paid to Suppliers"
    ],
-   "sign_rule": {},
+   "sign_rule": {
+    "flip_if_label_matches": [
+     "购买商品、接受劳务支付的现金",
+     "購買商品、接受勞務支付的現金"
+    ]
+   },
    "inherits": "cf_oper_direct",
    "face_only": false,
    "match_priority": 81,
@@ -14246,7 +14251,12 @@
    "keyword_hints": [
     "Cash Paid to Employees"
    ],
-   "sign_rule": {},
+   "sign_rule": {
+    "flip_if_label_matches": [
+     "支付给职工以及为职工支付的现金",
+     "支付給職工以及為職工支付的現金"
+    ]
+   },
    "inherits": "cf_oper_direct",
    "face_only": false,
    "match_priority": 81,
@@ -14266,9 +14276,7 @@
     "en": [
      "Income Taxes Paid(Direct)"
     ],
-    "zh": [
-     "支付的各项税费"
-    ]
+    "zh": []
    },
    "keyword_hints": [
     "Income Taxes Paid(Direct)"
@@ -14279,7 +14287,8 @@
    "match_priority": 90,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "namespace": "template",
-   "route": "face"
+   "route": "face",
+   "rollup": "sum"
   },
   {
    "key": "cf_oper_direct__borrowing_costs_paid",
@@ -36282,6 +36291,93 @@
    "statement": "profit_and_loss",
    "section_scope": [
     "is_pl"
+   ],
+   "order": 2,
+   "note_use": "decomposition_allowed"
+  },
+  {
+   "key": "sub__cf_direct_income_taxes_paid",
+   "label": "Income taxes paid (direct-method face row)",
+   "definition": "The cash-flow row a mainland filing prints as 支付的各项税费 — the income taxes and other levies actually PAID in cash during the period, read off the face of the direct-method operating section (CAS 31 presents the direct method on the face and the indirect reconciliation as a note). CAS prints it as an UNSIGNED POSITIVE magnitude that the statement's own 经营活动现金流出小计 subtotal deducts, so this part must carry the figure NEGATIVE — see its sign_rule, which negates the CAS captions only and leaves an HKFRS filing's already-bracketed figure alone. It is one of the two halves of the template's single net column Income Taxes Paid(Direct), which is its parent and which sums the two; the other half is the refund received. It is NOT the income tax EXPENSE of the income statement, which accrues rather than pays and has its own template line.",
+   "exclude_criteria": [],
+   "inherits": "cf_oper_direct",
+   "parent": "cf_oper_direct__income_taxes_paid_direct",
+   "type": "extracted",
+   "namespace": "internal",
+   "sign_rule": {
+    "flip_if_label_matches": [
+     "支付的各项税费",
+     "支付的各項稅費"
+    ]
+   },
+   "route": "face",
+   "sign_convention": "negative_expected",
+   "match_priority": 91,
+   "aliases": [
+    "Income taxes paid",
+    "Income tax paid",
+    "Taxes and levies paid"
+   ],
+   "keyword_hints": [
+    "Income taxes paid",
+    "Income tax paid",
+    "Taxes and levies paid"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Income taxes paid",
+     "Income tax paid",
+     "Taxes and levies paid"
+    ],
+    "zh": [
+     "支付的各项税费"
+    ]
+   },
+   "in_output": false,
+   "statement": "cash_flow",
+   "section_scope": [
+    "cf_oper_direct"
+   ],
+   "order": 1,
+   "note_use": "decomposition_allowed"
+  },
+  {
+   "key": "sub__cf_direct_tax_refunds_received",
+   "label": "Tax refunds received (direct-method face row)",
+   "definition": "The cash-flow row a mainland filing prints as 收到的税费返还 — refunds of tax RECEIVED in cash, most often the VAT export rebate and overpaid income tax, read off the face of the direct-method operating section above 经营活动现金流入小计. It is a cash INFLOW and stays positive. It is the second half of the template's single net column Income Taxes Paid(Direct), which is its parent and which sums the two, so the parent reports taxes paid NET of refunds — which is what a template carrying one tax line per statement can mean. Before this part existed the caption reached no concept and was swept into the operating section's residual bucket alongside the indirect reconciliation's non-cash adjustments, where it was added to two other direct-method rows under one figure.",
+   "exclude_criteria": [],
+   "inherits": "cf_oper_direct",
+   "parent": "cf_oper_direct__income_taxes_paid_direct",
+   "type": "extracted",
+   "namespace": "internal",
+   "sign_rule": {},
+   "route": "face",
+   "sign_convention": "positive_expected",
+   "match_priority": 91,
+   "aliases": [
+    "Refunds of taxes received",
+    "Tax refunds received",
+    "Income tax refunded"
+   ],
+   "keyword_hints": [
+    "Refunds of taxes received",
+    "Tax refunds received",
+    "Income tax refunded"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Refunds of taxes received",
+     "Tax refunds received",
+     "Income tax refunded"
+    ],
+    "zh": [
+     "收到的税费返还"
+    ]
+   },
+   "in_output": false,
+   "statement": "cash_flow",
+   "section_scope": [
+    "cf_oper_direct"
    ],
    "order": 2,
    "note_use": "decomposition_allowed"

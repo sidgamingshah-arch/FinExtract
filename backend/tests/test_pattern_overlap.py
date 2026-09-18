@@ -128,7 +128,7 @@ def test_the_shipped_set_loads_with_the_patterns_declared():
 
     # 527, not 543: the live configuration was exported into the shipped seed — see
     # `test_retired_derivations.test_the_shipped_set_is_the_configuration_in_force`.
-    assert len(st.items) == 529  # 529 since the two 营业外 face parts split the template's single net Other Non-Operating Inc(Exp) column
+    assert len(st.items) == 531  # 531 since the two direct-method TAX face parts split the template's single Income Taxes Paid(Direct) column, as the two 营业外 parts before them split Other Non-Operating Inc(Exp)
     assert len(st.vocabulary.caption_transforms) == 3
     assert st.vocabulary.transform_order_check(st.caption_corpus()).overlaps == []
 
@@ -217,7 +217,7 @@ def test_the_shipped_seed_declares_none_and_still_loads():
     assert st.order_sensitive_probes == []
     # 527, not 543: the live configuration was exported into the shipped seed — see
     # `test_retired_derivations.test_the_shipped_set_is_the_configuration_in_force`.
-    assert len(st.items) == 529  # 529 since the two 营业外 face parts split the template's single net Other Non-Operating Inc(Exp) column
+    assert len(st.items) == 531  # 531 since the two direct-method TAX face parts split the template's single Income Taxes Paid(Direct) column, as the two 营业外 parts before them split Other Non-Operating Inc(Exp)
 
 
 def test_a_single_transform_has_no_order_to_be_dependent_on():

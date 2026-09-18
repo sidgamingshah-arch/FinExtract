@@ -733,3 +733,77 @@ def test_every_shipped_note_sourced_line_declares_note_tables(shipped):
     assert len(with_prose) == 6, [i.key for i in with_prose]
     assert all(i.note_source.row_caption_any or i.note_source.row_terms for i in with_prose), (
         "a prose-carrying line with no row patterns would have been a genuine `prose` route")
+
+
+# ── one caption, two statement instances, two entities ───────────────────────────────────────────
+
+def _face_row(key: str, caption: str, slots: dict[tuple[Basis, str], str]) -> LineItem:
+    """A row an earlier stage already mapped and filled, as the face route leaves it."""
+    row = LineItem(source_label=caption, canonical_key=key)
+    for i, ((basis, period), amount) in enumerate(slots.items()):
+        row.values[f"k{i}"] = ExtractedValue(
+            basis=basis, period_label=period, value=Decimal(amount),
+            value_raw=Decimal(amount), provenance=Provenance(page_index=88))
+    return row
+
+
+def test_a_part_printed_on_two_statements_reaches_its_parent_from_both(shipped):
+    """`by_key` KEEPS ONE ROW PER KEY, and that used to be all the cascade ever saw.
+
+    ``by_key`` is ``{li.canonical_key: li for li in doc.line_items}`` — last row wins. A caption
+    printed on TWO statement instances yields two rows for one part key, which is the NORMAL case
+    for a mainland filing: it prints every primary statement twice, consolidated and then parent
+    company. The second row overwrote the first, the cascade saw only it, and the parent came out
+    carrying whichever entity's slots that row happened to hold.
+
+    Measured on 000709 before the sweep was widened: `is_pl__other_non_operating_inc_exp` published
+    only the parent company's 476,718,290.06 and had NO consolidated figure at all, although both
+    营业外 halves carried consolidated slots. A consolidated report served the parent's number.
+
+    The fix takes every row carrying the key. Nothing has to choose between them, because
+    `_fill_parents` groups its offers by (basis, period) — so the consolidated rows meet the
+    consolidated rows and the standalone rows the standalone ones.
+    """
+    parent = "is_pl__other_non_operating_inc_exp"
+    rows = [
+        _face_row("sub__non_operating_income", "加：营业外收入",
+                  {(Basis.CONSOLIDATED, "current"): "488570415.03",
+                   (Basis.STANDALONE, "current"): "480646078.44"}),
+        # The expense half arrives already negated — `stages/normalize` applies the part's
+        # `sign_rule` to the CAS caption, which is upstream of this stage.
+        _face_row("sub__non_operating_expenses", "减：营业外支出",
+                  {(Basis.CONSOLIDATED, "current"): "-56388111.32",
+                   (Basis.STANDALONE, "current"): "-3927788.38"}),
+    ]
+    doc, _ctx = _run(shipped, [], rows)
+
+    got = {(ev.basis.value, ev.period_label): ev.value
+           for li in doc.line_items if li.canonical_key == parent
+           for ev in li.values.values() if ev.value is not None}
+    assert got == {("consolidated", "current"): Decimal("432182303.71"),
+                   ("standalone", "current"): Decimal("476718290.06")}
+
+
+def test_the_direct_method_tax_halves_net_on_their_own_parent(shipped):
+    """The same shape on the cash-flow face, and the reason the two tax parts exist.
+
+    CAS 31 prints taxes as two rows on opposite sides of the operating section — 支付的各项税费
+    above 经营活动现金流出小计 and 收到的税费返还 above 经营活动现金流入小计 — while this template
+    carries ONE Income Taxes Paid(Direct) column. So the column is the net of the two, and neither
+    caption may bind it directly: bound to the gross it reported taxes before refunds, and the
+    refund caption reached no concept at all and was swept into the operating section's residual
+    bucket together with two other homeless direct-method rows.
+    """
+    parent = "cf_oper_direct__income_taxes_paid_direct"
+    rows = [
+        _face_row("sub__cf_direct_income_taxes_paid", "支付的各项税费",
+                  {(Basis.CONSOLIDATED, "current"): "-1483160446.61",
+                   (Basis.CONSOLIDATED, "prior"): "-1896906274.50"}),
+        _face_row("sub__cf_direct_tax_refunds_received", "收到的税费返还",
+                  {(Basis.CONSOLIDATED, "current"): "134180854.19",
+                   (Basis.CONSOLIDATED, "prior"): "4043103.53"}),
+    ]
+    doc, _ctx = _run(shipped, [], rows)
+
+    assert _figure(doc, parent, "current") == Decimal("-1348979592.42")
+    assert _figure(doc, parent, "prior") == Decimal("-1892863170.97")

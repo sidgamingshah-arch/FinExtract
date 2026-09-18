@@ -293,7 +293,8 @@ def test_provisioning_reproduces_the_shipped_configuration_exactly():
     # 527, not 543: the live configuration was exported into the shipped seed — see
     # `test_retired_derivations.test_the_shipped_set_is_the_configuration_in_force`.
     # 529 since the two 营业外 face parts split the template's single net non-operating column.
-    assert len(after) == 529, len(after)
+    # 531 since the two direct-method TAX face parts split the template's single Income Taxes Paid(Direct) column, as the two 营业外 parts before them split Other Non-Operating Inc(Exp)
+    assert len(after) == 531, len(after)
 
     namespaces: dict[str, int] = {}
     for item in merged["items"]:
@@ -304,7 +305,9 @@ def test_provisioning_reproduces_the_shipped_configuration_exactly():
     # 67 internal since the two 营业外 face parts were added — CAS prints non-operating income
     # and expense as two rows and the template holds one net column, so the halves are
     # parts. The template split is unchanged at 462, which is the property this pins.
-    assert namespaces == {"template": 462, "internal": 67}, namespaces
+    # 69 internal, not 67: the two direct-method TAX parts are `internal` like every other part —
+    # `in_output: false`, so neither claims a template column.
+    assert namespaces == {"template": 462, "internal": 69}, namespaces
     assert len(protected_keys(merged)) == 462
 
     for key, item in before.items():

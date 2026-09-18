@@ -348,7 +348,7 @@ def test_an_exclusion_vetoes_the_rule_tier_too():
 def test_the_shipped_set_carries_the_whole_rulebook(shipped):
     # 527, not 543: the live configuration was exported into the shipped seed — see
     # `test_retired_derivations.test_the_shipped_set_is_the_configuration_in_force`.
-    assert len(shipped.by_key) == 529  # 529 since the two 营业外 face parts split the template's single net Other Non-Operating Inc(Exp) column
+    assert len(shipped.by_key) == 531  # 531 since the two direct-method TAX face parts split the template's single Income Taxes Paid(Direct) column, as the two 营业外 parts before them split Other Non-Operating Inc(Exp)
     assert len(shipped._alias_index) > 1900, "the alias vocabulary did not survive the merge"
 
 

@@ -494,6 +494,52 @@ _THE_DISPOSAL_IS_NAMED_IN_THE_CAPTION_ASSOC = (
     r"^出售投资物业所得款项$", r"^出售投资所得款项$",
 )
 
+# A NET TAX LINE IS NOT THE GROSS PAID. CAS 31 presents the direct method on the FACE and prints
+# taxes as two rows on opposite sides of the operating section — 支付的各项税费 above
+# 经营活动现金流出小计 and 收到的税费返还 above 经营活动现金流入小计 — while this template carries ONE
+# tax line for the statement, Income Taxes Paid(Direct). So the caption 支付的各项税费 is the gross
+# half of a net column, and a column cannot be its own half: bound directly it reported taxes paid
+# BEFORE refunds, and the refund caption reached no concept at all and was swept into the operating
+# section's residual bucket together with two other homeless direct-method rows, where three
+# figures — two inflows and an outflow — were added under one heading.
+#
+# The caption now belongs to `sub__cf_direct_income_taxes_paid`, an internal part that carries it
+# NEGATIVE, beside `sub__cf_direct_tax_refunds_received` which carries the refund positive; the
+# line they share is their parent and sums them. This is the shape
+# `_A_NET_COLUMN_IS_NOT_ITS_HALVES` already uses for 营业外收入/营业外支出, measured exactly right on
+# 000709 (480,646,078.44 - 3,927,788.38 = 476,718,290.06 on the parent).
+_A_NET_TAX_LINE_IS_NOT_THE_GROSS_PAID = (r"^支付的各项税费$", r"^支付的各項稅費$")
+
+# NOT DENIED, AND THE REASON IS WORTH WRITING DOWN: "Finance costs".
+#
+# It looks exactly like the cases above. An HKFRS filing's "Finance costs" is the TOTAL of the
+# period's borrowing costs, and it is authored on `is_pl__interest_expense` — which is ONE of the
+# fifteen terms of the calculated `is_pl__net_interest_income_expense`. A total sitting in a
+# component's column is the shape `_ATTRIBUTION_IS_NOT_THE_TOTAL` and
+# `_THE_OCI_TOTAL_IS_NOT_A_COMPONENT` both refuse.
+#
+# Denying it would be worse, and that is a fact about this template rather than a preference. The
+# template prints no total-finance-costs column: the family is fifteen component columns plus the
+# calculated net, so the total has NO column of its own to be moved to. Denied, the caption
+# reaches nothing, none of the fifteen terms is populated, the net comes out empty, and a filing
+# that printed its finance cost on one line has none in the output. Kept, the figure lands in a
+# component column and the net — which is what the statement's arithmetic wants — computes
+# correctly, because a filing that prints only the total prints none of the components that would
+# otherwise be added to it.
+#
+# Two things make the placement safe to leave. `is_pl__interest_expense` sits at match_priority 46,
+# the LOWEST in the family, so any filing that prints a more specific caption takes the figure off
+# it; and the template marks that column `natural_negative`, so the column already means "the
+# period's interest cost" rather than one named sub-species of it.
+#
+# The CAS side is NOT the same caption and is treated differently on purpose: 财务费用 is a NET —
+# CAS nets interest income and exchange differences into it — so it belongs on the net line, which
+# is where `_CAS_FINANCE_COSTS_IS_NOT_INTEREST_EXPENSE` put it, with a sign flip. "Finance costs"
+# is a gross expense total, which is why the same reasoning does not move it there.
+#
+# Pinned by `tests/test_output_csv_ontology.test_a_finance_cost_total_keeps_the_only_column_it_has`
+# so a later ratchet does not read the first paragraph, agree with it, and delete the caption.
+
 _BORROWED_CAPTION_DENIALS: dict[str, tuple[str, ...]] = {
     # The undiscriminating captions — see the rules immediately above this table.
     # `bs_ca__wealth_management_products_cp_from_secur_and_fincl` is DELIBERATELY ABSENT: it is the
@@ -505,6 +551,7 @@ _BORROWED_CAPTION_DENIALS: dict[str, tuple[str, ...]] = {
     "bs_nca__wealth_management_products_ltp_from_secur_and_fincl": _A_CARVE_OUTS_SOURCE_LINE_IS_NOT_IN_ITS_CAPTION,
     "bs_nca__wealth_management_products_ltp_from_otherasset": _A_CARVE_OUTS_SOURCE_LINE_IS_NOT_IN_ITS_CAPTION,
     "bs_nca__wealth_management_products_ltp_from_receivables": _A_CARVE_OUTS_SOURCE_LINE_IS_NOT_IN_ITS_CAPTION,
+    "cf_oper_direct__income_taxes_paid_direct": _A_NET_TAX_LINE_IS_NOT_THE_GROSS_PAID,
     "cf_financing__repayments_non_cur_borrowings": _A_RECEIPT_IS_NOT_A_REPAYMENT,
     "cf_investing__proceeds_sale_investment_prop": _THE_DISPOSAL_IS_NAMED_IN_THE_CAPTION_PROP,
     "cf_investing__sale_assoc_and_affiliates": _THE_DISPOSAL_IS_NAMED_IN_THE_CAPTION_ASSOC,
