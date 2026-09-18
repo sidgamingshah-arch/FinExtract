@@ -76,6 +76,61 @@ def rulebook():
 
 
 @pytest.fixture(scope="module")
+def tied_rulebook():
+    """A rulebook that GUARANTEES a confusable tie wider than the review cap.
+
+    THIS USED TO BE THE SHIPPED RULEBOOK, and the two tests below read its `is_oci__*` clique —
+    five concepts sharing seven aliases, taking a candidate list to eight. That clique was a
+    DEFECT: the section total's caption sat on five of its own components at equal priority with
+    no label owner, so `match()` returned whichever declaration order reached first and the other
+    four were unreachable for that caption. Resolving it (see
+    `services.spec_alias_curation._THE_OCI_TOTAL_IS_NOT_A_COMPONENT`) took the set's unbreakable
+    ties from 140 to 8 — and took these two tests' PRECONDITION with it.
+    
+    Reading the shipped set for the tie was the wrong shape twice over. It made a test of the
+    CODE's behaviour depend on an accident of the DATA, and it made the suite reward leaving
+    undiscriminating captions in the configuration: every tie resolved brought this file closer to
+    failing. The property under test — a ranked shortlist may be cut, a tie may not — belongs to
+    `services.mapping`, so it is tested against a fixture that cannot stop producing one.
+
+    Six concepts in one section sharing one alias, none of them its label owner, all at equal
+    priority, each naming the other five as confusable: the exact shape the resolved clusters had.
+
+    All four conditions are load-bearing, and `services.mapping._exact_tie` is where to read why.
+    Same section so the scoping gate admits all six on one caption; nobody's label so
+    `_prefer_label_owners` does not reduce them to one; equal `match_priority` so step 4 cannot
+    settle it; and MUTUAL `confusable_with` because `_mutually_confusable` requires each concept to
+    name the other. Drop any one of them and `match()` returns `direct_exclusive` on the first
+    declared concept — which is precisely the defect step 6 exists to refuse, and what these tests
+    would then silently stop testing. `binding.order` must also be declared: `_confusable_tie`
+    returns [] for a rulebook that states no precedence, since step 6 is a v2 declaration.
+    """
+    keys = [f"bs_ca__tied_{n}" for n in range(6)]
+    return load_ontology({
+        "ontology_key": "tied_fixture",
+        "target_template_key": "output_csv_hk_v1",
+        "binding": {"order": [
+            "1. Resolve the statement.",
+            "2. Resolve the printed section.",
+            "3. Restrict candidates to concepts whose section_scope contains it.",
+            "4. Rule tier in descending match_priority.",
+            "5. Semantic tier over the restricted set only.",
+            "6. Tie between concepts listed in each other's confusable_with: emit both as "
+            "candidates and route to review. Never pick by declaration order.",
+        ]},
+        "section_defaults": {"bs_ca": {"statement": "balance_sheet",
+                                       "section_scope": ["bs_ca"], "match_priority": 81}},
+        "mappings": [
+            {"canonical_key": key, "label": f"Tied concept {n}",
+             "inherits": "bs_ca", "definition": "a synthetic tie member",
+             "aliases": ["A caption none of them owns"],
+             "confusable_with": [k for k in keys if k != key]}
+            for n, key in enumerate(keys)
+        ],
+    }, resolve=True)
+
+
+@pytest.fixture(scope="module")
 def authored_examples():
     """The one shipped rulebook that authors more worked examples than the cap admits: 8."""
     return _ontology("hkfrs_hk_china_ontology.json")
@@ -164,7 +219,7 @@ def test_the_worked_examples_cap_default_is_how_many_reach_the_system_prompt(aut
 
 # --- the caps that WERE judged not to be settings, and the one that changed its mind ------------
 
-def test_the_review_shortlist_caps_now_truncate_so_they_have_a_home(rulebook):
+def test_the_review_shortlist_caps_now_truncate_so_they_have_a_home(tied_rulebook):
     """THE TRIPWIRE ABOVE FIRED, AND THIS IS WHAT IT ASKED FOR.
 
     This test used to assert `max(len(result.candidates)) <= 2` and was called
@@ -187,9 +242,9 @@ def test_the_review_shortlist_caps_now_truncate_so_they_have_a_home(rulebook):
     and what is pinned is that the code honours them. The old bound is kept below as a recorded
     measurement, not as a requirement.
     """
-    m = _matcher(rulebook)
+    m = _matcher(tied_rulebook)
     seen = set()
-    for concept in rulebook.mappings:
+    for concept in tied_rulebook.mappings:
         for label in [concept.label, *(concept.aliases or [])]:
             if not label:
                 continue
@@ -197,25 +252,28 @@ def test_the_review_shortlist_caps_now_truncate_so_they_have_a_home(rulebook):
             seen.add(len(result.candidates))
 
     assert seen, "the corpus produced no results, so this measures nothing"
-    # The fact that made the caps real. If this ever drops back to <= 2 the caps stop being
-    # load-bearing and the previous test's argument for keeping them in code applies again.
+    # The fact that makes the caps real, measured on a fixture that cannot stop producing a tie —
+    # see `tied_rulebook` for why this no longer reads the shipped set.
     assert max(seen) > 2, (
         f"the deterministic pool is back to at most {max(seen)} candidates, so the caps cannot "
         f"truncate — see this test's history before treating them as knobs")
 
 
-def test_a_confusable_tie_is_never_truncated(rulebook):
+def test_a_confusable_tie_is_never_truncated(tied_rulebook):
     """The one candidate list the cap must NOT govern.
 
     A ranked shortlist cuts its tail and loses low-evidence guesses. A confusable tie has no tail:
     the tied set IS the answer ("one of these, and the engine will not choose"), so dropping a
     member removes the correct concept from the only list the reviewer sees, with nothing saying
-    it was cut. Measured on output_csv_hk, the `is_oci__*` clique ties five concepts sharing seven
-    aliases and segment candidates take the list to eight — a review cap of five would hide three.
+    it was cut.
+
+    MEASURED ON A SYNTHETIC RULEBOOK, not on the shipped one — see `tied_rulebook`. It used to read
+    the `is_oci__*` clique, which was a defect that has since been repaired, and a test of the
+    code's behaviour must not depend on a defect in the data surviving.
     """
-    m = _matcher(rulebook)
+    m = _matcher(tied_rulebook)
     biggest = 0
-    for concept in rulebook.mappings:
+    for concept in tied_rulebook.mappings:
         for label in [concept.label, *(concept.aliases or [])]:
             if not label:
                 continue

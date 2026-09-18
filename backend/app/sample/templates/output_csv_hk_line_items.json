@@ -1730,14 +1730,12 @@
    "definition": "Extract the reported value for 'Entrusted loan receivables- shareholders(LTP)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
     "Entrusted loan receivables- shareholders(LTP)",
-    "Entrusted loan receivables from shareholders",
-    "Entrustment loan from shareholders"
+    "Entrusted loan receivables from shareholders"
    ],
    "aliases_i18n": {
     "en": [
      "Entrusted loan receivables- shareholders(LTP)",
-     "Entrusted loan receivables from shareholders",
-     "Entrustment loan from shareholders"
+     "Entrusted loan receivables from shareholders"
     ]
    },
    "keyword_hints": [
@@ -1827,20 +1825,13 @@
    "label": "Wealth management products(LTP) (from Secur&Fincl)",
    "definition": "Extract the reported value for 'Wealth management products(LTP) (from Secur&Fincl)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
-    "Wealth management products(LTP) (from Secur&Fincl)",
-    "Wealth management products",
-    "Bank wealth management products"
+    "Wealth management products(LTP) (from Secur&Fincl)"
    ],
    "aliases_i18n": {
     "en": [
-     "Wealth management products(LTP) (from Secur&Fincl)",
-     "Wealth management products",
-     "Bank wealth management products"
+     "Wealth management products(LTP) (from Secur&Fincl)"
     ],
-    "zh": [
-     "理财产品",
-     "银行理财产品"
-    ]
+    "zh": []
    },
    "keyword_hints": [
     "Wealth management products(LTP) (from Secur&Fincl)"
@@ -2290,20 +2281,13 @@
    "label": "Wealth management products(LTP) (from OtherAsset)",
    "definition": "Extract the reported value for 'Wealth management products(LTP) (from OtherAsset)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
-    "Wealth management products(LTP) (from OtherAsset)",
-    "Wealth management products",
-    "Bank wealth management products"
+    "Wealth management products(LTP) (from OtherAsset)"
    ],
    "aliases_i18n": {
     "en": [
-     "Wealth management products(LTP) (from OtherAsset)",
-     "Wealth management products",
-     "Bank wealth management products"
+     "Wealth management products(LTP) (from OtherAsset)"
     ],
-    "zh": [
-     "理财产品",
-     "银行理财产品"
-    ]
+    "zh": []
    },
    "keyword_hints": [
     "Wealth management products(LTP) (from OtherAsset)"
@@ -2545,20 +2529,13 @@
    "label": "Wealth management products(LTP) (from Receivables)",
    "definition": "Extract the reported value for 'Wealth management products(LTP) (from Receivables)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
-    "Wealth management products(LTP) (from Receivables)",
-    "Wealth management products",
-    "Bank wealth management products"
+    "Wealth management products(LTP) (from Receivables)"
    ],
    "aliases_i18n": {
     "en": [
-     "Wealth management products(LTP) (from Receivables)",
-     "Wealth management products",
-     "Bank wealth management products"
+     "Wealth management products(LTP) (from Receivables)"
     ],
-    "zh": [
-     "理财产品",
-     "银行理财产品"
-    ]
+    "zh": []
    },
    "keyword_hints": [
     "Wealth management products(LTP) (from Receivables)"
@@ -3191,14 +3168,12 @@
    "definition": "Extract the reported value for 'Entrusted loan receivables- shareholders(CP)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
     "Entrusted loan receivables- shareholders(CP)",
-    "Entrusted loan receivables from shareholders",
-    "Entrustment loan from shareholders"
+    "Entrusted loan receivables from shareholders"
    ],
    "aliases_i18n": {
     "en": [
      "Entrusted loan receivables- shareholders(CP)",
-     "Entrusted loan receivables from shareholders",
-     "Entrustment loan from shareholders"
+     "Entrusted loan receivables from shareholders"
     ]
    },
    "keyword_hints": [
@@ -3850,20 +3825,13 @@
    "label": "Wealth management products(CP) (from OtherAsset)",
    "definition": "Extract the reported value for 'Wealth management products(CP) (from OtherAsset)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
-    "Wealth management products(CP) (from OtherAsset)",
-    "Wealth management products",
-    "Bank wealth management products"
+    "Wealth management products(CP) (from OtherAsset)"
    ],
    "aliases_i18n": {
     "en": [
-     "Wealth management products(CP) (from OtherAsset)",
-     "Wealth management products",
-     "Bank wealth management products"
+     "Wealth management products(CP) (from OtherAsset)"
     ],
-    "zh": [
-     "理财产品",
-     "银行理财产品"
-    ]
+    "zh": []
    },
    "keyword_hints": [
     "Wealth management products(CP) (from OtherAsset)"
@@ -3993,13 +3961,11 @@
    "definition": "Extract the reported value for 'Trade receivables- related parties' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
     "Trade receivables- related parties",
-    "principal activity/business/engagement",
     "Related PartyTransactions"
    ],
    "aliases_i18n": {
     "en": [
      "Trade receivables- related parties",
-     "principal activity/business/engagement",
      "Related PartyTransactions"
     ]
    },
@@ -4021,13 +3987,11 @@
    "definition": "Extract the reported value for 'Trade and other receivables- related parties' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
     "Trade and other receivables- related parties",
-    "principal activity/business/engagement",
     "Trade and other receivables from related parties"
    ],
    "aliases_i18n": {
     "en": [
      "Trade and other receivables- related parties",
-     "principal activity/business/engagement",
      "Trade and other receivables from related parties"
     ]
    },
@@ -4284,20 +4248,13 @@
    "label": "Wealth management products(CP) (from Receivables)",
    "definition": "Extract the reported value for 'Wealth management products(CP) (from Receivables)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
-    "Wealth management products(CP) (from Receivables)",
-    "Wealth management products",
-    "Bank wealth management products"
+    "Wealth management products(CP) (from Receivables)"
    ],
    "aliases_i18n": {
     "en": [
-     "Wealth management products(CP) (from Receivables)",
-     "Wealth management products",
-     "Bank wealth management products"
+     "Wealth management products(CP) (from Receivables)"
     ],
-    "zh": [
-     "理财产品",
-     "银行理财产品"
-    ]
+    "zh": []
    },
    "keyword_hints": [
     "Wealth management products(CP) (from Receivables)"
@@ -4479,20 +4436,13 @@
    "label": "Wealth management products(CP) (from cash equ.)",
    "definition": "Extract the reported value for 'Wealth management products(CP) (from cash equ.)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
-    "Wealth management products(CP) (from cash equ.)",
-    "Wealth management products",
-    "Bank wealth management products"
+    "Wealth management products(CP) (from cash equ.)"
    ],
    "aliases_i18n": {
     "en": [
-     "Wealth management products(CP) (from cash equ.)",
-     "Wealth management products",
-     "Bank wealth management products"
+     "Wealth management products(CP) (from cash equ.)"
     ],
-    "zh": [
-     "理财产品",
-     "银行理财产品"
-    ]
+    "zh": []
    },
    "keyword_hints": [
     "Wealth management products(CP) (from cash equ.)"
@@ -5465,10 +5415,7 @@
     "Financial assets revaluation reserve",
     "AFS financial assets revaluation reserve",
     "Reserve for fair value changes of financial assets at FVTOCI",
-    "Investment revaluation reserve",
-    "Hedging reserve",
-    "Cash flow hedging reserve",
-    "Gain (loss) on hedging instruments"
+    "Investment revaluation reserve"
    ],
    "aliases_i18n": {
     "en": [
@@ -5477,10 +5424,7 @@
      "Financial assets revaluation reserve",
      "AFS financial assets revaluation reserve",
      "Reserve for fair value changes of financial assets at FVTOCI",
-     "Investment revaluation reserve",
-     "Hedging reserve",
-     "Cash flow hedging reserve",
-     "Gain (loss) on hedging instruments"
+     "Investment revaluation reserve"
     ],
     "zh": [
      "其他综合收益"
@@ -5678,9 +5622,7 @@
     "Entrusted loan payables",
     "Entrustment loan",
     "Entrusted loan payables to related parties/associates/JV/Joint Ventures/Jointly controlled entities/ fellow subsidiaries",
-    "Entrustment loan from related parties/associates/JV/Joint Ventures/Jointly controlled entities/ fellow subsidiaries",
-    "Entrusted loan payables to shareholders",
-    "Entrustment loan from shareholders"
+    "Entrustment loan from related parties/associates/JV/Joint Ventures/Jointly controlled entities/ fellow subsidiaries"
    ],
    "aliases_i18n": {
     "en": [
@@ -5688,9 +5630,7 @@
      "Entrusted loan payables",
      "Entrustment loan",
      "Entrusted loan payables to related parties/associates/JV/Joint Ventures/Jointly controlled entities/ fellow subsidiaries",
-     "Entrustment loan from related parties/associates/JV/Joint Ventures/Jointly controlled entities/ fellow subsidiaries",
-     "Entrusted loan payables to shareholders",
-     "Entrustment loan from shareholders"
+     "Entrustment loan from related parties/associates/JV/Joint Ventures/Jointly controlled entities/ fellow subsidiaries"
     ]
    },
    "keyword_hints": [
@@ -6474,32 +6414,25 @@
    "definition": "Extract the reported value for 'Trade and other payables(LTP)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
     "Trade and other payables(LTP)",
-    "principal activity/business/engagement",
     "Trade and other payables",
     "Accounts and other payables",
-    "Trade payables and accruals",
-    "Trade payables"
+    "Trade payables and accruals"
    ],
    "aliases_i18n": {
     "en": [
      "Trade and other payables(LTP)",
-     "principal activity/business/engagement",
      "Trade and other payables",
      "Accounts and other payables",
-     "Trade payables and accruals",
-     "Trade payables"
+     "Trade payables and accruals"
     ],
     "zh": [
      "其他应付款及应计费用",
      "其他应付款项",
      "其他应付款项及应计费用",
-     "应付账款及票据",
-     "应付贸易款项",
      "应计费用",
      "应计费用及其他应付款项",
      "贸易及其他应付款",
-     "贸易应付款、其他应付款及应计费用",
-     "贸易应付款项及票据"
+     "贸易应付款、其他应付款及应计费用"
     ]
    },
    "keyword_hints": [
@@ -6520,7 +6453,6 @@
    "definition": "Extract the reported value for 'Trade Payables(LTP)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
     "Trade Payables(LTP)",
-    "principal activity/business/engagement",
     "Trade payables",
     "Accounts payables",
     "Creditors"
@@ -6528,7 +6460,6 @@
    "aliases_i18n": {
     "en": [
      "Trade Payables(LTP)",
-     "principal activity/business/engagement",
      "Trade payables",
      "Accounts payables",
      "Creditors"
@@ -7038,9 +6969,7 @@
     "Entrusted loan payables",
     "Entrustment loan",
     "Entrusted loan payables to related parties/associates/JV/Joint Ventures/Jointly controlled entities/ fellow subsidiaries",
-    "Entrustment loan from related parties/associates/JV/Joint Ventures/Jointly controlled entities/ fellow subsidiaries",
-    "Entrusted loan payables to shareholders",
-    "Entrustment loan from shareholders"
+    "Entrustment loan from related parties/associates/JV/Joint Ventures/Jointly controlled entities/ fellow subsidiaries"
    ],
    "aliases_i18n": {
     "en": [
@@ -7048,9 +6977,7 @@
      "Entrusted loan payables",
      "Entrustment loan",
      "Entrusted loan payables to related parties/associates/JV/Joint Ventures/Jointly controlled entities/ fellow subsidiaries",
-     "Entrustment loan from related parties/associates/JV/Joint Ventures/Jointly controlled entities/ fellow subsidiaries",
-     "Entrusted loan payables to shareholders",
-     "Entrustment loan from shareholders"
+     "Entrustment loan from related parties/associates/JV/Joint Ventures/Jointly controlled entities/ fellow subsidiaries"
     ]
    },
    "keyword_hints": [
@@ -8281,15 +8208,11 @@
    "definition": "Extract the reported value for 'Trade payables- related parties' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
     "Trade payables- related parties",
-    "Trade Payables",
-    "principal activity/business/engagement",
     "Trade payables to related parties"
    ],
    "aliases_i18n": {
     "en": [
      "Trade payables- related parties",
-     "Trade Payables",
-     "principal activity/business/engagement",
      "Trade payables to related parties"
     ],
     "zh": []
@@ -8312,13 +8235,11 @@
    "definition": "Extract the reported value for 'Trade and other payables- related parties' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
     "Trade and other payables- related parties",
-    "principal activity/business/engagement",
     "Trade and other payables to related parties"
    ],
    "aliases_i18n": {
     "en": [
      "Trade and other payables- related parties",
-     "principal activity/business/engagement",
      "Trade and other payables to related parties"
     ]
    },
@@ -8340,32 +8261,21 @@
    "definition": "Extract the reported value for 'Trade and other payables(CP)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
     "Trade and other payables(CP)",
-    "principal activity/business/engagement",
-    "Trade and other payables",
-    "Trade payables",
-    "Trade and other payables to related parties"
+    "Trade and other payables"
    ],
    "aliases_i18n": {
     "en": [
      "Trade and other payables(CP)",
-     "principal activity/business/engagement",
-     "Trade and other payables",
-     "Trade payables",
-     "Trade and other payables to related parties"
+     "Trade and other payables"
     ],
     "zh": [
      "其他应付款及应计费用",
      "其他应付款项",
      "其他应付款项及应计费用",
-     "应付账款",
-     "应付账款及票据",
-     "应付贸易款项",
      "应计费用",
      "应计费用及其他应付款项",
-     "流动应付账款",
      "贸易及其他应付款",
      "贸易应付款、其他应付款及应计费用",
-     "贸易应付款项及票据",
      "贸易及其他应付款项"
     ]
    },
@@ -8387,22 +8297,18 @@
    "definition": "Extract the reported value for 'Trade Payables(CP)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
     "Trade Payables(CP)",
-    "principal activity/business/engagement",
     "Creditors",
     "creditors and accruals",
     "Trade payables",
-    "Account payables",
-    "Trade payables to related parties"
+    "Account payables"
    ],
    "aliases_i18n": {
     "en": [
      "Trade Payables(CP)",
-     "principal activity/business/engagement",
      "Creditors",
      "creditors and accruals",
      "Trade payables",
-     "Account payables",
-     "Trade payables to related parties"
+     "Account payables"
     ],
     "zh": [
      "应付账款",
@@ -14649,11 +14555,7 @@
      "Proceeds from disposal of investment properties"
     ],
     "zh": [
-     "出售合营公司所得款项",
-     "出售投资所得款项",
-     "出售投资物业所得款项",
-     "出售联营公司所得款项",
-     "联营公司之股本减少"
+     "出售投资物业所得款项"
     ]
    },
    "keyword_hints": [
@@ -14730,7 +14632,8 @@
     "Proceeds from disposal of Available-for-sale investments",
     "Proceeds from disposal of Held-to-maturity financial assets",
     "Proceeds from disposal of Financial assets at amortised cost",
-    "Proceeds from redemption of Wealth management products"
+    "Proceeds from redemption of Wealth management products",
+    "出售投资所得款项"
    ],
    "aliases_i18n": {
     "en": [
@@ -14747,7 +14650,8 @@
      "Proceeds from redemption of Wealth management products"
     ],
     "zh": [
-     "收回投资收到的现金"
+     "收回投资收到的现金",
+     "出售投资所得款项"
     ]
    },
    "keyword_hints": [
@@ -14887,8 +14791,6 @@
     ],
     "zh": [
      "出售合营公司所得款项",
-     "出售投资所得款项",
-     "出售投资物业所得款项",
      "出售联营公司所得款项",
      "联营公司之股本减少"
     ]
@@ -15426,7 +15328,6 @@
     "Repayment/cash payment of other borrowings/other long term borrowings/other long term loan/other loan",
     "Repayment/cash payment of bonds/debentures",
     "Repayment/cash payment of interest bearing borrowings/interest bearing long term loan/interest bearing loan/loan",
-    "Proceeds/cash recepit from finance lease",
     "Repayment of bank borrowings",
     "Redemption and repurchase of guaranteed notes"
    ],
@@ -15438,7 +15339,6 @@
      "Repayment/cash payment of other borrowings/other long term borrowings/other long term loan/other loan",
      "Repayment/cash payment of bonds/debentures",
      "Repayment/cash payment of interest bearing borrowings/interest bearing long term loan/interest bearing loan/loan",
-     "Proceeds/cash recepit from finance lease",
      "Repayment of bank borrowings",
      "Redemption and repurchase of guaranteed notes"
     ],
@@ -16154,7 +16054,6 @@
     "Rounding",
     "Units",
     "Unit scale",
-    "Presented in",
     "Amounts in",
     "Figures in"
    ],
@@ -16179,8 +16078,7 @@
    "aliases": [
     "Source Currency",
     "Presentation Currency",
-    "Reporting Currency",
-    "Presented in"
+    "Reporting Currency"
    ],
    "keyword_hints": [
     "currency",

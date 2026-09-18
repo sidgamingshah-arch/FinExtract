@@ -673,3 +673,64 @@ def test_the_two_assembled_depreciation_charges_are_declared_magnitudes():
     for key, node in nodes.items():
         if node["rollup"].get("reported_total_key"):
             assert not node["rollup"].get("cost_magnitude_children"), key
+
+
+def test_a_resolved_tie_kept_a_home_for_every_caption_it_split():
+    """THE COUNTERWEIGHT TO A TIE CEILING OF ZERO.
+
+    `tests/test_configuration_invariants._UNBREAKABLE_TIE_CEILING` is 0, and on its own that
+    rewards the wrong repair: deleting a caption from BOTH claimants resolves the tie and lowers
+    the count exactly as splitting it does, while silently removing a caption the rulebook needs.
+    That mistake was made once here — the four wealth-management captions were denied on all seven
+    carve-outs, including the one variant the corpus actually prints — and only
+    `test_a_carve_out_never_carries_the_caption_of_the_line_it_is_carved_out_of` caught it.
+
+    So the ties that were split rather than denied are pinned by their DESTINATION. Each caption
+    below said which claimant it meant, and the assertion is that it still reaches it:
+
+      * "Proceeds/cash recepit from finance lease" was authored on the repayments line too, which
+        is an inflow caption on an outflow column — the sign made this one unambiguous.
+      * The two related-party payables captions were authored on the `(CP)` aggregates the
+        related-party amount is a PART of; a caption naming related parties cannot be the total
+        that also holds third-party balances.
+      * One zh disposal list was copied verbatim onto both the investment-property line and the
+        associates line. Four of the five name their disposal. The fifth, 出售投资所得款项, names
+        neither, and went to the concept that already owned its English twin ("Proceeds from
+        disposal of Investment") rather than being dropped.
+
+    The traditional-script row is here because `normalize_label` folds Han variants: one wording in
+    two scripts is ONE alias, so the split has to hold for a Hong Kong filing's spelling of it too.
+    """
+    matcher = OntologyMatcher(_ontology(), llm_provider=None)
+    cases = [
+        ("Proceeds/cash recepit from finance lease", "cash_flow", "financing activities",
+         "cf_financing__proceeds_non_cur_borrowings"),
+        ("Repayment of bank borrowings", "cash_flow", "financing activities",
+         "cf_financing__repayments_non_cur_borrowings"),
+        ("Trade payables to related parties", "balance_sheet", "current liabilities",
+         "bs_cl__trade_payables_related_parties"),
+        ("Trade and other payables to related parties", "balance_sheet", "current liabilities",
+         "bs_cl__trade_and_other_payables_related_parties"),
+        ("Trade payables", "balance_sheet", "current liabilities", "bs_cl__trade_payables_cp"),
+        ("Trade and other payables", "balance_sheet", "current liabilities",
+         "bs_cl__trade_and_other_payables_cp"),
+        ("出售投资物业所得款项", "cash_flow", "investing activities",
+         "cf_investing__proceeds_sale_investment_prop"),
+        ("出售投資物業所得款項", "cash_flow", "investing activities",
+         "cf_investing__proceeds_sale_investment_prop"),
+        ("出售合营公司所得款项", "cash_flow", "investing activities",
+         "cf_investing__sale_assoc_and_affiliates"),
+        ("出售联营公司所得款项", "cash_flow", "investing activities",
+         "cf_investing__sale_assoc_and_affiliates"),
+        ("联营公司之股本减少", "cash_flow", "investing activities",
+         "cf_investing__sale_assoc_and_affiliates"),
+        ("出售投资所得款项", "cash_flow", "investing activities",
+         "cf_investing__proceeds_sale_fncl_assets"),
+        ("收回投资收到的现金", "cash_flow", "investing activities",
+         "cf_investing__proceeds_sale_fncl_assets"),
+    ]
+
+    reached = {caption: matcher.match(caption, statement=statement,
+                                      section=section).canonical_key
+               for caption, statement, section, _want in cases}
+    assert reached == {caption: want for caption, _s, _sec, want in cases}

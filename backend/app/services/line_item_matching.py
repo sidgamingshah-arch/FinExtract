@@ -271,10 +271,15 @@ class LineItemMatcher:
         self.by_key: dict[str, LineItemDef] = {d.key: d for d in line_items.items}
 
         # DECLARATION ORDER IS RECORDED, because it is the last tie-break and both engines use it.
-        # One caption in the shipped rulebook (`presented in`) has two claimants that tie on every
-        # principled field; `OntologyMatcher` answers it by whichever `_alias_index` saw first,
-        # which is file order. Keeping the index insertion-ordered reproduces that exactly instead
-        # of leaving it to dict iteration luck.
+        # For a caption whose claimants tie on every principled field, `OntologyMatcher` answers by
+        # whichever `_alias_index` saw first, which is file order; keeping this index
+        # insertion-ordered reproduces that exactly instead of leaving it to dict iteration luck.
+        #
+        # NO SHIPPED CAPTION IS IN THAT POSITION TODAY — the last one, `presented in`, was denied
+        # on both claimants when `tests/test_configuration_invariants._UNBREAKABLE_TIE_CEILING`
+        # reached 0. Recorded anyway: the fallback is in both engines, so the two have to agree on
+        # it whether or not the current configuration exercises it, and a configurator can author
+        # a tied pair at any time.
         self._order: dict[str, int] = {d.key: i for i, d in enumerate(line_items.items)}
 
         # Unreachable by MATCHING, for three different declared reasons.

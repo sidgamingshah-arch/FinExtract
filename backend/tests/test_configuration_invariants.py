@@ -46,7 +46,25 @@ _NOT_A_COLUMN = {"bs_ca_residual_L3"}
 #: carried the SECTION TOTAL's caption alongside their own, on one statement in one section at
 #: equal priority, which was the largest unbreakable cluster in the set. The caption now belongs to
 #: `is_oci__total_other_comprehensive_income` alone.
-_UNBREAKABLE_TIE_CEILING = 69
+#:
+#: 69 -> 8 when the six remaining generic captions were denied — the wealth-management carve-outs,
+#: a related-party table's narrative column heading, "Trade payables" on the trade-AND-OTHER
+#: aggregate, a shareholder loan claimed by a receivable, the hedging captions on the reserves
+#: aggregate, and the opening words of "Presented in RMB'000". Each was a caption that could not
+#: pick one of its claimants; see `services.spec_alias_curation`.
+#:
+#: 8 -> 0 when the last three clusters were split rather than denied, because unlike the six above
+#: each caption DOES say which claimant it means: a finance-lease "proceeds" caption authored on the
+#: repayments line as well (opposite signs), two related-party captions authored on the payables
+#: aggregates the related-party amount is a part of, and one zh disposal list copied verbatim onto
+#: both the investment-property and the associates line (four of the five name their disposal; the
+#: generic 出售投资所得款项 went to the concept that already owned its English twin).
+#:
+#: AT ZERO THIS IS NOW AN EQUALITY, and that is the point: every alias in the shipped set reaches
+#: its line by something the rulebook states — a label owner, a section, a statement, a priority —
+#: and never by the order two concepts happen to be declared in. There is no margin left to absorb
+#: a regression, which is the strongest form of this test and the reason not to leave one.
+_UNBREAKABLE_TIE_CEILING = 0
 
 
 @pytest.fixture(scope="module")

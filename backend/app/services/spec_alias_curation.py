@@ -357,7 +357,179 @@ _NOT_THE_FIXED_ASSET_REVALUATION = (
     r"^以公允价值计量且其变动计入其他综合收益的权益工具投资公允价值变动$",
 )
 
+# ── captions that cannot pick one of their claimants ─────────────────────────────────────────
+# SIX GENERIC CAPTIONS EACH SAT ON SEVERAL LINES NOTHING COULD TELL APART: same alias, overlapping
+# (statement, section) scope, equal `match_priority`, and the caption is nobody's label — so
+# `OntologyMatcher` returned whichever claimant declaration order reached first and the rest were
+# unreachable for that caption however plainly a filing printed it. Together they were 61 of the
+# set's 69 such ties; denying them takes the count to 8.
+#
+# The section gate had already done all it could: these lines DO resolve `section_scope`, so
+# current/non-current was separated and every remaining tie was WITHIN one section. The
+# discriminating information is not in the caption.
+
+# A CARVE-OUT'S SOURCE LINE IS NOT IN ITS CAPTION. Seven lines hold the wealth-management product
+# a filer classified inside a named parent — 交易性金融资产, 其他流动资产, 应收款项, 货币资金 — and the
+# `(from X)` qualifier is the whole of what distinguishes them. That classification is an
+# accounting-policy fact disclosed by WHERE the amount appears (CAS 22 business-model election,
+# HKFRS 9 the same), and it is not recoverable from the words 理财产品. All seven claimed all four
+# captions at equal priority, so declaration order picked the winner: measured, all four bound
+# `bs_nca__..._ltp_from_secur_and_fincl` — the NON-CURRENT variant — while a bank
+# wealth-management product is characteristically short dated, so the arbitrary winner was also
+# the wrong term.
+#
+# SIX ARE DENIED AND ONE IS KEPT, which is the difference between resolving a tie and deleting a
+# caption. The kept home is `bs_ca__wealth_management_products_cp_from_secur_and_fincl`, and the
+# corpus chooses it rather than a preference: both filings that print the caption print
+# 其中：理财产品 INSIDE note 2、交易性金融资产 — a CURRENT asset carved out of trading financial
+# assets, which is this concept precisely and the one variant the caption did not reach before.
+# `tests/test_output_csv_ontology.test_a_carve_out_never_carries_the_caption_of_the_line_it_is_carved_out_of`
+# pins that home, so denying it on all seven is a test failure and not a silent regression.
+#
+# WHAT IS LOST, said plainly: the other six have no caption route left, `route: face` with no
+# `note_source`, and `config.toml` ships `llm_focus_only` with 85 focus keys that do not include
+# them — so the model is not asked either and only a reviewer's remap fills them. The money is NOT
+# lost: a carve-out's amount stays inside the printed parent it is carved out of.
+_A_CARVE_OUTS_SOURCE_LINE_IS_NOT_IN_ITS_CAPTION = (
+    r"^Wealth management products$", r"^Bank wealth management products$",
+    r"^理财产品$", r"^银行理财产品$",
+)
+
+# A NARRATIVE COLUMN HEADING IS NOT A CAPTION. "principal activity/business/engagement" is the
+# descriptive column of a related-party disclosure table: it names no figure, carries no debit or
+# credit, and belongs to no statement section. Its eight claimants span `bs_ca` receivables AND
+# `bs_cl`/`bs_ncl` payables — assets and liabilities at once — which is itself the proof that the
+# phrase discriminates nothing.
+_A_NARRATIVE_HEADING_IS_NOT_A_CAPTION = (r"^principal activity/business/engagement$",)
+
+# TRADE PAYABLES ARE NOT TRADE AND OTHER PAYABLES, and they are not non-current. The bare caption
+# names a proper SUBSET of the aggregate that adds accruals and other payables, so the aggregate
+# cannot own it — the containment `ALIAS_DENIALS` already enforces in the other direction for
+# "Other receivables". Measured: it bound `bs_ncl__trade_and_other_payables_ltp`, wrong on both
+# axes, while 应付账款 appears 7, 11 and 11 times across the three corpus filings. It goes to
+# `bs_cl__trade_payables_cp`, and the LTP twin keeps its own.
+_TRADE_PAYABLES_ARE_NEITHER_THE_AGGREGATE_NOR_NON_CURRENT = (
+    r"^Trade payables$", r"^应付账款$", r"^应付账款及票据$", r"^应付贸易款项$",
+    r"^流动应付账款$", r"^贸易应付款项及票据$",
+)
+
+# A LOAN FROM A SHAREHOLDER IS A LIABILITY. Measured, "Entrustment loan from shareholders" bound
+# `bs_nca__entrusted_loan_receivables_shareholders_ltp` — a RECEIVABLE, for a caption naming money
+# the entity RECEIVED. An asset/liability inversion, and the counterparty half was wrong too:
+# "Entrusted loan payables to shareholders" reached the THIRD-PARTIES payable. The captions name
+# the side and the counterparty; both now reach the shareholders payable.
+_A_SHAREHOLDER_LOAN_IS_A_PAYABLE = (
+    r"^Entrusted loan payables to shareholders$", r"^Entrustment loan from shareholders$",
+)
+_NOT_A_RECEIVABLE_AT_ALL = (r"^Entrustment loan from shareholders$",)
+
+# THE HEDGING RESERVE IS ITS OWN LINE. `bs_equity__accum_oth_eqty_rsrv_inc` is the accumulated
+# other-reserves aggregate and claimed the hedging captions alongside it. This one changes no
+# answer today — `bs_equity__hedging_reserves` already wins on declaration order — which is
+# precisely the hazard: a re-projection or a reordering would silently move all three.
+_THE_HEDGING_RESERVE_IS_NOT_THE_AGGREGATE = (
+    r"^Cash flow hedging reserve$", r"^Hedging reserve$",
+    r"^Gain \(loss\) on hedging instruments$",
+)
+
+# A SENTENCE'S OPENING WORDS ARE NOT A CAPTION. A filing writes "Presented in RMB'000", which
+# states the presentation currency (HKAS 21) and the rounding scale at once — and the part that
+# discriminates is the words that FOLLOW, which the alias does not contain. Neither of the two
+# claimants can own it, because it names the other just as well.
+_A_SENTENCE_OPENING_IS_NOT_A_CAPTION = (r"^Presented in$",)
+
+# A RECEIPT IS NOT A REPAYMENT, and on a financing line that is the difference between an inflow
+# and an outflow. "Proceeds/cash recepit from finance lease" — the generator's spelling — is
+# authored on BOTH `cf_financing__proceeds_non_cur_borrowings` and
+# `cf_financing__repayments_non_cur_borrowings` at equal priority, so declaration order decided
+# which of two OPPOSITE-SIGNED template columns a finance-lease inflow landed in. Every other
+# alias on the repayments line opens "Repayment/cash payment of ...", which is what makes this one
+# a copy of the proceeds line rather than a caption the repayments line ever meant to claim: a row
+# whose printed words are "proceeds" cannot be a repayment. Denied on the repayments line only —
+# the proceeds line keeps it, so nothing is lost.
+_A_RECEIPT_IS_NOT_A_REPAYMENT = (r"^Proceeds/cash recepit from finance lease$",)
+
+# A RELATED-PARTY SUBSET IS NOT THE PAYABLES TOTAL. "Trade payables to related parties" and
+# "Trade and other payables to related parties" each sit on the dedicated related-party concept AND
+# on the `(CP)` aggregate the related-party amount is a PART of, at equal priority and as neither
+# one's label — so declaration order chose between a carve-out and its parent. The direction is not
+# symmetric and only one answer is defensible: a caption that names related parties cannot be the
+# total that also contains third-party balances, while the dedicated line is that caption's whole
+# subject. `ALIAS_DENIALS` already enforces the same containment for "Other receivables", and
+# `_ATTRIBUTION_IS_NOT_THE_TOTAL` for the profit attributable to a parent. Denied on the two
+# aggregates; the related-party lines keep both spellings.
+_A_RELATED_PARTY_SUBSET_IS_NOT_THE_PAYABLES_TOTAL = (
+    r"^Trade payables to related parties$",
+    r"^Trade and other payables to related parties$",
+)
+
+# WHAT WAS SOLD IS IN THE CAPTION, so two concepts cannot both claim all five. The identical zh
+# list — 出售合营公司所得款项, 出售联营公司所得款项, 联营公司之股本减少, 出售投资物业所得款项,
+# 出售投资所得款项 — is authored verbatim on `cf_investing__proceeds_sale_investment_prop` AND
+# `cf_investing__sale_assoc_and_affiliates`, which is a copy rather than a disagreement: four of
+# the five NAME their disposal and so decide themselves.
+#
+#   出售投资物业所得款项  investment properties  -> proceeds_sale_investment_prop
+#   出售合营公司所得款项  a joint venture        -> sale_assoc_and_affiliates
+#   出售联营公司所得款项  an associate           -> sale_assoc_and_affiliates
+#   联营公司之股本减少    an associate's capital -> sale_assoc_and_affiliates
+#                          (the zh of that concept's own "Return of capital from a joint venture")
+#
+# THE FIFTH NAMES NEITHER. 出售投资所得款项 is "proceeds from disposal of investments" — the generic
+# word, which a filer disposing of an associate or an investment property does not use, because
+# those filers write the captions above. It is the zh of "Proceeds from disposal of Investment",
+# already authored on `cf_investing__proceeds_sale_fncl_assets`, whose sole zh alias is the CAS
+# 收回投资收到的现金 (printed twice in each of 000709, 002273 and 002004). So it is rehomed there
+# rather than denied outright — the concept already owns the caption in the other language.
+#
+# None of the five appears in any of the three filings on disk: all are HK wordings and the corpus
+# is PRC, so the split is read off what each caption says plus the twin the English side already
+# declares. What it fixes is measurable regardless — five captions whose winner was declaration
+# order now each have one claimant.
+_THE_DISPOSAL_IS_NAMED_IN_THE_CAPTION_PROP = (
+    r"^出售合营公司所得款项$", r"^出售联营公司所得款项$", r"^联营公司之股本减少$",
+    r"^出售投资所得款项$",
+)
+_THE_DISPOSAL_IS_NAMED_IN_THE_CAPTION_ASSOC = (
+    r"^出售投资物业所得款项$", r"^出售投资所得款项$",
+)
+
 _BORROWED_CAPTION_DENIALS: dict[str, tuple[str, ...]] = {
+    # The undiscriminating captions — see the rules immediately above this table.
+    # `bs_ca__wealth_management_products_cp_from_secur_and_fincl` is DELIBERATELY ABSENT: it is the
+    # one home the four wealth-management captions keep, so the tie resolves to it instead of to
+    # nothing. Adding it here deletes the caption from the rulebook.
+    "bs_ca__wealth_management_products_cp_from_otherasset": _A_CARVE_OUTS_SOURCE_LINE_IS_NOT_IN_ITS_CAPTION,
+    "bs_ca__wealth_management_products_cp_from_receivables": _A_CARVE_OUTS_SOURCE_LINE_IS_NOT_IN_ITS_CAPTION,
+    "bs_ca__wealth_management_products_cp_from_cash_equ": _A_CARVE_OUTS_SOURCE_LINE_IS_NOT_IN_ITS_CAPTION,
+    "bs_nca__wealth_management_products_ltp_from_secur_and_fincl": _A_CARVE_OUTS_SOURCE_LINE_IS_NOT_IN_ITS_CAPTION,
+    "bs_nca__wealth_management_products_ltp_from_otherasset": _A_CARVE_OUTS_SOURCE_LINE_IS_NOT_IN_ITS_CAPTION,
+    "bs_nca__wealth_management_products_ltp_from_receivables": _A_CARVE_OUTS_SOURCE_LINE_IS_NOT_IN_ITS_CAPTION,
+    "cf_financing__repayments_non_cur_borrowings": _A_RECEIPT_IS_NOT_A_REPAYMENT,
+    "cf_investing__proceeds_sale_investment_prop": _THE_DISPOSAL_IS_NAMED_IN_THE_CAPTION_PROP,
+    "cf_investing__sale_assoc_and_affiliates": _THE_DISPOSAL_IS_NAMED_IN_THE_CAPTION_ASSOC,
+    "bs_ca__trade_receivables_related_parties": _A_NARRATIVE_HEADING_IS_NOT_A_CAPTION,
+    "bs_ca__trade_and_other_receivables_related_parties": _A_NARRATIVE_HEADING_IS_NOT_A_CAPTION,
+    "bs_cl__trade_payables_cp": (*_A_NARRATIVE_HEADING_IS_NOT_A_CAPTION,
+                                *_A_RELATED_PARTY_SUBSET_IS_NOT_THE_PAYABLES_TOTAL),
+    "bs_cl__trade_and_other_payables_related_parties": _A_NARRATIVE_HEADING_IS_NOT_A_CAPTION,
+    "bs_ncl__trade_payables_ltp": _A_NARRATIVE_HEADING_IS_NOT_A_CAPTION,
+    "bs_cl__trade_and_other_payables_cp": (
+        *_A_NARRATIVE_HEADING_IS_NOT_A_CAPTION,
+        *_A_RELATED_PARTY_SUBSET_IS_NOT_THE_PAYABLES_TOTAL,
+        *_TRADE_PAYABLES_ARE_NEITHER_THE_AGGREGATE_NOR_NON_CURRENT),
+    "bs_ncl__trade_and_other_payables_ltp": (
+        *_A_NARRATIVE_HEADING_IS_NOT_A_CAPTION,
+        *_TRADE_PAYABLES_ARE_NEITHER_THE_AGGREGATE_NOR_NON_CURRENT),
+    "bs_cl__trade_payables_related_parties": (
+        *_A_NARRATIVE_HEADING_IS_NOT_A_CAPTION, r"^Trade payables$"),
+    "bs_cl__entrusted_loan_payables_third_parties_cp": _A_SHAREHOLDER_LOAN_IS_A_PAYABLE,
+    "bs_ncl__entrusted_loan_payables_third_parties_ltp": _A_SHAREHOLDER_LOAN_IS_A_PAYABLE,
+    "bs_nca__entrusted_loan_receivables_shareholders_ltp": _NOT_A_RECEIVABLE_AT_ALL,
+    "bs_ca__entrusted_loan_receivables_shareholders_cp": _NOT_A_RECEIVABLE_AT_ALL,
+    "bs_equity__accum_oth_eqty_rsrv_inc": _THE_HEDGING_RESERVE_IS_NOT_THE_AGGREGATE,
+    "statement_setup_controls__rounding": _A_SENTENCE_OPENING_IS_NOT_A_CAPTION,
+    "statement_setup_controls__source_currency": _A_SENTENCE_OPENING_IS_NOT_A_CAPTION,
     # The OCI section: the total's caption denied on its components. See the rules above.
     "is_oci__unreal_gain_loss_fixed_assets": (*_THE_OCI_TOTAL_IS_NOT_A_COMPONENT,
                                               *_NOT_THE_FIXED_ASSET_REVALUATION),

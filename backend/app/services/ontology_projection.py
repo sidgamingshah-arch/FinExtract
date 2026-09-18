@@ -235,9 +235,15 @@ def build_definitions(concepts: list[Any], configured: list[dict]) -> tuple[list
     """The whole merged set, plus a census of where each definition came from.
 
     Order is the rulebook's declaration order first, then the configurator's own additions. That
-    is deliberate and load-bearing: for a caption whose claimants tie on every principled field —
-    one such pair exists, `presented in` — both engines answer by declaration order, so preserving
-    the rulebook's order is what makes the merged set equivalent rather than merely similar.
+    is deliberate and load-bearing: for a caption whose claimants tie on every principled field,
+    both engines answer by declaration order, so preserving the rulebook's order is what makes the
+    merged set equivalent rather than merely similar.
+
+    NO SHIPPED CAPTION IS IN THAT POSITION TODAY. It used to be one, `presented in`, and
+    `services.spec_alias_curation._A_SENTENCE_OPENING_IS_NOT_A_CAPTION` denied it on both its
+    claimants when `tests/test_configuration_invariants._UNBREAKABLE_TIE_CEILING` reached 0. The
+    order is still preserved rather than relied upon: the fallback exists in both engines, so the
+    two merged sets have to agree on it whether or not any current caption exercises it.
     """
     by_key = {d["key"]: d for d in configured}
     out: list[dict] = []
