@@ -4950,7 +4950,8 @@
     "Paid-in capital",
     "non-voting deferred shares",
     "Authorized shares",
-    "Owners' equity"
+    "Owners' equity",
+    "Issued capital"
    ],
    "keyword_hints": [
     "Common Share Capital"
@@ -4982,7 +4983,8 @@
      "Paid-in capital",
      "non-voting deferred shares",
      "Authorized shares",
-     "Owners' equity"
+     "Owners' equity",
+     "Issued capital"
     ],
     "zh": [
      "实收资本",
@@ -5220,7 +5222,8 @@
     "Land revaluation reserve",
     "Investment properties revaluation reserve",
     "Investment property reserve",
-    "Property/building revaluation reserve"
+    "Property/building revaluation reserve",
+    "Property revaluation reserve"
    ],
    "keyword_hints": [
     "Revaluation Reserves"
@@ -5249,7 +5252,8 @@
      "Land revaluation reserve",
      "Investment properties revaluation reserve",
      "Investment property reserve",
-     "Property/building revaluation reserve"
+     "Property/building revaluation reserve",
+     "Property revaluation reserve"
     ]
    }
   },
@@ -5339,8 +5343,7 @@
    ],
    "aliases_i18n": {
     "en": [
-     "Other Reserves",
-     "Total Equity / Stockholders Equity/ Owners' Equity"
+     "Other Reserves"
     ],
     "zh": [
      "专项储备",
@@ -5505,7 +5508,8 @@
     "Exchange reserve",
     "Foreign translation reserve",
     "Exchange realignments",
-    "Release of exchange reserve upon deregistration of subsidiaries"
+    "Release of exchange reserve upon deregistration of subsidiaries",
+    "Exchange fluctuation reserve"
    ],
    "keyword_hints": [
     "Forex Translation Equity"
@@ -5535,7 +5539,8 @@
      "Exchange reserve",
      "Foreign translation reserve",
      "Exchange realignments",
-     "Release of exchange reserve upon deregistration of subsidiaries"
+     "Release of exchange reserve upon deregistration of subsidiaries",
+     "Exchange fluctuation reserve"
     ],
     "zh": [
      "公允价值储备",
@@ -5621,7 +5626,8 @@
     "Sole-proprietor fund",
     "Partners funds",
     "Partners contributions",
-    "Shares held for award scheme"
+    "Shares held for award scheme",
+    "Merger reserve"
    ],
    "keyword_hints": [
     "Other Equity"
@@ -5650,7 +5656,8 @@
      "Sole-proprietor fund",
      "Partners funds",
      "Partners contributions",
-     "Shares held for award scheme"
+     "Shares held for award scheme",
+     "Merger reserve"
     ],
     "zh": [
      "其他权益工具"
@@ -5700,7 +5707,8 @@
     "Financial assets revaluation reserve",
     "AFS financial assets revaluation reserve",
     "Reserve for fair value changes of financial assets at FVTOCI",
-    "Investment revaluation reserve"
+    "Investment revaluation reserve",
+    "Fair value reserve"
    ],
    "keyword_hints": [
     "Accum Oth Eqty Rsrv Inc"
@@ -5732,7 +5740,8 @@
      "Financial assets revaluation reserve",
      "AFS financial assets revaluation reserve",
      "Reserve for fair value changes of financial assets at FVTOCI",
-     "Investment revaluation reserve"
+     "Investment revaluation reserve",
+     "Fair value reserve"
     ],
     "zh": [
      "其他综合收益"
@@ -5794,7 +5803,11 @@
    "definition": "Calculated target using the exact formula retained in the supplied template: =B126+{bs_equity__minority_interest_equity}",
    "aliases": [
     "Total Equity & Reserves",
-    "Equity / Stockholders Equity/ Owners' Equity"
+    "Equity / Stockholders Equity/ Owners' Equity",
+    "Total equity",
+    "Total equity and reserves",
+    "權益總額",
+    "總權益"
    ],
    "keyword_hints": [
     "Total Equity & Reserves"
@@ -5824,12 +5837,16 @@
    "aliases_i18n": {
     "en": [
      "Total Equity & Reserves",
-     "Equity / Stockholders Equity/ Owners' Equity"
+     "Equity / Stockholders Equity/ Owners' Equity",
+     "Total equity",
+     "Total equity and reserves"
     ],
     "zh": [
      "所有者权益合计",
      "所有者权益（或股东权益）合计",
-     "股东权益合计"
+     "股东权益合计",
+     "權益總額",
+     "總權益"
     ]
    }
   },
@@ -14061,7 +14078,12 @@
     "Common share dividends",
     "Dividends",
     "Cash dividends",
-    "distribution of cash dividends"
+    "distribution of cash dividends",
+    "Final dividend",
+    "Interim dividend",
+    "Interim dividends",
+    "末期股息",
+    "中期股息"
    ],
    "keyword_hints": [
     "Cash Div Common Shares(-)"
@@ -14096,9 +14118,15 @@
      "Common share dividends",
      "Dividends",
      "Cash dividends",
-     "distribution of cash dividends"
+     "distribution of cash dividends",
+     "Final dividend",
+     "Interim dividend",
+     "Interim dividends"
     ],
-    "zh": []
+    "zh": [
+     "末期股息",
+     "中期股息"
+    ]
    }
   },
   {
@@ -14109,7 +14137,12 @@
     "Stock Dividends(NC)(-)",
     "stock dividends",
     "Bank stock dividends",
-    "Other stock dividends"
+    "Other stock dividends",
+    "Scrip dividend",
+    "Scrip dividends",
+    "Issue of shares for scrip dividend",
+    "Shares issued for scrip dividend",
+    "以股代息發行股份"
    ],
    "keyword_hints": [
     "Stock Dividends(NC)(-)"
@@ -14143,9 +14176,15 @@
      "Stock Dividends(NC)(-)",
      "stock dividends",
      "Bank stock dividends",
-     "Other stock dividends"
+     "Other stock dividends",
+     "Scrip dividend",
+     "Scrip dividends",
+     "Issue of shares for scrip dividend",
+     "Shares issued for scrip dividend"
     ],
-    "zh": []
+    "zh": [
+     "以股代息發行股份"
+    ]
    }
   },
   {
@@ -14153,7 +14192,16 @@
    "label": "Transfer to Reserves(-)",
    "definition": "Extract the reported value for 'Transfer to Reserves(-)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
-    "Transfer to Reserves(-)"
+    "Transfer to Reserves(-)",
+    "Transfer of reserves",
+    "Transfer from reserves",
+    "Transfer to statutory surplus reserve",
+    "Transfer to statutory reserve",
+    "Transfer to surplus reserve",
+    "Transfer statutory surplus reserve to retained profits",
+    "轉撥至法定盈餘儲備",
+    "儲備轉撥",
+    "法定盈餘儲備轉撥至保留溢利"
    ],
    "keyword_hints": [
     "Transfer to Reserves(-)"
@@ -14184,9 +14232,19 @@
    "section_disambiguation": "Bind only to Income Statement / is_retained.",
    "aliases_i18n": {
     "en": [
-     "Transfer to Reserves(-)"
+     "Transfer to Reserves(-)",
+     "Transfer of reserves",
+     "Transfer from reserves",
+     "Transfer to statutory surplus reserve",
+     "Transfer to statutory reserve",
+     "Transfer to surplus reserve",
+     "Transfer statutory surplus reserve to retained profits"
     ],
-    "zh": []
+    "zh": [
+     "轉撥至法定盈餘儲備",
+     "儲備轉撥",
+     "法定盈餘儲備轉撥至保留溢利"
+    ]
    }
   },
   {

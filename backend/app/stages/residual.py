@@ -935,11 +935,30 @@ class ResidualStage:
                 closing[stmt] = max(closing.get(stmt, li.ordinal), li.ordinal)
 
         ordered = sorted(doc.line_items, key=lambda li: li.ordinal)
-        # The first position at which each section's OWN subtotal is printed. A banner naming a
-        # section whose subtotal is already above this row is spent — see `_section_of_row`.
+        # The position at which each section's CLOSING subtotal is printed. A banner naming a
+        # section that has already closed above this row is spent — see `_section_of_row`.
+        #
+        # THE CLOSING SUBTOTAL, NOT ANY ROLLUP INSIDE THE SECTION. `subtotal_of` is every concept
+        # the rulebook marks `unit_of_account: subtotal`, and most of those roll up their OWN
+        # components in the middle of a section rather than ending it: `bs_ca__inventories`,
+        # `bs_ca__net_trade_receivables`, `bs_nca__gross_fixed_assets`, the P&L's nine
+        # intermediate margins. Taking the first of them closed the section at its first rollup.
+        #
+        # MEASURED ON 佳明集團 2025/26, whose balance sheet prints no "Total current assets" at
+        # all. "Inventories of properties" is the third current asset printed and maps to
+        # `bs_ca__inventories`, so current assets was recorded as closing there — and every row
+        # below it, "Current tax assets" and a derivative among them, had its own CURRENT ASSETS
+        # banner discarded as spent. Signal 2 then answered with the first section subtotal
+        # anywhere below, three sections away: the two rows were swept into the EQUITY residual.
+        #
+        # `services.rollups.section_members` already sorts a section's subtotals by ascending
+        # `match_priority` so that "the section's CLOSING subtotal is last" — its own words. This
+        # reads that order instead of flattening it away.
+        closes_of = {mem.subtotals[-1]: section for section, mem in members.items()
+                     if mem.subtotals}
         closed_at: dict[str, int] = {}
         for position, row in enumerate(ordered):
-            section = subtotal_of.get(row.canonical_key or "")
+            section = closes_of.get(row.canonical_key or "")
             if section is not None and section not in closed_at:
                 closed_at[section] = position
         per_share = (_per_share_rows(ordered) if _PER_SHARE_PHRASE in terms.exclusions else set())

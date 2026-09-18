@@ -107,6 +107,72 @@ def test_the_latest_date_is_the_current_period_across_pages_not_within_one():
     assert current.provenance.page_index == 107
 
 
+def test_the_matrixs_own_total_columns_are_not_components():
+    """A matrix prints its totals as COLUMNS, and transposing one turns the statement's total into
+    a second row claiming the total CONCEPT. Measured: `bs_equity__total_equity_and_reserves` then
+    had two rows — the balance sheet's printed "TOTAL EQUITY 總權益" and this one — and
+    `stages.residual` read the section's reported subtotal as their sum, 4,752,134 for a total
+    equity of 2,376,067. The equity gap doubled and the sweep pulled two ASSET rows into
+    `bs_equity__other_reserves` to close it.
+    """
+    # 佳明's shape: both blocks on one page, so each close has its movements above it.
+    doc = _Doc([
+        _balance("At 1 January 2022", "2022-01-01", 106,
+                 dict(zip(COMPONENTS, ("365138", "1200", "21494767", "21861105")))),
+        _movement("Loss for the year", 106, {"Retained profits": "-100", "Total equity": "-100"}),
+        _balance("At 31 December 2022", "2022-12-31", 106,
+                 dict(zip(COMPONENTS, ("365138", "1200", "21494667", "21861005")))),
+        _movement("Loss for the year", 106, {"Retained profits": "-7991050"}),
+        _balance("At 31 December 2023", "2023-12-31", 106,
+                 dict(zip(COMPONENTS, ("365138", "1200", "13503617", "13869955")))),
+    ], pages=(106,))
+    logs: list[str] = []
+    assert transpose_closing_balances(doc, log=logs.append) == 3
+    rows = _transposed(doc)
+
+    assert "Total equity" not in rows, sorted(rows)
+    assert set(rows) == {"Issued capital", "Share premium", "Retained profits"}
+    assert any("total_columns=['Total equity']" in m for m in logs), logs
+
+
+def test_a_nested_total_column_is_found_too():
+    """China SCE prints TWO: "Total" for the owners' share and "Total equity" including the
+    non-controlling interests. The cumulative test continues FROM a total it recognises, so the
+    outer one does not have to equal the whole row again."""
+    from app.services.equity_matrix import _total_columns
+
+    cols = ("Issued capital", "Retained profits", "Total", "Non-controlling interests",
+            "Total equity")
+    doc = _Doc([
+        _balance("At 1 January 2023", "2023-01-01", 107,
+                 dict(zip(cols, ("365138", "19345551", "19710689", "16914552", "36625241")))),
+        _movement("Loss for the year", 107, {"Retained profits": "-100"}),
+        _balance("At 31 December 2023", "2023-12-31", 107,
+                 dict(zip(cols, ("365138", "9358611", "9723749", "10758577", "20482326")))),
+    ], pages=(107,))
+
+    assert _total_columns([("", r) for r in doc.line_items
+                           if r.confidence.flags]) == frozenset({"Total", "Total equity"})
+
+
+def test_a_component_that_coincides_once_is_still_a_component():
+    """A column has to be a total in EVERY balance row it appears in. One coincidence is not a
+    total column, or a filing whose reserve happens to equal the cumulative sum in one year loses
+    that component for both."""
+    from app.services.equity_matrix import _total_columns
+
+    cols = ("Issued capital", "Share premium", "Total equity")
+    rows = [
+        # Share premium == issued capital here, which is the coincidence.
+        _balance("At 31 December 2022", "2022-12-31", 106,
+                 dict(zip(cols, ("1200", "1200", "2400")))),
+        _balance("At 31 December 2023", "2023-12-31", 107,
+                 dict(zip(cols, ("1200", "9999", "11199")))),
+    ]
+
+    assert _total_columns([("", r) for r in rows]) == frozenset({"Total equity"})
+
+
 def test_a_movement_row_is_not_transposed():
     doc = _two_pages()
     transpose_closing_balances(doc)

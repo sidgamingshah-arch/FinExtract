@@ -123,6 +123,52 @@ def _closing_dates(pages: dict[int, list[LineItem]]) -> list[str]:
     return sorted(closes, reverse=True)
 
 
+def _total_columns(balances) -> frozenset[str]:
+    """The matrix's TOTAL columns, found by arithmetic rather than by their captions.
+
+    A matrix prints its own totals as columns — China SCE prints two, "Total" for the owners'
+    share and "Total equity" including the non-controlling interests, and 佳明 prints one — and
+    transposing those turns the statement's total into a second row claiming the total CONCEPT.
+    Measured: `bs_equity__total_equity_and_reserves` then had two rows, the balance sheet's
+    printed "TOTAL EQUITY 總權益" and this one, and `stages.residual` read the section's reported
+    subtotal as their sum: 4,752,134 for a total equity of 2,376,067. The equity gap doubled and
+    the sweep pulled two ASSET rows — a current tax asset and a derivative — into
+    `bs_equity__other_reserves` to close it.
+
+    THE TEST IS CUMULATIVE AND HANDLES NESTING. Walking a balance row left to right, a cell equal
+    to the sum of the cells before it is a total; it contributes nothing itself and the running sum
+    CONTINUES from it, so "Total equity" is recognised as "Total" plus the non-controlling
+    interests rather than having to equal the whole row again.
+
+    TWO ADDENDS MINIMUM. A total summarises more than one column, and without that floor a
+    component equal to the single column before it — a share premium that happens to match the
+    issued capital — is read as a total. That is worse than missing one: the false total takes
+    itself out of the running sum, so the REAL total two columns later no longer matches either,
+    and a filing loses a component instead of a duplicate. A recognised total counts as one addend
+    towards the next, which is what lets the nested pair work.
+
+    A column has to be a total in EVERY balance row it appears in. One coincidence is not a total
+    column, and a row that prints only part of its columns cannot make one.
+    """
+    votes: dict[str, list[bool]] = {}
+    for _when, row in balances:
+        cells = sorted(((v.column_index if v.column_index is not None else 0,
+                         str(getattr(v, "period_label", "") or ""), v.value)
+                        for v in (row.values or {}).values() if v.value is not None),
+                       key=lambda c: c[0])
+        run, addends = 0, 0
+        for _idx, name, amount in cells:
+            if not name:
+                continue
+            is_total = addends >= 2 and amount == run
+            votes.setdefault(name, []).append(is_total)
+            if is_total:
+                run, addends = amount, 1
+            else:
+                run, addends = run + amount, addends + 1
+    return frozenset(name for name, seen in votes.items() if seen and all(seen))
+
+
 def transpose_closing_balances(doc, *, log=None) -> int:
     """Append one row per equity component, for the document's two latest balance dates.
 
@@ -181,6 +227,9 @@ def transpose_closing_balances(doc, *, log=None) -> int:
     # FIRST WRITER WINS per (component, basis, period): a closing balance and the next page's
     # opening balance are the same figure at the same date, and a filing that prints both should
     # not have them added.
+    totals = _total_columns(balances)
+    if totals and log:
+        log(f"extract:equity_matrix_total_columns={sorted(totals)}")
     cells: dict[str, dict[tuple[str, str], ExtractedValue]] = {}
     order: list[str] = []
     for when, row in balances:
@@ -191,7 +240,7 @@ def transpose_closing_balances(doc, *, log=None) -> int:
             if value.value is None:
                 continue
             component = str(getattr(value, "period_label", "") or "")
-            if not component:
+            if not component or component in totals:
                 continue
             basis = getattr(value.basis, "value", value.basis)
             if component not in cells:

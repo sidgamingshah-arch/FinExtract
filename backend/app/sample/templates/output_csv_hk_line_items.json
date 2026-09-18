@@ -4816,7 +4816,8 @@
     "Paid-in capital",
     "non-voting deferred shares",
     "Authorized shares",
-    "Owners' equity"
+    "Owners' equity",
+    "Issued capital"
    ],
    "aliases_i18n": {
     "en": [
@@ -4828,7 +4829,8 @@
      "Paid-in capital",
      "non-voting deferred shares",
      "Authorized shares",
-     "Owners' equity"
+     "Owners' equity",
+     "Issued capital"
     ],
     "zh": [
      "实收资本",
@@ -5054,7 +5056,8 @@
     "Land revaluation reserve",
     "Investment properties revaluation reserve",
     "Investment property reserve",
-    "Property/building revaluation reserve"
+    "Property/building revaluation reserve",
+    "Property revaluation reserve"
    ],
    "aliases_i18n": {
     "en": [
@@ -5063,7 +5066,8 @@
      "Land revaluation reserve",
      "Investment properties revaluation reserve",
      "Investment property reserve",
-     "Property/building revaluation reserve"
+     "Property/building revaluation reserve",
+     "Property revaluation reserve"
     ]
    },
    "keyword_hints": [
@@ -5118,8 +5122,7 @@
    ],
    "aliases_i18n": {
     "en": [
-     "Other Reserves",
-     "Total Equity / Stockholders Equity/ Owners' Equity"
+     "Other Reserves"
     ],
     "zh": [
      "专项储备",
@@ -5275,7 +5278,8 @@
     "Exchange reserve",
     "Foreign translation reserve",
     "Exchange realignments",
-    "Release of exchange reserve upon deregistration of subsidiaries"
+    "Release of exchange reserve upon deregistration of subsidiaries",
+    "Exchange fluctuation reserve"
    ],
    "aliases_i18n": {
     "en": [
@@ -5285,7 +5289,8 @@
      "Exchange reserve",
      "Foreign translation reserve",
      "Exchange realignments",
-     "Release of exchange reserve upon deregistration of subsidiaries"
+     "Release of exchange reserve upon deregistration of subsidiaries",
+     "Exchange fluctuation reserve"
     ],
     "zh": [
      "公允价值储备",
@@ -5364,7 +5369,8 @@
     "Sole-proprietor fund",
     "Partners funds",
     "Partners contributions",
-    "Shares held for award scheme"
+    "Shares held for award scheme",
+    "Merger reserve"
    ],
    "aliases_i18n": {
     "en": [
@@ -5373,7 +5379,8 @@
      "Sole-proprietor fund",
      "Partners funds",
      "Partners contributions",
-     "Shares held for award scheme"
+     "Shares held for award scheme",
+     "Merger reserve"
     ],
     "zh": [
      "其他权益工具"
@@ -5425,7 +5432,8 @@
     "Financial assets revaluation reserve",
     "AFS financial assets revaluation reserve",
     "Reserve for fair value changes of financial assets at FVTOCI",
-    "Investment revaluation reserve"
+    "Investment revaluation reserve",
+    "Fair value reserve"
    ],
    "aliases_i18n": {
     "en": [
@@ -5434,7 +5442,8 @@
      "Financial assets revaluation reserve",
      "AFS financial assets revaluation reserve",
      "Reserve for fair value changes of financial assets at FVTOCI",
-     "Investment revaluation reserve"
+     "Investment revaluation reserve",
+     "Fair value reserve"
     ],
     "zh": [
      "其他综合收益"
@@ -5499,17 +5508,25 @@
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Total Equity & Reserves",
-    "Equity / Stockholders Equity/ Owners' Equity"
+    "Equity / Stockholders Equity/ Owners' Equity",
+    "Total equity",
+    "Total equity and reserves",
+    "權益總額",
+    "總權益"
    ],
    "aliases_i18n": {
     "en": [
      "Total Equity & Reserves",
-     "Equity / Stockholders Equity/ Owners' Equity"
+     "Equity / Stockholders Equity/ Owners' Equity",
+     "Total equity",
+     "Total equity and reserves"
     ],
     "zh": [
      "所有者权益合计",
      "所有者权益（或股东权益）合计",
-     "股东权益合计"
+     "股东权益合计",
+     "權益總額",
+     "總權益"
     ]
    },
    "keyword_hints": [
@@ -12929,7 +12946,6 @@
    "definition": "Extract the reported value for 'Transfer to Reserves(-)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
     "Transfer to Reserves(-)",
-    "Transfer to reserves",
     "Transfer of reserves",
     "Transfer from reserves",
     "Transfer to statutory surplus reserve",
@@ -12943,7 +12959,6 @@
    "aliases_i18n": {
     "en": [
      "Transfer to Reserves(-)",
-     "Transfer to reserves",
      "Transfer of reserves",
      "Transfer from reserves",
      "Transfer to statutory surplus reserve",
