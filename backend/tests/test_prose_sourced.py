@@ -233,18 +233,56 @@ def test_the_division_is_flagged_and_the_sentence_travels(shipped):
     assert trail["inputs"][0]["value"] == "529841000", "the sentence's own figure must survive"
 
 
-def test_prose_is_a_fallback_and_never_displaces_a_ROW(shipped):
-    """A row is the filing's own tabulation; a sentence is a narrative restatement of it. So prose
-    is consulted only for an item whose row route found nothing — otherwise the second would
-    sometimes replace the first."""
+def test_prose_is_a_fallback_for_a_note_tables_LINE_and_never_displaces_a_ROW(shipped):
+    """A row is the filing's own tabulation; a sentence is a narrative restatement of it. So for a
+    line that declares `note_tables`, prose is consulted only when the row route found nothing —
+    otherwise the second would sometimes replace the first.
+
+    ASSERTED ON AN EDITED SET, and the property is the ROUTE's rather than any shipped line's. The
+    six lines carrying prose vocabulary now declare `prose`, which skips the row search outright,
+    so no shipped line is in the state this describes and none can be the vehicle for it. The
+    fallback is still in the stage and still correct for a `note_tables` line that gains a
+    `prose_subject` — that is the right default for a line whose author said its figure IS
+    tabulated — so the way to keep asserting it is to build that line.
+    """
+    edited = shipped.model_copy(deep=True)
+    part = next(i for i in edited.items if i.key == PART)
+    part.route = "note_tables"
+
     row = NoteItem(raw_label="Depreciation charged to other operating expenses")
     row.values["a"] = ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current",
                                      value=Decimal("111111"), value_raw=Decimal("111111"),
                                      provenance=Provenance(page_index=88))
-    doc, ctx = _run(shipped, scale=1000, notes=[_note(rows=[row])])
+    doc, ctx = _run(edited, scale=1000, notes=[_note(rows=[row])])
 
     got = _figure(doc, PART)
     assert got == Decimal("111111"), (
         f"prose ({got}) displaced the printed row; prose must only fill what is otherwise empty")
-    assert not any(f.startswith("note_sourced_prose") for li in doc.line_items
-                   for f in li.confidence.flags)
+    # THIS ROW, not every row. The other five functional splits still declare `prose` and the
+    # sentence in `_note()` names an operating-expense destination they share, so one of them does
+    # take it from the prose — correctly, and it says nothing about the line under test. Scanning
+    # the whole document asserted the shipped set had no prose line left at all.
+    row_out = next(li for li in doc.line_items if li.canonical_key == PART)
+    assert not any(f.startswith("note_sourced_prose") for f in row_out.confidence.flags), (
+        row_out.confidence.flags)
+
+
+def test_the_prose_route_does_not_look_at_a_row_at_all(shipped):
+    """The other half of the same fence, and what the shipped six now declare. The row above would
+    be taken by a `note_tables` line; a `prose` line does not see it, so the sentence answers even
+    where a table states something else. That is the point of the route: for a functional split of
+    a depreciation charge, a note table is almost always the TOTAL the split is a component of, and
+    a figure taken from it is wrong rather than merely differently-sourced.
+    """
+    part = next(i for i in shipped.items if i.key == PART)
+    assert part.route == "prose", part.route
+
+    row = NoteItem(raw_label="Depreciation charged to other operating expenses")
+    row.values["a"] = ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current",
+                                     value=Decimal("111111"), value_raw=Decimal("111111"),
+                                     provenance=Provenance(page_index=88))
+    doc, _ctx = _run(shipped, scale=1000, notes=[_note(rows=[row])])
+
+    assert _figure(doc, PART) == Decimal("529841"), "the sentence did not answer"
+    row_out = next(li for li in doc.line_items if li.canonical_key == PART)
+    assert any(f.startswith("note_sourced_prose") for f in row_out.confidence.flags)

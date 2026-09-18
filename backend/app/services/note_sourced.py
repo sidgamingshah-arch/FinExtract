@@ -529,12 +529,30 @@ def _trail_input(hit: NoteRowHit, *, counted: bool) -> dict:
     }
 
 
+def take_by_rollup(amounts: list[Decimal], rollup: str) -> tuple[Decimal, list[bool]]:
+    """What several contributions to ONE (basis, period) come to, and which of them counted.
+
+    `sum` adds them. `alternatives` takes the FIRST and reports the rest as
+    available-but-not-taken, because those are several disclosures of one charge rather than
+    several charges — summing them would multiply a cost by the number of places the filing
+    happened to mention it.
+
+    ONE COPY, because both note routes have to answer this and they must answer it the same way.
+    `resolve` asks it of a note's ROWS and `stages.note_sourced` asks it of a note's SENTENCES; the
+    prose branch used to answer it by writing each hit in turn, and `_write` replaces a slot it
+    already holds — so two sentences stating two components of one charge published the LAST of
+    them. Measured on the shipped set, whose six prose lines all declare `rollup: "sum"`: two
+    sentences worth 1,200 and 1,300 published 1,300.
+    """
+    if rollup == "alternatives":
+        return amounts[0], [True] + [False] * (len(amounts) - 1)
+    return sum(amounts, Decimal(0)), [True] * len(amounts)
+
+
 def resolve(hits: list[NoteRowHit], rollup: str) -> dict[tuple[str, str], tuple[Decimal, list[dict]]]:
     """Per (basis, period): the figure this item's rows come to, and the trail that explains it.
 
-    `sum` adds them. `alternatives` takes the FIRST and records the rest as available-but-not-taken,
-    because those rows are twelve disclosures of one charge rather than twelve charges — summing
-    them would multiply a cost by the number of places the filing happened to mention it.
+    The rollup rule itself is :func:`take_by_rollup`, which the prose route reads too.
     """
     by_slot: dict[tuple[str, str], list[NoteRowHit]] = {}
     for h in hits:
@@ -542,14 +560,8 @@ def resolve(hits: list[NoteRowHit], rollup: str) -> dict[tuple[str, str], tuple[
 
     out: dict[tuple[str, str], tuple[Decimal, list[dict]]] = {}
     for slot, rows in by_slot.items():
-        if rollup == "alternatives":
-            taken, rest = rows[0], rows[1:]
-            inputs = [_trail_input(taken, counted=True)]
-            inputs += [_trail_input(r, counted=False) for r in rest]
-            out[slot] = (taken.amount, inputs)
-        else:
-            total = sum((r.amount for r in rows), Decimal(0))
-            out[slot] = (total, [_trail_input(r, counted=True) for r in rows])
+        amount, counted = take_by_rollup([r.amount for r in rows], rollup)
+        out[slot] = (amount, [_trail_input(r, counted=c) for r, c in zip(rows, counted)])
     return out
 
 

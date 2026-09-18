@@ -80,9 +80,22 @@ class NoteSourcedStage(Stage):
         for item in items:
             # A `prose` LINE SKIPS THE ROW SEARCH. Its figure is a sentence and nothing else, so
             # running the row selection first would let a coincidental caption match publish a
-            # tabulated number on a line the author said is never tabulated. `note_tables` — the
-            # value every migrated line carries — searches rows and keeps the prose FALLBACK below,
-            # which is what the six depreciation splits need.
+            # tabulated number on a line the author said is never tabulated.
+            #
+            # THE SIX DEPRECIATION SPLITS BY FUNCTION NOW DECLARE IT — R&D, selling and marketing,
+            # G&A, other operating expenses, the PBT note's operating-expense callout, and cost of
+            # sales. They used to declare `note_tables` and reach their sentence through the
+            # FALLBACK below, which meant a note table was tried first on every filing: and for
+            # these six a table that appears to state a functional split is almost always the note
+            # TOTAL the split is a component of, which is the mistake
+            # `line_item_notes.caption_agrees_with_row_terms` had to catch after the fact. Refused
+            # at the route instead.
+            #
+            # SO THE FALLBACK NOW HAS NO USER IN THE SHIPPED SET, deliberately and not by neglect:
+            # they were its only six, and they are the only six lines carrying prose vocabulary at
+            # all. It stays because it is a property of the ROUTE rather than of these lines — a
+            # `note_tables` line that gains a `prose_subject` gets the sentence as a second chance,
+            # which is the right default for a line whose author said its figure IS tabulated.
             hits = ([] if route_of(item) == "prose"
                     else note_sourced.select_rows(item, doc.notes, periods, note_sections))
             if not hits:
@@ -114,7 +127,21 @@ class NoteSourcedStage(Stage):
                 touched += 1
                 basis = _prose_basis(doc)
                 scale = _prose_scale(doc)
+                # SEVERAL SENTENCES FOR ONE PERIOD ARE AGGREGATED, NOT WRITTEN IN TURN.
+                #
+                # A note can state one function's charge in more than one sentence — depreciation
+                # in one and amortisation in the next — and within a note those are COMPONENTS,
+                # exactly as two rows are. `_write` replaces a slot it already holds, so writing
+                # each hit as it came published the LAST sentence: measured, two sentences worth
+                # 1,200 and 1,300 published 1,300, which is not the answer under any reading. The
+                # item's own `rollup` decides, through the same `take_by_rollup` the ROW route
+                # reads, so the two routes cannot drift apart. All six shipped prose lines declare
+                # `sum`.
+                rollup = str(getattr(item, "rollup", None) or "sum")
+                by_period: dict[str, list] = {}
                 for hit in prose:
+                    by_period.setdefault(hit.period, []).append(hit)
+                for period, sentences in by_period.items():
                     # A PROSE FIGURE IS STATED IN FULL; A TABLE IS STATED IN THE STATEMENT'S UNITS.
                     #
                     # This stage runs at 10 and `normalize` at 8, so nothing scales what is written
@@ -130,20 +157,28 @@ class NoteSourcedStage(Stage):
                     # thousands separators, so a "HK$529.8 million" phrasing does not reach here at
                     # all. Scaled down, 529,841 is less than the 587,417 total, which is the check
                     # a SHARE of that total has to pass.
-                    amount = hit.amount / scale if scale and scale != 1 else hit.amount
-                    # THE MODEL'S ANSWER STANDS HERE TOO — see `_llm_holds`. Prose is already a
-                    # fallback for a row route that found nothing; it is not a correction of an
-                    # answer the model gave from the same notes.
-                    if _llm_holds(row, basis, hit.period):
+                    #
+                    # SCALED AFTER THE ROLLUP, not before: the division is by one factor, so it is
+                    # the same figure either way, and doing it once keeps the trail's stated-in-full
+                    # amounts and the published figure in one relationship a reader can check.
+                    stated, counted = note_sourced.take_by_rollup(
+                        [h.amount for h in sentences], rollup)
+                    amount = stated / scale if scale and scale != 1 else stated
+                    # THE MODEL'S ANSWER STANDS HERE TOO — see `_llm_holds`. It is not a correction
+                    # of an answer the model gave from the same notes.
+                    if _llm_holds(row, basis, period):
                         row.confidence.flags.append(f"prose_deferred_to_llm:{amount}")
-                        ctx.log(f"note_sourced:{item.key}[{basis}:{hit.period}]: prose {amount} "
+                        ctx.log(f"note_sourced:{item.key}[{basis}:{period}]: prose {amount} "
                                 f"NOT written — the model answered this row")
                         continue
-                    _write(row, basis, hit.period, amount, by="prose")
+                    _write(row, basis, period, amount, by="prose")
                     row.derivation = note_sourced.derivation.record(
-                        row.derivation, basis=basis, period_label=hit.period,
+                        row.derivation, basis=basis, period_label=period,
                         derivation=note_sourced.trail(
                             rollup="prose", item_label=item.label or item.key, amount=amount,
+                            # EVERY SENTENCE THAT CONTRIBUTED, and under `alternatives` the ones
+                            # that did not — the same contract the row trail keeps, so a reviewer
+                            # reading either route sees what was offered as well as what was taken.
                             inputs=[{"label": f"note {hit.note_number}: {hit.sentence[:160]}",
                                      # The figure AS THE SENTENCE STATES IT, so the division by the
                                      # statement's scale is auditable against the words. The row
@@ -151,14 +186,15 @@ class NoteSourcedStage(Stage):
                                      # flag, so the two are reconcilable; `excerpt` says so here
                                      # rather than leaving a reader to notice a contributions list
                                      # that reads a thousand times the total above it.
-                                     "value": str(hit.amount), "counted": True,
+                                     "value": str(hit.amount), "counted": was_counted,
                                      "deducted": False, "note": hit.note_number,
                                      "excerpt": (f"stated in full in the sentence"
                                                  + (f"; the line publishes it divided by {scale}"
                                                     if scale and scale != 1 else "")),
                                      # THE PAGE. Without it a prose citation is an amount a reader
                                      # cannot go and look at — see `ProseHit.provenance`.
-                                     "provenance": hit.provenance}]))
+                                     "provenance": hit.provenance}
+                                    for hit, was_counted in zip(sentences, counted)]))
                     filled += 1
                     prose_filled += 1
                 row.is_computed = True
@@ -168,8 +204,12 @@ class NoteSourcedStage(Stage):
                 row.confidence.flags.append(f"note_sourced_prose:{prose[0].note_number}")
                 if scale and scale != 1:
                     row.confidence.flags.append(f"prose_scaled_by:{scale}")
-                ctx.log(f"note_sourced:{item.key}: no row matched; {len(prose)} figure(s) taken "
-                        f"from the PROSE of note {prose[0].note_number} "
+                # SENTENCES, NOT FIGURES. Several sentences for one period now come to ONE figure
+                # through the item's rollup, so counting them as figures overstated what was
+                # published — `prose_figures` below counts the figures actually written.
+                ctx.log(f"note_sourced:{item.key}: no row matched; {len(prose)} sentence(s) read "
+                        f"from the PROSE of note {prose[0].note_number} into "
+                        f"{len(by_period)} period(s) by rollup={rollup} "
                         f"(matched on {prose[0].matched_by!r})")
                 children_of.setdefault(str(getattr(item, "parent", "") or ""), []).append(
                     (item, row))

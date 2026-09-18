@@ -57,6 +57,27 @@ def _note_row(caption: str, amount: str, *, period: str = "current") -> NoteItem
     return item
 
 
+def _prose_note(*sentences: str, number: str = "8",
+                title: str = "Property, plant and equipment") -> NotesTable:
+    """A note whose figures are in its SENTENCES rather than its rows.
+
+    THE SIX FUNCTIONAL DEPRECIATION SPLITS DECLARE `route: prose`, so this is how they are fed. A
+    sentence has to carry a GROUPED amount to be read at all (`note_sourced._PROSE_AMOUNT`), which
+    is why every figure below is written with a thousands separator: a bare "300" is not an amount
+    a filing states in prose and the reader does not treat it as one.
+    """
+    # `source_pages`, because a prose figure's only click-to-source is the note's own page —
+    # `note_sourced._prose_provenance` reads it off the table, there being no row to copy a
+    # `Provenance` from. A note without it yields a figure a reviewer cannot go and look at.
+    return NotesTable(note_number=number, title=title, source_pages=[42],
+                      source_text=" ".join(sentences))
+
+
+RD_1200 = "Depreciation of HK$1,200 is included in research and development expenses."
+RD_1300 = "Amortisation of HK$1,300 is charged to research and development costs."
+GA_1350 = "Depreciation of HK$1,350 is included in administrative expenses."
+
+
 def _run(shipped, notes: list[NotesTable], rows: list[LineItem] | None = None):
     doc = DocumentModel(filename="f.pdf")
     doc.notes = notes
@@ -89,26 +110,31 @@ def test_the_shipped_configuration_still_declares_note_sources_to_read():
 
 
 def test_a_figure_is_read_out_of_the_note_the_configuration_names(shipped):
-    """The whole point: an ASSET note whose depreciation row names the function.
+    """The whole point: an ASSET note whose SENTENCE names the function the charge landed in.
 
-    The children share one note set now, so the row is what identifies them — see this module's
-    patch note. An R&D-titled note with an asset-named row is layout (a) and is no longer read.
+    The children share one note set, so what identifies them is the destination the sentence
+    names — and it is a sentence, not a row, because a functional split of a depreciation charge is
+    disclosed in narrative and a note TABLE that appears to state one is almost always the note
+    total the split is a component of. That is what `route: prose` says.
     """
-    doc, ctx = _run(shipped, [NotesTable(
-        note_number="8", title="Property, plant and equipment",
-        items=[_note_row("Depreciation included in research and development expenses", "1200")])])
+    doc, ctx = _run(shipped, [_prose_note(RD_1200)])
     assert _figure(doc, "sub__rd_depreciation") == Decimal("1200")
     assert any("sub__rd_depreciation" in line for line in ctx.logs)
 
 
-def test_rows_inside_one_note_are_added_because_they_are_components(shipped):
-    """A note stating one function's charge on two rows — depreciation and amortisation — and the
-    function's figure is their sum."""
-    doc, _ctx = _run(shipped, [NotesTable(
-        note_number="8", title="Property, plant and equipment",
-        items=[_note_row("Depreciation included in research and development expenses", "1200"),
-               _note_row("Amortisation included in research and development costs", "300")])])
-    assert _figure(doc, "sub__rd_depreciation") == Decimal("1500")
+def test_sentences_inside_one_note_are_added_because_they_are_components(shipped):
+    """A note stating one function's charge in two sentences — depreciation and amortisation — and
+    the function's figure is their sum, exactly as two ROWS of one note are components.
+
+    THE DEFECT THIS CAUGHT. The prose branch used to write each hit as it came, and `_write`
+    replaces a slot it already holds, so two sentences published the LAST of them: 1,300 for a
+    charge of 2,500. It was latent while prose was only a fallback for these six and the reference
+    filing stated each share in one sentence; declaring `route: prose` made it their only path, and
+    the item's own `rollup` — `sum` on all six — now decides through the same
+    `note_sourced.take_by_rollup` the row route reads.
+    """
+    doc, _ctx = _run(shipped, [_prose_note(RD_1200, RD_1300)])
+    assert _figure(doc, "sub__rd_depreciation") == Decimal("2500")
 
 
 def test_the_veto_removes_a_row_a_counting_pattern_already_claimed(shipped):
@@ -116,16 +142,13 @@ def test_the_veto_removes_a_row_a_counting_pattern_already_claimed(shipped):
     of a fixed-asset table match "depreciation" and are not the year's charge. If the veto were
     applied before the counting patterns, or not at all, the figure would be wrong rather than
     absent — and a wrong figure that still ties is the failure nobody sees."""
-    doc, _ctx = _run(shipped, [NotesTable(
-        note_number="8", title="Property, plant and equipment",
-        items=[_note_row("Depreciation included in research and development expenses", "1200"),
-               # QUALIFIED BY THE SAME FUNCTION, so it matches a counting pattern and the veto has
-               # to be what removes it — the point of the test. A bare "Accumulated depreciation"
-               # would now match no counting pattern at all and prove nothing.
-               _note_row("Accumulated depreciation included in research and development expenses",
-                         "9999"),
-               _note_row("Exchange difference", "7"),
-               _note_row("Disposals", "45")])])
+    doc, _ctx = _run(shipped, [_prose_note(
+        RD_1200,
+        # QUALIFIED BY THE SAME FUNCTION, so it matches a counting pattern and the veto has to be
+        # what removes it — the point of the test. A sentence about "accumulated depreciation"
+        # alone would match no counting pattern at all and prove nothing.
+        "Accumulated depreciation of HK$9,999 is included in research and development expenses.",
+        "Exchange differences of HK$1,007 arose on translation.")])
     assert _figure(doc, "sub__rd_depreciation") == Decimal("1200")
 
 
@@ -163,11 +186,9 @@ def test_alternatives_takes_one_child_when_the_parent_declares_no_cascade(shippe
     parent.rollup = "alternatives"
 
     doc = DocumentModel(filename="f.pdf")
-    # ONE asset note breaking its depreciation down by function, which is layout (b): two
-    # children read two different rows of the same note.
-    doc.notes = [NotesTable(note_number="8", title="Property, plant and equipment",
-                            items=[_note_row("Depreciation included in research and development expenses", "1200"),
-                                   _note_row("Depreciation included in administrative expenses", "1350")])]
+    # ONE asset note breaking its depreciation down by function: two children read two different
+    # SENTENCES of the same note.
+    doc.notes = [_prose_note(RD_1200, GA_1350)]
     ctx = PipelineContext(settings=get_settings())
     ctx.line_items = edited
     doc = NoteSourcedStage().run(doc, ctx)
@@ -186,10 +207,7 @@ def test_the_parent_keeps_the_figure_the_filing_printed(shipped):
     printed = LineItem(source_label="Depreciation and impairment", canonical_key=OPER_EXP)
     printed.set_value(ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current",
                                      value=Decimal("5000"), value_raw=Decimal("5000")))
-    doc, ctx = _run(shipped, [NotesTable(
-        note_number="8", title="Property, plant and equipment",
-        items=[_note_row("Depreciation included in research and development expenses", "1200")])],
-        rows=[printed])
+    doc, ctx = _run(shipped, [_prose_note(RD_1200)], rows=[printed])
 
     assert _figure(doc, OPER_EXP) == Decimal("5000")
     row = next(li for li in doc.line_items if li.canonical_key == OPER_EXP)
@@ -197,25 +215,28 @@ def test_the_parent_keeps_the_figure_the_filing_printed(shipped):
     assert any("kept over" in line for line in ctx.logs)
 
 
-def test_the_trail_names_the_note_the_row_and_the_pattern_that_matched(shipped):
-    """A figure assembled out of note rows is unreviewable without saying which rows. The trail is
-    written through `services.derivation`, which the statement inspector already renders with
-    click-to-source."""
-    doc, _ctx = _run(shipped, [NotesTable(
-        note_number="8", title="Property, plant and equipment",
-        items=[_note_row("Depreciation included in research and development expenses", "1200"),
-               _note_row("Amortisation included in research and development costs", "300")])])
+def test_the_trail_names_the_note_and_every_sentence_that_contributed(shipped):
+    """A figure assembled out of a note is unreviewable without saying what it was assembled from.
+    The trail is written through `services.derivation`, which the statement inspector already
+    renders with click-to-source.
+
+    EVERY CONTRIBUTING SENTENCE, not just the one that happened to be written last — the same
+    contract the row trail keeps. Before the prose branch aggregated, each hit recorded its own
+    single-input trail over the top of the previous one, so a two-sentence figure was explained by
+    one sentence that did not add up to it.
+    """
+    doc, _ctx = _run(shipped, [_prose_note(RD_1200, RD_1300)])
     row = next(li for li in doc.line_items if li.canonical_key == "sub__rd_depreciation")
     assert row.derivation, "no trail was recorded"
     trail = next(iter(row.derivation.values()))
     counted = [i for i in trail["inputs"] if i.get("counted")]
-    assert len(counted) == 2
+    assert len(counted) == 2, trail["inputs"]
     assert {i["note"] for i in counted} == {"8"}
     assert all(i["provenance"] for i in counted), "the trail lost the page it came from"
-    # The author's own pattern is named, so a wrong selection is traceable to the configuration
-    # line that made it rather than to "the engine".
-    assert all("matched /" in i["excerpt"] for i in counted)
-    assert str(trail["result"]) == "1500"
+    # The SENTENCE is quoted, so a wrong selection is traceable to the words that caused it.
+    assert any("research and development expenses" in i["label"] for i in counted)
+    assert all("stated in full in the sentence" in i["excerpt"] for i in counted)
+    assert str(trail["result"]) == "2500"
 
 
 def test_an_uncompilable_pattern_is_refused_AT_CONFIGURATION_TIME(shipped):
@@ -250,13 +271,18 @@ def test_the_stage_still_survives_a_pattern_validation_never_saw(shipped):
 
     broken = shipped.model_copy(deep=True)
     target = next(i for i in broken.items if i.key == "sub__ga_depreciation")
+    # ON `prose_any`, WHICH IS THE ONE PROSE FIELD THAT CAN CARRY A BROKEN PATTERN. The rest of the
+    # prose route is authored in plain phrases and generated, and a plain phrase cannot fail to
+    # compile — so the escape hatch is where the silent hole would be, and where `bad_patterns`
+    # looks. The generated vocabulary is kept beside it, so the good half can still deliver.
     target.note_source = NoteSource.model_construct(
-        note_title_any=["general"], row_caption_any=["depreciation", "([unclosed"],
-        row_caption_none=[])
+        note_title_any=["general"], row_caption_any=[], row_caption_none=[],
+        prose_any=["([unclosed"], prose_subject="depreciation",
+        prose_landed_in=["administrative expenses"])
 
     doc = DocumentModel(filename="f.pdf")
-    doc.notes = [NotesTable(note_number="9", title="General and administrative expenses",
-                            items=[_note_row("Depreciation of fixed assets", "1350")])]
+    doc.notes = [_prose_note(GA_1350, number="9",
+                             title="General and administrative expenses")]
     ctx = PipelineContext(settings=get_settings())
     ctx.line_items = broken
 
@@ -317,6 +343,11 @@ def test_a_note_now_fills_its_parent_because_decomposition_is_always_allowed(shi
     child.parent = PROBE
     child.note_source = NoteSource(note_title_any=["contingent"],
                                    row_caption_any=["guarantee"], row_caption_none=[])
+    # THE ROUTE MUST MATCH WHAT THE PROBE IS AUTHORED FOR. It was copied off a line that declares
+    # `prose`, and its own `note_source` is row patterns — so left as it was, the probe searched
+    # sentences for a vocabulary it does not have and the scenario this test builds could not
+    # arise. The gate under test is `note_use`, not the route.
+    child.route = "note_tables"
     edited.items.append(child)
 
     doc = DocumentModel(filename="f.pdf")
@@ -341,9 +372,7 @@ def test_the_seven_concepts_that_permit_decomposition_are_not_blocked_by_the_gat
     assert permits["is_pl__deprec_and_impairment_oper_exp"] == "decomposition_allowed"
     assert permits["is_pl__deprec_and_impairment_cos"] == "decomposition_allowed"
     # And the shipped depreciation fill still happens, which is the same assertion end to end.
-    doc, _ctx = _run(shipped, [NotesTable(
-        note_number="8", title="Property, plant and equipment",
-        items=[_note_row("Depreciation included in research and development expenses", "1200")])])
+    doc, _ctx = _run(shipped, [_prose_note(RD_1200)])
     assert _figure(doc, OPER_EXP) == Decimal("1200")
 
 
@@ -361,10 +390,8 @@ def test_the_declared_cascade_decides_the_parent_not_the_rollup(shipped):
     The cascade also carries what a rollup cannot express at all: optional terms (`any_of`), signed
     deductions (`adjustment`, `sign: -1`), and a refusal to accept a negative candidate.
     """
-    # ONE asset note, two function rows — P1 sums the two children that read them.
-    doc, ctx = _run(shipped, [NotesTable(note_number="8", title="Property, plant and equipment",
-                                         items=[_note_row("Depreciation included in research and development expenses", "1200"),
-                                                _note_row("Depreciation included in administrative expenses", "1350")])])
+    # ONE asset note, two function sentences — P1 sums the two children that read them.
+    doc, ctx = _run(shipped, [_prose_note(RD_1200, GA_1350)])
     assert _figure(doc, OPER_EXP) == Decimal("2550"), "P1 did not sum the disclosed subset"
     assert any("rung P1" in line for line in ctx.logs), ctx.logs
 
@@ -373,9 +400,7 @@ def test_an_absent_any_of_term_does_not_kill_the_rung(shipped):
     """P1's four terms are all `any_of`: a filing disclosing one of the four operating-expense
     notes still has a sum. A `required` reading would refuse the rung and fall through to a
     materially different provenance."""
-    doc, ctx = _run(shipped, [NotesTable(
-        note_number="9", title="Property, plant and equipment",
-        items=[_note_row("Depreciation included in administrative expenses", "1350")])])
+    doc, ctx = _run(shipped, [_prose_note(GA_1350, number="9")])
     assert _figure(doc, OPER_EXP) == Decimal("1350")
     assert any("rung P1" in line for line in ctx.logs)
 
@@ -384,9 +409,7 @@ def test_the_trail_names_which_rung_answered(shipped):
     """A charge that came from "total less the cost-of-sales share" rather than from the four
     operating-expense notes has a materially different provenance, and a reviewer cannot see that
     in the number. The rung is recorded on the figure."""
-    doc, _ctx = _run(shipped, [NotesTable(
-        note_number="8", title="Property, plant and equipment",
-        items=[_note_row("Depreciation included in research and development expenses", "1200")])])
+    doc, _ctx = _run(shipped, [_prose_note(RD_1200)])
     row = next(li for li in doc.line_items if li.canonical_key == OPER_EXP)
     assert row.derivation, "the cascade wrote no trail"
     trail = next(iter(row.derivation.values()))
@@ -425,10 +448,7 @@ def test_the_cascade_does_not_overwrite_the_figure_the_filing_printed(shipped):
     printed = LineItem(source_label="Depreciation and impairment", canonical_key=OPER_EXP)
     printed.set_value(ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current",
                                      value=Decimal("9000"), value_raw=Decimal("9000")))
-    doc, ctx = _run(shipped, [NotesTable(
-        note_number="8", title="Property, plant and equipment",
-        items=[_note_row("Depreciation included in research and development expenses", "1200")])],
-        rows=[printed])
+    doc, ctx = _run(shipped, [_prose_note(RD_1200)], rows=[printed])
     assert _figure(doc, OPER_EXP) == Decimal("9000")
     assert any("kept over cascade" in line for line in ctx.logs), ctx.logs
 
@@ -436,22 +456,32 @@ def test_the_cascade_does_not_overwrite_the_figure_the_filing_printed(shipped):
 # ── the three readers of the profit-before-tax note ───────────────────────────────────────────
 
 def _pbt_note():
-    """A real-shaped PBT note: the total, and the two callouts that split it."""
-    return NotesTable(note_number="7", title="Profit before taxation", items=[
-        _note_row("Depreciation of property, plant and equipment", "5000"),
-        _note_row("Depreciation included in cost of sales", "1800"),
-        _note_row("Depreciation included in administrative expenses", "3200"),
-    ])
+    """A real-shaped PBT note: the tabulated total, and the narrative callouts that split it.
+
+    TWO ROUTES IN ONE NOTE, which is what the shipped set now asks for.
+    `sub__pbt_depreciation` — the TOTAL — declares `note_tables` and reads the printed row, because
+    a total is what a note tabulates. `sub__pbt_oper_exp_depreciation` — the operating-expense
+    SHARE — declares `prose`, because a functional split is what a note states in a sentence. The
+    note carries both, as a filing does.
+    """
+    return NotesTable(
+        note_number="7", title="Profit before taxation",
+        items=[_note_row("Depreciation of property, plant and equipment", "5000")],
+        source_text=("Depreciation of HK$1,800 is included in cost of sales. "
+                     "Depreciation of HK$3,200 is included in administrative expenses."),
+    )
 
 
-def test_two_children_read_the_pbt_note_and_select_different_rows(shipped):
+def test_two_children_read_the_pbt_note_by_different_routes(shipped):
     """THE DEFECT THIS FIXED. `sub__pbt_oper_exp_depreciation` and `sub__pbt_depreciation` carried
     BYTE-IDENTICAL title, counting and veto lists — so they selected the same rows and were one
     figure under two names. P2 therefore always resolved with the TOTAL, the operating-expense line
     was overstated by the cost-of-sales share, and the later rungs were unreachable on any filing
     whose PBT note mentioned depreciation at all.
 
-    Each child is now identified by the QUALIFIER in the caption rather than by the note alone.
+    Each child is now identified by the ROUTE as well as by the qualifier: the total is the row
+    the note tabulates and the share is the sentence it states, so the two cannot select the same
+    evidence even if their vocabularies overlapped.
 
     TWO CHILDREN, NOT THREE. `sub__pbt_cos_depreciation` — the reader of the note's cost-of-sales
     callout — was retired deliberately, along with the cascade tier that consumed it. The
@@ -459,8 +489,8 @@ def test_two_children_read_the_pbt_note_and_select_different_rows(shipped):
     that used to be COS_P3. See `test_the_cos_cascade_is_the_note_then_the_subtraction`.
     """
     doc, _ctx = _run(shipped, [_pbt_note()])
-    assert _figure(doc, "sub__pbt_depreciation") == Decimal("5000")          # the total
-    assert _figure(doc, "sub__pbt_oper_exp_depreciation") == Decimal("3200")  # the oper-exp share
+    assert _figure(doc, "sub__pbt_depreciation") == Decimal("5000")          # the tabulated total
+    assert _figure(doc, "sub__pbt_oper_exp_depreciation") == Decimal("3200")  # the stated share
     # The retired reader stays retired: nothing in the set claims the callout row directly.
     assert not any(i.key == "sub__pbt_cos_depreciation" for i in shipped.items)
     # The total is still the total — 5,000, not the 10,000 that summing all three rows would give.
@@ -497,8 +527,8 @@ def test_the_cost_of_sales_note_still_outranks_the_pbt_callout(shipped):
     inserting the new rung above it would have changed which source wins."""
     doc, ctx = _run(shipped, [
         _pbt_note(),
-        NotesTable(note_number="6", title="Cost of sales",
-                   items=[_note_row("Depreciation of property, plant and equipment", "1750")]),
+        _prose_note("Depreciation of HK$1,750 is included in cost of sales.",
+                    number="6", title="Cost of sales"),
     ])
     assert _figure(doc, "is_pl__deprec_and_impairment_cos") == Decimal("1750")
     assert any("rung COS_P1" in line for line in ctx.logs), ctx.logs
@@ -590,7 +620,12 @@ def test_the_allowlist_comes_from_the_face_not_from_a_literal(shipped):
     for label in ("current", "prior", "prior_2"):
         face.set_value(ExtractedValue(basis=Basis.CONSOLIDATED, period_label=label,
                                       value=Decimal("1"), value_raw=Decimal("1")))
-    row = NoteItem(raw_label="Depreciation included in research and development expenses")
+    # ASKED OF A ROW-ROUTED LINE, because the allowlist is about note COLUMNS and a sentence has
+    # none — `select_prose` reads a period off the parenthetical year in the words, never off a
+    # column, so it can neither honour nor violate a column allowlist. `sub__rd_depreciation`
+    # declares `prose` and is the wrong line to ask; `sub__ppe_depreciation` reads the same asset
+    # note through its rows and is the right one.
+    row = NoteItem(raw_label="Depreciation of property, plant and equipment")
     for label, amount in (("current", "10"), ("prior", "20"), ("prior_2", "30"),
                           ("current:cost", "99")):
         row.values[label] = ExtractedValue(basis=Basis.CONSOLIDATED, period_label=label,
@@ -606,7 +641,7 @@ def test_the_allowlist_comes_from_the_face_not_from_a_literal(shipped):
     assert any("face periods" in line and "prior_2" in line for line in ctx.logs), ctx.logs
     got = {f["period"]: f["value"] for f in
            [{"period": str(ev.period_label or ""), "value": str(ev.value)}
-            for li in doc.line_items if li.canonical_key == "sub__rd_depreciation"
+            for li in doc.line_items if li.canonical_key == "sub__ppe_depreciation"
             for ev in li.values.values() if ev.value is not None]}
     assert got == {"current": "10", "prior": "20", "prior_2": "30"}, got
 
@@ -713,28 +748,54 @@ def test_a_line_that_declares_no_route_is_read_the_way_it_always_was(shipped):
     assert _figure(doc, "sub__probe_unset") == Decimal("4321")
 
 
-def test_every_shipped_note_sourced_line_declares_note_tables(shipped):
-    """THE MIGRATION, asserted rather than assumed.
+def test_a_note_sourced_line_declares_which_part_of_a_note_it_is_read_from(shipped):
+    """THE ROUTE MATCHES THE VOCABULARY, asserted in both directions.
 
-    All 60 shipped lines carrying a `note_source` migrated to `note_tables`, including the 6 that
-    carry prose patterns — because for those 6 prose is a FALLBACK and not an alternative. On one
-    reference filing the operating-expense share of depreciation is stated only in a footnote; on
-    others the same line is a printed row. Routing those 6 to `prose` would have emptied them on
-    every filing that tabulates them, which is why single-choice `route` means "primarily read
-    from" and the fallback stays in code.
+    THIS REVERSES AN EARLIER DECISION, and the earlier reasoning is worth stating because it was
+    not wrong, only outweighed. All the note-sourced lines used to declare `note_tables`, the six
+    carrying prose vocabulary included, on the grounds that prose was a FALLBACK: on one reference
+    filing the operating-expense share of depreciation is stated only in a footnote, and on another
+    filing the same line could be a printed row — so `note_tables` plus the fallback covered both
+    and `prose` would have emptied the line wherever it was tabulated.
+
+    WHAT OUTWEIGHS IT. For these six the tabulated reading is the one that is usually WRONG. They
+    are functional splits of a depreciation charge — the share that landed in R&D, in selling and
+    marketing, in G&A, in other operating expenses, in the PBT note's operating-expense callout,
+    in cost of sales — and a note table that appears to state one is almost always the note TOTAL
+    the split is a component of. That is the mistake
+    `line_item_notes.caption_agrees_with_row_terms` was written to catch after the fact, measured
+    at the time as a face total of 1,026,959 bound to a depreciation component. Refusing the table
+    at the route is the same refusal, made where the author can see it.
+
+    THE COST, stated: a filing that tabulates a functional split and states it nowhere in prose now
+    leaves these six empty. None of the five filings in the corpus is that filing — the four
+    function splits produce nothing from either route on all five, and the two that do produce a
+    figure (on China SCE) already came from prose through the fallback — so the change moved no
+    published figure. The parents keep their other rungs either way.
     """
     declared = [i for i in shipped.items if getattr(i, "note_source", None) is not None]
-    # 61: Find 3 split into a gross half and an allowance half: the 关联方应收应付款项 note prints 账面余额 and 坏账准备 and no net column, so the 淨金額 the spec asks for has to be computed, so Find 3 gave up its own note_source and two parts took one each.
-    assert len(declared) == 62, len(declared)   # 62: the other-receivables net's two readings
-    # each declare their own `note_source`, and the parent they feed declares none.
-    assert {i.route for i in declared} == {"note_tables"}, sorted(
-        {(i.key, i.route) for i in declared if i.route != "note_tables"})
+    # 62: the other-receivables net's two readings each declare their own `note_source`, and the
+    # parent they feed declares none.
+    assert len(declared) == 62, len(declared)
 
     with_prose = [i for i in declared
                   if (i.note_source.prose_subject or i.note_source.prose_any)]
     assert len(with_prose) == 6, [i.key for i in with_prose]
-    assert all(i.note_source.row_caption_any or i.note_source.row_terms for i in with_prose), (
-        "a prose-carrying line with no row patterns would have been a genuine `prose` route")
+    # EVERY line carrying prose vocabulary declares `prose`…
+    assert {i.route for i in with_prose} == {"prose"}, sorted(
+        {(i.key, i.route) for i in with_prose if i.route != "prose"})
+    # …and every OTHER note-sourced line declares `note_tables`, so no line is routed to a part of
+    # a note it has no vocabulary for. A `prose` line with no prose vocabulary would read nothing
+    # at all, and a `note_tables` line is the default the other 56 keep.
+    others = [i for i in declared if i not in with_prose]
+    assert {i.route for i in others} == {"note_tables"}, sorted(
+        {(i.key, i.route) for i in others if i.route != "note_tables"})
+    # The six are exactly the functional depreciation splits, named so a reader does not have to
+    # infer the population from the vocabulary test above.
+    assert {i.key for i in with_prose} == {
+        "sub__rd_depreciation", "sub__selling_marketing_depreciation", "sub__ga_depreciation",
+        "sub__operating_expense_depreciation", "sub__pbt_oper_exp_depreciation",
+        "sub__cos_depreciation"}
 
 
 # ── one caption, two statement instances, two entities ───────────────────────────────────────────

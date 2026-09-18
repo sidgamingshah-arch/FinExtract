@@ -27,12 +27,26 @@ the caption was printed.
 
 ABSENCE IS STILL "NOTHING WAS SAID". A line that declares no route is NOT treated as note-only:
 `declared_route` returns "" for it and every predicate here is permissive. That is the convention
-`section_scope`, `statement` and `claimable_under` already use, and it is load-bearing — 100 of
-the 506 asked-about lines in the shipped set declare no route, and reading their silence as a
-restriction would take the face away from lines no author ever restricted. Measured on that set:
-357 lines declare `face`, 60 declare `note_tables`, 110 declare nothing, and NONE declares `prose`
-or `anywhere`. So the ban below bites on exactly the 60 lines whose author asked for it, all 60 of
-which declare a `note_source` for the note route to read.
+`section_scope`, `statement` and `claimable_under` already use, and it is load-bearing — 99 of the
+511 asked-about lines in the shipped set declare no route, and reading their silence as a
+restriction would take the face away from lines no author ever restricted.
+
+MEASURED ON THE SHIPPED SET (535 lines): 361 declare `face`, 58 `note_tables`, 6 `prose`, 110
+nothing, and none `anywhere`. So the ban below bites on 64 lines, 62 of which declare a
+`note_source` for the note route to read; the other two are DERIVED parents
+(`sub__cp_other_receivables_net`, `sub__rp_find_3`) whose figure is their cascade's, so a route
+says nothing about them either way and the matcher locks them out regardless.
+
+THE SIX `prose` LINES ARE THE DEPRECIATION SPLITS BY FUNCTION — R&D, selling and marketing, G&A,
+other operating expenses, the profit-before-tax note's operating-expense callout, and cost of
+sales. They are also the only six lines in the set carrying prose vocabulary
+(`note_source.prose_subject` + `prose_landed_in`), which is what makes `prose` the accurate route
+rather than an added restriction: a functional split of a depreciation charge is disclosed in a
+SENTENCE ("Depreciation charges of approximately HK$529,841,000 (2024: HK$665,553,000) are
+included in 'other operating expenses'"), and a note TABLE that appears to state one is almost
+always the note total the split is a component of — the mistake
+`line_item_notes.caption_agrees_with_row_terms` exists to catch after the fact, refused at the
+route instead.
 """
 from __future__ import annotations
 
@@ -89,7 +103,7 @@ def reads_every_page(item) -> bool:
 def any_reads_every_page(line_item_set) -> bool:
     """Whether ANY line in this set declares `anywhere`, so extraction must widen to all pages.
 
-    Asked once per run rather than per page. None of the shipped 527 lines declares it, so the
+    Asked once per run rather than per page. None of the shipped 535 lines declares it, so the
     widening is opt-in and costs a run nothing until an author asks for it.
     """
     return any(reads_every_page(i)

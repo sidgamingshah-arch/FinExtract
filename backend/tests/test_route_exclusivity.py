@@ -128,7 +128,14 @@ def test_the_shipped_set_asks_for_this_on_sixty_lines_and_no_more(shipped):
     # route: the refused population grows by one for the same reason `asked` did.
     assert len(refused) == 62, len(refused)   # 62 for the same reason the note-sourced count
     # moved: two readings of the other-receivables net, each reading its own notes.
-    assert {line_item_routes.declared_route(i) for i in refused} == {"note_tables"}
+    # BOTH NOTE ROUTES, since the six functional depreciation splits declare `prose`: the ban is
+    # about the FACE, and `note_tables` and `prose` refuse it for the same reason — the author said
+    # the figure is printed in a note. Which PART of a note each one reads is a different question,
+    # asserted in `test_note_sourced`.
+    assert {line_item_routes.declared_route(i) for i in refused} == {"note_tables", "prose"}
+    assert sum(1 for i in refused
+               if line_item_routes.declared_route(i) == "prose") == 6, sorted(
+        i.key for i in refused if line_item_routes.declared_route(i) == "prose")
     # Every one of them declares the note source the route sends it to, so the ban takes a figure
     # away from no line without giving it another way to be read.
     assert all(getattr(i, "note_source", None) is not None for i in refused)
