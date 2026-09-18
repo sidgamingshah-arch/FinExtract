@@ -894,7 +894,7 @@ def _rp_run(shipped, pairs):
     return out, ctx
 
 
-def test_find_1_sums_the_related_party_rows_the_balance_sheet_prints(shipped):
+def test_find_1_sums_the_non_current_related_party_rows_the_balance_sheet_prints(shipped):
     """FIND 1 IS A SUM OF LINES ALREADY MAPPED, not a caption reader.
 
     The face never prints an "of which related parties" split inside 其他应收款. What it prints,
@@ -905,28 +905,56 @@ def test_find_1_sums_the_related_party_rows_the_balance_sheet_prints(shipped):
     unbreakable-alias-tie shape `test_configuration_invariants` holds at zero.
 
     Find 1 shipped as a dead declaration — `note_source: null`, `statement: null`, `terms: []`,
-    `cascade: []`, no aliases, no route, and not among `config.toml`'s 85 `llm_focus_keys`. Nothing
-    in the pipeline could fill it, so "the highest of Find 1, Find 2 and Find 3" was a maximum over
-    at most two readings.
+    `cascade: []`, no aliases, no route — so nothing in the pipeline could fill it and "the highest
+    of Find 1, Find 2 and Find 3" was a maximum over at most two readings.
+
+    THE NON-CURRENT COLUMNS ONLY, and this is the correction that measurement forced. Find 1 feeds
+    `bs_nca__due_from_related_parties_ltp`, which the template rolls up into total NON-CURRENT
+    assets; every current related-party receivable column is a child of total CURRENT assets and
+    publishes in its own right. Summing those here puts one balance in both sections. On China SCE,
+    whose face prints a single "Due from related parties 應收關聯方款項" 4,065,231 under CURRENT
+    ASSETS, the non-current children then summed to 52,567,208 against a printed 49,227,234 — an
+    overshoot of 3,339,974, where without them the residual is -725,257, the ordinary
+    under-extraction. That row's home is `bs_ca__due_from_related_parties_cp`, which now carries
+    the caption to claim it.
+    """
+    got, _ctx = _rp_run(shipped, [
+        ("bs_nca__due_from_sholder_ltp", "400"),
+        ("bs_nca__due_from_directors", "250"),
+        ("bs_nca__due_from_subsidiaries", "1000"),
+        ("bs_nca__due_from_mi", "700"),
+    ])
+    assert got.get("sub__rp_find_1") == Decimal("2350")
+
+
+def test_a_current_related_party_receivable_is_not_republished_as_non_current(shipped):
+    """The other half of the same rule, and the defect it prevents.
+
+    A face printing only CURRENT related-party receivables leaves Find 1 empty: those columns are
+    already in total current assets, and a figure on the non-current column would be the same
+    balance counted twice. The rows are not lost — each is a printed column of its own.
     """
     got, _ctx = _rp_run(shipped, [
         ("bs_ca__due_from_related_parties_cp", "1000"),
         ("bs_ca__due_from_jvs_and_partnerships", "250"),
-        ("bs_nca__due_from_sholder_ltp", "400"),
         ("bs_ca__trade_receivables_related_parties", "700"),
+        ("bs_ca__trade_and_other_receivables_related_parties", "1700"),
     ])
-    assert got.get("sub__rp_find_1") == Decimal("2350")
+    assert "sub__rp_find_1" not in got
+    assert _RP_PARENT not in got
+    # …and the current columns still hold what the face printed.
+    assert got.get("bs_ca__due_from_related_parties_cp") == Decimal("1000")
+    assert got.get("bs_ca__trade_receivables_related_parties") == Decimal("700")
 
 
 def test_find_1_excludes_entrusted_loans(shipped):
     """THE SPEC'S OWN EXCLUSION, in its own words: 但不包括委托贷款.
 
     Expressed by NOT naming the six entrusted-loan columns as terms, so there is no pattern to get
-    wrong. TRADE IS NOT EXCLUDED — see the test below; that is wider than the four captions the
-    spec lists and is a deliberate instruction on top of them.
+    wrong.
     """
     got, _ctx = _rp_run(shipped, [
-        ("bs_ca__due_from_related_parties_cp", "1000"),
+        ("bs_nca__due_from_subsidiaries", "1000"),
         ("bs_ca__entrusted_loan_receivables_related_parties_cp", "9999"),
         ("bs_nca__entrusted_loan_receivables_shareholders_ltp", "8888"),
     ])
@@ -940,43 +968,6 @@ def test_find_1_excludes_entrusted_loans(shipped):
     assert "sub__rp_find_1" not in only_entrusted
 
 
-def test_find_1_counts_related_party_trade_receivables(shipped):
-    """TRADE IS IN, AND IT IS WIDER THAN THE SPEC'S TEXT.
-
-    The spec names Other receivables, Current portion of long-term receivables, Long-term
-    receivables and Loans and advances — none of which is trade. Counting the related-party trade
-    receivable as well is a deliberate instruction on top of that, so what FACE_SUM produces is
-    "related-party receivables on the face" rather than "the spec's four captions on the face".
-    Pinned here because the difference is invisible in the number.
-    """
-    got, _ctx = _rp_run(shipped, [("bs_ca__trade_receivables_related_parties", "700")])
-    assert got.get("sub__rp_find_1") == Decimal("700")
-
-
-def test_the_trade_and_other_aggregate_is_a_fallback_and_never_double_counts(shipped):
-    """"Trade and other receivables — related parties" CONTAINS what FACE_SUM adds up separately.
-
-    Its trade half is `bs_ca__trade_receivables_related_parties` and its other half is
-    `bs_ca__due_from_related_parties_cp`, so summing it beside them counts the same balance twice.
-    It is therefore a RUNG BELOW rather than a term: `evaluate` skips a rung that resolves nothing,
-    so the aggregate is reached only when no specific related-party receivable row was printed —
-    the filing whose whole related-party receivable would otherwise be missed.
-    """
-    # Nothing specific printed: the aggregate answers.
-    alone, _ctx = _rp_run(shipped, [
-        ("bs_ca__trade_and_other_receivables_related_parties", "2500")])
-    assert alone.get("sub__rp_find_1") == Decimal("2500")
-
-    # Both printed: the specific rows win and the aggregate is ignored, so 1,700 and never 3,400.
-    both, _ctx = _rp_run(shipped, [
-        ("bs_ca__due_from_related_parties_cp", "1000"),
-        ("bs_ca__trade_receivables_related_parties", "700"),
-        ("bs_ca__trade_and_other_receivables_related_parties", "1700"),
-    ])
-    assert both.get("sub__rp_find_1") == Decimal("1700"), (
-        "the aggregate was summed beside the rows it contains, so the balance is counted twice")
-
-
 def test_find_1_reaches_the_column_that_selects_between_the_three(shipped):
     """AN ORDERING GAP THAT MADE THE FIX INVISIBLE, pinned so it cannot come back.
 
@@ -987,8 +978,8 @@ def test_find_1_reaches_the_column_that_selects_between_the_three(shipped):
     feeds stayed empty. Enrolment now runs again after the compute pass.
     """
     got, ctx = _rp_run(shipped, [
-        ("bs_ca__due_from_related_parties_cp", "1000"),
-        ("bs_ca__due_from_jvs_and_partnerships", "650"),
+        ("bs_nca__due_from_subsidiaries", "1000"),
+        ("bs_nca__due_from_sholder_ltp", "650"),
     ])
     assert got.get("sub__rp_find_1") == Decimal("1650")
     assert got.get(_RP_PARENT) == Decimal("1650"), (
@@ -1006,14 +997,14 @@ def test_the_selection_is_a_maximum_over_whichever_finds_answered(shipped):
     base precisely so a total over absent lines does not assert the filing reported nil.
     """
     face_wins, _ = _rp_run(shipped, [
-        ("bs_ca__due_from_related_parties_cp", "1000"),
-        ("bs_ca__due_from_jvs_and_partnerships", "650"),
+        ("bs_nca__due_from_subsidiaries", "1000"),
+        ("bs_nca__due_from_sholder_ltp", "650"),
         ("sub__rp_find_2", "300"),
     ])
     assert face_wins.get(_RP_PARENT) == Decimal("1650")
 
     note_wins, _ = _rp_run(shipped, [
-        ("bs_ca__due_from_jvs_and_partnerships", "250"),
+        ("bs_nca__due_from_sholder_ltp", "250"),
         ("sub__rp_find_2", "9000"),
     ])
     assert note_wins.get(_RP_PARENT) == Decimal("9000")

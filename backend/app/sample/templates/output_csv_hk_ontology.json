@@ -3193,7 +3193,17 @@
    "label": "Due from Related Parties(CP)",
    "definition": "Extract the reported value for 'Due from Related Parties(CP)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
-    "Due from Related Parties(CP)"
+    "Due from Related Parties(CP)",
+    "Due from related parties",
+    "Due from related companies",
+    "Amounts due from related parties",
+    "Amount owning by related companies",
+    "Related companies current account",
+    "Related companies C/A",
+    "應收關聯方款項",
+    "應收關聯公司款項",
+    "應收關連人士款項",
+    "關聯方往來款"
    ],
    "keyword_hints": [
     "Due from Related Parties(CP)"
@@ -3217,7 +3227,19 @@
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
    "aliases_i18n": {
     "en": [
-     "Due from Related Parties(CP)"
+     "Due from Related Parties(CP)",
+     "Due from related parties",
+     "Due from related companies",
+     "Amounts due from related parties",
+     "Amount owning by related companies",
+     "Related companies current account",
+     "Related companies C/A"
+    ],
+    "zh": [
+     "應收關聯方款項",
+     "應收關聯公司款項",
+     "應收關連人士款項",
+     "關聯方往來款"
     ]
    }
   },
