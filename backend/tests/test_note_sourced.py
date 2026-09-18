@@ -724,7 +724,8 @@ def test_every_shipped_note_sourced_line_declares_note_tables(shipped):
     from" and the fallback stays in code.
     """
     declared = [i for i in shipped.items if getattr(i, "note_source", None) is not None]
-    assert len(declared) == 60, len(declared)
+    # 61: Find 3 split into a gross half and an allowance half: the 关联方应收应付款项 note prints 账面余额 and 坏账准备 and no net column, so the 淨金額 the spec asks for has to be computed, so Find 3 gave up its own note_source and two parts took one each.
+    assert len(declared) == 61, len(declared)
     assert {i.route for i in declared} == {"note_tables"}, sorted(
         {(i.key, i.route) for i in declared if i.route != "note_tables"})
 
@@ -958,3 +959,133 @@ def test_the_selection_is_a_maximum_over_whichever_finds_answered(shipped):
     silent, _ = _rp_run(shipped, [("bs_ca__inventories", "777")])
     assert "sub__rp_find_1" not in silent
     assert _RP_PARENT not in silent, "an undisclosed related-party balance published a figure"
+
+
+# ── the measure suffix: reading a note column other than the primary one ─────────────────────────
+
+def _measure_note(number: str, title: str, rows) -> NotesTable:
+    """A mainland two-level note: `项目 | 账面余额 | 坏账准备` under each period. `row_reconstruct`
+    gives the primary measure the BARE period label and suffixes every other one, so the allowance
+    arrives as `current:allowance`."""
+    table = NotesTable(note_number=number, title=title)
+    for caption, gross, allowance in rows:
+        item = NoteItem(raw_label=caption)
+        item.values["g"] = ExtractedValue(
+            basis=Basis.CONSOLIDATED, period_label="current",
+            value=Decimal(gross), value_raw=Decimal(gross), provenance=Provenance(page_index=9))
+        if allowance is not None:
+            item.values["a"] = ExtractedValue(
+                basis=Basis.CONSOLIDATED, period_label="current:allowance",
+                value=Decimal(allowance), value_raw=Decimal(allowance),
+                provenance=Provenance(page_index=9))
+        table.items.append(item)
+    return table
+
+
+def test_a_part_can_ask_for_the_allowance_column_by_name(shipped):
+    """THE CONVENTION EXISTED AND NOTHING COULD REACH IT.
+
+    `row_reconstruct` emits a note's second measure as `"<period>:<slug>"` — "current:allowance" —
+    expressly so that "a service that needs the second measure can now ask for it by name", and no
+    service could: `select_rows` admits only labels the FACE declares, and a face declares periods,
+    not measures. `NoteSource.measure` is that name.
+
+    Both halves are asserted together because each is useless alone: the gross part must keep
+    taking the primary measure, and the allowance part must take the suffixed one AND report it
+    under the bare period, or the rung that deducts it cannot see it. That last step is what made
+    the first version of this dead code — the allowance was found, summed, and filed under
+    `current:allowance` where nothing read it.
+    """
+    from app.services import note_sourced as svc
+
+    by_key = {d.key: d for d in shipped.items}
+    note = _measure_note("十二、6", "关联方应收应付款项", [
+        ("应收账款：甲公司", "1000", "400"),
+        ("应收账款：乙公司", "500", "100"),
+    ])
+
+    gross = svc.select_rows(by_key["sub__rp_find_3_gross"], [note], {"current", "prior"}, None)
+    allowance = svc.select_rows(by_key["sub__rp_find_3_allowance"], [note],
+                                {"current", "prior"}, None)
+
+    assert sum(h.amount for h in gross) == Decimal("1500")
+    assert sum(h.amount for h in allowance) == Decimal("500")
+    assert {h.period for h in gross} == {"current"}
+    assert {h.period for h in allowance} == {"current"}, (
+        "the allowance was reported under its suffixed label, so the rung that deducts it in "
+        "`current` cannot see it — see this test's docstring")
+
+
+def test_find_3_is_the_net_of_the_two_columns(shipped):
+    """FIND 3 IS COMPUTED, NOT READ. The 关联方应收应付款项 note prints 账面余额 and 坏账准备 and no
+    net column, so the 淨金額 the spec asks for is gross LESS allowance.
+
+    Measured on 000709 before this: Find 3 read the primary measure alone and reported
+    952,910,390.11 where the note's own net is 554,344,602.47 — overstated by 398,565,787.64, and
+    565,528,459.41 of that was one counterparty whose allowance EQUALS its gross, counted at face
+    value for a net of nothing.
+    """
+    doc = DocumentModel(filename="f.pdf")
+    doc.notes = [_measure_note("十二、6", "关联方应收应付款项", [
+        ("应收账款：甲公司", "1000", "400"),
+        ("其他应收款：乙公司", "500", "100"),
+    ])]
+    ctx = PipelineContext(settings=get_settings())
+    ctx.line_items = shipped
+    doc = NoteSourcedStage().run(doc, ctx)
+
+    assert _figure(doc, "sub__rp_find_3_gross") == Decimal("1500")
+    assert _figure(doc, "sub__rp_find_3_allowance") == Decimal("500")
+    assert _figure(doc, "sub__rp_find_3") == Decimal("1000"), "Find 3 is not net of the allowance"
+
+
+def test_a_note_with_no_allowance_column_deducts_nothing(shipped):
+    """The allowance is an `adjustment`, so its absence does not kill the rung — a note that prints
+    only a balance answers with that balance. `refuse_negative` on the rung catches the opposite
+    mistake, an allowance larger than the gross, which would mean the two columns had been read the
+    wrong way round."""
+    doc = DocumentModel(filename="f.pdf")
+    doc.notes = [_measure_note("十二、6", "关联方应收应付款项", [
+        ("应收账款：甲公司", "1000", None),
+    ])]
+    ctx = PipelineContext(settings=get_settings())
+    ctx.line_items = shipped
+    doc = NoteSourcedStage().run(doc, ctx)
+
+    assert _figure(doc, "sub__rp_find_3_allowance") is None
+    assert _figure(doc, "sub__rp_find_3") == Decimal("1000")
+
+
+def test_the_llm_is_told_the_same_rule_the_cascade_applies(shipped):
+    """THE ENDPOINT HAS TO BE ABLE TO SEGREGATE THESE TOO.
+
+    `bs_nca__due_from_related_parties_ltp` is one of `config.toml`'s 85 `llm_focus_keys`, its
+    `definition` is the only text the model gets for it, and `_llm_holds` means the model's answer
+    stands over the cascade's. So a definition that disagrees with the configuration is not
+    documentation drift — it is a second, contradictory rule with the authority to win.
+
+    It HAD disagreed, on both of the things this work changed: it said "including entrusted loans
+    routed through a bank", which the spec excludes in its own words, and "Excludes trade
+    receivables from related parties", which is no longer true. It said nothing about the loss
+    allowance at all, which is the distinction that moves this figure by 399 million on one filing.
+    """
+    definition = {d.key: d for d in shipped.items}[
+        "bs_nca__due_from_related_parties_ltp"].definition
+
+    assert "INCLUDING trade receivables" in definition
+    assert "EXCLUDES ENTRUSTED LOANS" in definition
+    assert "including entrusted loans" not in definition, (
+        "the model is told to include entrusted loans, which every Find excludes")
+    assert "Excludes trade receivables" not in definition, (
+        "the model is told to exclude trade receivables, which every Find now includes")
+    for word in ("淨金額", "NET of any loss allowance", "关联方组合"):
+        assert word in definition, f"the model is not told about {word!r}"
+
+    # And the two halves must tell it which COLUMN each one is, in the filing's own words, or a
+    # model asked for one will answer with the other.
+    halves = {d.key: d.definition for d in shipped.items
+              if d.key in ("sub__rp_find_3_gross", "sub__rp_find_3_allowance")}
+    assert "账面余额" in halves["sub__rp_find_3_gross"]
+    assert "坏账准备" in halves["sub__rp_find_3_allowance"]
+    assert "Do NOT read 坏账准备" in halves["sub__rp_find_3_gross"]
+    assert "POSITIVE" in halves["sub__rp_find_3_allowance"]

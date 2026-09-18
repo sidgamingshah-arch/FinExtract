@@ -229,7 +229,11 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
         "prose_landed_in": ["bank balances", "现金"],
         "note_terms": ["cash and cash equivalents", "现金及现金等价物"],
         "row_terms": ["bank balances", "银行存款"],
-        "row_terms_none": ["restricted"]}),
+        "row_terms_none": ["restricted"],
+        # WHICH NOTE COLUMN the part reads — "" is the primary measure, "allowance" is 坏账准备.
+        # A non-default value on purpose: the round trip is what proves the configuration screen
+        # can author the field, and `""` would pass whether the screen carried it or not.
+        "measure": "allowance"}),
     # recognition
     "aliases": ("aliases", ["Cash at bank", "Bank balances"]),
     "alias_matching": ("alias_matching", "disabled"),

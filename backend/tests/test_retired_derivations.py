@@ -433,7 +433,7 @@ def test_no_shipped_line_item_names_a_deleted_service_as_its_implementer():
     raw = json.loads(_LINE_ITEMS_JSON.read_text(encoding="utf-8"))
     items = raw["items"]
     # 531 since the two direct-method TAX face parts split the template's single Income Taxes Paid(Direct) column, as the two 营业外 parts before them split Other Non-Operating Inc(Exp)
-    assert len(items) == 531, f"the shipped set changed size ({len(items)}) — re-read this test"
+    assert len(items) == 533, f"the shipped set changed size ({len(items)}) — re-read this test"
 
     offenders = [
         (i.get("key"), i.get("implemented_by")) for i in items
@@ -527,7 +527,7 @@ def test_the_shipped_set_is_the_configuration_in_force():
     raw = json.loads(_LINE_ITEMS_JSON.read_text(encoding="utf-8"))
     shipped = {i["key"] for i in raw["items"]}
     # 531 since the two direct-method TAX face parts split the template's single Income Taxes Paid(Direct) column, as the two 营业外 parts before them split Other Non-Operating Inc(Exp)
-    assert len(shipped) == 531, len(shipped)
+    assert len(shipped) == 533, len(shipped)
     # The line that could never produce a figure, now fixed — pinned so it cannot regress to empty.
     afs = next(i for i in raw["items"] if i["key"] == "sub__fa_cp_afs_htm_note_total")
     assert (afs.get("note_source") or {}).get("row_caption_any"), (

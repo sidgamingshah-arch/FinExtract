@@ -209,7 +209,7 @@ def test_no_shipped_item_would_now_be_unloadable():
     shipped = load_line_item_set(raw, resolve=True)
     # 527, not 543: the live configuration was exported into the shipped seed — see
     # `test_retired_derivations.test_the_shipped_set_is_the_configuration_in_force`.
-    assert len(shipped.items) == 531  # 531 since the two direct-method TAX face parts split the template's single Income Taxes Paid(Direct) column, as the two 营业外 parts before them split Other Non-Operating Inc(Exp)
+    assert len(shipped.items) == 533  # 533 since Find 3 split into a gross half and an allowance half: the 关联方应收应付款项 note prints 账面余额 and 坏账准备 and no net column, so the 淨金額 the spec asks for is computed
 
     declared = {f for f in _NOT_CONFIGURABLE for i in raw["items"] if f in i}
     assert declared, "no shipped item declares a refused field — then this test proves nothing"

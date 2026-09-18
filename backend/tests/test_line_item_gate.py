@@ -377,7 +377,8 @@ def test_the_note_level_parts_are_off_template():
     # 68 since the two direct-method TAX face parts were added, for the identical reason: CAS 31
     # prints 支付的各项税费 and 收到的税费返还 on opposite sides of the operating section and the
     # template holds one Income Taxes Paid(Direct) column.
-    assert len(subs) == 68
+    # 70 since Find 3 split into a gross half and an allowance half: the 关联方应收应付款项 note prints 账面余额 and 坏账准备 and no net column, so the 淨金額 the spec asks for has to be computed.
+    assert len(subs) == 70
     assert all(d.namespace == "internal" for d in subs)
     assert all(d.namespace == "template" for d in st.items if d.in_output)
 

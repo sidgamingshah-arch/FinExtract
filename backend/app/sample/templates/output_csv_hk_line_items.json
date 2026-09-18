@@ -1687,7 +1687,7 @@
    "key": "bs_nca__due_from_related_parties_ltp",
    "exclude_criteria": [],
    "label": "Due from Related Parties(LTP)",
-   "definition": "Amounts receivable from related parties that are NOT due within one year — balances owed by fellow subsidiaries, the immediate and ultimate holding company, shareholders, directors, associates, joint ventures and other related parties, including entrusted loans routed through a bank. Excludes trade receivables from related parties and any portion due within one year. The largest valid of three searches — the receivable notes, the related-party grouping, and the related-party transactions note.",
+   "definition": "Amounts receivable from related parties — balances owed by fellow subsidiaries, the immediate and ultimate holding company, shareholders, directors, associates, joint ventures and other related parties, INCLUDING trade receivables from related parties, and NET of any loss allowance carried against them (淨金額). EXCLUDES ENTRUSTED LOANS (委托贷款) routed through a bank, which the specification excludes in its own words and which have their own columns. Excludes amounts PAYABLE to related parties, transaction volumes for the period (交易金额 / 本期发生额) as opposed to balances, guarantees, and the 关联方组合 row of an expected-credit-loss staging table, whose 账面余额 is a portfolio exposure rather than a balance owed. THE LARGEST VALID OF THREE READINGS of the one quantity: Find 1, the related-party rows the balance sheet itself prints; Find 2, the related-party amounts inside the receivable notes; Find 3, the related-party note's own tabulation, net of its loss allowance. Report the highest of whichever of the three the filing supports, and report NOTHING rather than zero if it supports none — an absent disclosure and a nil balance are not the same fact.",
    "sign_rule": {},
    "inherits": "bs_nca",
    "face_only": false,
@@ -35462,7 +35462,14 @@
      "一年内到期的非流动资产|一年內到期的非流動資產|一年内到期的长期应收款|一年內到期的長期應收款|current\\s+portion\\s+of\\s+(?:non.?current\\s+assets|long.?term\\s+receivables?)|non.?current\\s+assets\\s+(?:due|maturing)\\s+within\\s+one\\s+year",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?长期应收款|^\\s*(?:\\d+[\\.、)]?\\s*)?長期應收款|^\\s*(?:\\d+[\\.、)]?\\s*)?long.?term\\s+receivables?",
      "長期應收款|长期应收款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:发放)?贷款及垫款|^\\s*(?:\\d+[\\.、)]?\\s*)?(?:發放)?貸款及墊款|^\\s*(?:\\d+[\\.、)]?\\s*)?loans?\\s+and\\s+advances(?:\\s+to\\s+customers?)?"
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:发放)?贷款及垫款|^\\s*(?:\\d+[\\.、)]?\\s*)?(?:發放)?貸款及墊款|^\\s*(?:\\d+[\\.、)]?\\s*)?loans?\\s+and\\s+advances(?:\\s+to\\s+customers?)?",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?应收(?:账|帐)款",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?應收(?:賬|帳)款",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?应收票据及应收(?:账|帐)款",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?應收票據及應收(?:賬|帳)款",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?trade\\s+receivables?",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?trade\\s+and\\s+other\\s+receivables?",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?accounts?\\s+receivables?"
     ],
     "row_caption_any": [
      "due\\s+from\\s+(?:a\\s+|an\\s+|the\\s+)?related\\s+(?:part|compan|corporat|entit|group)",
@@ -35647,7 +35654,16 @@
      "關聯方款項",
      "關連人士款項",
      "關聯",
-     "連方"
+     "連方",
+     "应收账款",
+     "应收帐款",
+     "應收賬款",
+     "應收帳款",
+     "应收票据及应收账款",
+     "應收票據及應收賬款",
+     "trade receivables",
+     "trade and other receivables",
+     "accounts receivable"
     ],
     "row_terms_none": [
      "委托贷款",
@@ -35819,15 +35835,225 @@
    "key": "sub__rp_find_3",
    "label": "Find 3 — related-party balances in the related-party note",
    "namespace": "internal",
-   "type": "extracted",
+   "type": "derived",
    "in_output": false,
    "parent": "bs_nca__due_from_related_parties_ltp",
    "statement": "notes",
    "section_scope": [],
    "order": 12,
-   "cascade": [],
-   "note_selection": "any",
+   "cascade": [
+    {
+     "id": "NET_OF_ALLOWANCE",
+     "terms_op": "sum",
+     "refuse_negative": true,
+     "terms": [
+      {
+       "ref": "sub__rp_find_3_gross",
+       "role": "required",
+       "sign": 1
+      },
+      {
+       "ref": "sub__rp_find_3_allowance",
+       "role": "adjustment",
+       "sign": -1
+      }
+     ],
+     "note": "FIND 3 IS THE NET, and the note it reads publishes only the two halves. The spec asks for the 淨金額 (net amount); a 关联方应收应付款项 table prints 账面余额 and 坏账准备 and no net column, so the net is gross LESS allowance and has to be computed here. Measured on 000709 when Find 3 read the primary measure alone: 952,910,390.11 against a true net of 554,344,602.47, overstated by 398,565,787.64 — and 565,528,459.41 of that was one counterparty, 河北承钢工贸, whose allowance EQUALS its gross, so its net is zero and it had been counted at face value. The allowance is an `adjustment`, so a note printing no allowance column simply deducts nothing rather than killing the rung, and `refuse_negative` catches an allowance larger than the gross — which would mean the two columns had been read the wrong way round."
+    }
+   ],
    "note_use": "decomposition_allowed",
+   "terms": [],
+   "route": "note_tables",
+   "definition": "FIND 3 — the spec's third reading: the net amounts attributable to related parties, excluding entrusted loans, disclosed in the 关联方及关联交易 note. Computed, not read: that note prints a carrying amount and a loss allowance and no net column, so this is the 账面余额 total LESS the 坏账准备 total. Its two halves are sub__rp_find_3_gross and sub__rp_find_3_allowance."
+  },
+  {
+   "key": "sub__non_operating_income",
+   "label": "Non-operating income (face row)",
+   "definition": "The income-statement row a mainland filing prints as 营业外收入 — non-operating income: gains outside ordinary operating activity that CAS presents on this line (government grants unrelated to ordinary activity presented here, penalty and compensation income, donations received, gains on debt restructuring). Read OFF THE FACE of the income statement, above 利润总额. It is one of the two halves of the template's single net column Other Non-Operating Inc(Exp), which is its parent and which sums the two. It is NOT 其他收益, NOT 投资收益 and NOT 资产处置收益 — each of those has its own template line — and it is not the net of income and expense.",
+   "exclude_criteria": [],
+   "inherits": "is_pl",
+   "parent": "is_pl__other_non_operating_inc_exp",
+   "type": "extracted",
+   "namespace": "internal",
+   "sign_rule": {},
+   "route": "face",
+   "sign_convention": "positive_expected",
+   "match_priority": 15,
+   "aliases": [
+    "Non-operating income",
+    "Non-operating revenue",
+    "Non-operating gains"
+   ],
+   "keyword_hints": [
+    "Non-operating income",
+    "Non-operating revenue",
+    "Non-operating gains"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Non-operating income",
+     "Non-operating revenue",
+     "Non-operating gains"
+    ],
+    "zh": [
+     "营业外收入"
+    ]
+   },
+   "in_output": false,
+   "statement": "profit_and_loss",
+   "section_scope": [
+    "is_pl"
+   ],
+   "order": 1,
+   "note_use": "decomposition_allowed"
+  },
+  {
+   "key": "sub__non_operating_expenses",
+   "label": "Non-operating expenses (face row)",
+   "definition": "The income-statement row a mainland filing prints as 营业外支出 — non-operating expenses: losses outside ordinary operating activity that CAS presents on this line (donations made, penalties and fines paid, extraordinary losses, losses on debt restructuring). Read OFF THE FACE of the income statement, above 利润总额, where CAS prints it as an UNSIGNED POSITIVE magnitude that the statement's own arithmetic deducts. It is one of the two halves of the template's single net column Other Non-Operating Inc(Exp), which is its parent and which sums the two, so this part must carry the figure NEGATIVE — see its sign_rule, which negates the CAS caption only, and its negative_expected sign_convention, which flags any remaining positive for review rather than coercing it.",
+   "exclude_criteria": [],
+   "inherits": "is_pl",
+   "parent": "is_pl__other_non_operating_inc_exp",
+   "type": "extracted",
+   "namespace": "internal",
+   "sign_rule": {
+    "flip_if_label_matches": [
+     "营业外支出",
+     "營業外支出"
+    ]
+   },
+   "route": "face",
+   "sign_convention": "negative_expected",
+   "match_priority": 15,
+   "aliases": [
+    "Non-operating expenses",
+    "Non-operating expenditure",
+    "Non-operating losses"
+   ],
+   "keyword_hints": [
+    "Non-operating expenses",
+    "Non-operating expenditure",
+    "Non-operating losses"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Non-operating expenses",
+     "Non-operating expenditure",
+     "Non-operating losses"
+    ],
+    "zh": [
+     "营业外支出"
+    ]
+   },
+   "in_output": false,
+   "statement": "profit_and_loss",
+   "section_scope": [
+    "is_pl"
+   ],
+   "order": 2,
+   "note_use": "decomposition_allowed"
+  },
+  {
+   "key": "sub__cf_direct_income_taxes_paid",
+   "label": "Income taxes paid (direct-method face row)",
+   "definition": "The cash-flow row a mainland filing prints as 支付的各项税费 — the income taxes and other levies actually PAID in cash during the period, read off the face of the direct-method operating section (CAS 31 presents the direct method on the face and the indirect reconciliation as a note). CAS prints it as an UNSIGNED POSITIVE magnitude that the statement's own 经营活动现金流出小计 subtotal deducts, so this part must carry the figure NEGATIVE — see its sign_rule, which negates the CAS captions only and leaves an HKFRS filing's already-bracketed figure alone. It is one of the two halves of the template's single net column Income Taxes Paid(Direct), which is its parent and which sums the two; the other half is the refund received. It is NOT the income tax EXPENSE of the income statement, which accrues rather than pays and has its own template line.",
+   "exclude_criteria": [],
+   "inherits": "cf_oper_direct",
+   "parent": "cf_oper_direct__income_taxes_paid_direct",
+   "type": "extracted",
+   "namespace": "internal",
+   "sign_rule": {
+    "flip_if_label_matches": [
+     "支付的各项税费",
+     "支付的各項稅費"
+    ]
+   },
+   "route": "face",
+   "sign_convention": "negative_expected",
+   "match_priority": 91,
+   "aliases": [
+    "Income taxes paid",
+    "Income tax paid",
+    "Taxes and levies paid"
+   ],
+   "keyword_hints": [
+    "Income taxes paid",
+    "Income tax paid",
+    "Taxes and levies paid"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Income taxes paid",
+     "Income tax paid",
+     "Taxes and levies paid"
+    ],
+    "zh": [
+     "支付的各项税费"
+    ]
+   },
+   "in_output": false,
+   "statement": "cash_flow",
+   "section_scope": [
+    "cf_oper_direct"
+   ],
+   "order": 1,
+   "note_use": "decomposition_allowed"
+  },
+  {
+   "key": "sub__cf_direct_tax_refunds_received",
+   "label": "Tax refunds received (direct-method face row)",
+   "definition": "The cash-flow row a mainland filing prints as 收到的税费返还 — refunds of tax RECEIVED in cash, most often the VAT export rebate and overpaid income tax, read off the face of the direct-method operating section above 经营活动现金流入小计. It is a cash INFLOW and stays positive. It is the second half of the template's single net column Income Taxes Paid(Direct), which is its parent and which sums the two, so the parent reports taxes paid NET of refunds — which is what a template carrying one tax line per statement can mean. Before this part existed the caption reached no concept and was swept into the operating section's residual bucket alongside the indirect reconciliation's non-cash adjustments, where it was added to two other direct-method rows under one figure.",
+   "exclude_criteria": [],
+   "inherits": "cf_oper_direct",
+   "parent": "cf_oper_direct__income_taxes_paid_direct",
+   "type": "extracted",
+   "namespace": "internal",
+   "sign_rule": {},
+   "route": "face",
+   "sign_convention": "positive_expected",
+   "match_priority": 91,
+   "aliases": [
+    "Refunds of taxes received",
+    "Tax refunds received",
+    "Income tax refunded"
+   ],
+   "keyword_hints": [
+    "Refunds of taxes received",
+    "Tax refunds received",
+    "Income tax refunded"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Refunds of taxes received",
+     "Tax refunds received",
+     "Income tax refunded"
+    ],
+    "zh": [
+     "收到的税费返还"
+    ]
+   },
+   "in_output": false,
+   "statement": "cash_flow",
+   "section_scope": [
+    "cf_oper_direct"
+   ],
+   "order": 2,
+   "note_use": "decomposition_allowed"
+  },
+  {
+   "key": "sub__rp_find_3_gross",
+   "label": "Find 3 — related-party note, carrying amount before allowance",
+   "definition": "The related-party receivable balances the related-party note tabulates, at their CARRYING AMOUNT BEFORE the loss allowance — the 账面余额 column, which is the column such a note prints first. A mainland 关联方应收应付款项 table is laid out 项目 | 账面余额 | 坏账准备 | 账面余额 | 坏账准备, two measures under each of 期末余额 and 期初余额, and it prints NO net column: the net has to be computed. Read the 账面余额 figures only. Do NOT read 坏账准备, which is the allowance and is its own line (sub__rp_find_3_allowance); do NOT read a 合计 row, which totals the rows above it; do NOT read 应付 rows, transaction-volume rows (交易金额, 本期发生额), or the 关联方组合 row of an expected-credit-loss staging table, whose 账面余额 is a portfolio exposure rather than a balance owed. This line is GROSS on purpose — Find 3 subtracts the allowance from it — so answering with a net figure here double-counts the deduction.",
+   "exclude_criteria": [],
+   "parent": "sub__rp_find_3",
+   "type": "extracted",
+   "namespace": "internal",
+   "in_output": false,
+   "route": "note_tables",
+   "statement": "notes",
+   "order": 12,
+   "note_use": "decomposition_allowed",
+   "note_selection": "any",
    "note_source": {
     "note_title_any": [
      "关联方及关联交易|关联方关系及其交易|关联方交易|关联方往来|关联方应收应付款项|关联方余额|關聯方及關聯交易|關聯方關係及其交易|關連(?:方|人士)(?:及其)?(?:交易|關係)|關連交易|related\\s+part(?:y|ies)(?:\\s+relationships?)?(?:\\s+and)?\\s+(?:transactions?|disclosures?|balances?)",
@@ -35868,7 +36094,14 @@
      "^\\s*(?:\\d+[\\.、)]?\\s*)?related\\s+part(?:y|ies)\\s+(?:receivables?|balances?)",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?receivables?\\s+from\\s+related\\s+part",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?amounts?\\s+(?:owing|owed)\\s+by\\s+related\\s+(?:part|compan)",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?related\\s+compan(?:y|ies)\\s*(?:'s|s')?\\s*(?:current\\s+account|c\\s*/\\s*a)"
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?related\\s+compan(?:y|ies)\\s*(?:'s|s')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?应收(?:账|帐)款",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?應收(?:賬|帳)款",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?应收票据及应收(?:账|帐)款",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?應收票據及應收(?:賬|帳)款",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?trade\\s+receivables?",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?trade\\s+and\\s+other\\s+receivables?",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?accounts?\\s+receivables?"
     ],
     "row_caption_none": [
      "委托贷款",
@@ -36033,7 +36266,16 @@
      "owed by related part",
      "related company",
      "ies 's",
-     "s' current account"
+     "s' current account",
+     "应收账款",
+     "应收帐款",
+     "應收賬款",
+     "應收帳款",
+     "应收票据及应收账款",
+     "應收票據及應收賬款",
+     "trade receivables",
+     "trade and other receivables",
+     "accounts receivable"
     ],
     "row_terms_none": [
      "委托贷款",
@@ -36212,182 +36454,424 @@
      "entrusted loans"
     ]
    },
-   "terms": [],
-   "route": "note_tables"
+   "section_scope": []
   },
   {
-   "key": "sub__non_operating_income",
-   "label": "Non-operating income (face row)",
-   "definition": "The income-statement row a mainland filing prints as 营业外收入 — non-operating income: gains outside ordinary operating activity that CAS presents on this line (government grants unrelated to ordinary activity presented here, penalty and compensation income, donations received, gains on debt restructuring). Read OFF THE FACE of the income statement, above 利润总额. It is one of the two halves of the template's single net column Other Non-Operating Inc(Exp), which is its parent and which sums the two. It is NOT 其他收益, NOT 投资收益 and NOT 资产处置收益 — each of those has its own template line — and it is not the net of income and expense.",
+   "key": "sub__rp_find_3_allowance",
+   "label": "Find 3 — related-party note, loss allowance on those balances",
+   "definition": "The loss allowance carried against those same related-party receivable balances — the 坏账准备 column of the 关联方应收应付款项 table, the one printed immediately to the RIGHT of each 账面余额. Same rows as sub__rp_find_3_gross, the other column. Answer with the allowance as a POSITIVE figure, the way the note prints it; Find 3 subtracts it. If the note prints no allowance column, or prints it empty, leave this line EMPTY rather than answering zero — an absent allowance and a nil allowance are the same number here but not the same fact, and Find 3 treats an absent one as nothing to deduct. Do NOT answer with the receivable itself.",
    "exclude_criteria": [],
-   "inherits": "is_pl",
-   "parent": "is_pl__other_non_operating_inc_exp",
+   "parent": "sub__rp_find_3",
    "type": "extracted",
    "namespace": "internal",
-   "sign_rule": {},
-   "route": "face",
-   "sign_convention": "positive_expected",
-   "match_priority": 15,
-   "aliases": [
-    "Non-operating income",
-    "Non-operating revenue",
-    "Non-operating gains"
-   ],
-   "keyword_hints": [
-    "Non-operating income",
-    "Non-operating revenue",
-    "Non-operating gains"
-   ],
-   "aliases_i18n": {
-    "en": [
-     "Non-operating income",
-     "Non-operating revenue",
-     "Non-operating gains"
-    ],
-    "zh": [
-     "营业外收入"
-    ]
-   },
    "in_output": false,
-   "statement": "profit_and_loss",
-   "section_scope": [
-    "is_pl"
-   ],
-   "order": 1,
-   "note_use": "decomposition_allowed"
-  },
-  {
-   "key": "sub__non_operating_expenses",
-   "label": "Non-operating expenses (face row)",
-   "definition": "The income-statement row a mainland filing prints as 营业外支出 — non-operating expenses: losses outside ordinary operating activity that CAS presents on this line (donations made, penalties and fines paid, extraordinary losses, losses on debt restructuring). Read OFF THE FACE of the income statement, above 利润总额, where CAS prints it as an UNSIGNED POSITIVE magnitude that the statement's own arithmetic deducts. It is one of the two halves of the template's single net column Other Non-Operating Inc(Exp), which is its parent and which sums the two, so this part must carry the figure NEGATIVE — see its sign_rule, which negates the CAS caption only, and its negative_expected sign_convention, which flags any remaining positive for review rather than coercing it.",
-   "exclude_criteria": [],
-   "inherits": "is_pl",
-   "parent": "is_pl__other_non_operating_inc_exp",
-   "type": "extracted",
-   "namespace": "internal",
-   "sign_rule": {
-    "flip_if_label_matches": [
-     "营业外支出",
-     "營業外支出"
-    ]
-   },
-   "route": "face",
-   "sign_convention": "negative_expected",
-   "match_priority": 15,
-   "aliases": [
-    "Non-operating expenses",
-    "Non-operating expenditure",
-    "Non-operating losses"
-   ],
-   "keyword_hints": [
-    "Non-operating expenses",
-    "Non-operating expenditure",
-    "Non-operating losses"
-   ],
-   "aliases_i18n": {
-    "en": [
-     "Non-operating expenses",
-     "Non-operating expenditure",
-     "Non-operating losses"
+   "route": "note_tables",
+   "statement": "notes",
+   "order": 13,
+   "note_use": "decomposition_allowed",
+   "note_selection": "any",
+   "note_source": {
+    "note_title_any": [
+     "关联方及关联交易|关联方关系及其交易|关联方交易|关联方往来|关联方应收应付款项|关联方余额|關聯方及關聯交易|關聯方關係及其交易|關連(?:方|人士)(?:及其)?(?:交易|關係)|關連交易|related\\s+part(?:y|ies)(?:\\s+relationships?)?(?:\\s+and)?\\s+(?:transactions?|disclosures?|balances?)",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:其他)?应收关联(?:方|公司|企业)款项|^\\s*(?:\\d+[\\.、)]?\\s*)?(?:其他)?應收關聯(?:方|公司|企業)款項|應收關連人士款項|(?:amounts?\\s+)?due\\s+from\\s+related\\s+(?:part(?:y|ies)|compan(?:y|ies))",
+     "^Related\\s+Party$"
     ],
-    "zh": [
-     "营业外支出"
-    ]
-   },
-   "in_output": false,
-   "statement": "profit_and_loss",
-   "section_scope": [
-    "is_pl"
-   ],
-   "order": 2,
-   "note_use": "decomposition_allowed"
-  },
-  {
-   "key": "sub__cf_direct_income_taxes_paid",
-   "label": "Income taxes paid (direct-method face row)",
-   "definition": "The cash-flow row a mainland filing prints as 支付的各项税费 — the income taxes and other levies actually PAID in cash during the period, read off the face of the direct-method operating section (CAS 31 presents the direct method on the face and the indirect reconciliation as a note). CAS prints it as an UNSIGNED POSITIVE magnitude that the statement's own 经营活动现金流出小计 subtotal deducts, so this part must carry the figure NEGATIVE — see its sign_rule, which negates the CAS captions only and leaves an HKFRS filing's already-bracketed figure alone. It is one of the two halves of the template's single net column Income Taxes Paid(Direct), which is its parent and which sums the two; the other half is the refund received. It is NOT the income tax EXPENSE of the income statement, which accrues rather than pays and has its own template line.",
-   "exclude_criteria": [],
-   "inherits": "cf_oper_direct",
-   "parent": "cf_oper_direct__income_taxes_paid_direct",
-   "type": "extracted",
-   "namespace": "internal",
-   "sign_rule": {
-    "flip_if_label_matches": [
-     "支付的各项税费",
-     "支付的各項稅費"
-    ]
-   },
-   "route": "face",
-   "sign_convention": "negative_expected",
-   "match_priority": 91,
-   "aliases": [
-    "Income taxes paid",
-    "Income tax paid",
-    "Taxes and levies paid"
-   ],
-   "keyword_hints": [
-    "Income taxes paid",
-    "Income tax paid",
-    "Taxes and levies paid"
-   ],
-   "aliases_i18n": {
-    "en": [
-     "Income taxes paid",
-     "Income tax paid",
-     "Taxes and levies paid"
+    "row_caption_any": [
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?其他应收款",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?其他應收款",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?一年内到期的长期应收款",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?一年內到期的長期應收款",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?长期应收款",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?長期應收款",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:发放)?贷款及垫款",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:發放)?貸款及墊款",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?other\\s+receivables?",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?long.?term\\s+receivables?",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?current\\s+portion\\s+of\\s+long.?term\\s+receivables?",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?loans?\\s+and\\s+advances",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?应收(?:母公司|控股公司|控股股东|最终控股公司|子公司|全资子公司|附属公司)款项",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?应收(?:联营企业|联营公司|合营企业|合营公司|合资公司)款项",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?应收(?:同系附属公司|同一控制下企业)款项",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?应收(?:董事|高级管理人员|关键管理人员|股东)款项",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?其他关联方",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?受同一控制方控制的企业",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?應收(?:母公司|控股公司|附屬公司|同系附屬公司|聯營公司|合營公司|董事|股東)款項",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?其他關聯方",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:amounts?\\s+)?due\\s+from\\s+(?:a\\s+|an\\s+|the\\s+)?(?:immediate\\s+|ultimate\\s+|intermediate\\s+)?(?:holding\\s+compan|parent\\s+compan|fellow\\s+subsidiar|subsidiar|associat|joint\\s+venture|jointly\\s+controlled\\s+entit|director|shareholder|key\\s+management)",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:loans?|advances?|other\\s+receivables?)\\s+(?:due\\s+)?(?:to|from)\\s+(?:a\\s+|an\\s+|the\\s+)?(?:fellow\\s+subsidiar|subsidiar|associat|joint\\s+venture|jointly\\s+controlled|director|shareholder|holding\\s+compan|parent\\s+compan)",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:directors?|subsidiar(?:y|ies)|associates?)\\s*(?:'s|s'|')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:其他)?应收关联(?:方|公司|企业|单位)款项",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?关联方应收款项",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:关联方款项|关联方余额|关联方往来款?|关联方资金往来)",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:其他)?應收關聯(?:方|公司|企業)款項",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?應收關連人士款項",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:關聯方款項|關聯方往來款?|關聯方餘額)",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:amounts?\\s+)?due\\s+from\\s+(?:a\\s+|the\\s+)?related\\s+(?:part(?:y|ies)|compan(?:y|ies)|corporations?|entit(?:y|ies))",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?related\\s+part(?:y|ies)\\s+(?:receivables?|balances?)",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?receivables?\\s+from\\s+related\\s+part",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?amounts?\\s+(?:owing|owed)\\s+by\\s+related\\s+(?:part|compan)",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?related\\s+compan(?:y|ies)\\s*(?:'s|s')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?应收(?:账|帐)款",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?應收(?:賬|帳)款",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?应收票据及应收(?:账|帐)款",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?應收票據及應收(?:賬|帳)款",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?trade\\s+receivables?",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?trade\\s+and\\s+other\\s+receivables?",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?accounts?\\s+receivables?"
     ],
-    "zh": [
-     "支付的各项税费"
-    ]
-   },
-   "in_output": false,
-   "statement": "cash_flow",
-   "section_scope": [
-    "cf_oper_direct"
-   ],
-   "order": 1,
-   "note_use": "decomposition_allowed"
-  },
-  {
-   "key": "sub__cf_direct_tax_refunds_received",
-   "label": "Tax refunds received (direct-method face row)",
-   "definition": "The cash-flow row a mainland filing prints as 收到的税费返还 — refunds of tax RECEIVED in cash, most often the VAT export rebate and overpaid income tax, read off the face of the direct-method operating section above 经营活动现金流入小计. It is a cash INFLOW and stays positive. It is the second half of the template's single net column Income Taxes Paid(Direct), which is its parent and which sums the two, so the parent reports taxes paid NET of refunds — which is what a template carrying one tax line per statement can mean. Before this part existed the caption reached no concept and was swept into the operating section's residual bucket alongside the indirect reconciliation's non-cash adjustments, where it was added to two other direct-method rows under one figure.",
-   "exclude_criteria": [],
-   "inherits": "cf_oper_direct",
-   "parent": "cf_oper_direct__income_taxes_paid_direct",
-   "type": "extracted",
-   "namespace": "internal",
-   "sign_rule": {},
-   "route": "face",
-   "sign_convention": "positive_expected",
-   "match_priority": 91,
-   "aliases": [
-    "Refunds of taxes received",
-    "Tax refunds received",
-    "Income tax refunded"
-   ],
-   "keyword_hints": [
-    "Refunds of taxes received",
-    "Tax refunds received",
-    "Income tax refunded"
-   ],
-   "aliases_i18n": {
-    "en": [
-     "Refunds of taxes received",
-     "Tax refunds received",
-     "Income tax refunded"
+    "row_caption_none": [
+     "委托贷款",
+     "委托借款",
+     "委托银行贷款",
+     "委託(?:貸款|借款|銀行貸款)",
+     "entrusted\\s+(?:bank\\s+)?(?:loans?|lending|borrowings?)",
+     "应付",
+     "應付",
+     "due\\s+to\\s+",
+     "amounts?\\s+(?:owing|owed)\\s+to\\s+",
+     "payables?\\s+to\\s+",
+     "预收款项",
+     "預收款項",
+     "合同(?:负债|負債)",
+     "contract\\s+liabilit",
+     "receipts?\\s+in\\s+advance",
+     "关联方投资",
+     "關聯方投資",
+     "(?:长期股权投资|長期股權投資)",
+     "investments?\\s+in\\s+(?:an?\\s+)?(?:associat|joint|subsidiar)",
+     "(?:担保|擔保)",
+     "guarantee",
+     "(?:交易金额|交易金額|交易額|本期发生额|本年发生额|本期發生額)",
+     "transaction\\s+(?:amount|value|volume)",
+     "(?:purchases?\\s+from|sales?\\s+to|rental\\s+income|interest\\s+income|service\\s+fees?)",
+     "(?:利息收入|租金收入|服务费|服務費|销售商品|銷售商品|采购商品|採購商品)",
+     "(?:期初|年初)",
+     "(?:上年年末|上期期末|上年期末|年初數|期初数)",
+     "opening\\s+balance",
+     "^\\s*(?:at|as\\s+at)\\s+1\\b",
+     "^\\s*balance\\s+(?:at|as\\s+at)\\s+1\\b",
+     "closing\\s+balance",
+     "^\\s*(?:at|as\\s+at)\\s+31\\b",
+     "^\\s*期末(?:余额|餘額)\\s*$",
+     "(?:^\\s*additions?\\b|增加|新增)",
+     "purchase",
+     "(?:disposal|处置|處置|出售|转让|轉讓)",
+     "(?:redemption|redeem|赎回|贖回)",
+     "(?:maturit|matured|已到期|到期收回|到期兑付)",
+     "(?:write.?off|written\\s+off|核销|核銷|冲销|沖銷)",
+     "(?:transfer|reclassif|转入|转出|轉入|轉出|转拨|轉撥|重分类|重分類)",
+     "(?:exchange\\s+difference|currency\\s+translation|汇兑|匯兌|滙兌|外币折算|外幣折算)",
+     "(?:acquisition|acquired|business\\s+combination|收购|收購|业务合并|業務合併)",
+     "(?:accumulated|cumulative|累计|累計|累積)",
+     "(?:sub)?total",
+     "(?:合计|合計|小计|小計|总计|總計|合共|总额|總額)",
+     "^\\s*(?:减|減|less)?\\s*[:：]?\\s*(?:坏账准备|壞賬準備|坏帐准备|信用损失准备|信用損失準備|损失准备|損失準備|减值准备|減值準備|预期信用损失|預期信用損失)\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:loss\\s+allowance|allowance\\s+for|provision\\s+for|impairment\\s+(?:loss|allowance|provision))",
+     "(?:账面原值|帳面原值)",
+     "^\\s*(?:账面余额|帳面餘額)\\s*$",
+     "gross\\s+(?:carrying\\s+)?(?:amount|balance)",
+     "^\\s*关联方组合\\s*$",
+     "entrusted\\s+loans?",
+     "entrusted\\s+(?:loan\\s+)?(?:receivables?|advances?|balances?)",
+     "委托贷款|委託貸款",
+     "委托借款|委託借款"
     ],
-    "zh": [
-     "收到的税费返还"
-    ]
+    "prose_any": [],
+    "prose_subject": "",
+    "prose_landed_in": [],
+    "note_terms": [
+     "关联方及关联交易",
+     "关联方关系及其交易",
+     "关联方交易",
+     "关联方往来",
+     "关联方应收应付款项",
+     "关联方余额",
+     "關聯方及關聯交易",
+     "關聯方關係及其交易",
+     "關連方",
+     "人士及其交易",
+     "關係",
+     "關連交易",
+     "related party",
+     "ies relationships and transactions",
+     "disclosures",
+     "due from related party",
+     "其他应收关联方",
+     "公司",
+     "企业款项",
+     "其他應收關聯方",
+     "企業款項",
+     "應收關連人士款項"
+    ],
+    "row_terms": [
+     "其他应收款",
+     "其他應收款",
+     "一年内到期的长期应收款",
+     "一年內到期的長期應收款",
+     "长期应收款",
+     "長期應收款",
+     "发放贷款及垫款",
+     "發放貸款及墊款",
+     "other receivables",
+     "long term receivables",
+     "current portion of long term receivables",
+     "loans and advances",
+     "应收母公司",
+     "控股公司",
+     "控股股东",
+     "最终控股公司",
+     "子公司",
+     "全资子公司",
+     "附属公司款项",
+     "应收联营企业",
+     "联营公司",
+     "合营企业",
+     "合营公司",
+     "合资公司款项",
+     "应收同系附属公司",
+     "同一控制下企业款项",
+     "应收董事",
+     "高级管理人员",
+     "关键管理人员",
+     "股东款项",
+     "其他关联方",
+     "受同一控制方控制的企业",
+     "應收母公司",
+     "附屬公司",
+     "同系附屬公司",
+     "聯營公司",
+     "合營公司",
+     "董事",
+     "股東款項",
+     "其他關聯方",
+     "amounts due from a",
+     "intermediate holding company",
+     "parent company",
+     "fellow subsidiary",
+     "joint venture",
+     "jointly controlled entity",
+     "key management",
+     "loans",
+     "advances",
+     "other receivables due to",
+     "from a",
+     "jointly controlled",
+     "holding company",
+     "associates 's",
+     "current account",
+     "其他应收关联方",
+     "公司",
+     "企业",
+     "单位款项",
+     "关联方应收款项",
+     "关联方款项",
+     "关联方余额",
+     "关联方往来款",
+     "关联方资金往来",
+     "其他應收關聯方",
+     "企業款項",
+     "應收關連人士款項",
+     "關聯方款項",
+     "關聯方往來款",
+     "關聯方餘額",
+     "corporations",
+     "related party",
+     "ies receivables",
+     "receivables from related part",
+     "amounts owing",
+     "owed by related part",
+     "related company",
+     "ies 's",
+     "s' current account",
+     "应收账款",
+     "应收帐款",
+     "應收賬款",
+     "應收帳款",
+     "应收票据及应收账款",
+     "應收票據及應收賬款",
+     "trade receivables",
+     "trade and other receivables",
+     "accounts receivable"
+    ],
+    "row_terms_none": [
+     "委托贷款",
+     "委托借款",
+     "委托银行贷款",
+     "委託貸款",
+     "借款",
+     "銀行貸款",
+     "entrusted bank loans",
+     "lending",
+     "borrowings",
+     "应付",
+     "應付",
+     "due to",
+     "owed to",
+     "payables to",
+     "预收款项",
+     "預收款項",
+     "合同负债",
+     "負債",
+     "contract liability",
+     "receipts in advance",
+     "关联方投资",
+     "關聯方投資",
+     "长期股权投资",
+     "長期股權投資",
+     "investments in an associate",
+     "担保",
+     "擔保",
+     "guarantee",
+     "交易金额",
+     "交易金額",
+     "交易額",
+     "本期发生额",
+     "本年发生额",
+     "本期發生額",
+     "transaction amount",
+     "volume",
+     "purchases from",
+     "sales to",
+     "rental income",
+     "interest income",
+     "service fees",
+     "利息收入",
+     "租金收入",
+     "服务费",
+     "服務費",
+     "销售商品",
+     "銷售商品",
+     "采购商品",
+     "採購商品",
+     "期初",
+     "年初",
+     "上年年末",
+     "上期期末",
+     "上年期末",
+     "年初數",
+     "期初数",
+     "opening balance",
+     "balance at",
+     "closing balance",
+     "期末余额",
+     "餘額",
+     "additions",
+     "增加",
+     "新增",
+     "purchase",
+     "disposal",
+     "处置",
+     "處置",
+     "出售",
+     "转让",
+     "轉讓",
+     "redemption",
+     "redeem",
+     "赎回",
+     "贖回",
+     "maturit",
+     "matured",
+     "已到期",
+     "到期收回",
+     "到期兑付",
+     "write off",
+     "written off",
+     "核销",
+     "核銷",
+     "冲销",
+     "沖銷",
+     "transfer",
+     "reclassification",
+     "转入",
+     "转出",
+     "轉入",
+     "轉出",
+     "转拨",
+     "轉撥",
+     "重分类",
+     "重分類",
+     "exchange difference",
+     "currency translation",
+     "汇兑",
+     "匯兌",
+     "滙兌",
+     "外币折算",
+     "外幣折算",
+     "acquisition",
+     "acquired",
+     "business combination",
+     "收购",
+     "收購",
+     "业务合并",
+     "業務合併",
+     "accumulated",
+     "cumulative",
+     "累计",
+     "累計",
+     "累積",
+     "sub total",
+     "合计",
+     "合計",
+     "小计",
+     "小計",
+     "总计",
+     "總計",
+     "合共",
+     "总额",
+     "總額",
+     "减",
+     "減",
+     "less坏账准备",
+     "壞賬準備",
+     "坏帐准备",
+     "信用损失准备",
+     "信用損失準備",
+     "损失准备",
+     "損失準備",
+     "减值准备",
+     "減值準備",
+     "预期信用损失",
+     "預期信用損失",
+     "less：坏账准备",
+     "less loss allowance",
+     "allowance for",
+     "provision for",
+     "impairment loss",
+     "allowance",
+     "provision",
+     "less： loss allowance",
+     "账面原值",
+     "帳面原值",
+     "账面余额",
+     "帳面餘額",
+     "gross carrying amount",
+     "其他应收关联方款项",
+     "應收關聯方款項",
+     "应收关联公司款项",
+     "應收關聯公司款項",
+     "应收关联企业款项",
+     "应收关联单位款项",
+     "应收关连人士款项",
+     "關聯方應收款項",
+     "关联方往来",
+     "關聯方往來",
+     "关联方组合",
+     "最终控股",
+     "附属公司",
+     "同系附属公司",
+     "联营企业",
+     "合资公司",
+     "股东",
+     "关键管理人员款项",
+     "同一控制下",
+     "一年内到期",
+     "一年內到期",
+     "entrusted loan",
+     "entrusted loans"
+    ],
+    "measure": "allowance"
    },
-   "in_output": false,
-   "statement": "cash_flow",
-   "section_scope": [
-    "cf_oper_direct"
-   ],
-   "order": 2,
-   "note_use": "decomposition_allowed"
+   "section_scope": []
   }
  ],
  "others_master": {

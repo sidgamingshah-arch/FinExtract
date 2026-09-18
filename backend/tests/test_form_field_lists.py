@@ -118,7 +118,8 @@ def test_parent_is_authorable_because_every_part_declares_it() -> None:
     # so a line that takes it there needs no note. It declares that with
     # `section_scope: ['cf_oper_indirect']` against `section_defaults[...].face_only`, the same way
     # `sub__face_principal_revenue` declares it for the income statement.
-    assert len(parts) == 60, len(parts)
+    # 61 since Find 3 split into a gross half and an allowance half, each declaring `parent`.
+    assert len(parts) == 61, len(parts)
     assert all(i.get("parent") for i in parts), (
         "a note-read part with no parent has nothing to trace back to")
     assert "parent" in RENDERED and "parent" not in RETIRED, (

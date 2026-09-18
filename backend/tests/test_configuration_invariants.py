@@ -244,7 +244,11 @@ def test_the_three_finds_can_each_admit_the_captions_the_spec_names(raw):
     # the four captions are the GROUPING headers over counterparty rows — so for Find 3 they belong
     # to `row_caption_any`. Asserting one shape for both is what this test did first, and it failed
     # on the Find that works.
-    where = {"sub__rp_find_2": "note_title_any", "sub__rp_find_3": "row_caption_any"}
+    # FIND 3'S ROW GATES MOVED to its gross half when the net had to be computed: the
+    # 关联方应收应付款项 note prints 账面余额 and 坏账准备 and no net column, so Find 3 became
+    # gross-less-allowance and the two halves carry the note_source between them.
+    where = {"sub__rp_find_2": "note_title_any",
+             "sub__rp_find_3_gross": "row_caption_any"}
     for key, field in where.items():
         src = by_key[key].get("note_source") or {}
         admits = [re.compile(p) for p in (src.get(field) or ())]
@@ -261,7 +265,7 @@ def test_the_three_finds_can_each_admit_the_captions_the_spec_names(raw):
 
     # AND THE CONTRADICTION ITSELF, on the line it was found on: Find 3 required all four captions
     # in `row_caption_any` AND denied all four in `row_caption_none`, so no row could ever pass.
-    src3 = by_key["sub__rp_find_3"]["note_source"]
+    src3 = by_key["sub__rp_find_3_gross"]["note_source"]
     admits3 = [re.compile(p) for p in src3["row_caption_any"]]
     vetoes3 = [re.compile(p) for p in src3["row_caption_none"]]
     for caption in spec_captions:

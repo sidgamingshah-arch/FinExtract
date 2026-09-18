@@ -294,7 +294,8 @@ def test_provisioning_reproduces_the_shipped_configuration_exactly():
     # `test_retired_derivations.test_the_shipped_set_is_the_configuration_in_force`.
     # 529 since the two 营业外 face parts split the template's single net non-operating column.
     # 531 since the two direct-method TAX face parts split the template's single Income Taxes Paid(Direct) column, as the two 营业外 parts before them split Other Non-Operating Inc(Exp)
-    assert len(after) == 531, len(after)
+    # 533 since Find 3 split into a gross half and an allowance half: the 关联方应收应付款项 note prints 账面余额 and 坏账准备 and no net column, so the 淨金額 the spec asks for is computed.
+    assert len(after) == 533, len(after)
 
     namespaces: dict[str, int] = {}
     for item in merged["items"]:
@@ -307,7 +308,9 @@ def test_provisioning_reproduces_the_shipped_configuration_exactly():
     # parts. The template split is unchanged at 462, which is the property this pins.
     # 69 internal, not 67: the two direct-method TAX parts are `internal` like every other part —
     # `in_output: false`, so neither claims a template column.
-    assert namespaces == {"template": 462, "internal": 69}, namespaces
+    # 71 internal: Find 3's gross and allowance halves are `internal` like every other part —
+    # `in_output: false`, so neither claims a template column.
+    assert namespaces == {"template": 462, "internal": 71}, namespaces
     assert len(protected_keys(merged)) == 462
 
     for key, item in before.items():

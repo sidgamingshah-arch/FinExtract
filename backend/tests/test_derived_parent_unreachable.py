@@ -80,7 +80,8 @@ def test_every_derived_line_is_locked_out_of_the_matcher() -> None:
     # 10, not 13 — the three related-party Find lines are `extracted` now. See
     # `test_derived_parent_gate` for why.
     # 11 since Find 1 became `derived`: the spec's first reading is a SUM over the related-party rows the balance sheet prints, so it is arithmetic over other lines rather than a row of its own.
-    assert len(derived) == 11, len(derived)
+    # 12 since Find 3 split into a gross half and an allowance half: the 关联方应收应付款项 note prints 账面余额 and 坏账准备 and no net column, so the 淨金額 the spec asks for is computed, which made Find 3 itself derived.
+    assert len(derived) == 12, len(derived)
     assert all(d.key in unmatchable for d in derived), (
         [d.key for d in derived if d.key not in unmatchable])
 

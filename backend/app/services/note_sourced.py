@@ -174,6 +174,9 @@ def select_rows(item, notes, periods: set[str] | None = None,
     if src is None:
         return []
     titles = _compiled(getattr(src, "note_title_any", None))
+    # See `NoteSource.measure`: the slug of the note column this part reads, "" for the primary.
+    measure = str(getattr(src, "measure", "") or "")
+    wanted = {f"{p}:{measure}" for p in (periods or ())} if measure else None
     counts = _compiled(getattr(src, "row_caption_any", None))
     vetoes = _compiled(getattr(src, "row_caption_none", None))
     if not titles or not counts:
@@ -331,7 +334,25 @@ def select_rows(item, notes, periods: set[str] | None = None,
                 # should ever take a figure from a column whose period is unknown.
                 if _POSITIONAL_SLOT.match(label):
                     continue
-                if periods is not None and label not in periods:
+                # WHICH MEASURE OF THE PERIOD THIS PART ASKED FOR. Default "" is the primary
+                # measure and the bare label, which is every part that existed before this and is
+                # why the `wanted` set is just `periods` in that case. A part declaring
+                # `measure: "allowance"` reads `current:allowance` instead — and the hit is
+                # reported under the BARE period, so it fills `current`/`prior` like any other part
+                # and nothing downstream needs to know. See `NoteSource.measure`.
+                if measure:
+                    # THE SUFFIX IS REQUIRED, unconditionally, and not merely "allowed by the
+                    # period filter". `periods` is None whenever the face declared no period
+                    # labels of its own, and the membership test below is skipped in that case —
+                    # so a part asking for the allowance column took the PRIMARY figure instead,
+                    # and a note printing no allowance at all reported its balance as the
+                    # allowance. `sub__rp_find_3` then deducted a number from itself.
+                    if not label.endswith(f":{measure}"):
+                        continue
+                    if periods is not None and label not in wanted:
+                        continue
+                    label = label.rsplit(":", 1)[0]
+                elif periods is not None and label not in periods:
                     continue
                 amount = _num(getattr(value, "value", None)
                               if getattr(value, "value", None) is not None
@@ -343,7 +364,14 @@ def select_rows(item, notes, periods: set[str] | None = None,
                     note_title=title, caption=caption, matched_by=matched,
                     value=value, amount=amount,
                     basis=_table_basis(table, value),
-                    period=str(getattr(value, "period_label", "") or "")))
+                    # `label`, NOT `value.period_label`. The two are the same string for every
+                    # part reading the primary measure — `label` was read off the value above —
+                    # and they differ for a part declaring `measure`, where `label` has had the
+                    # measure suffix stripped so the figure lands in `current`/`prior` like any
+                    # other. Reading the value again here is what made that stripping dead code:
+                    # the allowance was found, summed, and then filed under `current:allowance`,
+                    # where the rung that deducts it could not see it.
+                    period=label))
     return hits
 
 

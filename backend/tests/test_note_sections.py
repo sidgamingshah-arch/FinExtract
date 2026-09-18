@@ -217,8 +217,15 @@ def test_no_section_keeps_the_note_route():
 
     st = load_shipped_set()
     selected = {i.key for i in _declared_items(st)}
-    for key in ("sub__rp_find_2", "sub__rp_find_3"):
+    # FIND 3'S NOTE ROUTE MOVED TO ITS HALVES. The 关联方应收应付款项 note prints 账面余额 and
+    # 坏账准备 and no net column, so the 淨金額 the spec asks for is computed: Find 3 became
+    # `derived` over `sub__rp_find_3_gross` (the primary measure) less `sub__rp_find_3_allowance`
+    # (the `measure: "allowance"` column), and those two carry the note_source between them.
+    for key in ("sub__rp_find_2", "sub__rp_find_3_gross", "sub__rp_find_3_allowance"):
         assert key in selected, f"{key} lost the note route"
+    assert "sub__rp_find_3" not in selected, (
+        "Find 3 reads a note again — it is computed from its two halves, and a note_source on it "
+        "as well would be a second, competing route to the same figure")
     assert "sub__rp_find_1" not in selected, (
         "Find 1 reads the balance-sheet face; a note route for it would restore the contest "
         "between the three Finds that removing its note_source resolved")

@@ -106,15 +106,19 @@ def test_the_types_the_shipped_set_declares(shipped):
     # spec collapsed their feeders into them — they now read the notes themselves instead of
     # cascading over nine parts.
     # 11 since Find 1 became `derived`: the spec's first reading is a SUM over the related-party rows the balance sheet prints, so it is arithmetic over other lines rather than a row of its own.
-    assert counts["derived"] == 11, counts
+    # 12 since Find 3 split into a gross half and an allowance half: the 关联方应收应付款项 note prints 账面余额 and 坏账准备 and no net column, so the 淨金額 the spec asks for is computed, which made Find 3 itself derived.
+    assert counts["derived"] == 12, counts
     assert counts["calculated"] == 33, counts
     # 487, not 488: Find 1 moved from `extracted` to `derived` (see the derived count above).
     # 486 since the two 营业外 face parts were added — both `extracted`, because each is a
     # printed row read off the income statement rather than a figure computed from others.
     # 488 since the two direct-method TAX parts were added, `extracted` for the same reason: each
     # is a row printed on the face of the cash-flow statement.
-    assert counts["extracted"] == 487, counts
-    assert sum(counts.values()) == 531  # 531 since the two direct-method TAX face parts split the template's single Income Taxes Paid(Direct) column, as the two 营业外 parts before them split Other Non-Operating Inc(Exp)
+    # 488: the two new Find 3 halves are `extracted` note readers; Find 3 itself left this
+    # bucket for `derived` in the same change, so the net is +1.
+    assert counts["extracted"] == 488, counts
+    # 533 since Find 3 split into a gross half and an allowance half: the 关联方应收应付款项 note prints 账面余额 and 坏账准备 and no net column, so the 淨金額 the spec asks for is computed.
+    assert sum(counts.values()) == 533
     # AND THE DISCRIMINATOR THE SECTION ROLL-UPS READ IS UNTOUCHED. `rollups.section_members` keys
     # on `unit_of_account == "subtotal"` and nothing else; flattening it alongside the type takes
     # all 20 sections to `no_reported_subtotal`, so the two must not move together.

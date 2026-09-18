@@ -291,6 +291,26 @@ class NoteSource(BaseModel):
     note_title_any: list[str] = Field(default_factory=list)
     row_caption_any: list[str] = Field(default_factory=list)
     row_caption_none: list[str] = Field(default_factory=list)
+    #: WHICH MEASURE OF THE PERIOD this part reads, as the slug `row_reconstruct` suffixes onto the
+    #: period label. Empty — the default — is the PRIMARY measure and the bare label: the amount
+    #: itself (账面余额, 收入, 金额). "allowance" is 坏账准备, "cost" is 成本, "ratio" is 占比.
+    #:
+    #: THE CONVENTION ALREADY EXISTED AND NOTHING COULD REACH IT. `row_reconstruct` emits a second
+    #: measure as `"<period>:<slug>"` — "current:allowance" — expressly so that "a service that
+    #: needs the second measure can now ask for it by name", and no service could: `select_rows`
+    #: admits only labels the FACE declares, and a face declares periods, not measures. So every
+    #: note column but the primary one was unreadable by configuration.
+    #:
+    #: WHAT IT IS FOR, measured. A mainland related-party note prints
+    #: `项目 | 账面余额 | 坏账准备 | 账面余额 | 坏账准备` and NO net column, so a part reading the
+    #: primary measure gets the GROSS. On 000709 that made the related-party trade receivable
+    #: 952,910,390.11 where the 淨金額 the spec asks for is 554,344,602.47 — a 398,565,787.64
+    #: overstatement, 565,528,459.41 of it a single counterparty whose allowance equals its gross.
+    #: The net is expressible only once the allowance column is addressable, which is this field.
+    #:
+    #: A hit is reported under the BARE period, so a part reading "allowance" fills `current` and
+    #: `prior` like any other and every consumer downstream needs no edit.
+    measure: str = ""
     # THE SEMANTIC HALF, and the two levels are the SAME two levels as the patterns above. That
     # parallel is the whole design: which note, then which rows inside it, are different questions
     # searched against different text, and they need different vocabularies.

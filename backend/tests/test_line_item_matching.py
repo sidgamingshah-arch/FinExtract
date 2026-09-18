@@ -348,7 +348,7 @@ def test_an_exclusion_vetoes_the_rule_tier_too():
 def test_the_shipped_set_carries_the_whole_rulebook(shipped):
     # 527, not 543: the live configuration was exported into the shipped seed — see
     # `test_retired_derivations.test_the_shipped_set_is_the_configuration_in_force`.
-    assert len(shipped.by_key) == 531  # 531 since the two direct-method TAX face parts split the template's single Income Taxes Paid(Direct) column, as the two 营业外 parts before them split Other Non-Operating Inc(Exp)
+    assert len(shipped.by_key) == 533  # 533 since Find 3 split into a gross half and an allowance half: the 关联方应收应付款项 note prints 账面余额 and 坏账准备 and no net column, so the 淨金額 the spec asks for is computed
     assert len(shipped._alias_index) > 1900, "the alias vocabulary did not survive the merge"
 
 
