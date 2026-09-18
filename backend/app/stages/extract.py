@@ -42,6 +42,27 @@ def reconstruction_rules(ctx: PipelineContext) -> tuple[ScopeSelection | None,
     return getattr(ontology, "scope_selection", None), getattr(ontology, "normalisation", None)
 
 
+def _transpose_equity_matrix(doc: DocumentModel, ctx: PipelineContext) -> None:
+    """Turn the statement of changes in equity round, once every page has been read.
+
+    HERE AND NOT IN RECONSTRUCTION, because reconstruction reads one page and the answer needs the
+    document: a filing printing one page per year has its PRIOR year's closing balance as the
+    latest balance on the first of them. See :mod:`app.services.equity_matrix`.
+
+    THIS COMPUTES NO FIGURE. It relabels balances already extracted — the pipeline's note on
+    `NoteSourcedStage` ("do not reinstate a stage here to fill it") is about stages that DERIVE a
+    published figure out of enumerated note titles and captions, and that is not what this is: no
+    note is read, no arithmetic is performed, and every value it appends is a cell of a printed
+    balance row carrying that cell's own provenance.
+    """
+    from app.services.equity_matrix import transpose_closing_balances
+
+    try:
+        transpose_closing_balances(doc, log=ctx.log)
+    except Exception as exc:                      # a layout nobody anticipated must not lose the run
+        ctx.log(f"extract:equity_matrix_transpose_failed:{exc}")
+
+
 class ExtractStage:
     name = "extract"
 
@@ -74,6 +95,7 @@ class ExtractStage:
             from app.services.pdf_extract import extract_pdf
 
             extract_pdf(ctx.raw_bytes, doc, ctx, scope=scope, normalisation=normalisation)
+            _transpose_equity_matrix(doc, ctx)
             return doc
 
         # Standalone image (scanned page as PNG/JPG/TIFF): OCR the bytes directly.
@@ -81,6 +103,7 @@ class ExtractStage:
             from app.services.pdf_extract import extract_image
 
             extract_image(ctx.raw_bytes, doc, ctx, scope=scope, normalisation=normalisation)
+            _transpose_equity_matrix(doc, ctx)
             return doc
 
         ctx.log("extract:no_source_bytes")

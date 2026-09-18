@@ -620,6 +620,21 @@ class MapOntologyStage:
         stmt_by_page = {p.index: p.statement for p in doc.pages if p.statement}
 
         def _statement_of(li) -> str | None:
+            """Which statement's VOCABULARY names this row's caption.
+
+            Normally the page it was printed on, which is the same question — a caption on the
+            balance sheet is named by the balance sheet's concepts. A row may DECLARE otherwise,
+            and one kind does: an equity-matrix balance transposed by
+            `services.equity_matrix` is the balance sheet's equity section restated at a date, so
+            "Share premium" is a balance-sheet caption even though it was printed on the statement
+            of changes in equity. Its provenance still points at the page it came off; only the
+            gate's question is answered differently. See that module's `MATCH_STATEMENT_FLAG`.
+            """
+            from app.services.equity_matrix import MATCH_STATEMENT_FLAG
+
+            for flag in (getattr(li.confidence, "flags", None) or ()):
+                if str(flag).startswith(f"{MATCH_STATEMENT_FLAG}:"):
+                    return str(flag).split(":", 1)[1] or None
             for ev in li.values.values():
                 if ev.provenance is not None:
                     return stmt_by_page.get(ev.provenance.page_index)

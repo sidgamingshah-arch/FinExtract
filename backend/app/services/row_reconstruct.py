@@ -2363,6 +2363,13 @@ def _period_measure_grid(rows: list[list[Word]], value_bands: list[float],
 # than read straight off one caption.
 GRID_FLAG = "column_grid:period_x_measure"
 
+# The flag a MATRIX BALANCE ROW carries, with the date it is the balance at appended
+# ("equity_matrix_balance:2023-12-31"). Raised on the LineItem's own flags rather than on a value's
+# because it describes the ROW — every cell of it is a balance at the same date. Read by
+# `services.equity_matrix`, which is the only consumer; see `_matrix_items` for why the transpose
+# cannot be done on the page that finds it.
+EQUITY_BALANCE_FLAG = "equity_matrix_balance"
+
 
 # ── scope_selection.period_selection ─────────────────────────────────────────────────────────
 #
@@ -3112,6 +3119,27 @@ def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id:
                 unit_ctx=unit_ctx or UnitContext(), provenance=prov,
             ), dims, log=log, where=f"page={page_index}:matrix:")
         if li.values:
+            # A BALANCE ROW, MARKED FOR THE TRANSPOSE. Everything above files a movement's figures
+            # under the COMPONENT columns they were printed in, which is the only honest reading of
+            # a matrix and is unreachable by anything asking for a period. The opening and closing
+            # BALANCE rows are the exception worth naming: each one restates the equity section of
+            # a balance sheet, so its cells are a period's figures for a set of concepts — and
+            # `services.equity_matrix` turns them round, one row per component, once every page of
+            # the document has been read. Marked and not transposed here because THIS function sees
+            # ONE PAGE: China SCE prints a page per year, so the latest balance on page 106 is the
+            # PRIOR year's close and only the whole document says so.
+            #
+            # TWO CONDITIONS, because either alone has a real counter-example on this corpus. A
+            # FULL DATE, month and day included: "2021 final dividend" parses to the year 2021 and
+            # is a movement. AND A ROW SPANNING MOST OF THE COLUMNS: a balance touches every
+            # component a filing has (13 of 13 on SCE, 8 of 9 on 佳明), where the widest movement
+            # touches 6 and 5 — and a movement that happened to carry a date would still be
+            # refused by this.
+            when = _period_date(label)
+            if (when and when[1] and when[2]
+                    and len(li.values) * 3 >= len(m.bands) * 2):
+                li.confidence.flags.append(
+                    f"{EQUITY_BALANCE_FLAG}:{when[0]:04d}-{when[1]:02d}-{when[2]:02d}")
             items.append(li)
             ordinal += 1
     return items, ordinal

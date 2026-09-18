@@ -201,6 +201,20 @@ def caption_key(row: dict) -> str:
     return trimmed
 
 
+def _is_restatement(v: dict | None) -> bool:
+    """Whether this value is one statement restating another's figure rather than an addend.
+
+    Only `services.equity_matrix` raises the flag today, on a closing balance it transposed out of
+    the statement of changes in equity. The flag lives on the VALUE and not on the row because a
+    row can hold both kinds — it does not today, and the flag being per value is what keeps that
+    from becoming a silent assumption.
+    """
+    from app.services.equity_matrix import TRANSPOSED_FLAG
+
+    flags = ((v or {}).get("confidence") or {}).get("flags") or ()
+    return TRANSPOSED_FLAG in tuple(flags)
+
+
 def _printed_at(v: dict | None) -> object:
     """Where a value was printed, as far as "is this the same line again" needs to know."""
     prov = (v or {}).get("provenance") or {}
@@ -228,13 +242,33 @@ def summable(group: list[dict], basis: str, period: str) -> list[tuple[dict, flo
 
     Everything else keeps adding: three depreciation lines into "Depreciation and amortisation",
     four dividend lines into "Dividends received", the odds and ends a section's "Others" absorbs.
+
+    A RESTATEMENT NEVER ADDS TO A SLOT THE STATEMENTS ALREADY FILL, and that is a fourth case the
+    three tests above cannot reach. An equity-matrix closing balance transposed by
+    `services.equity_matrix` is the balance sheet's equity section printed a second time, so it is
+    the same economic fact the rule opens with — but the two captions are worded differently
+    ("Share capital 股本" on 佳明's balance sheet, "Share capital" over the matrix column), and the
+    caption test is what makes the general rule safe, so it cannot be relaxed. Measured: without
+    this, `bs_equity__common_share_capital` published 28,404 for a printed 14,202.
+
+    It is asymmetric ON PURPOSE. Where the balance sheet printed the line, that figure is the
+    filing stating the amount and the restatement is corroboration; where it did not — 佳明 prints
+    "Share capital" and one lumped "Reserves", and nothing else — the restatement is the only place
+    the breakdown exists, and it fills the slot. Same policy as `stages.note_sourced`'s "NEVER OVER
+    THE FILING'S OWN FIGURE".
     """
     out: list[tuple[dict, float]] = []
     seen: dict[tuple[str, float], object] = {}
-    for r in group:
-        slot = slot_for(r, basis, period)
+    # One `slot_for` per row: it re-derives the current/prior split on every call, and the
+    # restatement test below needs the whole group before the first row can be decided.
+    slots = [(r, slot_for(r, basis, period)) for r in group]
+    printed = any(_num((slot or {}).get("value")) is not None and not _is_restatement(slot)
+                  for _r, slot in slots)
+    for r, slot in slots:
         n = _num((slot or {}).get("value"))
         if n is None:
+            continue
+        if printed and _is_restatement(slot):
             continue
         ident = (caption_key(r), n)
         where = _printed_at(slot)

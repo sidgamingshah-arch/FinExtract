@@ -109,17 +109,31 @@ def test_the_signal_is_set_in_exactly_one_place():
     which trains a reader to re-stamp the number instead of asking what moved — so the check is the
     thing that actually matters: exactly one writer, in ``row_reconstruct``, inside the block that
     labels its provenance ``matrix``.
+
+    SETTING AND CLEARING ARE DIFFERENT, and only one of them can break the guard. A writer that
+    SETS an index invents the signal on a row that may not have come off a matrix, which is the
+    failure this exists for. A writer that assigns ``None`` removes it, so the row stops being
+    excused and is judged like any other — the safe direction, and a necessary one:
+    ``services.equity_matrix`` copies a matrix cell onto a row where the component has become the
+    CAPTION, and carrying the index there would have `stages.map_ontology` refuse to bind the very
+    row the transpose exists to make bindable. The clearers are still enumerated, so a new one has
+    to come here and say why.
     """
     import pathlib
     import re
 
     root = pathlib.Path(__file__).resolve().parent.parent / "app"
-    writers = [(p.relative_to(root), i, lines)
-               for p in root.rglob("*.py")
-               for lines in [p.read_text(encoding="utf-8").splitlines()]
-               for i, line in enumerate(lines, 1)
-               if re.search(r"column_index\s*=(?!=)", line) and "def " not in line]
+    found = [(p.relative_to(root), i, line, lines)
+             for p in root.rglob("*.py")
+             for lines in [p.read_text(encoding="utf-8").splitlines()]
+             for i, line in enumerate(lines, 1)
+             if re.search(r"column_index\s*=(?!=)", line) and "def " not in line]
+    cleared = {f.as_posix() for f, _i, line, _ls in found
+               if re.search(r"column_index\s*=\s*None\b", line)}
+    assert cleared == {"services/equity_matrix.py"}, sorted(cleared)
 
+    writers = [(f, i, ls) for f, i, line, ls in found
+               if not re.search(r"column_index\s*=\s*None\b", line)]
     assert len(writers) == 1, [(f.as_posix(), i) for f, i, _ in writers]
     path, line_no, lines = writers[0]
     # `as_posix()`, not `str()`: a relative path stringifies with backslashes on Windows, so this
