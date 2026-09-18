@@ -4,6 +4,8 @@ every value carries page + normalized-bbox provenance regardless of source.
 """
 from __future__ import annotations
 
+import re
+
 from app.core.models.enums import PageKind, PageSourceKind, PrintedIn
 from app.core.models.geometry import BBox
 from app.core.stage import PipelineContext
@@ -55,7 +57,48 @@ def _text_lines(page) -> list[dict]:
 
 
 _CHROME_BAND = 0.12          # the top eighth of the page, where a running header is printed
+# …AND THE FOOT OF THE PAGE, where the other half of the template is printed. A statement page
+# carries a footer as reliably as a header — the folio, the entity's own name, and the boilerplate
+# every IFRS filing prints under its statements ("The notes on pages 68 to 159 form part of these
+# consolidated financial statements") — and none of it was being read as chrome.
+#
+# MEASURED ON 佳明集團 2025/26, whose footer block sits at y 0.915-0.940 of every face page. The
+# sentence wraps, so reconstruction made TWO rows of it, and the page range landed in their value
+# columns: 'The notes on pages' carrying 68 and 159, and 'statements. 分。' carrying the folio. All
+# of it was swept into the residual bucket of whatever section the page belonged to, and published
+# — `is_pl__other_operating_expenses` 68/159, `is_oci__other_equity_and_reserves_adj` 159 and 62,
+# `bs_equity__other_reserves` 68/159 and 64, `cf_financing__other_financing_cash_flows` 68/159.
+#
+# 0.88, which is where the footer BLOCK starts and not where its English sentence does. The
+# boilerplate is printed twice, once in each language, and the Chinese half sits a little higher:
+# 0.892 against 0.902 on this filing. A band that reached only the English half left the Chinese
+# one to be read on its own, which is worse than reading neither — the two were arriving in the
+# same row, so dropping one of them would have promoted the other to a row of its own.
+#
+# THE DEEPEST GENUINE ROW MEASURED on the two HK filings is 0.898 (a figure of 15,280,000 in a
+# note on page 28), so the band does overlap real content. That is what ``_CHROME_AMOUNT`` below
+# is for, and why the repeat threshold is on PAGES: a line stating a grouped amount is never
+# chrome however deep it is printed, and a line that is not printed on three pages is not a
+# template. The band's job is only to say where to look.
+_CHROME_FOOT_BAND = 0.88
 _CHROME_MIN_PAGES = 3        # fewer repeats than this is a coincidence, not a template
+# HOW FAR UP OR DOWN A FOOT LINE MAY WANDER between the pages it repeats on and still be the page
+# template. A template is printed at a FIXED place; content lands wherever the content above it
+# ended. That is the whole difference, and it is a wide one — measured over the five filings:
+#
+#   the boilerplate under 佳明's statements   spread 0.0000 over 5 pages
+#   合计 (Total) at the foot of a PRC note    spread 0.0021 - 0.0120
+#   期末余额 / 期初余额 / 单位：元             spread 0.0083 - 0.0153
+#
+# Without this test the foot band made CHROME KEYS out of 合计, 期末余额, 期初余额 and 单位：元 —
+# the last row and the column headers of any PRC note long enough to run onto a second page — and
+# a chrome key is grounds for dropping a row wherever it is printed. 0.001 of page height is under
+# a point on A4: the same place, not merely a similar one.
+_CHROME_FOOT_ALIGN = 0.001
+# A line that states a GROUPED amount is a row, not chrome, whatever band it is printed in and
+# however often its caption repeats. Cheap, and it keeps the two protections independent: the
+# threshold decides what repeats, this decides what could have been a figure.
+_CHROME_AMOUNT = re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?")
 
 
 def _chrome_key(text: str) -> str:
@@ -72,8 +115,18 @@ def _chrome_key(text: str) -> str:
     return " ".join(_re.sub(r"\d+", "", str(text or "")).split()).casefold()
 
 
-def _page_chrome(pdf, targets) -> frozenset[str]:
-    """The captions this filing prints at the top of page after page — its own running header.
+def _page_chrome(pdf, targets) -> tuple[frozenset[str], dict[int, tuple[tuple[float, ...], ...]]]:
+    """The captions this filing prints at the top or the FOOT of page after page — its template,
+    as ``(keys, foot_boxes)``: the keys every band contributes, and — for the FOOT band only —
+    where on each page those lines are printed, in the page-relative box the word reader uses.
+
+    WHY THE FOOT GETS BOXES AND THE HEAD DOES NOT. A running header is one line and lands on one
+    row, so naming it is enough: ``row_reconstruct._is_noise_row`` matches the key and drops that
+    row. The closing boilerplate under a statement is a SENTENCE, and a sentence wraps — so
+    reconstruction cut it into pieces, and no piece's label is the key any more. The boxes let
+    the reader refuse the words instead of the row, which is the only test a wrap cannot defeat,
+    and it covers the notes pages too (``notes_extract`` is never handed the key set, and its
+    prose reader would otherwise read the boilerplate as a note's narrative).
 
     WHY NOT A WORD LIST. Both the classifier and the row reader carry a regex of header wording
     ("annual report", "年報", …), and a filing whose running header is just its own name — which
@@ -90,24 +143,68 @@ def _page_chrome(pdf, targets) -> frozenset[str]:
     Read from the text layer only. A scanned page contributes nothing here (it has no lines to
     read), and it does not need to: the header it repeats is the same one the native pages state.
     """
-    counts: dict[str, set[int]] = {}
+    heads: dict[str, set[int]] = {}
+    foots: dict[str, set[int]] = {}
+    tops: dict[str, list[float]] = {}
+    # page -> the foot-band lines found on it, as (key, page-relative box).
+    feet: dict[int, list[tuple[str, tuple[float, float, float, float]]]] = {}
     for ps in targets:
         if ps.index >= pdf.page_count:
             continue
         try:
             page = pdf[ps.index]
+            width = max(page.rect.width, 1.0)
             height = max(page.rect.height, 1.0)
             for line in _text_lines(page):
                 box = line.get("bbox") or (0, 0, 0, 0)
-                if box[3] / height > _CHROME_BAND:
+                head = box[3] / height <= _CHROME_BAND
+                foot = box[1] / height >= _CHROME_FOOT_BAND
+                if not (head or foot):
                     continue
                 text = "".join(sp.get("text", "") for sp in line.get("spans", []))
+                if _CHROME_AMOUNT.search(text):
+                    continue
                 key = _chrome_key(text)
-                if key:
-                    counts.setdefault(key, set()).add(ps.index)
+                if not key:
+                    continue
+                if head:
+                    heads.setdefault(key, set()).add(ps.index)
+                    continue
+                foots.setdefault(key, set()).add(ps.index)
+                tops.setdefault(key, []).append(box[1] / height)
+                feet.setdefault(ps.index, []).append(
+                    (key, (box[0] / width, box[1] / height,
+                           box[2] / width, box[3] / height)))
         except Exception:                    # a malformed page must not stop extraction
             continue
-    return frozenset(k for k, pages in counts.items() if len(pages) >= _CHROME_MIN_PAGES)
+    keys = {k for k, pages in heads.items() if len(pages) >= _CHROME_MIN_PAGES}
+    foot_keys = {k for k, pages in foots.items()
+                 if len(pages) >= _CHROME_MIN_PAGES
+                 and max(tops[k]) - min(tops[k]) <= _CHROME_FOOT_ALIGN}
+    boxes = {page: tuple(box for key, box in found if key in foot_keys)
+             for page, found in feet.items()}
+    return (frozenset(keys | foot_keys),
+            {page: found for page, found in boxes.items() if found})
+
+
+def _without_foot_chrome(words: list, boxes: tuple[tuple[float, ...], ...]) -> list:
+    """``words`` with those printed inside one of this page's foot-template lines removed.
+
+    Containment, not a y band: the boilerplate's box is the box of ITS line, so a figure printed
+    at the same depth in another column — which the measurements say exists, a note's last row can
+    reach 0.898 — is outside it and kept. The word's centre is the test, so a word straddling the
+    line's edge goes with whichever line holds most of it.
+    """
+    if not boxes:
+        return words
+    kept = []
+    for word in words:
+        bb = word.bbox
+        cx, cy = (bb.x0 + bb.x1) / 2, (bb.y0 + bb.y1) / 2
+        if any(x0 <= cx <= x1 and y0 <= cy <= y1 for x0, y0, x1, y1 in boxes):
+            continue
+        kept.append(word)
+    return kept
 
 
 def _dir_rotation(direction) -> int:
@@ -282,9 +379,11 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
             ctx.log(f"extract:page_scope_applied={sorted(ctx.included_pages)}")
 
     number_format = _resolve_number_format(ctx, doc)
-    chrome = _page_chrome(pdf, targets)
+    chrome, chrome_feet = _page_chrome(pdf, targets)
     if chrome:
         ctx.log(f"extract:page_chrome={sorted(chrome)[:6]}")
+    if chrome_feet:
+        ctx.log(f"extract:page_foot_chrome_pages={len(chrome_feet)}")
     ocr = None
     added = 0
     ordinal = len(doc.line_items)
@@ -344,6 +443,16 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
 
         if not words:
             continue
+        # THE FOOT TEMPLATE IS NOT CONTENT. Dropped here, before either reader sees the page, so
+        # the face reader cannot build a row out of the boilerplate's wrapped halves and the notes
+        # reader cannot read it as a note's prose.
+        feet = chrome_feet.get(ps.index) or ()
+        if feet:
+            words, before = _without_foot_chrome(words, feet), len(words)
+            if len(words) != before:
+                ctx.log(f"extract:page={ps.index}:foot_chrome_words={before - len(words)}")
+            if not words:
+                continue
         # Notes pages → note detail tables (the breakdowns behind the face figures); every
         # other page → face line items. Both keep page + bbox provenance.
         if ps.kind == PageKind.NOTES:

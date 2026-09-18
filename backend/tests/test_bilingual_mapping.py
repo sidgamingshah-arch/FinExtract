@@ -136,6 +136,48 @@ def test_real_captions_are_kept(label):
     assert not _is_noise_row(label, [20960968, 26705112])
 
 
+@pytest.mark.parametrize("label", [
+    # 佳明集團 2025/26 heads each statement page with the date AND the currency it is stated in.
+    "於二零二六年三月三十一日（以港元列示）",
+    "於二零二五年三月三十一日(以港元列示)",
+    # The mainland and the English spellings of the same thing.
+    "2024 RMB'000",
+    "二零二三年（未經審核）",
+    "As at 31 December 2024",
+    "expressed in thousands of Hong Kong dollars",
+])
+def test_a_period_caption_with_its_units_on_it_is_still_a_period_caption(label):
+    """WHY THE ANNOTATIONS HAVE TO COME OFF FIRST. ``_is_period_only_label`` asks whether anything
+    SUBSTANTIVE is left once the period tokens are struck out, and a filing does not print a bare
+    date: it prints the date, the currency it is stated in, the scale, and whether the figures are
+    audited. Each of those left a residue, the label read as substantive, and the heading was
+    published as a line item whose amount was the year — on 佳明集團 the two date headings put
+    2026 and 2025 into ``bs_ca__other_current_assets`` and ``bs_cl__other_current_liabilities``.
+
+    於 / 于 / as at / as of are struck for the same reason: a preposition is not a caption.
+    """
+    from app.services.row_reconstruct import _is_period_only_label
+
+    assert _is_period_only_label(label)
+
+
+@pytest.mark.parametrize("label", [
+    "Trade receivables",
+    "Total assets less current liabilities",
+    "Balance as at 1 January",
+    "於期末",
+    "於二零二六年三月三十一日之投資",
+    "Cash and cash equivalents at end of year",
+])
+def test_a_caption_that_merely_mentions_a_period_keeps_its_figures(label):
+    """The other side of the same rule. A period token inside a real caption is not the caption,
+    and ``於期末``/``Balance as at 1 January`` are the rows a statement of changes in equity is
+    made of — the strike-out must leave their substance behind."""
+    from app.services.row_reconstruct import _is_period_only_label
+
+    assert not _is_period_only_label(label)
+
+
 def test_a_section_heading_does_not_capture_its_note_number():
     """"EQUITY HOLDERS OF THE PARENT" carries no amount; the 13 beside it is a note ref."""
     from app.services.row_reconstruct import _is_noise_row

@@ -799,13 +799,22 @@ def test_a_units_caption_row_is_not_a_line_item():
     assert [i.source_label for i in items] == ["Inventories", "Receivables", "Cash"]
 
 
-def test_removing_the_annotation_step_lets_the_header_row_through():
+def test_the_header_row_is_refused_even_without_the_annotation_step():
     """The same page with the "Strip inline unit and currency annotations" step deleted from the
-    declared pipeline: the row comes back as a line item reporting 2024 and 2023."""
+    declared pipeline. This test used to assert the row came BACK — the declared step was the only
+    thing refusing it, so deleting the step from the rulebook published a line item reporting 2024
+    and 2023.
+
+    It no longer does, and that is the point: ``_is_period_only_label`` now strikes the units
+    annotation itself, so the guard holds whether or not the rulebook declares the fold. 佳明集團
+    is where that mattered — its statements are headed 於二零二六年三月三十一日（以港元列示）, an
+    annotation INSIDE a period caption rather than a caption of its own, which the declared step
+    does not reach. Two independent refusals, so a rulebook edit cannot open the hole.
+    """
     _, block = _raw_blocks()
     without = [s for s in block["pipeline"] if "unit and currency annotation" not in s]
     items, _ = _build(_units_caption_row(), normalisation=_normalisation(without))
-    assert any("千元" in i.source_label for i in items)
+    assert [i.source_label for i in items] == ["Inventories", "Receivables", "Cash"]
 
 
 def test_a_units_caption_row_never_becomes_the_section():

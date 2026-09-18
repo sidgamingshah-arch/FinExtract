@@ -658,6 +658,77 @@ def make_named_running_header_pdf() -> bytes:
     return buf.getvalue()
 
 
+def make_statement_footer_boilerplate_pdf() -> bytes:
+    """A filing that prints the IFRS closing boilerplate under every statement, and — on the same
+    pages — a genuine row printed deeper than it, plus a table whose Total row wanders.
+
+    MEASURED ON 佳明集團 2025/26, whose statement pages carry "The notes on pages 68 to 159 form
+    part of these consolidated financial statements" at a FIXED y of 0.902-0.931. The sentence
+    wraps, so reconstruction cut it into pieces and the page range landed in the value columns:
+    'The notes on pages' carrying 68 and 159, published into whichever section's residual bucket
+    the page belonged to.
+
+    Three things have to be true at once for the guard to be the right guard, so all three are
+    printed here:
+
+    * the boilerplate is at the SAME y on every page — it is the page template;
+    * a GENUINE row sits at 0.869, deeper than any top-band mirror would allow;
+    * a note's ``Total`` row falls INSIDE the foot band on three pages but at a different y each
+      time (0.884, 0.889, 0.893), because a table ends wherever its rows end. That is a caption,
+      not chrome, and a filing in Chinese prints 合计 there on every note long enough to run onto
+      a second page.
+
+    The Totals stop short of the boilerplate's own line rather than landing on it: the guard
+    refuses the words inside the template's BOX, and a caption printed at the template's x and
+    within a point of its baseline is not something any rule could tell apart.
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    _, height = A4
+
+    def from_top(fraction: float) -> float:
+        return height - fraction * height
+
+    for page_no, (title, rows, total_at) in enumerate([
+        ("Consolidated Statement of Financial Position",
+         [("Trade receivables", "3,410"), ("Cash and cash equivalents", "1,204")], 0.893),
+        ("Consolidated Statement of Profit or Loss",
+         [("Revenue", "9,000"), ("Cost of sales", "(6,100)")], 0.889),
+        ("Consolidated Statement of Cash Flows",
+         [("Interest paid", "(170)")], 0.884),
+        ("Consolidated Statement of Changes in Equity",
+         [("Dividends paid", "(372)")], None),
+    ]):
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(72, from_top(0.085), title)
+        c.setFont("Helvetica", 10)
+        y = from_top(0.12)
+        for label, value in rows:
+            c.drawString(72, y, label)
+            c.drawRightString(500, y, value)
+            y -= 24
+        # The deepest GENUINE row of the page, below every other caption and above the footer.
+        c.drawString(72, from_top(0.869), "Total assets less current liabilities")
+        c.drawRightString(500, from_top(0.869), "3,078,784")
+        # A table's own Total, inside the foot band but at a different depth on each page.
+        if total_at is not None:
+            c.drawString(72, from_top(total_at), "Total")
+            c.drawRightString(500, from_top(total_at), "3,078,784")
+        # THE PAGE TEMPLATE: the same sentence, wrapped, at the same y on every page.
+        c.setFont("Helvetica", 8)
+        c.drawString(72, from_top(0.902),
+                     "The notes on pages 68 to 159 form part of these consolidated financial")
+        c.drawString(72, from_top(0.918), "statements.")
+        c.drawRightString(540, from_top(0.960), str(61 + page_no))
+        c.setFont("Helvetica", 10)
+        c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
 def make_financial_highlights_pdf() -> bytes:
     """A FINANCIAL HIGHLIGHTS page in the front matter, then the real P&L.
 

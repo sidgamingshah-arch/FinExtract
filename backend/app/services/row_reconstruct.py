@@ -194,20 +194,65 @@ _MIXED_DATE = r"(?:\d{1,4}\s*[年月日])+"
 # A period caption written in CJK numerals — "二零二三年" (2023), "二零二二年" (2022) — is how
 # HK/PRC filings head their comparative columns. Also the plain Arabic-numeral year, and the mixed
 # form above.
-_PERIOD_TOKEN = re.compile(rf"[〇零一二三四五六七八九十]{{2,6}}年|{_MIXED_DATE}|\b(19|20)\d{{2}}\b|"
-                           r"[〇零一二三四五六七八九十]{1,2}月|[〇零一二三四五六七八九十]{1,3}日")
+# THE ENGLISH MONTH NAMES. ``_MIXED_DATE`` above reads a date written with 年月日 and the branch
+# below reads a four-digit year, so "31 December 2024" reduced to "31 December" — a residue, which
+# reads as substantive, so an English filing's own date heading was never a period-only label. The
+# names are struck as tokens, not as a whole-label pattern, so a caption that merely mentions a
+# month ("Dividends declared in December") keeps the rest of itself and is kept.
+_EN_MONTH = (r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)"
+             r"(?:uary|ruary|ch|il|e|y|ust|tember|ober|ember)?\.?")
+# The DAY comes off with the month it belongs to, never on its own: "31 December" has to reduce to
+# nothing, and a bare 31 struck anywhere would take the 31 out of "Note 31" and out of any caption
+# that happens to carry a small number.
+_EN_DATE = (rf"\b\d{{1,2}}(?:st|nd|rd|th)?\s+{_EN_MONTH}\b"
+            rf"|\b{_EN_MONTH}\s+\d{{1,2}}(?:st|nd|rd|th)?\b")
+_PERIOD_TOKEN = re.compile(rf"[〇零一二三四五六七八九十]{{2,6}}年|{_MIXED_DATE}|"
+                           rf"{_EN_DATE}|\b(19|20)\d{{2}}\b|\b{_EN_MONTH}\b|"
+                           r"[〇零一二三四五六七八九十]{1,2}月|[〇零一二三四五六七八九十]{1,3}日",
+                           re.IGNORECASE)
+
+
+# THE UNITS OR AUDIT-STATUS ANNOTATION a filing prints INSIDE its period caption — "(expressed in
+# Hong Kong dollars)", "（以港元列示）", "（以人民幣千元列示）", "RMB'000", "（未經審核）". It decorates
+# the caption and says nothing about what the row is, so `_is_period_only_label` has to look past
+# it exactly as it looks past the period tokens themselves.
+#
+# MEASURED ON 佳明集團 2025/26. Its balance sheet is headed 於二零二六年三月三十一日（以港元列示）
+# with the years 2026 and 2025 landing in the value columns. Every other part of that caption is a
+# period token, so removing them left "以港元列示" — a substantive word — and the header was
+# published as a line item whose amounts were two years, swept into
+# `bs_ca__other_current_assets` and `bs_cl__other_current_liabilities`. The filing's other heading
+# form, 截至…止年度（以港元列示）, was already caught by `_HDR_LABEL`'s 截至/止年度; only the
+# balance sheet's 於… form had nothing else to be recognised by.
+_UNITS_ANNOTATION = re.compile(
+    r"以[^）)]{0,12}列示|expressed\s+in\s+[^)）]{0,40}"
+    r"|[’\'`]0{3}|千元|百萬元|百万元|億元|亿元|thousands?|millions?|billions?"
+    r"|rmb|hk\$|us\$|人民幣|人民币|港元|港幣|美元"
+    r"|未經審核|未经审核|unaudited|audited", re.IGNORECASE)
+# The preposition that INTRODUCES a period caption and says nothing else — the CJK counterpart of
+# the "as at" / "as of" `_HDR_LABEL` already lists. 於二零二六年三月三十一日 is "as at 31 March
+# 2026", and with the date and the units annotation removed a bare 於 was the substantive word that
+# kept the heading looking like a caption.
+#
+# Removed only HERE, where the question is already "is this label nothing BUT a period caption".
+# It cannot widen anything on its own: "Balance as at 1 January" still keeps "Balance", and
+# "As at 31 December" still keeps "December", because neither 1 nor 31 is a period token.
+_PERIOD_PREPOSITION = re.compile(r"^\s*(?:於|于|as\s+at\b|as\s+of\b)", re.IGNORECASE)
 
 
 def _is_period_only_label(label: str) -> bool:
     """True when the label is nothing but period captions (a column-header row).
 
     "二零二三年 二零二二年" heads the comparative columns; it is not a line item, whatever
-    numbers happen to land on its baseline. Requires that removing the period tokens leaves
-    no substantive word, so "Profit for the year ended 2023" is never mistaken for a header.
+    numbers happen to land on its baseline. Requires that removing the period tokens — and the
+    units or audit-status annotation printed with them, see :data:`_UNITS_ANNOTATION` — leaves no
+    substantive word, so "Profit for the year ended 2023" is never mistaken for a header.
     """
     if not label or not label.strip():
         return False
-    rest = _PERIOD_TOKEN.sub(" ", label)
+    rest = _PERIOD_PREPOSITION.sub(" ", label)
+    rest = _PERIOD_TOKEN.sub(" ", rest)
+    rest = _UNITS_ANNOTATION.sub(" ", rest)
     rest = re.sub(r"[\s\-–—/、,，.。()（）:：'\u2019\"]+", " ", rest).strip()
     return not rest
 
