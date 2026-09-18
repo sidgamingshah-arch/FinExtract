@@ -225,10 +225,31 @@ def select_rows(item, notes, periods: set[str] | None = None,
                             for r in (getattr(table, "items", None) or ()))
         for row in getattr(table, "items", None) or ():
             caption = getattr(row, "raw_label", "") or ""
-            matched = _matches_any(caption, counts)
+            # THE GROUPING HEADER COUNTS AS THIS ROW'S CAPTION TOO, because one common note shape
+            # puts the line-item caption on the GROUP and the counterparty on the row. A mainland
+            # related-party note is exactly that table:
+            #
+            #     其他应收款：                      <- the group; the caption an author writes
+            #       唐山唐钢气体有限公司   118,850.00  <- the row; a company name
+            #       合计                118,850.00
+            #
+            # Matching `raw_label` alone, every row of such a note is a company name and no
+            # authored `row_caption_any` can ever hit one. Measured: `sub__rp_find_3` — the spec's
+            # third reading, "the net amounts attributable to related parties in the related-party
+            # note" — selected zero rows on every filing, so the rule "take the highest of Find 1,
+            # Find 2 and Find 3" was deciding from a sample of one.
+            #
+            # THE VETO APPLIES TO BOTH, and that is what keeps this from widening the gate: a row
+            # admitted by its group is still refused by its own caption, so the group's `合计` and
+            # every movement, gross and allowance row inside it are excluded exactly as before. The
+            # group is checked SECOND, so a row that matches on its own caption behaves as it
+            # always did.
+            group = str(getattr(row, "group_hint", "") or "")
+            matched = _matches_any(caption, counts) or (
+                bool(group) and _matches_any(group, counts))
             if not matched:
                 continue
-            if _matches_any(caption, vetoes):
+            if _matches_any(caption, vetoes) or (group and _matches_any(group, vetoes)):
                 continue
             # A MOVEMENT ROW CARRIES ITS PERIOD ON THE BLOCK, NOT ON THE COLUMN. An asset note's
             # columns are asset CLASSES and its comparative year is a second block of rows, so

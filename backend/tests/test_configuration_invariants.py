@@ -29,7 +29,7 @@ import pytest
 
 from app.schemas.line_items import load_line_item_set
 from app.services.line_item_audit import (
-    dangling_references, keys_outside_the_template, template_keys,
+    dangling_references, keys_outside_the_template, self_denying_note_sources, template_keys,
     unbreakable_ties as _unbreakable_ties, unsigned_terms,
 )
 
@@ -185,3 +185,104 @@ def test_the_seven_retained_movements_are_no_longer_tied(resolved):
     ties = _unbreakable_ties(resolved)
     retained = [t for t in ties if t.count("is_retained__") >= 2]
     assert retained == [], retained
+
+
+# ── a gate that vetoes what it requires ──────────────────────────────────────────────────────
+
+#: The most exact duplicates any one `note_source` gate pair may carry between its inclusion list
+#: and its exclusion list. A RATCHET, like the tie ceiling above: lower it when a declaration is
+#: repaired, never raise it to make one pass.
+#:
+#: 44 -> 11 when `sub__rp_find_3` was repaired. It carried 44 of its 79 `row_terms` verbatim in
+#: `row_terms_none`, and all four captions the spec names — 其他应收款, 一年内到期的长期应收款,
+#: 长期应收款, 发放贷款及垫款 — were `required=True` and `denied=True` at once, so the line selected
+#: zero rows on every filing ever run.
+#:
+#: 11 is now the highest, on `sub__cp_current_loans_advances_net` and `sub__cp_funds_placed_net`,
+#: and those two are NOT known to be broken: they publish figures, and an overlap on
+#: `impairment`/`信用减值准备` is the shape of a list that admits a family and then excludes one
+#: member of it. Left at the measurement rather than "fixed" on the strength of this count alone.
+_SELF_DENIAL_CEILING = 11
+
+
+def test_no_note_source_vetoes_the_captions_it_requires(raw):
+    """`row_caption_none` is applied AFTER `row_caption_any`, so a pattern in both lists can never
+    admit a row. Enough of them and the declaration is unsatisfiable while still reading, field by
+    field, like careful authoring — and NOTHING else catches it: the schema accepts both lists,
+    every pattern compiles, the publish gates see one edit at a time, and a run reports only that
+    the line found no rows, which is what a filing that does not disclose the figure looks like.
+    """
+    offenders = self_denying_note_sources(raw, threshold=_SELF_DENIAL_CEILING)
+    assert offenders == [], (
+        f"these declarations veto a large share of what they require, so they may be "
+        f"unsatisfiable: {offenders}")
+
+
+def test_the_three_finds_can_each_admit_the_captions_the_spec_names(raw):
+    """THE REGRESSION THIS FILE EXISTS FOR, on the line it was found on.
+
+    The governing rule is "select the highest amount among Find 1, Find 2 and Find 3", and it is
+    configured exactly that way — `bs_nca__due_from_related_parties_ltp` declares a MAX_VALID rung
+    over the three. A Find that can never produce a figure does not make the answer smaller; it
+    makes the selection a maximum over fewer readings than the rule names, silently.
+
+    So what is pinned is that each Find's own gates ADMIT the four captions the spec lists, and
+    that the exclusions the spec also lists still deny. 委托贷款 is in the spec's own words —
+    "但不包括委托贷款" — and 关联方组合 is the expected-credit-loss staging row whose 账面余额 is a
+    gross figure rather than a balance.
+    """
+    import re
+
+    by_key = {i["key"]: i for i in raw["items"]}
+    spec_captions = ("其他应收款", "一年内到期的长期应收款", "长期应收款", "发放贷款及垫款")
+    spec_exclusions = ("委托贷款", "应付账款", "关联方组合", "账面余额", "交易金额", "合计")
+
+    # THE TWO FINDS MEET THE FOUR CAPTIONS AT DIFFERENT LEVELS, which is the design and not an
+    # inconsistency. Find 2 reads the four receivable NOTES, so the captions are what identifies
+    # the note — they belong to `note_title_any`, and its row gates pick the related-party rows
+    # INSIDE. Find 3 reads the related-party note, whose title names the chapter and inside which
+    # the four captions are the GROUPING headers over counterparty rows — so for Find 3 they belong
+    # to `row_caption_any`. Asserting one shape for both is what this test did first, and it failed
+    # on the Find that works.
+    where = {"sub__rp_find_2": "note_title_any", "sub__rp_find_3": "row_caption_any"}
+    for key, field in where.items():
+        src = by_key[key].get("note_source") or {}
+        admits = [re.compile(p) for p in (src.get(field) or ())]
+        vetoes = [re.compile(p) for p in (src.get("row_caption_none") or ())]
+        assert admits and vetoes, f"{key} declares no {field} or no row veto at all"
+
+        for caption in spec_captions:
+            assert any(p.search(caption) for p in admits), (
+                f"{key}.{field} no longer admits {caption!r}")
+
+        for caption in spec_exclusions:
+            assert any(p.search(caption) for p in vetoes), (
+                f"{key} no longer excludes {caption!r}, which the spec names as an exclusion")
+
+    # AND THE CONTRADICTION ITSELF, on the line it was found on: Find 3 required all four captions
+    # in `row_caption_any` AND denied all four in `row_caption_none`, so no row could ever pass.
+    src3 = by_key["sub__rp_find_3"]["note_source"]
+    admits3 = [re.compile(p) for p in src3["row_caption_any"]]
+    vetoes3 = [re.compile(p) for p in src3["row_caption_none"]]
+    for caption in spec_captions:
+        assert any(p.search(caption) for p in admits3), caption
+        assert not any(p.search(caption) for p in vetoes3), (
+            f"Find 3 vetoes {caption!r}, which it also requires — no row can pass both gates, "
+            f"which is the state it shipped in and produced zero rows on every filing")
+
+
+def test_the_three_finds_all_feed_the_line_that_selects_between_them(raw):
+    """A Find is only worth repairing if it still reaches the selection. All three name the same
+    parent, and that parent's MAX_VALID rung names all three as `any_of` terms."""
+    by_key = {i["key"]: i for i in raw["items"]}
+    finds = [f"sub__rp_find_{n}" for n in (1, 2, 3)]
+    parents = {by_key[k].get("parent") for k in finds}
+    assert parents == {"bs_nca__due_from_related_parties_ltp"}, parents
+
+    rungs = by_key["bs_nca__due_from_related_parties_ltp"].get("cascade") or []
+    chosen = next((r for r in rungs if r.get("terms_op") == "max"), None)
+    assert chosen is not None, "the parent no longer selects a MAXIMUM between the three readings"
+    refs = {str(t.get("ref")) for t in (chosen.get("terms") or [])}
+    assert refs == set(finds), refs
+    assert all(str(t.get("role")) == "any_of" for t in chosen["terms"]), (
+        "a Find that is not `any_of` makes the whole rung refuse when that Find is absent")

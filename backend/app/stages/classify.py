@@ -858,6 +858,67 @@ def _notes_follow_the_face(path: list[str], log=None, feats: list | None = None)
     return out
 
 
+def _untitled_face_inside_the_notes_is_notes(path: list[str], feats: list, *, log=None) -> list[str]:
+    """A run of FACE pages that never names a statement, walled in by notes, is notes.
+
+    A STATEMENT IS TITLED. Every real face run in a filing opens with one — `1、合并资产负债表`,
+    `3、合并利润表`, `现金流量表补充资料` — and the untitled pages inside such a run are its
+    continuation sheets, which is why `current` is carried forward for them. A run in which NOT ONE
+    page carries a title has no statement to continue, and the per-page loop below says so by
+    leaving `statement=None` on every page of it: a face page with no statement is a contradiction,
+    because a face page IS a statement.
+
+    WHAT IT COSTS TO GET THIS WRONG, measured on 000709. The decode put pages 172-198 in FACE — 27
+    consecutive pages, no title on any of them, `classification_evidence` empty, margin 0.525 — and
+    `(_NOTES, _FACE)` costs only 3.0, so a stretch of note tables that look like statement rows
+    (a related-party transactions chapter is page after page of counterparty names and amounts)
+    pulls the whole region across. Those pages then reach no notes walk at all:
+
+        pages that produced notes: 99-160, 163-172, 200-208
+
+    That hole covers the back half of chapter 十二 关联方及关联交易 — including the
+    `（6）关联方应收应付款项` table the spec's Find 3 is authored to read — and the whole of chapters
+    十三 to 十七. `sub__rp_find_3` selected zero rows on every filing for this reason, so the
+    "highest of Find 1, Find 2, Find 3" rule was deciding from a sample of one.
+
+    BOUNDED ON BOTH SIDES, deliberately, and that is what keeps this from reaching anything else.
+    The same filing has three other untitled face runs — pages 6-8 in the front matter, page 80
+    opening the balance-sheet run, page 92 inside the equity run — and every one of them either
+    sits outside the notes region or lies within a run that IS titled. Requiring a NOTES page
+    immediately before and immediately after selects 172-198 and nothing else. A filing whose
+    genuine statements are untitled keeps them: they are not walled in by notes.
+    """
+    if not feats or len(feats) != len(path):
+        return path
+
+    def titled(i: int) -> bool:
+        f = feats[i]
+        return getattr(f, "matched_title", None) is not None or bool(getattr(f, "statement", ""))
+
+    out = list(path)
+    moved: list[int] = []
+    i = 0
+    while i < len(path):
+        if path[i] != _FACE:
+            i += 1
+            continue
+        j = i
+        while j + 1 < len(path) and path[j + 1] == _FACE:
+            j += 1
+        walled = i > 0 and path[i - 1] == _NOTES and j + 1 < len(path) and path[j + 1] == _NOTES
+        if walled and not any(titled(k) for k in range(i, j + 1)):
+            for k in range(i, j + 1):
+                out[k] = _NOTES
+            moved.append((i, j))
+        i = j + 1
+
+    if moved and log:
+        for a, b in moved:
+            log(f"classify:untitled_face_inside_notes={a}-{b}->notes"
+                f"(no statement title on any of {b - a + 1} page(s))")
+    return out
+
+
 def _decode(feats: list[PageFeat]) -> tuple[list[str], list[float]]:
     """Viterbi over the page sequence. Returns the state path and each page's decode MARGIN — how
     much better the chosen state was than the runner-up, which is a measured confidence rather than
@@ -1085,6 +1146,10 @@ class ClassifyStage:
         path, margins = _decode(feats)
         # The notes explain statements already printed, so none of them precedes the face.
         path = _notes_follow_the_face(path, log=ctx.log, feats=feats)
+        # …and a face run walled in by notes that never names a statement is notes. AFTER the
+        # anchoring above, which decides where the notes region begins: this one reads the region
+        # the anchoring produced.
+        path = _untitled_face_inside_the_notes_is_notes(path, feats, log=ctx.log)
 
         # A statement runs across several pages and only the first is titled, so a face page with no
         # resolvable title inherits the last one named. Reset when the face run ends.

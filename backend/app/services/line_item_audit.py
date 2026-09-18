@@ -154,6 +154,45 @@ def unbreakable_ties(line_items) -> list[str]:
     return sorted(out)
 
 
+#: An inclusion list and the exclusion list that vetoes it. A pattern in BOTH can never admit
+#: anything, because the veto is applied after the match.
+_NOTE_SOURCE_GATE_PAIRS = (("row_caption_any", "row_caption_none"), ("row_terms", "row_terms_none"))
+
+
+def self_denying_note_sources(raw: dict, *, threshold: int = 4) -> list[str]:
+    """Items whose `note_source` vetoes the very captions it requires.
+
+    `row_caption_none` is applied AFTER `row_caption_any`, so a pattern appearing in both lists can
+    never admit a row — and with enough of them the declaration becomes unsatisfiable while still
+    reading, field by field, exactly like a careful piece of authoring. Nothing else catches this:
+    the schema accepts both lists, every pattern compiles, the publish gates look at one edit at a
+    time, and a run simply reports that the line found no rows, which is indistinguishable from a
+    filing that does not disclose the figure.
+
+    MEASURED, and this is why it exists. `sub__rp_find_3` — the spec's "Find 3", the related-party
+    note reading — carried 44 of its 79 `row_terms` verbatim in `row_terms_none`, and all four of
+    the captions the spec names (其他应收款, 一年内到期的长期应收款, 长期应收款, 发放贷款及垫款) were
+    `required=True` and `denied=True` at once. It selected zero rows on every filing, so the
+    governing rule "take the highest of Find 1, Find 2 and Find 3" was deciding from a sample of
+    one, with nothing in any output saying a third of the evidence was missing.
+
+    A THRESHOLD, NOT ZERO, because a small overlap is legitimate authoring: a list may admit a
+    family and then exclude one member of it by name. What this reports is the shape that cannot be
+    that — an exclusion list carrying a large share of the inclusion list back again. `threshold`
+    is the number of exact duplicates tolerated per pair; the shipped set's next-highest is 11.
+    """
+    out: list[str] = []
+    for item in raw.get("items") or ():
+        src = item.get("note_source") or {}
+        for admits, vetoes in _NOTE_SOURCE_GATE_PAIRS:
+            both = sorted(set(str(x) for x in (src.get(admits) or ()))
+                          & set(str(x) for x in (src.get(vetoes) or ())))
+            if len(both) > threshold:
+                out.append(f"{item.get('key')}.{admits}/{vetoes}: {len(both)} pattern(s) in both, "
+                           f"e.g. {both[:3]}")
+    return sorted(out)
+
+
 def junk_markers(definition: Any) -> list[str]:
     """The e2e probe strings a configuration-editing test suite leaves in a database it ran
     against. A row carrying one is test residue and must never become the shipped file."""
