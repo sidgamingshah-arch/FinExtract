@@ -22,22 +22,24 @@ an existing line unreachable.
 """
 from __future__ import annotations
 
-import collections
 import json
 import pathlib
 
 import pytest
 
 from app.schemas.line_items import load_line_item_set
-from app.services.mapping import normalize_label
+from app.services.line_item_audit import (
+    dangling_references, keys_outside_the_template, template_keys,
+    unbreakable_ties as _unbreakable_ties, unsigned_terms,
+)
 
 TEMPLATES = pathlib.Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
 SEED = TEMPLATES / "output_csv_hk_line_items.json"
 TEMPLATE = TEMPLATES / "output_csv_hk_v1_template.json"
 
-#: The one line item that is not a template column and is not a part. Named rather than tolerated
-#: by a rule, so it cannot grow a second member by accident.
-_NOT_A_COLUMN = {"bs_ca_residual_L3"}
+#: THE ONE LINE ITEM THAT IS NEITHER a template column nor a part is named in
+#: `services.line_item_audit.NOT_A_COLUMN`, which `keys_outside_the_template` applies — named there
+#: rather than tolerated by a rule, so it cannot grow a second member by accident.
 
 #: Aliases claimed by two lines with nothing able to choose between them. A RATCHET — see the
 #: module docstring. Lower it when ties are resolved; never raise it to make a change pass.
@@ -85,20 +87,9 @@ def resolved():
 
 
 def _template_keys() -> set[str]:
-    out: set[str] = set()
-
-    def walk(node):
-        if isinstance(node, dict):
-            if key := node.get("canonical_key"):
-                out.add(key)
-            for value in node.values():
-                walk(value)
-        elif isinstance(node, list):
-            for value in node:
-                walk(value)
-
-    walk(json.loads(TEMPLATE.read_text(encoding="utf-8")))
-    return out
+    """`services.line_item_audit.template_keys` against the shipped template — the walk itself is
+    imported, so this is only the file read."""
+    return template_keys(json.loads(TEMPLATE.read_text(encoding="utf-8")))
 
 
 # ── the template boundary ────────────────────────────────────────────────────────────────────
@@ -109,11 +100,8 @@ def test_every_line_item_is_either_a_template_column_or_a_part(raw):
     A `sub__*` key is a part: it feeds a line through `parent`/`rollup` and is never printed. Any
     other new key is a new column, which is what this refuses.
     """
-    columns = _template_keys()
-    offenders = sorted(i["key"] for i in raw["items"]
-                       if not i["key"].startswith("sub__")
-                       and i["key"] not in columns
-                       and i["key"] not in _NOT_A_COLUMN)
+    offenders = keys_outside_the_template(
+        raw, json.loads(TEMPLATE.read_text(encoding="utf-8")))
     assert offenders == [], (
         f"these line items are neither a template column nor a `sub__` part, so they would print "
         f"a column the spread does not declare: {offenders}")
@@ -140,9 +128,7 @@ def test_the_boundary_is_not_vacuous(raw):
 def test_every_parent_names_a_line_that_exists(raw):
     """A part whose parent is missing is a figure with nowhere to roll up to — it extracts and
     then reaches no line, which looks identical to not having been authored."""
-    keys = {i["key"] for i in raw["items"]}
-    dangling = sorted(f"{i['key']} -> {i['parent']}" for i in raw["items"]
-                      if i.get("parent") and i["parent"] not in keys)
+    dangling = [d for d in dangling_references(raw) if ".parent ->" in d]
     assert dangling == [], dangling
 
 
@@ -152,9 +138,7 @@ def test_every_term_names_a_line_that_exists(raw):
     A term is `{"ref": <key>, "sign": +1|-1}` rather than a bare key — the sign is what makes a
     deduction a deduction, and reading the entry as a string is how this test failed first.
     """
-    keys = {i["key"] for i in raw["items"]}
-    dangling = sorted(f"{i['key']} -> {t.get('ref')}" for i in raw["items"]
-                      for t in (i.get("terms") or []) if t.get("ref") not in keys)
+    dangling = [d for d in dangling_references(raw) if ".terms.ref ->" in d]
     assert dangling == [], dangling
 
 
@@ -162,70 +146,16 @@ def test_every_term_declares_a_sign(raw):
     """A term with no sign is summed as an addition by default, so a missing sign on a DEDUCTION
     publishes the wrong total with nothing to show it — the positional-signs failure
     `note_sourced.resolve_sources` records, one layer up in the configuration."""
-    unsigned = sorted(f"{i['key']} -> {t.get('ref')}" for i in raw["items"]
-                      for t in (i.get("terms") or []) if t.get("sign") not in (1, -1))
-    assert unsigned == [], unsigned
+    assert unsigned_terms(raw) == [], unsigned_terms(raw)
 
 
 # ── the tie ratchet ──────────────────────────────────────────────────────────────────────────
 
-def _unbreakable_ties(line_items) -> list[str]:
-    """Aliases two lines claim with nothing able to choose between them.
-
-    Sharing an alias is NOT a defect and the set does it 346 times deliberately — `无形资产` sits on
-    balance-sheet and income-statement lines, `bank wealth management products` on the current and
-    non-current variants — because `mapping._in_statement` and `_in_section` separate them. Two
-    further tie-breakers apply before a tie is real: `match_priority`, and `_prefer_label_owners`,
-    which prefers the concept whose own LABEL is the caption.
-
-    What is left is the shape that has no answer: same alias, overlapping scope, equal priority,
-    and the caption is nobody's label. `match()` then returns whichever claimant declaration order
-    reached first, and the others are unreachable for that caption however well a filing prints it.
-    """
-    items = list(line_items.items)
-    by_key = {i.key: i for i in items}
-
-    def tok(x) -> str:
-        return str(getattr(x, "value", x) or "")
-
-    def scopes(item) -> set[tuple[str, str]]:
-        statements = [tok(x) for x in (getattr(item, "statements", None) or ())]
-        sections = [tok(x) for x in (getattr(item, "section_scope", None) or ())]
-        # A missing half is UNCONSTRAINED, which the gates read as "matches anything" — so it
-        # overlaps every value rather than none.
-        return {(s or "", g or "") for s in (statements or [""]) for g in (sections or [""])}
-
-    def overlap(a: set, b: set) -> bool:
-        return any((sa == sb or not sa or not sb) and (ga == gb or not ga or not gb)
-                   for sa, ga in a for sb, gb in b)
-
-    owner: dict[str, list[str]] = collections.defaultdict(list)
-    for item in items:
-        names = list(getattr(item, "aliases", None) or ())
-        for values in (getattr(item, "aliases_i18n", None) or {}).values():
-            names.extend(values or ())
-        for name in names:
-            norm = normalize_label(name)
-            if norm and item.key not in owner[norm]:
-                owner[norm].append(item.key)
-
-    labels = {normalize_label(getattr(i, "label", "") or ""): i.key for i in items}
-    out: list[str] = []
-    for norm, claimants in owner.items():
-        if len(claimants) < 2:
-            continue
-        label_owner = labels.get(norm)
-        for x in range(len(claimants)):
-            for y in range(x + 1, len(claimants)):
-                a, b = claimants[x], claimants[y]
-                if label_owner in (a, b):
-                    continue
-                if int(getattr(by_key[a], "match_priority", 0) or 0) != \
-                        int(getattr(by_key[b], "match_priority", 0) or 0):
-                    continue
-                if overlap(scopes(by_key[a]), scopes(by_key[b])):
-                    out.append(f"{norm!r}: {a} vs {b}")
-    return sorted(out)
+# `_unbreakable_ties` LIVES IN `services.line_item_audit` NOW, and is imported above rather than
+# restated here. It was written in this file and was its only reader until
+# `scripts/export_line_items_seed.py` had to answer the same question about a DATABASE row — and
+# two spellings of "is this alias tie real" is the two-places-computing-one-quantity bug this
+# codebase keeps finding. The docstring that explained the shape moved with it.
 
 
 def test_no_change_adds_an_unbreakable_alias_tie(resolved):
