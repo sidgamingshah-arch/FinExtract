@@ -184,9 +184,18 @@ def select_rows(item, notes, periods: set[str] | None = None,
         title = getattr(table, "title", "") or ""
         # The note NUMBER is offered to the title patterns too, because a filing whose note headings
         # were captured without their text still identifies the note by its number.
+        #
+        # AND THE CHAPTER HEADING, because a mainland filing numbers three levels deep and only the
+        # innermost caption reaches `title`: chapter 十二 "关联方及关联交易" yields notes titled
+        # "、本企业的母公司情况：". An author describing where a figure lives writes the chapter, so
+        # a pattern naming it matched nothing — `sub__rp_find_3`, the spec's reading of the
+        # related-party note, produced no figure on any filing for exactly this reason. OFFERED AS
+        # A THIRD ALTERNATIVE rather than concatenated, so an anchored pattern (`^\s*其他应收款`,
+        # which is how almost every authored pattern is written) still matches the note's own title
+        # from its first character.
         if not (_matches_title_any(title, titles)
-                or _matches_any(str(getattr(table, "note_number", "")),
-                                                            titles)):
+                or _matches_any(str(getattr(table, "note_number", "")), titles)
+                or _matches_title_any(str(getattr(table, "chapter_title", "") or ""), titles)):
             continue
         # THE LINE'S SECTION NARROWS WHICH NOTES IT MAY READ. `section_scope` says where a line
         # lives; until now the note path read it nowhere, so a line declaring `['bs_ca']` still

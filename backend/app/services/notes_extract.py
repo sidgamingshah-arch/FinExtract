@@ -18,8 +18,26 @@ from app.services.row_reconstruct import (
     GRID_FLAG, ColumnGrid, Word, _group_rows, _scan_row, build_line_items, row_tolerance)
 
 # "Note 15: Trade receivables", "Note 15 Trade receivables", "15. Trade receivables"
-_HEADING = re.compile(r"^(?:note[s]?\.?\s+)?(?P<no>\d{1,3})\s*[:.\)\-]?\s*(?P<title>.*)$",
-                      re.IGNORECASE)
+#
+# A PARENTHESISED NUMBER IS A HEADING TOO, and refusing it lost whole tables. A mainland filing
+# numbers three levels deep — `十二、` the chapter, `5、` the note, `（6）` the table inside it — and
+# this pattern required the digit at the start of the line, so `（6）关联方应收应付款项` matched
+# NOTHING. The table was never opened as a note, so no `NotesTable` existed for any authored
+# `note_source` to match, however exactly its patterns described the caption.
+#
+# Measured on 000709: its related-party receivable balances are printed under exactly that heading
+# and `sub__rp_find_3` — the spec's "Find 3", the related-party note reading — produced no figure
+# on any run. 184 notes were extracted from that filing and not one had a related-party title,
+# which reads as "the filing does not disclose it" and is the opposite of the truth. The same
+# numbering carries the revenue split (`（1）营业收入和营业成本`) and most other CAS note tables.
+#
+# BOTH BRACKET WIDTHS, because a filing sets them either way, and each half stays optional so the
+# forms that already matched are untouched — `6、…` and `15. …` parse exactly as before. A bare
+# `（1）` with no title is still refused by the no-title guard below, and a row carrying FIGURES
+# never reaches here at all (`if values: return None`).
+_HEADING = re.compile(
+    r"^(?:note[s]?\.?\s+)?[（(]?(?P<no>\d{1,3})[）)]?\s*[:.\)\-]?\s*(?P<title>.*)$",
+    re.IGNORECASE)
 
 # A NOTE'S OWN SUBTOTAL OR TOTAL ROW, from its caption, in both languages the shipped rulebook
 # supports. THE one definition of the question "is this note row a total rather than a detail".
@@ -739,6 +757,13 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
             continue
         table = NotesTable(note_number=qualified_note_number(chapter_numeral, sec["no"]),
                            title=sec["title"], basis=chapter_basis, source_pages=[page_index],
+                           # THE CHAPTER'S OWN HEADING, carried rather than discarded. `read_chapter`
+                           # returns `(numeral, ordinal, title)` and the title was used only for the
+                           # 母公司 basis test above and for a log line, so a `note_source` naming
+                           # the chapter — which is how a human says where a figure lives — matched
+                           # nothing. See `NotesTable.chapter_title`.
+                           chapter_title=(chapter[2] if chapter and len(chapter) > 2
+                                          else "") or "",
                    source_text=" ".join(word.text for word in sec["words"]).strip())
         # The note's own 项目名称 column, if it has one — see `_category_cells` for the nine-row
         # block whose eight continuation rows named no receivable class at all without it.

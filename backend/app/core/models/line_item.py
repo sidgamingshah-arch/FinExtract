@@ -412,6 +412,17 @@ class NotesTable(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     note_number: str
     title: str = ""
+    #: The top-level CHAPTER heading this note was printed under, title included —
+    #: "关联方及关联交易", "合并财务报表项目注释". Empty for a filing that prints no chapters, which is
+    #: every English one.
+    #:
+    #: CARRIED BECAUSE AUTHORED PATTERNS DESCRIBE IT. A mainland filing numbers three levels deep —
+    #: the chapter, the note, the table inside it — and only the innermost caption reaches `title`:
+    #: chapter 十二 "关联方及关联交易" yields notes titled "、本企业的母公司情况：". So a `note_source`
+    #: whose `note_title_any` names the chapter, which is how a human describes where a figure
+    #: lives, matched nothing. `notes_extract.read_chapter` has always parsed the title; it was
+    #: used to set `basis` from 母公司 and to write a log line, and then dropped.
+    chapter_title: str = ""
     basis: Basis | None = None
     source_pages: list[int] = Field(default_factory=list)
     source_text: str = ""
