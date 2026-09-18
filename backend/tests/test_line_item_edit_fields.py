@@ -233,7 +233,13 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
         # WHICH NOTE COLUMN the part reads — "" is the primary measure, "allowance" is 坏账准备.
         # A non-default value on purpose: the round trip is what proves the configuration screen
         # can author the field, and `""` would pass whether the screen carried it or not.
-        "measure": "allowance"}),
+        "measure": "allowance",
+        # WHETHER THAT COLUMN CAME FROM A TWO-LEVEL HEADER, which is the only way to ask about the
+        # PRIMARY column — it has no suffix for `measure` to name. `True` rather than the default
+        # `None` for the same reason as above: the default would pass whether the screen carried
+        # the field or not, and a configurator who cannot set it cannot tell a grid's gross from a
+        # plain comparative's reported amount.
+        "from_measure_grid": True}),
     # recognition
     "aliases": ("aliases", ["Cash at bank", "Bank balances"]),
     "alias_matching": ("alias_matching", "disabled"),

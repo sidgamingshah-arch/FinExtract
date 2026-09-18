@@ -107,7 +107,7 @@ def test_the_types_the_shipped_set_declares(shipped):
     # cascading over nine parts.
     # 11 since Find 1 became `derived`: the spec's first reading is a SUM over the related-party rows the balance sheet prints, so it is arithmetic over other lines rather than a row of its own.
     # 12 since Find 3 split into a gross half and an allowance half: the 关联方应收应付款项 note prints 账面余额 and 坏账准备 and no net column, so the 淨金額 the spec asks for is computed, which made Find 3 itself derived.
-    assert counts["derived"] == 13, counts   # 13 since the other-receivables net became a
+    assert counts["derived"] == 14, counts   # 14 with the loss allowance's two readings.   # 13 since the other-receivables net became a
     # two-rung cascade over the column reading and the row reading of one figure.
     assert counts["calculated"] == 33, counts
     # 487, not 488: Find 1 moved from `extracted` to `derived` (see the derived count above).
@@ -117,10 +117,11 @@ def test_the_types_the_shipped_set_declares(shipped):
     # is a row printed on the face of the cash-flow statement.
     # 488: the two new Find 3 halves are `extracted` note readers; Find 3 itself left this
     # bucket for `derived` in the same change, so the net is +1.
-    assert counts["extracted"] == 490, counts   # 490 with the interest-and-dividends component.   # 489: the other-receivables net became derived
+    assert counts["extracted"] == 491, counts   # 491: two allowance readings gained, their
+    # parent became derived.   # 490 with the interest-and-dividends component.   # 489: the other-receivables net became derived
     # (-1) and its two note-reading leaves are extracted (+2).
     # 533 since Find 3 split into a gross half and an allowance half: the 关联方应收应付款项 note prints 账面余额 and 坏账准备 and no net column, so the 淨金額 the spec asks for is computed.
-    assert sum(counts.values()) == 536   # 536 since the other-receivables line gained the interest-and-dividends-receivable component its own definition names: a filing that prints 应收利息/应收股利 as siblings of 其他应收款 has not put them inside it   # 535 since the other-receivables NET split into the two ways a note prints one — the 账面价值 COLUMN of a gross/allowance/net grid, and a row whose own reported amount is the net; one part holds one `measure`, and 000709 needs both readings
+    assert sum(counts.values()) == 538   # 538 since the loss allowance split into its two readings — the 坏账准备 COLUMN of a measure grid and an allowance printed as its own ROW — which is what lets CP_P2 subtract it   # 536 since the other-receivables line gained the interest-and-dividends-receivable component its own definition names: a filing that prints 应收利息/应收股利 as siblings of 其他应收款 has not put them inside it   # 535 since the other-receivables NET split into the two ways a note prints one — the 账面价值 COLUMN of a gross/allowance/net grid, and a row whose own reported amount is the net; one part holds one `measure`, and 000709 needs both readings
     # AND THE DISCRIMINATOR THE SECTION ROLL-UPS READ IS UNTOUCHED. `rollups.section_members` keys
     # on `unit_of_account == "subtotal"` and nothing else; flattening it alongside the type takes
     # all 20 sections to `no_reported_subtotal`, so the two must not move together.

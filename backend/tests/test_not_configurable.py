@@ -209,7 +209,7 @@ def test_no_shipped_item_would_now_be_unloadable():
     shipped = load_line_item_set(raw, resolve=True)
     # 527, not 543: the live configuration was exported into the shipped seed — see
     # `test_retired_derivations.test_the_shipped_set_is_the_configuration_in_force`.
-    assert len(shipped.items) == 536  # 536 since the other-receivables line gained the interest-and-dividends-receivable component its own definition names: a filing that prints 应收利息/应收股利 as siblings of 其他应收款 has not put them inside it  # 535 since the other-receivables NET split into the two ways a note prints one — the 账面价值 COLUMN of a gross/allowance/net grid, and a row whose own reported amount is the net; one part holds one `measure`, and 000709 needs both readings
+    assert len(shipped.items) == 538  # 538 since the loss allowance split into its two readings — the 坏账准备 COLUMN of a measure grid and an allowance printed as its own ROW — which is what lets CP_P2 subtract it  # 536 since the other-receivables line gained the interest-and-dividends-receivable component its own definition names: a filing that prints 应收利息/应收股利 as siblings of 其他应收款 has not put them inside it  # 535 since the other-receivables NET split into the two ways a note prints one — the 账面价值 COLUMN of a gross/allowance/net grid, and a row whose own reported amount is the net; one part holds one `measure`, and 000709 needs both readings
 
     declared = {f for f in _NOT_CONFIGURABLE for i in raw["items"] if f in i}
     assert declared, "no shipped item declares a refused field — then this test proves nothing"

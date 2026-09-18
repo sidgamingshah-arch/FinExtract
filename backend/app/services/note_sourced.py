@@ -177,6 +177,18 @@ def select_rows(item, notes, periods: set[str] | None = None,
     # See `NoteSource.measure`: the slug of the note column this part reads, "" for the primary.
     measure = str(getattr(src, "measure", "") or "")
     wanted = {f"{p}:{measure}" for p in (periods or ())} if measure else None
+    # See `NoteSource.from_measure_grid`: whether this part's column must (or must not) have been
+    # read from a two-level header. None does not ask.
+    #
+    # LOCAL, for the reason `resolve_sources` gives about `normalize_statement`: `services.mapping`
+    # imports THIS module at module level, and `row_reconstruct` reaches `mapping` through
+    # `line_item_config`, so a module-level import of the flag is a circular one — measured, it
+    # fails on `from app.services.row_reconstruct import GRID_FLAG` with row_reconstruct half
+    # initialised. Imported from the one module that RAISES the flag all the same, so the two
+    # cannot drift to different strings.
+    from app.services.row_reconstruct import GRID_FLAG
+
+    want_grid = getattr(src, "from_measure_grid", None)
     counts = _compiled(getattr(src, "row_caption_any", None))
     vetoes = _compiled(getattr(src, "row_caption_none", None))
     if not titles or not counts:
@@ -340,6 +352,17 @@ def select_rows(item, notes, periods: set[str] | None = None,
                 # `measure: "allowance"` reads `current:allowance` instead — and the hit is
                 # reported under the BARE period, so it fills `current`/`prior` like any other part
                 # and nothing downstream needs to know. See `NoteSource.measure`.
+                # WAS THIS COLUMN READ FROM A TWO-LEVEL HEADER? Asked BEFORE the measure filter,
+                # because it is the question the PRIMARY column needs and `measure` cannot put: a
+                # 账面余额 | 坏账准备 grid states its gross in the primary column, which has no
+                # suffix, and a plain comparative states its reported amount there too. Measured
+                # on a note of the first shape, the part reading "the reported amount" took the
+                # gross and the line published 871,232,076.76 for a net of 683,092,791.26.
+                if want_grid is not None:
+                    on_grid = GRID_FLAG in tuple(
+                        getattr(getattr(value, "confidence", None), "flags", None) or ())
+                    if on_grid is not bool(want_grid):
+                        continue
                 if measure:
                     # THE SUFFIX IS REQUIRED, unconditionally, and not merely "allowed by the
                     # period filter". `periods` is None whenever the face declared no period

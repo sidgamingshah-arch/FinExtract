@@ -54,33 +54,47 @@ def test_neither_reading_leaves_the_line_empty_rather_than_guessing():
     assert got.value is None
 
 
-def test_only_the_column_part_asks_for_the_net_measure():
-    """The two parts differ in `measure` and in nothing else: same note titles, same captions, same
-    vetoes. A difference anywhere else would make them two searches rather than two readings of one
-    row, and the rung order would then be choosing between different rows."""
+def test_the_two_net_readings_differ_only_in_which_COLUMN_they_take():
+    """Same note titles, same captions, same vetoes — two readings of one ROW, not two searches. A
+    difference anywhere else would make the rung order a choice between different rows, which is
+    not what it is for.
+
+    TWO FIELDS SELECT A COLUMN, not one. `measure` names a suffixed column and
+    `from_measure_grid` says whether the page had a two-level header at all, which is the only way
+    to ask about the PRIMARY column — it has no suffix. The column reading asks for `:net`, which
+    exists only on a grid, so it needs no second condition; the row reading has to say `False`,
+    because the primary of a grid is a GROSS and it must not take one.
+    """
     defs = _defs()
     col = defs["sub__cp_other_receivables_net_col"].note_source
     row = defs["sub__cp_other_receivables_net_row"].note_source
-    assert col.measure == "net"
-    assert row.measure == ""
-    assert col.model_dump(exclude={"measure"}) == row.model_dump(exclude={"measure"})
+    assert (col.measure, col.from_measure_grid) == ("net", None)
+    assert (row.measure, row.from_measure_grid) == ("", False)
+    picks = {"measure", "from_measure_grid"}
+    assert col.model_dump(exclude=picks) == row.model_dump(exclude=picks)
 
 
-def test_the_gross_and_allowance_parts_are_untouched_by_this():
-    """CP_P2 is `gross - allowance`, and 账面余额 keeps the bare period label precisely so that
-    subtraction stays valid when a 账面价值 column is printed beside it.
+def test_cp_p2_can_now_fire_on_a_grid_that_prints_no_net_column():
+    """THE BOUNDARY THIS FILE USED TO PIN, now closed.
 
-    BOTH READ THE PRIMARY MEASURE, which is a boundary worth pinning rather than a thing to fix
-    here. They find their figures by CAPTION — a row reading 账面余额, a row reading 坏账准备 — so on
-    a filing whose gross and allowance are COLUMNS of one row captioned 其他应收款 neither matches,
-    and CP_P2 cannot fire. That costs nothing on this corpus, because a filing printing that grid
-    prints the 账面价值 column with it and CP_P1 answers from the net directly. Giving the allowance
-    part `measure: "allowance"` would trade the caption reading for the column one, not add it —
-    the same two-readings problem the rungs above exist for — and no filing here exercises it.
+    It recorded that the gross and the allowance both found their figures by CAPTION — a row
+    reading 账面余额, a row reading 坏账准备 — so on a note whose gross and allowance are COLUMNS of
+    one row captioned 其他应收款 neither matched and CP_P2 could not fire. It argued that cost
+    nothing, on the reasoning that a filing printing that grid prints 账面价值 with it and CP_P1
+    answers from the net directly. THAT REASONING WAS WRONG: a note can print 账面余额 | 坏账准备
+    and no net column at all — 河钢股份 000709's related-party note is exactly that shape — and
+    there CP_P1 resolved on the gross instead, publishing 871,232,076.76 for a net of
+    683,092,791.26.
+
+    Both halves now reach a grid: the gross through `from_measure_grid`, the allowance through a
+    second rung asking for the `:allowance` column.
     """
     defs = _defs()
     assert defs["sub__cp_other_receivables_gross"].note_source.measure == ""
-    assert defs["sub__cp_other_receivables_loss_allowance"].note_source.measure == ""
+    assert defs["sub__cp_other_receivables_gross"].note_source.from_measure_grid is True
+    allow = defs["sub__cp_other_receivables_loss_allowance"]
+    assert allow.type == "derived", "the allowance now has two readings, not one"
+    assert allow.note_source is None
 
 
 # ── the definition named a component nothing read ─────────────────────────────────────────────
@@ -117,3 +131,59 @@ def test_the_component_reads_a_row_and_not_a_sentence():
     part = _defs()["sub__cp_interest_and_dividends_receivable"]
     assert part.route == "note_tables"
     assert not part.note_source.prose_subject
+
+
+# ── a 账面余额 | 坏账准备 grid, which is the shape CP_P2 exists for ─────────────────────────────
+
+def test_the_gross_is_the_primary_column_of_a_measure_grid():
+    """A note printing 账面余额 | 坏账准备 and NO 账面价值 states its gross in the PRIMARY column —
+    the one with no measure suffix — and its allowance in the suffixed one. `measure` cannot reach
+    the first: `measure: ""` selects the primary and a plain comparative's single figure sits there
+    too, while being the amount the filing REPORTS rather than a gross awaiting its deduction.
+
+    MEASURED BEFORE `from_measure_grid` EXISTED. On a note of that shape the part reading "the
+    reported amount" took the gross, CP_P1 resolved on it, and `bs_ca__other_receivables_cp`
+    published 871,232,076.76 where the net is 683,092,791.26 — over-stated by the entire
+    188,139,285.50 allowance, with CP_P2's `gross - allowance` never reached because neither of
+    its parts matched a row captioned by the item.
+    """
+    defs = _defs()
+    assert defs["sub__cp_other_receivables_gross"].note_source.from_measure_grid is True
+    assert defs["sub__cp_other_receivables_net_row"].note_source.from_measure_grid is False
+    got = evaluate(defs["bs_ca__other_receivables_cp"], {
+        "sub__cp_other_receivables_gross": Decimal("871232076.76"),
+        "sub__cp_other_receivables_loss_allowance": Decimal("188139285.50"),
+    })
+    assert got.value == Decimal("683092791.26")
+    assert got.rung_used == "CP_P2"
+
+
+def test_the_allowance_has_the_same_two_readings_the_net_has():
+    """`note_source.measure` holds one value, so a figure a filing prints two ways is two readings
+    and a cascade. The allowance is printed either as the 坏账准备 COLUMN of a grid — where the row
+    is captioned by the ITEM and no allowance word appears in the caption at all — or as a row of
+    its own, 减：坏账准备."""
+    defs = _defs()
+    allow = defs["sub__cp_other_receivables_loss_allowance"]
+    assert [r.id for r in allow.cascade] == ["ALLOWANCE_COLUMN", "ALLOWANCE_ROW"]
+    col = defs["sub__cp_other_receivables_loss_allowance_col"].note_source
+    row = defs["sub__cp_other_receivables_loss_allowance_row"].note_source
+    assert col.measure == "allowance" and row.measure == ""
+    # The column reading is preferred, because a grid's row carries no allowance word to match.
+    got = evaluate(allow, {"sub__cp_other_receivables_loss_allowance_col": Decimal("188139285.50"),
+                           "sub__cp_other_receivables_loss_allowance_row": Decimal("999")})
+    assert got.value == Decimal("188139285.50")
+    assert got.rung_used == "ALLOWANCE_COLUMN"
+    got = evaluate(allow, {"sub__cp_other_receivables_loss_allowance_row": Decimal("164675215.09")})
+    assert got.rung_used == "ALLOWANCE_ROW"
+
+
+def test_the_primary_of_a_grid_and_of_a_plain_comparative_are_different_quantities():
+    """The whole reason the flag is a flag. 账面余额 stays the PRIMARY measure — a part that deducts
+    坏账准备 from the primary (`sub__rp_find_3`) depends on that and moving the gross to a suffix
+    would break it — so what separates the two readings is not the column's name but whether the
+    page had a two-level header at all."""
+    defs = _defs()
+    assert defs["sub__rp_find_3_gross"].note_source.measure == ""
+    assert defs["sub__rp_find_3_gross"].note_source.from_measure_grid is None, (
+        "Find 3 must keep reading the primary however the page was headed")

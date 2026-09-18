@@ -137,12 +137,13 @@ def test_the_focus_list_names_the_parts_and_not_only_the_wholes(shipped):
     withheld = sorted(k for k in focus if k in by_key and not asked_about(by_key[k]))
     nameable = [k for k in focus if k in by_key and asked_about(by_key[k])]
 
-    # 86 since `sub__cp_other_receivables_net` became a two-rung cascade and its two leaves took
-    # its place in the list: a derived parent is never asked about, so leaving the parent here named
-    # a line no request could answer while the rows that CAN be cited went unoffered.
-    assert len(focus) == 86, len(focus)
-    # 61 nameable parts — see the item census in `test_retired_derivations`.
-    assert len(nameable) == 61, len(nameable)
+    # 87 since the other-receivables NET and its LOSS ALLOWANCE each became a two-rung cascade and
+    # each swapped its own entry for its two leaves: a derived parent is never asked about, so
+    # leaving the parent here named a line no request could answer while the rows that CAN be
+    # cited went unoffered.
+    assert len(focus) == 87, len(focus)
+    # 62 nameable parts — see the item census in `test_retired_derivations`.
+    assert len(nameable) == 62, len(nameable)
     # THE UNREACHABLE ONES ARE THE WHOLES, every one of them — a part that turned up in this list
     # would mean the layer meant to be answerable had been withheld.
     assert all(not getattr(by_key[k], "parent", "") for k in withheld), withheld

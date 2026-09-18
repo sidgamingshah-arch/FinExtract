@@ -382,7 +382,7 @@ def test_the_note_level_parts_are_off_template():
     # COLUMN of a gross/allowance/net grid, and a row whose own reported amount is the net. One
     # part holds one `measure`, so two readings are two parts; 000709 needs both, its consolidated
     # note printing the grid and its parent-company note a plain comparative.
-    assert len(subs) == 73
+    assert len(subs) == 75
     assert all(d.namespace == "internal" for d in subs)
     assert all(d.namespace == "template" for d in st.items if d.in_output)
 

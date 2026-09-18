@@ -311,6 +311,24 @@ class NoteSource(BaseModel):
     #: A hit is reported under the BARE period, so a part reading "allowance" fills `current` and
     #: `prior` like any other and every consumer downstream needs no edit.
     measure: str = ""
+    #: WHETHER THIS PART'S COLUMN CAME FROM A TWO-LEVEL HEADER. `None` — the default — does not
+    #: ask. `True` takes a value only from a period-x-measure grid, `False` only from a page whose
+    #: columns are plain periods. Read against `row_reconstruct.GRID_FLAG`, which every value of a
+    #: grid column carries, the PRIMARY column included.
+    #:
+    #: WHY THE PRIMARY NEEDS THIS AND `measure` CANNOT SUPPLY IT. In a 账面余额 | 坏账准备 grid the
+    #: gross is the PRIMARY column, so it has no suffix to ask for — `measure: ""` reaches it and
+    #: reaches the single figure of a plain comparative equally, and those are different
+    #: quantities: one is a gross that still needs its allowance deducted, the other is the amount
+    #: the filing reports. Measured on a note of that shape, `bs_ca__other_receivables_cp`
+    #: published 871,232,076.76 where the net is 683,092,791.26 — over-stated by the entire
+    #: 188,139,285.50 allowance — because the part reading "the reported amount" took the gross,
+    #: CP_P1 resolved on it, and CP_P2, whose whole job is `gross - allowance`, never ran.
+    #:
+    #: 账面余额 STAYS THE PRIMARY, which is why this is a flag and not a re-slugging: a part that
+    #: deducts 坏账准备 from the primary (`sub__rp_find_3`) must keep reading the primary, and
+    #: moving the gross to a suffix would break it.
+    from_measure_grid: bool | None = None
     # THE SEMANTIC HALF, and the two levels are the SAME two levels as the patterns above. That
     # parallel is the whole design: which note, then which rows inside it, are different questions
     # searched against different text, and they need different vocabularies.
