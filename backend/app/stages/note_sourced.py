@@ -599,85 +599,135 @@ def _fill_parents(children_of: dict[str, list], by_key: dict, doc: DocumentModel
     is flagged, because silently preferring the inference would discard the better number and leave
     nothing behind to review.
     """
+    def _enrol_with_its_own_parent(key: str) -> None:
+        """Record the row just computed for ``key`` as a child of ITS parent.
+
+        A PARENT CAN BE SOMEBODY'S CHILD, and until the row exists there is nothing to enrol.
+        The two sweeps in the caller cover a child filled by the model or by
+        `_fill_childless_internal`; neither can cover one filled HERE, because this is the pass
+        that creates it. `_in_dependency_order` already places a parent after any parent its own
+        cascade names, so by the time the outer parent is reached the inner one's row exists — it
+        just was not yet anybody's child.
+
+        MEASURED ON 河钢股份 000709. `sub__cp_other_receivables_net` became a two-rung cascade so it
+        could read an explicit net COLUMN or a plain reported row, which made it a parent as well
+        as a child. Its own figure was computed correctly and `bs_ca__other_receivables_cp`
+        published NOTHING: none of that parent's other ten children appears on this filing, so it
+        had no enrolled child, no `child_slots`, and no column to evaluate its cascade in.
+
+        Only the COLUMNS come from the children — `_fill_by_cascade` already reads every row's
+        value into `known` — so what this restores is which columns the outer cascade may attempt.
+        """
+        definition = defs.get(key)
+        owner = str(getattr(definition, "parent", "") or "")
+        if definition is None or not owner:
+            return
+        row = next((r for r in doc.line_items if r.canonical_key == key), None)
+        if row is None or not any(ev.value is not None for ev in (row.values or {}).values()):
+            return
+        if any(r is row for _i, r in children_of.get(owner, [])):
+            return
+        children_of.setdefault(owner, []).append((definition, row))
+        ctx.log(f"note_sourced:{owner}: child {key} is itself a parent, computed in this pass "
+                f"and joins the cascade")
+
+    # REPEATED UNTIL NO NEW PARENT APPEARS, because `_enrol_with_its_own_parent` can make a key a
+    # parent that was not one when the order was computed. `_in_dependency_order` builds its list
+    # from `children_of` UP FRONT, so a parent enrolled during the pass is not in that list and was
+    # never visited: on 河钢股份 000709 `bs_ca__other_receivables_cp` has no other child on the
+    # filing, so it entered this function with no children at all, gained one the moment
+    # `sub__cp_other_receivables_net` was computed, and published nothing because the walk was
+    # already fixed. A second pass costs one recomputation of a sort over eight keys.
+    #
+    # BOUNDED BY THE CHAIN LENGTH, not by convergence: each pass computes at least one parent that
+    # the previous pass could not, so the number of passes cannot exceed the number of parents, and
+    # `done` makes re-entry impossible. A cycle therefore stops rather than spinning.
     resolved = 0
-    for parent_key, kids in _in_dependency_order(children_of, defs):
-        if not parent_key:
-            continue
-        # THE PERMISSION GATE IS GONE. `note_use` is no longer a question — decomposition is always
-        # allowed — so there is nothing here to refuse.
-        #
-        # AND IT COULD NEVER HAVE FIRED ON THIS SET, which is why removing it moves no figure.
-        # Measured before removing: the keys this loop visits are the parents of items carrying a
-        # `note_source`, of which there are 8, and all 8 resolve to `decomposition_allowed`. Of the
-        # 70 items that resolved to `evidence_only`, ZERO are a note-sourced parent, ZERO carry a
-        # `note_source` of their own and ZERO have any children at all — they are the covenant,
-        # supplemental and statement-setup lines, which no note fills because nothing declares a
-        # note route to them. The gate was protecting a case the configuration could not express.
-        parent_def = defs.get(parent_key)
-        # A DECLARED CASCADE IS THE ANSWER, and `rollup` is only the summary of it.
-        #
-        # `is_pl__deprec_and_impairment_oper_exp` declares five rungs: sum the four
-        # operating-expense notes; failing that the PBT note's own callout; failing that total
-        # depreciation LESS the cost-of-sales share; and so on. `rollup: "alternatives"` says
-        # roughly "the children are not addends", which is true and far too coarse — reading it
-        # instead of the cascade takes the first child on its own (1,200) where the configuration
-        # says to sum four notes. The cascade also carries what a rollup cannot express at all:
-        # optional terms (`any_of`), signed deductions (`adjustment`, `sign: -1`), and a refusal to
-        # accept a negative candidate.
-        #
-        # Evaluated by `services.line_items.evaluate`, which already implements all of it — a
-        # second copy here would be the two-places-computing-one-quantity bug on the arithmetic
-        # that decides a published figure.
-        if parent_def is not None and (getattr(parent_def, "cascade", None)
-                                       or getattr(parent_def, "terms", None)):
-            resolved += _fill_by_cascade(parent_def, kids, by_key, doc, ctx, defs)
-            continue
-        rollup = declared.get(parent_key, "sum")
-        if rollup == "none":
-            ctx.log(f"note_sourced:{parent_key}: {len(kids)} child(ren) filled, its rollup is "
-                    f"`none` and it declares no cascade — nothing carried up")
-            continue
-        parent = by_key.get(parent_key)
-        if parent is None:
-            parent = LineItem(source_label=parent_key, canonical_key=parent_key)
-            doc.line_items.append(parent)
-            by_key[parent_key] = parent
-
-        # Per (basis, period), because combining across columns would produce a figure the filing
-        # states in neither.
-        by_slot: dict[tuple[str, str], list] = {}
-        for item, child in kids:
-            for ev in (child.values or {}).values():
-                if ev.value is None:
-                    continue
-                by_slot.setdefault((_basis(ev), str(getattr(ev, "period_label", "") or "")),
-                                   []).append((item, ev))
-
-        for (basis, period), offers in sorted(by_slot.items()):
-            existing = _slot(parent, basis, period)
-            if existing is not None and existing.value is not None:
-                taken = offers[0][1].value if rollup == "alternatives" else sum(
-                    (o[1].value for o in offers), Decimal(0))
-                if existing.value != taken:
-                    parent.confidence.flags.append(
-                        f"note_sourced_differs_from_printed:{offers[0][0].key}")
-                    ctx.log(f"note_sourced:{parent_key}: printed {existing.value} kept over "
-                            f"note-derived {taken}")
+    done: set[str] = set()
+    for _pass in range(len(children_of) + 2):
+        ordered = [(k, kids) for k, kids in _in_dependency_order(children_of, defs)
+                   if k and k not in done]
+        if not ordered:
+            break
+        done.update(k for k, _kids in ordered)
+        for parent_key, kids in ordered:
+            # THE PERMISSION GATE IS GONE. `note_use` is no longer a question — decomposition is always
+            # allowed — so there is nothing here to refuse.
+            #
+            # AND IT COULD NEVER HAVE FIRED ON THIS SET, which is why removing it moves no figure.
+            # Measured before removing: the keys this loop visits are the parents of items carrying a
+            # `note_source`, of which there are 8, and all 8 resolve to `decomposition_allowed`. Of the
+            # 70 items that resolved to `evidence_only`, ZERO are a note-sourced parent, ZERO carry a
+            # `note_source` of their own and ZERO have any children at all — they are the covenant,
+            # supplemental and statement-setup lines, which no note fills because nothing declares a
+            # note route to them. The gate was protecting a case the configuration could not express.
+            parent_def = defs.get(parent_key)
+            # A DECLARED CASCADE IS THE ANSWER, and `rollup` is only the summary of it.
+            #
+            # `is_pl__deprec_and_impairment_oper_exp` declares five rungs: sum the four
+            # operating-expense notes; failing that the PBT note's own callout; failing that total
+            # depreciation LESS the cost-of-sales share; and so on. `rollup: "alternatives"` says
+            # roughly "the children are not addends", which is true and far too coarse — reading it
+            # instead of the cascade takes the first child on its own (1,200) where the configuration
+            # says to sum four notes. The cascade also carries what a rollup cannot express at all:
+            # optional terms (`any_of`), signed deductions (`adjustment`, `sign: -1`), and a refusal to
+            # accept a negative candidate.
+            #
+            # Evaluated by `services.line_items.evaluate`, which already implements all of it — a
+            # second copy here would be the two-places-computing-one-quantity bug on the arithmetic
+            # that decides a published figure.
+            if parent_def is not None and (getattr(parent_def, "cascade", None)
+                                           or getattr(parent_def, "terms", None)):
+                resolved += _fill_by_cascade(parent_def, kids, by_key, doc, ctx, defs)
+                _enrol_with_its_own_parent(parent_key)
                 continue
-            if rollup == "alternatives":
-                item, ev = offers[0]
-                _write(parent, basis, period, ev.value)
-                parent.confidence.flags.append(f"note_sourced_from:{item.key}")
-                if len(offers) > 1:
-                    parent.confidence.flags.append(
-                        f"note_sourced_alternatives_available:{len(offers) - 1}")
-                    ctx.log(f"note_sourced:{parent_key}: took {item.key}, "
-                            f"{len(offers) - 1} other source(s) available")
-            else:
-                total = sum((ev.value for _i, ev in offers), Decimal(0))
-                _write(parent, basis, period, total)
-                parent.confidence.flags.append(f"note_sourced_sum_of:{len(offers)}")
-            resolved += 1
+            rollup = declared.get(parent_key, "sum")
+            if rollup == "none":
+                ctx.log(f"note_sourced:{parent_key}: {len(kids)} child(ren) filled, its rollup is "
+                        f"`none` and it declares no cascade — nothing carried up")
+                continue
+            parent = by_key.get(parent_key)
+            if parent is None:
+                parent = LineItem(source_label=parent_key, canonical_key=parent_key)
+                doc.line_items.append(parent)
+                by_key[parent_key] = parent
+
+            # Per (basis, period), because combining across columns would produce a figure the filing
+            # states in neither.
+            by_slot: dict[tuple[str, str], list] = {}
+            for item, child in kids:
+                for ev in (child.values or {}).values():
+                    if ev.value is None:
+                        continue
+                    by_slot.setdefault((_basis(ev), str(getattr(ev, "period_label", "") or "")),
+                                       []).append((item, ev))
+
+            for (basis, period), offers in sorted(by_slot.items()):
+                existing = _slot(parent, basis, period)
+                if existing is not None and existing.value is not None:
+                    taken = offers[0][1].value if rollup == "alternatives" else sum(
+                        (o[1].value for o in offers), Decimal(0))
+                    if existing.value != taken:
+                        parent.confidence.flags.append(
+                            f"note_sourced_differs_from_printed:{offers[0][0].key}")
+                        ctx.log(f"note_sourced:{parent_key}: printed {existing.value} kept over "
+                                f"note-derived {taken}")
+                    continue
+                if rollup == "alternatives":
+                    item, ev = offers[0]
+                    _write(parent, basis, period, ev.value)
+                    parent.confidence.flags.append(f"note_sourced_from:{item.key}")
+                    if len(offers) > 1:
+                        parent.confidence.flags.append(
+                            f"note_sourced_alternatives_available:{len(offers) - 1}")
+                        ctx.log(f"note_sourced:{parent_key}: took {item.key}, "
+                                f"{len(offers) - 1} other source(s) available")
+                else:
+                    total = sum((ev.value for _i, ev in offers), Decimal(0))
+                    _write(parent, basis, period, total)
+                    parent.confidence.flags.append(f"note_sourced_sum_of:{len(offers)}")
+                resolved += 1
+            _enrol_with_its_own_parent(parent_key)
     return resolved
 
 

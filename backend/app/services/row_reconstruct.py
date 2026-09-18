@@ -1912,7 +1912,36 @@ def _value_column_bands(value_xs: list[list[tuple[float, str]]]) -> list[float]:
         notes = sum(1 for _, t in cluster if _is_note_number(t))
         return notes >= max(2, int(0.8 * len(cluster)))
 
-    kept = [c for c in clusters if len(c) >= _COL_MIN_ROWS and not is_note_column(c)]
+    # SEVERAL ROWS, OR EVERY ROW THERE IS. `_COL_MIN_ROWS` exists to refuse a STRAY figure — a
+    # footnote's number, a page folio — which is used by ONE row out of many. A note table two
+    # rows deep is not a stray: 河钢股份 000709 note 6(2) prints its 账面余额 | 坏账准备 | 账面价值
+    # grid over exactly two GRID rows (the item and its 合计), so all three clusters held two
+    # members, all three were refused, the page had no columns, and the positional fallback read
+    # the bad-debt provision as the PRIOR PERIOD and the net carrying amount as `col2`. That is how
+    # `bs_ca__other_receivables_cp` came to publish 2,407,734,161.14 against a printed net of
+    # 683,092,791.26 — a part summing "current" added the net, the gross and last year's gross.
+    #
+    # THE TABLE'S SIZE IS COUNTED IN ROWS THAT USE MORE THAN ONE COLUMN, so the page's own folio
+    # ("131", one bare number on a line of its own) is not mistaken for a third row of the grid.
+    #
+    # RELAXED ONLY WHEN THE CLUSTERS AGREE WITH THE WIDEST ROW. N clusters against a widest row of
+    # N figures is a grid and every column is accounted for; anything else means a cluster that no
+    # row's geometry explains, so the bar stays where it was and the stray is refused with it. A
+    # long table is untouched either way: its real columns already carry `_COL_MIN_ROWS` members
+    # from the rows reporting a single period, which is the case this must not disturb.
+    # NEVER BELOW TWO, so "a column is used by more than one row" holds absolutely. A SINGLE grid
+    # row says nothing that its own printed order does not already say, and letting it define bands
+    # is actively worse: `_bands_with_a_figure` then drops whichever of its cells is date-shaped —
+    # a bare "1" is a day of the month — and the remaining cells collapse onto one label, so a
+    # three-cell row arrives as two values. That is what
+    # `test_a_three_column_note_matrix_is_not_flattened_into_detail_rows` measures.
+    wide = [xs for xs in value_xs if len(xs) >= 2]
+    need = _COL_MIN_ROWS
+    if len(wide) > 1 and len(wide) < _COL_MIN_ROWS:
+        candidate = [c for c in clusters if len(c) >= len(wide) and not is_note_column(c)]
+        if len(candidate) == max(len(xs) for xs in wide):
+            need = len(wide)
+    kept = [c for c in clusters if len(c) >= need and not is_note_column(c)]
     if len(kept) < 2:
         return []                       # nothing to disambiguate; order is as good as position
     return [sorted(x for x, _ in c)[len(c) // 2] for c in kept]   # median resists one outlier
@@ -2091,6 +2120,12 @@ _PRC_PERIOD_CAPTIONS: tuple[tuple[str, int], ...] = (
 _MEASURE_CAPTIONS: tuple[tuple[str, str], ...] = (
     ("账面余额", ""), ("賬面餘額", ""), ("帳面餘額", ""),
     ("坏账准备", "allowance"), ("壞賬準備", "allowance"), ("壞帳準備", "allowance"),
+    # THE NET CARRYING AMOUNT, and NOT the primary. 账面余额 keeps the bare period label even
+    # when this column is printed beside it, because a part that reads the primary and deducts
+    # 坏账准备 from it (`sub__rp_find_3`, `sub__cp_other_receivables_gross`) would otherwise
+    # deduct the allowance from a figure that is already net of it. The net is addressable as
+    # "<period>:net" instead, which is what an explicit-net part asks for by name.
+    ("账面价值", "net"), ("賬面價值", "net"), ("帳面價值", "net"),
     ("期末余额", ""), ("期末餘額", ""),
     ("收入", ""), ("收益", ""), ("金额", ""), ("金額", ""),
     ("成本", "cost"),
@@ -2181,11 +2216,29 @@ def _prc_period_row(rows: list[list[Word]], value_bands: list[float],
     """The header row that captions the value columns with dateless PRC period captions, as
     ``(index within the header region, [(caption, slot, x-centre), …])``.
 
-    ACCEPTED ONLY AS A CLEAN TWO-SLOT PARTITION: exactly the reported period and its comparative,
-    one caption each. A movement schedule captions its columns 期初余额 | 本期增加 | 本期减少 |
-    期末余额 on ONE row — three of those contain 本期/期末 and would land in slot 0 together —
-    and there the printed order is the only thing that means anything, so it keeps the positional
-    reading it has today rather than being forced into two periods it does not have.
+    ACCEPTED ONLY AS A CLEAN PARTITION: either exactly the reported period and its comparative,
+    one caption each, or a SINGLE caption banding the whole table. A movement schedule captions its
+    columns 期初余额 | 本期增加 | 本期减少 | 期末余额 on ONE row — three of those contain 本期/期末
+    and would land in slot 0 together — and there the printed order is the only thing that means
+    anything, so it keeps the positional reading it has today rather than being forced into two
+    periods it does not have. Four captions is neither one nor two, so that row is still refused.
+
+    WHY ONE CAPTION COUNTS. A PRC note states the period ONCE and then divides its columns by
+    measure, printing the comparative as a SEPARATE TABLE on the next page:
+
+        期末余额                                    ← the whole table is the closing balance
+        项目    | 账面余额  | 坏账准备  | 账面价值   ← and its columns are three measures
+
+    Requiring two captions read that as three positional periods, so on 河钢股份 000709 note 6(2)
+    the gross landed in `current`, the bad-debt provision in `prior` and the net in `col2`, and the
+    next page's opening-balance table repeated the trick — which is how `bs_ca__other_receivables_cp`
+    came to publish 2,407,734,161.14 for a printed net of 683,092,791.26: a part summing "current"
+    added this year's net, this year's GROSS and last year's gross together.
+
+    A lone caption over a lone column cannot be wrong in an interesting way, and a lone caption
+    over several needs the measure band to say what they are — :func:`_period_measure_grid` vetoes
+    the grid outright when it does not, so this only ever widens what can be READ, never what can
+    be guessed.
     """
     region = _header_region(rows, fmt)
     for idx, row in enumerate(region):
@@ -2200,9 +2253,11 @@ def _prc_period_row(rows: list[list[Word]], value_bands: list[float],
             slot = _prc_period_slot(text)
             if slot is not None:
                 hits.append((text, slot, xc))
-        if len(hits) != 2 or {s for _, s, _ in hits} != {0, 1}:
-            continue
-        return idx, hits
+        if len(hits) == 2 and {s for _, s, _ in hits} == {0, 1}:
+            return idx, hits
+        if len(hits) == 1:
+            return idx, hits
+        continue
     return None
 
 
@@ -2217,6 +2272,15 @@ def _measure_band(region: list[list[Word]], after: int, value_bands: list[float]
         if _carries_amounts(row, fmt):
             continue
         found: dict[int, tuple[str, str]] = {}
+        # MEASURED AGAINST THE COLUMN PITCH, not a fixed fraction of the page. A band is a median
+        # x-CENTRE of right-aligned figures while a caption is set over the column's own width, so
+        # the offset between the two scales with how wide the columns are. On 000709 note 6(2) the
+        # three columns are ~0.21 apart and 账面余额 sits 0.0603 left of its figures' centre while
+        # 账面价值 sits 0.0624 left of its own — both a whisker past a flat 0.06, so the band read
+        # one measure of three, the grid was vetoed for an unnamed column, and the page kept its
+        # positional reading. Two fifths of the pitch keeps the reason the bound exists: a caption
+        # HALFWAY to the next column still names neither. Never tighter than the 0.06 it replaces.
+        tol = max(0.06, 0.4 * _pitch(sorted(value_bands)))
         for run in _x_runs(row, _CAPTION_GAP):
             xc = sum(_xc(w) for w in run) / len(run)
             if not _over_value_columns(xc, area):
@@ -2226,9 +2290,7 @@ def _measure_band(region: list[list[Word]], after: int, value_bands: list[float]
             if slug is None:
                 continue
             col = _nearest_col(xc, value_bands)
-            # Within a column's own width: a measure caption is printed over the figures it
-            # names, and a caption that lands between two columns names neither.
-            if col is not None and abs(value_bands[col] - xc) <= 0.06 and col not in found:
+            if col is not None and abs(value_bands[col] - xc) <= tol and col not in found:
                 found[col] = (text, slug)
         if found:
             return found

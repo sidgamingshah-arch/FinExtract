@@ -304,7 +304,12 @@ llm_focus_keys = [
   "sub__cp_funds_placed_rp",
   "sub__cp_other_receivables_gross",
   "sub__cp_other_receivables_loss_allowance",
-  "sub__cp_other_receivables_net",
+  # The net is now a two-rung cascade over the two ways a note prints one, so a model cannot
+  # answer it — a derived parent's figure is its cascade's. Its two leaves are what a
+  # citation can name: the 账面价值 COLUMN of a gross/allowance/net grid, and a row whose own
+  # reported amount is the net.
+  "sub__cp_other_receivables_net_col",
+  "sub__cp_other_receivables_net_row",
   "sub__cp_other_receivables_rp",
 
   "is_pl__sales_revenues",

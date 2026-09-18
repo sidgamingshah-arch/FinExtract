@@ -128,7 +128,7 @@ def test_the_shipped_set_loads_with_the_patterns_declared():
 
     # 527, not 543: the live configuration was exported into the shipped seed — see
     # `test_retired_derivations.test_the_shipped_set_is_the_configuration_in_force`.
-    assert len(st.items) == 533  # 533 since Find 3 split into a gross half and an allowance half: the 关联方应收应付款项 note prints 账面余额 and 坏账准备 and no net column, so the 淨金額 the spec asks for is computed
+    assert len(st.items) == 535  # 535 since the other-receivables NET split into the two ways a note prints one — the 账面价值 COLUMN of a gross/allowance/net grid, and a row whose own reported amount is the net; one part holds one `measure`, and 000709 needs both readings
     assert len(st.vocabulary.caption_transforms) == 3
     assert st.vocabulary.transform_order_check(st.caption_corpus()).overlaps == []
 
@@ -217,7 +217,7 @@ def test_the_shipped_seed_declares_none_and_still_loads():
     assert st.order_sensitive_probes == []
     # 527, not 543: the live configuration was exported into the shipped seed — see
     # `test_retired_derivations.test_the_shipped_set_is_the_configuration_in_force`.
-    assert len(st.items) == 533  # 533 since Find 3 split into a gross half and an allowance half: the 关联方应收应付款项 note prints 账面余额 and 坏账准备 and no net column, so the 淨金額 the spec asks for is computed
+    assert len(st.items) == 535  # 535 since the other-receivables NET split into the two ways a note prints one — the 账面价值 COLUMN of a gross/allowance/net grid, and a row whose own reported amount is the net; one part holds one `measure`, and 000709 needs both readings
 
 
 def test_a_single_transform_has_no_order_to_be_dependent_on():

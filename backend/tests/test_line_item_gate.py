@@ -378,7 +378,11 @@ def test_the_note_level_parts_are_off_template():
     # prints 支付的各项税费 and 收到的税费返还 on opposite sides of the operating section and the
     # template holds one Income Taxes Paid(Direct) column.
     # 70 since Find 3 split into a gross half and an allowance half: the 关联方应收应付款项 note prints 账面余额 and 坏账准备 and no net column, so the 淨金額 the spec asks for has to be computed.
-    assert len(subs) == 70
+    # 72 since the other-receivables NET split into the two ways a note prints one — the 账面价值
+    # COLUMN of a gross/allowance/net grid, and a row whose own reported amount is the net. One
+    # part holds one `measure`, so two readings are two parts; 000709 needs both, its consolidated
+    # note printing the grid and its parent-company note a plain comparative.
+    assert len(subs) == 72
     assert all(d.namespace == "internal" for d in subs)
     assert all(d.namespace == "template" for d in st.items if d.in_output)
 

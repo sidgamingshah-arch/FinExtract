@@ -725,7 +725,8 @@ def test_every_shipped_note_sourced_line_declares_note_tables(shipped):
     """
     declared = [i for i in shipped.items if getattr(i, "note_source", None) is not None]
     # 61: Find 3 split into a gross half and an allowance half: the 关联方应收应付款项 note prints 账面余额 and 坏账准备 and no net column, so the 淨金額 the spec asks for has to be computed, so Find 3 gave up its own note_source and two parts took one each.
-    assert len(declared) == 61, len(declared)
+    assert len(declared) == 62, len(declared)   # 62: the other-receivables net's two readings
+    # each declare their own `note_source`, and the parent they feed declares none.
     assert {i.route for i in declared} == {"note_tables"}, sorted(
         {(i.key, i.route) for i in declared if i.route != "note_tables"})
 
