@@ -384,14 +384,47 @@ def section_relations(template: TemplateDefinition, ontology) -> list[Relation]:
     """
     # ACCEPTS EITHER SHAPE — see `_validation_of`.
     rules = _validation_of(ontology)
+    framework = getattr(ontology, "residual_framework", None)
+    recon = getattr(framework, "reconciliation", None)
     text = ((rules.section_reconciliation if rules else "") or "").strip()
+    if not text and rules is None:
+        # …OR THE FRAMEWORK'S OWN RECONCILIATION BLOCK, which is where this rulebook states it.
+        #
+        # ONLY WHEN THERE IS NO VALIDATION OBJECT AT ALL. A master that exists and leaves the
+        # field EMPTY has switched the check off deliberately, and
+        # `test_emptying_the_section_reconciliation_rule_removes_the_check` holds that: the
+        # sentence is a kill switch and stays one. What this reaches is the other case — no master
+        # in the picture, which is every run.
+        #
+        # WHY BOTH, and it is the same argument `_validation_of` makes about the identities: where
+        # a rule is STORED is a packaging decision this evaluator has no reason to care about. The
+        # validation master is one place; `residual_framework.reconciliation` is the other, and it
+        # is the one that reaches a run — `api/routes/extractions` hands the stage
+        # `build_working_view(line_item_set)`, which carries `residual_framework` and no
+        # `validation`. So on the configuration that drives the product the sentence was read from
+        # an artefact nothing loads, and `output_csv_hk_validation.json` ships it empty
+        # (`section_reconciliation: ""`, 0 identities, 0 guards) besides.
+        #
+        # MEASURED: not one section_reconciliation relation was emitted on any of the five filings
+        # in the corpus. Every structural result was a template `rollup`, so the check designed for
+        # exactly this — "a section that owns a residual bucket has a home for every printed row,
+        # which is what makes the section subtotals checkable at all" — never ran, and China SCE
+        # reported `structural:alarm code=UNVALIDATED statement=balance_sheet skipped=32`.
+        #
+        # The framework says the same three things the sentence does: `identity` is the arithmetic
+        # this function implements, `on_failure` names the fact to emit and the consequence, and
+        # `tolerance` is read below either way.
+        text = " ".join(t for t in ((getattr(recon, "identity", "") or ""),
+                                    (getattr(recon, "on_failure", "") or "")) if t).strip()
     if not text:
         return []
     lowered = text.lower()
-    blocks = "auto-approval" in lowered or "auto approval" in lowered
+    # "blocks auto-approval" is the master's wording and "route the section to review" is the
+    # framework's; they are one consequence, so either reads as blocking.
+    blocks = ("auto-approval" in lowered or "auto approval" in lowered
+              or "to review" in lowered)
     emits = "unallocated_gap" if "unallocated_gap" in text else ""
-    framework = getattr(ontology, "residual_framework", None)
-    tol_text = ((framework.reconciliation.tolerance if framework else "") or "").lower()
+    tol_text = ((recon.tolerance if recon else "") or "").lower()
     per_row = "per contributing row" in tol_text
 
     subtotal_roles = (LineRole.SUBTOTAL, LineRole.TOTAL)
@@ -599,7 +632,40 @@ def _scope(slot: Slot) -> str:
     return f"{slot[0]}/{slot[1] or '—'}"
 
 
-def _nil_when_absent(template: TemplateDefinition) -> dict[str, str]:
+def _residual_namespaces(template: TemplateDefinition, ontology=None) -> set[str]:
+    """The key namespaces a residual bucket sweeps, from the rulebook's own declaration.
+
+    A RESIDUAL IS A DECLARATION, NOT A SPELLING, and reading it as a spelling is what left the
+    whole structural layer unenforceable on the shipped configuration. The test was
+    ``k.endswith("__others")`` — the hkfrs rulebook's convention — and the output-CSV rulebook that
+    drives the product names its eleven residuals after what they hold:
+    ``bs_ca__other_current_assets``, ``bs_equity__other_reserves``,
+    ``cf_financing__other_financing_cash_flows``. Not one ends in ``__others``, so ``swept`` came
+    back EMPTY, every absent component counted as unknown rather than nil, and every section
+    rollup was skipped.
+
+    MEASURED, before this read the declaration: of 61 balance-sheet-and-onwards checks on China
+    SCE, 34 were skipped ``target_not_extracted`` and 27 ``components_not_mapped``, with
+    ``structural:alarm code=UNVALIDATED statement=balance_sheet skipped=32`` — none of the section
+    subtotals was checked on any of the five filings in the corpus. That is how a related-party
+    receivable republished into the wrong section (see ``sub__rp_find_1``) could overstate total
+    non-current assets by 3,339,974 with nothing reporting it.
+
+    ``value_scope: exclusive_residual`` is the field ``stages/residual`` itself reads to know which
+    concept a section's unclaimed rows are swept into, so it is the same answer by construction.
+    The ``__others`` convention is kept beside it: a rulebook using that spelling and not declaring
+    the field keeps working, and one declaring both gets the same namespace twice.
+    """
+    swept = {k.rsplit("__", 1)[0] for k in template.all_canonical_keys()
+             if k.endswith("__others")}
+    for m in (getattr(ontology, "mappings", None) or ()):
+        key = str(getattr(m, "canonical_key", "") or "")
+        if getattr(m, "value_scope", None) == "exclusive_residual" and "__" in key:
+            swept.add(key.rsplit("__", 1)[0])
+    return swept
+
+
+def _nil_when_absent(template: TemplateDefinition, ontology=None) -> dict[str, str]:
     """Concepts whose absence from a filing means NIL, not unknown — mapped to their statement.
 
     A relation is normally skipped when any component was not extracted, because a figure nobody
@@ -616,13 +682,12 @@ def _nil_when_absent(template: TemplateDefinition) -> dict[str, str]:
     and cost of sales — would be permanently skipped on every filing that does not print a purchases
     of stock-in-trade line, which is most of them.
 
-    THE REACH IS THE KEY NAMESPACE, not the template's section node. ``stages/residual`` reads a
-    residual's section off the ``__others`` key itself (``_sections_from_template``:
-    "bs_current_liabilities__others" -> "current_liabilities") and sweeps every row it places
-    there, so a namespace with an ``__others`` row has a home for all of it. The template may
-    present one namespace as two sections — the revision prints ``pl_expenses__*`` as both Cost of
-    sales and Operating expenses — and a rule keyed on the presentation would call a leaf unknown
-    that the sweep in fact covers.
+    THE REACH IS THE KEY NAMESPACE, not the template's section node. ``stages/residual`` sweeps
+    every row it places in a residual, so a namespace that HAS one has a home for all of it. The
+    template may present one namespace as two sections — the revision prints ``pl_expenses__*`` as
+    both Cost of sales and Operating expenses — and a rule keyed on the presentation would call a
+    leaf unknown that the sweep in fact covers. Which namespaces those are is
+    :func:`_residual_namespaces`, which reads the rulebook's declaration rather than a spelling.
 
     TWO EXCLUSIONS, both of which cause a FALSE FAILURE rather than a missed one:
 
@@ -637,7 +702,7 @@ def _nil_when_absent(template: TemplateDefinition) -> dict[str, str]:
       other statement is incomplete — ``cf_to_bs_cash`` would otherwise assert closing cash equals
       zero on a filing whose balance-sheet cash line was not found.
     """
-    swept = {k.rsplit("__", 1)[0] for k in template.all_canonical_keys() if k.endswith("__others")}
+    swept = _residual_namespaces(template, ontology)
     out: dict[str, str] = {}
     for st in template.statements:
         for node in template._walk(st.sections):
@@ -659,7 +724,7 @@ def evaluate_structure(template: TemplateDefinition,
     vals = collect_values(items)
     report = StructuralReport()
     stmt_of = _statement_index(template)
-    nil_absent = _nil_when_absent(template)
+    nil_absent = _nil_when_absent(template, ontology)
     # A statement no key was extracted for is not thin coverage, it is a statement this filing
     # does not contain (a standalone-only filing has no cash flow). Its relations are still
     # reported — silence would be indistinguishable from a pass — but they must not sit in the
