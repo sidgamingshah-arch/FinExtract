@@ -10,7 +10,8 @@ repo does. EIR here is the effective-interest amortisation of loan fees and tran
 (IFRS 9 / Ind AS 109 style), at GL × product grain. It shares no template, concept or section
 vocabulary with `output_csv_hk_*`.
 
-Status: capture in progress — sheets 1, 2 and 3 of an unknown number received.
+Status: capture in progress — sheets 1, 2 and 3 plus the fee-allocation illustration
+received, of an unknown total.
 
 ---
 
@@ -174,6 +175,107 @@ at each rung when it is silent or contradicted:
    read at one as-of date, or can a product's classification be dated differently from the GL
    classification that refines it?
 
+---
+
+## Sheet 4 — fee allocation across facilities, and progressive recognition
+
+The first sheet with actual logic in it rather than a header row. Titled *"Illustration on fee
+allocation (in case of no tagging of fees to individual facility for same borrower)"* — so it
+governs the case where a fee arrives against a BORROWER and not against one facility.
+
+### The illustration as supplied
+
+Fact pattern — one borrower, one fee, two facilities:
+
+| Particulars | Amount |
+|---|---|
+| Total fees collected from borrower | 1,000,000 |
+| Facility A sanctioned amount | 600,000,000 |
+| Facility B sanctioned amount | 400,000,000 |
+| Total sanctioned amount | 1,000,000,000 |
+
+Allocation: Facility A 60%, Facility B 40%.
+
+Partial disbursement, Facility A:
+
+| Particulars | Amount |
+|---|---|
+| Facility A sanctioned | 600,000,000 |
+| Allocated Fee | 600,000 |
+| Drawdown | 150,000,000 |
+| Fee considered for EIR | 150,000 |
+| Unutilised fee | 450,000 |
+
+> Note: The unutilized fee of INR 4,50,000 shall be stored at the Facility (Loan ID) level until
+> further drawdown or facility expiry.
+
+Subsequent drawdown, Facility A:
+
+| Particulars | Amount |
+|---|---|
+| Assume additional drawdown of facility A | 300,000,000 |
+| Total disbursement of facility A | 450,000,000 |
+| Facility A sanctioned amount | 600,000,000 |
+| Allocated Fee | 600,000 |
+| Total fee to be considered for EIR | 450,000 |
+| Fee already considered for EIR in previous drawdowns | 150,000 |
+| Additional fee to be considered in EIR | 300,000 |
+| Balance unutilized fee | 150,000 |
+
+Expiry: *"If no further drawdown occurs and the facility expires, the remaining unutilized fee of
+INR 1,50,000 shall be recognized in P&L through the following accounting entry."*
+
+### The rules this implies
+
+Every figure above reproduces from these five, checked:
+
+1. **Allocation is pro-rata on SANCTIONED amount**, not on drawn amount:
+   `allocation% = facility sanctioned / total sanctioned across the borrower's facilities`
+2. `allocated fee = total fee collected × allocation%`
+3. **Fee taken into EIR is pro-rata on cumulative drawdown against sanctioned**:
+   `cumulative fee in EIR = allocated fee × (cumulative drawdown / sanctioned)`
+4. **Each drawdown recognises the increment, computed cumulatively** — not a per-drawdown
+   calculation: `additional fee this drawdown = cumulative fee in EIR (now) − fee already in EIR`.
+   That is the form in the sheet, and it is the one that cannot drift.
+5. `unutilised fee = allocated fee − cumulative fee in EIR`, **held at Facility (Loan ID) level**
+   until further drawdown or expiry, then to P&L.
+
+### What this settles about the earlier sheets
+
+* **Facility = Loan ID.** The note says so outright ("stored at the Facility (Loan ID) level"), so
+  sheet 2's `Loan ID` is a facility and the EIR schedule runs per facility.
+* **`CIF ID` earns its place.** An untagged fee arrives against the borrower, is allocated across
+  that borrower's facilities, and `CIF ID` is the key that collects them — which is why sheet 2
+  carries both it and `Loan ID`.
+* **Fees ARE in scope, and their input is still missing.** This illustration is fee INCOME
+  collected from a borrower. Sheet 2 carries vendor costs (DSA, legal) with a `Vedor Name` column
+  and no fee figures. So either a fee input sheet has not been supplied, or sheet 2 is meant to
+  serve both with the vendor column blank for fees. Unresolved.
+
+### Open questions
+
+1. **Unutilised fee is an asset or a liability in the meantime.** It is "stored at Facility level"
+   — as what? Deferred income? The expiry entry is referenced ("the following accounting entry")
+   and **was not supplied**; nor is the entry for the drawdown recognitions. Needed before any of
+   this can post.
+2. **Revolving facilities.** "Cumulative drawdown" is unambiguous for a term loan drawn in
+   tranches. For a revolver where the borrower repays and redraws, cumulative gross drawdown can
+   exceed sanctioned several times over and rule 3 would then recognise more than the allocated
+   fee. Is it cumulative gross, peak outstanding, or is the ratio capped at 100%?
+3. **Rounding and the residual.** 60/40 divides cleanly. Three facilities at a third each will not,
+   and the allocated fees must still sum to the fee collected. Rounding rule, and which facility
+   takes the residual?
+4. **Sanction changes after allocation.** If Facility B is enhanced or cancelled after the fee was
+   allocated, is the allocation recomputed — restating fee already taken into EIR — or fixed at the
+   date of collection?
+5. **Cancellation vs expiry.** The sheet covers expiry. Is a facility cancelled early, or one that
+   never draws at all, treated the same way (whole allocated fee to P&L)?
+6. **Does the same allocation apply to untagged COSTS?** Sheet 1 classifies both `Fee` and
+   `Transaction Cost`, and this illustration only speaks of fees. If an untagged cost arrives at
+   borrower level, is it allocated by the same pro-rata rule?
+7. **Partial-period interaction with `Reference Date`.** A drawdown between two reference dates —
+   is the increment recognised at the drawdown date or at the next reference date?
+
 ### Not yet supplied
 
 - The amortisation computation itself (EIR rate solve, schedule, catch-up on prepayment or
@@ -181,5 +283,10 @@ at each rung when it is silent or contradicted:
 - The loan's own terms and cash flows — sheet 2 gives the cost to amortise but not the balance,
   rate, tenor or repayment schedule to amortise it over.
 - The fee INCOME side, if it is amortised (sheet 1 admits `Fee`; sheet 2 carries only vendor costs).
+- The ACCOUNTING ENTRIES. Sheet 4 names one ("through the following accounting entry") and does
+  not give it, and none is supplied for the drawdown recognitions or for the unutilised-fee
+  holding account.
+- The fee INCOME input file — sheet 4 proves fees are in scope, and no sheet carries fee amounts.
 - The output/report shape.
-- Worked examples or tie-out numbers.
+- Worked examples for the EIR computation itself. Sheet 4's allocation arithmetic is worked and
+  reproduces exactly; the effective-interest schedule it feeds is not.
