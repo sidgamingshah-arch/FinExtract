@@ -221,6 +221,18 @@ _PRE_TAX_PROFIT_IS_NOT_AMORTISATION = (
 # `bs_equity__retained_profits`' own label AND the name of the `is_retained` movement section, so
 # neither belongs to a movement line inside it. Both label owners are deliberately NOT touched.
 _HEADING_IS_NOT_A_LINE_ITEM = (r"^Related Party Transactions$",)
+
+# THE CHINESE HALF OF THE INTANGIBLES REDIRECT, stranded exactly as the borrowed caption below was.
+# The rules above settled "Intangible assets" on `bs_nca__other_intangible_assets` and denied it to
+# the named leaf that outranks it and to the rollup parent, noting that the parent "holds no English
+# claim on the caption anyway" — and 无形资产 was on all three. A CAS balance sheet prints 无形资产
+# and 商誉 as SIBLINGS, so the caption on the parent is the worse of the two errors: the parent's
+# rollup makes it `goodwill + land use rights + ... − amortisation`, and a figure sitting there
+# contradicts its own children while counting in no section (`role: subtotal` keeps a subtotal out
+# of its section's members). It cost 84,694,754.42 of 300319's non-current assets, 18,120,553.46 of
+# 688008's standalone, the whole 2,486 of China SCE's — each of them the section's ENTIRE reported
+# gap — and reported the parent's rollup 211.8% out against a goodwill of 264,051,117.20.
+_THE_BARE_INTANGIBLES_CAPTION_IS_THE_SIBLING_LEAFS = (r"^无形资产$",)
 # BOTH SCRIPTS OF ONE BORROWED CAPTION, and the Chinese half was stranded here for a while.
 #
 # `scripts/enrich_output_csv_primary_aliases.py` copies Chinese across by matching the ENGLISH
@@ -597,7 +609,11 @@ _BORROWED_CAPTION_DENIALS: dict[str, tuple[str, ...]] = {
     "is_pl__amort_and_impairment_intgbl": _PRE_TAX_PROFIT_IS_NOT_AMORTISATION,
     # Land use rights ARE an intangible, but they are one named intangible; the bare caption is
     # the sibling leaf's. Its own "Land use rights" vocabulary is untouched.
-    "bs_nca__land_use_rights": (r"^Intangible Assets$",),
+    "bs_nca__land_use_rights": (r"^Intangible Assets$",
+                                *_THE_BARE_INTANGIBLES_CAPTION_IS_THE_SIBLING_LEAFS),
+    # The rollup PARENT of both leaves. Denied on the Chinese side only — it never carried the
+    # English caption, which is why the earlier fix stopped at the leaf.
+    "bs_nca__net_intangibles": _THE_BARE_INTANGIBLES_CAPTION_IS_THE_SIBLING_LEAFS,
     "bs_nca__due_from_directors": _HEADING_IS_NOT_A_LINE_ITEM,
     "bs_nca__due_from_subsidiaries": _HEADING_IS_NOT_A_LINE_ITEM,
     "bs_nca__due_from_mi": _HEADING_IS_NOT_A_LINE_ITEM,

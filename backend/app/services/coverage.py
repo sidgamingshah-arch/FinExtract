@@ -29,6 +29,13 @@ between its first two buckets is the whole point:
   derived from the relation, so it cannot fail. No amount of extraction quality turns it into a
   check; the relation has to be re-authored or the derivation removed.
 * ``NO_REPORTED_SUBTOTAL`` — the filing (or the template) prints no subtotal to reconcile against.
+* ``SIGNS_NOT_ESTABLISHED`` — the inputs are all there and the rule is sound, but the SIGN
+  CONVENTION its sum needs is not declared for the section they sit in, so adding them is not the
+  template's arithmetic. Recoverable like ``INPUT_ABSENT`` and separate from it because the fix is
+  a rulebook declaration rather than better extraction: the rulebook says expenses are stored
+  negative, a CAS filing prints them unsigned, and nothing in the output-CSV rulebook declares
+  which concepts to orient (see ``structural_checks._signs_established``). Naming it apart is the
+  point — folded into ``INPUT_ABSENT`` it would sit in an extraction backlog no extraction fixes.
 * ``UNEVALUABLE_RULE`` — the rule as authored cannot be run at all: an unparsable expression, a
   term naming nothing, an op with no semantics, a guard sentence matching no predicate. It counts
   in the denominator (it was declared for a statement that is present) but it is not an extraction
@@ -74,6 +81,8 @@ TAXONOMY: dict[str, str] = {
     "precondition_absent": "INPUT_ABSENT",
     "derived_input": "TAUTOLOGICAL",
     "no_reported_subtotal": "NO_REPORTED_SUBTOTAL",
+    "component_signs_not_established": "SIGNS_NOT_ESTABLISHED",
+    "section_signs_not_declared_one_way": "SIGNS_NOT_ESTABLISHED",
     "statement_absent": "STATEMENT_ABSENT",
     "unsupported_op": "UNEVALUABLE_RULE",
     "unparsable_expr": "UNEVALUABLE_RULE",

@@ -256,6 +256,28 @@ def relations(template: TemplateDefinition) -> list[Relation]:
         for node in template._walk(st.sections):
             if node.rollup is None or not node.rollup.children:
                 continue
+            # A ROLLUP THAT NAMES A `reported_total_key` IS A RESIDUAL, NOT AN EQUATION.
+            #
+            # 30 of the output-CSV template's 61 rollups point `reported_total_key` at THEMSELVES
+            # with `reported_total_op: diff`: the line's published figure is its own printed total
+            # LESS the children that found a more specific home. `services/rollups.evaluate`
+            # implements exactly that subtraction, and `bs_ca__other_current_assets` (36 children),
+            # `bs_cl__other_current_liabilities` (48) and `bs_ca__trade_and_other_receivables` (2)
+            # are the section and family sweep buckets.
+            #
+            # Reading one as `target == sum(children)` asserts THE REMAINDER IS ALWAYS ZERO, which
+            # is the opposite of what the node is for — the same mistake
+            # `test_no_residual_bucket_was_turned_into_a_sum` already forbids on the config side,
+            # where writing `terms` for a residual "would turn the unexplained remainder into the
+            # sum of the parts, which is a different figure and a plausible-looking one".
+            #
+            # It reported 1,525% on 000709's `bs_ca__trade_and_other_receivables` (printed
+            # 410,968,833, children 6,678,873,137) and 809,297,783 on China SCE's — a break on
+            # every filing, being the residual itself. No relation is emitted: the template does
+            # not assert an equality here, so there is nothing to answer. What these buckets hold
+            # is still checked, by the section reconciliation they are a member of.
+            if node.rollup.reported_total_key:
+                continue
             children = [resolve(c) for c in node.rollup.children]
             if node.canonical_key is None or any(c is None for c in children):
                 continue               # a dangling reference; the loader reports it on upload
@@ -367,6 +389,97 @@ def ontology_identities(template: TemplateDefinition, ontology) -> list[Relation
 
 # --- validation.section_reconciliation ---------------------------------------------------------
 
+# WHERE ORIENTATION IS NEVER IN DOUBT. An unoriented cost breaks a sum only on a statement that
+# NETS — revenue against costs, proceeds against purchases. The balance sheet does not net: its
+# asset and liability sections are magnitudes, and its equity section carries the signs the filing
+# itself prints (an accumulated deficit, treasury shares), which `normalize` retains rather than
+# coerces. So a balance-sheet sum is the template's arithmetic whatever its section declares.
+#
+# THIS EXEMPTION IS LOAD-BEARING, not a convenience: both shipped rulebooks declare their equity
+# section `either`, and `total equity = equity attributable to owners + non-controlling interests`
+# is plain addition that has to stay checked — `tests/test_review_suppression` is built on exactly
+# that relation breaking, and gating it took a whole file's fixture down with it.
+_SIGNS_NEVER_IN_DOUBT = ("balance_sheet",)
+
+
+def _signs_established(rel: "Relation", section_of: dict[str, str],
+                       one_signed: frozenset[str] | None) -> bool:
+    """Whether every key in this relation sits in a section the rulebook declares one-signed.
+
+    A plain SUM asserts that its components add to its target, which needs their signs. The
+    rulebook establishes them per section: `positive_expected` says the members are magnitudes
+    however the filing prints them, `either` says "retain the reported sign; never coerce" — and
+    on a statement that nets (revenue against costs, proceeds against purchases) a filing printing
+    costs unsigned then makes the sum something other than the template's arithmetic.
+
+    A RULEBOOK THAT DECLARES NOTHING GATES NOTHING. `evaluate_structure`'s `ontology` is optional
+    and additive — "without it only the template's own relations are evaluated, which is what a
+    caller validating a spread against a template alone wants" — so with no section conventions in
+    hand there is no declaration to act on, and the template's own arithmetic stands as the
+    assertion. The gate is a refinement a rulebook buys, not a precondition it has to satisfy.
+    """
+    if one_signed is None or rel.statement in _SIGNS_NEVER_IN_DOUBT:
+        return True
+    sections = {section_of.get(k, "") for k in (rel.target, *rel.components)}
+    return bool(sections) and sections <= one_signed
+
+
+def _rollup_reach(template: TemplateDefinition) -> dict[str, frozenset[str]]:
+    """Every key a subtotal's rollup pulls in, transitively — what it "reaches".
+
+    Used to tell a SECTION's own subtotal from a STATEMENT total nested among its children: the
+    right one reaches the section and (almost) nothing else. See `section_relations`.
+    """
+    kids: dict[str, tuple[str, ...]] = {}
+    for st in template.statements:
+        for node in template._walk(st.sections):
+            key = node.canonical_key
+            rollup = getattr(node, "rollup", None)
+            if key and rollup is not None:
+                kids[key] = tuple(getattr(rollup, "children", None) or ())
+
+    def walk(key: str, seen: frozenset[str]) -> frozenset[str]:
+        if key not in kids or key in seen:
+            return frozenset({key})
+        out: frozenset[str] = frozenset()
+        for child in kids[key]:
+            out |= walk(child, seen | {key})
+        return out
+
+    return {key: walk(key, frozenset()) for key in kids}
+
+
+def _one_signed_sections(ontology) -> frozenset[str] | None:
+    """The sections whose members the rulebook says are all positive magnitudes.
+
+    ``None`` when the rulebook declares NO section conventions at all, which is not the same
+    answer as "declared, and none of them one-signed". A caller validating a spread against a
+    template alone passes no rulebook, and a rulebook silent on sections has told the gate nothing
+    — both leave the template's own arithmetic standing. A rulebook that declares every section
+    ``either`` HAS spoken, and its plain sums stay unasserted.
+
+    `section_defaults[...].sign_convention` is the declaration: `positive_expected` on the four
+    asset and liability sections, `either` everywhere else. Only the first kind can be reconciled
+    by a flat signed sum against its printed subtotal — see `section_relations`.
+
+    READ FROM THE SECTION'S OWN DECLARATION, not from unanimity across its concepts. A section
+    declared `positive_expected` still holds a few `either` members — the contra-asset allowances,
+    6 of bs_ca's 52 — and those carry their own sign and add correctly; the declaration is about
+    the section's presentation, which is the question. Testing unanimity instead disqualified
+    bs_ca and bs_nca, whose checks are the sound ones (bs_nca ties to 2,486 on 49,227,234).
+    """
+    defaults = getattr(ontology, "section_defaults", None) or {}
+    if not defaults:
+        return None
+    out = set()
+    for section, spec in defaults.items():
+        want = (spec.get("sign_convention") if isinstance(spec, dict)
+                else getattr(spec, "sign_convention", None))
+        if str(want or "") == "positive_expected":
+            out.add(str(section))
+    return frozenset(out)
+
+
 def section_relations(template: TemplateDefinition, ontology) -> list[Relation]:
     """One reconciliation per template section, when the rulebook asks for it.
 
@@ -428,25 +541,82 @@ def section_relations(template: TemplateDefinition, ontology) -> list[Relation]:
     per_row = "per contributing row" in tol_text
 
     subtotal_roles = (LineRole.SUBTOTAL, LineRole.TOTAL)
+    reach = _rollup_reach(template)
+    one_signed = _one_signed_sections(ontology)
     out: list[Relation] = []
     for st in template.statements:
         for section in st.sections:
             kids = [c for c in section.children if c.canonical_key]
             if not kids:
                 continue                      # a statement-level total, not a section
-            # The LAST subtotal in printed order, not the first: the operating cash-flow section
-            # prints two ("cash generated from operations", then "net cash from operating
-            # activities"), and only the closing one is the figure every row in the section feeds.
-            # Reconciling to the first would report a phantom gap equal to interest and tax paid.
-            subtotal = next((c.canonical_key for c in reversed(kids)
-                             if c.role in subtotal_roles), "")
+            candidates = [c.canonical_key for c in kids if c.role in subtotal_roles]
             members = tuple(c.canonical_key for c in kids
-                            if c.canonical_key != subtotal
+                            if c.canonical_key not in candidates
                             and c.role not in subtotal_roles
                             and c.role != LineRole.HEADER)
             if not members:
                 continue
+            # THE SUBTOTAL THAT TOTALS THIS SECTION, which is not simply the last one printed in
+            # it. A STATEMENT total can be nested among a section's children — the template prints
+            # `bs_ca__total_assets` inside the current-assets section and
+            # `bs_cl__total_equity_and_liabilities` inside current liabilities — and the positional
+            # rule took those, so the check compared the 42 current-asset members against TOTAL
+            # ASSETS. Measured on 000709: it reported current assets as 269,103,744,306.53 printed
+            # against 44,039,467,051.23 extracted, an 84% shortfall that was really the
+            # non-current side of the balance sheet missing from the sum.
+            #
+            # Chosen by REACH — what the candidate's own rollup pulls in, transitively — and
+            # COVERAGE FIRST: the most of THIS section's members, then the least from outside it.
+            # `bs_ca__total_current_assets` covers 42 of 42; `bs_ca__total_assets` covers them too
+            # but drags in 48 keys that are not in the section, so coverage ties and reach decides.
+            #
+            # Both halves are load-bearing. Minimising reach ALONE picks the tightest rollup in
+            # the section rather than the one that totals it — on bs_ca that is
+            # `bs_ca__net_trade_receivables`, which strays nowhere and covers two of the 42.
+            #
+            # Ties go to the LAST in printed order, which keeps the reason the positional rule
+            # existed at all: the operating cash-flow section prints two subtotals ("cash generated
+            # from operations", then "net cash from operating activities") and only the closing one
+            # is the figure every row in the section feeds. Reconciling to the first would report a
+            # phantom gap equal to interest and tax paid.
+            inside = set(members)
+            subtotal = ""
+            best: tuple[int, int] | None = None
+            for cand in candidates:
+                pulled = reach.get(cand, frozenset({cand}))
+                rank = (len(pulled & inside), -len(pulled - inside))
+                if best is None or rank >= best:
+                    best, subtotal = rank, cand
+            members = tuple(m for m in members if m != subtotal)
+            if not members:
+                continue
             extra = {"section": section.node_id, "blocks_auto_approval": blocks, "emits": emits}
+            # AND ONLY WHERE THE MEMBERS ARE ALL ADDITIVE WITH ONE SIGN, which the rulebook
+            # declares per section. "reported subtotal − Σ(members) = 0" is an identity when every
+            # member is a positive magnitude, as the four asset and liability sections declare
+            # (`sign_convention: positive_expected`). It is not one where the section nets: the
+            # profit-and-loss section holds revenue AND costs, the investing section holds
+            # purchases AND proceeds, and the rulebook says so by declaring those `either`
+            # ("retain the reported sign; never coerce").
+            #
+            # WHAT IT COST TO ASSERT IT ANYWAY. `global_rules.sign_convention.expenses_and_outflows`
+            # says expenses are "Stored NEGATIVE ... required by the template", and
+            # `normalize._negate_unsigned_expenses` implements the negation — but its cohort is
+            # concepts declaring `negative_expected`, and the output-CSV rulebook declares that on
+            # NONE of its 462 (the hkfrs rulebook it was projected from declares 20). So a CAS
+            # filing's unsigned costs are never oriented: on 000709 `is_pl__cost_of_sales` arrives
+            # +109,877,789,991.32 beside revenue +116,590,734,451.51, and this relation reported
+            # the section short by 361,237,582,413.82 against a printed profit of 800,840,003.25 —
+            # 45,107% of it. An unusable number for a real defect, which is now named in the skip
+            # reason instead of asserted as a break.
+            if (st.type.value not in _SIGNS_NEVER_IN_DOUBT and one_signed is not None
+                    and section.node_id not in one_signed):
+                out.append(Relation(
+                    id=f"section_reconciliation:{section.node_id}", kind="section_reconciliation",
+                    statement=st.type.value, target=subtotal, components=members, op="sum",
+                    severity="blocking", tol_per_row=per_row, note=text, extra=extra,
+                    broken="section_signs_not_declared_one_way"))
+                continue
             out.append(Relation(
                 id=f"section_reconciliation:{section.node_id}", kind="section_reconciliation",
                 statement=st.type.value, target=subtotal, components=members, op="sum",
@@ -725,6 +895,12 @@ def evaluate_structure(template: TemplateDefinition,
     report = StructuralReport()
     stmt_of = _statement_index(template)
     nil_absent = _nil_when_absent(template, ontology)
+    # Which sections the rulebook declares one-signed, and which section each key belongs to —
+    # read by the sign gate below. See `_one_signed_sections` and `_signs_established`.
+    signed_sections = _one_signed_sections(ontology)
+    section_of = {str(getattr(m, "canonical_key", "")):
+                  (tuple(getattr(m, "section_scope", None) or ("",)) or ("",))[0]
+                  for m in (getattr(ontology, "mappings", None) or ())}
     # A statement no key was extracted for is not thin coverage, it is a statement this filing
     # does not contain (a standalone-only filing has no cash flow). Its relations are still
     # reported — silence would be indistinguishable from a pass — but they must not sit in the
@@ -748,13 +924,47 @@ def evaluate_structure(template: TemplateDefinition,
     for rel in declared:
         keys = (rel.target, *rel.components)
         if rel.broken:
-            report.results.append(_skip(rel, [], rel.broken, dict(rel.broken_detail)))
+            # A SECTION WITH NO PRINTED SUBTOTAL SAYS SO FIRST. The rulebook names that case
+            # itself — "itemised, flagged unreconciled, never a gap invented against a subtotal
+            # that was not printed" — and it is a fact about the FILING, while everything a
+            # relation can be `broken` for is a fact about the RULE. Whether the section's signs
+            # are declared is moot when there is nothing to reconcile against, and reporting the
+            # premise instead told a reader to go fix a declaration that would change nothing.
+            reason = ("no_reported_subtotal"
+                      if rel.kind == "section_reconciliation" and not vals.slots(rel.target)
+                      else rel.broken)
+            detail = {} if reason != rel.broken else dict(rel.broken_detail)
+            report.results.append(_skip(rel, [], reason, detail))
             continue
         if rel.statement and rel.statement not in present:
             report.results.append(_skip(rel, [], "statement_absent", {}))
             continue
         if rel.op not in SUPPORTED_OPS:
             report.results.append(_skip(rel, [], "unsupported_op", {"op": rel.op}))
+            continue
+        # A SIGNED SUM NEEDS THE SIGNS, and on a statement that nets they are not established.
+        #
+        # `global_rules.sign_convention.expenses_and_outflows` says expenses are "Stored NEGATIVE
+        # ... required by the template", and `normalize._negate_unsigned_expenses` implements the
+        # negation for a filing that prints them unsigned — but its cohort is concepts declaring
+        # `negative_expected`, and the output-CSV rulebook declares that on NONE of its 462 (the
+        # hkfrs rulebook it was projected from declares 20). So a CAS filing's costs are never
+        # oriented: on 000709 `is_pl__cost_of_sales` arrives +109,877,789,991.32 beside revenue
+        # +116,590,734,451.51.
+        #
+        # A plain SUM over such components is then not the template's arithmetic, and asserting it
+        # reported breaks of 9,098% and 4,396% — an unusable number for a real defect. The premise
+        # is reported instead, naming what is unestablished, so the coverage layer counts it as
+        # unverified rather than as a filing that fails its own arithmetic.
+        #
+        # THE BALANCE SHEET IS EXEMPT BY CONSTRUCTION, not by what its sections happen to declare
+        # — see `_SIGNS_NEVER_IN_DOUBT`. A balance sheet does not net, so nothing on it is at risk
+        # from an unoriented cost, and those are exactly the relations that tie: all eight sections
+        # on China SCE, and 8 of 12 relations on 000709 where 4 were passing before.
+        if (rel.kind == "rollup" and rel.op == "sum" and not rel.signs
+                and not _signs_established(rel, section_of, signed_sections)):
+            report.results.append(_skip(rel, [], "component_signs_not_established", {
+                "sections": sorted({section_of.get(k, "?") for k in keys})}))
             continue
         # A participant whose figure was derived to close this very gap makes the relation
         # incapable of failing. That is a property of the rule, not of coverage, so it is decided

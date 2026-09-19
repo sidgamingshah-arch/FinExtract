@@ -219,6 +219,16 @@ _TR.update({
         {"zh": "由派生值驱动——无论提取质量多高都不可能失败",
          "ar": "مُغذّى بقيمة مشتقة — لا يمكن أن يفشل، مهما تحسّن الاستخراج",
          "fr": "alimenté par une valeur dérivée — ne peut pas échouer, quelle que soit la qualité de l'extraction"},
+    "Sign convention not declared": {"zh": "未声明符号约定",
+                                     "ar": "لم يُعلَن اصطلاح الإشارة",
+                                     "fr": "Convention de signe non déclarée"},
+    "the inputs are there, but the rulebook does not declare which way this section's figures are "
+    "signed, so adding them would not be the template's arithmetic":
+        {"zh": "输入项齐备，但规则手册未声明本节数字的符号方向，直接相加并非模板的算式",
+         "ar": "المدخلات متوفرة، لكن دليل القواعد لا يعلن اتجاه إشارة أرقام هذا القسم، "
+               "فجمعها ليس حساب القالب",
+         "fr": "les entrées sont là, mais le référentiel ne déclare pas le sens du signe des "
+               "chiffres de cette section : les additionner ne serait pas l'arithmétique du modèle"},
     "No printed subtotal": {"zh": "文档未打印小计", "ar": "لا يوجد مجموع فرعي مطبوع",
                             "fr": "Aucun sous-total imprimé"},
     "the filing prints no subtotal to reconcile against":
@@ -2083,10 +2093,15 @@ _COVERAGE_STATUS_LABELS = {
 # Buckets in the order a reader should meet them: recoverable first, structurally unrecoverable
 # next, authoring defects after that, and the one bucket outside the denominator last. Only
 # buckets PRESENT in the report are served — a zero row invites the reader to average them.
-_COVERAGE_SKIP_ORDER = ("INPUT_ABSENT", "TAUTOLOGICAL", "NO_REPORTED_SUBTOTAL",
-                        "UNEVALUABLE_RULE", "UNCLASSIFIED", "STATEMENT_ABSENT")
+_COVERAGE_SKIP_ORDER = ("INPUT_ABSENT", "SIGNS_NOT_ESTABLISHED", "TAUTOLOGICAL",
+                        "NO_REPORTED_SUBTOTAL", "UNEVALUABLE_RULE", "UNCLASSIFIED",
+                        "STATEMENT_ABSENT")
 _COVERAGE_SKIPS = {
     "INPUT_ABSENT": ("Inputs not extracted", "better extraction would recover these"),
+    "SIGNS_NOT_ESTABLISHED": ("Sign convention not declared",
+                              "the inputs are there, but the rulebook does not declare which way "
+                              "this section's figures are signed, so adding them would not be the "
+                              "template's arithmetic"),
     "TAUTOLOGICAL": ("Fed by a derived value",
                      "fed by a derived value — cannot fail, however good extraction gets"),
     "NO_REPORTED_SUBTOTAL": ("No printed subtotal",

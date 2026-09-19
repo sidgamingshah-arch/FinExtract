@@ -361,6 +361,37 @@ def test_the_bare_intangibles_caption_still_has_its_leaf_to_land_on(mappings):
         f"{NET_INTANGIBLES} is the rollup parent of {LAND_USE_RIGHTS} and {OTHER_INTANGIBLES}")
 
 
+def test_the_chinese_half_of_the_intangibles_caption_lands_on_the_same_leaf(line_items):
+    """THE MIRROR OF THE TWO TESTS ABOVE, on the half that was left behind.
+
+    无形资产 was declared by all THREE bs_nca intangibles concepts while "Intangible assets" had
+    already been settled on one, so a Simplified- or Traditional-Chinese filing — the filings this
+    rulebook is written for — got the answer the English side had been fixed out of. A CAS balance
+    sheet prints 无形资产 and 商誉 as siblings, and the caption reached the ROLLUP PARENT of both:
+    `bs_nca__net_intangibles` is `goodwill + land use rights + ... − amortisation`, so the figure
+    contradicted its own children (211.8% out on 300319, against a goodwill of 264,051,117.20) and
+    counted in no section at all, `role: subtotal` keeping a subtotal out of its section's members.
+    It was the ENTIRE reported gap of four sections: 84,694,754.42 and 88,741,873.09 of 300319's
+    non-current assets, 13,212,993.75 and 18,120,553.46 of 688008's standalone, 2,486 of China
+    SCE's.
+
+    Asserted on the CONFIGURATION, which is what a run matches against, and per-locale rather than
+    on the union: the claim being denied is a claim in one locale's list.
+    """
+    zh = lambda key: {normalize_label(a) for a in
+                      ((line_items[key].get("aliases_i18n") or {}).get("zh") or ())}
+    bare = normalize_label("无形资产")
+
+    assert bare in zh(OTHER_INTANGIBLES), "the caption must keep the leaf it was redirected to"
+    assert bare not in zh(NET_INTANGIBLES), (
+        f"{NET_INTANGIBLES} is the rollup parent of {LAND_USE_RIGHTS} and {OTHER_INTANGIBLES}")
+    assert bare not in zh(LAND_USE_RIGHTS), (
+        "land use rights are ONE named intangible at priority 81, so the borrowed claim would "
+        f"outrank {OTHER_INTANGIBLES}'s 80 and simply move the defect")
+    # The parent keeps the caption that does name it: 无形资产净额 IS "net intangibles".
+    assert normalize_label("无形资产净额") in zh(NET_INTANGIBLES)
+
+
 @pytest.mark.parametrize("key", [DUE_FROM_DIRECTORS, DUE_FROM_SUBSIDIARIES, DUE_FROM_MI])
 def test_a_due_from_concept_does_not_claim_the_related_party_note_heading(mappings, key):
     _assert_absent(
