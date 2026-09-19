@@ -910,6 +910,25 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
     for idx, row in enumerate(rows):
         label_words, note_ref, value_words = _scan_row(row, fmt)
         if value_words:
+            # A ROW THAT OPENS ITS OWN LINE DOES NOT INHERIT A PENDING FRAGMENT — see
+            # `_opens_its_own_line`. Its enumeration says it starts a line of the statement, so
+            # whatever label-only text is still pending above it belongs to something else.
+            #
+            # This is where the vocabulary runs out. `known`/`_CAS_FACE_CAPTIONS` stops a
+            # recognised caption from being eaten, and cannot stop 7.其他 — "other" is too generic
+            # to admit to that list. So 7.其他, printed with no figure because the statutory layout
+            # prints every line, was read as a wrapped head and folded onto the line beneath:
+            # 7.其他六、综合收益总额 on all three mainland filings, and
+            # 7.其他归属于少数股东的其他综合收益的税后净额七、综合收益总额 on 300319.
+            #
+            # DECIDED ON THE VALUED ROW, not by refusing the fragment a forward fold. An enumerated
+            # caption may legitimately wrap forward — 四、汇率变动对现金及现金等价物的影 / 响 sets
+            # its figures beside the TAIL — and vetoing that cost
+            # `cf_financing__net_foreign_exchange_difference` all four of its slots on 300319.
+            # Asking the row that HAS the figures keeps both: the fragment still reaches a caption
+            # that needs it, and a caption that does not need it no longer takes it.
+            if pending and _opens_its_own_line(label_words):
+                pending = []
             out.append(pending + row if pending else row)
             pending = []
             seen_value = True
@@ -1731,6 +1750,37 @@ def _names_company_only(label: str, stems: tuple[tuple[str, ...], ...]) -> bool:
 # the same form — 七、61, 七、70 — and one of those arrives as a row's whole label when the
 # caption beside it is lost. A note reference is not a subtotal of anything.
 _CAS_STATEMENT_LINE = re.compile(r"^[一二三四五六七八九十]+、\s*(?![0-9０-９])[^\s]")
+
+# THE SAME SPINE ONE LEVEL DOWN: （一）… / 1.… / （1）… / 1、…, which a mainland face uses for the
+# lines nested under an enumerated one. `_CAS_STATEMENT_LINE` covers 一、…十、 only.
+#
+# WHY THE ENUMERATION AND NOT THE WORDING. `known`/`_CAS_FACE_CAPTIONS` answers "is this line a
+# caption?" from the vocabulary, and it cannot answer for a line captioned 其他 — "other" is too
+# generic to admit to the list, which states that fragments and header words are "deliberately
+# absent". But a mainland statement NUMBERS its lines and nothing else, so `7.` is proof this line
+# starts one. That is the same structural reading `_CAS_STATEMENT_LINE` already makes of 七、.
+#
+# WHAT IT LEAVES GLUED WITHOUT IT. 7.其他 and （7）其他 are printed with no figure — the statutory
+# layout, whether the filer used it or not — so each was read as a wrapped caption's HEAD and
+# folded onto the line beneath: 7.其他六、综合收益总额 on all three mainland filings, and on the
+# equity statement 2．提取一般风险准备3．对所有者（或 and
+# 普通股2．其他权益工具持有者投入资本3．股份支付计入所.
+#
+# THE ARABIC FORM REQUIRES A CJK CAPTION after the marker, so a bare "1." stays a note reference
+# and an English "1. Revenue" is untouched — no HKEX filing enumerates its face this way.
+_CAS_SUB_LINE = re.compile(
+    r"^[(（]\s*[一二三四五六七八九十0-9０-９]+\s*[)）]\s*[^\s0-9０-９]"
+    r"|^[0-9０-９]+\s*[.．、]\s*[\u3400-\u9fff]")
+
+
+def _opens_its_own_line(label_words: list[Word]) -> bool:
+    """Whether this printed line's own enumeration shows it STARTS a line of the statement.
+
+    Read on the raw words rather than a normalised caption, because the rulebook's declared
+    pipeline strips exactly the numbering this is reading (`numbering` in ``normalisation``).
+    """
+    text = _join_words(label_words).strip()
+    return bool(text) and bool(_CAS_STATEMENT_LINE.match(text) or _CAS_SUB_LINE.match(text))
 
 # AND ITS TOTALS, which carry no enumeration. The balance sheet is not enumerated at all — its
 # spine is 流动资产合计 / 非流动资产合计 / 资产总计 / 流动负债合计 / 负债合计 /
@@ -3244,7 +3294,8 @@ def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id:
             # Read without the rulebook's pipeline or its aliases, because neither is threaded
             # this far; `_is_known_caption` still tests `_CAS_FACE_CAPTIONS` and still strips the
             # 加：/减：/其中： prefix a CAS caption carries, which is what these rows need.
-            if _is_known_caption(label_words, (), frozenset()):
+            if (_is_known_caption(label_words, (), frozenset())
+                    or _opens_its_own_line(label_words)):
                 pending, tail = [], None
                 continue
             pending, tail = pending + label_words, box

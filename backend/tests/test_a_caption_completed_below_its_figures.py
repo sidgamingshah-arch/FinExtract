@@ -287,3 +287,58 @@ def test_a_mainland_revenue_line_is_not_the_income_sections_banner():
         assert section_of_banner(normalize_label(caption)) == "income", caption
     # 营业总收入 was never what the entry was reading — 总 sits between the two words.
     assert section_of_banner(normalize_label("一、营业总收入")) is None
+
+
+# ── where the vocabulary runs out: the enumeration ───────────────────────────────────────────
+
+@pytest.mark.parametrize("label", [
+    "7.其他", "（7）其他", "2．提取一般风险准备", "1.持续经营净利润",
+    "（一）综合收益总", "六、综合收益总额", "四、汇率变动对现金及现金等价物的影",
+])
+def test_an_enumerated_line_says_it_opens_a_line(label):
+    """A mainland statement NUMBERS its lines and nothing else, so the number is proof — which is
+    what the vocabulary cannot give for a line captioned 其他: "other" is too generic to admit to
+    `_CAS_FACE_CAPTIONS`, whose own rule is that fragments and header words stay out."""
+    from app.services.row_reconstruct import _opens_its_own_line
+
+    assert _opens_its_own_line(_w(label))
+
+
+@pytest.mark.parametrize("label", [
+    "七、70",        # a mainland NOTE REFERENCE, printed in the same form as the spine
+    "1.",            # a bare marker — `_NOTE_REF_ONLY`'s business
+    "1. Revenue",    # no HKEX filing enumerates its face this way
+    "其他", "普通股", "的税后净额", "综合收益", "变动", "额", "会计政策变更",
+])
+def test_a_line_without_its_own_number_does_not_claim_to_open_one(label):
+    from app.services.row_reconstruct import _opens_its_own_line
+
+    assert not _opens_its_own_line(_w(label))
+
+
+def test_a_row_that_opens_a_line_does_not_inherit_the_fragment_above_it():
+    """7.其他 is printed with no figure — the statutory layout prints every line whether the filer
+    used it or not — so it was read as a wrapped head and folded onto the line beneath:
+    7.其他六、综合收益总额 on all three mainland filings, and
+    7.其他归属于少数股东的其他综合收益的税后净额七、综合收益总额 on 300319."""
+    got = _captions(
+        _line(0.100, "6.外币财务报表折算差额", x0=0.14, value="-37,916,928.33"),
+        _line(0.100 + STEP, "7.其他", x0=0.14),
+        _line(0.100 + 2 * STEP, "六、综合收益总额", x0=0.09, value="762,923,074.92"),
+    )
+    assert "六、综合收益总额" in got, list(got)
+    assert got["六、综合收益总额"] == ["762923074.92"]
+    assert got["6.外币财务报表折算差额"] == ["-37916928.33"]
+
+
+def test_an_enumerated_caption_may_still_wrap_forward_onto_its_own_tail():
+    """THE COUNTERWEIGHT, and it cost a real figure to learn. Refusing an enumerated line the
+    forward fold outright broke 四、汇率变动对现金及现金等价物的影 / 响, whose figures are set
+    beside the TAIL, and `cf_financing__net_foreign_exchange_difference` lost all four of its
+    slots on 300319. The test is on the row that HAS the figures, not on the fragment."""
+    got = _captions(
+        _line(0.100, "四、汇率变动对现金及现金等价物的影", x0=0.09),
+        _line(0.100 + STEP, "响", x0=0.09, value="5,872,495.70"),
+    )
+    assert "四、汇率变动对现金及现金等价物的影响" in got, list(got)
+    assert got["四、汇率变动对现金及现金等价物的影响"] == ["5872495.70"]
