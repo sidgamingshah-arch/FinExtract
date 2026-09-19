@@ -183,12 +183,131 @@ def test_emptying_the_frameworks_eligibility_sentence_removes_the_exclusion():
 
     raw = json.loads((_SAMPLES / "output_csv_hk_ontology.json").read_text(encoding="utf-8"))
     fw = load_ontology(copy.deepcopy(raw)).residual_framework
-    assert "of which breakdown" in _read_terms(fw).exclusions
+    have = _read_terms(fw).exclusions
+    assert "of which breakdown" in have and "sub-enumerated component" in have
 
     stripped = copy.deepcopy(raw)
     elig = stripped["residual_framework"]["sweep"]["eligibility"]
-    elig[2] = elig[2].split(" or an of which breakdown")[0] + "."
-    fw = load_ontology(stripped).residual_framework
-    assert "of which breakdown" not in _read_terms(fw).exclusions
+    elig[2] = elig[2].split(", an of which breakdown")[0] + "."
+    left = _read_terms(load_ontology(stripped).residual_framework).exclusions
+    # Both clauses go, each by the phrase naming it and neither by the other's.
+    assert "of which breakdown" not in left and "sub-enumerated component" not in left
     # …and the rest of the sentence still switches its own tests on.
-    assert "section subtotal" in _read_terms(fw).exclusions
+    assert "section subtotal" in left and "truncated caption" in left
+
+# ── the CAS spine's sub-levels are breakdowns too ─────────────────────────────────────────────
+# `row_reconstruct._CAS_STATEMENT_LINE` reads the mainland spine — 一、营业总收入 … 八、每股收益 —
+# and says "a component is prefixed 其中： or 加： or 减：, or carries no prefix at all". These
+# filings print two more forms underneath those lines, nested two and three deep:
+#
+#     五、净利润（净亏损以"－"号填列）        1,619,087,223.63
+#       （一）持续经营净利润                 1,619,087,223.63
+#     六、其他综合收益的税后净额              -37,916,928.33
+#         （二）将重分类进损益的其他综合收益      -37,916,928.33
+#           6.外币财务报表折算差额              -37,916,928.33
+#
+# so the sweep took 000709's net profit twice and its OCI total three times, into the income
+# statement's expense catch-all.
+
+@pytest.mark.parametrize("label", [
+    "（一）持续经营净利润（净亏损以“－”号填列）",
+    "（二）将重分类进损益的其他综合收益",
+    "(一)按经营持续性分类",
+    "6.外币财务报表折算差额",
+    "2．将重分类进损益的其他综合收益",
+    "（4）企业自身信用风险公允价值变动",
+])
+def test_a_sub_enumerated_component_of_the_cas_spine_is_not_swept(shipped, label):
+    """It is already inside the 一、…八、line above it, and often inside another sub-level too."""
+    doc = _swept(shipped, _section(label, stamp="balance_sheet"), page_statement="balance_sheet")
+
+    assert doc.line_items[1].canonical_key is None
+    assert "residual_ineligible:sub-enumerated component" in doc.line_items[1].confidence.flags
+
+
+@pytest.mark.parametrize("label", [
+    "1. Revenue",                 # an English enumeration is not the mainland face's sub-level
+    "持续经营净利润",               # the same caption with no enumeration is a line of its own
+    "（一）",                       # nothing but the marker — `_NOTE_REF_ONLY`'s business
+    "其他应收款",
+])
+def test_a_caption_that_is_not_sub_enumerated_is_still_swept(shipped, label):
+    """The counterweight: the test is the MAINLAND sub-level marker, and a caption without one is
+    a line of its section like any other."""
+    doc = _swept(shipped, _section(label, stamp="balance_sheet"), page_statement="balance_sheet")
+    row = doc.line_items[1]
+    assert not [f for f in row.confidence.flags
+                if f.startswith("residual_ineligible:sub-enumerated")]
+    # "（一）" alone is a bare marker and `_NOTE_REF_ONLY` owns it; the other three are swept.
+    if label == "（一）":
+        assert row.canonical_key is None
+        assert "residual_ineligible:note-reference-only row" in row.confidence.flags
+    else:
+        assert row.canonical_key == "bs_cl__other_current_liabilities"
+
+
+@pytest.mark.parametrize("label", ["七、70", "七、61"])
+def test_a_mainland_note_reference_that_arrived_as_a_whole_label_is_not_swept(shipped, label):
+    """Printed in the same form as the statement spine, which is why `_CAS_STATEMENT_LINE` carries
+    a negative lookahead for a digit — "A note reference is not a subtotal of anything". It is not
+    a line of the section either: 688008 swept 七、70 with an amount of 23,888,571.20."""
+    doc = _swept(shipped, _section(label, stamp="balance_sheet"), page_statement="balance_sheet")
+
+    assert doc.line_items[1].canonical_key is None
+    assert "residual_ineligible:note-reference-only row" in doc.line_items[1].confidence.flags
+
+
+def test_the_oci_attribution_line_is_an_attribution_line(shipped):
+    """归属母公司所有者的其他综合收益 re-states the line above it split by who owns it.
+    归属于母公司所有者的净利润 carries 归属于 and was already excluded; the OCI form drops the 于
+    and was not, so 300319's -10,758,236.29 was charged to operating expenses."""
+    doc = _swept(shipped, _section("归属母公司所有者的其他综合收益", stamp="balance_sheet"),
+                 page_statement="balance_sheet")
+
+    assert doc.line_items[1].canonical_key is None
+    assert "residual_ineligible:attribution caption" in doc.line_items[1].confidence.flags
+
+
+# ── the two chrome lines every CSRC face is headed by ─────────────────────────────────────────
+
+@pytest.mark.parametrize("label,values", [
+    ("项目", ["2024", "2023"]),                      # the column header, with no 附注 column
+    ("項目", ["2024", "2023"]),
+    ("编制单位：河钢股份有限公司", ["2024"]),            # "prepared by <company>"
+    ("编制单位：深圳市麦捷微电子科技股份有限公司", ["2024"]),
+])
+def test_a_csrc_chrome_line_that_landed_on_a_figures_baseline_is_not_a_line_item(label, values):
+    """Both are printed above every mainland statement and both land on a figure's baseline, so
+    each was published as a line item whose AMOUNT WAS A YEAR — 000709's 编制单位 row reached
+    `bs_ca__other_current_assets` with a value of 2024, and 300319's 项目 row reached the income
+    statement's catch-all twice, once per basis.
+
+    `项目 附注` was already listed; this is the same header on a statement with no note-reference
+    column, where the whole caption is the one word."""
+    from app.services.row_reconstruct import _HDR_LABEL, _is_date_ish
+
+    assert _HDR_LABEL.search(label)
+    assert all(_is_date_ish(Decimal(v)) for v in values)
+
+
+@pytest.mark.parametrize("label", ["递延收益项目", "非经常性损益项目", "其他项目支出"])
+def test_a_caption_that_merely_ends_in_the_header_word_is_not_chrome(label):
+    """项目 is a common TAIL of a real mainland caption, which is why the bare form is ANCHORED.
+    An unanchored alternative would have taken all three of these."""
+    from app.services.row_reconstruct import _HDR_LABEL
+
+    assert not _HDR_LABEL.search(label)
+
+
+def test_a_real_caption_naming_a_statement_keeps_its_figures():
+    """The statement-name alternatives beside the two new ones are deliberately NOT anchored —
+    资产负债表日后事项 ("events after the balance sheet date") matches 资产负债表 — and they are
+    safe because every rule here is gated on the row's values all being DATE FRAGMENTS. A caption
+    with a real figure is never chrome, whatever its wording."""
+    from app.services.row_reconstruct import _HDR_LABEL, _is_date_ish
+
+    label = "资产负债表日后事项"
+    assert _HDR_LABEL.search(label), "the statement-name alternative is not anchored"
+    # …and the gate is what saves it: 1,234,567 is not a year or a day of the month.
+    assert not _is_date_ish(Decimal("1234567"))
+    assert _is_date_ish(Decimal("2024")) and _is_date_ish(Decimal("31"))

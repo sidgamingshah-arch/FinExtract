@@ -158,6 +158,18 @@ _HDR_LABEL = re.compile(
     # 综合 and does not reach 合并; the mainland titles are spelled out. Still gated on every
     # value being a date fragment, so 资产负债表日后事项 with real figures keeps them.
     r"项目\s*附注|項目\s*附註|期末余额|期初余额|本期金额|上期金额|"
+    # …AND THE SAME COLUMN HEADER ON A STATEMENT WITH NO NOTE-REFERENCE COLUMN, where the whole
+    # caption is the one word 项目 ("Item") and "2024"/"2023" go to the value columns. Anchored,
+    # because 项目 is a common tail of real captions (递延收益项目, 非经常性损益项目) and only the
+    # bare word is a header. 300319 published it twice, once per basis, and the residual sweep put
+    # an amount of 2024 into the income statement's catch-all.
+    r"^\s*项目\s*$|^\s*項目\s*$|"
+    # THE OTHER CSRC CHROME LINE: every mainland face is headed 编制单位：<company name>, which
+    # lands on a figure's baseline and keeps the year. No financial caption contains the phrase,
+    # and this one is not in `_page_chrome` because the entity name makes each statement's copy of
+    # it a different text line at a different depth. 000709 published it as
+    # bs_ca__other_current_assets with an amount of 2024.
+    r"编制单位|編制單位|编制单位|"
     r"资产负债表|資產負債表|利润表|利潤表|所有者权益变动表|股东权益变动表",
     re.IGNORECASE)
 

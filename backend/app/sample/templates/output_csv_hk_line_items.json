@@ -676,7 +676,7 @@
    "eligibility": [
     "The row printed a value for the selected entity_scope, period, currency and unit.",
     "No dedicated concept whose section_scope contains this section claimed the row.",
-    "The row is not a section subtotal, statement total, section header, attribution caption, per-share figure, narrative row, note-reference-only row, truncated caption or an of which breakdown of the row above it (其中：/ of which — that amount is already inside the row above, so sweeping it counts the same money twice).",
+    "The row is not a section subtotal, statement total, section header, attribution caption, per-share figure, narrative row, note-reference-only row, truncated caption, an of which breakdown of the row above it (其中：/ of which) or a sub-enumerated component of it (（一）… / 1.… beneath 五、净利润) — each of those amounts is already inside the row above, so sweeping it counts the same money twice.",
     "The row was printed INSIDE this section. A row printed in any other section is ineligible however similar its wording — there is no cross-section rescue.",
     "The row's sign agrees with the section's sign_convention, where the section states one. A row signed against its section is evidence the SECTION is wrong, not the amount, so it goes to review rather than into the bucket — a cost swept into income moves the income subtotal and every total below it."
    ],

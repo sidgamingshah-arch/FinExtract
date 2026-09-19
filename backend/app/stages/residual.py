@@ -154,7 +154,13 @@ def _statement_map(doc: DocumentModel):
 # still names it, so the rulebook decides which of them apply (see `_read_terms`).
 _ATTRIBUTION = re.compile(
     r"attributable to|owners of the (parent|company)|non-?controlling interests?:"
-    r"|归属于|歸屬於|母公司拥有人|母公司擁有人|本公司拥有人|本公司擁有人", re.IGNORECASE)
+    r"|归属于|歸屬於|母公司拥有人|母公司擁有人|本公司拥有人|本公司擁有人"
+    # 归属母公司所有者的其他综合收益 — THE SAME PHRASE WITHOUT 于, which a mainland OCI block
+    # prints. 归属于母公司所有者的净利润 carries it and matched; the OCI attribution line drops it
+    # and did not, so 300319's -10,758,236.29 was swept into the income statement's catch-all as
+    # an operating charge. An attribution line re-states money already in the line above it,
+    # split by who owns it, which is why it is on this list at all.
+    r"|归属母公司|歸屬母公司|归属少数股东|歸屬少數股東", re.IGNORECASE)
 # "OF WHICH" IS A BREAKDOWN OF THE LINE ABOVE IT, not a line of its own.
 #
 # A mainland statement itemises inside a line with 其中：/ 其中: — "其中：营业收入" under 营业总收入,
@@ -171,6 +177,36 @@ _ATTRIBUTION = re.compile(
 # NOT A NARRATIVE TEST. `_is_narrative` asks whether a caption is prose; this row is a perfectly
 # good caption naming a perfectly good amount, and a dedicated concept may still MAP it — 其中：数据资源
 # and 其中：应收利息 are real disclosures. What it must not do is enter a section total a second time.
+# THE SAME BREAKDOWN IN CAS'S OTHER SPELLING: the sub-levels of an enumerated statement line.
+#
+# `row_reconstruct._CAS_STATEMENT_LINE` reads the mainland spine — 一、营业总收入 … 八、每股收益 —
+# and its comment says "a component is prefixed 其中： or 加： or 减：, or carries no prefix at
+# all". That list is short by the two forms these filings actually print underneath those lines:
+#
+#     五、净利润（净亏损以"－"号填列）        1,619,087,223.63
+#       （一）持续经营净利润                 1,619,087,223.63
+#       （二）终止经营净利润
+#     六、其他综合收益的税后净额              -37,916,928.33
+#         （二）将重分类进损益的其他综合收益      -37,916,928.33
+#           6.外币财务报表折算差额              -37,916,928.33
+#
+# Every indented line there is ALREADY INSIDE the enumerated line above it, and the innermost is
+# inside both — so the sweep took the same money two and three times over, into the income
+# statement's expense catch-all, where its arithmetic then charged it. 000709 contributed
+# 1,619,087,223.63 twice and -37,916,928.33 twice; 300319 and 688008 the same shape.
+#
+# A CONCEPT MAY STILL MAP ONE. This is an exclusion from the RESIDUAL, not from the mapper: the
+# OCI section's own concepts are printed exactly like this (3.其他权益工具投资公允价值变动 is
+# `is_oci__unreal_gain_loss_investments`) and they still reach their concepts by caption. What
+# stops is a catch-all adding them to a total that already contains them.
+#
+# THE ARABIC FORM REQUIRES A CJK CAPTION after the number, so "1." alone stays with
+# `_NOTE_REF_ONLY` and an English "1. Revenue" is untouched — no HKEX filing enumerates this way,
+# and the two shapes above are the mainland face's.
+_CAS_SUB_ENUMERATED = re.compile(
+    r"^\W*[(（]\s*[一二三四五六七八九十0-9０-９]+\s*[)）]\s*[^\s0-9０-９]"
+    r"|^\W*[0-9０-９]+\s*[.．、]\s*[\u3400-\u9fff]")
+
 _OF_WHICH = re.compile(
     r"^\W*(?:其中|其中|內中|内中)\s*[:：]"                      # 其中：… / 其中:…
     r"|^\W*(?:of which|including|thereof)\b\s*[:：]?",         # of which: … / including: …
@@ -189,7 +225,14 @@ _PER_SHARE = re.compile(r"per share|per ordinary share|每股|hk cents|rmb cents
 _NOTE_REF_ONLY = re.compile(
     r"^\W*(?:notes?|附注|附註)\s*[\d.]*\s*[\w.()]{0,3}\W*$"   # "Note", "Note 12", "note 12(a)"
     r"|^\W*[\d.]+\s*[()\w]{0,3}\W*$"                         # "12", "12.", "12(a)"
-    r"|^\W*[(（]\s*[a-z0-9ivx]{1,3}\s*[)）]\W*$"                # "(a)", "(iv)", "(12)"
+    # "(a)", "(iv)", "(12)" — and "（一）", the same marker in CJK numerals, which a mainland
+    # statement uses for its sub-levels and which arrives bare when the caption beside it is lost.
+    r"|^\W*[(（]\s*[a-z0-9ivx一二三四五六七八九十]{1,3}\s*[)）]\W*$"
+    # "七、70", "七、61" — a MAINLAND note reference, printed in the same form as the statement
+    # spine and arriving as a row's whole label when the caption beside it is lost.
+    # `row_reconstruct._CAS_STATEMENT_LINE` already refuses to read these as a subtotal ("A note
+    # reference is not a subtotal of anything"); this is the same fact at the sweep.
+    r"|^\W*[一二三四五六七八九十]+\s*[、,]\s*[\d.]+\W*$"
     r"|^\W*$",                                                # nothing at all
     re.IGNORECASE)
 # The bare sub-captions of a per-share block. An HKEX income statement prints
@@ -270,6 +313,7 @@ _EXCLUSIONS: tuple[tuple[str, object], ...] = (
     ("narrative row", lambda row: _is_narrative(_label(row))),
     ("note-reference-only row", lambda row: bool(_NOTE_REF_ONLY.match(_label(row)))),
     ("of which breakdown", lambda row: bool(_OF_WHICH.match(_label(row)))),
+    ("sub-enumerated component", lambda row: bool(_CAS_SUB_ENUMERATED.match(_label(row)))),
     # A CAPTION THAT NAMES NOTHING, because the rest of it is printed where the reader could not
     # reach it. A mainland balance sheet's balancing total is the last line of its page and wraps:
     # 688008 prints 负债和所有者权益（或 with its figures and 股东权益）总计 as the first text of the
