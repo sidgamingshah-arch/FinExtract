@@ -936,6 +936,16 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
         # spacing — see :func:`_looks_like_wrapped_tail`.
         tail = bool(label_words) and note_ref is None and _looks_like_wrapped_tail(
             apply_pipeline(_join_words(label_words), steps))
+        # …OR THE CAPTION ABOVE IT IS INCOMPLETE WITHOUT IT — see
+        # `_completes_the_caption_above`. Asked only where the row above already HAS its figures
+        # (the mainland shape, where the caption's remainder is printed under them) and only with
+        # nothing pending, so this cannot pre-empt the forward-fold of a caption still waiting for
+        # a value of its own.
+        if not tail and label_words and note_ref is None and out and not pending:
+            prev_label, _prev_note, prev_values = _scan_row(out[-1], fmt)
+            tail = bool(prev_values and prev_label) and _wrap_adjacent(
+                _row_box(out[-1]), _row_box(row), label_words) and _completes_the_caption_above(
+                    prev_label, label_words, steps, known)
         if tail and pending and _wrap_adjacent(_row_box(pending), _row_box(row), label_words):
             # The head is still in `pending`, waiting for figures that are printed further down.
             # Completing the caption HERE is what lets the known-caption veto below see it whole:
@@ -1045,6 +1055,33 @@ _CAS_FACE_CAPTIONS: frozenset[str] = frozenset(normalize_label(_c) for _c in {
     "公允价值变动收益", "信用减值损失", "资产减值损失", "资产处置收益", "营业利润",
     "营业外收入", "营业外支出", "利润总额", "所得税费用", "净利润",
     "其他综合收益的税后净额", "综合收益总额", "基本每股收益", "稀释每股收益",
+    # THE NET-PROFIT AND OCI SUB-BLOCK, which the scan that built this list stopped short of.
+    #
+    # Every entry below is printed on the face of BOTH grounding filings, measured the same way
+    # the rest of the list was — and all but two on 300319 as well. The block runs from 五、净利润
+    # to 八、每股收益 and is about a dozen captions deep, so leaving it out was not a small gap: on
+    # 688008 not ONE of the template's seven `is_oci__*` columns received a figure, and on 000709
+    # and 300319 two slots each out of 28.
+    #
+    # WHAT THE OMISSION DID. `_merge_wrapped_labels` folds a label-only line FORWARD unless it is a
+    # recognised caption, so each of these — printed with no figure of its own, or with its figure
+    # on the next baseline — was eaten and welded to whatever came next. The mapper was handed
+    # 的税后净额（一）不能重分类进损益的其他, （一）按经营持续性分类1.持续经营净利润（净亏损以"－"号填列）,
+    # 合收益的金额4.其他债权投资信用减值准备5.现金流量套期储备6.外币财务报表折算差额 — four captions in
+    # one row — and 7.其他归属于少数股东的其他综合收益的税后净额七、综合收益总额 holding 330,011,283.77.
+    "按经营持续性分类", "持续经营净利润", "终止经营净利润", "按所有权归属分类",
+    "归属于母公司股东的净利润", "少数股东损益",
+    "归属母公司所有者的其他综合收益的税后净额", "归属于少数股东的其他综合收益的税后净额",
+    "不能重分类进损益的其他综合收益", "将重分类进损益的其他综合收益",
+    "重新计量设定受益计划变动额", "权益法下不能转损益的其他综合收益",
+    "其他权益工具投资公允价值变动", "企业自身信用风险公允价值变动",
+    "权益法下可转损益的其他综合收益", "其他债权投资公允价值变动",
+    "金融资产重分类计入其他综合收益的金额", "其他债权投资信用减值准备",
+    "现金流量套期储备", "外币财务报表折算差额",
+    "归属于母公司所有者的综合收益总额", "归属于少数股东的综合收益总额",
+    # …and the four P&L lines the same block prints beside the ones already listed.
+    "以摊余成本计量的金融资产终止确认收益", "汇兑收益", "净敞口套期收益",
+    "对联营企业和合营企业的投资收益", "每股收益",
     # the statements' own totals
     "流动资产合计", "非流动资产合计", "资产总计", "流动负债合计", "非流动负债合计",
     "负债合计", "所有者权益合计", "股东权益合计", "负债和所有者权益总计",
@@ -1466,6 +1503,59 @@ def _looks_like_wrapped_tail(caption: str) -> bool:
     return (_TAIL_CONTINUATION.match(caption) is not None
             or _PARENTHETICAL_ALTERNATIVE.match(caption) is not None
             or _closes_a_bracket_it_never_opened(caption))
+
+
+def _completes_the_caption_above(prev_label: list[Word], label_words: list[Word],
+                                 steps: tuple[tuple[str, object], ...],
+                                 known: frozenset[str]) -> bool:
+    """Whether this fragment is the rest of the caption printed above it — decided by whether the
+    TWO TOGETHER are a caption the vocabulary knows, while the fragment alone is not.
+
+    THE SHAPE THE WORD TESTS CANNOT SEE. ``_looks_like_wrapped_tail`` recognises a tail by a
+    leading connective, a parenthetical alternative, or a bracket closed that was never opened. A
+    mainland OCI block prints tails with none of those: its caption column is narrow, so the
+    caption breaks mid-noun and the remainder is a bare fragment — 的税后净额, 综合收益, 变动, 额 —
+    printed BELOW the figures, because the figures are set beside the caption's FIRST line:
+
+        归属母公司所有者的其他综合收益        -10,758,236.29    -305,285.33
+        的税后净额
+        （一）不能重分类进损益的其他           -10,825,600.00    -284,303.92
+        综合收益
+        1.重新计量设定受益计划变动
+        额
+
+    Read as a wrapped HEAD instead — which is what a fragment the vocabulary does not recognise
+    becomes — each one folded forward onto the caption beneath it, so the mapper saw
+    的税后净额（一）不能重分类进损益的其他 and the middle caption's own tail was lost with it.
+
+    WHY THE VOCABULARY AND NOT THE GEOMETRY. Measured on the corpus, the tails are OUTDENTED
+    relative to the head above them, and so is almost everything else: 240 of the PRC filings'
+    label-only lines start left of the line above, and most are complete captions —
+    合同资产 under 其中：数据资源, （二）按所有权归属分类 under 2.终止经营净利润. An indent rule
+    glues those. What separates a tail from a caption is not where it starts but whether it IS
+    one, which is the same evidence ``known`` already supplies to the forward-fold.
+
+    TESTED ON THE JOIN AS ONE STRING, deliberately NOT through ``_is_known_caption``: that helper
+    tests the whole line AND each of its printed sub-lines — a bilingual caption comes back
+    interleaved — so handing it ``prev + fragment`` answers True whenever PREV ALONE is known,
+    which is nearly every valued row on a CAS face. Written that way first, the rule fired on
+    every label-only line in the corpus and spliced it backward: 000709 lost every section total
+    it had, and ``bs_cl__other_current_liabilities`` went from 6,249,186,163.04 to
+    275,352,930,469.57.
+    """
+    if not prev_label or not label_words:
+        return False
+    if _is_known_caption(label_words, steps, known):
+        return False                     # a complete caption is a line of its own, never a tail
+    joined = _join_words(list(prev_label) + list(label_words))
+    for text in (normalize_label(apply_pipeline(joined, steps)),
+                 # …and the caption as PRINTED, for the same reason `_is_known_caption` tries it:
+                 # the declared strips are written for the 其中：/减：/加： prefix a CAS caption
+                 # carries, and the list holds the bare form.
+                 normalize_label(re.sub(r"^(?:其中|加|减|其他)?[:：]\s*", "", joined.strip()))):
+        if text and (text in known or text in _CAS_FACE_CAPTIONS):
+            return True
+    return False
 
 
 def _is_units_caption(label_words: list[Word]) -> bool:
