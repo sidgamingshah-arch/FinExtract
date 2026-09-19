@@ -10,7 +10,7 @@ repo does. EIR here is the effective-interest amortisation of loan fees and tran
 (IFRS 9 / Ind AS 109 style), at GL × product grain. It shares no template, concept or section
 vocabulary with `output_csv_hk_*`.
 
-Status: capture in progress — sheets 1 and 2 of an unknown number received.
+Status: capture in progress — sheets 1, 2 and 3 of an unknown number received.
 
 ---
 
@@ -92,7 +92,11 @@ given (DSA expense, legal expense), sheet 2 reads as the **transaction-cost** si
 paid to third parties at origination. If fee INCOME is amortised too, its data is not in this
 sheet.
 
-### The one question that changes the design
+### The method is stated here as well as on sheet 1
+
+*(Superseded by "The three sheets declare the same decision at three grains" below, once sheet 3
+arrived and made this a three-rung cascade rather than a straight conflict. Kept because the
+failure modes it names are still the ones to design against.)*
 
 `EIR / SLM` appears on BOTH sheets. Either
 
@@ -118,6 +122,57 @@ rather than guessed.
    against a customer with no loan named?
 5. **Costs with no loan.** Can a cost arrive at product level and need allocating across that
    product's loans, or is `Loan ID` always populated?
+
+---
+
+## Sheet 3 — the product-level default
+
+The same decision again, at the broadest grain. Supplied as a header-and-field-description
+template with no populated rows.
+
+| # | Column | Supplied description |
+|---|---|---|
+| 1 | `Reference Date` | Effective date from which the EIR computation is generated |
+| 2 | `Sr. No.` | Serial number |
+| 3 | `Product Code` | Product identifier |
+| 4 | `Product Description` | Product name/description |
+| 5 | `EIR / SLM` | Method of ammortisation of fee / cost into either SLM or EIR |
+
+Note `Sr. No.` is described here as plain "Serial number", where sheets 1 and 2 both say "Serial
+number for GL codes" — consistent with there being no GL on this sheet, and evidence that the
+description on sheet 2 (a loan-level row, not a GL) was carried over rather than meant.
+
+---
+
+## The three sheets declare the same decision at three grains
+
+`EIR / SLM` is stated on all three, each time keyed more narrowly than the last:
+
+| Sheet | Key | Grain |
+|---|---|---|
+| 3 | `Product Code` | broadest — one method per product |
+| 1 | `GL Code` × `Product Code` | a GL's method within a product |
+| 2 | `Loan ID` (× `GL Code`, × vendor) | narrowest — one method per supplied cost row |
+
+Read together these are almost certainly a **precedence cascade**: the product sets a default, a
+GL refines it, and a transaction row may state its own. That is the same shape as this repo's
+`section_defaults` → per-concept override, and it would make the redundancy intentional rather
+than a denormalisation hazard.
+
+**This supersedes the two-way framing recorded under sheet 2 above** — the question is not which
+of two sheets wins, but whether the cascade runs narrowest-wins as it appears to, and what happens
+at each rung when it is silent or contradicted:
+
+1. **Is narrowest-wins right?** Sheet 2 beats sheet 1 beats sheet 3 — confirm, because the reverse
+   (a product-level mandate that overrides a row) is a legitimate policy too.
+2. **Does a rung have to be present?** If a loan's product is absent from sheet 3 but its GL is on
+   sheet 1, does the run proceed on sheet 1 alone, or is the missing product an error?
+3. **Is disagreement an error or an override?** A sheet-2 row saying SLM where sheet 1 says EIR for
+   its GL: is that the row exercising its right to differ, or a data fault to report? These need
+   different code and different screens.
+4. **Effective dating across rungs.** Each sheet carries its own `Reference Date`. Are the three
+   read at one as-of date, or can a product's classification be dated differently from the GL
+   classification that refines it?
 
 ### Not yet supplied
 
