@@ -10,8 +10,10 @@ repo does. EIR here is the effective-interest amortisation of loan fees and tran
 (IFRS 9 / Ind AS 109 style), at GL × product grain. It shares no template, concept or section
 vocabulary with `output_csv_hk_*`.
 
-Status: capture in progress — sheets 1, 2 and 3 plus the fee-allocation illustration
-received, of an unknown total.
+Status: capture in progress. Received: the four data/logic sheets below, and part 1 of 3 of the
+computation spec ("EIR MODEL — LLM BUILD HANDOFF"). The handoff says the workbook has **seven
+source sheets** and points at two further documents by name — *Sheet Specifications* and *Formula
+Blueprint* — which are presumably parts 2 and 3.
 
 ---
 
@@ -276,6 +278,112 @@ Every figure above reproduces from these five, checked:
 7. **Partial-period interaction with `Reference Date`.** A drawdown between two reference dates —
    is the increment recognised at the drawdown date or at the next reference date?
 
+---
+
+# The computation spec
+
+Supplied separately from the sheets, as "EIR MODEL — LLM BUILD HANDOFF". Part 1 of 3.
+
+> **Purpose** — Specification for recreating every model in this workbook. The seven source sheets
+> remain unchanged.
+>
+> **Copy-ready master instruction** — Build each model as a transparent, formula-driven Excel
+> schedule. Separate inputs, contractual cash flows, Ind AS carrying value, fee amortisation,
+> accounting entries and validation checks. Never hard-code calculated schedule outputs.
+
+## Part 1 — global conventions, inputs, build sequence, controls
+
+### 1. Global conventions
+
+| | |
+|---|---|
+| Perspective | Lender / financial-asset perspective |
+| Initial carrying amount | Gross amount disbursed − directly attributable fees received + eligible transaction costs or commissions paid |
+| Cash-flow signs | In schedules, balances and receipts are positive. **For XIRR only**, initial net disbursement is negative and subsequent borrower receipts are positive |
+| Fee amortisation | EIR interest − contractual interest; this accretes the net carrying amount toward the contractual settlement amount |
+| Precision | Calculate at full precision; display currency to 2 decimals. Never round intermediate rows unless policy requires it |
+
+### 2. Required inputs
+
+| Group | Fields |
+|---|---|
+| Identity | Loan ID, product type, currency |
+| Dates | Start/disbursement, first payment, maturity, reset dates, reporting date, prepayment date if applicable |
+| Economics | Gross disbursement, sanctioned limit where relevant, rate or benchmark plus spread, fees, eligible costs/commission, payment frequency, principal pattern |
+| Conventions | Day-count basis, month-end rule, business-day rule, reset frequency, prospective/reset treatment |
+
+### 3. Common build sequence
+
+1. **Validate** — dates chronological; numeric rates/fees; supported frequency; principal pattern fully settles unless revolving.
+2. **Generate dates** — every contractual cash-flow date through maturity, preserving month-end behaviour; calculate actual days.
+3. **Contractual schedule** — opening gross; contractual interest = opening × annual rate × days/basis; principal; total receipt; closing gross.
+4. **Net opening** — gross disbursement − fees received + eligible costs/commission paid.
+5. **Solve EIR** — iteratively change EIR until the final EIR closing balance is zero. XIRR is an alternative *only* when its compounding convention is intended.
+6. **EIR schedule** — opening net; EIR interest = opening × EIR × days/basis; contractual total receipt; closing net = opening + EIR interest − receipt.
+7. **Fee roll-forward** — period amortisation = EIR interest − contractual interest; unamortised fee = prior balance − amortisation; accumulated = cumulative amortisation.
+8. **Outputs** — EIR, EIR spread for floating loans, gross/net balances, fee roll-forward, modification result where applicable.
+
+### 4. Mandatory controls
+
+| Control | Assertion |
+|---|---|
+| Gross roll-forward | opening gross + contractual interest − total receipt = closing gross, every period |
+| EIR roll-forward | opening net + EIR interest − total receipt = closing net, every period |
+| Fee identity | period amortisation = EIR interest − contractual interest |
+| Fee exhaustion | cumulative amortisation = original net fee; final unamortised fee = zero, within tolerance |
+| Maturity | final gross and net balances = zero, within tolerance |
+| Journals | every debit/credit block balances |
+| Floating reset | the original EIR spread stays fixed unless a separate modification assessment says otherwise |
+
+### 5. Build rules
+
+* **Formulas** — references and copied formulas, not hard-coded outputs; assumptions separate from calculations.
+* **Dynamic rows** — parameter-driven schedules over fixed row blocks; stop at maturity and label the terminal cash flow.
+* **Errors** — flag missing inputs, negative days, unsupported frequency, non-zero terminal balances, fee over-amortisation, solve failure.
+* **Audit trail** — expose the EIR cash-flow vector plus controls for balance, principal, fee and journal reconciliation.
+* **Detail** — *Sheet Specifications* for model requirements, *Formula Blueprint* for row logic and exceptions.
+
+### What part 1 pins down
+
+* **Ind AS** (109) — so Indian GAAP, consistent with the INR figures in sheet 4. IFRS 9 equivalent.
+* **The EIR is solved off the SCHEDULE, not off XIRR.** Step 5 root-solves the rate that drives the
+  final net closing balance to zero, where each period accrues `opening × EIR × days/basis` — simple
+  accrual over actual days. XIRR compounds. **These give different rates**, and the spec is explicit
+  that XIRR is a fallback "only when its compounding convention is intended". Worth stating plainly
+  because it is the kind of difference that reconciles to nothing later.
+* **"Original net fee"** is named by the fee-exhaustion control and is the quantity in step 4:
+  fees received − eligible costs paid. That is what must fully amortise.
+* **Floating loans carry a fixed EIR spread**, re-derived at inception and held across resets; only
+  a modification assessment may change it.
+
+### Open questions
+
+1. **Is the deliverable Excel, or this product?** The master instruction says "Build each model as a
+   transparent, formula-driven **Excel** schedule", with build rules about copied formulas, dynamic
+   row blocks and an audit trail of exposed cells. Read literally it specifies a workbook, not a
+   Python service. Everything else in this repository is the latter. Which is wanted — a generated
+   workbook, an implementation whose outputs tie to one, or both — changes the design completely,
+   and it is the first thing to settle.
+2. **Sign of the amortisation when costs exceed fees.** Step 4 makes the net opening
+   `gross − fees + costs`, so with costs greater than fees the net opening is ABOVE gross, the EIR
+   is BELOW the contractual rate, and `EIR interest − contractual interest` is negative — the
+   carrying amount amortises down rather than accreting. The convention says "accretes toward",
+   which reads as one direction. Confirm both are intended and that no control assumes positivity.
+3. **Tolerance is required but not quantified.** Three controls say "within tolerance" (fee
+   exhaustion, maturity balances) and step 5 needs a convergence criterion. Absolute, relative, or
+   currency units — and what value?
+4. **Day-count basis is an input, not a fixed convention** (30/360, actual/365, actual/actual …),
+   and step 2 says "calculate actual days" while step 3 divides by "basis". The supported set needs
+   naming, and whether month-end and business-day rules shift the cash-flow DATE, the day count, or
+   both.
+5. **"Principal pattern fully settles unless revolving"** — so revolving facilities are in scope
+   here too, and the maturity control ("final balances zero") cannot apply to them. What replaces it?
+   This is the same gap sheet 4's cumulative-drawdown rule left open.
+6. **Prepayment** appears in the required inputs and in step 8's "modification result", but no rule
+   is given for catch-up on prepayment or for the modification test itself. Presumably in parts 2–3.
+
+---
+
 ### Not yet supplied
 
 - The amortisation computation itself (EIR rate solve, schedule, catch-up on prepayment or
@@ -290,3 +398,6 @@ Every figure above reproduces from these five, checked:
 - The output/report shape.
 - Worked examples for the EIR computation itself. Sheet 4's allocation arithmetic is worked and
   reproduces exactly; the effective-interest schedule it feeds is not.
+- Parts 2 and 3 of the computation spec — named in part 1 as *Sheet Specifications* (model
+  requirements) and *Formula Blueprint* (row logic and exceptions).
+- Three of the seven source sheets the handoff refers to.
