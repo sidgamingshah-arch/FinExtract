@@ -135,16 +135,16 @@ def _has_value(li) -> bool:
 
 
 def _statement_map(doc: DocumentModel):
-    """(page -> statement) plus the per-row lookup both paths use."""
+    """(page -> statement) plus the per-row lookup both paths use.
+
+    The per-row lookup is `buckets.statement_resolver`, which asks the ROW before the page: a page
+    can carry two statements, and this stage's section filter is what turned that into 78bn of
+    parent-company equity and borrowings in the income statement's catch-all.
+    """
+    from app.services.buckets import statement_resolver
+
     stmt_by_page = {p.index: p.statement for p in doc.pages if p.statement}
-
-    def statement_of(li) -> str | None:
-        for ev in li.values.values():
-            if ev.provenance is not None:
-                return stmt_by_page.get(ev.provenance.page_index)
-        return None
-
-    return stmt_by_page, statement_of
+    return stmt_by_page, statement_resolver(doc)
 
 
 # --- eligibility vocabulary --------------------------------------------------------------------
@@ -155,6 +155,26 @@ def _statement_map(doc: DocumentModel):
 _ATTRIBUTION = re.compile(
     r"attributable to|owners of the (parent|company)|non-?controlling interests?:"
     r"|归属于|歸屬於|母公司拥有人|母公司擁有人|本公司拥有人|本公司擁有人", re.IGNORECASE)
+# "OF WHICH" IS A BREAKDOWN OF THE LINE ABOVE IT, not a line of its own.
+#
+# A mainland statement itemises inside a line with 其中：/ 其中: — "其中：营业收入" under 营业总收入,
+# "其中：应收利息" under 其他应收款, "其中：对联营企业和合营企业的投资收益" under 投资收益 — and an
+# HKEX one writes "of which" or "including". The amount is ALREADY IN the row above, so adding it
+# to a section total counts the same money twice; in a residual that also means the component list
+# claims a line the section never printed separately.
+#
+# MEASURED ON 000709: 其中：营业收入 121,616,519,837.62 was swept into
+# `is_pl__other_operating_expenses` and, the expense residual being net of its charges, SUBTRACTED
+# the company's entire revenue — operating profit came to -119,668,723,602.64 against a printed
+# 800,840,003.25. 300319 swept 其中：营业收入 and 其中：对联营企业和合营 the same way.
+#
+# NOT A NARRATIVE TEST. `_is_narrative` asks whether a caption is prose; this row is a perfectly
+# good caption naming a perfectly good amount, and a dedicated concept may still MAP it — 其中：数据资源
+# and 其中：应收利息 are real disclosures. What it must not do is enter a section total a second time.
+_OF_WHICH = re.compile(
+    r"^\W*(?:其中|其中|內中|内中)\s*[:：]"                      # 其中：… / 其中:…
+    r"|^\W*(?:of which|including|thereof)\b\s*[:：]?",         # of which: … / including: …
+    re.IGNORECASE)
 # A per-share figure is a ratio in cents, not an amount: added into a section subtotal it is
 # nonsense, and it is small enough that no rollup notices.
 _PER_SHARE = re.compile(r"per share|per ordinary share|每股|hk cents|rmb cents", re.IGNORECASE)
@@ -249,6 +269,7 @@ _EXCLUSIONS: tuple[tuple[str, object], ...] = (
     (_PER_SHARE_PHRASE, lambda row: bool(_PER_SHARE.search(_label(row)))),
     ("narrative row", lambda row: _is_narrative(_label(row))),
     ("note-reference-only row", lambda row: bool(_NOTE_REF_ONLY.match(_label(row)))),
+    ("of which breakdown", lambda row: bool(_OF_WHICH.match(_label(row)))),
     # A CAPTION THAT NAMES NOTHING, because the rest of it is printed where the reader could not
     # reach it. A mainland balance sheet's balancing total is the last line of its page and wraps:
     # 688008 prints 负债和所有者权益（或 with its figures and 股东权益）总计 as the first text of the

@@ -40,6 +40,7 @@ from app.core.models.enums import (AllocationStatus, Basis, LineRole, MappingMet
                                    PrintedIn)
 from app.core.models.line_item import ExtractedValue, LineItem
 from app.core.stage import PipelineContext
+from app.services.buckets import statement_resolver
 from app.services import line_item_notes, line_item_routes
 from app.services.caption_shape import prose_reasons
 from app.services.mapping import (
@@ -615,30 +616,16 @@ class MapOntologyStage:
 
         _apply = _apply_result
 
-        # Page -> statement, from the classifier. Mapping uses it to refuse concepts from a
-        # different statement (a P&L caption resolving to a cash-flow key, etc.).
-        stmt_by_page = {p.index: p.statement for p in doc.pages if p.statement}
-
-        def _statement_of(li) -> str | None:
-            """Which statement's VOCABULARY names this row's caption.
-
-            Normally the page it was printed on, which is the same question — a caption on the
-            balance sheet is named by the balance sheet's concepts. A row may DECLARE otherwise,
-            and one kind does: an equity-matrix balance transposed by
-            `services.equity_matrix` is the balance sheet's equity section restated at a date, so
-            "Share premium" is a balance-sheet caption even though it was printed on the statement
-            of changes in equity. Its provenance still points at the page it came off; only the
-            gate's question is answered differently. See that module's `MATCH_STATEMENT_FLAG`.
-            """
-            from app.services.equity_matrix import MATCH_STATEMENT_FLAG
-
-            for flag in (getattr(li.confidence, "flags", None) or ()):
-                if str(flag).startswith(f"{MATCH_STATEMENT_FLAG}:"):
-                    return str(flag).split(":", 1)[1] or None
-            for ev in li.values.values():
-                if ev.provenance is not None:
-                    return stmt_by_page.get(ev.provenance.page_index)
-            return None
+        # Which statement's VOCABULARY names each row's caption — mapping uses it to refuse
+        # concepts from a different statement (a P&L caption resolving to a cash-flow key).
+        #
+        # `buckets.statement_resolver` asks the ROW before the page. Normally those are the
+        # same question — a caption on the balance sheet is named by the balance sheet's
+        # concepts — and two stamps make them differ. A transposed equity balance DECLARES
+        # itself a balance-sheet caption though it was printed on the statement of changes in
+        # equity (`equity_matrix.MATCH_STATEMENT_FLAG`), and a row off a page carrying two
+        # statements names the one it was actually printed under (`buckets.PRINTED_ON_FLAG`).
+        _statement_of = statement_resolver(doc)
 
         # ONE DETERMINISTIC MATCH PER ROW.
         #

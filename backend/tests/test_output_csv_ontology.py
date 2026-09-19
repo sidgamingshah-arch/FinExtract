@@ -644,32 +644,87 @@ def test_each_mapping_has_unique_normalized_aliases():
 
     assert duplicates == []
 
-def test_the_two_assembled_depreciation_charges_are_declared_magnitudes():
-    """The shipped template says which members arrive as magnitudes, and only those two do.
+# The P&L subtotals' charge members, and the reason the list is this long rather than two names.
+#
+# IT USED TO BE TWO — the assembled depreciation charges, which are written after `normalize`
+# carrying the magnitude they were summed from while "every cost line beside them arrives
+# negative". That last clause is what a CAS filing disproves: it prints its costs UNSIGNED, and
+# `normalize._negate_unsigned_expenses` cannot orient them because its cohort is concepts
+# declaring `negative_expected` and this rulebook declares that on none of its 462. So
+# `is_pl__cost_of_sales` arrived +109,877,789,991.32 on 000709 beside revenue
+# +116,590,734,451.51, and gross profit came to the SUM of the two.
+#
+# Declaring each charge a magnitude makes the subtotal net of it whichever way the filing printed
+# it — `Component.contribution` takes `-abs(value)` — which is what
+# `global_rules.sign_convention.expenses_and_outflows` asks for ("Stored NEGATIVE. This is
+# required by the template: pl_gross_profit = sum(revenue, cost_of_goods_sold) ... only hold if
+# expense concepts carry a negative sign").
+_CHARGE_MEMBERS = {
+    "is_pl__total_cost_of_sales": [
+        "is_pl__derivatives_cos", "is_pl__cost_of_sales", "is_pl__net_claims_and_benefits",
+        "is_pl__goods_and_services", "is_pl__material_expenses",
+        "is_pl__amort_and_impairment_intgbl_cos", "is_pl__deprec_and_impairment_cos",
+    ],
+    "is_pl__gross_profit": ["is_pl__total_cost_of_sales"],
+    "is_pl__net_operating_profit": [
+        "is_pl__selling_and_marketing_expenses", "is_pl__general_and_admin_expenses",
+        "is_pl__personnel_and_benefit_expenses", "is_pl__officers_compensation",
+        "is_pl__operating_lease_and_rent_expenses", "is_pl__research_and_development",
+        "is_pl__restructuring_costs", "is_pl__asset_impairment_loss",
+        "is_pl__other_operating_expenses", "is_pl__commission_expenses_other_operating_exp",
+        "is_pl__commission_expenses_cost_of_sales", "is_pl__bad_debt_expense_other_receivables",
+        "is_pl__bad_debt_expense_trade_and_other_receivables", "is_pl__bad_debt_expense",
+        "is_pl__prov_for_retirement_costs", "is_pl__share_option_costs", "is_pl__other_taxes",
+        "is_pl__other_oper_exp_provisions", "is_pl__impairment_fixed_assets_oper_exp",
+        "is_pl__deprec_and_impairment_oper_exp", "is_pl__impairment_intgbl",
+        "is_pl__amort_and_impairment_intgbl", "is_pl__goodwill_amortization",
+    ],
+}
 
-    Both charges are ASSEMBLED rather than read off the face — the operating share out of the
-    PBT note, the cost-of-sales share out of the segment or PPE note — so they are written after
-    `normalize` carrying the magnitude they were summed from, while every cost line beside them
-    in these two formulas arrives negative. Left undeclared, each subtotal moves by TWICE the
-    charge, which on the sample filing is over a billion HKD on operating profit alone.
+# The members of those same three formulas that are NOT charges, which is the other half of the
+# assertion: `abs` on a two-sided column would publish a credit as a charge. The template marks
+# each of these in its own label — `(+)`, `Incr/(Dcr)`, `Income(Expense)` — or names it an income.
+_TWO_SIDED_MEMBERS = (
+    "is_pl__sales_revenues", "is_pl__net_premium_earned",
+    "is_pl__changes_in_inventories_incr_dcr", "is_pl__expenses_own_work_capitalized",
+    "is_pl__gross_profit", "is_pl__rents_and_royalty_income", "is_pl__other_operating_income",
+    "is_pl__commission_income_other_operating_inc", "is_pl__commission_income_sales",
+    "is_pl__grants_and_subsidies", "is_pl__capitalized_costs",
+)
+
+
+def test_every_charge_in_a_pl_subtotal_is_declared_a_magnitude():
+    """A subtotal must be NET OF ITS CHARGES whichever sign the filing printed them with.
 
     Pinned on the shipped definition rather than the generator because the template is what the
-    run reads: a declaration lost in a regeneration is a silent one-billion error.
+    run reads — `services/rollups.evaluate` is the export, statement API and KPI path — so a
+    declaration lost in a regeneration is a silent error the size of the charge, twice over: an
+    undeclared magnitude moves the subtotal by 2× the figure, over a billion HKD on operating
+    profit alone for the depreciation charge that first needed this.
     """
     nodes = calculated_nodes(TEMPLATE_DEF)
 
     declared = {key: node["rollup"]["cost_magnitude_children"]
                 for key, node in nodes.items()
                 if node["rollup"].get("cost_magnitude_children")}
-    assert declared == {
-        "is_pl__total_cost_of_sales": ["is_pl__deprec_and_impairment_cos"],
-        "is_pl__net_operating_profit": ["is_pl__deprec_and_impairment_oper_exp"],
-    }
-    # A name that is not a member of its own rollup adjusts nothing while reading as if it did.
+    assert declared == _CHARGE_MEMBERS
+    # The two ASSEMBLED charges are still in there — they are the case that cannot be fixed by
+    # orienting the filing's signs, because nothing on the filing printed them.
+    assert "is_pl__deprec_and_impairment_cos" in declared["is_pl__total_cost_of_sales"]
+    assert "is_pl__deprec_and_impairment_oper_exp" in declared["is_pl__net_operating_profit"]
+    # A name that is not a member of its own rollup adjusts nothing while reading as if it did,
+    # and the declaration is in the rollup's own child order so the two read the same way.
     for key, magnitudes in declared.items():
-        assert set(magnitudes) <= set(nodes[key]["rollup"]["children"]), key
-    # And the residual rollups these two concepts also feed must NOT be adjusted: those subtract
-    # the charge from a reported parent, where its arrival sign is the parent's own.
+        children = nodes[key]["rollup"]["children"]
+        assert set(magnitudes) <= set(children), key
+        assert magnitudes == [c for c in children if c in set(magnitudes)], key
+    # AND NOT ONE TWO-SIDED MEMBER IS AMONG THEM. Revenue, a gross profit that may be a gross
+    # loss, an inventory movement, own work capitalised: `-abs()` on any of these would publish
+    # the wrong number with total confidence.
+    every = {m for ms in declared.values() for m in ms}
+    assert every & set(_TWO_SIDED_MEMBERS) == set()
+    # And the residual rollups these concepts also feed must NOT be adjusted: those subtract the
+    # charge from a reported parent, where its arrival sign is the parent's own.
     for key, node in nodes.items():
         if node["rollup"].get("reported_total_key"):
             assert not node["rollup"].get("cost_magnitude_children"), key

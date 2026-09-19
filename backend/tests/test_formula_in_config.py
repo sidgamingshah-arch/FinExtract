@@ -87,14 +87,24 @@ def test_the_configured_formula_is_the_templates_formula() -> None:
             continue
         children = list((rollups.get(key) or {}).get("children") or [])
         assert [t.ref for t in item.terms] == children, key
-        # Generated from a `sum`, so every term adds. A sign flip here would be a real change to
-        # the arithmetic and has to be authored deliberately, not arrive by regeneration.
-        assert all(t.sign == 1 for t in item.terms), key
-        # `cost_magnitude_children` is the template's way of saying a child arrives as a magnitude
-        # rather than a signed amount; `abs` is `Term`'s. Neither of the 31 uses it, and the
-        # mapping is asserted so a future one does not migrate silently as a signed value.
+        # `cost_magnitude_children` is the template's way of saying a child arrives as a MAGNITUDE
+        # rather than a signed amount; `abs` is `Term`'s. The two must name the same children, or
+        # the export path and the configuration would publish different figures for one line.
         magnitude = set((rollups.get(key) or {}).get("cost_magnitude_children") or ())
         assert {t.ref for t in item.terms if t.abs} == magnitude, key
+        # AND THE SIGN IS DECIDED BY THAT, term for term.
+        #
+        # `rollups.Component.contribution` returns `-abs(value) * sign` for a magnitude member and
+        # the caller applies `sign` again, so in a `sum` a magnitude child contributes exactly
+        # `-abs(value)`. `services/line_items._apply_terms` spells the same arithmetic as
+        # `sign * abs(raw)`, which needs `sign: -1` to agree. A magnitude term written `sign: 1`
+        # would ADD the charge where the template subtracts it — the drift this pins.
+        #
+        # Everything else adds, because these formulas are generated from a `sum`. A bare sign flip
+        # is a real change to the arithmetic and has to be authored on both sides deliberately
+        # rather than arrive by regeneration.
+        assert {t.ref: t.sign for t in item.terms} == {
+            t.ref: (-1 if t.ref in magnitude else 1) for t in item.terms}, key
 
 
 def test_every_term_names_a_line_that_exists() -> None:

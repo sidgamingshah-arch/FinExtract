@@ -62,15 +62,14 @@ def _resolved_as_evidence(parent, rows: list) -> bool:
 
 
 def _statement_of(row, doc: DocumentModel) -> str:
-    for value in row.values.values():
-        page = getattr(value.provenance, "page_index", None)
-        if page is None:
-            continue
-        statement = next((item.statement for item in doc.pages
-                          if item.index == page and item.statement), None)
-        if statement:
-            return normalize_statement(statement) or "unknown_statement"
-    return "unknown_statement"
+    """Asks the ROW before the page it was printed on — see `buckets.statement_resolver`. A page
+    can carry the tail of one statement and the head of the next, and this contract is keyed by
+    statement, so answering by page filed a balance-sheet caption under the income statement."""
+    from app.services.buckets import statement_resolver
+
+    statement = statement_resolver(doc)(row)
+    return (normalize_statement(statement) or "unknown_statement") if statement \
+        else "unknown_statement"
 
 
 _SLUG_MAX = 44

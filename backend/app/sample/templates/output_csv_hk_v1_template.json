@@ -2955,6 +2955,12 @@
                   "is_pl__deprec_and_impairment_cos"
                 ],
                 "cost_magnitude_children": [
+                  "is_pl__derivatives_cos",
+                  "is_pl__cost_of_sales",
+                  "is_pl__net_claims_and_benefits",
+                  "is_pl__goods_and_services",
+                  "is_pl__material_expenses",
+                  "is_pl__amort_and_impairment_intgbl_cos",
                   "is_pl__deprec_and_impairment_cos"
                 ]
               }
@@ -2974,6 +2980,9 @@
                   "is_pl__net_premium_earned",
                   "is_pl__changes_in_inventories_incr_dcr",
                   "is_pl__expenses_own_work_capitalized",
+                  "is_pl__total_cost_of_sales"
+                ],
+                "cost_magnitude_children": [
                   "is_pl__total_cost_of_sales"
                 ]
               }
@@ -3363,7 +3372,29 @@
                   "is_pl__capitalized_costs"
                 ],
                 "cost_magnitude_children": [
-                  "is_pl__deprec_and_impairment_oper_exp"
+                  "is_pl__selling_and_marketing_expenses",
+                  "is_pl__general_and_admin_expenses",
+                  "is_pl__personnel_and_benefit_expenses",
+                  "is_pl__officers_compensation",
+                  "is_pl__operating_lease_and_rent_expenses",
+                  "is_pl__research_and_development",
+                  "is_pl__restructuring_costs",
+                  "is_pl__asset_impairment_loss",
+                  "is_pl__other_operating_expenses",
+                  "is_pl__commission_expenses_other_operating_exp",
+                  "is_pl__commission_expenses_cost_of_sales",
+                  "is_pl__bad_debt_expense_other_receivables",
+                  "is_pl__bad_debt_expense_trade_and_other_receivables",
+                  "is_pl__bad_debt_expense",
+                  "is_pl__prov_for_retirement_costs",
+                  "is_pl__share_option_costs",
+                  "is_pl__other_taxes",
+                  "is_pl__other_oper_exp_provisions",
+                  "is_pl__impairment_fixed_assets_oper_exp",
+                  "is_pl__deprec_and_impairment_oper_exp",
+                  "is_pl__impairment_intgbl",
+                  "is_pl__amort_and_impairment_intgbl",
+                  "is_pl__goodwill_amortization"
                 ]
               }
             },

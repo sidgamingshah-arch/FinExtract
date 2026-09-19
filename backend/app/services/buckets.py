@@ -445,3 +445,55 @@ def _bucket_from_note_content(note) -> tuple[str, str]:
     if not tally:
         return OTHERS, "unresolved"
     return max(tally.items(), key=lambda kv: (kv[1], -BUCKET_KEYS.index(kv[0])))[0], "note_content"
+
+
+#: Stamped on a row by ``pdf_extract`` when its page carried MORE THAN ONE statement, naming the
+#: statement whose batch the row was built in: ``f"{PRINTED_ON_FLAG}:balance_sheet"``. Read by
+#: :func:`statement_resolver`.
+PRINTED_ON_FLAG = "printed_on"
+
+
+def statement_resolver(doc):
+    """``(row) -> statement``, asking the ROW before the page it was printed on.
+
+    A PAGE IS NOT A STATEMENT. A mainland filing prints its statements back to back and a boundary
+    lands wherever the previous one ended: on 000709, page 85 carries the tail of the parent-company
+    balance sheet down to 59% of the page and the head of the consolidated income statement below
+    it, and page 88 carries two cash-flow statements. ``classify`` names ONE statement per page, so
+    every resolver that looked the row's statement up by page index answered
+    ``profit_and_loss`` for 长期借款, 应付债券, 股本, 资本公积, 盈余公积 and 未分配利润.
+
+    WHAT THAT COST. ``residual._sweep`` places a row in the residual of the section it was printed
+    inside, and its candidate sections are filtered by the row's statement — so those rows were
+    swept into ``is_pl__other_operating_expenses``. On 000709 that put 78bn of parent-company
+    borrowings, share capital and reserves into the income statement's catch-all, and on 300319 the
+    same. ``normalize``'s sign cohorts, ``map_ontology``'s concept gate and the face-mapping
+    contract were reading the same wrong answer.
+
+    ``pdf_extract`` already SPLITS such a page — "extract:page=85:split_statement_at=0.590
+    (balance_sheet->profit_and_loss)" — and builds each side as its own batch with its own
+    statement. It stamps that statement on the rows (:data:`PRINTED_ON_FLAG`), and this reads it,
+    so the verdict the splitter already reached is the one every stage downstream uses.
+
+    Two stamps, in priority order. ``equity_matrix.MATCH_STATEMENT_FLAG`` is a row DECLARING which
+    statement's vocabulary names it — a transposed equity balance is a balance-sheet caption printed
+    on the statement of changes in equity — and it outranks where the row was printed, because it is
+    an answer about the caption rather than about the page. ``PRINTED_ON_FLAG`` is where the row was
+    printed, which is what everything else is asking. The page is the fallback, and remains the
+    answer for every page that carries one statement.
+    """
+    from app.services.equity_matrix import MATCH_STATEMENT_FLAG
+
+    stmt_by_page = {p.index: p.statement for p in doc.pages if p.statement}
+
+    def resolve(row) -> str | None:
+        for prefix in (MATCH_STATEMENT_FLAG, PRINTED_ON_FLAG):
+            for flag in (getattr(getattr(row, "confidence", None), "flags", None) or ()):
+                if str(flag).startswith(f"{prefix}:"):
+                    return str(flag).split(":", 1)[1] or None
+        for ev in (getattr(row, "values", None) or {}).values():
+            if ev.provenance is not None:
+                return stmt_by_page.get(ev.provenance.page_index)
+        return None
+
+    return resolve

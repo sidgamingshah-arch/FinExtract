@@ -676,7 +676,7 @@
    "eligibility": [
     "The row printed a value for the selected entity_scope, period, currency and unit.",
     "No dedicated concept whose section_scope contains this section claimed the row.",
-    "The row is not a section subtotal, statement total, section header, attribution caption, per-share figure, narrative row, note-reference-only row or truncated caption.",
+    "The row is not a section subtotal, statement total, section header, attribution caption, per-share figure, narrative row, note-reference-only row, truncated caption or an of which breakdown of the row above it (其中：/ of which — that amount is already inside the row above, so sweeping it counts the same money twice).",
     "The row was printed INSIDE this section. A row printed in any other section is ineligible however similar its wording — there is no cross-section rescue.",
     "The row's sign agrees with the section's sign_convention, where the section states one. A row signed against its section is evidence the SECTION is wrong, not the amount, so it goes to review rather than into the bucket — a cost swept into income moves the income subtotal and every total below it."
    ],
@@ -9297,31 +9297,37 @@
    "terms": [
     {
      "ref": "is_pl__derivatives_cos",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__cost_of_sales",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__net_claims_and_benefits",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__goods_and_services",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__material_expenses",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__amort_and_impairment_intgbl_cos",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__deprec_and_impairment_cos",
-     "sign": 1,
+     "sign": -1,
      "abs": true
     }
    ],
@@ -9382,7 +9388,8 @@
     },
     {
      "ref": "is_pl__total_cost_of_sales",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     }
    ],
    "namespace": "template"
@@ -10538,96 +10545,118 @@
     },
     {
      "ref": "is_pl__selling_and_marketing_expenses",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__general_and_admin_expenses",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__personnel_and_benefit_expenses",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__officers_compensation",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__operating_lease_and_rent_expenses",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__research_and_development",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__restructuring_costs",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__asset_impairment_loss",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__other_operating_expenses",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__commission_expenses_other_operating_exp",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__commission_expenses_cost_of_sales",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__bad_debt_expense_other_receivables",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__bad_debt_expense_trade_and_other_receivables",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__bad_debt_expense",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__prov_for_retirement_costs",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__share_option_costs",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__other_taxes",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__other_oper_exp_provisions",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__impairment_fixed_assets_oper_exp",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__deprec_and_impairment_oper_exp",
-     "sign": 1,
+     "sign": -1,
      "abs": true
     },
     {
      "ref": "is_pl__impairment_intgbl",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__amort_and_impairment_intgbl",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__goodwill_amortization",
-     "sign": 1
+     "sign": -1,
+     "abs": true
     },
     {
      "ref": "is_pl__capitalized_costs",

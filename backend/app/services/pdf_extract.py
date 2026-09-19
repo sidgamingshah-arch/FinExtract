@@ -10,6 +10,7 @@ from app.core.models.enums import PageKind, PageSourceKind, PrintedIn
 from app.core.models.geometry import BBox
 from app.core.stage import PipelineContext
 from app.services.mapping import known_captions
+from app.services.buckets import PRINTED_ON_FLAG
 from app.services.row_reconstruct import Word, build_line_items
 
 
@@ -533,6 +534,18 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                 statement=statement, log=ctx.log, scope=scope, normalisation=normalisation,
                 page_scope=page_scope, page_title=page_title,
                 page_chrome=chrome, known_captions=captions)
+            # THE SPLIT HAS TO SURVIVE THE PAGE, or only this loop knows about it.
+            #
+            # `ps.statement` is one verdict for the whole page, and four stages downstream —
+            # `residual._sweep`, `normalize`'s sign cohorts, `map_ontology`'s concept gate and the
+            # face-mapping contract — looked the row's statement up by page index. So the rows this
+            # branch just built as BALANCE SHEET were read back as the page's `profit_and_loss`,
+            # and 000709's parent-company borrowings, share capital and reserves were swept into
+            # the income statement's catch-all. Stamped on the row, which is the only thing that
+            # knows which side of the boundary it came off. See `buckets.statement_resolver`.
+            if len(batches) > 1 and statement:
+                for li in batch_items:
+                    li.confidence.flags.append(f"{PRINTED_ON_FLAG}:{statement}")
             items.extend(batch_items)
         if ps.kind == PageKind.FACE:
             # Said HERE because here is where it is known: this branch reads the FACE of a

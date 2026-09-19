@@ -63,6 +63,7 @@ from decimal import Decimal
 from app.core.models import DocumentModel
 from app.core.models.line_item import UnitContext
 from app.core.stage import PipelineContext
+from app.services.buckets import statement_resolver
 
 _LESS = re.compile(r"^\s*(less|deduct)\b|less:", re.IGNORECASE)
 _ADD = re.compile(r"^\s*add\b|add:", re.IGNORECASE)
@@ -411,13 +412,11 @@ class NormalizeStage:
         rulebook says "retain the reported sign; never coerce"), and ``value_raw``, which keeps what
         the page printed so the flip can be audited against it.
         """
-        stmt_by_page = {p.index: p.statement for p in doc.pages if p.statement}
-
-        def statement_of(li) -> str | None:
-            for ev in li.values.values():
-                if ev.provenance is not None and ev.provenance.page_index in stmt_by_page:
-                    return stmt_by_page[ev.provenance.page_index]
-            return None
+        # Asks the ROW before the page it was printed on. A mainland filing prints its
+        # statements back to back and a boundary lands mid-page, so a cohort gathered by page
+        # index mixes a balance sheet's rows in with the income statement's — and this cohort
+        # decides which figures get their sign flipped. See `buckets.statement_resolver`.
+        statement_of = statement_resolver(doc)
 
         cohorts: dict[str, list[tuple[object, object, Decimal]]] = {}
         for li in doc.line_items:
@@ -476,7 +475,7 @@ class NormalizeStage:
         if ontology is None:
             return
         shape = _statement_shape(ontology)
-        stmt_by_page = {p.index: p.statement for p in doc.pages if p.statement}
+        statement_of = statement_resolver(doc)
         wrong_sign = confused = 0
         for li in doc.line_items:
             key = li.canonical_key
@@ -502,8 +501,7 @@ class NormalizeStage:
                         li.confidence.flags.append(flag)
                     wrong_sign += 1
 
-            statement = next((stmt_by_page.get(ev.provenance.page_index)
-                              for ev in li.values.values() if ev.provenance is not None), None)
+            statement = statement_of(li)
             expect = shape.get(statement or "")
             if expect is None:
                 continue
