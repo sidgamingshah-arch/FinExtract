@@ -951,7 +951,22 @@ SECTION_WORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
     # revenue or turnover, while "income" appears in captions all over a filing (deferred income
     # tax, other comprehensive income). A banner that resolves to the WRONG section is worse than
     # one that resolves to nothing, because the gate then refuses the correct concept.
-    ("income", ("revenue", "turnover", "营业额", "营业收入", "收益")),
+    # 营业收入 AND 收益 ARE LINE CAPTIONS ON A MAINLAND FACE, not this section's banner.
+    #
+    # 其中：营业收入 is the revenue LINE — `is_pl__sales_revenues` and `is_pl__cost_of_sales` own
+    # the caption — and it carries a figure. 收益 is two characters and sits inside 投资收益,
+    # 其他收益, 公允价值变动收益, 资产处置收益 and 综合收益, every one of which is a line of the
+    # income statement. Read as the banner for `income`, each scoped the whole block beneath it to
+    # a section the output-CSV template does not have: its P&L section is `income_and_expenses`
+    # (`_COMPACT_SECTION_TOKENS`), so the section gate then refused EVERY `is_pl` concept on the
+    # page. Measured on 688008, whose consolidated income statement resolved to `income` while its
+    # parent-company one resolved to `income_and_expenses` and mapped correctly: 减：所得税费用
+    # 71,881,725.57, 资产减值损失 -44,443,090.77, 加：营业外收入, 减：营业外支出 and
+    # 三、营业利润 1,412,893,172.57 all reached no concept on the consolidated column.
+    #
+    # 营业总收入 is untouched and still matches nothing here — 总 sits between the two words, so
+    # the mainland section heading was never what this entry was reading.
+    ("income", ("revenue", "turnover", "营业额")),
 )
 
 

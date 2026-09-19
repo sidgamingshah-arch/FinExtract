@@ -1091,6 +1091,20 @@ _CAS_FACE_CAPTIONS: frozenset[str] = frozenset(normalize_label(_c) for _c in {
     "负债和所有者权益（或股东权益）总计",
     "经营活动产生的现金流量净额", "投资活动产生的现金流量净额", "筹资活动产生的现金流量净额",
     "期末现金及现金等价物余额",
+    # THE STATEMENT OF CHANGES IN EQUITY, which the same scan also stopped short of. Its caption
+    # column is the narrowest on the face — a dozen value columns share the page — so almost every
+    # one of these wraps, and with none of them recognised the forward-fold ate them in runs:
+    # 688008 produced 加：会计政策变更前期差错更正其他二、本年期初余额,
+    # 普通股2．其他权益工具持有者投入资本3．股份支付计入所有者权益的金额 and
+    # 股东）的分配4．其他（四）所有者权益 — three captions welded per row.
+    #
+    # Each is printed on the face of BOTH grounding filings, the same bar as the rest of the list.
+    "会计政策变更", "前期差错更正", "本年期初余额", "本期增减变动金额",
+    "所有者投入和减少资本", "所有者投入的普通股", "其他权益工具持有者投入资本",
+    "股份支付计入所有者权益的金额", "利润分配", "提取盈余公积", "提取一般风险准备",
+    "对所有者（或股东）的分配", "所有者权益内部结转", "资本公积转增资本",
+    "盈余公积转增资本", "盈余公积弥补亏损", "设定受益计划变动额结转留存收益",
+    "其他综合收益结转留存收益", "本期提取", "本期使用", "本期期末余额",
 })
 
 
@@ -3218,6 +3232,21 @@ def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id:
             # ``_wrap_adjacent`` applies to a two-column face would reject a genuine wrap.
             if tail is not None and not _tight_below(tail, box):
                 pending = []                       # not a continuation, a new block
+            # A COMPLETE CAPTION IS A MOVEMENT ROW, not the head of a wrap — the same question the
+            # two-column path answers with `known`/`_CAS_FACE_CAPTIONS`, and this path was not
+            # asking it at all. A mainland equity statement has the narrowest caption column on
+            # the face (a dozen value columns share the page) and prints its statutory layout
+            # whether the filer used it or not, so runs of valueless captions stack up and folded
+            # forward together: 688008 produced
+            # 加：会计政策变更前期差错更正其他二、本年期初余额 holding 1,138,740,286.00 and
+            # 普通股2．其他权益工具持有者投入资本3．股份支付计入所有者权益的金额 — three captions per row.
+            #
+            # Read without the rulebook's pipeline or its aliases, because neither is threaded
+            # this far; `_is_known_caption` still tests `_CAS_FACE_CAPTIONS` and still strips the
+            # 加：/减：/其中： prefix a CAS caption carries, which is what these rows need.
+            if _is_known_caption(label_words, (), frozenset()):
+                pending, tail = [], None
+                continue
             pending, tail = pending + label_words, box
             if _heads_indented_block(pending):
                 pending, tail = [], None

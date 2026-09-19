@@ -229,3 +229,61 @@ def test_an_empty_template_line_is_welded_to_neither_neighbour():
     assert sorted(got) == ["其他综合收益", "盈余公积"], list(got)
     assert got["其他综合收益"] == ["-10693000.00", "132600.00"]
     assert got["盈余公积"] == ["110889427.15", "84893571.25"]
+
+
+# ── the statement of changes in equity, and the income statement's own section ────────────────
+
+_EQUITY_MOVEMENTS = (
+    "会计政策变更", "前期差错更正", "本年期初余额", "本期增减变动金额",
+    "所有者投入和减少资本", "所有者投入的普通股", "其他权益工具持有者投入资本",
+    "股份支付计入所有者权益的金额", "利润分配", "提取盈余公积", "提取一般风险准备",
+    "对所有者（或股东）的分配", "所有者权益内部结转", "资本公积转增资本",
+    "盈余公积转增资本", "盈余公积弥补亏损", "设定受益计划变动额结转留存收益",
+    "其他综合收益结转留存收益", "本期提取", "本期使用", "本期期末余额",
+)
+
+
+@pytest.mark.parametrize("caption", _EQUITY_MOVEMENTS)
+def test_the_cas_caption_list_holds_the_equity_movements(caption):
+    """A mainland equity statement has the narrowest caption column on the face — a dozen value
+    columns share the page — and prints its statutory layout whether the filer used it or not, so
+    runs of valueless captions stack up. With none of them recognised they folded forward
+    together: 688008 produced 加：会计政策变更前期差错更正其他二、本年期初余额 holding
+    1,138,740,286.00 and 普通股2．其他权益工具持有者投入资本3．股份支付计入所有者权益的金额."""
+    assert normalize_label(caption) in _CAS_FACE_CAPTIONS
+
+
+def test_the_matrix_path_asks_whether_a_label_only_line_is_a_caption():
+    """The two-column path has asked this since `known_captions` existed; the MATRIX path was not
+    asking it at all, which is why the equity statement kept gluing even once the captions were in
+    the vocabulary. Pinned on the behaviour rather than the call so a refactor cannot quietly drop
+    it: a recognised caption must not be carried forward into the next valued row."""
+    from app.services.row_reconstruct import _is_known_caption
+
+    for caption in ("会计政策变更", "加：会计政策变更", "前期差错更正", "本年期初余额"):
+        assert _is_known_caption(_w(caption), (), frozenset()), caption
+
+
+def test_a_mainland_revenue_line_is_not_the_income_sections_banner():
+    """`SECTION_WORDS["income"]` matched 营业收入 and the two-character 收益, and neither is a
+    banner: 其中：营业收入 is the revenue LINE (`is_pl__sales_revenues` owns the caption) and 收益
+    sits inside 投资收益 / 其他收益 / 公允价值变动收益 / 资产处置收益 / 综合收益.
+
+    Read as the banner for `income`, each scoped the block beneath it to a section the output-CSV
+    template does not have — its P&L section is `income_and_expenses` — so the section gate refused
+    EVERY `is_pl` concept on the page. On 688008's consolidated income statement that cost
+    减：所得税费用 71,881,725.57, 资产减值损失 -44,443,090.77, 三、营业利润 1,412,893,172.57 and
+    四、利润总额 1,412,617,850.07, every one of which its PARENT-COMPANY statement mapped correctly.
+    """
+    from app.services.mapping import SECTION_WORDS, section_of_banner
+
+    words = dict(SECTION_WORDS)["income"]
+    assert "营业收入" not in words and "收益" not in words
+    for caption in ("其中：营业收入", "营业收入", "投资收益", "加：其他收益",
+                    "资产处置收益（损失以“-”号填列）"):
+        assert section_of_banner(normalize_label(caption)) != "income", caption
+    # …and the section's real banners still resolve.
+    for caption in ("Revenue", "Turnover", "营业额"):
+        assert section_of_banner(normalize_label(caption)) == "income", caption
+    # 营业总收入 was never what the entry was reading — 总 sits between the two words.
+    assert section_of_banner(normalize_label("一、营业总收入")) is None
