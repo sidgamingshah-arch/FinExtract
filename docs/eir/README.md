@@ -10,10 +10,17 @@ repo does. EIR here is the effective-interest amortisation of loan fees and tran
 (IFRS 9 / Ind AS 109 style), at GL × product grain. It shares no template, concept or section
 vocabulary with `output_csv_hk_*`.
 
-Status: capture in progress. Received: the four data/logic sheets below, and part 1 of 3 of the
-computation spec ("EIR MODEL — LLM BUILD HANDOFF"). The handoff says the workbook has **seven
-source sheets** and points at two further documents by name — *Sheet Specifications* and *Formula
-Blueprint* — which are presumably parts 2 and 3.
+Status: **all three parts of the computation spec received**, plus four data/logic sheets.
+
+* Part 1 — the build handoff: conventions, inputs, build sequence, controls. Below.
+* Part 2 — [Sheet Specifications](sheet-specifications.md): per-model requirements.
+* Part 3 — [Formula Blueprint](formula-blueprint.md): row-level logic per block, with the source
+  workbook's own quirks recorded.
+
+The seven source sheets part 1 refers to are all named in part 2: six models
+(`EMI-based-Fixed`, `Bullet Repayment-Fixed`, `EMI based floating rate loan`,
+`EMI based- Floating rate loans`, `Bullet -Floating rate loans`, `CC Loan - SLM`) plus
+`Assumptions`. The four data/logic sheets captured below are separate from those seven.
 
 ---
 
@@ -384,6 +391,123 @@ Supplied separately from the sheets, as "EIR MODEL — LLM BUILD HANDOFF". Part 
 
 ---
 
+## Part 2 and 3 — synthesis
+
+Captured verbatim in [sheet-specifications.md](sheet-specifications.md) and
+[formula-blueprint.md](formula-blueprint.md). What follows is what they establish.
+
+### The six models
+
+| Model | Rate | Principal pattern | Basis | Fee method | Distinctive |
+|---|---|---|---|---|---|
+| EMI-based-Fixed | fixed | level EMI | ACT/365 | EIR | journals, prepayment, partial drawdown; 54 rows |
+| Bullet Repayment-Fixed | fixed | bullet | **ACT/360** | EIR | 12 periods; terminal receipt = interest + full principal |
+| EMI based floating rate loan | floating, quarterly reset | level EMI | source mixes /360 and /365 — **rebuild on one** | EIR | commission netting, reporting cut-offs, ROI/EIR analytics |
+| EMI based- Floating rate loans | floating | equal annual principal | ACT/365 | EIR | modification result |
+| Bullet -Floating rate loans | floating | bullet | ACT/365 | EIR | modification result |
+| CC Loan - SLM | — | cash-credit utilisation | ACT/365 | **SLM** | day-weighted fee |
+
+### Formulas the three parts settle
+
+**SLM now has a formula**, which closes the loop on sheets 1 and 3 — they decide EIR *or* SLM, and
+until now only EIR had a method:
+
+    total days   = maturity − facility start
+    period fee   = original fee × period days / total days
+    unamortised  = prior balance − period fee
+
+Day-weighted straight line, not calendar-month straight line.
+
+**The floating-rate reset does NOT re-solve the EIR.** This is the most consequential formula in
+the spec:
+
+    original contractual rate = benchmark + spread
+    original EIR              = solved to zero final net balance
+    EIR spread                = original EIR − original contractual rate     ← fixed for life
+    ── at reset ──
+    new contractual rate      = new benchmark + ORIGINAL spread
+    new EIR                   = new contractual rate + ORIGINAL EIR spread
+
+So the EIR is shifted by a constant, never re-solved. That is what part 1's "original EIR spread
+stays fixed unless a separate modification assessment says otherwise" means in arithmetic.
+
+**Prepayment** — book the current period's accrual and amortisation, then recognise the *entire*
+remaining unamortised fee in P&L at once. Control: post-prepayment fee = 0.
+
+**Partial drawdown** — `fee allocated = total fee × disbursed / sanctioned`, balance retained for
+later drawdown, `allocated + retained = total fee`. The same rule as the fee-allocation
+illustration (sheet 4), independently stated, which is a useful corroboration.
+
+**Reporting cut-off** — cumulative amortisation to the reporting date, with a straddling period
+prorated by elapsed days and the remainder carried. Control: amortised + unamortised = net fee.
+This answers what the sheets' `Reference Date` does to a mid-period drawdown.
+
+**Net fee** — `fee received − commission paid`, named on the floating EMI sheet and consistent with
+part 1's initial carrying amount.
+
+**Analytics** — ROI income = contractual interest; EIR income = ROI + amortisation; implied rate =
+income / opening × basis / days; spread = EIR rate − ROI. Control: EIR income − ROI = amortisation.
+
+**Journals**, by name: loan recognition, fee receipt, fee deferral, EIR amortisation, interest
+accrual, instalment receipt, presentation reclasses. Named — the debit/credit lines themselves are
+still not supplied.
+
+### What the spec says to FIX rather than reproduce
+
+This is a remediation spec, not a faithful-reproduction spec, and it is explicit about it:
+
+* `EMI-based-Fixed` — "**Replace source terminal manual interest adjustment with a visible true-up
+  policy**". The source plugs its last period by hand.
+* `EMI based floating rate loan` — "Source mixes ACT/360 and ACT/365 and fixed row blocks. Rebuild
+  parameterically and explicitly define the basis for each calculation."
+* `Bullet Repayment-Fixed` — "Source uses `EDATE` and inclusive adjustments in later rows. Document
+  inclusive-day policy."
+* `Assumptions` — "Do not apply the generic bullet/fixed/ACT-360 set to sheets that explicitly use
+  floating rates or another basis." The generic assumptions sheet **contradicts** the specific ones.
+* `EMI-based-Fixed` and `CC Loan - SLM` — "B5 currently equals 2% of B8": the fee is a formula off
+  the gross amount, i.e. an input that is actually derived. Whether it stays derived or becomes a
+  true input needs deciding.
+
+Anything built from this should therefore be validated against the spec's controls, **not** against
+the source workbook's numbers — the two are expected to differ where the source is wrong.
+
+### Open questions
+
+Superseding the earlier lists where they overlap.
+
+1. **Excel or this product?** Still the first thing to settle, and parts 2–3 sharpen it rather than
+   answer it: the blueprint is keyed by literal cell ranges (`B4:B11`, `A18:B71`, `J14`) and names
+   `EOMONTH`, `EDATE`, `PMT` and Goal Seek. That is a workbook specification. If the deliverable is
+   a Python service, the ranges are provenance for the logic and nothing more; if it is a generated
+   workbook, they are the layout contract. Radically different builds.
+2. **Reset versus modification — the spec appears to do both, and doing both double-counts.** On the
+   two floating sheets it (a) rolls the carrying amount prospectively at the new EIR, and (b)
+   computes a modification gain/(loss) as `PV of revised future cash flows − pre-reset carrying
+   value`. Under Ind AS 109 B5.4.5 a benchmark reset on a floating-rate instrument is handled
+   prospectively, with no gain or loss; a modification is a separate event, measured by discounting
+   at the **original** EIR. Recognising a P&L difference at every reset *and* rolling forward at the
+   new EIR would take the same economics twice. Which is intended?
+3. **The modification discount rate is never stated.** "PV date and discount rate explicit" is
+   listed as a *validation* — i.e. you must declare it — and no part of the spec declares it.
+   Original EIR, revised EIR, or the new contractual rate? The answer changes the gain/loss.
+4. **The controls do not all apply to every model.** `CC Loan - SLM` has no EIR at all, so part 1's
+   "EIR roll-forward" and "fee identity = EIR interest − contractual interest" cannot hold for it.
+   The ALL MODELS control block says "all *applicable* controls" — the applicability matrix needs
+   writing down rather than inferring.
+5. **Revolving.** Part 1 admits a principal pattern that does not settle "unless revolving", and
+   `CC Loan - SLM` is a cash-credit facility, but the maturity control ("final gross and net = 0")
+   cannot apply to a revolver. What replaces it? Same gap the fee-allocation illustration left on
+   cumulative drawdown.
+6. **Tolerance is required by five controls and quantified by none.** Plus the Goal Seek convergence
+   criterion. Absolute, relative, or currency units — and what value?
+7. **`CC Loan - SLM`: the fee period is not the utilisation period.** Five months' utilisation
+   against a 366-day fee period. Confirm the fee amortises over the *facility* life regardless of
+   utilisation, and what happens if the facility is closed early.
+8. **Sign of the amortisation when costs exceed fees** — carried forward from part 1 and still open.
+   With commission netting on the floating EMI sheet, `net fee = fee − commission` can be negative.
+
+---
+
 ### Not yet supplied
 
 - The amortisation computation itself (EIR rate solve, schedule, catch-up on prepayment or
@@ -398,6 +522,12 @@ Supplied separately from the sheets, as "EIR MODEL — LLM BUILD HANDOFF". Part 
 - The output/report shape.
 - Worked examples for the EIR computation itself. Sheet 4's allocation arithmetic is worked and
   reproduces exactly; the effective-interest schedule it feeds is not.
-- Parts 2 and 3 of the computation spec — named in part 1 as *Sheet Specifications* (model
-  requirements) and *Formula Blueprint* (row logic and exceptions).
-- Three of the seven source sheets the handoff refers to.
+- **The journal entries themselves.** Named on `EMI-based-Fixed` (loan recognition, fee receipt,
+  fee deferral, EIR amortisation, interest accrual, instalment receipt, presentation reclasses) and
+  referenced by the fee-allocation illustration, but no debit/credit lines are given anywhere — and
+  a control says every block must balance.
+- **The source workbook.** Everything captured here is the SPEC; the seven sheets' actual numbers
+  have not been supplied, so nothing can be tied out yet.
+- **The fee income input file** — sheet 4 proves fees are in scope and no sheet carries fee amounts.
+- The applicability matrix of controls to models.
+- Tolerances.
