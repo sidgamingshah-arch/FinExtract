@@ -170,3 +170,67 @@ def test_no_residual_carries_the_boolean_string_again(residuals):
     for key, r in residuals.items():
         assert "true" not in {p.strip().lower() for p in r.never_prose}, \
             f"{key} carries the boolean string again"
+
+
+# ── the OCI bucket's vetoes in BOTH scripts ──────────────────────────────────────────────────────
+
+_PL_CAPTIONS_THE_OCI_BUCKET_MUST_REFUSE = (
+    # The four already declared, in English, and the Chinese half of the same statement.
+    "净利润", "综合收益总额", "少数股东损益", "所得税费用",
+    "资产减值损失|信用减值损失", "营业外收入|营业外支出", "营业利润|利润总额",
+)
+
+
+def test_the_oci_bucket_refuses_the_income_statements_own_lines_in_both_scripts(residuals):
+    """THE MIRROR OF ITS OWN ENGLISH GUARD. ``is_oci__other_equity_and_reserves_adj`` already
+    declared `^(?:profit|loss) for the year$` and `total comprehensive (?:income|loss)`; the
+    Chinese half was missing, and a mainland income statement is where it was needed.
+
+    WHAT IT COST. The OCI block's subtotal sits at the HEAD of its block on a CAS face, so
+    `_section_of_row`'s "first section subtotal below this row" answers `is_oci` for the P&L lines
+    printed ABOVE it. On 688008 that put 减：所得税费用 71,881,725.57, 资产减值损失 -44,443,090.77,
+    加：营业外收入, 减：营业外支出 and 2.少数股东损益 -71,042,799.09 into this bucket, and the
+    column published -43,783,016.62 of income-statement money as an other-comprehensive-income
+    adjustment. With them refused the bucket is empty on that filing and the two OCI slots it does
+    publish are the printed 66,341,399.44 / 61,858,464.57.
+
+    REGEX, NOT `never_sweep`: these patterns are `re.search`ed, and that is what reaches a caption
+    the reconstructor glued — 少数股东损益 arrives inside 以"-"号填列） 2.少数股东损益（净亏损以"-"号填列）,
+    which no whole-label veto can see. This bucket is one of the four the file's own
+    `GUARDED_BY_HINTS` says to guard this way and not both ways.
+    """
+    r = residuals["is_oci__other_equity_and_reserves_adj"]
+    missing = [p for p in _PL_CAPTIONS_THE_OCI_BUCKET_MUST_REFUSE if p not in r.exclude_patterns]
+    assert missing == [], f"the OCI bucket lost these vetoes: {missing}"
+
+
+@pytest.mark.parametrize("caption", [
+    "五、净利润（净亏损以“－”号填列）",
+    "减：所得税费用",
+    "资产减值损失（损失以“-”号填列）",
+    "加：营业外收入",
+    "减：营业外支出",
+    # …and the GLUED form, which is why the guard is a regex.
+    "以“-”号填列） 2.少数股东损益（净亏损以“-”号填列）",
+    "列） 信用减值损失（损失以“-”号填列）",
+])
+def test_an_income_statement_caption_is_vetoed_from_the_oci_bucket(residuals, caption):
+    from app.stages.residual import _vetoed_by_never_sweep
+
+    assert _vetoed_by_never_sweep(residuals["is_oci__other_equity_and_reserves_adj"], caption)
+
+
+@pytest.mark.parametrize("caption", [
+    "（一）不能重分类进损益的其他综合收益",
+    "外币财务报表折算差额",
+    "现金流量套期储备",
+    "其他权益工具投资公允价值变动",
+    "权益法下不能转损益的其他综合收益",
+])
+def test_the_oci_bucket_still_accepts_its_own_components(residuals, caption):
+    """The counterweight: these ARE what the bucket is for, and none of the new patterns may
+    reach them. 综合收益总额 is a substring of 归属于母公司所有者的综合收益总额 on purpose — that is
+    an attribution line, already refused — but it must not be a substring of a real component."""
+    from app.stages.residual import _vetoed_by_never_sweep
+
+    assert not _vetoed_by_never_sweep(residuals["is_oci__other_equity_and_reserves_adj"], caption)

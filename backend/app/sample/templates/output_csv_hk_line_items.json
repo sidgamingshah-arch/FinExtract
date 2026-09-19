@@ -12703,7 +12703,14 @@
     "^(?:profit|loss) for the year$",
     "total comprehensive (?:income|loss)",
     "^other comprehensive income/loss for the year$",
-    "^total other comprehensive income"
+    "^total other comprehensive income",
+    "净利润",
+    "综合收益总额",
+    "少数股东损益",
+    "所得税费用",
+    "资产减值损失|信用减值损失",
+    "营业外收入|营业外支出",
+    "营业利润|利润总额"
    ],
    "sign_rule": {},
    "inherits": "is_oci",
