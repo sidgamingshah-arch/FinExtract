@@ -928,6 +928,7 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             # Asking the row that HAS the figures keeps both: the fragment still reaches a caption
             # that needs it, and a caption that does not need it no longer takes it.
             if pending and _opens_its_own_line(label_words):
+                out.append(pending)
                 pending = []
             out.append(pending + row if pending else row)
             pending = []
@@ -990,6 +991,9 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
                 out[-1] = prev_labels + label_words + rest
                 continue
 
+        if pending and _opens_its_own_line(label_words):
+            out.append(pending)
+            pending = []
         # Label-only (or note-only) line: candidate wrapped-label continuation.
         nxt = rows[idx + 1] if idx + 1 < len(rows) else None
         is_wrap = (
@@ -1589,6 +1593,36 @@ def _completes_the_caption_above(prev_label: list[Word], label_words: list[Word]
         if text and (text in known or text in _CAS_FACE_CAPTIONS):
             return True
     return False
+
+
+# The enumeration `_CAS_SUB_LINE`/`_CAS_STATEMENT_LINE` recognise, as something to STRIP. The
+# two-column path gets this from the rulebook's declared `numbering` normalisation step; the matrix
+# path is handed no steps at all, so it has to strip its own.
+_CAS_NUMBERING = re.compile(
+    r"^\s*(?:[一二三四五六七八九十]+、"
+    r"|[(（]\s*[一二三四五六七八九十0-9０-９]+\s*[)）]"
+    r"|[0-9０-９]+\s*[.．、])\s*")
+
+
+def _completes_the_matrix_caption(prev_label: list[Word], label_words: list[Word]) -> bool:
+    """:func:`_completes_the_caption_above`, for the statement of changes in equity.
+
+    The same question and the same evidence — the two printed lines together are a caption
+    ``_CAS_FACE_CAPTIONS`` knows while the fragment alone is not — tested on the join as ONE
+    normalised string for the same reason spelled out there.
+
+    TWO DIFFERENCES, both from this path being handed neither the rulebook's pipeline nor its
+    aliases. The numbering is stripped here rather than by a declared step, so
+    ``1．所有者投入的`` + ``普通股`` is compared as ``所有者投入的普通股`` against a list that holds the
+    bare form. And the vocabulary is ``_CAS_FACE_CAPTIONS`` alone, which is what
+    ``_is_known_caption(label_words, (), frozenset())`` already consults everywhere in this path.
+    """
+    if not prev_label or not label_words:
+        return False
+    if _is_known_caption(label_words, (), frozenset()):
+        return False                    # a complete caption is a movement row, never a tail
+    joined = _join_words(list(prev_label) + list(label_words))
+    return normalize_label(_CAS_NUMBERING.sub("", joined.strip())) in _CAS_FACE_CAPTIONS
 
 
 def _is_units_caption(label_words: list[Word]) -> bool:
@@ -3262,7 +3296,10 @@ def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id:
     value_left = m.bands[0][0]
     pending: list[Word] = []                 # label lines waiting for the row that has figures
     tail: BBox | None = None                 # box of the LAST pending line, for the wrap test
+    spliced: set[int] = set()                # rows already consumed as a caption's TAIL
     for i in range(m.first_data, len(m.rows)):
+        if i in spliced:
+            continue
         row = m.rows[i]
         label_words = [w for w in row if _xc(w) <= value_left]
         cells = [w for w in _matrix_cells(row, fmt) if _band_of(w, m.bands) is not None]
@@ -3294,9 +3331,16 @@ def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id:
             # Read without the rulebook's pipeline or its aliases, because neither is threaded
             # this far; `_is_known_caption` still tests `_CAS_FACE_CAPTIONS` and still strips the
             # 加：/减：/其中： prefix a CAS caption carries, which is what these rows need.
-            if (_is_known_caption(label_words, (), frozenset())
-                    or _opens_its_own_line(label_words)):
+            if _is_known_caption(label_words, (), frozenset()):
                 pending, tail = [], None
+                continue
+            if _opens_its_own_line(label_words):
+                # ITS ENUMERATION SAYS IT STARTS A CAPTION, so it cannot continue the one pending
+                # above it — but it is still the head of ITS OWN row, whose figures are printed on
+                # the line below. Dropped instead of kept, 688008's
+                # 三、本期增减变动金额（减少以“－”号填列） lost its first line and the figures were
+                # captioned 金额（减少以.
+                pending, tail = list(label_words), box
                 continue
             pending, tail = pending + label_words, box
             if _heads_indented_block(pending):
@@ -3305,7 +3349,38 @@ def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id:
 
         if tail is not None and not _tight_below(tail, _row_box(label_words or row)):
             pending = []
+        # A ROW THAT OPENS ITS OWN LINE DOES NOT INHERIT THE FRAGMENT ABOVE IT — the veto the
+        # label-only branch above already applies, which this branch was missing entirely. So a row
+        # that HAS figures and announces itself with 二、/（一）/1． still took whatever was pending:
+        # 688008 published 其他二、本年期初余额, 号填列） （一）综合收益总 and 额（二）所有者投入.
+        if pending and _opens_its_own_line(label_words):
+            pending = []
+        # …AND ITS OWN TAIL IS PRINTED BELOW ITS FIGURES. The caption column of a mainland equity
+        # statement is the narrowest on the face — a dozen value columns share the page — so a
+        # caption is drawn over THREE lines with the figures on the middle one:
+        #
+        #     （一）综合收益总    66,341,399.44   1,411,778,923.59   …
+        #     额
+        #
+        # Taken by look-ahead rather than amended onto the emitted row, so the caption is whole
+        # before the LineItem and its provenance snippets are built.
         label_words, pending, tail = pending + label_words, [], None
+        # ASKED OF THE CAPTION SO FAR, not of this row's own words. A three-line caption sets its
+        # figures on the MIDDLE line, so the row that has them may carry no label at all and hold
+        # its head entirely in `pending` — 688008's 3．股份支付计入所 / 有者权益的金额 on the parent
+        # statement is drawn that way. Gated on the row's own label instead, that row never reached
+        # its tail.
+        nxt = m.rows[i + 1] if i + 1 < len(m.rows) else None
+        if label_words and nxt is not None:
+            nxt_label = [w for w in nxt if _xc(w) <= value_left]
+            # NEVER A ROW THAT HAS FIGURES OF ITS OWN: consuming one would delete a movement.
+            nxt_cells = [w for w in _matrix_cells(nxt, fmt) if _band_of(w, m.bands) is not None]
+            if (nxt_label and not nxt_cells
+                    and _tight_below(_row_box(label_words), _row_box(nxt_label))
+                    and (_looks_like_wrapped_tail(_join_words(nxt_label))
+                         or _completes_the_matrix_caption(label_words, nxt_label))):
+                label_words = label_words + nxt_label
+                spliced.add(i + 1)
         label = _join_words(_regroup_scripts(label_words))
         if not label:
             continue
