@@ -1011,6 +1011,10 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             and (not (_looks_like_header(label_words, steps)
                       or _any_banner_line(label_words, steps))
                  or _is_wrapped_head(label_words, _scan_row(nxt, fmt)[0], steps))
+            # …AND A NOTE TABLE'S COLUMN HEADER IS NOT A CAPTION'S HEAD — see
+            # `_is_note_column_header`. Unconditional, with no `_is_wrapped_head` escape: a header
+            # naming the measure columns is never the first line of a line item's name.
+            and not _is_note_column_header(label_words, steps)
             # …and the caption reaches a figure. Not necessarily on the NEXT row: a caption may
             # wrap over three or more lines, and requiring the value immediately dropped every line
             # but the last two (see `_wrap_reaches_a_value`).
@@ -1687,6 +1691,38 @@ def _caption_continued_from_the_previous_page(
             return row, carry_caption + joined
         return None
     return None
+
+
+# THE COLUMN HEADER OF A CAS NOTE TABLE, which is a label-only row and therefore folds forward
+# like a caption's head. `_looks_like_header` cannot see it — that test accepts ALL-CAPS or a
+# trailing colon, and a Chinese header has neither — and `_HDR_LABEL` is consulted only by
+# `_is_noise_row`, which runs AFTER the fold and requires every value on the row to be a date.
+#
+# MEASURED on 澜起科技 688008's related-party note (page index 242). Its ②应付项目 table prints one
+# header row, 项目名称 关联方 期末账面余额 期初账面余额, and it was folded onto the first data row:
+#
+#     项目名称关联方期末账面余额期初账面余额应付账款英特尔公司 -    1,403,741.56
+#
+# so the group heading 应付账款 — which is the caption, the row's own text being a counterparty
+# NAME — no longer starts the label and no anchored `row_caption_any` pattern could reach it. The
+# ①应收项目 table above it escaped only because its header is split over three rows.
+#
+# WHY 期末账面余额 AND NOT 期末余额. `_HDR_LABEL` already carries 期末余额|期初余额, which is why the
+# same header reads correctly on 河钢股份 000709 — that filing prints the plain form. 期末账面余额 is
+# the 账面 variant and contains neither 期末余额 nor 期初余额 as a substring, so nothing matched it.
+#
+# 项目名称 IS A HEADER WORD AND NEVER A LINE ITEM — it is "item name", the caption OF the caption
+# column — which is the same ground on which `_CAS_FACE_CAPTIONS` excludes 项目 and `_HDR_LABEL`
+# anchors it.
+_NOTE_COLUMN_HEADER = re.compile(
+    r"项目名称|項目名稱"
+    r"|期末账面余额|期初账面余额|期末賬面餘額|期初賬面餘額|期末帳面餘額|期初帳面餘額")
+
+
+def _is_note_column_header(label_words: list[Word],
+                           steps: tuple[tuple[str, object], ...]) -> bool:
+    """Whether this label-only row is a note table's column header rather than a caption."""
+    return bool(_NOTE_COLUMN_HEADER.search(apply_pipeline(_join_words(label_words), steps)))
 
 
 def _is_units_caption(label_words: list[Word]) -> bool:

@@ -119,7 +119,7 @@ def test_parent_is_authorable_because_every_part_declares_it() -> None:
     # `section_scope: ['cf_oper_indirect']` against `section_defaults[...].face_only`, the same way
     # `sub__face_principal_revenue` declares it for the income statement.
     # 61 since Find 3 split into a gross half and an allowance half, each declaring `parent`.
-    assert len(parts) == 66, len(parts)   # 66 for the same reason the part count moved: the two related-party payable groups   # 62: the other-receivables net's two readings are two
+    assert len(parts) == 68, len(parts)   # 68 with the related-party TRADE RECEIVABLE's two note readings — the 账面余额 gross and the 坏账准备 allowance it is net of, one part per `measure` of the same 应收账款 group   # 66 for the same reason the part count moved: the two related-party payable groups   # 62: the other-receivables net's two readings are two
     # parts, and it is itself no longer one of them — a derived parent is not note-sourced.
     assert all(i.get("parent") for i in parts), (
         "a note-read part with no parent has nothing to trace back to")

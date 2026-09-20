@@ -433,7 +433,7 @@ def test_no_shipped_line_item_names_a_deleted_service_as_its_implementer():
     raw = json.loads(_LINE_ITEMS_JSON.read_text(encoding="utf-8"))
     items = raw["items"]
     # 531 since the two direct-method TAX face parts split the template's single Income Taxes Paid(Direct) column, as the two 营业外 parts before them split Other Non-Operating Inc(Exp)
-    assert len(items) == 543, f"the shipped set changed size ({len(items)}) — re-read this test"
+    assert len(items) == 546, f"the shipped set changed size ({len(items)}) — re-read this test"
     # 535 since the other-receivables NET split into the two ways a note prints one — the 账面价值 COLUMN of a gross/allowance/net grid, and a row whose own reported amount is the net; one part holds one `measure`, and 000709 needs both readings
 
     offenders = [
@@ -506,7 +506,7 @@ def test_the_shipped_set_is_the_configuration_in_force():
         items 527 · parts 64 · items carrying a note_source 62
         types: extracted 484, calculated 33, derived 10
 
-    527 and not 543 because the nine related-party FEEDERS were collapsed into the three Find items
+    527 and not 546 because the nine related-party FEEDERS were collapsed into the three Find items
     the spec asks for, `sub__pbt_cos_depreciation` and `sub__rp_note_entrusted_loans` were retired,
     and six revenue sub-items went in earlier sittings. Every one of the sixteen is a PART, which is
     why the part counts fall further than the item count.
@@ -528,7 +528,7 @@ def test_the_shipped_set_is_the_configuration_in_force():
     raw = json.loads(_LINE_ITEMS_JSON.read_text(encoding="utf-8"))
     shipped = {i["key"] for i in raw["items"]}
     # 531 since the two direct-method TAX face parts split the template's single Income Taxes Paid(Direct) column, as the two 营业外 parts before them split Other Non-Operating Inc(Exp)
-    assert len(shipped) == 543, len(shipped)   # 540 since the related-party PAYABLES gained the two readings the note prints as groups — 其他应付款 and 长期应付款 — which is what lets Due to Related Parties(CP) and its LTP twin publish at all   # 538 since the loss allowance split into its two readings — the 坏账准备 COLUMN of a measure grid and an allowance printed as its own ROW — which is what lets CP_P2 subtract it   # 536 since the other-receivables line gained the interest-and-dividends-receivable component its own definition names: a filing that prints 应收利息/应收股利 as siblings of 其他应收款 has not put them inside it   # 535 since the other-receivables NET split into the two ways a note prints one — the 账面价值 COLUMN of a gross/allowance/net grid, and a row whose own reported amount is the net; one part holds one `measure`, and 000709 needs both readings
+    assert len(shipped) == 546, len(shipped)   # 540 since the related-party PAYABLES gained the two readings the note prints as groups — 其他应付款 and 长期应付款 — which is what lets Due to Related Parties(CP) and its LTP twin publish at all   # 538 since the loss allowance split into its two readings — the 坏账准备 COLUMN of a measure grid and an allowance printed as its own ROW — which is what lets CP_P2 subtract it   # 536 since the other-receivables line gained the interest-and-dividends-receivable component its own definition names: a filing that prints 应收利息/应收股利 as siblings of 其他应收款 has not put them inside it   # 535 since the other-receivables NET split into the two ways a note prints one — the 账面价值 COLUMN of a gross/allowance/net grid, and a row whose own reported amount is the net; one part holds one `measure`, and 000709 needs both readings
     # The line that could never produce a figure, now fixed — pinned so it cannot regress to empty.
     afs = next(i for i in raw["items"] if i["key"] == "sub__fa_cp_afs_htm_note_total")
     assert (afs.get("note_source") or {}).get("row_caption_any"), (

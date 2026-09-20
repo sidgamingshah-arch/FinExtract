@@ -66,7 +66,7 @@ RULEBOOK = TEMPLATES / "output_csv_hk_ontology.json"
 PROJECTED = sorted(set(SAME) | set(RENAMED))
 
 CONCEPTS = 462                 # the rulebook's concepts, and the set's `namespace == "template"`
-ITEMS = 543                    # …plus the 69 `sub__*` note-level parts, which ARE concepts too:
+ITEMS = 546                    # …plus the 69 `sub__*` note-level parts, which ARE concepts too:
                                # the view projects every definition, and `namespace` decides only
                                # where a figure is PUBLISHED. See
                                # test_shipped_set_projects_every_definition_including_the_parts.
@@ -441,6 +441,8 @@ def test_shipped_set_projects_every_definition_including_the_parts():
         # `bs_ncl__other_non_current_liabilities`.
         "sub__rp_face_due_to_cp", "sub__rp_face_loan_from_holding_co",
         "sub__rp_face_loan_from_shareholder",
+        # AND THE TRADE RECEIVABLE'S FACE PART, on the same grounds.
+        "sub__rp_face_trade_receivable",
     }
     # A RESIDUAL BUCKET IS NOT A PART and declares its statement properly: `bs_ca_residual_L3`
     # is a balance-sheet current-assets bucket, so `balance_sheet` is where it belongs.
