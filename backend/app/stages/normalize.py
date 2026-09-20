@@ -323,7 +323,20 @@ class NormalizeStage:
         expected_sign: dict[str, str] = {}
         temporality: dict[str, str] = {}
         unit_of_account: dict[str, str] = {}
-        natural_negative = _natural_negative_keys(getattr(ctx, "template_def", None))
+        # BOTH ATTRIBUTE NAMES, and the model shape as well as the dict — the same four lines
+        # `residual`, `gap_closing`, `map_ontology` and `contingent_liabilities` already use.
+        # `services.documents._context` sets `ctx.template` and nothing has ever set
+        # `ctx.template_def`, so reading only the latter made `_natural_negative_keys` return the
+        # empty set on EVERY run: the 13 lines the template marks `sign: natural_negative` were
+        # never negated, and each one is summed (`op: "sum"`) into a parent that therefore ADDED a
+        # deduction. On 澜起科技 688008 库存股 published +427,557,874.81, so the statement screen
+        # showed total equity 12,251,621,314.53 against a printed 11,396,505,564.91 and a balancing
+        # total of 13,074,027,136.00 against a printed 12,218,911,386.38 — both out by exactly
+        # twice the treasury holding, in both periods.
+        template = getattr(ctx, "template_def", None) or getattr(ctx, "template", None)
+        if hasattr(template, "model_dump"):
+            template = template.model_dump(mode="json")
+        natural_negative = _natural_negative_keys(template)
         if ontology is not None:
             for m in getattr(ontology, "mappings", []) or []:
                 pats = getattr(getattr(m, "sign_rule", None), "flip_if_label_matches", None) or []
