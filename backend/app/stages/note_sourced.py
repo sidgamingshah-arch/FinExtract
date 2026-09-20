@@ -418,8 +418,45 @@ def route_of(item) -> str:
     return route if route in ("face", "note_tables", "prose", "anywhere") else "note_tables"
 
 
+def _row_unit(row: LineItem):
+    """The unit context this row's OTHER figures are in, if it has any."""
+    for ev in (row.values or {}).values():
+        uc = getattr(ev, "unit_ctx", None)
+        if uc is not None and (uc.currency or uc.scale_factor != 1):
+            return uc
+    return None
+
+
+def _unit_of_terms(inputs, by_key: dict, basis: str, period: str):
+    """The unit context of the figures a rung was computed FROM.
+
+    A CASCADE'S VALUE IS ITS PARTS' VALUE, so it is in the parts' units. Created without one it
+    took ``UnitContext``'s default — no currency, scale 1 — while every sibling on a filing that
+    declares a scale carries RMB'000, and `services.structural_checks` then refuses the whole
+    relation as `mixed_scale` rather than comparing thousands to units.
+
+    MEASURED on China SCE 1966, which prints "Due to related parties 應付關聯方款項" 2,588,416 /
+    2,583,308 at RMB'000. Giving `bs_cl__due_to_related_parties_cp` a face rung published the
+    figure correctly and cost the filing its `bs_cl__total_current_liabilities` reconciliation —
+    a relation that had tied EXACTLY at 131,532,808 and 123,650,889 — because the one
+    cascade-written child arrived at scale 1. The figure was right and the section became
+    unverifiable.
+    """
+    for term in inputs or ():
+        row = by_key.get(str((term or {}).get("ref") or ""))
+        if row is None:
+            continue
+        for ev in (row.values or {}).values():
+            if (_basis(ev) == basis
+                    and str(getattr(ev, "period_label", "") or "") == period):
+                uc = getattr(ev, "unit_ctx", None)
+                if uc is not None and (uc.currency or uc.scale_factor != 1):
+                    return uc
+    return None
+
+
 def _write(row: LineItem, basis: str, period: str, amount: Decimal,
-           *, by: str = "", provenance=None) -> None:
+           *, by: str = "", provenance=None, unit_ctx=None) -> None:
     """Put the figure on the row, replacing that slot if it already has one.
 
     Both `value` and `value_raw` are set to the same amount. `normalize` has already run, so there
@@ -475,8 +512,14 @@ def _write(row: LineItem, basis: str, period: str, amount: Decimal,
         basis_enum = Basis(basis) if basis else Basis.CONSOLIDATED
     except ValueError:
         basis_enum = Basis.CONSOLIDATED
-    row.set_value(ExtractedValue(basis=basis_enum, period_label=period or None,
-                                 value=amount, value_raw=amount, provenance=provenance))
+    # THE UNIT TRAVELS WITH THE FIGURE — see `_unit_of_terms`. A fresh slot has no unit of its
+    # own, so it takes the one its inputs were read in, or failing that the one this row's other
+    # column already carries. Omitted, the value defaulted to scale 1 and made its whole section
+    # `mixed_scale`.
+    unit = unit_ctx or _row_unit(row)
+    row.set_value(ExtractedValue(
+        basis=basis_enum, period_label=period or None, value=amount, value_raw=amount,
+        provenance=provenance, **({"unit_ctx": unit} if unit is not None else {})))
 
 
 def _basis(ev) -> str:
@@ -755,7 +798,8 @@ def _fill_parents(children_of: dict[str, list], by_key: dict, doc: DocumentModel
                     continue
                 if rollup == "alternatives":
                     item, ev = offers[0]
-                    _write(parent, basis, period, ev.value)
+                    _write(parent, basis, period, ev.value,
+                           unit_ctx=getattr(ev, "unit_ctx", None))
                     parent.confidence.flags.append(f"note_sourced_from:{item.key}")
                     if len(offers) > 1:
                         parent.confidence.flags.append(
@@ -764,7 +808,9 @@ def _fill_parents(children_of: dict[str, list], by_key: dict, doc: DocumentModel
                                 f"{len(offers) - 1} other source(s) available")
                 else:
                     total = sum((ev.value for _i, ev in offers), Decimal(0))
-                    _write(parent, basis, period, total)
+                    _write(parent, basis, period, total,
+                           unit_ctx=next((getattr(ev, "unit_ctx", None) for _i, ev in offers
+                                          if getattr(ev, "unit_ctx", None) is not None), None))
                     parent.confidence.flags.append(f"note_sourced_sum_of:{len(offers)}")
                 resolved += 1
             _enrol_with_its_own_parent(parent_key)
@@ -988,7 +1034,8 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
                 other.confidence.flags.append(
                     f"superseded_by_cascade:{parent_def.key}:{ev.value}")
                 ev.value = None
-        _write(target_row, basis, period, got.value)
+        _write(target_row, basis, period, got.value,
+               unit_ctx=_unit_of_terms(got.inputs, by_key, basis, period))
         # THE TRAIL GOES ON THE ROW THAT CARRIES THE FIGURE. `parent` is the first carrier and
         # `target_row` is the one whose slot the rung wrote into; where a line is carried by
         # several printed rows those differ, and a trail on a row with no figure is a trail
@@ -1132,7 +1179,8 @@ def _fill_childless_internal(all_items, children_of: dict[str, list], by_key: di
                 row = LineItem(source_label=item.label or item.key, canonical_key=item.key)
                 doc.line_items.append(row)
                 by_key[item.key] = row
-            _write(row, basis, period, ev.value)
+            _write(row, basis, period, ev.value,
+                   unit_ctx=_unit_of_terms(getattr(ev, "inputs", None), by_key, basis, period))
             row.confidence.flags.append(f"computed_from_config:{ev.rung_used or 'terms'}")
             wrote.append(f"{basis}/{period}={ev.value}")
         if wrote:

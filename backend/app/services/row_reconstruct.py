@@ -3094,6 +3094,27 @@ def _pitch(edges: list[float]) -> float:
     return _median([edges[i + 1] - edges[i] for i in range(len(edges) - 1)]) or 1.0
 
 
+# A PRINTED AMOUNT, as distinct from a bare integer: it carries a thousands separator or a
+# decimal point. `_is_money_like` asks only for digits, which a YEAR also is.
+_AMOUNT_SHAPED = re.compile(
+    r"^[(（]?\s*[-−–]?\s*\d{1,3}(?:[,，]\d{3})+(?:\.\d+)?\s*[)）]?$"
+    r"|^[(（]?\s*[-−–]?\s*\d*\.\d+\s*[)）]?$")
+
+
+def _amount_shaped(tokens: list[str]) -> bool:
+    """Whether every member of an edge cluster is a FIGURE rather than a bare integer.
+
+    The discriminator the trim below needs, and it is aimed at the trim's own named failure —
+    "a date fragment in a label ('At 1 January 2022')". On China SCE 1966's senior-notes note
+    (page index 220) EVERY caption ends in a year: "Senior Notes due in April 2024",
+    "…due in 二零二三年四月到期 2023". That cluster is therefore supported by every data row and
+    support alone cannot tell it from a column. A thousands separator or a decimal point is what
+    a printed amount carries and a year does not.
+    """
+    toks = [t.strip() for t in tokens if t and t.strip()]
+    return bool(toks) and all(_AMOUNT_SHAPED.match(t) for t in toks)
+
+
 def _detect_matrix(rows: list[list[Word]], fmt=None) -> _Matrix | None:
     """Geometry of a matrix face, or None when the page is not one.
 
@@ -3111,24 +3132,55 @@ def _detect_matrix(rows: list[list[Word]], fmt=None) -> _Matrix | None:
     if len(data_idx) < _MATRIX_MIN_ROWS:
         return None
 
-    groups: list[list[float]] = []
-    for e in sorted(w.bbox.x1 for i in data_idx for w in cells_by_row[i]):
-        if groups and e - groups[-1][-1] <= _MATRIX_COL_TOL:
-            groups[-1].append(e)
+    groups: list[list[tuple[float, str]]] = []
+    for e, t in sorted((w.bbox.x1, w.text) for i in data_idx for w in cells_by_row[i]):
+        if groups and e - groups[-1][-1][0] <= _MATRIX_COL_TOL:
+            groups[-1].append((e, t))
         else:
-            groups.append([e])
+            groups.append([(e, t)])
     # A column of the matrix appears on most rows. A one-off cluster is a date fragment in a
     # label ("At 1 January 2022") or an inline note reference, not a column.
     min_support = max(2, (len(data_idx) + 2) // 3)
-    edges = [_median(g) for g in groups if len(g) >= min_support]
-    if len(edges) < _MATRIX_MIN_COLS:
+    kept = [(_median([e for e, _ in g]), len(g), _amount_shaped([t for _, t in g]))
+            for g in groups if len(g) >= min_support]
+    if len(kept) < _MATRIX_MIN_COLS:
         return None
-    # Trim clusters standing off on their own — a note column, or label digits that happened to
-    # line up — so the value area is the evenly pitched run of component columns.
-    while len(edges) > _MATRIX_MIN_COLS and edges[1] - edges[0] > 2.5 * _pitch(edges):
-        edges.pop(0)
-    while len(edges) > _MATRIX_MIN_COLS and edges[-1] - edges[-2] > 2.5 * _pitch(edges):
-        edges.pop()
+    full = len(data_idx)
+
+    def _is_a_component_column(cluster: tuple[float, int, bool]) -> bool:
+        """Whether a cluster standing off on its own is a COLUMN all the same.
+
+        THE TRIM IS CORRECT ON ITS OWN TERMS AND THE LAYOUT DEFEATS IT. A CAS equity statement
+        prints 其他权益工具 as three sub-columns — 优先股 / 永续债 / 其他 — between 实收资本 and
+        资本公积, and the parent-company statement uses none of them, so nothing clusters there.
+        The gap from 实收资本 to 资本公积 is then genuinely wide: measured on 澜起科技 688008 page
+        index 161, edges[1]-edges[0] = 0.2239 against 2.5 x pitch = 0.2193 — OVER THE LIMIT BY
+        0.0048 OF PAGE WIDTH, about 3.4pt on A4 — so the real share-capital column was popped.
+        `value_left` then fell to 0.4064 and the share-capital figure, drawn at x 0.1931-0.2679,
+        was read as CAPTION TEXT: '一、上年年末余额 1,138,740,286.00',
+        '（二）所有者投入 6,048,987.00' and three more, five figures that never became values. It
+        also defeated the tail splice, because a caption carrying a number matches no vocabulary.
+
+        TWO CONDITIONS, because either alone admits something. FULL SUPPORT — a figure on every
+        data row — is what a component column has and a stray does not: measured across the
+        corpus, every genuine stray this trim drops is PARTIAL (1966 page 266 at 4/7, 嘉民 page
+        115 at 5/14, pages 151 and 152 at 8/12, 688008 page 100 at 4/6), and the two clusters
+        that should survive are 3/3 and 4/4. But support alone keeps a YEAR: 1966's senior-notes
+        note prints one at the end of all ten of its captions — see `_amount_shaped`, which is
+        the second condition.
+        """
+        _edge, support, amounts = cluster
+        return support >= full and amounts
+
+    while (len(kept) > _MATRIX_MIN_COLS
+           and kept[1][0] - kept[0][0] > 2.5 * _pitch([e for e, _s, _a in kept])
+           and not _is_a_component_column(kept[0])):
+        kept.pop(0)
+    while (len(kept) > _MATRIX_MIN_COLS
+           and kept[-1][0] - kept[-2][0] > 2.5 * _pitch([e for e, _s, _a in kept])
+           and not _is_a_component_column(kept[-1])):
+        kept.pop()
+    edges = [e for e, _s, _a in kept]
     pitch = _pitch(edges)
     bands = [(edges[0] - pitch if k == 0 else edges[k - 1], edges[k])
              for k in range(len(edges))]

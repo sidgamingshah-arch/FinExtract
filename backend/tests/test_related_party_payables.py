@@ -128,13 +128,32 @@ def test_the_payable_vocabulary_is_not_vetoed_as_the_receivable_side_vetoes_it(s
 # --- and how the parent takes it ----------------------------------------------------------------
 
 @pytest.mark.parametrize("part,parent", sorted(PARTS.items()))
-def test_the_parent_is_a_derived_parent_computing_one_required_term(shipped, part, parent):
+def test_the_parent_is_a_derived_parent_whose_note_rung_computes_one_required_term(
+        shipped, part, parent):
+    """The NOTE rung is this part's, and it is the rung the mainland filings resolve.
+
+    A SECOND RUNG NOW SITS BENEATH IT and the assertion names the note rung rather than the whole
+    cascade. `mapping._computed_parent` forbids a `derived` column from matching a caption, so
+    these two columns could not read their own printed row: measured, China SCE 1966's
+    "Due to related parties 應付關聯方款項" 2,588,416 / 2,583,308 was swept to
+    `bs_cl__other_current_liabilities` and 嘉民's "Loan from ultimate holding company" 36,800 plus
+    "Loans from controlling shareholder" 544,254 / 544,665 to
+    `bs_ncl__other_non_current_liabilities` — each filing's only related-party balance, in the
+    wrong column. The aliases therefore live on FACE parts and the cascade falls back to them, in
+    the shape `is_pl__sales_revenues` already uses (P1 the note, P2 the face).
+    """
     p = shipped[parent]
 
     assert p.type == "derived"
-    assert [t.ref for rung in p.cascade for t in rung.terms] == [part]
-    assert all(t.role == "required" for rung in p.cascade for t in rung.terms)
+    note_rungs = [r for r in p.cascade if r.id != "FROM_THE_FACE"]
+    assert [t.ref for rung in note_rungs for t in rung.terms] == [part]
+    assert all(t.role == "required" for rung in note_rungs for t in rung.terms)
     assert all(rung.refuse_negative for rung in p.cascade)
+    # …AND THE FACE RUNG IS LAST, so it can never displace a note reading that already works.
+    assert [r.id for r in p.cascade][-1] == "FROM_THE_FACE"
+    face = p.cascade[-1]
+    assert not face.outranks_printed
+    assert all(t.ref.startswith("sub__rp_face_") and t.sign == 1 for t in face.terms)
 
 
 @pytest.mark.parametrize("parent", sorted(set(PARTS.values())))

@@ -348,11 +348,22 @@ def test_every_reported_line_resolves_a_gate_and_parts_deliberately_do_not():
     # bindable only where an income statement is being read, which is the gate the assertion below
     # is worried about the absence of. Named rather than widening the predicate, so a part that
     # declares aliases and NO gate still fails.
+    # THE THREE RELATED-PARTY PAYABLE FACE PARTS are named on the same condition the paragraph
+    # above sets: each declares `statement: balance_sheet` AND a `section_scope` (bs_cl for the
+    # current twin, bs_ncl for the two non-current loans), so its aliases are bindable only where
+    # a balance sheet is being read. They exist because their PARENTS are `derived` and
+    # `mapping._computed_parent` therefore forbids a caption from reaching them at all — measured,
+    # China SCE 1966's printed "Due to related parties" 2,588,416 was swept to
+    # `bs_cl__other_current_liabilities` and 嘉民's two shareholder loans (36,800 + 544,254) to
+    # `bs_ncl__other_non_current_liabilities`, each filing's only related-party balance.
     _FACE_PARTS_WITH_ALIASES = {"sub__rp_bs_face_receivables", "sub__face_principal_revenue",
                                 "sub__cfo_depreciation",
                                 "sub__non_operating_income", "sub__non_operating_expenses",
                                 "sub__cf_direct_income_taxes_paid",
-                                "sub__cf_direct_tax_refunds_received"}
+                                "sub__cf_direct_tax_refunds_received",
+                                "sub__rp_face_due_to_cp",
+                                "sub__rp_face_loan_from_holding_co",
+                                "sub__rp_face_loan_from_shareholder"}
     aliased = [d.key for d in parts
                if (d.aliases or d.aliases_i18n) and d.key not in _FACE_PARTS_WITH_ALIASES]
     assert not aliased, (
@@ -382,7 +393,7 @@ def test_the_note_level_parts_are_off_template():
     # COLUMN of a gross/allowance/net grid, and a row whose own reported amount is the net. One
     # part holds one `measure`, so two readings are two parts; 000709 needs both, its consolidated
     # note printing the grid and its parent-company note a plain comparative.
-    assert len(subs) == 77   # 77: the two related-party payable readings, one per group the note prints
+    assert len(subs) == 80   # 80: 543 with the three related-party PAYABLE face parts — `mapping._computed_parent` forbids a `derived` column from matching a caption, so a column with a note cascade could not read its own printed row, so each grew a FACE part carrying the aliases the column had to give up; two on the LTP twin because kaming prints the holding-company loan and the shareholder loan as separate rows   # 77: the two related-party payable readings, one per group the note prints
     assert all(d.namespace == "internal" for d in subs)
     assert all(d.namespace == "template" for d in st.items if d.in_output)
 

@@ -66,7 +66,7 @@ RULEBOOK = TEMPLATES / "output_csv_hk_ontology.json"
 PROJECTED = sorted(set(SAME) | set(RENAMED))
 
 CONCEPTS = 462                 # the rulebook's concepts, and the set's `namespace == "template"`
-ITEMS = 540                    # …plus the 69 `sub__*` note-level parts, which ARE concepts too:
+ITEMS = 543                    # …plus the 69 `sub__*` note-level parts, which ARE concepts too:
                                # the view projects every definition, and `namespace` decides only
                                # where a figure is PUBLISHED. See
                                # test_shipped_set_projects_every_definition_including_the_parts.
@@ -431,6 +431,16 @@ def test_shipped_set_projects_every_definition_including_the_parts():
         # `statement: cash_flow` and `section_scope: ['cf_oper_direct']` are the mechanism by which
         # each is read off that face, not a pin cutting it off from a note neither reads.
         "sub__cf_direct_income_taxes_paid", "sub__cf_direct_tax_refunds_received",
+        # AND THE THREE RELATED-PARTY PAYABLE FACE PARTS, on the same grounds as `sub__rp_find_1`
+        # above: no `note_source`, and `statement: balance_sheet` with `inherits: bs_cl`/`bs_ncl`
+        # is the mechanism by which each is read off the balance-sheet face. They exist because
+        # their PARENTS are `derived` and `mapping._computed_parent` therefore forbids a caption
+        # from reaching them, so a column with a note cascade had no way to read its own printed
+        # row — measured, China SCE 1966's "Due to related parties" 2,588,416 went to
+        # `bs_cl__other_current_liabilities` and 嘉民's two shareholder loans to
+        # `bs_ncl__other_non_current_liabilities`.
+        "sub__rp_face_due_to_cp", "sub__rp_face_loan_from_holding_co",
+        "sub__rp_face_loan_from_shareholder",
     }
     # A RESIDUAL BUCKET IS NOT A PART and declares its statement properly: `bs_ca_residual_L3`
     # is a balance-sheet current-assets bucket, so `balance_sheet` is where it belongs.

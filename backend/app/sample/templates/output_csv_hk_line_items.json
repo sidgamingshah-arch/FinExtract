@@ -6020,8 +6020,125 @@
       }
      ],
      "note": "READ FROM THE RELATED-PARTY NOTE, which is the only place a mainland filing states it. This line carried nothing but its own template label and four COMPOUND aliases enumerating every kind of related party at once (\"Due to related parties / Associates / Jointly controlled entities / fellow subsidiaries/Affiliates\"), and no filing prints that — so it was empty on every filing in the corpus.\n\nA DERIVED PARENT IS UNMATCHABLE BY CAPTION, and that is the shipped design rather than a side effect: `mapping._computed_parent` forbids it so that a figure cannot arrive by a route that skips every rung and loses which disclosure it came from, and it says where a caption belongs instead — on the PART. The consequence is measurable here: China SCE prints \"Due to related parties 應付關聯方款項\" 2,588,416 on the face of its balance sheet, and that row now reaches no concept. It used to be swept into `bs_cl__other_current_liabilities` — a related-party payable published as an unexplained remainder — and it is now refused from there by the residual's own \"dedicated not tested\" prohibition and reported for review naming this line. Recovering it properly needs a FACE part, the shape `sub__rp_find_1` declares for the receivable and which nothing fills yet."
+    },
+    {
+     "id": "FROM_THE_FACE",
+     "terms_op": "sum",
+     "refuse_negative": true,
+     "outranks_printed": false,
+     "terms": [
+      {
+       "ref": "sub__rp_face_loan_from_holding_co",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "sub__rp_face_loan_from_shareholder",
+       "role": "any_of",
+       "sign": 1
+      }
+     ],
+     "note": "FALLBACK TO THE FACE, because a BALANCE SHEET LINE is printed on the balance sheet and this column could not be matched to it. `line_items.evaluate` runs a cascade only for a `derived` line and `mapping._computed_parent` makes every `derived` key unmatchable by caption, so the note rung above cost this column its face reading entirely: measured at 63c5eb0, the printed row went to the section's catch-all instead. The aliases therefore live on a PART, which is the shape `sub__face_principal_revenue` already uses for `is_pl__sales_revenues`.\n\nSECOND AND NOT FIRST, deliberately. The note rung is the specific disclosure and is what resolves on the mainland filings; this one answers only where no note was read — the same ordering `is_pl__sales_revenues` uses (P1 the note, P2 \"fallback to the face in case note doesn't exist\"). On this corpus the two never both resolve, so the order changes no figure; it is chosen so that adding the face can never displace a note reading that already works.\n\nEVERY TERM IS `any_of`, so a filing printing one of these rows resolves the rung and one printing none leaves the column empty rather than publishing zero."
     }
    ]
+  },
+  {
+   "key": "sub__rp_face_loan_from_shareholder",
+   "label": "Loan from a shareholder, on the face of the balance sheet",
+   "definition": "A NON-CURRENT loan owed to a controlling or other shareholder, as the balance sheet prints it. Measured on 嘉民 kaming, whose face prints \"Loans from controlling shareholder 來自控股股東之貸款\" 544,254 / 544,665 under NON-CURRENT LIABILITIES.\n\nA SEPARATE PART FROM THE HOLDING-COMPANY LOAN, and the reason is mechanical rather than editorial. kaming prints BOTH rows, and a cascade builds its inputs with \"first writer wins per (key, slot)\" — so one part matching two printed rows hands the rung only the first, and the parent published 36,800 while the part itself published the summed 581,054. Two parts summed as `any_of` states the addition in configuration, which is where this set states its arithmetic.",
+   "exclude_criteria": [],
+   "parent": "bs_ncl__due_to_related_parties_ltp",
+   "type": "extracted",
+   "namespace": "internal",
+   "in_output": false,
+   "route": "face",
+   "inherits": "bs_ncl",
+   "section_scope": [
+    "bs_ncl"
+   ],
+   "statement": "balance_sheet",
+   "order": 11,
+   "note_use": "decomposition_allowed",
+   "face_only": false,
+   "match_priority": 81,
+   "aliases": [
+    "Loans from controlling shareholder",
+    "Loan from controlling shareholder",
+    "Loans from shareholder",
+    "Loan from shareholder",
+    "Loans from shareholders",
+    "Loan from a shareholder",
+    "來自控股股東之貸款",
+    "來自股東之貸款"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Loans from controlling shareholder",
+     "Loan from controlling shareholder",
+     "Loans from shareholder",
+     "Loan from shareholder",
+     "Loans from shareholders",
+     "Loan from a shareholder"
+    ],
+    "zh": [
+     "來自控股股東之貸款",
+     "來自股東之貸款"
+    ]
+   },
+   "keyword_hints": [],
+   "sign_rule": {},
+   "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
+   "note_source": null
+  },
+  {
+   "key": "sub__rp_face_loan_from_holding_co",
+   "label": "Loan from the holding company, on the face of the balance sheet",
+   "definition": "A NON-CURRENT loan owed to the parent or ultimate holding company, as the balance sheet prints it. Measured on 嘉民 kaming, whose face prints \"Loan from ultimate holding company 來自最終控股公司之貸款\" 36,800 / 36,800 under NON-CURRENT LIABILITIES.\n\nNAMED ON THE COUNTERPARTY rather than on a generic \"due to related parties\", which is the CURRENT form and belongs to sub__rp_face_due_to_cp. A loan from the holding company is non-current by its own wording, so this part does not depend on the section being detected — the 1966 row that motivated the sibling part carries section_hint None.\n\nNOT bs_ncl__ltd_other, whose \"Loans from third parties\" is the arm's-length case, and not bs_ncl__other_non_current_liabilities, whose aliases are generic; both sit beneath this one at match_priority 79-81.",
+   "exclude_criteria": [],
+   "parent": "bs_ncl__due_to_related_parties_ltp",
+   "type": "extracted",
+   "namespace": "internal",
+   "in_output": false,
+   "route": "face",
+   "inherits": "bs_ncl",
+   "section_scope": [
+    "bs_ncl"
+   ],
+   "statement": "balance_sheet",
+   "order": 10,
+   "note_use": "decomposition_allowed",
+   "face_only": false,
+   "match_priority": 81,
+   "aliases": [
+    "Loan from ultimate holding company",
+    "Loans from ultimate holding company",
+    "Loan from immediate holding company",
+    "Loan from holding company",
+    "Loans from holding company",
+    "Loan from parent company",
+    "來自最終控股公司之貸款",
+    "來自控股公司之貸款",
+    "來自母公司之貸款"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Loan from ultimate holding company",
+     "Loans from ultimate holding company",
+     "Loan from immediate holding company",
+     "Loan from holding company",
+     "Loans from holding company",
+     "Loan from parent company"
+    ],
+    "zh": [
+     "來自最終控股公司之貸款",
+     "來自控股公司之貸款",
+     "來自母公司之貸款"
+    ]
+   },
+   "keyword_hints": [],
+   "sign_rule": {},
+   "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
+   "note_source": null
   },
   {
    "key": "bs_ncl__entrusted_loan_payables_shareholders_ltp",
@@ -7530,8 +7647,68 @@
       }
      ],
      "note": "READ FROM THE RELATED-PARTY NOTE, which is the only place a mainland filing states it. This line carried nothing but its own template label and four COMPOUND aliases enumerating every kind of related party at once (\"Due to related parties / Associates / Jointly controlled entities / fellow subsidiaries/Affiliates\"), and no filing prints that — so it was empty on every filing in the corpus.\n\nA DERIVED PARENT IS UNMATCHABLE BY CAPTION, and that is the shipped design rather than a side effect: `mapping._computed_parent` forbids it so that a figure cannot arrive by a route that skips every rung and loses which disclosure it came from, and it says where a caption belongs instead — on the PART. The consequence is measurable here: China SCE prints \"Due to related parties 應付關聯方款項\" 2,588,416 on the face of its balance sheet, and that row now reaches no concept. It used to be swept into `bs_cl__other_current_liabilities` — a related-party payable published as an unexplained remainder — and it is now refused from there by the residual's own \"dedicated not tested\" prohibition and reported for review naming this line. Recovering it properly needs a FACE part, the shape `sub__rp_find_1` declares for the receivable and which nothing fills yet."
+    },
+    {
+     "id": "FROM_THE_FACE",
+     "terms_op": "sum",
+     "refuse_negative": true,
+     "outranks_printed": false,
+     "terms": [
+      {
+       "ref": "sub__rp_face_due_to_cp",
+       "role": "required",
+       "sign": 1
+      }
+     ],
+     "note": "FALLBACK TO THE FACE, because a BALANCE SHEET LINE is printed on the balance sheet and this column could not be matched to it. `line_items.evaluate` runs a cascade only for a `derived` line and `mapping._computed_parent` makes every `derived` key unmatchable by caption, so the note rung above cost this column its face reading entirely: measured at 63c5eb0, the printed row went to the section's catch-all instead. The aliases therefore live on a PART, which is the shape `sub__face_principal_revenue` already uses for `is_pl__sales_revenues`.\n\nSECOND AND NOT FIRST, deliberately. The note rung is the specific disclosure and is what resolves on the mainland filings; this one answers only where no note was read — the same ordering `is_pl__sales_revenues` uses (P1 the note, P2 \"fallback to the face in case note doesn't exist\"). On this corpus the two never both resolve, so the order changes no figure; it is chosen so that adding the face can never displace a note reading that already works."
     }
    ]
+  },
+  {
+   "key": "sub__rp_face_due_to_cp",
+   "label": "Due to related parties on the face of the balance sheet",
+   "definition": "The CURRENT related-party payable as the balance sheet prints it. Measured on China SCE 1966, whose face prints \"Due to related parties 應付關聯方款項\" 2,588,416 / 2,583,308 under CURRENT LIABILITIES: with no caption able to reach bs_cl__due_to_related_parties_cp, the residual sweep filed it on bs_cl__other_current_liabilities. Both are children of bs_cl__total_current_liabilities, which ties EXACTLY at 131,532,808 / 123,650,889, so the section total is unaffected and what moves is only WHICH column publishes the balance.\n\nEXCLUDES a trade payable to a related party — bs_cl__trade_payables_related_parties owns that caption — and an entrusted loan, which has its own columns.",
+   "exclude_criteria": [],
+   "parent": "bs_cl__due_to_related_parties_cp",
+   "type": "extracted",
+   "namespace": "internal",
+   "in_output": false,
+   "route": "face",
+   "inherits": "bs_cl",
+   "section_scope": [
+    "bs_cl"
+   ],
+   "statement": "balance_sheet",
+   "order": 10,
+   "note_use": "decomposition_allowed",
+   "face_only": false,
+   "match_priority": 81,
+   "aliases": [
+    "Due to related parties",
+    "Due to related companies",
+    "Amounts due to related parties",
+    "Amount owing to related companies",
+    "應付關聯方款項",
+    "應付關聯公司款項",
+    "應付關連人士款項"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Due to related parties",
+     "Due to related companies",
+     "Amounts due to related parties",
+     "Amount owing to related companies"
+    ],
+    "zh": [
+     "應付關聯方款項",
+     "應付關聯公司款項",
+     "應付關連人士款項"
+    ]
+   },
+   "keyword_hints": [],
+   "sign_rule": {},
+   "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
+   "note_source": null
   },
   {
    "key": "bs_cl__entrusted_loan_payables_shareholders_cp",
