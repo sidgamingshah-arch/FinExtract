@@ -1625,6 +1625,70 @@ def _completes_the_matrix_caption(prev_label: list[Word], label_words: list[Word
     return normalize_label(_CAS_NUMBERING.sub("", joined.strip())) in _CAS_FACE_CAPTIONS
 
 
+def _caption_continued_from_the_previous_page(
+        rows: list[list[Word]], fmt, steps: tuple[tuple[str, object], ...],
+        known: frozenset[str], carry_caption: str, page_chrome: frozenset[str],
+        entity_signals: tuple[tuple[Basis, str], ...],
+        ) -> tuple[list[Word], str] | None:
+    """The completed caption when this page OPENS with the rest of the previous page's last one.
+
+    Row reconstruction runs per PAGE, so the head is gone by the time the tail is read. On 300319
+    the consolidated income statement's OCI block ends page index 102 with
+
+        归属母公司所有者的其他综合收益        -10,758,236.29    -305,285.33
+
+    and page index 103 opens — under the running header — with 的税后净额. The caption stayed
+    truncated at 归属母公司所有者的其他综合收益, bound nothing, and its figures sat in
+    `engine_unclassified_face__profit_and_loss__unresolved_section__*`.
+
+    THE SAME EVIDENCE `_completes_the_caption_above` USES — the two together are a caption the
+    vocabulary knows while the fragment alone is not — with the page boundary's own conditions
+    added. It is deliberately the strictest test in this module, because a wrong splice destroys a
+    caption and files a figure under it, which is worse than a truncation:
+
+      * the fragment is this page's FIRST body row, so nothing was stepped over to reach it —
+        above it only chrome, which `_is_noise_row` is the module's own test for;
+      * it is label-only and carries no note reference;
+      * it has PRINTABLE caption text. 000709's statement of changes in equity opens two pages
+        with a row of nil dashes, and `- - - -` normalises AWAY — so without this it "completes"
+        二、本年期初余额 and 1．提取盈余公积, which are complete captions already;
+      * the previous page's last captioned row already HAD its figures, which is the only
+        condition the caller can check: `carry_caption` is passed only then;
+      * and the join is in the vocabulary while the fragment alone is not.
+
+    MEASURED over all 1079 pages of the five filings, every (previous page's last captioned row
+    with figures, this page's first label-only row) pair: FOUR satisfy the vocabulary and exactly
+    ONE satisfies every condition — the one above. Two of the other three are 000709's nil-dash
+    rows, refused by the printable-text condition. The fourth,
+    `2．其他权益工具持有者投入资` + `本` on 300319's equity statement, is read by the MATRIX path,
+    which this does not touch.
+    """
+    if not carry_caption:
+        return None
+    for row in rows:
+        label_words, note_ref, value_words = _scan_row(row, fmt)
+        if not label_words and not value_words:
+            continue
+        label = apply_pipeline(_join_words(label_words), steps)
+        if _is_noise_row(label, [v.text for v in value_words], steps, entity_signals,
+                         page_chrome):
+            continue
+        # the first BODY row, and everything below decides about THIS row alone
+        if value_words or note_ref is not None or not label_words:
+            return None
+        text = _join_words(label_words)
+        if not (_HAN.search(text) or _LATIN.search(text)):
+            return None                  # a row of nil dashes is not a caption's tail
+        if _is_known_caption(label_words, steps, known):
+            return None                  # a complete caption is a line of its own
+        joined = _join_words(list(label_words))
+        whole = normalize_label(apply_pipeline(carry_caption + joined, steps))
+        if whole and (whole in known or whole in _CAS_FACE_CAPTIONS):
+            return row, carry_caption + joined
+        return None
+    return None
+
+
 def _is_units_caption(label_words: list[Word]) -> bool:
     """Whether a label-only row is the column-units caption rather than a section banner.
 
@@ -3553,6 +3617,14 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                      grid_out: list[ColumnGrid | None] | None = None,
                      carry_group: str | None = None,
                      group_out: list[str] | None = None,
+                     # A CAPTION BROKEN ACROSS THE PAGE, in and out — the same in/out shape
+                     # `carry_group`/`group_out` uses for the note-continuation carry.
+                     # `carry_caption` is the previous page's last captioned row, passed only when
+                     # that row HAD its figures; `spliced_out` receives the completed caption when
+                     # this page opened with the rest of it, and the caller amends the row it came
+                     # from. See `_caption_continued_from_the_previous_page`.
+                     carry_caption: str | None = None,
+                     spliced_out: list[str] | None = None,
                      known_captions: frozenset[str] | None = None) -> tuple[list[LineItem], int]:
     """Reconstruct line items from positioned words. Returns (items, next_ordinal).
 
@@ -3690,6 +3762,17 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                          log=log, page_index=page_index)
     rows = _merge_wrapped_labels(raw_rows, number_format, steps, page_title=page_title,
                                  known=known_captions or frozenset())
+    if carry_caption:
+        joined = _caption_continued_from_the_previous_page(
+            rows, number_format, steps, known_captions or frozenset(), carry_caption,
+            page_chrome, _entity_signals(scope))
+        if joined is not None:
+            orphan, whole = joined
+            rows = [r for r in rows if r is not orphan]
+            if spliced_out is not None:
+                spliced_out.append(whole)
+            if log:
+                log(f"extract:page={page_index}:caption_continued_from_previous_page={whole!r}")
     if not bands and on_face and page_scope in _PAGE_SCOPE_BASIS:
         # The classifier read the entity off the page's own title (or off its position past the
         # notes, which is what an untitled Company statement is). No column header names an entity

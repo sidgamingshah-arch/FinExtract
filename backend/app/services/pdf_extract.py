@@ -388,6 +388,14 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     ocr = None
     added = 0
     ordinal = len(doc.line_items)
+    # THE PREVIOUS PAGE'S LAST CAPTIONED ROW, so a caption broken across the page can be put back
+    # together. Carried as the ROW and the statement it was read as: the row because the completed
+    # caption has to be written back onto the thing that holds the figures, and the statement
+    # because a fragment opening a cash-flow page is not the tail of a balance-sheet caption. Only
+    # a row that HAS figures is carried — see
+    # `row_reconstruct._caption_continued_from_the_previous_page`, whose whole subject is the
+    # caption whose figures were printed on the page before its last line.
+    carried: tuple[LineItem, str | None, int] | None = None
     # The (number, title) of the note still open at the end of the last NOTES page seen, so a
     # footnote legend that opens its page with no heading of its own (see ``extract_note_tables``)
     # still attaches to the note it explains. A non-NOTES page in between breaks the run.
@@ -527,13 +535,33 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                         f"({prior_statement}->{ps.statement})")
 
         items = []
-        for batch_words, statement, page_scope, page_title in batches:
+        for batch_index, (batch_words, statement, page_scope, page_title) in enumerate(batches):
+            # ONLY THE FIRST BATCH OF A PAGE can continue the previous page's caption: a second
+            # batch begins at a mid-page statement title, so its first row is not the page's.
+            # And only from the page immediately before, read as the SAME statement.
+            spliced: list[str] = []
+            carry = None
+            if (batch_index == 0 and carried is not None
+                    and carried[2] == ps.index - 1 and carried[1] == statement):
+                carry = carried[0].source_label
             batch_items, ordinal = build_line_items(
                 batch_words, page_index=ps.index, document_id=doc.content_hash,
                 source_kind=source_kind, ordinal_start=ordinal, number_format=number_format,
                 statement=statement, log=ctx.log, scope=scope, normalisation=normalisation,
                 page_scope=page_scope, page_title=page_title,
-                page_chrome=chrome, known_captions=captions)
+                page_chrome=chrome, carry_caption=carry, spliced_out=spliced,
+                known_captions=captions)
+            if spliced and carried is not None:
+                # WRITTEN BACK ONTO THE ROW THAT HOLDS THE FIGURES, on the page before. The
+                # provenance snippet travels with it: it is what the inspector shows beside the
+                # number, and a snippet naming half a caption is the defect this fixes.
+                head = carried[0]
+                head.source_label = spliced[0]
+                for ev in (head.values or {}).values():
+                    if getattr(ev, "provenance", None) is not None:
+                        ev.provenance.text_snippet = spliced[0]
+                ctx.log(f"extract:page={ps.index}:rejoined_caption_from_page="
+                        f"{carried[2]}:{spliced[0]!r}")
             # THE SPLIT HAS TO SURVIVE THE PAGE, or only this loop knows about it.
             #
             # `ps.statement` is one verdict for the whole page, and four stages downstream —
@@ -557,6 +585,11 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                 li.printed_in = PrintedIn.FACE
         doc.line_items.extend(items)
         added += len(items)
+        # The page's last row that produced an item: the main loop emits only rows that HAVE
+        # figures, so this is exactly the "last captioned row with figures" the splice needs.
+        # A page that produced nothing carries nothing forward, so a caption cannot reach across
+        # an intervening page.
+        carried = ((items[-1], batches[-1][1], ps.index) if items else None)
     # Applied over the accumulated tables, not only within a page: the note-continuation carry
     # is threaded ACROSS pages here, so an empty fragment can be raised on one page while the
     # fragment carrying the rows was raised on the one before it.
