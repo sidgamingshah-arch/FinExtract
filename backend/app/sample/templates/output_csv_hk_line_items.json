@@ -39255,7 +39255,7 @@
     "note_title_any": [
      "^\\s*[①②③④⑤⑥]?\\s*应付项目\\s*$",
      "^\\s*[①②③④⑤⑥]?\\s*應付項目\\s*$",
-     "关联方应收应付款项|關聯方應收應付款項|关联方往来|關聯方往來|关联方余额|關聯方餘額|关联方及关联交易|關聯方及關聯交易|(?:amounts?\\s+)?due\\s+to\\s+related\\s+(?:part(?:y|ies)|compan(?:y|ies))"
+     "关联方应收应付款项|關聯方應收應付款項|关联方往来|關聯方往來|关联方余额|關聯方餘額|关联方及关联交易|關聯方及關聯交易|(?:amounts?\\s+)?due\\s+to\\s+related\\s+(?:part(?:y|ies)|compan(?:y|ies))|related\\s+part(?:y|ies)(?:\\s+relationships?)?(?:\\s+and)?\\s+(?:transactions?|disclosures?|balances?)"
     ],
     "row_caption_any": [
      "^\\s*(?:\\d+[\\.、)]?\\s*)?其他应付款",
@@ -39545,7 +39545,7 @@
     "note_title_any": [
      "^\\s*[①②③④⑤⑥]?\\s*应付项目\\s*$",
      "^\\s*[①②③④⑤⑥]?\\s*應付項目\\s*$",
-     "关联方应收应付款项|關聯方應收應付款項|关联方往来|關聯方往來|关联方余额|關聯方餘額|关联方及关联交易|關聯方及關聯交易|(?:amounts?\\s+)?due\\s+to\\s+related\\s+(?:part(?:y|ies)|compan(?:y|ies))"
+     "关联方应收应付款项|關聯方應收應付款項|关联方往来|關聯方往來|关联方余额|關聯方餘額|关联方及关联交易|關聯方及關聯交易|(?:amounts?\\s+)?due\\s+to\\s+related\\s+(?:part(?:y|ies)|compan(?:y|ies))|related\\s+part(?:y|ies)(?:\\s+relationships?)?(?:\\s+and)?\\s+(?:transactions?|disclosures?|balances?)"
     ],
     "row_caption_any": [
      "^\\s*(?:\\d+[\\.、)]?\\s*)?长期应付款",

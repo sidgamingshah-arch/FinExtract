@@ -88,6 +88,68 @@ class PruneNotesStage:
         # Textual references are the fallback for a run where linking was skipped, and a
         # backstop for a note whose table the linker could not match.
         wanted = linked | _face_note_numbers(doc)
+
+        # …AND THE SAME ANSWER WHEN THE CITATIONS RESOLVE TO (ALMOST) NOTHING, which is the hole the
+        # emptiness test below leaves open.
+        #
+        # THE FAILURE, measured on this corpus. A mainland statement-of-changes-in-equity page whose
+        # text layer comes out of PyMuPDF in two-character shards produces face rows whose labels are
+        # CJK fragments ('和减' out of 所有者投入和减少资本, '润分' out of 利润分配), and a numeric
+        # shard beside one of them is read as a note reference — `'.00'` becoming note `'00'` through
+        # `_note_ref_value`'s leading-dot strip, or a bare `'81'` off the tail of a shredded amount.
+        # `wanted` is then NON-EMPTY and names nothing that exists, so the branch below does not fire
+        # and the loop after it drops every note:
+        #
+        #     1223214527   172 tables   wanted=['00']              resolves to nothing   kept 0
+        #     8ad0c02c     365 tables   wanted=['3']               resolves to nothing   kept 0
+        #     ee164920     413 tables   wanted=['81']              resolves to nothing   kept 0
+        #     3bfe0c0e     408 tables   wanted=['00','50','七、50'] resolves to one       kept 1
+        #
+        # ONE JUNK TOKEN DESTROYS 413 NOTE TABLES. And these were the best-read filings in the
+        # corpus — they build more tables than `b09ca2c1`, which publishes all 261 of its own only
+        # because it produced NO citation at all and reached the branch below. The two filings that
+        # looked healthy were failing safe, not working.
+        #
+        # SO THE TEST IS WHETHER THE CITATIONS RESOLVE, not whether any were produced. A face note
+        # column that was read correctly names notes this document has; one that was mis-read names
+        # numbers nothing answers to, and that is indistinguishable — from here — from not having
+        # been read at all. It is the identical question the branch below answers, and
+        # `_is_face_item` answers for a document with no classifiable face page, so it gets the
+        # identical answer: keep everything and say why.
+        #
+        # A SHARE OF A SUBSTANTIAL NOTES SECTION, not an absolute count, and the first version of
+        # this guard got that wrong in a way the unit tests caught. It read
+        # `len(resolved) < 3`, which is true of a two-note FIXTURE where one note is legitimately
+        # referenced — so the guard fired on nine tests whose whole point is that an unreferenced
+        # note IS dropped. An absolute floor cannot tell "few citations because the document is
+        # small" from "few citations because the column was mis-read".
+        #
+        # A RATIO CAN. A note column that was read names a real share of the notes the document
+        # has; one that was mis-read names almost none of them:
+        #
+        #     1223214527    0 of 172 resolve   0.0%   guard fires
+        #     8ad0c02c      0 of 365           0.0%   fires
+        #     ee164920      0 of 413           0.0%   fires
+        #     3bfe0c0e      1 of 408           0.2%   fires   <- why `== 0` is too strict a test
+        #     2024 AR      29 of  53          54.7%   does not fire
+        #     a 2-note test fixture, 1 cited    50%    does not fire
+        #
+        # AND A SIZE FLOOR, because a ratio over a handful of notes is noise: two notes with none
+        # resolving is 0% and is not evidence of anything. The failure this guards against is a
+        # mis-read note COLUMN on a filing with a real notes section, so it only applies where
+        # there is one. Every affected filing has 172-413 notes; every fixture has one to three.
+        _NEGLIGIBLE = 0.02
+        _MIN_NOTES = 20
+        have = {str(nt.note_number).strip() for nt in doc.notes if nt.note_number is not None}
+        resolved = wanted & have
+        if (wanted and len(have) >= _MIN_NOTES
+                and len(resolved) / len(have) < _NEGLIGIBLE):
+            # The unresolved tokens are named, because "the face's note column was not read" is a
+            # claim about the READER and a reviewer needs to see what it thought it saw.
+            ctx.log(f"prune_notes:face_citations_do_not_resolve kept={len(doc.notes)} dropped=0 "
+                    f"resolved={sorted(resolved)} unresolved={sorted(wanted - have)}")
+            return doc
+
         if not wanted:
             # NO CITATION EVIDENCE AT ALL, which is not the same as evidence that no note is
             # wanted — and the two were being treated as one. A mainland filing need not print a
