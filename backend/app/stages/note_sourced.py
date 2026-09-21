@@ -848,6 +848,45 @@ def _cascade_input(term: dict, by_key: dict, defs: dict | None) -> dict:
     return out
 
 
+def _row_identity(ev) -> tuple | None:
+    """WHICH PRINTED ROW this figure came off, or None when that cannot be told.
+
+    THE SAME RULE `periods.summable` ALREADY USES — caption, amount and page — because the two are
+    answering one question and a second spelling of "these are the same fact" is how they drift.
+    Here it identifies a cascade INPUT rather than a published carrier, so that a rung summing two
+    terms that read one row adds it once (`services.line_items._apply_terms`).
+
+    WHY IT MATTERS MOST ON THE MODEL'S ROUTE. `stages.line_item_llm` asks, per line item, which row
+    of the notes holds its figure, and `llm_request_grouping` ships as "none" — one request per
+    line. So two sibling parts competing for one note are asked in SEPARATE calls, neither request
+    naming the other line, and the prompt's own rule ("citing it for one line is also saying it is
+    not another's") cannot fire because the model is never shown the conflict. Measured with a spy
+    provider on 澜起科技 688008: note 七、19's 合计 was cited by both
+    `sub__ltp_other_fincl_assets_note_total` and `sub__ltp_fincl_assets_note_total`, and one note
+    row of 575,243,925.97 reached the LTP column as 1,150,487,851.94. Four rows of that filing were
+    each cited by between two and eight line items.
+
+    NONE WHERE THERE IS NO DISCRIMINATOR, and that is the conservative direction. A value with no
+    page, or with neither a caption nor a box, cannot be told apart from a different row carrying
+    the same amount — so it is not deduplicated at all and the arithmetic stays as it was. Better a
+    double count that a reviewer can still see than a deduplication that silently drops a real
+    second figure.
+    """
+    prov = getattr(ev, "provenance", None)
+    page = getattr(prov, "page_index", None) if prov is not None else None
+    if page is None:
+        return None
+    caption = str(getattr(prov, "text_snippet", None) or "").strip()
+    box = getattr(prov, "value_bbox", None) or getattr(prov, "bbox", None)
+    if not caption and box is None:
+        return None
+    # The BOX is the cell and the caption is the row; either alone distinguishes two rows of one
+    # note, and both together distinguish two columns of one row — which matters because a slot is
+    # already per (basis, period) and two terms in one slot reading one cell is the case in hand.
+    cell = (round(float(box.x0), 4), round(float(box.y0), 4)) if box is not None else None
+    return (int(page), caption, cell, str(ev.value))
+
+
 def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
                      ctx: PipelineContext, defs: dict | None = None) -> int:
     """Evaluate the parent's declared cascade against its note-sourced children, per column.
@@ -914,6 +953,10 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
     # term names a concept and not a parenthood — and `_children_by_parent` is still what decides
     # which children a parent OWNS, which is a different question.
     slots: dict[tuple[str, str], dict] = {}
+    # THE PRINTED ROW EACH FIGURE CAME OFF, per (slot, key) — see `_row_identity` and
+    # `services.line_items._apply_terms`. Two of a rung's terms whose figures came off the SAME row
+    # are one quantity found twice, not two quantities, and this is what lets the sum say so.
+    sources: dict[tuple[str, str], dict] = {}
     for row in doc.line_items:
         key = row.canonical_key
         if not key:
@@ -926,7 +969,11 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
             # `concept_value` is what resolves that for publication. A cascade term wants one
             # number, and taking the first in document order is at least deterministic — where it
             # matters the contest has already been settled onto a single carrier above.
-            slots.setdefault(slot, {}).setdefault(key, ev.value)
+            if key not in slots.setdefault(slot, {}):
+                slots[slot][key] = ev.value
+                identity = _row_identity(ev)
+                if identity is not None:
+                    sources.setdefault(slot, {})[key] = identity
     # A COLUMN WITH NO CHILD FIGURE AT ALL IS NOT THIS PARENT'S TO FILL. Widening `known` above
     # also widened the set of columns this loop would attempt, which would have it evaluate a
     # cascade in a column where none of its own parts appear — so the columns are still taken from
@@ -938,7 +985,7 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
 
     filled = 0
     for (basis, period), known in sorted(slots.items()):
-        got = evaluate_line(parent_def, known)
+        got = evaluate_line(parent_def, known, sources.get((basis, period)))
         if not got.resolved:
             ctx.log(f"note_sourced:{parent_def.key}[{basis}:{period}]: no cascade rung resolved "
                     f"from {len(known)} child figure(s)"

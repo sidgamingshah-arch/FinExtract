@@ -149,7 +149,8 @@ class Evaluation:
 
 
 def _apply_terms(terms: list[Term], known: dict[str, Decimal | None],
-                 op: str = "sum") -> Evaluation:
+                 op: str = "sum",
+                 sources: dict[str, tuple] | None = None) -> Evaluation:
     """The three term roles, and what each one's absence means. See `Term.role`.
 
     A `required` term missing kills the rung. An `any_of` term missing is fine as long as one of
@@ -172,11 +173,22 @@ def _apply_terms(terms: list[Term], known: dict[str, Decimal | None],
     `sign: -1` inside a max group is compared as the negative quantity it contributes. Mixing signs
     in a max group is expressible and almost certainly a mistake; nothing here forbids it, and the
     trail records each term's `used` value so the choice is visible.
+
+    `sources` MAPS A TERM'S REF TO THE PRINTED ROW ITS FIGURE CAME FROM, and it is what stops one
+    row being added twice. Two base terms whose figures came off the SAME row of the same note on
+    the same page contribute once, because a printed row states one quantity however many lines
+    were configured to look for it. `stages.note_sourced._row_identity` is what builds these and
+    records what the identity is made of; the `sum` branch below is what acts on them. Optional,
+    and a caller that passes nothing keeps the arithmetic it had.
     """
     base: list[tuple[Decimal, dict]] = []
     adjustments = Decimal(0)
     inputs: list[dict] = []
     missing: list[str] = []
+    # THE ROWS ALREADY COUNTED IN THE BASE GROUP, so a second term reading the same one adds
+    # nothing. Only `sum` needs it: `max`/`min`/`first` CHOOSE between candidates rather than
+    # adding them, and two candidates that happen to be the same row are not a double count there.
+    counted: set[tuple] = set()
     for t in terms:
         raw = Decimal(str(t.const)) if t.const is not None else known.get(t.ref)
         if raw is None:
@@ -194,6 +206,19 @@ def _apply_terms(terms: list[Term], known: dict[str, Decimal | None],
         if t.role == "adjustment":
             adjustments += contribution
         else:
+            # SAME ROW, ALREADY IN THE BASE: the term is SATISFIED — its figure was found, and a
+            # `required` term must not kill the rung for having been found twice — but it
+            # contributes nothing, because the quantity is already in the sum. Recorded on the
+            # entry so the trail shows a term that was read and not added, which is otherwise
+            # indistinguishable from one that was never configured.
+            row = (sources or {}).get(t.ref) if op == "sum" and t.ref else None
+            if row is not None and row in counted:
+                entry["duplicate_of_row"] = list(row)
+                entry["used"] = "0"
+                inputs.append(entry)
+                continue
+            if row is not None:
+                counted.add(row)
             base.append((contribution, entry))
         inputs.append(entry)
     if not base:
@@ -221,12 +246,18 @@ def _apply_terms(terms: list[Term], known: dict[str, Decimal | None],
     return Evaluation(total + adjustments, inputs, missing)
 
 
-def evaluate(d: LineItemDef, known: dict[str, Decimal | None]) -> Evaluation:
+def evaluate(d: LineItemDef, known: dict[str, Decimal | None],
+             sources: dict[str, tuple] | None = None) -> Evaluation:
     """One line's value from the values already known.
 
     `known` maps key -> value for everything evaluated so far (and for every extracted line, from
     the document). Callers walk `Registry.order`, so a dependency is always present by the time
     its dependent is reached.
+
+    `sources` maps those same keys to the printed ROW each figure came off, and is how a row read
+    by two of a rung's terms is added once rather than twice — see `_apply_terms`. Optional: a
+    caller with no provenance to hand (the registry walk over a template's formulas, every test
+    that evaluates a rung from literals) passes nothing and the arithmetic is exactly as before.
     """
     if d.type in COMPUTED_TYPES:
         # NO TERMS MEANS THE ARITHMETIC IS DECLARED SOMEWHERE ELSE, not that there is none.
@@ -252,12 +283,12 @@ def evaluate(d: LineItemDef, known: dict[str, Decimal | None]) -> Evaluation:
         # until the cross-check master takes it over.
         if not d.terms:
             return Evaluation(_dec(known.get(d.key)))
-        return _apply_terms(d.terms, known, getattr(d, "terms_op", "sum"))
+        return _apply_terms(d.terms, known, getattr(d, "terms_op", "sum"), sources)
 
     if d.type == "derived":
         refused: list[str] = []
         for rung in d.cascade:
-            got = _apply_terms(rung.terms, known, getattr(rung, "terms_op", "sum"))
+            got = _apply_terms(rung.terms, known, getattr(rung, "terms_op", "sum"), sources)
             if not got.resolved:
                 continue
             # A RUNG BELOW ZERO IS NOT AN ANSWER, it is evidence this rung's inputs did not mean
