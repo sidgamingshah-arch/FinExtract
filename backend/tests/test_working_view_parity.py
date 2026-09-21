@@ -66,7 +66,7 @@ RULEBOOK = TEMPLATES / "output_csv_hk_ontology.json"
 PROJECTED = sorted(set(SAME) | set(RENAMED))
 
 CONCEPTS = 462                 # the rulebook's concepts, and the set's `namespace == "template"`
-ITEMS = 546                    # …plus the 69 `sub__*` note-level parts, which ARE concepts too:
+ITEMS = 549                    # …plus the 69 `sub__*` note-level parts, which ARE concepts too:
                                # the view projects every definition, and `namespace` decides only
                                # where a figure is PUBLISHED. See
                                # test_shipped_set_projects_every_definition_including_the_parts.
@@ -443,6 +443,15 @@ def test_shipped_set_projects_every_definition_including_the_parts():
         "sub__rp_face_loan_from_shareholder",
         # AND THE TRADE RECEIVABLE'S FACE PART, on the same grounds.
         "sub__rp_face_trade_receivable",
+        # AND THE THREE ASSET FACE PARTS, on the same grounds again — no `note_source`, and
+        # `statement: balance_sheet` with `section_scope: ['bs_ca']`/`['bs_nca']` is the mechanism
+        # by which each is read off the balance-sheet face. What their absence cost was not an
+        # empty column but a DOUBLE COUNT: the residual sweep filed the printed row on the
+        # section's catch-all, a SIBLING of the column whose note cascade published the same money,
+        # so both reached the section total. Measured on 澜起科技 688008, Total Current Assets
+        # published 11,271,578,867.08 against a printed 9,461,304,025.38.
+        "sub__cp_face_trading_fincl_assets", "sub__cp_face_other_receivables",
+        "sub__ltp_face_other_non_current_fincl_assets",
     }
     # A RESIDUAL BUCKET IS NOT A PART and declares its statement properly: `bs_ca_residual_L3`
     # is a balance-sheet current-assets bucket, so `balance_sheet` is where it belongs.

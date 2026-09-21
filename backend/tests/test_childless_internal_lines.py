@@ -288,8 +288,15 @@ def test_every_long_term_rung_still_outranks_a_printed_figure(shipped):
     a different quantity, 128,412 against the rung's 788,507, and the rung is the answer. Dropping
     the flag lets the printed figure win on every filing, and nothing about the number says so."""
     ltp = next(i for i in shipped.items if i.key == LTP)
-    assert all(r.outranks_printed for r in ltp.cascade), (
-        [(r.id, r.outranks_printed) for r in ltp.cascade])
+    # EVERY RECONSTRUCTING RUNG, which is every rung but `FROM_THE_FACE`. That one reconstructs
+    # nothing — it reads the row the balance sheet prints, through a part holding the aliases this
+    # `derived` column cannot carry itself — so it is the RESTATING case that
+    # `test_derived_parent_gate`'s own name distinguishes, and a restating rung must not outrank the
+    # printed figure it IS. An exact partition rather than a filter, so a RECONSTRUCTING rung
+    # silently losing the flag still fails here.
+    flags = {r.id: r.outranks_printed for r in ltp.cascade}
+    assert flags.pop("FROM_THE_FACE") is False, flags
+    assert flags and all(flags.values()), flags
 
 
 # ── THE MAIN LINE'S TWO RUNGS ─────────────────────────────────────────────────────────────────
@@ -298,9 +305,14 @@ def test_the_main_line_floors_at_zero_and_says_which_rung_answered(shipped):
     """Rung 1 passed over for computing below zero, rung 2 a constant. The distinction has to be
     visible: a line that computed 0 and a line whose arithmetic went negative are different facts."""
     item = next(i for i in shipped.items if i.key == MAIN)
-    assert [r.id for r in item.cascade] == ["CP_INTERMEDIATE", "CP_ZERO"]
-    assert item.cascade[0].refuse_negative is True
-    assert item.cascade[1].terms[0].const == 0.0
+    # `FROM_THE_FACE` sits BETWEEN them, and the order is the point: a rung that reads the printed
+    # 交易性金融资产 row must be tried before the line gives up and floors at zero, because a
+    # figure the balance sheet states is a better answer than a constant. It cannot displace
+    # CP_INTERMEDIATE either, which is why it is second and not first.
+    assert [r.id for r in item.cascade] == ["CP_INTERMEDIATE", "FROM_THE_FACE", "CP_ZERO"]
+    by_id = {r.id: r for r in item.cascade}
+    assert by_id["CP_INTERMEDIATE"].refuse_negative is True
+    assert by_id["CP_ZERO"].terms[0].const == 0.0
 
     from app.services.line_items import evaluate
 

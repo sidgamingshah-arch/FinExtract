@@ -356,6 +356,17 @@ def test_every_reported_line_resolves_a_gate_and_parts_deliberately_do_not():
     # China SCE 1966's printed "Due to related parties" 2,588,416 was swept to
     # `bs_cl__other_current_liabilities` and 嘉民's two shareholder loans (36,800 + 544,254) to
     # `bs_ncl__other_non_current_liabilities`, each filing's only related-party balance.
+    # THE THREE ASSET FACE PARTS are named on the same condition as every entry above: each
+    # declares `statement: balance_sheet` AND a `section_scope` (bs_ca for the two current parts,
+    # bs_nca for the non-current one), so its aliases are bindable only where a balance sheet is
+    # being read. They exist for the reason the related-party payable parts do — their PARENTS are
+    # `derived` and `mapping._computed_parent` forbids a caption from reaching them — but the cost
+    # here was a DOUBLE COUNT rather than a column left empty: the residual sweep filed the printed
+    # row onto the section catch-all, which is a SIBLING of the column the note cascade published
+    # the same money on, so both reached the section total. Measured on 澜起科技 688008, Total
+    # Current Assets published 11,271,578,867.08 against a printed 9,461,304,025.38 — 交易性金融资产
+    # 1,783,494,750.68 and 其他应收款 4,143,856.36 counted in bs_ca__other_current_assets as well as
+    # in their own columns.
     _FACE_PARTS_WITH_ALIASES = {"sub__rp_bs_face_receivables", "sub__face_principal_revenue",
                                 "sub__cfo_depreciation",
                                 "sub__non_operating_income", "sub__non_operating_expenses",
@@ -364,7 +375,10 @@ def test_every_reported_line_resolves_a_gate_and_parts_deliberately_do_not():
                                 "sub__rp_face_due_to_cp",
                                 "sub__rp_face_loan_from_holding_co",
                                 "sub__rp_face_loan_from_shareholder",
-                                "sub__rp_face_trade_receivable"}
+                                "sub__rp_face_trade_receivable",
+                                "sub__cp_face_trading_fincl_assets",
+                                "sub__cp_face_other_receivables",
+                                "sub__ltp_face_other_non_current_fincl_assets"}
     aliased = [d.key for d in parts
                if (d.aliases or d.aliases_i18n) and d.key not in _FACE_PARTS_WITH_ALIASES]
     assert not aliased, (
@@ -394,7 +408,7 @@ def test_the_note_level_parts_are_off_template():
     # COLUMN of a gross/allowance/net grid, and a row whose own reported amount is the net. One
     # part holds one `measure`, so two readings are two parts; 000709 needs both, its consolidated
     # note printing the grid and its parent-company note a plain comparative.
-    assert len(subs) == 83   # 83 with the related-party TRADE RECEIVABLE's three parts (账面余额 gross, 坏账准备 allowance, and the face part holding the aliases)   # 80: 543 with the three related-party PAYABLE face parts — `mapping._computed_parent` forbids a `derived` column from matching a caption, so a column with a note cascade could not read its own printed row, so each grew a FACE part carrying the aliases the column had to give up; two on the LTP twin because kaming prints the holding-company loan and the shareholder loan as separate rows   # 77: the two related-party payable readings, one per group the note prints
+    assert len(subs) == 86   # 83 with the related-party TRADE RECEIVABLE's three parts (账面余额 gross, 坏账准备 allowance, and the face part holding the aliases)   # 80: 543 with the three related-party PAYABLE face parts — `mapping._computed_parent` forbids a `derived` column from matching a caption, so a column with a note cascade could not read its own printed row, so each grew a FACE part carrying the aliases the column had to give up; two on the LTP twin because kaming prints the holding-company loan and the shareholder loan as separate rows   # 77: the two related-party payable readings, one per group the note prints
     assert all(d.namespace == "internal" for d in subs)
     assert all(d.namespace == "template" for d in st.items if d.in_output)
 

@@ -117,11 +117,13 @@ def test_the_types_the_shipped_set_declares(shipped):
     # is a row printed on the face of the cash-flow statement.
     # 488: the two new Find 3 halves are `extracted` note readers; Find 3 itself left this
     # bucket for `derived` in the same change, so the net is +1.
-    assert counts["extracted"] == 496, counts   # 491: two allowance readings gained, their
+    # 499 since the three ASSET face parts were added, `extracted` for the same reason the 营业外
+    # and direct-method TAX parts are: each is a row printed on the face of the balance sheet.
+    assert counts["extracted"] == 499, counts   # 491: two allowance readings gained, their
     # parent became derived.   # 490 with the interest-and-dividends component.   # 489: the other-receivables net became derived
     # (-1) and its two note-reading leaves are extracted (+2).
     # 533 since Find 3 split into a gross half and an allowance half: the 关联方应收应付款项 note prints 账面余额 and 坏账准备 and no net column, so the 淨金額 the spec asks for is computed.
-    assert sum(counts.values()) == 546   # 546 with the related-party TRADE RECEIVABLE reading the note — instructed, with the overlap accepted: "for now want to double count on related parties". The 应收账款 group of a CAS 关联方 note is also inside sub__rp_find_3_gross, which feeds bs_nca__due_from_related_parties_ltp, so 000709's 378,930,401.75 now publishes in both columns. Three parts: the 账面余额 gross, the 坏账准备 allowance it is net of, and the FACE part carrying the aliases the column had to give up to hold a cascade
+    assert sum(counts.values()) == 549   # 549 since three printed ASSET rows stopped being counted twice. bs_ca__secur_and_other_fincl_assets_cp, bs_ca__other_receivables_cp and bs_nca__secur_and_other_fincl_assets_ltp are all `derived`, so `mapping._computed_parent` forbade a caption from reaching them and the residual sweep filed 交易性金融资产 / 其他应收款 / 其他非流动金融资产 onto the section catch-alls — where each was ADDED to the section total beside the note cascade's figure for the same money. Measured on 澜起科技 688008, Total Current Assets published 11,271,578,867.08 against a printed 9,461,304,025.38. Each column therefore grew a FACE part carrying the aliases it had to give up, the shape `sub__rp_face_due_to_cp` already uses   # 546 with the related-party TRADE RECEIVABLE reading the note — instructed, with the overlap accepted: "for now want to double count on related parties". The 应收账款 group of a CAS 关联方 note is also inside sub__rp_find_3_gross, which feeds bs_nca__due_from_related_parties_ltp, so 000709's 378,930,401.75 now publishes in both columns. Three parts: the 账面余额 gross, the 坏账准备 allowance it is net of, and the FACE part carrying the aliases the column had to give up to hold a cascade
     #                             # 543 since the two related-party PAYABLE columns gained the FACE reading a derived parent cannot have: `mapping._computed_parent` makes every `derived` key unmatchable by caption, so China SCE 1966's printed "Due to related parties" 2,588,416 was swept to bs_cl__other_current_liabilities and 嘉民's two non-current shareholder loans (36,800 + 544,254) to bs_ncl__other_non_current_liabilities — each filing's only related-party balance, in the wrong column. Three parts and not two because kaming prints the holding-company loan and the shareholder loan as SEPARATE rows, and a cascade takes the first carrier of a key   # 540 since the related-party PAYABLES gained the two readings the note prints as groups — 其他应付款 and 长期应付款 — which is what lets Due to Related Parties(CP) and its LTP twin publish at all   # 538 since the loss allowance split into its two readings — the 坏账准备 COLUMN of a measure grid and an allowance printed as its own ROW — which is what lets CP_P2 subtract it   # 536 since the other-receivables line gained the interest-and-dividends-receivable component its own definition names: a filing that prints 应收利息/应收股利 as siblings of 其他应收款 has not put them inside it   # 535 since the other-receivables NET split into the two ways a note prints one — the 账面价值 COLUMN of a gross/allowance/net grid, and a row whose own reported amount is the net; one part holds one `measure`, and 000709 needs both readings
     # AND THE DISCRIMINATOR THE SECTION ROLL-UPS READ IS UNTOUCHED. `rollups.section_members` keys
     # on `unit_of_account == "subtotal"` and nothing else; flattening it alongside the type takes
@@ -272,7 +274,13 @@ def test_a_reconstructing_rung_outranks_a_printed_figure_and_a_restating_one_doe
 
     ltp = by_key["bs_nca__secur_and_other_fincl_assets_ltp"]
     assert ltp.cascade, "the line under test has no cascade"
-    assert all(r.outranks_printed for r in ltp.cascade), [r.id for r in ltp.cascade]
+    # `FROM_THE_FACE` is this test's own third case, and the one its name names: a RESTATING rung.
+    # It reconstructs nothing — it reads the printed row through a part holding the aliases a
+    # `derived` column cannot carry — so letting it outrank the printed figure would be letting a
+    # figure outrank itself. An exact partition, so a reconstructing LTP rung losing the flag fails.
+    ltp_flags = {r.id: r.outranks_printed for r in ltp.cascade}
+    assert ltp_flags.pop("FROM_THE_FACE") is False, ltp_flags
+    assert ltp_flags and all(ltp_flags.values()), ltp_flags
 
     revenue = by_key[REVENUE]
     assert revenue.cascade

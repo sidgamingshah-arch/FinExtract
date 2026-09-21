@@ -113,9 +113,22 @@ def test_interest_and_dividends_receivable_are_a_component_of_the_line():
     defs = _defs()
     line = defs["bs_ca__other_receivables_cp"]
     assert "dividends receivable" in line.definition
-    for rung in line.cascade:
+    # EVERY RUNG THAT BUILDS THE LINE FROM NOTE COMPONENTS, which is every rung but
+    # `FROM_THE_FACE`. That one reads the balance sheet's own 其他应收款 row, and this test's own
+    # arithmetic is the proof it must NOT add the component: 683,092,791.26 + 230,806,800.00 is
+    # 913,899,591.26, and 913,899,591.26 is the printed figure. The face row already contains the
+    # interest and dividends — 000709 prints them as a 其中 breakdown BENEATH it — so reading them
+    # into the face rung would count the 应收股利 twice. An exact partition rather than a filter,
+    # so a note rung silently dropping the component still fails here.
+    note_rungs = [r for r in line.cascade if r.id != "FROM_THE_FACE"]
+    assert {r.id for r in line.cascade} - {r.id for r in note_rungs} == {"FROM_THE_FACE"}
+    assert note_rungs
+    for rung in note_rungs:
         legs = [(t.ref, t.role, t.sign) for t in rung.terms]
         assert ("sub__cp_interest_and_dividends_receivable", "any_of", 1) in legs, rung.id
+    face = next(r for r in line.cascade if r.id == "FROM_THE_FACE")
+    assert [(t.ref, t.role) for t in face.terms] == [
+        ("sub__cp_face_other_receivables", "required")]
     # `any_of`, so a note that folds them into its other-receivables row — which identifies no
     # such component — still resolves the rung on whatever it did identify.
     got = evaluate(line, {"sub__cp_other_receivables_net": Decimal("683092791.26")})

@@ -2045,6 +2045,20 @@
      ],
      "note": "P1 − P2, no carry-forward. Find_1_LTP as SUM(unique note_total across all identified Non-current Asset notes) — the same arithmetic where the in-scope notes are wholly non-current and print a total rather than a current/non-current split. The eight note children are `any_of` because that SUM takes whatever subset of the 6.1 notes a filing prints. LTP_base from the same rows, with no carry-forward applied. Both escape hatches land here: the carry-forward was unavailable, or applying it made the candidate negative and the rung above was refused (NEGATIVE_LTP_ADJUSTMENT_REVERSED). `refuse_negative` because LTP is a carrying amount: a negative one is not a figure a filing asserts, and `refused_rungs` records the refusal so a reviewer can see the rung was declined rather than absent.",
      "outranks_printed": true
+    },
+    {
+     "id": "FROM_THE_FACE",
+     "terms_op": "sum",
+     "refuse_negative": true,
+     "outranks_printed": false,
+     "terms": [
+      {
+       "ref": "sub__ltp_face_other_non_current_fincl_assets",
+       "role": "required",
+       "sign": 1
+      }
+     ],
+     "note": "FALLBACK TO THE FACE, because a BALANCE SHEET LINE is printed on the balance sheet and this column could not be matched to it. `line_items.evaluate` runs a cascade only for a `derived` line and `mapping._computed_parent` makes every `derived` key unmatchable by caption, so the note rungs above cost this column its face reading entirely and the residual sweep filed the printed row on the section's catch-all — where it was added to the section total a second time. The aliases therefore live on a PART, the shape `sub__face_principal_revenue` uses for `is_pl__sales_revenues` and `sub__rp_face_due_to_cp` for `bs_cl__due_to_related_parties_cp`.\n\nLAST, so adding the face can never displace a note reading that already works. On this corpus the note rungs resolve and this one does not fire; what the part changes is only that the printed row now has a home and is no longer swept into a sibling column."
     }
    ],
    "namespace": "template"
@@ -3355,6 +3369,20 @@
       }
      ],
      "note": "Σ(the in-scope note totals) − the non-current portion − the derivatives and other receivables disclosed inside those notes − the fair value hierarchy Level 3 total. Each note total is `any_of`, so a filing printing only some of the in-scope notes still sums the ones it prints; every deduction is an `adjustment`, so one the filing does not disclose does not apply. PASSED OVER WHEN IT COMPUTES BELOW ZERO — a negative securities balance is not a figure a filing asserts, and `refused_rungs` records that this rung was declined rather than absent. Replaces the CP_P1 / CP_P2_MISSING_LEVEL_3 pair: with Level 3 an `adjustment` it subtracts nothing when the hierarchy note is absent, which is all the second rung ever did."
+    },
+    {
+     "id": "FROM_THE_FACE",
+     "terms_op": "sum",
+     "refuse_negative": true,
+     "outranks_printed": false,
+     "terms": [
+      {
+       "ref": "sub__cp_face_trading_fincl_assets",
+       "role": "required",
+       "sign": 1
+      }
+     ],
+     "note": "FALLBACK TO THE FACE, because a BALANCE SHEET LINE is printed on the balance sheet and this column could not be matched to it. `line_items.evaluate` runs a cascade only for a `derived` line and `mapping._computed_parent` makes every `derived` key unmatchable by caption, so the note rungs above cost this column its face reading entirely and the residual sweep filed the printed row on the section's catch-all — where it was added to the section total a second time. The aliases therefore live on a PART, the shape `sub__face_principal_revenue` uses for `is_pl__sales_revenues` and `sub__rp_face_due_to_cp` for `bs_cl__due_to_related_parties_cp`.\n\nLAST, so adding the face can never displace a note reading that already works. On this corpus the note rungs resolve and this one does not fire; what the part changes is only that the printed row now has a home and is no longer swept into a sibling column."
     },
     {
      "id": "CP_ZERO",
@@ -5205,6 +5233,20 @@
      ],
      "note": "The same formula, reached the second way the spec allows when the other-receivables note prints no explicit net carrying amount: spec 3.2 preference 2, closing balance less loss allowance or bad-debt provision. The gross closing balance is required, and the loss allowance is an adjustment with sign -1 - it is a negative row that belongs in the arithmetic, not in the veto list, and a filing that states its balance is already net or that no allowance applies still resolves this rung as gross less nothing. The other four components stay on their net-carrying-amount children and stay any_of, and the five related-party legs deduct exactly as in CP_P1. Second in order because the spec ranks the explicit net amount above the derived one; the first rung that resolves wins, so this fires only when CP_P1 found no explicit net figure. refuse_negative for the same NEGATIVE_RESIDUAL reason. INTEREST AND DIVIDENDS RECEIVABLE joined as a sixth any_of component, because the line's own definition names them and no term read them: on 000709 the note prints 应收利息, 应收股利 and 其他应收款 as three siblings adding to one 合计, and the line published the net of the third alone — 683,092,791.26 against a balance-sheet 其他应收款 of 913,899,591.26, short by the 230,806,800.00 of 应收股利. `any_of` because 5.2 says only add a component a filing separately identifies, and a note that folds them into its other-receivables row identifies none.",
      "refuse_negative": true
+    },
+    {
+     "id": "FROM_THE_FACE",
+     "terms_op": "sum",
+     "refuse_negative": true,
+     "outranks_printed": false,
+     "terms": [
+      {
+       "ref": "sub__cp_face_other_receivables",
+       "role": "required",
+       "sign": 1
+      }
+     ],
+     "note": "FALLBACK TO THE FACE, because a BALANCE SHEET LINE is printed on the balance sheet and this column could not be matched to it. `line_items.evaluate` runs a cascade only for a `derived` line and `mapping._computed_parent` makes every `derived` key unmatchable by caption, so the note rungs above cost this column its face reading entirely and the residual sweep filed the printed row on the section's catch-all — where it was added to the section total a second time. The aliases therefore live on a PART, the shape `sub__face_principal_revenue` uses for `is_pl__sales_revenues` and `sub__rp_face_due_to_cp` for `bs_cl__due_to_related_parties_cp`.\n\nLAST, so adding the face can never displace a note reading that already works. On this corpus the note rungs resolve and this one does not fire; what the part changes is only that the printed row now has a home and is no longer swept into a sibling column."
     }
    ],
    "namespace": "template"
@@ -20935,7 +20977,7 @@
    "inherits": "notes",
    "note_source": {
     "note_title_any": [
-     "financial\\s+assets?\\s+at\\s+fair\\s+value\\s+through\\s+other\\s+comprehensive\\s+income|financial\\s+assets?\\s+at\\s+fvtoci|\\bfvtoci\\b|按公平值計入其他全面收益(?:的|之)金融資產|以公平值計入其他全面收益(?:的|之)金融資產|按公平值计入其他全面收益(?:的|之)金融资产|以公允价值计量且其变动计入其他综合收益的金融资产|其他权益工具投资"
+     "financial\\s+assets?\\s+at\\s+fair\\s+value\\s+through\\s+other\\s+comprehensive\\s+income|financial\\s+assets?\\s+at\\s+fvtoci|\\bfvtoci\\b|按公平值計入其他全面收益(?:的|之)金融資產|以公平值計入其他全面收益(?:的|之)金融資產|按公平值计入其他全面收益(?:的|之)金融资产|以公允价值计量且其变动计入其他综合收益的金融资产"
     ],
     "row_caption_any": [
      "^\\s*total\\s*$",
@@ -29997,8 +30039,7 @@
    "inherits": "notes",
    "note_source": {
     "note_title_any": [
-     "^\\s*(?:note\\s+)?(?:\\d+[.、)]?\\s*)?financial\\s+assets?\\s*$|^\\s*(?:\\d+[.、)]?\\s*)?financial\\s+assets?\\s*[-–—(]\\s*non-?current|^\\s*(?:\\d+[.、)]?\\s*)?non-?current\\s+financial\\s+assets?\\s*$|^\\s*(?:\\d+[.、)]?\\s*)?金融資產\\s*$|^\\s*(?:\\d+[.、)]?\\s*)?金融资产\\s*$|^\\s*(?:\\d+[.、)]?\\s*)?非流動金融資產\\s*$|^\\s*(?:\\d+[.、)]?\\s*)?非流动金融资产\\s*$",
-     "^\\s*(?:\\d+[.、)]?\\s*)?其他非流动金融资产|^\\s*(?:\\d+[.、)]?\\s*)?其他非流動金融資產"
+     "^\\s*(?:note\\s+)?(?:\\d+[.、)]?\\s*)?financial\\s+assets?\\s*$|^\\s*(?:\\d+[.、)]?\\s*)?financial\\s+assets?\\s*[-–—(]\\s*non-?current|^\\s*(?:\\d+[.、)]?\\s*)?non-?current\\s+financial\\s+assets?\\s*$|^\\s*(?:\\d+[.、)]?\\s*)?金融資產\\s*$|^\\s*(?:\\d+[.、)]?\\s*)?金融资产\\s*$|^\\s*(?:\\d+[.、)]?\\s*)?非流動金融資產\\s*$|^\\s*(?:\\d+[.、)]?\\s*)?非流动金融资产\\s*$"
     ],
     "row_caption_any": [
      "^\\s*total\\s*$",
@@ -39756,6 +39797,111 @@
      "entrusted loans"
     ]
    }
+  },
+  {
+   "key": "sub__cp_face_trading_fincl_assets",
+   "label": "Trading financial assets on the face of the balance sheet",
+   "definition": "The CURRENT held-for-trading financial asset as the balance sheet prints it. A mainland face prints 交易性金融资产 under 流动资产; bs_ca__secur_and_other_fincl_assets_cp is `derived`, and `mapping._computed_parent` makes every derived key unmatchable by caption, so the printed row reached no column and the residual sweep filed it on bs_ca__other_current_assets — where it was counted a SECOND time beside the note cascade's own figure for the same money. Measured on 澜起科技 688008: 1,783,494,750.68 / 1,703,266,947.76, present in both the catch-all and the securities column.",
+   "exclude_criteria": [],
+   "parent": "bs_ca__secur_and_other_fincl_assets_cp",
+   "type": "extracted",
+   "namespace": "internal",
+   "in_output": false,
+   "route": "face",
+   "inherits": "bs_ca",
+   "section_scope": [
+    "bs_ca"
+   ],
+   "statement": "balance_sheet",
+   "order": 10,
+   "note_use": "decomposition_allowed",
+   "face_only": false,
+   "match_priority": 80,
+   "aliases": [
+    "交易性金融资产",
+    "交易性金融資產"
+   ],
+   "aliases_i18n": {
+    "en": [],
+    "zh": [
+     "交易性金融资产",
+     "交易性金融資產"
+    ]
+   },
+   "keyword_hints": [],
+   "sign_rule": {},
+   "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
+   "note_source": null
+  },
+  {
+   "key": "sub__cp_face_other_receivables",
+   "label": "Other receivables on the face of the balance sheet",
+   "definition": "The CURRENT other receivable as the balance sheet prints it, the bare caption 其他应收款 and not the compound 其他应收款项 that bs_ca__trade_and_other_receivables already owns. Same mechanism as the trading-asset part above: the printed row reached no column and was swept into bs_ca__other_current_assets beside the cascade's figure for the same money. Measured on 688008: 4,143,856.36 / 3,887,733.35 consolidated, and 1,287,570,989.98 / 1,251,615,794.34 on the Company's own balance sheet.\n\nEXCLUDES 其中：应收利息 and 应收股利, which the face prints as sub-items beneath it and which have columns of their own.",
+   "exclude_criteria": [],
+   "parent": "bs_ca__other_receivables_cp",
+   "type": "extracted",
+   "namespace": "internal",
+   "in_output": false,
+   "route": "face",
+   "inherits": "bs_ca",
+   "section_scope": [
+    "bs_ca"
+   ],
+   "statement": "balance_sheet",
+   "order": 10,
+   "note_use": "decomposition_allowed",
+   "face_only": false,
+   "match_priority": 81,
+   "aliases": [
+    "其他应收款",
+    "其他應收款"
+   ],
+   "aliases_i18n": {
+    "en": [],
+    "zh": [
+     "其他应收款",
+     "其他應收款"
+    ]
+   },
+   "keyword_hints": [],
+   "sign_rule": {},
+   "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
+   "note_source": null
+  },
+  {
+   "key": "sub__ltp_face_other_non_current_fincl_assets",
+   "label": "Other non-current financial assets on the face of the balance sheet",
+   "definition": "The NON-CURRENT other financial asset as the balance sheet prints it. Same mechanism as the two current parts: bs_nca__secur_and_other_fincl_assets_ltp is `derived` and so unmatchable by caption, and the printed row was swept onto bs_nca__other_non_current_assets while the note cascade published the same money on the securities column. Measured on 688008: 575,243,925.97 / 582,867,750.91.\n\nEXCLUDES 其他权益工具投资, which this corpus's notes do not tie to a column and which stays in the non-current catch-all, counted once.",
+   "exclude_criteria": [],
+   "parent": "bs_nca__secur_and_other_fincl_assets_ltp",
+   "type": "extracted",
+   "namespace": "internal",
+   "in_output": false,
+   "route": "face",
+   "inherits": "bs_nca",
+   "section_scope": [
+    "bs_nca"
+   ],
+   "statement": "balance_sheet",
+   "order": 10,
+   "note_use": "decomposition_allowed",
+   "face_only": false,
+   "match_priority": 78,
+   "aliases": [
+    "其他非流动金融资产",
+    "其他非流動金融資產"
+   ],
+   "aliases_i18n": {
+    "en": [],
+    "zh": [
+     "其他非流动金融资产",
+     "其他非流動金融資產"
+    ]
+   },
+   "keyword_hints": [],
+   "sign_rule": {},
+   "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
+   "note_source": null
   }
  ],
  "others_master": {
