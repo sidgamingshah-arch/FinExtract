@@ -156,6 +156,59 @@ def _title_only_row(row: list[Word]) -> str | None:
     return text
 
 
+# THE BAND A TABLE OPENS WITH — the period labels and the currency/units line. It carries no value
+# column, so `_title_only_row` accepts it as a title, which is right for the job that function was
+# written for and wrong for deciding whether a heading CONTINUES. Used only by the wrap join below.
+_TABLE_BAND = re.compile(
+    r"^[\s\d,.()'\u2019\u5e74\u6708\u65e5/\u2010-\u2015-]+$"
+    r"|^(?:RMB|HK\$|US\$|\u4eba\u6c11\u5e63|\u6e2f\u5143|\u5343\u5143|\u5104)",
+    re.IGNORECASE)
+
+# HOW LONG A WRAPPED HEADING'S SECOND LINE CAN BE. A heading is a NAME, so its continuation is a
+# few words; the first line of a note's PROSE is a sentence. Measured on the reference filings the
+# real continuations are 22 and 26 characters ("THROUGH PROFIT OR LOSS 入損益的金融資產") and the
+# prose openers this refuses run from 40 to well over 100.
+_WRAP_MAX = 34
+
+# A CONTINUATION IS SET IN HEADING STYLE, AND THIS IS THE TEST THAT MATTERS MOST.
+#
+# MEASURED, AND THE FIRST VERSION OF THE JOIN GOT IT WRONG IN BOTH DIRECTIONS. Accepting any
+# `_title_only_row` swallowed the opening PROSE line of a CAS note into its title — 000709's 五、23
+# became "、 预计负债 如果与或有事项相关的义务同时符合以下条件，本公司将其确认为预计负债：" — and
+# then patterns matched words inside that sentence: six unrelated contingent-liability lines
+# claimed the provisions POLICY note, 44 such pairs on 000709 and 46 on 300319. It also LOST four
+# real pairs per CAS filing, the related-party receivable and payable lines, because an anchored
+# pattern no longer reached a title with a sentence appended.
+#
+# It also made kaming's six depreciation lines match note 8 — which reads like a win and is the
+# same defect: the swallowed line was "Loss before taxation is arrived at after charging", and
+# `sub__pbt_depreciation` happens to name `arrived\s+at\s+after\s+charging`. Matching a note
+# because its PROSE was pasted into its heading is luck, not a fix, so that gap is closed in
+# configuration instead — by naming the spelling a filing at a loss actually prints.
+#
+# So: the Latin letters of a continuation, if it has any, must be UPPERCASE, the way these filings
+# set a heading. That admits "THROUGH PROFIT OR LOSS" and refuses every sentence above.
+_LOWER_LATIN = re.compile(r"[a-z]")
+
+# AND BOTH LINES MUST BE BILINGUAL, which is the discriminator the second version of this was
+# missing and the one that explains the defect rather than merely filtering it.
+#
+# WHY THE TRUNCATION HAPPENS AT ALL: an HKEX filing sets the English and the Han in two columns, so
+# one printed heading arrives as ONE row carrying both — and when that heading is too long for its
+# column it wraps, leaving half of each language on the next row. A CAS filing sets one language in
+# one column, so its headings do not wrap and there is nothing here to repair.
+#
+# MEASURED, and this is what the caps-and-length guard alone still got wrong: on the CAS filings it
+# swallowed the COLUMN HEADER BAND and the CSRC applicability marker, neither of which is a
+# sentence and both of which are short — 七、13 became "、 使用权资产 项目 房屋及建筑物 机器设备
+# 土地使用权 合计" and 七、13 on 688008 became "其他流动资产 √适用□不适用" — 57 titles on 000709
+# and 69 on 300319, and it cost the four related-party receivable and payable pairs on each because
+# their patterns are anchored. Requiring a Latin run on both lines refuses every one of those and
+# keeps the four real wraps: 1966's notes 24, 26 and 29 and kaming's note 19.
+_LATIN = re.compile(r"[A-Za-z]")
+_HAS_HAN = re.compile(r"[\u3400-\u9fff]")
+
+
 # CJK SENTENCE punctuation. A note's title is a name and carries none of it; the enumeration comma
 # 、 is a different mark and DOES appear in real titles ("收益、其他收入及收益", "現金及現金等價物、
 # 受限制現金"), so it is deliberately absent from this class.
@@ -882,6 +935,38 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
         head = _is_heading(row)
         if head is not None:
             no, title = head
+            # A HEADING THAT WRAPPED ONTO THE NEXT LINE IS ONE HEADING.
+            #
+            # MEASURED: 1966 prints "26. FINANCIAL ASSETS AT FAIR VALUE / THROUGH PROFIT OR LOSS"
+            # over two lines and this kept the first, so the title was "FINANCIAL ASSETS AT FAIR
+            # VALUE 26. 按公允值計量且其變動計" — cut before the words that say WHICH fair-value
+            # category it is. The shipped pattern names the full phrase and therefore matched
+            # nothing, and five focus lines (the FVTPL family, both current and non-current) were
+            # sent no declared note for that filing. Authoring around it would have meant guessing
+            # FVTPL against FVTOCI from a heading truncated before the word that distinguishes
+            # them, which is the guess this removes rather than makes.
+            #
+            # ONE ROW, AND ONLY A ROW THAT CAN BE NOTHING ELSE. The row must carry no value column
+            # (`_title_only_row`), must not open its own note (`_is_heading`, `_bare_note_number`),
+            # must not be the period/currency band a table opens with (`_TABLE_BAND`) — that band
+            # has no value column either, so without it every table's first heading would swallow
+            # "2023 2022 RMB'000" — and must be set in heading style and heading length
+            # (`_LOWER_LATIN`, `_WRAP_MAX`, `_CJK_SENTENCE`), which is what keeps a note's opening
+            # PROSE line out. Measured over the five reference filings: 2 of 342 headings join,
+            # both on 1966, and no CAS title changes at all.
+            if i + 1 < len(rows):
+                nxt = rows[i + 1]
+                more = _title_only_row(nxt)
+                if (more and len(more) <= _WRAP_MAX
+                        and _LATIN.search(title) and _HAS_HAN.search(title)
+                        and _LATIN.search(more)
+                        and not _LOWER_LATIN.search(more)
+                        and not _CJK_SENTENCE.search(more)
+                        and not more.rstrip().endswith((":", "\uff1a"))
+                        and not _TABLE_BAND.match(more)
+                        and _is_heading(nxt) is None and _bare_note_number(nxt) is None):
+                    title = f"{title} {more}".strip() if title else more
+                    i += 1
             current = {"no": no, "title": title, "words": []}
             sections.append(current)
         elif current is None:

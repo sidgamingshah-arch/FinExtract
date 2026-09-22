@@ -126,17 +126,53 @@ _SEMANTIC_NOTE_BUDGET = 0
 _LEAD = re.compile(r"^[\s)）]*(?:[一二三四五六七八九十百]+|\d+)?\s*[、．。.)）]?\s*")
 
 
-def title_variants(title: str) -> tuple[str, ...]:
-    """The heading as extracted, and with any leading enumerator or separator removed.
+# THE TWO SCRIPTS OF A BILINGUAL HEADING, EACH ON ITS OWN. An HKEX filing prints the English and
+# the Han side by side, so the walker's row INTERLEAVES them — 1966's note 26, once its wrapped
+# second line is joined, reads
+#
+#     FINANCIAL ASSETS AT FAIR VALUE 26. 按公允值計量且其變動計 THROUGH PROFIT OR LOSS 入損益的金融資產
+#
+# and `financial\s+assets?\s+at\s+fair\s+value\s+through\s+profit\s+or\s+loss` cannot match it:
+# the enumerator and the Han fragment sit between "VALUE" and "THROUGH". Every authored pattern is
+# written in ONE script, so the form it needs is the heading's run in THAT script, which is what
+# these project. Digits go with neither — they are the enumerator, which `_LEAD` already strips
+# from the front and which appears mid-string only because of the column merge.
+_LATIN_RUN = re.compile(r"[A-Za-z][A-Za-z'\u2019&/-]*")
+# THE ENUMERATION COMMA IS PART OF A HAN RUN, NOT A BREAK IN IT — U+3001, inside the class.
+# `test_note_title_enumerator` caught the first version doing the opposite: 預付款項、其他應收
+# 款項及其他資產 is ONE compound caption, and splitting on 、 projected it as
+# 預付款項其他應收款項及其他資產 — a variant with a mark removed from the middle of a name,
+# which is exactly what `_LEAD` is careful not to do. With 、 inside the run that heading is a
+# single run and gains no variant at all, and 1966's note 24 — whose wrap really does split it
+# — reconstructs as 預付款項、其他應收款項及其他資產, the phrase the filing prints.
+_HAN_RUN = re.compile(r"[\u3001\u3400-\u9fff]+")
 
-    Both, in that order, and de-duplicated - a heading with no enumerator yields one string, so a
-    caller pays nothing for the headings that never had the problem.
+
+def title_variants(title: str) -> tuple[str, ...]:
+    """The heading as extracted, with any leading enumerator removed, and each script on its own.
+
+    In that order, and de-duplicated - a heading with no enumerator and one script yields one
+    string, so a caller pays nothing for the headings that never had the problem.
     """
     raw = title or ""
     out = [raw]
     stripped = _LEAD.sub("", raw, count=1).strip()
     if stripped and stripped != raw:
         out.append(stripped)
+    # HAN JOINS WITH NOTHING BETWEEN, LATIN WITH A SPACE, because that is how each script is
+    # written: the space between two Han runs is an artefact of the column merge, and removing it
+    # reconstructs the phrase — 按公允值計量且其變動計 + 入損益的金融資產 is 按公允值計量且其變動計入
+    # 損益的金融資產, which is what the filing prints and what a Han pattern is written against.
+    for pattern, glue in ((_LATIN_RUN, " "), (_HAN_RUN, "")):
+        found = pattern.findall(raw)
+        # TWO RUNS OR MORE, because one run is the whole heading and adding it again matches
+        # nothing new. This is what keeps the projection to the interleaved case it is for: a
+        # monolingual heading yields exactly the variants it did before.
+        if len(found) < 2:
+            continue
+        projected = glue.join(found)
+        if projected and projected not in out:
+            out.append(projected)
     return tuple(out)
 
 

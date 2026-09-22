@@ -18514,7 +18514,7 @@
    "inherits": "notes",
    "note_source": {
     "note_title_any": [
-     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额",
+     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|loss\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额|除稅前虧損|除稅前虧蝕|稅前虧損|除税前亏损|税前亏损|亏损总额",
      "fixed\\s+assets?|固定資產|固定资产",
      "prepaid\\s+land\\s+lease\\s+payments?|prepaid\\s+lease\\s+payments?|預付土地租賃款項|預付租賃款項",
      "right.of.use\\s+assets?",
@@ -18674,7 +18674,7 @@
    "inherits": "notes",
    "note_source": {
     "note_title_any": [
-     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额",
+     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|loss\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额|除稅前虧損|除稅前虧蝕|稅前虧損|除税前亏损|税前亏损|亏损总额",
      "fixed\\s+assets?|固定資產|固定资产",
      "prepaid\\s+land\\s+lease\\s+payments?|prepaid\\s+lease\\s+payments?|預付土地租賃款項|預付租賃款項",
      "right.of.use\\s+assets?",
@@ -18837,7 +18837,7 @@
    "inherits": "notes",
    "note_source": {
     "note_title_any": [
-     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额",
+     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|loss\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额|除稅前虧損|除稅前虧蝕|稅前虧損|除税前亏损|税前亏损|亏损总额",
      "fixed\\s+assets?|固定資產|固定资产",
      "prepaid\\s+land\\s+lease\\s+payments?|prepaid\\s+lease\\s+payments?|預付土地租賃款項|預付租賃款項",
      "right.of.use\\s+assets?",
@@ -18997,7 +18997,7 @@
    "inherits": "notes",
    "note_source": {
     "note_title_any": [
-     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额",
+     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|loss\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额|除稅前虧損|除稅前虧蝕|稅前虧損|除税前亏损|税前亏损|亏损总额",
      "fixed\\s+assets?|固定資產|固定资产",
      "prepaid\\s+land\\s+lease\\s+payments?|prepaid\\s+lease\\s+payments?|預付土地租賃款項|預付租賃款項",
      "right.of.use\\s+assets?",
@@ -20111,7 +20111,7 @@
    "inherits": "notes",
    "note_source": {
     "note_title_any": [
-     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额",
+     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|loss\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额|除稅前虧損|除稅前虧蝕|稅前虧損|除税前亏损|税前亏损|亏损总额",
      "fixed\\s+assets?|固定資產|固定资产",
      "prepaid\\s+land\\s+lease\\s+payments?|prepaid\\s+lease\\s+payments?|預付土地租賃款項|預付租賃款項",
      "right.of.use\\s+assets?",
@@ -20297,7 +20297,7 @@
    "inherits": "notes",
    "note_source": {
     "note_title_any": [
-     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额",
+     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|loss\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额|除稅前虧損|除稅前虧蝕|稅前虧損|除税前亏损|税前亏损|亏损总额",
      "使用權資產|使用权资产",
      "(?:長期待攤費用|长期待摊费用)[^。；;]{0,20}(?:土地|租賃|租赁)|(?:土地|租賃|租赁)[^。；;]{0,20}(?:長期待攤費用|长期待摊费用)"
     ],
