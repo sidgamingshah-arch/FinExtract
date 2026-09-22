@@ -529,6 +529,38 @@ def note_sets(items, notes, *, min_score: float = MIN_SCORE,
         from app.services.line_item_requests import asked_about
         if not asked_about(item):
             continue
+        # A DECLARED `face` LINE IS NEVER GIVEN NOTES, which is the other direction of the fence
+        # `services.line_item_routes` already draws and the one nothing was enforcing.
+        #
+        # `may_read_face` is consulted before the statement block is built
+        # (`line_item_requests.face_statements`) and before a citation naming a statement is
+        # accepted, so a note-only line cannot be handed the face. `may_read_notes` had no reader
+        # on this side: a `route: face` line reached here, `note_probe` fell back to `_blended` —
+        # its label and aliases scored against note HEADINGS — and something always scores
+        # something, so the line was issued a note set it is forbidden to answer from.
+        #
+        # AND IT COST THE LINE ITS STATEMENT, which is the part that makes this a context defect
+        # rather than waste. Having a note set puts the line in the note-grouping branch of
+        # `line_item_requests.plan_requests`, and that branch passes no `sections`; the `unplanned`
+        # tail below it — the one whose comment says "THIS IS WHERE EVERY FACE LINE LANDS" — is
+        # what attaches them. So `face_statements` found nothing declared and built no statement
+        # block. Measured over the twelve reference filings on the twelve face-routed related-party
+        # lines: on 2025032802704 and 2024 Annual Report every one of them received 1-4 notes,
+        # ~10.5k characters of context it may not cite, and ZERO face rows; on 1223214527, where
+        # their probes happened to score nothing, the same lines correctly received
+        # `['balance_sheet']`. Whether a face line was shown its own statement turned on whether an
+        # unrelated note heading happened to share a token with its label.
+        #
+        # SILENCE STILL KEEPS THE NOTE ROUTE — `may_read_notes` is false only for a DECLARED
+        # `face`, never for a line that declares nothing — so a set authored before `route` existed
+        # selects exactly the notes it did before. `anywhere` keeps notes too: it is the route that
+        # refuses nothing.
+        # Imported HERE rather than at module scope, for the reason `asked_about` is: importing
+        # `line_item_routes` at the top drags `line_item_requests` in behind it and that module
+        # imports this one.
+        from app.services import line_item_routes
+        if not line_item_routes.may_read_notes(item):
+            continue
         parent = by_key.get(getattr(item, "parent", "") or "")
         # THE PRINTED REFERENCE, AHEAD OF EVERY PROBE. Only notes this document actually has — a
         # reference to a note the pruner dropped or the parser never built names nothing, and
