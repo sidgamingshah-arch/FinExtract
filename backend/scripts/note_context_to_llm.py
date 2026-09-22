@@ -48,7 +48,6 @@ import argparse
 import collections
 import json
 import pathlib
-import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -57,37 +56,14 @@ sys.path.insert(0, str(ROOT))
 SEED = ROOT / "app" / "sample" / "templates" / "output_csv_hk_line_items.json"
 TEMPLATE = ROOT / "app" / "sample" / "templates" / "output_csv_hk_v1_template.json"
 
-_FLAGS = re.IGNORECASE
 
-
-def _declared_notes(item, notes) -> set[str]:
-    """The notes of THIS filing that the line's own `note_title_any` matches — its ground truth.
-
-    Matched against the heading AND the note number, the same two things
-    `services.note_sourced.rows_for` offers the patterns, so a pattern written to key off a number
-    is not counted as a miss here when the run would have honoured it.
-    """
-    src = getattr(item, "note_source", None)
-    patterns = list(getattr(src, "note_title_any", None) or []) if src else []
-    if not patterns:
-        return set()
-    out: set[str] = set()
-    for table in notes or ():
-        number = str(getattr(table, "note_number", "") or "")
-        title = str(getattr(table, "title", "") or "")
-        for pattern in patterns:
-            try:
-                if re.search(pattern, title, _FLAGS) or (
-                        number and re.search(pattern, number, _FLAGS)):
-                    out.add(number)
-                    break
-            except re.error:
-                continue          # a bad pattern is the config's problem, not this report's
-    return out
-
-
+# THE GROUND-TRUTH PREDICATE IS THE RUN'S OWN — `line_item_notes.declared_notes`, which is also
+# what `note_context.identified_notes` admits note TEXT on and what `note_sets` selects on. This
+# script asked the question in its own code at first; on this corpus the two agree exactly (the
+# same 421 pairs, the same 170 delivered), so sharing it changes no figure here and removes the way
+# this report could drift from the run it reports on.
 def audit(path: pathlib.Path, cfg, tpl, settings, grade_all: bool) -> dict:
-    from app.services import line_item_llm, line_item_requests
+    from app.services import line_item_llm, line_item_notes
     from app.services.documents import run_extraction
     from app.services.working_view import build_working_view
 
@@ -134,7 +110,7 @@ def audit(path: pathlib.Path, cfg, tpl, settings, grade_all: bool) -> dict:
         item = by_key.get(key)
         if item is None:
             continue
-        declared = _declared_notes(item, notes)
+        declared = set(line_item_notes.declared_notes(item, notes))
         got = carried.get(key, set()) & named.get(key, set())
         named_only = named.get(key, set()) - carried.get(key, set())
         if not getattr(getattr(item, "note_source", None), "note_title_any", None):

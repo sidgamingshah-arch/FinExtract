@@ -70,7 +70,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from app.services.note_context import ContextPool, ContextUnit, subject_tokens
+from app.services.note_context import (ContextPool, ContextUnit, matches_title,
+                                       subject_tokens)
 
 
 @dataclass(frozen=True)
@@ -233,7 +234,12 @@ def _blended(item, parent=None) -> str:
         (getattr(item, "label", "") or ""),
         (getattr(item, "definition", "") or ""),
     ]
-    parts.extend(str(x) for x in (getattr(item, "include", None) or ()))
+    # `include` IS NOT A FIELD. It was `include_criteria`, removed from the schema with the measured
+    # reason recorded at `schemas/line_items.py` — 441 of 539 lines declared it and 375 of those
+    # held one GENERATED sentence restating the label this probe already scores. The read survived
+    # the removal, so this line contributed nothing to any probe on any of the 549 shipped items
+    # while reading like a third input to the blend. Verified before deleting: the field is absent
+    # from `LineItemDef.model_fields` and no item carries the attribute, so no probe changes.
     parts.extend(str(a) for a in (getattr(item, "aliases", None) or ()))
     by_locale = getattr(item, "aliases_i18n", None) or {}
     if hasattr(by_locale, "items"):
@@ -444,6 +450,51 @@ def cited_notes(doc) -> dict[str, tuple[str, ...]]:
     return {key: tuple(values) for key, values in out.items()}
 
 
+def declared_notes(item, notes) -> tuple[str, ...]:
+    """The notes of THIS filing that the line's own `note_title_any` names, in printed order.
+
+    ONE PREDICATE, because three places ask this question and each used to answer it in its own
+    code. `note_context.identified_notes` decides on it which note's TEXT is attached to a request;
+    `note_sets` (below) decides on it which notes a line's request NAMES; and
+    `scripts/note_context_to_llm.py` reports the gap between those two. A report that can disagree
+    with the code it reports on is the thing being removed here — not a disagreement that was
+    measured. `note_context_to_llm` searched the raw heading rather than going through
+    `matches_title`, which on this corpus claims exactly the same 421 (line, note) pairs; the
+    enumerator forms that separate the two (see `_LEAD`) do not occur in any DECLARED note's
+    heading on these five filings. So this is a deduplication, and the report's figures before and
+    after it are the same figures.
+
+    THE NUMBER IS MATCHED TOO, and not as a convenience: patterns written to key off an enumerated
+    note ("^7$") are how several declarations name a disclosure whose heading the filing does not
+    print in a form any pattern could anchor. Both halves mirror `identified_notes` exactly.
+    """
+    src = getattr(item, "note_source", None)
+    raw = list(getattr(src, "note_title_any", None) or ()) if src is not None else []
+    if not raw:
+        return ()
+    pats = []
+    for pattern in raw:
+        try:
+            pats.append(re.compile(pattern, re.IGNORECASE))
+        except re.error:
+            # UNREACHABLE THROUGH A LOADED SET — `schemas.line_items.NoteSource` refuses a pattern
+            # that will not compile, which `tests/test_a_declared_note_reaches_its_own_line.py`
+            # asserts rather than asserting this branch. Kept for symmetry with
+            # `note_context.identified_notes`, which compiles the same field the same way.
+            continue
+    if not pats:
+        return ()
+    out: list[str] = []
+    for table in notes or ():
+        number = str(getattr(table, "note_number", "") or "")
+        if not number or number in out:
+            continue
+        title = str(getattr(table, "title", "") or "")
+        if any(matches_title(p, title) or p.search(number) for p in pats):
+            out.append(number)
+    return tuple(out)
+
+
 def note_sets(items, notes, *, min_score: float = MIN_SCORE,
               cap: int = 4, cited: dict[str, tuple[str, ...]] | None = None
               ) -> dict[str, list[NoteHit]]:
@@ -494,10 +545,85 @@ def note_sets(items, notes, *, min_score: float = MIN_SCORE,
         first = [NoteHit(note=num, title=titles.get(num, ""), score=1.0, via="cited")
                  for num in ((cited or {}).get(item.key, ()) if wants_citation else ())
                  if num in titles][:cap]
-        scored = [h for h in notes_for_line_item(item, pool, min_score=min_score, cap=cap,
-                                                 parent=parent)
-                  if h.note not in {c.note for c in first}]
-        hits = (first + scored)[:cap]
+        # THE LINE'S OWN DECLARATION, AHEAD OF THE CITATION AND AHEAD OF EVERY PROBE.
+        #
+        # THE ASYMMETRY THIS CLOSES, and it is the codebase's own reasoning applied on the side
+        # that had not had it. `note_context.identified_notes` attaches a pattern-claimed note's
+        # TEXT UNCONDITIONALLY and exempts it from `_SEMANTIC_NOTE_BUDGET`, because "an author
+        # declared it, which is a stronger statement than any score" — and it ranks the filing's
+        # printed citation BELOW that, inside the budget. This function did the reverse: the
+        # citation took the one priority slot and ~650 authored `note_title_any` patterns took
+        # none, reaching a line's own set only where their vocabulary happened to fall out of
+        # `note_probe`. `line_item_llm.build_request` then INTERSECTS the two, so a note admitted
+        # on the declaration's authority could be absent from the request of the line that
+        # declared it. That is not a ranking preference, it is the two halves of one decision
+        # disagreeing.
+        #
+        # MEASURED, with `scripts/note_context_to_llm.py` over the five reference filings: 170 of
+        # 421 (line, declared note) pairs reached the model before this, and 21 lines were sent
+        # notes while the note they declare — present in that filing, admitted to
+        # `identified_notes` — was held out. Every one of the 21 is a depreciation part: kaming
+        # hands the five of them note 9 and note 14 while all five declare note 15.
+        #
+        # IT IS EXEMPT FROM `cap` RATHER THAN COMPETING FOR IT, and that is not generosity, it is
+        # the measured correction to the first version of this. Promoting the declaration INTO the
+        # cap displaced 6 scored notes on the reference filing, and one of the 6 was the whole
+        # defect: `sub__ga_depreciation` declares the ASSET notes — 投资性房地产, 固定资产, 在建工程,
+        # where depreciation is charged FROM — and those three plus the pooled 七、1 filled all
+        # four slots and evicted 七、64 管理费用, scored 1.000, the note that actually PRINTS the
+        # G&A depreciation line. A declaration naming where a charge originates is not a
+        # declaration that the functional split is not printed somewhere else, so the two belong
+        # in one set and neither may push the other out.
+        #
+        # THE COST IS BOUNDED BY WHAT IS ALREADY ATTACHED. `note_context.identified_notes` carries
+        # every pattern-claimed note's TEXT unconditionally and exempt from `_SEMANTIC_NOTE_BUDGET`
+        # already; `line_item_llm.build_request` intersects that with the line's set, so a note
+        # named here is a note the document-level block was already built to carry. That is the
+        # same asymmetry read the other way round: this side was the one refusing what the other
+        # side had already paid for. Measured across the five filings the sets grow 586 -> 617
+        # note-slots on the reference filing, mean 2.74 -> 2.88 per line, and nothing is displaced.
+        #
+        # WHAT IT DOES NOT FIX, stated because the figure moves and could be read as this change's
+        # doing: some named notes arrive as an entry with NO rows and NO prose — 38 of 206 named
+        # pairs on the reference filing, 35 of 285 on 000709, 0 of 116 on 1966. The note entry
+        # travels, the note's body does not, because the extracted table carries no items. Naming
+        # more declared notes therefore raises the count of such entries (28 lines -> 33 on 000709)
+        # without any of them being a note this function withheld. It is an extraction gap on the
+        # CAS filings, and `scripts/note_context_to_llm.py` reports it on its own line.
+        #
+        # `note_selection: any` DOES NOT DECLINE THIS. That field says a line's printed reference
+        # is not to be trusted ahead of a score, which is a statement about the FILING's claim;
+        # `identified_notes` records that it "no longer gates" the pattern pass, and a line whose
+        # author wrote the pattern and then declined to prefer it would be declaring two opposite
+        # things. 539 of 539 shipped lines declare neither value, so nothing shipped reads
+        # differently either way.
+        # THE DECLARATION DECIDES MEMBERSHIP; THE SCORE STILL DECIDES ORDER. Measured, and the
+        # second correction to this: ordering the declared notes as the document PRINTS them made
+        # 七、2 作為出租人 — a lessor note, claimed through a pooled note key — the FIRST note for
+        # `sub__ltp_nc_portion_of_fincl_asset_notes` and its three siblings, ahead of 七、18
+        # 其他權益工具投資, which the probe scores 0.723 and which is the disclosure they are about.
+        # On the spy route, which cites the first note's total line, that alone took the long-term
+        # securities column from 575,243,925.97 — the printed figure — to 8,629,412,600.11 and put
+        # `section_reconciliation:bs_nca` out by 8.05bn in both periods. Printed order is not an
+        # opinion about relevance and must not be allowed to act as one.
+        #
+        # SO THE SCORING PASS IS RUN UNCAPPED AND UNFLOORED, once, and used twice: to rank the
+        # declared notes among themselves, and — floored and capped exactly as before — as the
+        # scored contribution. A declared note the probe scores nothing for keeps its place and
+        # sorts last among the declared, which is the honest ranking for it.
+        ranked = notes_for_line_item(item, pool, min_score=0.0, cap=len(notes or ()) or cap,
+                                     parent=parent)
+        rank = {h.note: (i, h.score) for i, h in enumerate(ranked)}
+        declared = sorted(
+            (NoteHit(note=num, title=titles.get(num, ""), score=1.0, via="declared")
+             for num in declared_notes(item, notes) if num not in {c.note for c in first}),
+            key=lambda h: rank.get(h.note, (len(ranked), 0.0))[0])
+        held = {h.note for h in first} | {h.note for h in declared}
+        scored = [h for h in ranked if h.score >= min_score and h.note not in held][:cap]
+        # THE CITED/SCORED TRADE IS UNTOUCHED — `first + scored` is still bounded by `cap`, so a
+        # citation still displaces the lowest-scoring note and `note_sets`' behaviour on a line
+        # that declares nothing is byte-for-byte what it was.
+        hits = declared + (first + scored)[:cap]
         # WIDEN BY CONTENT WHEN THE HEADER SEARCH CAME UP SHORT — see `WIDEN_BELOW`. The header
         # route asks which HEADING is about this line; when its best answer is not one it would
         # itself call a true match, the other question is worth asking: which note in this document
@@ -507,9 +633,9 @@ def note_sets(items, notes, *, min_score: float = MIN_SCORE,
         # author's own statement of subject and outranks a row match on evidence; what widening
         # adds is reach where that statement was not found. The cap still bounds the total, so a
         # line with four confident headings widens to nothing extra.
-        # READ OFF THE SCORED HITS, NOT OFF `hits`. A cited note enters with score 1.0, so asking
-        # `hits` would report a confident header match on every line the filing cites and switch
-        # widening off — for the lines most likely to need it, since a citation and a thin probe
+        # READ OFF THE SCORED HITS, NOT OFF `hits`. A cited or declared note enters with score
+        # 1.0, so asking `hits` would report a confident header match on every line the filing
+        # cites or the configuration declares for, and switch widening off — for the lines most likely to need it, since a citation and a thin probe
         # often go together. The question widening answers is still "did the HEADER search come up
         # short", and only the header search can answer it.
         best = max((h.score for h in scored), default=0.0)
