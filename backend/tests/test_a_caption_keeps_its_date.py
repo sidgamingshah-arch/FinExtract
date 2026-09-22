@@ -124,9 +124,16 @@ def _note_with(rows: list[tuple[str, str]]) -> NotesTable:
 def test_a_citation_of_the_closing_balance_no_longer_lands_on_the_opening_one():
     """THE CONSEQUENCE, at the resolver — the reason the label matters at all.
 
-    With the dates present a citation resolves to the row it names. The control below shows what
-    this test would have measured before: given three rows all captioned "At", the same citation
-    resolves to the first, because "at" is contained in "at31december2024".
+    With the dates present a citation resolves to the row it names.
+
+    AND THE TRUNCATED SHAPE IS NOW REFUSED RATHER THAN MISRESOLVED, which is the second half of
+    the same defect closed from the other end. This control used to assert the old behaviour —
+    three rows captioned "At", a citation of "At 31 December 2024" landing on the first of them —
+    as the measurement of what the repair fixed. `_caption_matches` now refuses a containment
+    match where the printed caption is less than half the citation, so that shape resolves to
+    nothing instead of to the wrong row. Both directions are asserted here because either alone
+    leaves the other's failure reachable: the label repair does not help a filing whose captions
+    are truncated for some other reason, and the specificity floor does not recover the date.
     """
     from app.services.mapping import SourceRef
 
@@ -139,8 +146,9 @@ def test_a_citation_of_the_closing_balance_no_longer_lands_on_the_opening_one():
     assert [str(r["caption"]) for r in resolved] == ["At 31 December 2024"]
 
     truncated = [_note_with([("At", "348074"), ("At", "2047294"), ("At", "1885020")])]
-    was, _ = resolve_sources(
+    was, why = resolve_sources(
         [SourceRef(note="51", caption="At 31 December 2024")], truncated, None, allow_face=False)
-    assert was and str(was[0]["caption"]) == "At", (
-        "the truncated shape must still be reachable, or this test is not measuring the "
-        "difference the repair makes")
+    assert not was, (
+        "a two-character caption must no longer answer a citation seventeen characters long — "
+        f"it resolved to {[str(r['caption']) for r in was]}")
+    assert why, "and the refusal has to be reported, not dropped"

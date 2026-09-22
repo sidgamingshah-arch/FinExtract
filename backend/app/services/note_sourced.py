@@ -662,6 +662,52 @@ def bad_patterns(item) -> list[str]:
 
 # ── resolving what the MODEL cited ────────────────────────────────────────────────────────────
 
+# HOW MUCH OF THE LONGER STRING THE SHORTER ONE HAS TO BE, for a containment match to count.
+#
+# 0.5 rather than a character floor, and the distinction matters. A filing prints "合计" and "Total"
+# as whole captions, so ANY absolute minimum length would refuse a model citing one of those
+# EXACTLY — the commonest citation there is. A ratio does not care how short a caption is, only
+# whether the two strings are comparable in length, which is the actual question.
+_CAPTION_SPECIFICITY = 0.5
+
+
+def _caption_matches(want: str, cap_norm: str) -> bool:
+    """Whether a cited caption and a printed one are the same row's, both already normalised.
+
+    THE RULE WAS CONTAINMENT EITHER WAY, which is right for what it was written for and unbounded
+    in the one direction that bites. `resolve_sources` says it is "deliberately forgiving on
+    punctuation and strict on words": a filing prints "Depreciation of property, plant and
+    equipment^" and a model quoting it may drop the footnote marker or a comma, and neither changes
+    which row is meant. Containment allows that.
+
+    BUT A SHORT CAPTION IS CONTAINED IN ALMOST ANYTHING. Measured on 2025041600195, a citation of
+    `nowhere in this note` — a phrase naming no row at all — RESOLVED, to a figure of 355: it
+    normalises to `nowhereinthisnote`, and note 51 has rows captioned `Note`, `In` and `No`, each a
+    substring of it. The corpus carries 1,744 captions of three normalised characters or fewer
+    (mostly two-character CJK fragments off pages whose text layer came out shredded), so every one
+    of them is a wildcard that can answer a citation meant for another row. The same rule is what
+    made a correct citation of `At 31 December 2024` resolve to a row captioned `At`.
+
+    AND A WRONG RESOLUTION IS WORSE THAN NO RESOLUTION HERE, which is why this is a refusal rather
+    than a ranking. `resolve_sources`' own contract is that "a citation that resolves to nothing is
+    returned as unresolved, not dropped and not believed", and the caller "keeps the mapping and
+    flags it". A match that resolves to the wrong row skips all of that and publishes a figure with
+    a citation behind it that a reviewer has no reason to doubt.
+
+    EXACT EQUALITY ALWAYS PASSES, whatever the length. That is what keeps a citation of `合计`,
+    `Total` or `At` against a row of the same name working, and confines the floor to the case it
+    is for: one string standing in for a much longer other.
+    """
+    if not want or not cap_norm:
+        return False
+    if want == cap_norm:
+        return True
+    if not (want in cap_norm or cap_norm in want):
+        return False
+    shorter, longer = sorted((len(want), len(cap_norm)))
+    return shorter >= _CAPTION_SPECIFICITY * longer
+
+
 def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                     pages=None, allow_pages: bool = False) -> tuple[list[dict], list[dict]]:
     """Match each citation the model gave against the extracted rows. Returns (resolved, unresolved).
@@ -750,12 +796,11 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                 continue
             on_page = next(((pg, cap, row) for pg, cap, row in (pages or ())
                             if int(pg) == int(want_page) and want_cap
-                            and ((got := norm(cap)) and (want_cap in got or got in want_cap))),
+                            and _caption_matches(want_cap, norm(cap))),
                            None)
             if on_page is None:
                 elsewhere = sorted({int(pg) for pg, cap, _r in (pages or ())
-                                    if want_cap and (g := norm(cap))
-                                    and (want_cap in g or g in want_cap)
+                                    if _caption_matches(want_cap, norm(cap))
                                     and int(pg) != int(want_page)})
                 unresolved.append({
                     "at": at, "note": "", "statement": "", "page": int(want_page),
@@ -811,15 +856,15 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
         if want_stmt and not want_note:
             on_face = next(((st, cap, row) for st, cap, row in face_rows
                             if st == want_stmt and want_cap
-                            and ((got := norm(cap)) and (want_cap in got or got in want_cap))),
+                            and _caption_matches(want_cap, norm(cap))),
                            None)
             if on_face is None:
                 # EMPTY IS NOT A STATEMENT. A face row whose page resolved none carries "", and
                 # reporting it read "it is on " with nothing after it — a diagnostic worse than
                 # none, because it asserts the caption was found somewhere nameable.
                 elsewhere = sorted({st for st, cap, _r in face_rows
-                                    if st and want_cap and (g := norm(cap))
-                                    and (want_cap in g or g in want_cap) and st != want_stmt})
+                                    if st and _caption_matches(want_cap, norm(cap))
+                                    and st != want_stmt})
                 unresolved.append({
                     "at": at, "note": "", "statement": want_stmt,
                     "caption": getattr(ref, "caption", ""), "quote": quote,
@@ -860,8 +905,7 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
             for number, caption, row, table in rows:
                 if want_note and want_note not in number and number not in want_note:
                     continue
-                got = norm(caption)
-                if got and (want_cap in got or got in want_cap):
+                if _caption_matches(want_cap, norm(caption)):
                     hit = (number, caption, row, table)
                     break
         if hit is None:
@@ -870,10 +914,26 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
             # place it is allowed to — and the amount is VERIFIED against the note's own text
             # before it is accepted, which is what makes it a located figure rather than a
             # supplied one.
+            #
+            # THE NOTE'S OWN TEXT AND NOTHING ELSE. The witness used to be
+            # `source_text + " " + quote`, and the quote is the MODEL'S — so an amount that
+            # appeared nowhere in the filing was accepted as long as the sentence the model typed
+            # around it contained the digits. That is self-certification standing where the
+            # docstring below promises "the number must be demonstrably printed".
+            #
+            # ACROSS EVERY FRAGMENT, for the reason `_notes_by_number` records: note 51 of
+            # 2025041600195 arrives as eight tables and only the eighth states the figure, so
+            # asking one of them answers no about a note that says yes.
             stated = str(getattr(ref, "amount", "") or "").strip()
-            table = _note_by_number(notes, want_note)
-            if stated and table is not None:
-                found = _amount_in_text(stated, (getattr(table, "source_text", "") or "") + " " + quote)
+            fragments = _notes_by_number(notes, want_note)
+            if stated and fragments:
+                witness = "\n".join(getattr(t, "source_text", "") or "" for t in fragments)
+                found = _amount_in_text(stated, witness)
+                # The page comes from the fragment that actually states it, so click-to-source
+                # lands on the sentence rather than on the note's first page.
+                table = next((t for t in fragments
+                              if _amount_in_text(stated, getattr(t, "source_text", "") or "")
+                              is not None), fragments[0])
                 if found is not None:
                     resolved.append({
                         "at": at,
@@ -919,17 +979,37 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
     return resolved, unresolved
 
 
-def _note_by_number(notes, number: str):
-    """The note a citation names. Matched loosely because a PRC note number is chapter-qualified
-    ("七、9") and a model may cite either half."""
+def _notes_by_number(notes, number: str) -> list:
+    """EVERY fragment of the note a citation names, not the first one.
+
+    A NOTE ARRIVES IN FRAGMENTS — `line_item_notes` records one filing's note 1 arriving as 32
+    tables — and a prose figure is verified against the note's own text, so which fragment answers
+    decides whether a true citation is believed. Measured on 2025041600195: note 51 arrives as 8
+    fragments, pages 170-177, and only the EIGHTH carries "1,885,020" in its `source_text`. Asking
+    the first one whether the note states that figure answers no about a note that states it.
+
+    That was invisible while the witness also included the model's own `quote`, because the quote
+    carried the digits and the check passed on the model's word. Verifying against the note alone
+    is what exposed it, which is the argument for verifying against the note alone.
+
+    Matched loosely for the reason the single-fragment version gave: a PRC note number is
+    chapter-qualified ("七、9") and a model may cite either half.
+    """
     want = (number or "").strip()
     if not want:
-        return None
+        return []
+    out = []
     for table in notes or ():
         got = str(getattr(table, "note_number", "") or "")
         if got and (want in got or got in want):
-            return table
-    return None
+            out.append(table)
+    return out
+
+
+def _note_by_number(notes, number: str):
+    """The first fragment of the note a citation names, for the callers that want one table."""
+    found = _notes_by_number(notes, number)
+    return found[0] if found else None
 
 
 def _prose_provenance(table) -> dict | None:
