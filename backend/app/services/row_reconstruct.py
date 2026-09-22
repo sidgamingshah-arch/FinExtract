@@ -629,6 +629,86 @@ def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True) -> t
     return label_words, note_ref, value_words
 
 
+# A TOKEN THAT IS PART OF A DATE, not a figure.
+#
+# OWNED HERE because `_scan_row` above is what mis-reads one, and this module is the lower of the
+# two — `services.notes_extract` imports from it and not the other way round. It lived there, next
+# to `_period_anchors`, with the mechanism already written down: "a date's own numerals are read as
+# values: on right-of-use note 16 the row 'As at 31 December 2024' reaches `_scan_row` as the label
+# 'As at' and the values 31 and 2024, so the caption loses its year". That note described the bug
+# and the anchor pass worked around it locally; the caption itself was left broken.
+DATE_TOKEN = re.compile(
+    r"^(?:\d{1,2}(?:st|nd|rd|th)?|(?:19|20)\d{2}"
+    r"|jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?"
+    r"|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?"
+    r"|\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}|年|月|日)$", re.I)
+
+# A LABEL THAT IS NOTHING BUT A PERIOD PREFIX — the state a date-bearing caption is left in.
+#
+# FULLY ANCHORED ON PURPOSE. "At" and "As at" are what survive when the date is eaten; "At 1 January
+# 2023" would not reach here because nothing was lost from it. So this fires only where the label
+# stops exactly where a date begins, which is the one shape the repair is for.
+_PERIOD_ONLY_LABEL = re.compile(
+    r"^\s*(?:as\s+at|at|balance\s+(?:at|as\s+at)|for\s+the\s+(?:year|period)\s+ended?"
+    r"|(?:year|period)\s+ended?)\s*[:\-–]?\s*$"
+    r"|^\s*(?:於|于|截至)\s*$", re.I)
+
+
+def _label_keeping_its_date(row: list[Word], label_words: list[Word],
+                            value_words: list[Word], fmt=None) -> list[Word]:
+    """Give a period-prefixed caption its date back, leaving the VALUES untouched.
+
+    THE DEFECT, measured. `_scan_row` sends every numeric token to the values and DROPS any
+    non-numeric token that follows one, because text after the first number is neither label nor
+    value. On the Level 3 reconciliation of 2025041600195 note 51 that turns three distinct rows
+    into three identical ones:
+
+        printed                     caption   values
+        At 1 January 2023           'At'      7,939   340,135   348,074
+        At 31 December 2023         'At'      7,731   1,637,000  402,563  2,047,294
+        At 31 December 2024         'At'      7,478   1,637,000  240,542  1,885,020
+
+    ("December" is not merely misfiled, it is discarded: it is non-numeric and the values have
+    already started.)
+
+    WHY THAT IS WORSE THAN COSMETIC. A model answer is a CITATION — "Do NOT state a figure. You are
+    locating a printed number, not reporting one" — and `note_sourced.resolve_sources` matches the
+    cited caption back against these rows by containment either way after punctuation is stripped.
+    `At 31 December 2024` normalises to `at31december2024`, the row's caption to `at`, and `at` is
+    contained in it, so a CORRECT citation resolves to the FIRST of the three and publishes 348,074,
+    the opening balance of the comparative year. It resolves, so it is not reported as unresolved:
+    the answer is wrong and confident. Measured before this change, no citation reached 1,885,020.
+    The same truncation disarms the guard written against it — `sub__fa_cp_level_3_total` refuses a
+    closing balance with `^\\s*at\\s+\\d`, which a bare "At" cannot match.
+
+    THE VALUES ARE DELIBERATELY NOT TOUCHED. Only the label's TEXT is rebuilt, so the value list,
+    the column geometry inferred from it, and `notes_extract._is_heading`'s `if values: return None`
+    guard all see exactly what they saw before. That is what bounds this change: a date numeral
+    still travels in `value_words` and is still dropped downstream by the column bands, as it
+    already was.
+
+    THE RULE IS `_period_anchors`', APPLIED WHERE IT WAS MISSING. That function already had to solve
+    this to find a note's period blocks, and its comment states the rule: "THE CAPTION IS THE ROW
+    WITHOUT ITS FIGURES — and WITH its date, wherever the date landed. Reading the whole row would
+    put a closing balance's six class amounts in the caption ...; reading only the label words would
+    drop the date on a narrow table ... Excluding exactly the real figures is the one rule that
+    holds for both." It used that to read an anchor and threw the caption away. This keeps it.
+    """
+    if not label_words or not value_words:
+        return label_words
+    if not _PERIOD_ONLY_LABEL.match(_join_words(label_words)):
+        return label_words
+    figures = [w for w in value_words
+               if not DATE_TOKEN.match(w.text.strip().strip(",.()"))]
+    if len(figures) == len(value_words):
+        # Nothing among the values was part of a date, so nothing was lost and there is no repair
+        # to make. A row reading "At  7,939" keeps the caption it already had.
+        return label_words
+    skip = {id(w) for w in figures}
+    kept = [w for w in sorted(row, key=lambda w: w.bbox.x0) if id(w) not in skip]
+    return kept or label_words
+
+
 def _row_box(row: list[Word]) -> BBox:
     b = row[0].bbox
     for w in row[1:]:
@@ -3951,6 +4031,10 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             if merged_banner:
                 section = merged_banner
                 group = ""
+        # AFTER the banner split, so a banner just merged out of the label cannot be pulled back in
+        # by rebuilding from the whole row; BEFORE the join, because it is the label's WORDS this
+        # repairs. See `_label_keeping_its_date` for the measurement.
+        label_words = _label_keeping_its_date(row, label_words, value_words, number_format)
         label = _join_words(_regroup_scripts(label_words))
 
         # A FIGURE WITH NO CAPTION, DIRECTLY UNDER A BLOCK IT TOTALS.

@@ -15,7 +15,8 @@ from decimal import Decimal
 from app.core.models.enums import Basis, LineRole
 from app.core.models.line_item import NoteItem, NotesTable
 from app.services.row_reconstruct import (
-    GRID_FLAG, ColumnGrid, Word, _group_rows, _scan_row, build_line_items, row_tolerance)
+    DATE_TOKEN, GRID_FLAG, ColumnGrid, Word, _group_rows, _scan_row, build_line_items,
+    row_tolerance)
 
 # "Note 15: Trade receivables", "Note 15 Trade receivables", "15. Trade receivables"
 #
@@ -704,11 +705,13 @@ _TOTAL_TOLERANCE = 0.005
 # 15 keeps the same date inside its label, because its label column is wide enough to hold it. The
 # anchor text is therefore read off the WHOLE row, and a row "carries figures" only where something
 # survives this filter.
-_DATE_TOKEN = re.compile(
-    r"^(?:\d{1,2}(?:st|nd|rd|th)?|(?:19|20)\d{2}"
-    r"|jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?"
-    r"|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?"
-    r"|\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}|年|月|日)$", re.I)
+#
+# THE PATTERN NOW LIVES WITH `_scan_row`, the function that mis-reads a date in the first place, and
+# is imported rather than restated — `row_reconstruct.DATE_TOKEN`. Two copies of this vocabulary
+# would drift, and the repair that gives a caption its date back
+# (`row_reconstruct._label_keeping_its_date`) has to agree with the anchor pass below about which
+# tokens are a date, or a row could be anchored to a period whose text its caption does not carry.
+_DATE_TOKEN = DATE_TOKEN
 
 
 def _period_anchors(rows: list[list[Word]], fmt=None) -> list[tuple[float, int, bool]]:
