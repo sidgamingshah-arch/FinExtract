@@ -39841,11 +39841,16 @@
    "face_only": false,
    "match_priority": 80,
    "aliases": [
+    "Investments",
+    "Investment securities",
     "交易性金融资产",
     "交易性金融資產"
    ],
    "aliases_i18n": {
-    "en": [],
+    "en": [
+     "Investments",
+     "Investment securities"
+    ],
     "zh": [
      "交易性金融资产",
      "交易性金融資產"
