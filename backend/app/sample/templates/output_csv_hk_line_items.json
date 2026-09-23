@@ -995,7 +995,7 @@
    "key": "bs_nca__gross_fixed_assets",
    "exclude_criteria": [],
    "label": "Gross Fixed Assets",
-   "definition": "Calculated target using the exact formula retained in the supplied template: =SUM({bs_nca__land}:{bs_nca__construction_in_progress})",
+   "definition": "The subtotal the filing PRINTS as 'Gross Fixed Assets', reported in the non-current assets section of the balance sheet. It is the sum of Land, Buildings, Leasehold Improvements, Plant & Equipment, Furniture & Fixtures, Vehicles & Transport Equipment, Other Fixed Assets and Construction in Progress. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Gross Fixed Assets"
@@ -2768,7 +2768,7 @@
    "key": "bs_nca__total_non_current_assets",
    "exclude_criteria": [],
    "label": "Total Non-Current Assets",
-   "definition": "Calculated target using the exact formula retained in the supplied template: ={bs_nca__net_fixed_assets}+{bs_nca__net_intangibles}+SUM({bs_nca__investment_property_net}:{bs_nca__restricted_cash})",
+   "definition": "The subtotal the filing PRINTS as 'Total Non-Current Assets', reported in the non-current assets section of the balance sheet. It is the sum of Net Fixed Assets, Net Intangibles, Investment Property(Net), Investment in Subsidiaries, Investments in Associates, Invest in JVs & Partnerships, Entrusted loan receivables- related parties(LTP), Due from directors and and 26 more. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Total Non-Current Assets",
@@ -3069,7 +3069,7 @@
    "key": "bs_ca__inventories",
    "exclude_criteria": [],
    "label": "Inventories",
-   "definition": "Calculated target using the exact formula retained in the supplied template: =SUM({bs_ca__raw_materials}:{bs_ca__finished_goods})",
+   "definition": "The subtotal the filing PRINTS as 'Inventories', reported in the current assets section of the balance sheet. It is the sum of Raw materials, WIP and Finished goods. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Inventories"
@@ -4951,7 +4951,7 @@
    "key": "bs_ca__net_trade_receivables",
    "exclude_criteria": [],
    "label": "Net Trade Receivables",
-   "definition": "Calculated target using the exact formula retained in the supplied template: ={bs_ca__trade_receivables_gross}+{bs_ca__allow_for_doubtful_accounts}",
+   "definition": "The subtotal the filing PRINTS as 'Net Trade Receivables', reported in the current assets section of the balance sheet. It is the sum of Trade Receivables(Gross) and Allow for Doubtful Accounts(-). Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Net Trade Receivables"
@@ -5364,7 +5364,7 @@
    "key": "bs_ca__total_current_assets",
    "exclude_criteria": [],
    "label": "Total Current Assets",
-   "definition": "Calculated target using the exact formula retained in the supplied template: ={bs_ca__operating_lease_receivables}+{bs_ca__inventories}+SUM({bs_ca__due_from_jvs_and_partnerships}:{bs_ca__trade_and_other_receivables})+{bs_ca__net_trade_receivables}+SUM({bs_ca__subscribed_capital_called_not_paid}:{bs_ca__cash_in_hand_and_at_banks})",
+   "definition": "The subtotal the filing PRINTS as 'Total Current Assets', reported in the current assets section of the balance sheet. It is the sum of Operating Lease Receivables, Inventories, Due from JVs & Partnerships, Entrusted loan receivables- related parties(CP), Due from Related Parties(CP), Entrusted loan receivables- shareholders(CP), Due from S'holder(CP), Short Term Securities and and 31 more. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Total Current Assets",
@@ -5564,7 +5564,7 @@
    "key": "bs_ca__total_assets",
    "exclude_criteria": [],
    "label": "Total Assets",
-   "definition": "Calculated target using the exact formula retained in the supplied template: ={bs_nca__total_non_current_assets}+{bs_ca__total_current_assets}",
+   "definition": "The subtotal the filing PRINTS as 'Total Assets', reported in the current assets section of the balance sheet. It is the sum of Total Non-Current Assets and Total Current Assets. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Total Assets"
@@ -5808,7 +5808,7 @@
    "key": "bs_equity__permanent_equity",
    "exclude_criteria": [],
    "label": "Permanent Equity",
-   "definition": "Calculated target using the exact formula retained in the supplied template: =SUM({bs_equity__common_share_capital}:{bs_equity__capital_and_restricted_reserves})",
+   "definition": "The subtotal the filing PRINTS as 'Permanent Equity', reported in the equity section of the balance sheet. It is the sum of Common Share Capital, Pref Share Capital, Share Premium, Special Items with Equity Character and Capital & Restricted Reserves. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Permanent Equity"
@@ -5996,7 +5996,7 @@
    "key": "bs_equity__retained_profits",
    "exclude_criteria": [],
    "label": "Retained Profits",
-   "definition": "Calculated target using the exact formula retained in the supplied template: ={bs_ca__total_assets}-{bs_ncl__total_non_current_liabilities}-{bs_cl__total_current_liabilities}-{bs_equity__minority_interest_equity}-{bs_equity__permanent_equity}-SUM({bs_equity__revaluation_reserves}:{bs_equity__auditor_adj_on_retained_profits})-SUM({bs_equity__treasury_shares}:{bs_equity__accum_oth_eqty_rsrv_inc})",
+   "definition": "The subtotal the filing PRINTS as 'Retained Profits', reported in the equity section of the balance sheet. It is the sum of Revaluation Reserves, Hedging Reserves, Other Reserves and Auditor adj on retained profits. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Retained Profits",
@@ -6315,7 +6315,7 @@
    "key": "bs_equity__total_equity_and_reserves",
    "exclude_criteria": [],
    "label": "Total Equity & Reserves",
-   "definition": "Calculated target using the exact formula retained in the supplied template: =B126+{bs_equity__minority_interest_equity}",
+   "definition": "The subtotal the filing PRINTS as 'Total Equity & Reserves', reported in the equity section of the balance sheet. It is the sum of Permanent Equity, Retained Profits, Treasury Shares(-), Forex Translation Equity, Subordinated Debt from related parties, Subordinated Debt Equity, Other Equity, Policyholders Equity and and 2 more. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Total Equity & Reserves",
@@ -7689,7 +7689,7 @@
    "key": "bs_ncl__total_non_current_liabilities",
    "exclude_criteria": [],
    "label": "Total Non-Current Liabilities",
-   "definition": "Calculated target using the exact formula retained in the supplied template: =SUM({bs_ncl__ltd_bank}:{bs_ncl__other_provisions_ltp})",
+   "definition": "The subtotal the filing PRINTS as 'Total Non-Current Liabilities', reported in the non-current liabilities section of the balance sheet. It is the sum of LTD Bank, Entrusted loan payables- third parties(LTP), Perpetual Bond, Repo(LTP), LTD Other, LTD Convertible, LTD Subordinated, Finance Leases(LTP) and and 27 more. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Total Non-Current Liabilities"
@@ -9538,7 +9538,7 @@
    "key": "bs_cl__total_current_liabilities",
    "exclude_criteria": [],
    "label": "Total Current Liabilities",
-   "definition": "Calculated target using the exact formula retained in the supplied template: =SUM({bs_cl__cpltd_bank}:{bs_cl__other_provisions_cp})",
+   "definition": "The subtotal the filing PRINTS as 'Total Current Liabilities', reported in the current liabilities section of the balance sheet. It is the sum of CPLTD Bank, Entrusted loan payables- third parties(CP), CPLTD Other, CPLTD Convertible, CPLTD Subordinated, Trade financing, ST Bank Loans Payable, IPO Loans (ST Bank Loans Pay) and and 42 more. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Total Current Liabilities"
@@ -9775,7 +9775,7 @@
    "key": "bs_cl__total_liabilities",
    "exclude_criteria": [],
    "label": "Total Liabilities",
-   "definition": "Calculated target using the exact formula retained in the supplied template: ={bs_ncl__total_non_current_liabilities}+{bs_cl__total_current_liabilities}",
+   "definition": "The subtotal the filing PRINTS as 'Total Liabilities', reported in the current liabilities section of the balance sheet. It is the sum of Total Non-Current Liabilities and Total Current Liabilities. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Total Liabilities"
@@ -9825,7 +9825,7 @@
    "key": "bs_cl__total_equity_and_liabilities",
    "exclude_criteria": [],
    "label": "Total Equity and Liabilities",
-   "definition": "Calculated target using the exact formula retained in the supplied template: ={bs_equity__total_equity_and_reserves}+{bs_cl__total_liabilities}",
+   "definition": "The subtotal the filing PRINTS as 'Total Equity and Liabilities', reported in the current liabilities section of the balance sheet. It is the sum of Total Equity & Reserves and Total Liabilities. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Total Equity and Liabilities"
@@ -10235,7 +10235,7 @@
    "key": "is_pl__total_cost_of_sales",
    "exclude_criteria": [],
    "label": "Total Cost of Sales",
-   "definition": "Calculated target using the exact formula retained in the supplied template: =SUM({is_pl__derivatives_cos}:{is_pl__deprec_and_impairment_cos})",
+   "definition": "The subtotal the filing PRINTS as 'Total Cost of Sales', reported in the statement of profit and loss. It is the sum of Derivatives(COS), Cost of Sales, Net Claims and Benefits, Goods & Services, Material Expenses, Amort & Impairment(Intgbl)(COS) and Deprec & Impairment(COS). Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Total Cost of Sales"
@@ -10305,7 +10305,7 @@
    "key": "is_pl__gross_profit",
    "exclude_criteria": [],
    "label": "Gross Profit",
-   "definition": "Calculated target using the exact formula retained in the supplied template: =SUM({is_pl__sales_revenues}:{is_pl__expenses_own_work_capitalized})-{is_pl__total_cost_of_sales}",
+   "definition": "The subtotal the filing PRINTS as 'Gross Profit', reported in the statement of profit and loss. It is the sum of Sales(Revenues), Net Premium Earned, Changes in Inventories Incr/(Dcr), Expenses(Own Work Capitalized)(+) and Total Cost of Sales. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Gross Profit"
@@ -11442,7 +11442,7 @@
    "key": "is_pl__net_operating_profit",
    "exclude_criteria": [],
    "label": "Net Operating Profit",
-   "definition": "Calculated target using the exact formula retained in the supplied template: ={is_pl__gross_profit}+SUM({is_pl__rents_and_royalty_income}:{is_pl__grants_and_subsidies})-SUM({is_pl__selling_and_marketing_expenses}:{is_pl__capitalized_costs})",
+   "definition": "The subtotal the filing PRINTS as 'Net Operating Profit', reported in the statement of profit and loss. It is the sum of Gross Profit, Rents & Royalty Income, Other Operating Income, Commission Income (Other Operating Inc), Commission Income (Sales), Grants & Subsidies, Selling & Marketing Expenses, General & Admin Expenses and and 22 more. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Net Operating Profit",
@@ -12117,7 +12117,7 @@
    "key": "is_pl__net_interest_income_expense",
    "exclude_criteria": [],
    "label": "Net Interest Income(Expense)",
-   "definition": "Calculated target using the exact formula retained in the supplied template: =SUM({is_pl__interest_income_from_derivatives}:{is_pl__interest_income})-SUM({is_pl__interest_on_lease_liabilities}:{is_pl__deferred_interest_expense})",
+   "definition": "The subtotal the filing PRINTS as 'Net Interest Income(Expense)', reported in the statement of profit and loss. It is the sum of Interest income from derivatives, Interest income from wealth management products, Interest income from Entrusted loan receivables, Interest Income, Interest on lease liabilities, Interest on debt market instruments, Interest on capital market instruments, Interest on trade finance and and 7 more. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Net Interest Income(Expense)"
@@ -12623,7 +12623,7 @@
    "key": "is_pl__net_other_financial_inc_exp",
    "exclude_criteria": [],
    "label": "Net Other Financial Inc(Exp)",
-   "definition": "Calculated target using the exact formula retained in the supplied template: =SUM({is_pl__income_loss_from_related_party}:{is_pl__fmv_adj_on_fncl_assets})",
+   "definition": "The subtotal the filing PRINTS as 'Net Other Financial Inc(Exp)', reported in the statement of profit and loss. It is the sum of Income(Loss) from Related Party, Income(Loss) from Joint Ventures, Fncl income from derivatives, Fncl income from wealth management products, Other Fncl Asset Income(Dvds), Gain(loss) on derivatives, Gain(loss) on wealth management products, Gain(Loss) on Fncl Assets and and 5 more. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Net Other Financial Inc(Exp)"
@@ -12962,7 +12962,7 @@
    "key": "is_pl__other_income_expense",
    "exclude_criteria": [],
    "label": "Other Income(Expense)",
-   "definition": "Calculated target using the exact formula retained in the supplied template: =SUM({is_pl__gain_loss_disp_of_fixed_assets}:{is_pl__other_non_oper_inc_exp_nc})",
+   "definition": "The subtotal the filing PRINTS as 'Other Income(Expense)', reported in the statement of profit and loss. It is the sum of Gain(Loss) Disp of Fixed Assets, Gain(Loss) on Invest Properties, Gain(Loss) Disp of Disc Ops, Exchange Gain(Loss) Sale of Bus, Other Non-Income Related Taxes, Other Non-Operating Inc(Exp), FMV adj on investment properties and Other Non-Oper Inc(Exp)(NC). Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Other Income(Expense)"
@@ -13026,7 +13026,7 @@
    "key": "is_pl__profit_loss_before_tax",
    "exclude_criteria": [],
    "label": "Profit(Loss) Before Tax",
-   "definition": "Calculated target using the exact formula retained in the supplied template: ={is_pl__net_operating_profit}+{is_pl__net_interest_income_expense}+{is_pl__net_other_financial_inc_exp}+{is_pl__other_income_expense}",
+   "definition": "The subtotal the filing PRINTS as 'Profit(Loss) Before Tax', reported in the statement of profit and loss. It is the sum of Net Operating Profit, Net Interest Income(Expense), Net Other Financial Inc(Exp) and Other Income(Expense). Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Profit(Loss) Before Tax",
@@ -13183,7 +13183,7 @@
    "key": "is_pl__total_income_tax",
    "exclude_criteria": [],
    "label": "Total Income Tax",
-   "definition": "Calculated target using the exact formula retained in the supplied template: =SUM({is_pl__current_income_taxes}:{is_pl__prior_year_tax_adj})",
+   "definition": "The subtotal the filing PRINTS as 'Total Income Tax', reported in the statement of profit and loss. It is the sum of Current Income Taxes, Deferred Income Taxes(NC) and Prior Year Tax Adj(-). Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Total Income Tax",
@@ -13247,7 +13247,7 @@
    "key": "is_pl__profit_loss_bef_extraord_items",
    "exclude_criteria": [],
    "label": "Profit(Loss) Bef Extraord Items",
-   "definition": "Calculated target using the exact formula retained in the supplied template: ={is_pl__profit_loss_before_tax}-{is_pl__total_income_tax}",
+   "definition": "The subtotal the filing PRINTS as 'Profit(Loss) Bef Extraord Items', reported in the statement of profit and loss. It is the sum of Profit(Loss) Before Tax and Total Income Tax. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Profit(Loss) Bef Extraord Items"
@@ -13385,7 +13385,7 @@
    "key": "is_pl__profit_for_the_year",
    "exclude_criteria": [],
    "label": "Profit for the year",
-   "definition": "Calculated target using the exact formula retained in the supplied template: ={is_pl__profit_loss_bef_extraord_items}+SUM({is_pl__extraordinary_income_exp}:{is_pl__minority_interests_pl})",
+   "definition": "The subtotal the filing PRINTS as 'Profit for the year', reported in the statement of profit and loss. It is the sum of Profit(Loss) Bef Extraord Items, Extraordinary Income(Exp), Extraordinary Income(Exp)(NC) and Minority Interests(PL). Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Profit for the year",
@@ -13701,7 +13701,7 @@
    "key": "is_oci__total_other_comprehensive_income",
    "exclude_criteria": [],
    "label": "Total Other Comprehensive Income",
-   "definition": "Calculated target using the exact formula retained in the supplied template: =SUM({is_oci__unreal_gain_loss_fixed_assets}:{is_oci__other_equity_and_reserves_adj})",
+   "definition": "The subtotal the filing PRINTS as 'Total Other Comprehensive Income', reported in the statement of other comprehensive income. It is the sum of Unreal Gain(Loss) Fixed Assets, Unreal Gain(Loss) Invest Prpty, Unreal Gain(Loss) Investments, Deferred Hedging Gain(Loss), Derivatives FMV Adjustment, Minimum Pension Liability Adj and Other Equity & Reserves Adj. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Total Other Comprehensive Income",
@@ -15084,7 +15084,7 @@
    "key": "cf_oper_indirect__cash_flows_oper_activ_indirect",
    "exclude_criteria": [],
    "label": "Cash Flows Oper Activ(Indirect)",
-   "definition": "Calculated target using the exact formula retained in the supplied template: =SUM({cf_oper_indirect__net_profit_loss}:{cf_oper_indirect__other_non_cash_adjs_oper})",
+   "definition": "The subtotal the filing PRINTS as 'Cash Flows Oper Activ(Indirect)', reported in the operating section of the cash flow statement. It is the sum of Net Profit/(Loss), Other After Tax (Income)/Expense, Minority Interests(CF), Income Tax Expense, Depreciation, Amortization & Asset Impairment, Cash Flow from Hedging(Oper), Assoc Profit Share(Net of Dvds) and and 23 more. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Cash Flows Oper Activ(Indirect)",
@@ -15413,7 +15413,7 @@
    "key": "cf_oper_direct__cash_flows_oper_activ_direct",
    "exclude_criteria": [],
    "label": "Cash Flows Oper Activ(Direct)",
-   "definition": "Calculated target using the exact formula retained in the supplied template: =SUM({cf_oper_direct__cash_receipts_from_customers}:{cf_oper_direct__borrowing_costs_paid})",
+   "definition": "The subtotal the filing PRINTS as 'Cash Flows Oper Activ(Direct)', reported in the operating section of the cash flow statement. It is the sum of Cash Receipts from Customers, Cash Paid to Suppliers, Cash Paid to Employees, Income Taxes Paid(Direct) and Borrowing Costs Paid. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Cash Flows Oper Activ(Direct)",
@@ -16170,7 +16170,7 @@
    "key": "cf_investing__cash_flows_from_invest_activities",
    "exclude_criteria": [],
    "label": "Cash Flows from Invest Activities",
-   "definition": "Calculated target using the exact formula retained in the supplied template: =SUM({cf_investing__purchase_intangible_assets}:{cf_investing__other_invest_cash_flows})",
+   "definition": "The subtotal the filing PRINTS as 'Cash Flows from Invest Activities', reported in the investing section of the cash flow statement. It is the sum of Purchase Intangible Assets, Proceeds Sale Intgbl Assets, Purchase PPE, Proceeds Sale PPE, Purchase Investment Property, Proceeds Sale Investment Prop, Purchase Financial Assets, Proceeds Sale Fncl Assets and and 12 more. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Cash Flows from Invest Activities",
@@ -16715,7 +16715,7 @@
    "key": "cf_financing__cash_flows_from_finance_activities",
    "exclude_criteria": [],
    "label": "Cash Flows from Finance Activities",
-   "definition": "Calculated target using the exact formula retained in the supplied template: =SUM({cf_financing__net_proceeds_issuance_of_capital}:{cf_financing__other_financing_cash_flows})",
+   "definition": "The subtotal the filing PRINTS as 'Cash Flows from Finance Activities', reported in the financing section of the cash flow statement. It is the sum of Net Proceeds Issuance of Capital, Purchase(Sale) Treasury Stock, Proceeds Non-Cur Borrowings, Issue Costs Non-Cur Borrowings, Repayments Non-Cur Borrowings, Chg in Current Borrowings, Interest Paid(Fin), Translation Adj Relating to Cash and and 5 more. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Cash Flows from Finance Activities",
@@ -16892,7 +16892,7 @@
    "key": "cf_financing__end_of_period_cash_and_cash_equiv",
    "exclude_criteria": [],
    "label": "End of Period-Cash & Cash Equiv",
-   "definition": "Calculated target using the exact formula retained in the supplied template: ={cf_financing__beg_of_period_cash_and_cash_equiv}+{cf_oper_indirect__cash_flows_oper_activ_indirect}+{cf_investing__cash_flows_from_invest_activities}+{cf_financing__cash_flows_from_finance_activities}+{cf_financing__net_foreign_exchange_difference}",
+   "definition": "The subtotal the filing PRINTS as 'End of Period-Cash & Cash Equiv', reported in the financing section of the cash flow statement. It is the sum of Beg of Period-Cash & Cash Equiv, Cash Flows Oper Activ(Indirect), Cash Flows from Invest Activities, Cash Flows from Finance Activities and Net Foreign Exchange Difference. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "End of Period-Cash & Cash Equiv",
@@ -16964,7 +16964,7 @@
    "key": "cf_financing__unexplained_adjustment_to_cash",
    "exclude_criteria": [],
    "label": "Unexplained Adjustment to Cash",
-   "definition": "Calculated target using the exact formula retained in the supplied template: ={cf_financing__end_of_period_cash_and_cash_equiv}-{cf_financing__beg_of_period_cash_and_cash_equiv}-{cf_oper_indirect__cash_flows_oper_activ_indirect}-{cf_investing__cash_flows_from_invest_activities}-{cf_financing__cash_flows_from_finance_activities}-{cf_financing__net_foreign_exchange_difference}",
+   "definition": "The subtotal the filing PRINTS as 'Unexplained Adjustment to Cash', reported in the financing section of the cash flow statement. It is the sum of End of Period-Cash & Cash Equiv, Beg of Period-Cash & Cash Equiv, Cash Flows Oper Activ(Indirect), Cash Flows from Invest Activities, Cash Flows from Finance Activities and Net Foreign Exchange Difference. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Unexplained Adjustment to Cash"
@@ -20972,7 +20972,7 @@
    "section_scope": [
     "bs_ca"
    ],
-   "definition": "The single closing total carrying amount that a note on financial assets measured at fair value through profit or loss reports for the holdings it classifies as current assets, one figure covering every instrument class the note lists at the reporting date. It is disclosed inside the note headed as financial assets at fair value through profit or loss, financial assets at FVTPL or held-for-trading investments or securities, and the Traditional and Simplified Chinese equivalents of those headings. It is not any component row within that note: not a listed or unlisted, quoted or unquoted, equity- or debt-securities class subtotal, not the derivative or other-receivable lines, not a fair-value-level row, and not an opening balance, addition, purchase, disposal, redemption, transfer or exchange-difference movement row. It is also not the balance-sheet face line for securities and other financial assets, and not the total of a different measurement-category note such as the FVTOCI, available-for-sale, held-to-maturity or debt-investments note.\n\nRead only the closing grand total of the FVTPL current-asset note itself, never a class subtotal, component or movement row inside it, and never a total belonging to another measurement-category note. The current-asset FVTPL note (spec 5.1). Reads that note's TOTAL row and nothing else, because spec 5.3 defines Find_1_CP = SUM(unique note_total ...) — so this child deliberately overrides the shared veto on total/合計/合计/總額/总额 and instead vetoes everything a component row could be. This same note is also read by three siblings (included derivatives, included other receivables, non-current split), so it is kept distinguishable by row_caption_any_override matching only total captions and by row_caption_none_override vetoing exactly the qualifiers those siblings own — derivative/衍生, other receivable/其他應收/其他应收, the current and non-current split callouts, level captions — plus class subtotals (listed/unlisted, equity/debt securities, 上市, 股本證券) so a class subtotal is never added to the grand total, and never the note total to its own line items (spec 3.3).",
+   "definition": "The subtotal the filing PRINTS as 'FVTPL current note — note total', reported in the statement it belongs to. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "note_use": "decomposition_allowed",
    "keyword_hints": [
     "fair value"

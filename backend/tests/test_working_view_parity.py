@@ -204,6 +204,20 @@ _CONFUSABLE_CONVERTED = frozenset({
 _EXCLUDE_BLANKED = 462
 _DEFINITION_FOLDED = 76
 
+# AND 30 MORE, WHERE A FORMULA STOPPED BEING A DEFINITION. `calculated` concepts defined themselves
+# with the spreadsheet formula they were converted from — "Calculated target using the exact formula
+# retained in the supplied template: ={bs_ca__operating_lease_receivables}+SUM({bs_ca__du..." — and
+# `definition` is read by BOTH live paths, as the comment above says: the request payload sends it,
+# and `line_item_notes` builds the note-selection probe from it. So `SUM`, `B126` and internal keys
+# were being sent to the model as a line's meaning and scored against note headings as its probe
+# vocabulary. They now describe the subtotal in words, generated from the template rollup's own
+# children so the prose cannot disagree with the arithmetic.
+#
+# COUNTED SEPARATELY rather than added to the number above, for the reason that number is named at
+# all: each cause carries its own count, so a 77th fold and a 31st de-formulation are each still a
+# failure. `tests/test_a_definition_is_a_meaning_not_a_formula.py` is what holds the rewrite itself.
+_DEFINITION_DEFORMULATED = 30
+
 # Fields on which the SHIPPED seed may lag the rulebook — see the module docstring. `description`
 # is by design (the 8 merged keys keep the configurator's prose); the rest are staleness, and the
 # assertion is that the divergence goes no wider than these names.
@@ -509,10 +523,12 @@ def test_shipped_set_diverges_only_in_the_known_classes():
             if all(not seeded.get(k) for k in keys):
                 continue
         # …and the two fields the config-screen work changed, bounded by COUNT so a wider
-        # divergence still fails. See `_EXCLUDE_BLANKED` / `_DEFINITION_FOLDED` above.
+        # divergence still fails. See `_EXCLUDE_BLANKED` / `_DEFINITION_FOLDED` /
+        # `_DEFINITION_DEFORMULATED` above.
         if field == "exclude" and len(keys) <= _EXCLUDE_BLANKED:
             continue
-        if field == "definition" and len(keys) <= _DEFINITION_FOLDED:
+        if (field == "definition"
+                and len(keys) <= _DEFINITION_FOLDED + _DEFINITION_DEFORMULATED):
             continue
         unexpected[field] = keys
     assert not unexpected, (
