@@ -78,6 +78,16 @@ _LINE_ITEMS = _DIR / "output_csv_hk_line_items.json"
 # when content is already stored, absent files skipped silently.
 _EXTRA_PAIRS: list[tuple[Path, Path]] = [
     (_DIR / "output_csv_hk_v1_template.json", _LINE_ITEMS),
+    # IND AS, so an analyst can CHOOSE it on the extraction screen.
+    #
+    # A SECOND SHIPPED PAIR IS NOT A SECOND ENGINE, which is what the paragraph above warns
+    # against. `services.config_select` answers "which set is in force" PER TEMPLATE — "more than
+    # one set can target the same template" — and the Ind AS set declares
+    # `target_template_key: output_csv_indas_v1`, its own. So publishing it adds a choice to the
+    # picker and changes nothing about which set answers for `output_csv_hk_v1`. What the warning
+    # forbids is reinstating a stored, selectable RULEBOOK beside the line items; this is a second
+    # line-item set, the one engine there is.
+    (_DIR / "output_csv_indas_v1_template.json", _DIR / "output_csv_indas_line_items.json"),
 ]
 
 # Item-level keys the line-item schema does not declare AND whose loss is already measured,

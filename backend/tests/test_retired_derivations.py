@@ -165,6 +165,7 @@ but "the CODE PATH is absent".
 """
 from __future__ import annotations
 
+import collections
 import importlib.util
 import json
 from decimal import Decimal
@@ -547,8 +548,22 @@ def test_the_shipped_set_is_the_configuration_in_force():
             assert session.query(LineItemVersion).count() == 0, "the fresh database was not fresh"
             ensure_reference_data(session)
             rows = session.query(LineItemVersion).all()
-            assert len(rows) == 1, [r.version for r in rows]
-            seeded = {i["key"] for i in (rows[0].definition or {}).get("items", [])}
+            # ONE VERSION PER SHIPPED KEY, not one row in the table. This asserted `len(rows) == 1`
+            # — which was only ever how it reached `rows[0]`, and became a barrier to shipping a
+            # SECOND set: `output_csv_indas`, the Ind AS configuration, targets its own template
+            # (`output_csv_indas_v1`) and `services.config_select` answers per template, so it
+            # changes nothing about which set is in force for `output_csv_hk_v1`. What this test is
+            # actually for is stated in its own failure message below — that a fresh machine runs
+            # the configuration this repository carries — and that is asserted on the HK row by
+            # KEY. The per-key uniqueness below keeps the property the count was standing in for:
+            # seeding is a refresh, so a fresh database gets exactly one version of each set.
+            per_key = collections.Counter(r.line_items_key for r in rows)
+            assert set(per_key.values()) == {1}, dict(per_key)
+            shipped_key = json.loads(
+                _LINE_ITEMS_JSON.read_text(encoding="utf-8"))["line_items_key"]
+            mine = [r for r in rows if r.line_items_key == shipped_key]
+            assert len(mine) == 1, [r.line_items_key for r in rows]
+            seeded = {i["key"] for i in (mine[0].definition or {}).get("items", [])}
             assert seeded == shipped, (
                 "a fresh machine would not run the configuration this repository carries: "
                 f"{len(shipped - seeded)} missing, {len(seeded - shipped)} extra")

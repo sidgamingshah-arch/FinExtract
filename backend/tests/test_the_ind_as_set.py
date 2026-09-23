@@ -202,6 +202,53 @@ def test_it_places_materially_more_of_schedule_iii_than_the_hk_set(matcher):
     assert mine > theirs, (mine, theirs)
 
 
+def test_both_shipped_sets_seed_and_each_template_resolves_its_own():
+    """AN ANALYST CAN CHOOSE THE GAAP, which is the point of shipping a second pair.
+
+    The extraction screen's picker lists the stored line-item versions and the template follows the
+    chosen one's `target_template_key` (`ExtractionView`'s `activeTemplate(..., cfg.target_template_key)`),
+    so "can I pick Ind AS?" reduces to two questions this asserts on a FRESH database: does the
+    pair seed at all, and does `config_select` answer each template with its own set.
+
+    THE SECOND HALF IS THE ONE THAT COULD BREAK QUIETLY. `config_select` takes "the most recently
+    stored" set for a template, and both sets seed in the same boot — so a set whose
+    `target_template_key` were wrong would not fail, it would answer for the OTHER template and an
+    Ind AS run would silently map against the 549-item HK spine.
+    """
+    import pathlib as _pathlib
+    import tempfile
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app.db.base import Base
+    from app.db.models import LineItemVersion  # noqa: F401 — registers the tables on Base
+    from app.sample.reference import ensure_reference_data
+    from app.services.config_select import select_for_template
+
+    with tempfile.TemporaryDirectory() as tmp:
+        engine = create_engine(f"sqlite:///{_pathlib.Path(tmp) / 'choice.db'}")
+        Base.metadata.create_all(engine)
+        session = sessionmaker(bind=engine)()
+        try:
+            ensure_reference_data(session)
+            keys = {r.line_items_key for r in session.query(LineItemVersion).all()}
+            assert {"output_csv_hk", "output_csv_indas"} <= keys, sorted(keys)
+
+            hk = select_for_template(session, "output_csv_hk_v1")
+            ind = select_for_template(session, "output_csv_indas_v1")
+            assert hk is not None and ind is not None
+            assert hk.line_items_key == "output_csv_hk"
+            assert ind.line_items_key == "output_csv_indas"
+            # And the sets are really different configurations, not one answering twice.
+            assert len((ind.definition or {}).get("items") or []) \
+                < len((hk.definition or {}).get("items") or [])
+        finally:
+            # Dispose before the directory goes: on Windows an open SQLite handle blocks rmtree.
+            session.close()
+            engine.dispose()
+
+
 def test_the_indian_note_vocabulary_widens_context_and_not_the_deterministic_read(indas):
     """`note_terms` ONLY — the distinction that makes this safe without an Indian corpus.
 
