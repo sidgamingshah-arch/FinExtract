@@ -11,7 +11,7 @@
   "version": "1",
   "changes": [
    "derived from output_csv_hk: identical concept spine, Ind AS captions added",
-   "scoped to Schedule III Division II presentation: 270 items of the 549 in the derived spine. Selection is closed over cascade references and parenthood, and verified to leave no derived parent naming a dropped term",
+   "scoped to Schedule III Division II presentation: 276 items of the 549 in the derived spine. Selection is closed over cascade references and parenthood, and verified to leave no derived parent naming a dropped term",
    "Schedule III Division II face captions authored on 56 concepts (83 captions), alongside the existing IFRS/HKFRS spellings rather than replacing them",
    "NOT authored: Indian note_source patterns. The ~650 inherited from output_csv_hk were measured against a twelve-filing HK/PRC corpus and have not been measured against any Indian filing, so every Ind AS line should be read as face-routed until they are",
    "NOT placed: 'Depreciation and amortisation expense'. Its target is_pl__deprec_and_impairment_oper_exp is type:derived and mapping._computed_parent makes a derived key unmatchable by caption; unlike is_pl__sales_revenues it has no face part to carry the alias, and creating one is cascade work rather than vocabulary",
@@ -244,8 +244,7 @@
     "headings": [
      "notes to the consolidated financial statements",
      "notes to the financial statements",
-     "notes to financial statements",
-     "财务报表附注"
+     "notes to financial statements"
     ],
     "heading_row": false
    },
@@ -253,9 +252,7 @@
     "token": "non_current_liabilities",
     "headings": [
      "non current liabilities",
-     "noncurrent liabilities",
-     "非流动负债",
-     "长期负债"
+     "noncurrent liabilities"
     ],
     "heading_row": true
    },
@@ -263,25 +260,21 @@
     "token": "non_current_assets",
     "headings": [
      "non current assets",
-     "noncurrent assets",
-     "非流动资产",
-     "长期资产"
+     "noncurrent assets"
     ],
     "heading_row": true
    },
    {
     "token": "current_liabilities",
     "headings": [
-     "current liabilities",
-     "流动负债"
+     "current liabilities"
     ],
     "heading_row": true
    },
    {
     "token": "current_assets",
     "headings": [
-     "current assets",
-     "流动资产"
+     "current assets"
     ],
     "heading_row": true
    },
@@ -289,47 +282,35 @@
     "token": "equity",
     "headings": [
      "equity",
-     "capital and reserves",
-     "权益",
-     "股本及储备",
-     "资本及储备"
+     "capital and reserves"
     ],
     "heading_row": true
    },
    {
     "token": "cash_flow_from_operating_activities",
     "headings": [
-     "operating activities",
-     "经营活动",
-     "营运活动"
+     "operating activities"
     ],
     "heading_row": true
    },
    {
     "token": "cash_flow_from_investing_activities",
     "headings": [
-     "investing activities",
-     "投资活动"
+     "investing activities"
     ],
     "heading_row": true
    },
    {
     "token": "cash_flow_from_financing_activities",
     "headings": [
-     "financing activities",
-     "融资活动",
-     "筹资活动"
+     "financing activities"
     ],
     "heading_row": true
    },
    {
     "token": "other_comprehensive_income",
     "headings": [
-     "other comprehensive income",
-     "其他综合收益",
-     "其他綜合收益",
-     "其他全面收益",
-     "其他全面收入"
+     "other comprehensive income"
     ],
     "heading_row": false
    },
@@ -353,9 +334,7 @@
    {
     "token": "total_comprehensive_income_attributable_to",
     "headings": [
-     "comprehensive",
-     "全面收",
-     "全面亏"
+     "comprehensive"
     ],
     "heading_row": false
    },
@@ -364,10 +343,7 @@
     "headings": [
      "profit attributable",
      "loss attributable",
-     "attributable to",
-     "溢利归属",
-     "亏损归属",
-     "应占溢利"
+     "attributable to"
     ],
     "heading_row": false
    },
@@ -375,18 +351,14 @@
     "token": "non_operating_expenses",
     "headings": [
      "non operating",
-     "nonoperating",
-     "非经营",
-     "非营运"
+     "nonoperating"
     ],
     "heading_row": false
    },
    {
     "token": "exceptional_items",
     "headings": [
-     "exceptional",
-     "非经常性",
-     "特殊项目"
+     "exceptional"
     ],
     "heading_row": false
    },
@@ -394,18 +366,14 @@
     "token": "tax_expense",
     "headings": [
      "tax expense",
-     "taxation",
-     "税项",
-     "所得税"
+     "taxation"
     ],
     "heading_row": false
    },
    {
     "token": "expenses",
     "headings": [
-     "expenses",
-     "开支",
-     "费用"
+     "expenses"
     ],
     "heading_row": false
    },
@@ -413,8 +381,7 @@
     "token": "income",
     "headings": [
      "revenue",
-     "turnover",
-     "营业额"
+     "turnover"
     ],
     "heading_row": false
    }
@@ -424,12 +391,10 @@
     "id": "equity_and_liabilities",
     "groups": [
      [
-      "equity",
-      "权益"
+      "equity"
      ],
      [
-      "liabilit",
-      "负债"
+      "liabilit"
      ]
     ],
     "note": "IFRS statements print EQUITY AND LIABILITIES above the Equity, Non-current and Current sub-banners; reading it as equity would refuse every liability line item beneath it."
@@ -602,7 +567,7 @@
   "unbound_row_policy": "Route an unclaimed face value only to the residual for its resolved printed section. Never borrow a neighbouring concept or cross a section. After all mapping and gap-closing opportunities, the engine-level face_mapping_contract gives any remaining face value a unique engine_unclassified_face key outside the ontology/template namespaces. This keeps the row stored and reviewable without feeding it into an unrelated calculation. Verified non-additive aggregates replaced by mapped components remain evidence-only.",
   "match_priority": "Integer 0-99, higher evaluated first. Long specific captions rank above short generic ones so 'Total assets less current liabilities' cannot be pre-empted by 'Total current liabilities' on token overlap. Residuals are 0 and unreachable by matching."
  },
- "prompt": "Map each line item basis their definition, additional information provided and exclusion criteria. Rely on financial meaning and not just words - these are HKEX / PRC filings.",
+ "prompt": "Map each line item basis their definition, additional information provided and exclusion criteria. Rely on financial meaning and not just words - these are Ind AS financial statements of Indian entities, presented under Schedule III, Division II of the Companies Act 2013. Amounts are in INR and are usually scaled in lakhs or crores. Expect Schedule III wording: Other Equity rather than reserves, Trade Payables split between micro and small enterprises and others, Financial Assets and Financial Liabilities as presentation groups, Property Plant and Equipment with Capital work-in-progress, and Revenue from operations separate from Other income.",
  "global_rules": {
   "source_fact_id": "document_id|entity_scope|period|currency|unit|page|table_or_note|source_row_id",
   "sign_convention": {
@@ -782,6 +747,34 @@
     "^预付土地出让金$",
     "^预付土地租赁款项$"
    ],
+   "namespace": "template",
+   "route": "face"
+  },
+  {
+   "key": "bs_nca__leasehold_improvements",
+   "exclude_criteria": [],
+   "label": "Leasehold Improvements",
+   "definition": "Extract the reported value for 'Leasehold Improvements' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
+   "aliases": [
+    "Leasehold Improvements",
+    "Decoration",
+    "Land Improvements"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Leasehold Improvements",
+     "Decoration",
+     "Land Improvements"
+    ]
+   },
+   "keyword_hints": [
+    "Leasehold Improvements"
+   ],
+   "sign_rule": {},
+   "inherits": "bs_nca",
+   "face_only": false,
+   "match_priority": 81,
+   "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "namespace": "template",
    "route": "face"
   },
@@ -1126,6 +1119,32 @@
    "route": "face"
   },
   {
+   "key": "bs_nca__accum_goodwill_amortized",
+   "exclude_criteria": [],
+   "label": "Accum Goodwill Amortized(-)",
+   "definition": "Extract the reported value for 'Accum Goodwill Amortized(-)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
+   "aliases": [
+    "Accum Goodwill Amortized(-)",
+    "accumulated amortisation"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Accum Goodwill Amortized(-)",
+     "accumulated amortisation"
+    ]
+   },
+   "keyword_hints": [
+    "Accum Goodwill Amortized(-)"
+   ],
+   "sign_rule": {},
+   "inherits": "bs_nca",
+   "face_only": false,
+   "match_priority": 81,
+   "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
+   "namespace": "template",
+   "route": "face"
+  },
+  {
    "key": "bs_nca__land_use_rights",
    "exclude_criteria": [],
    "label": "Land use rights",
@@ -1163,6 +1182,136 @@
     "^leasehold\\s+land$",
     "^leasehold\\s+land\\s+and\\s+building$"
    ],
+   "namespace": "template",
+   "route": "face"
+  },
+  {
+   "key": "bs_nca__concessions_licenses_and_trdmrks",
+   "exclude_criteria": [],
+   "label": "Concessions, Licenses & Trdmrks",
+   "definition": "Extract the reported value for 'Concessions, Licenses & Trdmrks' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
+   "aliases": [
+    "Concessions, Licenses & Trdmrks",
+    "Concessions",
+    "Licenses & Trdmrks",
+    "Licenses",
+    "Trademarks",
+    "franchise",
+    "premit",
+    "right"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Concessions, Licenses & Trdmrks",
+     "Concessions",
+     "Licenses & Trdmrks",
+     "Licenses",
+     "Trademarks",
+     "franchise",
+     "premit",
+     "right"
+    ]
+   },
+   "keyword_hints": [
+    "Concessions",
+    "Licenses & Trdmrks"
+   ],
+   "regex_hints": [
+    "^Concessions",
+    "\\s+Licenses\\s+\\&\\s+Trdmrks$"
+   ],
+   "sign_rule": {},
+   "inherits": "bs_nca",
+   "face_only": false,
+   "match_priority": 81,
+   "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
+   "namespace": "template",
+   "route": "face"
+  },
+  {
+   "key": "bs_nca__patents",
+   "exclude_criteria": [],
+   "label": "Patents",
+   "definition": "Extract the reported value for 'Patents' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
+   "aliases": [
+    "Patents",
+    "Technical knowhow"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Patents",
+     "Technical knowhow"
+    ]
+   },
+   "keyword_hints": [
+    "Patents"
+   ],
+   "sign_rule": {},
+   "inherits": "bs_nca",
+   "face_only": false,
+   "match_priority": 81,
+   "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
+   "namespace": "template",
+   "route": "face"
+  },
+  {
+   "key": "bs_nca__start_up_capitalized_expenses",
+   "exclude_criteria": [],
+   "label": "Start-Up Capitalized Expenses",
+   "definition": "Extract the reported value for 'Start-Up Capitalized Expenses' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
+   "aliases": [
+    "Start-Up Capitalized Expenses",
+    "start-up cost",
+    "start-up expenses"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Start-Up Capitalized Expenses",
+     "start-up cost",
+     "start-up expenses"
+    ]
+   },
+   "keyword_hints": [
+    "Start-Up Capitalized Expenses"
+   ],
+   "sign_rule": {},
+   "inherits": "bs_nca",
+   "face_only": false,
+   "match_priority": 81,
+   "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
+   "namespace": "template",
+   "route": "face"
+  },
+  {
+   "key": "bs_nca__r_and_d_capitalized_expenses",
+   "exclude_criteria": [],
+   "label": "R&D Capitalized Expenses",
+   "definition": "Extract the reported value for 'R&D Capitalized Expenses' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
+   "aliases": [
+    "R&D Capitalized Expenses",
+    "Research and development",
+    "development cost",
+    "research cost"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "R&D Capitalized Expenses",
+     "Research and development",
+     "development cost",
+     "research cost"
+    ],
+    "zh": [
+     "开发支出"
+    ]
+   },
+   "keyword_hints": [
+    "R&D Capitalized Expenses"
+   ],
+   "sign_rule": {},
+   "inherits": "bs_nca",
+   "face_only": false,
+   "match_priority": 81,
+   "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "namespace": "template",
    "route": "face"
   },
@@ -10435,8 +10584,6 @@
      "fixed\\s+assets?|固定資產|固定资产",
      "prepaid\\s+land\\s+lease\\s+payments?|prepaid\\s+lease\\s+payments?|預付土地租賃款項|預付租賃款項",
      "right.of.use\\s+assets?",
-     "使用權資產|使用权资产",
-     "(?:長期待攤費用|长期待摊费用)[^。；;]{0,20}(?:土地|租賃|租赁)|(?:土地|租賃|租赁)[^。；;]{0,20}(?:長期待攤費用|长期待摊费用)",
      "prepaid\\s+lease|預付租賃|预付租赁|租賃土地|租赁土地",
      "construction\\s+in\\s+progress|在建工程",
      "investment\\s+propert(?:y|ies)|投資物業|投资性房地产|投资物业",
@@ -10444,8 +10591,6 @@
      "property\\s+and\\s+equipment|物業及設備|物业及设备"
     ],
     "row_caption_any": [
-     "(?:研发开支|研发费用|研究及开发开支|研究及开发费用|研究与开发开支|研究与开发费用).{0,12}(?:折旧|折舊|摊销|攤銷)",
-     "(?:折旧|折舊|摊销|攤銷).{0,12}(?:研发开支|研发费用|研究及开发开支|研究及开发费用|研究与开发开支|研究与开发费用)",
      "(?:depreciation|amortisation|amortization).{0,40}(?:research\\s+and\\s+development\\s+expenses|research\\s+and\\s+development\\s+costs|r\\&d\\s+expenses|r\\&d\\s+costs)",
      "(?:research\\s+and\\s+development\\s+expenses|research\\s+and\\s+development\\s+costs|r\\&d\\s+expenses|r\\&d\\s+costs).{0,40}(?:depreciation|amortisation|amortization)"
     ],
@@ -10595,8 +10740,6 @@
      "fixed\\s+assets?|固定資產|固定资产",
      "prepaid\\s+land\\s+lease\\s+payments?|prepaid\\s+lease\\s+payments?|預付土地租賃款項|預付租賃款項",
      "right.of.use\\s+assets?",
-     "使用權資產|使用权资产",
-     "(?:長期待攤費用|长期待摊费用)[^。；;]{0,20}(?:土地|租賃|租赁)|(?:土地|租賃|租赁)[^。；;]{0,20}(?:長期待攤費用|长期待摊费用)",
      "prepaid\\s+lease|預付租賃|预付租赁|租賃土地|租赁土地",
      "construction\\s+in\\s+progress|在建工程",
      "investment\\s+propert(?:y|ies)|投資物業|投资性房地产|投资物业",
@@ -10605,9 +10748,7 @@
     ],
     "row_caption_any": [
      "(?:depreciation|amortisation|amortization).{0,40}(?:selling\\s+expenses|selling\\s+and\\s+distribution\\s+expenses|selling\\s+and\\s+marketing\\s+expenses|distribution\\s+costs|marketing\\s+expenses)",
-     "(?:selling\\s+expenses|selling\\s+and\\s+distribution\\s+expenses|selling\\s+and\\s+marketing\\s+expenses|distribution\\s+costs|marketing\\s+expenses).{0,40}(?:depreciation|amortisation|amortization)",
-     "(?:销售开支|销售费用|销售及分销开支|销售及分销费用|销售及推广开支|销售及推广费用).{0,12}(?:折旧|折舊|摊销|攤銷)",
-     "(?:折旧|折舊|摊销|攤銷).{0,12}(?:销售开支|销售费用|销售及分销开支|销售及分销费用|销售及推广开支|销售及推广费用)"
+     "(?:selling\\s+expenses|selling\\s+and\\s+distribution\\s+expenses|selling\\s+and\\s+marketing\\s+expenses|distribution\\s+costs|marketing\\s+expenses).{0,40}(?:depreciation|amortisation|amortization)"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -10758,8 +10899,6 @@
      "fixed\\s+assets?|固定資產|固定资产",
      "prepaid\\s+land\\s+lease\\s+payments?|prepaid\\s+lease\\s+payments?|預付土地租賃款項|預付租賃款項",
      "right.of.use\\s+assets?",
-     "使用權資產|使用权资产",
-     "(?:長期待攤費用|长期待摊费用)[^。；;]{0,20}(?:土地|租賃|租赁)|(?:土地|租賃|租赁)[^。；;]{0,20}(?:長期待攤費用|长期待摊费用)",
      "prepaid\\s+lease|預付租賃|预付租赁|租賃土地|租赁土地",
      "construction\\s+in\\s+progress|在建工程",
      "investment\\s+propert(?:y|ies)|投資物業|投资性房地产|投资物业",
@@ -10768,9 +10907,7 @@
     ],
     "row_caption_any": [
      "(?:depreciation|amortisation|amortization).{0,40}(?:administrative\\s+expenses|general\\s+and\\s+administrative\\s+expenses)",
-     "(?:administrative\\s+expenses|general\\s+and\\s+administrative\\s+expenses).{0,40}(?:depreciation|amortisation|amortization)",
-     "(?:行政开支|行政费用|管理开支|管理费用|一般及行政开支|一般及行政费用|一般及管理开支|一般及管理费用).{0,12}(?:折旧|折舊|摊销|攤銷)",
-     "(?:折旧|折舊|摊销|攤銷).{0,12}(?:行政开支|行政费用|管理开支|管理费用|一般及行政开支|一般及行政费用|一般及管理开支|一般及管理费用)"
+     "(?:administrative\\s+expenses|general\\s+and\\s+administrative\\s+expenses).{0,40}(?:depreciation|amortisation|amortization)"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -10919,8 +11056,6 @@
      "fixed\\s+assets?|固定資產|固定资产",
      "prepaid\\s+land\\s+lease\\s+payments?|prepaid\\s+lease\\s+payments?|預付土地租賃款項|預付租賃款項",
      "right.of.use\\s+assets?",
-     "使用權資產|使用权资产",
-     "(?:長期待攤費用|长期待摊费用)[^。；;]{0,20}(?:土地|租賃|租赁)|(?:土地|租賃|租赁)[^。；;]{0,20}(?:長期待攤費用|长期待摊费用)",
      "prepaid\\s+lease|預付租賃|预付租赁|租賃土地|租赁土地",
      "construction\\s+in\\s+progress|在建工程",
      "investment\\s+propert(?:y|ies)|投資物業|投资性房地产|投资物业",
@@ -10929,9 +11064,7 @@
     ],
     "row_caption_any": [
      "(?:depreciation|amortisation|amortization).{0,40}(?:operating\\s+expenses|operating\\s+costs|other\\s+operating\\s+expenses|other\\s+operating\\s+costs)",
-     "(?:operating\\s+expenses|operating\\s+costs|other\\s+operating\\s+expenses|other\\s+operating\\s+costs).{0,40}(?:depreciation|amortisation|amortization)",
-     "(?:经营开支|经营费用|经营成本|其他经营开支|其他经营费用|其他经营成本).{0,12}(?:折旧|折舊|摊销|攤銷)",
-     "(?:折旧|折舊|摊销|攤銷).{0,12}(?:经营开支|经营费用|经营成本|其他经营开支|其他经营费用|其他经营成本)"
+     "(?:operating\\s+expenses|operating\\s+costs|other\\s+operating\\s+expenses|other\\s+operating\\s+costs).{0,40}(?:depreciation|amortisation|amortization)"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -11081,43 +11214,18 @@
      "depreciation\\s+of\\s+fixed\\s+assets",
      "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
      "depreciation\\s+of\\s+propert(?:y|ies)\\s+and\\s+equipment",
-     "物業及設備折舊",
-     "物业及设备折旧",
      "depreciation\\s+of\\s+construction\\s+in\\s+progress",
      "depreciation\\s+of\\s+right.?of.?use\\s+assets",
      "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
      "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
      "^\\s*depreciation\\s*$",
      "^\\s*amorti[sz]ation\\s*$",
-     "投資物業折舊",
-     "固定資產折舊",
-     "物業[,、]?\\s*廠房及設備折舊",
-     "在建工程折舊",
-     "使用權資產折舊",
-     "預付租賃款項攤銷",
-     "預付租賃款項轉出",
-     "^折舊$",
-     "投资性房地产折旧",
-     "投资物业折旧",
-     "固定资产折旧",
-     "在建工程折旧",
-     "使用权资产折旧",
-     "预付租赁款项摊销",
-     "^折旧$",
-     "^折旧费$",
-     "折旧费用",
-     "^\\s*折旧[及与和]?摊销\\s*$",
-     "^\\s*折舊[及與和]?攤銷\\s*$",
-     "^\\s*摊销\\s*$",
-     "^\\s*攤銷\\s*$",
      "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$",
      "provided\\s+for\\s+the\\s+(?:year|period)",
      "provision\\s+for\\s+the\\s+(?:year|period)",
      "depreciation\\s+charge",
      "amorti[sz]ation\\s+charge",
-     "charge\\s+for\\s+the\\s+(?:year|period)",
-     "本期折舊|本期折旧|本期攤銷|本期摊销",
-     "（1）計提|（1）计提|本期計提|本期计提"
+     "charge\\s+for\\s+the\\s+(?:year|period)"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -11259,8 +11367,6 @@
     "note_title_any": [
      "prepaid\\s+land\\s+lease\\s+payments?|prepaid\\s+lease\\s+payments?|預付土地租賃款項|預付租賃款項",
      "right.of.use\\s+assets?",
-     "使用權資產|使用权资产",
-     "(?:長期待攤費用|长期待摊费用)[^。；;]{0,20}(?:土地|租賃|租赁)|(?:土地|租賃|租赁)[^。；;]{0,20}(?:長期待攤費用|长期待摊费用)",
      "prepaid\\s+lease|預付租賃|预付租赁|租賃土地|租赁土地"
     ],
     "row_caption_any": [
@@ -11273,31 +11379,8 @@
      "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
      "^\\s*depreciation\\s*$",
      "^\\s*amorti[sz]ation\\s*$",
-     "投資物業折舊",
-     "固定資產折舊",
-     "物業[,、]?\\s*廠房及設備折舊",
-     "在建工程折舊",
-     "使用權資產折舊",
-     "預付租賃款項攤銷",
-     "預付租賃款項轉出",
-     "^折舊$",
-     "投资性房地产折旧",
-     "投资物业折旧",
-     "固定资产折旧",
-     "在建工程折旧",
-     "使用权资产折旧",
-     "预付租赁款项摊销",
-     "^折旧$",
-     "^折旧费$",
-     "折旧费用",
-     "^\\s*折旧[及与和]?摊销\\s*$",
-     "^\\s*折舊[及與和]?攤銷\\s*$",
-     "^\\s*摊销\\s*$",
-     "^\\s*攤銷\\s*$",
      "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$",
      "depreciation\\s+charge",
-     "（1）計提|（1）计提|本期計提|本期计提",
-     "本期折舊|本期折旧|本期攤銷|本期摊销",
      "charge\\s+for\\s+the\\s+(?:year|period)",
      "provided\\s+for\\s+the\\s+(?:year|period)",
      "provision\\s+for\\s+the\\s+(?:year|period)",
@@ -11455,35 +11538,12 @@
      "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
      "^\\s*depreciation\\s*$",
      "^\\s*amorti[sz]ation\\s*$",
-     "投資物業折舊",
-     "固定資產折舊",
-     "物業[,、]?\\s*廠房及設備折舊",
-     "在建工程折舊",
-     "使用權資產折舊",
-     "預付租賃款項攤銷",
-     "預付租賃款項轉出",
-     "^折舊$",
-     "投资性房地产折旧",
-     "投资物业折旧",
-     "固定资产折旧",
-     "在建工程折旧",
-     "使用权资产折旧",
-     "预付租赁款项摊销",
-     "^折旧$",
-     "^折旧费$",
-     "折旧费用",
-     "^\\s*折旧[及与和]?摊销\\s*$",
-     "^\\s*折舊[及與和]?攤銷\\s*$",
-     "^\\s*摊销\\s*$",
-     "^\\s*攤銷\\s*$",
      "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$",
      "provided\\s+for\\s+the\\s+(?:year|period)",
      "provision\\s+for\\s+the\\s+(?:year|period)",
      "depreciation\\s+charge",
      "amorti[sz]ation\\s+charge",
-     "charge\\s+for\\s+the\\s+(?:year|period)",
-     "本期折舊|本期折旧|本期攤銷|本期摊销",
-     "（1）計提|（1）计提|本期計提|本期计提"
+     "charge\\s+for\\s+the\\s+(?:year|period)"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -11631,35 +11691,12 @@
      "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
      "^\\s*depreciation\\s*$",
      "^\\s*amorti[sz]ation\\s*$",
-     "投資物業折舊",
-     "固定資產折舊",
-     "物業[,、]?\\s*廠房及設備折舊",
-     "在建工程折舊",
-     "使用權資產折舊",
-     "預付租賃款項攤銷",
-     "預付租賃款項轉出",
-     "^折舊$",
-     "投资性房地产折旧",
-     "投资物业折旧",
-     "固定资产折旧",
-     "在建工程折旧",
-     "使用权资产折旧",
-     "预付租赁款项摊销",
-     "^折旧$",
-     "^折旧费$",
-     "折旧费用",
-     "^\\s*折旧[及与和]?摊销\\s*$",
-     "^\\s*折舊[及與和]?攤銷\\s*$",
-     "^\\s*摊销\\s*$",
-     "^\\s*攤銷\\s*$",
      "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$",
      "provided\\s+for\\s+the\\s+(?:year|period)",
      "provision\\s+for\\s+the\\s+(?:year|period)",
      "depreciation\\s+charge",
      "amorti[sz]ation\\s+charge",
-     "charge\\s+for\\s+the\\s+(?:year|period)",
-     "本期折舊|本期折旧|本期攤銷|本期摊销",
-     "（1）計提|（1）计提|本期計提|本期计提"
+     "charge\\s+for\\s+the\\s+(?:year|period)"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -11809,35 +11846,12 @@
      "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
      "^\\s*depreciation\\s*$",
      "^\\s*amorti[sz]ation\\s*$",
-     "投資物業折舊",
-     "固定資產折舊",
-     "物業[,、]?\\s*廠房及設備折舊",
-     "在建工程折舊",
-     "使用權資產折舊",
-     "預付租賃款項攤銷",
-     "預付租賃款項轉出",
-     "^折舊$",
-     "投资性房地产折旧",
-     "投资物业折旧",
-     "固定资产折旧",
-     "在建工程折旧",
-     "使用权资产折旧",
-     "预付租赁款项摊销",
-     "^折旧$",
-     "^折旧费$",
-     "折旧费用",
-     "^\\s*折旧[及与和]?摊销\\s*$",
-     "^\\s*折舊[及與和]?攤銷\\s*$",
-     "^\\s*摊销\\s*$",
-     "^\\s*攤銷\\s*$",
      "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$",
      "provided\\s+for\\s+the\\s+(?:year|period)",
      "provision\\s+for\\s+the\\s+(?:year|period)",
      "depreciation\\s+charge",
      "amorti[sz]ation\\s+charge",
-     "charge\\s+for\\s+the\\s+(?:year|period)",
-     "本期折舊|本期折旧|本期攤銷|本期摊销",
-     "（1）計提|（1）计提|本期計提|本期计提"
+     "charge\\s+for\\s+the\\s+(?:year|period)"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -12034,8 +12048,6 @@
      "fixed\\s+assets?|固定資產|固定资产",
      "prepaid\\s+land\\s+lease\\s+payments?|prepaid\\s+lease\\s+payments?|預付土地租賃款項|預付租賃款項",
      "right.of.use\\s+assets?",
-     "使用權資產|使用权资产",
-     "(?:長期待攤費用|长期待摊费用)[^。；;]{0,20}(?:土地|租賃|租赁)|(?:土地|租賃|租赁)[^。；;]{0,20}(?:長期待攤費用|长期待摊费用)",
      "prepaid\\s+lease|預付租賃|预付租赁|租賃土地|租赁土地",
      "construction\\s+in\\s+progress|在建工程",
      "investment\\s+propert(?:y|ies)|投資物業|投资性房地产|投资物业",
@@ -12044,11 +12056,7 @@
     ],
     "row_caption_any": [
      "(?:depreciation|amortisation|amortization).{0,40}(?:(?:general\\s+and\\s+)?administrative(?:\\s+expenses?)?|selling(?:\\s+and\\s+(?:distribution|marketing))?(?:\\s+expenses?)?|distribution(?:\\s+expenses?|\\s+costs?)?|marketing(?:\\s+expenses?)?|operating\\s+(?:expenses?|costs?)|research\\s+and\\s+development|r\\s*&\\s*d)",
-     "(?:(?:general\\s+and\\s+)?administrative(?:\\s+expenses?)?|selling(?:\\s+and\\s+(?:distribution|marketing))?(?:\\s+expenses?)?|distribution(?:\\s+expenses?|\\s+costs?)?|marketing(?:\\s+expenses?)?|operating\\s+(?:expenses?|costs?)|research\\s+and\\s+development|r\\s*&\\s*d).{0,40}(?:depreciation|amortisation|amortization)",
-     "(?:行政|銷售(?:及分銷)?|分銷|市場推廣|經營|研究及開發|研發).{0,12}(?:開支|費用|成本)?.{0,6}(?:折舊|攤銷)",
-     "(?:折舊|攤銷).{0,12}(?:計入|列入)?(?:行政|銷售|分銷|經營|研發)",
-     "(?:行政|销售|分销|营销|经营|研发).{0,12}(?:费用|开支|成本)?.{0,6}(?:折旧|摊销)",
-     "(?:折旧|摊销).{0,12}(?:计入|列入)?(?:行政|销售|分销|经营|研发)"
+     "(?:(?:general\\s+and\\s+)?administrative(?:\\s+expenses?)?|selling(?:\\s+and\\s+(?:distribution|marketing))?(?:\\s+expenses?)?|distribution(?:\\s+expenses?|\\s+costs?)?|marketing(?:\\s+expenses?)?|operating\\s+(?:expenses?|costs?)|research\\s+and\\s+development|r\\s*&\\s*d).{0,40}(?:depreciation|amortisation|amortization)"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -12216,38 +12224,13 @@
    "inherits": "notes",
    "note_source": {
     "note_title_any": [
-     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|loss\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额|除稅前虧損|除稅前虧蝕|稅前虧損|除税前亏损|税前亏损|亏损总额",
-     "使用權資產|使用权资产",
-     "(?:長期待攤費用|长期待摊费用)[^。；;]{0,20}(?:土地|租賃|租赁)|(?:土地|租賃|租赁)[^。；;]{0,20}(?:長期待攤費用|长期待摊费用)"
+     "profit\\s*/?\\s*loss\\s+before\\s+tax(?:ation)?|profit\\s+before\\s+tax(?:ation)?|loss\\s+before\\s+tax(?:ation)?|arrived\\s+at\\s+after\\s+charging|(?:profit|loss).{0,30}from\\s+operating\\s+activities|除稅前溢利|除稅前利潤|稅前溢利|稅前利潤|除税前溢利|税前利润|利润总额|除稅前虧損|除稅前虧蝕|稅前虧損|除税前亏损|税前亏损|亏损总额"
     ],
     "row_caption_any": [
-     "投資物業折舊",
-     "固定資產折舊",
-     "物業[,、]?\\s*廠房及設備折舊",
-     "在建工程折舊",
-     "使用權資產折舊",
-     "預付租賃款項攤銷",
-     "預付租賃款項轉出",
-     "^折舊$",
-     "投资性房地产折旧",
-     "投资物业折旧",
-     "固定资产折旧",
-     "在建工程折旧",
-     "使用权资产折旧",
-     "预付租赁款项摊销",
-     "^折旧$",
-     "^折旧费$",
-     "折旧费用",
-     "^\\s*折旧[及与和]?摊销\\s*$",
-     "^\\s*折舊[及與和]?攤銷\\s*$",
-     "^\\s*摊销\\s*$",
-     "^\\s*攤銷\\s*$",
      "depreciation\\s+of\\s+investment\\s+propert",
      "depreciation\\s+of\\s+fixed\\s+assets",
      "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
      "depreciation\\s+of\\s+propert(?:y|ies)\\s+and\\s+equipment",
-     "物業及設備折舊",
-     "物业及设备折旧",
      "depreciation\\s+of\\s+construction\\s+in\\s+progress",
      "depreciation\\s+of\\s+right.?of.?use\\s+assets",
      "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
@@ -12471,23 +12454,6 @@
      "depreciation\\s+of\\s+right.?of.?use\\s+assets",
      "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
      "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "投資物業折舊",
-     "固定資產折舊",
-     "物業[,、]?\\s*廠房及設備折舊",
-     "在建工程折舊",
-     "使用權資產折舊",
-     "預付租賃款項攤銷",
-     "預付租賃款項轉出",
-     "投资性房地产折旧",
-     "投资物业折旧",
-     "固定资产折旧",
-     "在建工程折旧",
-     "使用权资产折旧",
-     "预付租赁款项摊销",
-     "^折旧费$",
-     "折旧费用",
-     "^\\s*折旧[及与和]?摊销\\s*$",
-     "^\\s*折舊[及與和]?攤銷\\s*$",
      "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$"
     ],
     "row_caption_none": [
@@ -12654,10 +12620,6 @@
      "^\\s*total\\s+(?:investment|marketable|money\\s+market|debt|structured|equity)\\b",
      "^\\s*total\\s+(?:investments?|securities|deposits?)\\s*$",
      "^\\s*(?:total|aggregate)\\s+(?:carrying\\s+)?(?:amount|value)\\s*$",
-     "^\\s*合計\\s*$|^\\s*總計\\s*$|^\\s*總額\\s*$|^\\s*總和\\s*$",
-     "^\\s*合计\\s*$|^\\s*总计\\s*$|^\\s*总额\\s*$|^\\s*总和\\s*$",
-     "(?:金融資產|投資|證券|存款|工具|產品|基金|債券)(?:總額|總計|合計)\\s*$",
-     "(?:金融资产|投资|证券|存款|工具|产品|基金|债券)(?:总额|总计|合计)\\s*$",
      "^Current\\s+portion\\s+of\\s+FVTPL$"
     ],
     "row_caption_none": [
@@ -12905,11 +12867,7 @@
      "^\\s*total\\s+(?:other\\s+)?financial\\s+assets?\\b",
      "^\\s*total\\s+(?:investment|marketable|money\\s+market|debt|structured|equity)\\b",
      "^\\s*total\\s+(?:investments?|securities|deposits?)\\s*$",
-     "^\\s*(?:total|aggregate)\\s+(?:carrying\\s+)?(?:amount|value)\\s*$",
-     "^\\s*合計\\s*$|^\\s*總計\\s*$|^\\s*總額\\s*$|^\\s*總和\\s*$",
-     "^\\s*合计\\s*$|^\\s*总计\\s*$|^\\s*总额\\s*$|^\\s*总和\\s*$",
-     "(?:金融資產|投資|證券|存款|工具|產品|基金|債券)(?:總額|總計|合計)\\s*$",
-     "(?:金融资产|投资|证券|存款|工具|产品|基金|债券)(?:总额|总计|合计)\\s*$"
+     "^\\s*(?:total|aggregate)\\s+(?:carrying\\s+)?(?:amount|value)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -13153,10 +13111,6 @@
      "^\\s*total\\s+(?:investment|marketable|money\\s+market|debt|structured|equity)\\b",
      "^\\s*total\\s+(?:investments?|securities|deposits?)\\s*$",
      "^\\s*(?:total|aggregate)\\s+(?:carrying\\s+)?(?:amount|value)\\s*$",
-     "^\\s*合計\\s*$|^\\s*總計\\s*$|^\\s*總額\\s*$|^\\s*總和\\s*$",
-     "^\\s*合计\\s*$|^\\s*总计\\s*$|^\\s*总额\\s*$|^\\s*总和\\s*$",
-     "(?:金融資產|投資|證券|存款|工具|產品|基金|債券)(?:總額|總計|合計)\\s*$",
-     "(?:金融资产|投资|证券|存款|工具|产品|基金|债券)(?:总额|总计|合计)\\s*$",
      "^\\s*total\\s+(?:available.for.sale|held.to.maturity)"
     ],
     "row_caption_none": [
@@ -13404,11 +13358,7 @@
      "^\\s*total\\s+(?:other\\s+)?financial\\s+assets?\\b",
      "^\\s*total\\s+(?:investment|marketable|money\\s+market|debt|structured|equity)\\b",
      "^\\s*total\\s+(?:investments?|securities|deposits?)\\s*$",
-     "^\\s*(?:total|aggregate)\\s+(?:carrying\\s+)?(?:amount|value)\\s*$",
-     "^\\s*合計\\s*$|^\\s*總計\\s*$|^\\s*總額\\s*$|^\\s*總和\\s*$",
-     "^\\s*合计\\s*$|^\\s*总计\\s*$|^\\s*总额\\s*$|^\\s*总和\\s*$",
-     "(?:金融資產|投資|證券|存款|工具|產品|基金|債券)(?:總額|總計|合計)\\s*$",
-     "(?:金融资产|投资|证券|存款|工具|产品|基金|债券)(?:总额|总计|合计)\\s*$"
+     "^\\s*(?:total|aggregate)\\s+(?:carrying\\s+)?(?:amount|value)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -13634,11 +13584,7 @@
      "^\\s*total\\s*$",
      "^\\s*total\\s+(?:investment|marketable|money\\s+market|debt|structured|equity)\\b",
      "^\\s*total\\s+(?:investments?|securities|deposits?)\\s*$",
-     "^\\s*(?:total|aggregate)\\s+(?:carrying\\s+)?(?:amount|value)\\s*$",
-     "^\\s*合計\\s*$|^\\s*總計\\s*$|^\\s*總額\\s*$|^\\s*總和\\s*$",
-     "^\\s*合计\\s*$|^\\s*总计\\s*$|^\\s*总额\\s*$|^\\s*总和\\s*$",
-     "(?:金融資產|投資|證券|存款|工具|產品|基金|債券)(?:總額|總計|合計)\\s*$",
-     "(?:金融资产|投资|证券|存款|工具|产品|基金|债券)(?:总额|总计|合计)\\s*$"
+     "^\\s*(?:total|aggregate)\\s+(?:carrying\\s+)?(?:amount|value)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -13872,11 +13818,7 @@
      "^\\s*total\\s+(?:other\\s+)?financial\\s+assets?\\b",
      "^\\s*total\\s+(?:investment|marketable|money\\s+market|debt|structured|equity)\\b",
      "^\\s*total\\s+(?:investments?|securities|deposits?)\\s*$",
-     "^\\s*(?:total|aggregate)\\s+(?:carrying\\s+)?(?:amount|value)\\s*$",
-     "^\\s*合計\\s*$|^\\s*總計\\s*$|^\\s*總額\\s*$|^\\s*總和\\s*$",
-     "^\\s*合计\\s*$|^\\s*总计\\s*$|^\\s*总额\\s*$|^\\s*总和\\s*$",
-     "(?:金融資產|投資|證券|存款|工具|產品|基金|債券)(?:總額|總計|合計)\\s*$",
-     "(?:金融资产|投资|证券|存款|工具|产品|基金|债券)(?:总额|总计|合计)\\s*$"
+     "^\\s*(?:total|aggregate)\\s+(?:carrying\\s+)?(?:amount|value)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -14111,12 +14053,7 @@
      "^\\s*non.?current\\b",
      "(?:analys(?:ed|is)|classified|included|shown|reported)\\s+.{0,40}non.?current",
      "(?:recovered|settled|realis(?:ed)?|realiz(?:ed)?|received)\\s+(?:after|more\\s+than)\\s+(?:12|twelve)\\s+months?",
-     "due\\s+after\\s+(?:one|1)\\s+year|after\\s+(?:12|twelve)\\s+months?",
-     "非流動(?:部分|部份|資產)?",
-     "列作非流動(?:資產)?|計入非流動資產|一年後(?:到期|收回)",
-     "非流动(?:部分|部份|资产)?",
-     "列作非流动(?:资产)?|计入非流动资产|一年后(?:到期|收回)",
-     "長期部分|长期部分"
+     "due\\s+after\\s+(?:one|1)\\s+year|after\\s+(?:12|twelve)\\s+months?"
     ],
     "row_caption_none": [
      "^\\s*current\\b",
@@ -14366,11 +14303,7 @@
      "embedded\\s+derivatives?",
      "forward\\s+(?:foreign\\s+)?(?:exchange|currency)\\s+contracts?",
      "interest\\s+rate\\s+swaps?|cross.?currency\\s+swaps?|currency\\s+swaps?",
-     "(?:call|put)\\s+options?|option\\s+contracts?",
-     "衍生工具|衍生金融工具|衍生金融資產|嵌入式衍生工具",
-     "遠期(?:外匯|貨幣)?合約|利率掉期|貨幣掉期|期權(?:合約)?",
-     "衍生金融资产|嵌入式衍生工具",
-     "远期(?:外汇|货币)?合约|利率互换|货币互换|期权(?:合约)?"
+     "(?:call|put)\\s+options?|option\\s+contracts?"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -14645,9 +14578,7 @@
     ],
     "row_caption_any": [
      "other\\s+receivables?",
-     "other\\s+receivables?\\s+and\\s+(?:prepayments?|deposits?)",
-     "其他應收款項|其他應收賬款|其他應收款",
-     "其他应收款项|其他应收账款|其他应收款"
+     "other\\s+receivables?\\s+and\\s+(?:prepayments?|deposits?)"
     ],
     "row_caption_none": [
      "^\\s*at\\s+\\d",
@@ -14897,9 +14828,7 @@
     "row_caption_any": [
      "level\\s*3\\s*[^A-Za-z0-9]{0,5}\\s*total",
      "level\\s*(?:3|three)\\b.{0,40}total",
-     "^\\s*level\\s*(?:3|three)\\b.{0,30}$",
-     "第三級總額|第三層級總額|第三級合計|第三級別總額|^\\s*第三級\\s*$|^\\s*第三層級\\s*$",
-     "第三级总额|第三层级总额|第三级合计|第三级别总额|^\\s*第三级\\s*$|^\\s*第三层级\\s*$"
+     "^\\s*level\\s*(?:3|three)\\b.{0,30}$"
     ],
     "row_caption_none": [
      "level\\s*(?:1|2|one|two)\\b",
@@ -15122,30 +15051,13 @@
      "turnover\\s+and\\s+other\\s+revenue",
      "revenue,?\\s+other\\s+income\\s+and\\s+gains?",
      "revenue\\s+and\\s+other\\s+income\\s+and\\s+gains?",
-     "收益[、，]?\\s*其他收入及收益|收入[、，]?\\s*其他收入及收",
-     "營業額及其他收入|营业额及其他收入",
-     "收入[与與和及]\\s*(?:营业|營業|主营业务|主營業務)?\\s*成本",
      "^\\s*(?:note\\s+)?(?:\\d+[.、)]?\\s*)?(?:revenues?|turnover)\\s*$"
     ],
     "row_caption_any": [
-     "^\\s*主营业务收入(?!\\s*成本)",
-     "^\\s*主营业务(?!\\s*成本)",
-     "^\\s*其中\\s*[:：]?\\s*主营业务(?:收入)?(?!\\s*成本)",
-     "^\\s*主营业务(?:营业)?收入(?:合计|总计|小计|总额|净额)",
-     "^\\s*主營業務收入(?!\\s*成本)",
-     "^\\s*主營業務(?!\\s*成本)",
-     "^\\s*其中\\s*[:：]?\\s*主營業務(?:收入)?(?!\\s*成本)",
-     "^\\s*主營業務(?:營業)?收入(?:合計|總計|小計|總額|淨額)",
-     "^\\s*(?:主营业务|主營業務)收入\\s*[（(][^)）]{0,30}[)）]",
      "^\\s*revenue\\s+from\\s+contracts\\s+with\\s+customers\\s*$",
      "^\\s*revenue\\s+from\\s+external\\s+customers\\s*$",
-     "^\\s*(?:營業額|营业额)\\s*$",
-     "^\\s*(?:对外|對外)(?:交易)?收入\\s*$",
-     "^\\s*(?:来自|來自)客[户戶]合同的?收入\\s*$",
-     "^\\s*客[户戶]合同收入\\s*$",
      "total\\s+turnover\\s+from\\s+contracts\\s+with\\s+customers",
      "revenue\\s+from\\s+contracts\\s+with\\s+customers\\s*(?:總計|总计)?\\s*$",
-     "營業額總計|营业额总计|收入合計|收入合计",
      "^Income$"
     ],
     "row_caption_none": [
@@ -15278,9 +15190,7 @@
     ],
     "row_caption_any": [
      "letters?\\s+of\\s+credit|documentary\\s+credits?|\\bl\\s*/\\s*c\\b",
-     "standby\\s+letters?\\s+of\\s+credit|irrevocable\\s+letters?\\s+of\\s+credit|unexpired\\s+letters?\\s+of\\s+credit",
-     "信用證|已開立信用證|未結信用證|未到期信用證|不可撤銷信用證|備用信用證|跟單信用證",
-     "信用证|已开立信用证|未结信用证|未到期信用证|不可撤销信用证|备用信用证|跟单信用证"
+     "standby\\s+letters?\\s+of\\s+credit|irrevocable\\s+letters?\\s+of\\s+credit|unexpired\\s+letters?\\s+of\\s+credit"
     ],
     "row_caption_none": [
      "^\\s*at\\s+(?:1|1st)\\b|^\\s*at\\s+the\\s+beginning|opening\\s+balance|balance\\s+(?:at|as\\s+at)\\s+(?:the\\s+)?beginning",
@@ -15557,9 +15467,7 @@
     ],
     "row_caption_any": [
      "performance\\s+bonds?|performance\\s+guarantees?|performance\\s+securit(?:y|ies)",
-     "contract\\s+performance\\s+(?:bonds?|guarantees?)|construction\\s+performance\\s+bonds?",
-     "履約保函|履約保證(?:金)?|履約擔保|合同履約保函|工程履約保函",
-     "履约保函|履约保证(?:金)?|履约担保|合同履约保函|工程履约保函"
+     "contract\\s+performance\\s+(?:bonds?|guarantees?)|construction\\s+performance\\s+bonds?"
     ],
     "row_caption_none": [
      "^\\s*at\\s+(?:1|1st)\\b|^\\s*at\\s+the\\s+beginning|opening\\s+balance|balance\\s+(?:at|as\\s+at)\\s+(?:the\\s+)?beginning",
@@ -15843,9 +15751,7 @@
     ],
     "row_caption_any": [
      "bank\\s+guarantees?|bankers?\\s+guarantees?|guarantees?\\s+issued\\s+by\\s+(?:the\\s+)?banks?",
-     "payment\\s+guarantees?|advance\\s+payment\\s+guarantees?|bid\\s+bonds?|tender\\s+guarantees?",
-     "銀行保函|銀行保證|銀行出具的?保函|融資性保函|非融資性保函|付款保函|預付款保函|投標保函",
-     "银行保函|银行保证|银行出具的?保函|融资性保函|非融资性保函|付款保函|预付款保函|投标保函"
+     "payment\\s+guarantees?|advance\\s+payment\\s+guarantees?|bid\\s+bonds?|tender\\s+guarantees?"
     ],
     "row_caption_none": [
      "^\\s*at\\s+(?:1|1st)\\b|^\\s*at\\s+the\\s+beginning|opening\\s+balance|balance\\s+(?:at|as\\s+at)\\s+(?:the\\s+)?beginning",
@@ -16144,11 +16050,7 @@
      "guarantees?\\s+(?:given|issued|provided|granted)(?:\\s+(?:to|for|in\\s+respect\\s+of))?",
      "guarantees?\\s+in\\s+respect\\s+of\\s+(?:banking\\s+)?(?:facilities|loans?|borrowings?|credit)",
      "guarantees?.{0,40}(?:subsidiar(?:y|ies)|associates?|joint\\s+ventures?|related\\s+part(?:y|ies)|customers?|suppliers?)",
-     "joint\\s+and\\s+several\\s+(?:liability|guarantee|responsibility)|suretyship",
-     "公司擔保|企業擔保|對外擔保|關聯方擔保|關聯擔保|債務擔保|借款擔保|融資擔保|連帶責任保證|保證責任",
-     "為(?:子公司|附屬公司|聯營公司|合營公司|關聯方|其他單位)提供(?:的)?擔保",
-     "公司担保|企业担保|对外担保|关联方担保|关联担保|债务担保|借款担保|融资担保|连带责任保证|保证责任",
-     "为(?:子公司|附属公司|联营公司|合营公司|关联方|其他单位)提供(?:的)?担保"
+     "joint\\s+and\\s+several\\s+(?:liability|guarantee|responsibility)|suretyship"
     ],
     "row_caption_none": [
      "^\\s*at\\s+(?:1|1st)\\b|^\\s*at\\s+the\\s+beginning|opening\\s+balance|balance\\s+(?:at|as\\s+at)\\s+(?:the\\s+)?beginning",
@@ -16498,9 +16400,7 @@
     ],
     "row_caption_any": [
      "outstanding\\s+(?:guarantee|guaranteed)\\s+(?:amounts?|balances?)|guarantee\\s+balances?|balance\\s+of\\s+(?:the\\s+)?guarantees?|outstanding\\s+guarantees?",
-     "amounts?\\s+(?:utilis|utiliz)ed|amounts?\\s+drawn(?:\\s+down)?|amounts?\\s+outstanding|guarantees?\\s+outstanding",
-     "擔保[^,，、;；]{0,6}餘額|擔保責任[^,，、;；]{0,6}餘額|實際擔保金額|實際發生擔保金額|尚未履行金額|未結金額",
-     "担保[^,，、;；]{0,6}余额|担保责任[^,，、;；]{0,6}余额|实际担保金额|实际发生担保金额|尚未履行金额|未结金额"
+     "amounts?\\s+(?:utilis|utiliz)ed|amounts?\\s+drawn(?:\\s+down)?|amounts?\\s+outstanding|guarantees?\\s+outstanding"
     ],
     "row_caption_none": [
      "^\\s*at\\s+(?:1|1st)\\b|^\\s*at\\s+the\\s+beginning|opening\\s+balance|balance\\s+(?:at|as\\s+at)\\s+(?:the\\s+)?beginning",
@@ -16777,9 +16677,7 @@
      "^\\s*guarantees?\\s*$|guarantees?\\s+(?:given|issued|provided|granted)|external\\s+guarantees?|financial\\s+guarantees?|對外擔保|對外提供擔保|擔保事項|对外担保|对外提供担保|担保事项|为他人提供担保|为其他单位提供担保"
     ],
     "row_caption_any": [
-     "amount\\s+guaranteed|guaranteed\\s+amounts?|guarantee\\s+amounts?|maximum\\s+(?:amount\\s+of\\s+)?guarantees?|maximum\\s+exposure",
-     "擔保金額|合同擔保金額|擔保限額",
-     "担保金额|合同担保金额|担保限额"
+     "amount\\s+guaranteed|guaranteed\\s+amounts?|guarantee\\s+amounts?|maximum\\s+(?:amount\\s+of\\s+)?guarantees?|maximum\\s+exposure"
     ],
     "row_caption_none": [
      "^\\s*at\\s+(?:1|1st)\\b|^\\s*at\\s+the\\s+beginning|opening\\s+balance|balance\\s+(?:at|as\\s+at)\\s+(?:the\\s+)?beginning",
@@ -17067,9 +16965,7 @@
      "^\\s*guarantees?\\s*$|guarantees?\\s+(?:given|issued|provided|granted)|external\\s+guarantees?|financial\\s+guarantees?|對外擔保|對外提供擔保|擔保事項|对外担保|对外提供担保|担保事项|为他人提供担保|为其他单位提供担保"
     ],
     "row_caption_any": [
-     "guarantees?\\s+(?:released|discharged|cancelled|terminated)|amounts?\\s+(?:repaid|released|discharged)",
-     "已解除擔保(?:金額)?|本期解除擔保(?:金額)?|解除擔保金額|已償還(?:金額|本金)?|已歸還金額",
-     "已解除担保(?:金额)?|本期解除担保(?:金额)?|解除担保金额|已偿还(?:金额|本金)?|已归还金额"
+     "guarantees?\\s+(?:released|discharged|cancelled|terminated)|amounts?\\s+(?:repaid|released|discharged)"
     ],
     "row_caption_none": [
      "^\\s*at\\s+(?:1|1st)\\b|^\\s*at\\s+the\\s+beginning|opening\\s+balance|balance\\s+(?:at|as\\s+at)\\s+(?:the\\s+)?beginning",
@@ -17297,10 +17193,7 @@
     "note_title_any": [
      "related\\s+part(?:y|ies)\\s+(?:guarantees?|transactions?|balances?)|guarantees?\\s+(?:given\\s+)?(?:to|for)\\s+related\\s+part|關聯方擔保|關聯擔保|關連方擔保|關連交易|关联方担保|关联担保|关联方交易|关联方担保情况"
     ],
-    "row_caption_any": [
-     "為股東、實際控制人及其關聯方提供擔保的餘額|为股东、实际控制人及其关联方提供担保的余额",
-     "為股東.{0,16}關聯方提供擔保|为股东.{0,16}关联方提供担保"
-    ],
+    "row_caption_any": [],
     "row_caption_none": [
      "^\\s*at\\s+(?:1|1st)\\b|^\\s*at\\s+the\\s+beginning|opening\\s+balance|balance\\s+(?:at|as\\s+at)\\s+(?:the\\s+)?beginning",
      "\\badditions?\\b|\\bpurchases?\\b|newly\\s+(?:issued|granted|provided)|issued\\s+during\\s+the\\s+(?:year|period)",
@@ -17576,9 +17469,7 @@
      "related\\s+part(?:y|ies)\\s+(?:guarantees?|transactions?|balances?)|guarantees?\\s+(?:given\\s+)?(?:to|for)\\s+related\\s+part|關聯方擔保|關聯擔保|關連方擔保|關連交易|关联方担保|关联担保|关联方交易|关联方担保情况"
     ],
     "row_caption_any": [
-     "amount\\s+guaranteed|guaranteed\\s+amounts?|guarantee\\s+amounts?|maximum\\s+(?:amount\\s+of\\s+)?guarantees?|maximum\\s+exposure",
-     "擔保金額|合同擔保金額|擔保限額",
-     "担保金额|合同担保金额|担保限额"
+     "amount\\s+guaranteed|guaranteed\\s+amounts?|guarantee\\s+amounts?|maximum\\s+(?:amount\\s+of\\s+)?guarantees?|maximum\\s+exposure"
     ],
     "row_caption_none": [
      "^\\s*at\\s+(?:1|1st)\\b|^\\s*at\\s+the\\s+beginning|opening\\s+balance|balance\\s+(?:at|as\\s+at)\\s+(?:the\\s+)?beginning",
@@ -17866,21 +17757,10 @@
      "contingent\\s+liabilit(?:y|ies)",
      "\\bcontingencies\\b",
      "commitments\\s+and\\s+contingen",
-     "financial\\s+guarantee(?:s|\\s+contracts?)?",
-     "或有負債|或有负债",
-     "或有事項|或有事项",
-     "或然負債|或然负债",
-     "財務擔保|财务担保",
-     "重大擔保|重大担保",
-     "對外擔保|对外担保",
-     "開出保函|开出保函",
-     "未決訴訟|未决诉讼"
+     "financial\\s+guarantee(?:s|\\s+contracts?)?"
     ],
     "row_caption_any": [
      "^\\s*total\\b|\\btotal\\s+(?:contingent\\s+liabilit(?:y|ies)|guarantees?|amount\\s+of\\s+guarantees?|letters?\\s+of\\s+credit)",
-     "擔保金額合計|擔保餘額合計|總擔保金額|擔保總額|或有負債合計|合計擔保",
-     "担保金额合计|担保余额合计|总担保金额|担保总额|或有负债合计|合计担保|担保合计",
-     "公司擔保總額|公司担保总额",
      "A3\\s*\\+\\s*B3\\s*\\+\\s*C3"
     ],
     "row_caption_none": [
@@ -18145,23 +18025,7 @@
      "(?:analysed|analyzed|shown|presented|reported|classified|stated|included)\\s+(?:for\\s+reporting\\s+purposes\\s+)?as\\s*[:：]?\\s*(?:a\\s+)?non-?current",
      "included\\s+in\\s+non-?current\\s+assets",
      "(?:due|receivable|recoverable|repayable)\\s+(?:after|beyond)\\s+(?:more\\s+than\\s+)?(?:one|1|12)\\b",
-     "after\\s+(?:one\\s+year|1\\s+year|12\\s+months)",
-     "^\\s*非流動\\s*$",
-     "^\\s*非流動(?:部分|資產|投資|金融資產)",
-     "非流動部分",
-     "列作非流動",
-     "計入非流動",
-     "分類為非流動",
-     "一年後(?:到期)?",
-     "^\\s*於一年後",
-     "^\\s*非流动\\s*$",
-     "^\\s*非流动(?:部分|资产|投资|金融资产)",
-     "非流动部分",
-     "列作非流动",
-     "计入非流动",
-     "分类为非流动",
-     "一年后(?:到期)?",
-     "^\\s*于一年后"
+     "after\\s+(?:one\\s+year|1\\s+year|12\\s+months)"
     ],
     "row_caption_none": [
      "^\\s*(?:as\\s+)?at\\s+\\d",
@@ -18610,18 +18474,6 @@
      "^\\s*total\\s+(?:available.for.sale|held.to.maturity)",
      "^\\s*(?:net\\s+|total\\s+)?carrying\\s+(?:amount|value)s?\\s*$",
      "^\\s*(?:net\\s+|total\\s+)?carrying\\s+(?:amount|value)s?\\s+(?:of|at|as\\s+at)\\b",
-     "^\\s*合計\\s*$",
-     "^\\s*合計\\s*[:：]",
-     "^\\s*總(?:計|額)\\s*$",
-     "^\\s*總(?:計|額)\\s*[:：]",
-     "(?:金融資產|債務投資|投資證券|結構性存款)(?:總額|總計|合計)",
-     "^\\s*(?:帳|賬)面(?:淨值|價值|值)",
-     "^\\s*合计\\s*$",
-     "^\\s*合计\\s*[:：]",
-     "^\\s*总(?:计|额)\\s*$",
-     "^\\s*总(?:计|额)\\s*[:：]",
-     "(?:金融资产|债务投资|债权投资|投资证券|结构性存款)(?:总额|总计|合计)",
-     "^\\s*账面(?:净值|价值)",
      "^Non-?current\\s+portion\\s+of\\s+FVTPL$"
     ],
     "row_caption_none": [
@@ -19047,18 +18899,6 @@
      "^\\s*total\\s+(?:available.for.sale|held.to.maturity)",
      "^\\s*(?:net\\s+|total\\s+)?carrying\\s+(?:amount|value)s?\\s*$",
      "^\\s*(?:net\\s+|total\\s+)?carrying\\s+(?:amount|value)s?\\s+(?:of|at|as\\s+at)\\b",
-     "^\\s*合計\\s*$",
-     "^\\s*合計\\s*[:：]",
-     "^\\s*總(?:計|額)\\s*$",
-     "^\\s*總(?:計|額)\\s*[:：]",
-     "(?:金融資產|債務投資|投資證券|結構性存款)(?:總額|總計|合計)",
-     "^\\s*(?:帳|賬)面(?:淨值|價值|值)",
-     "^\\s*合计\\s*$",
-     "^\\s*合计\\s*[:：]",
-     "^\\s*总(?:计|额)\\s*$",
-     "^\\s*总(?:计|额)\\s*[:：]",
-     "(?:金融资产|债务投资|债权投资|投资证券|结构性存款)(?:总额|总计|合计)",
-     "^\\s*账面(?:净值|价值)",
      "^Non-?current\\s+portion\\s+of\\s+FVTOCI$"
     ],
     "row_caption_none": [
@@ -19487,19 +19327,7 @@
      "total\\s+financial\\s+assets?\\s+at\\s+fair\\s+value",
      "^\\s*total\\s+(?:available.for.sale|held.to.maturity)",
      "^\\s*(?:net\\s+|total\\s+)?carrying\\s+(?:amount|value)s?\\s*$",
-     "^\\s*(?:net\\s+|total\\s+)?carrying\\s+(?:amount|value)s?\\s+(?:of|at|as\\s+at)\\b",
-     "^\\s*合計\\s*$",
-     "^\\s*合計\\s*[:：]",
-     "^\\s*總(?:計|額)\\s*$",
-     "^\\s*總(?:計|額)\\s*[:：]",
-     "(?:金融資產|債務投資|投資證券|結構性存款)(?:總額|總計|合計)",
-     "^\\s*(?:帳|賬)面(?:淨值|價值|值)",
-     "^\\s*合计\\s*$",
-     "^\\s*合计\\s*[:：]",
-     "^\\s*总(?:计|额)\\s*$",
-     "^\\s*总(?:计|额)\\s*[:：]",
-     "(?:金融资产|债务投资|债权投资|投资证券|结构性存款)(?:总额|总计|合计)",
-     "^\\s*账面(?:净值|价值)"
+     "^\\s*(?:net\\s+|total\\s+)?carrying\\s+(?:amount|value)s?\\s+(?:of|at|as\\s+at)\\b"
     ],
     "row_caption_none": [
      "^\\s*(?:as\\s+)?at\\s+\\d",
@@ -19931,19 +19759,7 @@
      "total\\s+financial\\s+assets?\\s+at\\s+fair\\s+value",
      "^\\s*total\\s+(?:available.for.sale|held.to.maturity)",
      "^\\s*(?:net\\s+|total\\s+)?carrying\\s+(?:amount|value)s?\\s*$",
-     "^\\s*(?:net\\s+|total\\s+)?carrying\\s+(?:amount|value)s?\\s+(?:of|at|as\\s+at)\\b",
-     "^\\s*合計\\s*$",
-     "^\\s*合計\\s*[:：]",
-     "^\\s*總(?:計|額)\\s*$",
-     "^\\s*總(?:計|額)\\s*[:：]",
-     "(?:金融資產|債務投資|投資證券|結構性存款)(?:總額|總計|合計)",
-     "^\\s*(?:帳|賬)面(?:淨值|價值|值)",
-     "^\\s*合计\\s*$",
-     "^\\s*合计\\s*[:：]",
-     "^\\s*总(?:计|额)\\s*$",
-     "^\\s*总(?:计|额)\\s*[:：]",
-     "(?:金融资产|债务投资|债权投资|投资证券|结构性存款)(?:总额|总计|合计)",
-     "^\\s*账面(?:净值|价值)"
+     "^\\s*(?:net\\s+|total\\s+)?carrying\\s+(?:amount|value)s?\\s+(?:of|at|as\\s+at)\\b"
     ],
     "row_caption_none": [
      "^\\s*(?:as\\s+)?at\\s+\\d",
@@ -20358,7 +20174,6 @@
    "note_source": {
     "note_title_any": [
      "other\\s+(?:non-?current\\s+)?financial\\s+assets?|其他金融資產|其他非流動金融資產|其他金融资产|其他非流动金融资产",
-     "其他非流動金融資產|其他非流动金融资产",
      "other\\s+non.current\\s+financial\\s+assets?"
     ],
     "row_caption_any": [
@@ -20369,19 +20184,7 @@
      "total\\s+financial\\s+assets?\\s+at\\s+fair\\s+value",
      "^\\s*total\\s+(?:available.for.sale|held.to.maturity)",
      "^\\s*(?:net\\s+|total\\s+)?carrying\\s+(?:amount|value)s?\\s*$",
-     "^\\s*(?:net\\s+|total\\s+)?carrying\\s+(?:amount|value)s?\\s+(?:of|at|as\\s+at)\\b",
-     "^\\s*合計\\s*$",
-     "^\\s*合計\\s*[:：]",
-     "^\\s*總(?:計|額)\\s*$",
-     "^\\s*總(?:計|額)\\s*[:：]",
-     "(?:金融資產|債務投資|投資證券|結構性存款)(?:總額|總計|合計)",
-     "^\\s*(?:帳|賬)面(?:淨值|價值|值)",
-     "^\\s*合计\\s*$",
-     "^\\s*合计\\s*[:：]",
-     "^\\s*总(?:计|额)\\s*$",
-     "^\\s*总(?:计|额)\\s*[:：]",
-     "(?:金融资产|债务投资|债权投资|投资证券|结构性存款)(?:总额|总计|合计)",
-     "^\\s*账面(?:净值|价值)"
+     "^\\s*(?:net\\s+|total\\s+)?carrying\\s+(?:amount|value)s?\\s+(?:of|at|as\\s+at)\\b"
     ],
     "row_caption_none": [
      "^\\s*(?:as\\s+)?at\\s+\\d",
@@ -20801,19 +20604,7 @@
      "total\\s+financial\\s+assets?\\s+at\\s+fair\\s+value",
      "^\\s*total\\s+(?:available.for.sale|held.to.maturity)",
      "^\\s*(?:net\\s+|total\\s+)?carrying\\s+(?:amount|value)s?\\s*$",
-     "^\\s*(?:net\\s+|total\\s+)?carrying\\s+(?:amount|value)s?\\s+(?:of|at|as\\s+at)\\b",
-     "^\\s*合計\\s*$",
-     "^\\s*合計\\s*[:：]",
-     "^\\s*總(?:計|額)\\s*$",
-     "^\\s*總(?:計|額)\\s*[:：]",
-     "(?:金融資產|債務投資|投資證券|結構性存款)(?:總額|總計|合計)",
-     "^\\s*(?:帳|賬)面(?:淨值|價值|值)",
-     "^\\s*合计\\s*$",
-     "^\\s*合计\\s*[:：]",
-     "^\\s*总(?:计|额)\\s*$",
-     "^\\s*总(?:计|额)\\s*[:：]",
-     "(?:金融资产|债务投资|债权投资|投资证券|结构性存款)(?:总额|总计|合计)",
-     "^\\s*账面(?:净值|价值)"
+     "^\\s*(?:net\\s+|total\\s+)?carrying\\s+(?:amount|value)s?\\s+(?:of|at|as\\s+at)\\b"
     ],
     "row_caption_none": [
      "^\\s*(?:as\\s+)?at\\s+\\d",
@@ -21234,19 +21025,7 @@
      "total\\s+financial\\s+assets?\\s+at\\s+fair\\s+value",
      "^\\s*total\\s+(?:available.for.sale|held.to.maturity)",
      "^\\s*(?:net\\s+|total\\s+)?carrying\\s+(?:amount|value)s?\\s*$",
-     "^\\s*(?:net\\s+|total\\s+)?carrying\\s+(?:amount|value)s?\\s+(?:of|at|as\\s+at)\\b",
-     "^\\s*合計\\s*$",
-     "^\\s*合計\\s*[:：]",
-     "^\\s*總(?:計|額)\\s*$",
-     "^\\s*總(?:計|額)\\s*[:：]",
-     "(?:金融資產|債務投資|投資證券|結構性存款)(?:總額|總計|合計)",
-     "^\\s*(?:帳|賬)面(?:淨值|價值|值)",
-     "^\\s*合计\\s*$",
-     "^\\s*合计\\s*[:：]",
-     "^\\s*总(?:计|额)\\s*$",
-     "^\\s*总(?:计|额)\\s*[:：]",
-     "(?:金融资产|债务投资|债权投资|投资证券|结构性存款)(?:总额|总计|合计)",
-     "^\\s*账面(?:净值|价值)"
+     "^\\s*(?:net\\s+|total\\s+)?carrying\\s+(?:amount|value)s?\\s+(?:of|at|as\\s+at)\\b"
     ],
     "row_caption_none": [
      "^\\s*(?:as\\s+)?at\\s+\\d",
@@ -21666,19 +21445,7 @@
      "total\\s+financial\\s+assets?\\s+at\\s+fair\\s+value",
      "^\\s*total\\s+(?:available.for.sale|held.to.maturity)",
      "^\\s*(?:net\\s+|total\\s+)?carrying\\s+(?:amount|value)s?\\s*$",
-     "^\\s*(?:net\\s+|total\\s+)?carrying\\s+(?:amount|value)s?\\s+(?:of|at|as\\s+at)\\b",
-     "^\\s*合計\\s*$",
-     "^\\s*合計\\s*[:：]",
-     "^\\s*總(?:計|額)\\s*$",
-     "^\\s*總(?:計|額)\\s*[:：]",
-     "(?:金融資產|債務投資|投資證券|結構性存款)(?:總額|總計|合計)",
-     "^\\s*(?:帳|賬)面(?:淨值|價值|值)",
-     "^\\s*合计\\s*$",
-     "^\\s*合计\\s*[:：]",
-     "^\\s*总(?:计|额)\\s*$",
-     "^\\s*总(?:计|额)\\s*[:：]",
-     "(?:金融资产|债务投资|债权投资|投资证券|结构性存款)(?:总额|总计|合计)",
-     "^\\s*账面(?:净值|价值)"
+     "^\\s*(?:net\\s+|total\\s+)?carrying\\s+(?:amount|value)s?\\s+(?:of|at|as\\s+at)\\b"
     ],
     "row_caption_none": [
      "^\\s*(?:as\\s+)?at\\s+\\d",
@@ -22099,12 +21866,7 @@
      "embedded\\s+derivatives?",
      "total\\s+derivatives?",
      "total\\s+derivative\\s+financial\\s+(?:instruments?|assets?)",
-     "(?:included|comprising|of\\s+which)[^\\n]{0,30}derivatives?",
-     "^\\s*衍生",
-     "衍生(?:金融)?(?:工具|資產)",
-     "嵌入式衍生工具",
-     "衍生(?:金融)?(?:工具|资产)",
-     "衍生品"
+     "(?:included|comprising|of\\s+which)[^\\n]{0,30}derivatives?"
     ],
     "row_caption_none": [
      "^\\s*(?:as\\s+)?at\\s+\\d",
@@ -22481,11 +22243,7 @@
      "^\\s*(?:less\\s*[:：]?\\s*)?other\\s+receivables?\\b",
      "other\\s+(?:accounts\\s+)?receivables?",
      "other\\s+receivables?\\s+and\\s+(?:prepayments?|deposits?)",
-     "(?:included|comprising|of\\s+which)[^\\n]{0,30}other\\s+receivables?",
-     "^\\s*其他應收(?:款項|賬款|帳款)?",
-     "其他應收(?:款項|賬款|帳款)",
-     "^\\s*其他应收(?:款项|账款)?",
-     "其他应收(?:款项|账款)"
+     "(?:included|comprising|of\\s+which)[^\\n]{0,30}other\\s+receivables?"
     ],
     "row_caption_none": [
      "^\\s*(?:as\\s+)?at\\s+\\d",
@@ -22855,19 +22613,7 @@
      "investments?\\s+in\\s+(?:an?\\s+)?(?:associates?|joint\\s+ventures?|jv|jointly\\s+controlled\\s+entit(?:y|ies)|related\\s+part(?:y|ies)|related\\s+compan(?:y|ies))",
      "^\\s*(?:less\\s*[:：]?\\s*)?(?:interests?|investments?)\\s+in\\s+(?:associates?|joint\\s+ventures?)",
      "equity\\s+investments?\\s+in\\s+(?:associates?|joint\\s+ventures?|related\\s+part(?:y|ies))",
-     "(?:included|comprising|of\\s+which)[^\\n]{0,30}(?:associates?|joint\\s+ventures?|related\\s+part(?:y|ies))",
-     "於(?:聯營公司|聯營企業)(?:的|之)?投資",
-     "於(?:合營企業|合資企業|共同控制實體)(?:的|之)?投資",
-     "於關聯方(?:的|之)?投資",
-     "對(?:聯營|合營)(?:公司|企業)(?:的|之)?投資",
-     "^\\s*(?:聯營|合營)(?:公司|企業)",
-     "長期股權投資",
-     "于(?:联营公司|联营企业)(?:的)?投资",
-     "于(?:合营企业|合资企业|共同控制实体)(?:的)?投资",
-     "于关联方(?:的)?投资",
-     "对(?:联营|合营)(?:公司|企业)(?:的)?投资",
-     "^\\s*(?:联营|合营)(?:公司|企业)",
-     "长期股权投资"
+     "(?:included|comprising|of\\s+which)[^\\n]{0,30}(?:associates?|joint\\s+ventures?|related\\s+part(?:y|ies))"
     ],
     "row_caption_none": [
      "^\\s*(?:as\\s+)?at\\s+\\d",
@@ -23298,13 +23044,8 @@
      "其他应收款项?|其他應收款項?|other\\s+receivables?|按金[、,，]?\\s*(?:预付款项|預付款項)?\\s*及其他应收款项?|(?:预付款项|預付款項)[、,，]\\s*(?:按金|其他应收款|其他應收款)|prepay(?:ment|ments)?[,，\\s]+deposits?\\s+and\\s+other\\s+receivables?|deposits?[,，\\s]+prepay(?:ment|ments)?s?\\s+and\\s+other\\s+receivables?|non.?trade\\s+receivables?"
     ],
     "row_caption_any": [
-     "^\\s*(?:期末)?(?:账面价值|账面净值|净额)\\s*$",
-     "^\\s*(?:期末)?(?:[帳賬]面價值|[帳賬]面淨值|淨額)\\s*$",
-     "^\\s*(?:其他应收款项?|其他應收款項?)\\s*(?:期末)?(?:净额|淨額|账面价值|[帳賬]面價值)?\\s*$",
      "^\\s*(?:other\\s+receivables?|non.?trade\\s+receivables?|sundry\\s+receivables?)\\s*(?:[-–—,，]?\\s*net(?:\\s+of\\s+(?:loss\\s+)?(?:allowance|impairment))?)?\\s*$",
-     "^\\s*(?:net\\s+(?:carrying\\s+)?(?:amount|value|book\\s+value)|carrying\\s+(?:amount|value))\\s*$",
-     "(?:期末余额|账面余额)\\s*减\\s*(?:坏账准备|信用损失准备|信用减值准备|损失准备|减值准备)",
-     "(?:期末餘額|[帳賬]面餘額)\\s*減\\s*(?:壞[賬帳]準備|信用損失準備|損失準備|減值準備)"
+     "^\\s*(?:net\\s+(?:carrying\\s+)?(?:amount|value|book\\s+value)|carrying\\s+(?:amount|value))\\s*$"
     ],
     "row_caption_none": [
      "^\\s*(?:balance\\s+)?(?:as\\s+)?at\\s+(?:1\\b|31\\b|30\\b|\\d{1,2}\\s+\\w+|the\\s+(?:beginning|end))",
@@ -23713,13 +23454,8 @@
      "其他应收款项?|其他應收款項?|other\\s+receivables?|按金[、,，]?\\s*(?:预付款项|預付款項)?\\s*及其他应收款项?|(?:预付款项|預付款項)[、,，]\\s*(?:按金|其他应收款|其他應收款)|prepay(?:ment|ments)?[,，\\s]+deposits?\\s+and\\s+other\\s+receivables?|deposits?[,，\\s]+prepay(?:ment|ments)?s?\\s+and\\s+other\\s+receivables?|non.?trade\\s+receivables?"
     ],
     "row_caption_any": [
-     "^\\s*(?:期末)?(?:账面价值|账面净值|净额)\\s*$",
-     "^\\s*(?:期末)?(?:[帳賬]面價值|[帳賬]面淨值|淨額)\\s*$",
-     "^\\s*(?:其他应收款项?|其他應收款項?)\\s*(?:期末)?(?:净额|淨額|账面价值|[帳賬]面價值)?\\s*$",
      "^\\s*(?:other\\s+receivables?|non.?trade\\s+receivables?|sundry\\s+receivables?)\\s*(?:[-–—,，]?\\s*net(?:\\s+of\\s+(?:loss\\s+)?(?:allowance|impairment))?)?\\s*$",
-     "^\\s*(?:net\\s+(?:carrying\\s+)?(?:amount|value|book\\s+value)|carrying\\s+(?:amount|value))\\s*$",
-     "(?:期末余额|账面余额)\\s*减\\s*(?:坏账准备|信用损失准备|信用减值准备|损失准备|减值准备)",
-     "(?:期末餘額|[帳賬]面餘額)\\s*減\\s*(?:壞[賬帳]準備|信用損失準備|損失準備|減值準備)"
+     "^\\s*(?:net\\s+(?:carrying\\s+)?(?:amount|value|book\\s+value)|carrying\\s+(?:amount|value))\\s*$"
     ],
     "row_caption_none": [
      "^\\s*(?:balance\\s+)?(?:as\\s+)?at\\s+(?:1\\b|31\\b|30\\b|\\d{1,2}\\s+\\w+|the\\s+(?:beginning|end))",
@@ -24128,13 +23864,8 @@
      "其他应收款项?|其他應收款項?|other\\s+receivables?|按金[、,，]?\\s*(?:预付款项|預付款項)?\\s*及其他应收款项?|(?:预付款项|預付款項)[、,，]\\s*(?:按金|其他应收款|其他應收款)|prepay(?:ment|ments)?[,，\\s]+deposits?\\s+and\\s+other\\s+receivables?|deposits?[,，\\s]+prepay(?:ment|ments)?s?\\s+and\\s+other\\s+receivables?|non.?trade\\s+receivables?"
     ],
     "row_caption_any": [
-     "^\\s*(?:期末)?(?:账面余额|[帳賬]面餘額)\\s*$",
-     "^\\s*期末(?:余额|餘額)\\s*$",
-     "^\\s*(?:其他应收款项?|其他應收款項?)\\s*(?:期末)?(?:余额|餘額|账面余额|[帳賬]面餘額|合计|合計)\\s*$",
      "^\\s*(?:other\\s+receivables?|non.?trade\\s+receivables?)\\s*[-–—,，]?\\s*(?:gross|total|closing\\s+balance)\\s*$",
      "^\\s*(?:gross\\s+(?:carrying\\s+)?(?:amount|balance|receivables?)|closing\\s+balance|total\\s+other\\s+receivables?)\\s*$",
-     "^\\s*(?:账面余额合计|账面余额小计|[帳賬]面餘額合計)\\s*$",
-     "^\\s*(?:其他应收款项?|其他應收款項?)\\s*$",
      "^\\s*(?:other\\s+receivables?|non.?trade\\s+receivables?|sundry\\s+receivables?)\\s*$"
     ],
     "row_caption_none": [
@@ -24586,12 +24317,7 @@
      "其他应收款项?|其他應收款項?|other\\s+receivables?|按金[、,，]?\\s*(?:预付款项|預付款項)?\\s*及其他应收款项?|(?:预付款项|預付款項)[、,，]\\s*(?:按金|其他应收款|其他應收款)|prepay(?:ment|ments)?[,，\\s]+deposits?\\s+and\\s+other\\s+receivables?|deposits?[,，\\s]+prepay(?:ment|ments)?s?\\s+and\\s+other\\s+receivables?|non.?trade\\s+receivables?"
     ],
     "row_caption_any": [
-     "^\\s*[减減]?\\s*[:：]?\\s*(?:坏账准备|信用损失准备|信用减值准备|损失准备|减值准备)\\s*$",
-     "^\\s*[减減]?\\s*[:：]?\\s*(?:壞[賬帳]準備|信用損失準備|信用減值準備|損失準備|減值準備)\\s*$",
-     "^\\s*(?:其他应收款项?|拆出资金|往来款项?|一年内到期的长期应收款|一年内到期的贷款及垫款)\\s*(?:坏账准备|信用损失准备|损失准备|减值准备)\\s*$",
      "^\\s*(?:less\\s*[:：]?\\s*)?(?:loss\\s+allowance|allowance\\s+for\\s+(?:expected\\s+)?credit\\s+losses?|allowance\\s+for\\s+doubtful\\s+debts?|provision\\s+for\\s+(?:bad|doubtful)\\s+debts?|provision\\s+for\\s+impairment|impairment\\s+allowance|impairment\\s+provision)\\s*$",
-     "^\\s*[减減]\\s*[:：]\\s*(?:坏账准备|壞[賬帳]準備|信用损失准备|信用損失準備|损失准备|損失準備|减值准备|減值準備)",
-     "^\\s*(?:其他应收款项?|其他應收款項?)\\s*$",
      "^\\s*(?:other\\s+receivables?|non.?trade\\s+receivables?|sundry\\s+receivables?)\\s*$"
     ],
     "row_caption_none": [
@@ -24982,11 +24708,7 @@
      "其他应收款项?|其他應收款項?|other\\s+receivables?|按金[、,，]?\\s*(?:预付款项|預付款項)?\\s*及其他应收款项?|(?:预付款项|預付款項)[、,，]\\s*(?:按金|其他应收款|其他應收款)|prepay(?:ment|ments)?[,，\\s]+deposits?\\s+and\\s+other\\s+receivables?|deposits?[,，\\s]+prepay(?:ment|ments)?s?\\s+and\\s+other\\s+receivables?|non.?trade\\s+receivables?"
     ],
     "row_caption_any": [
-     "^\\s*[减減]?\\s*[:：]?\\s*(?:坏账准备|信用损失准备|信用减值准备|损失准备|减值准备)\\s*$",
-     "^\\s*[减減]?\\s*[:：]?\\s*(?:壞[賬帳]準備|信用損失準備|信用減值準備|損失準備|減值準備)\\s*$",
-     "^\\s*(?:其他应收款项?|拆出资金|往来款项?|一年内到期的长期应收款|一年内到期的贷款及垫款)\\s*(?:坏账准备|信用损失准备|损失准备|减值准备)\\s*$",
-     "^\\s*(?:less\\s*[:：]?\\s*)?(?:loss\\s+allowance|allowance\\s+for\\s+(?:expected\\s+)?credit\\s+losses?|allowance\\s+for\\s+doubtful\\s+debts?|provision\\s+for\\s+(?:bad|doubtful)\\s+debts?|provision\\s+for\\s+impairment|impairment\\s+allowance|impairment\\s+provision)\\s*$",
-     "^\\s*[减減]\\s*[:：]\\s*(?:坏账准备|壞[賬帳]準備|信用损失准备|信用損失準備|损失准备|損失準備|减值准备|減值準備)"
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:loss\\s+allowance|allowance\\s+for\\s+(?:expected\\s+)?credit\\s+losses?|allowance\\s+for\\s+doubtful\\s+debts?|provision\\s+for\\s+(?:bad|doubtful)\\s+debts?|provision\\s+for\\s+impairment|impairment\\s+allowance|impairment\\s+provision)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*(?:balance\\s+)?(?:as\\s+)?at\\s+(?:1\\b|31\\b|30\\b|\\d{1,2}\\s+\\w+|the\\s+(?:beginning|end))",
@@ -25376,12 +25098,8 @@
      "一年内到期的非流动资产|一年內到期的非流動資產|一年内到期的长期应收款|一年內到期的長期應收款|长期应收款|長期應收款|current\\s+portion\\s+of\\s+long.?term\\s+receivables?|non.?current\\s+assets?\\s+(?:maturing|due)\\s+within\\s+one\\s+year|long.?term\\s+receivables?"
     ],
     "row_caption_any": [
-     "^\\s*一年内到期的长期应收款\\s*(?:净额|账面价值)?\\s*$",
-     "^\\s*一年內到期的長期應收款\\s*(?:淨額|[帳賬]面價值)?\\s*$",
-     "^\\s*(?:长期应收款|長期應收款)\\s*(?:一年内到期部分|一年內到期部分)\\s*$",
      "^\\s*current\\s+portion\\s+of\\s+long.?term\\s+receivables?\\s*(?:[-–—,，]?\\s*net)?\\s*$",
-     "^\\s*long.?term\\s+receivables?\\s+due\\s+within\\s+one\\s+year\\s*$",
-     "(?:一年内到期的长期应收款)\\s*(?:期末余额|账面余额)\\s*减\\s*(?:坏账准备|损失准备)"
+     "^\\s*long.?term\\s+receivables?\\s+due\\s+within\\s+one\\s+year\\s*$"
     ],
     "row_caption_none": [
      "^\\s*(?:balance\\s+)?(?:as\\s+)?at\\s+(?:1\\b|31\\b|30\\b|\\d{1,2}\\s+\\w+|the\\s+(?:beginning|end))",
@@ -25767,22 +25485,7 @@
      "^\\s*(?:placements?\\s+with\\s+banks?(?:\\s+and\\s+other\\s+financial\\s+institutions)?|funds?\\s+placed(?:\\s+with\\s+(?:banks?|other\\s+financial\\s+institutions))?)\\s*$",
      "^\\s*(?:inter.?company\\s+)?current\\s+account(?:\\s+receivables?|\\s+balances?)?\\s*$",
      "^\\s*(?:net\\s+(?:carrying\\s+)?(?:amount|value|book\\s+value)|carrying\\s+(?:amount|value))\\s*$",
-     "^\\s*other\\s+receivables?\\s*[-–—:]?\\s*net\\s+of\\s+(?:loss\\s+)?(?:allowance|impairment)\\s*$",
-     "^\\s*其他应收款项?\\s*(?:净额|账面价值)?\\s*$",
-     "^\\s*其他應收款項?\\s*(?:淨額|[帳賬]面價值)?\\s*$",
-     "^\\s*一年内到期的长期应收款\\s*$",
-     "^\\s*一年內到期的長期應收款\\s*$",
-     "^\\s*一年内到期的(?:发放)?贷款及垫款\\s*$",
-     "^\\s*一年內到期的(?:發放)?貸款及墊款\\s*$",
-     "^\\s*(?:拆出资金|拆放同业(?:及其他金融机构)?)\\s*$",
-     "^\\s*(?:拆出資金|拆放同業(?:及其他金融機構)?)\\s*$",
-     "^\\s*(?:往来款项?|内部往来(?:款项?)?|单位往来款?项?)\\s*$",
-     "^\\s*(?:往來款項?|內部往來(?:款項?)?|單位往來款?項?)\\s*$",
-     "^\\s*(?:期末)?(?:账面价值|账面净值|净额)\\s*$",
-     "^\\s*(?:期末)?(?:[帳賬]面價值|[帳賬]面淨值|淨額)\\s*$",
-     "^\\s*(?:其他应收款项?|拆出资金|往来款项?|一年内到期的长期应收款)\\s*(?:期末)?(?:账面价值|净额)\\s*$",
-     "(?:期末余额|账面余额)\\s*减\\s*(?:坏账准备|信用损失准备|信用减值准备|损失准备|减值准备)",
-     "(?:期末餘額|[帳賬]面餘額)\\s*減\\s*(?:壞[賬帳]準備|信用損失準備|信用減值準備|損失準備|減值準備)"
+     "^\\s*other\\s+receivables?\\s*[-–—:]?\\s*net\\s+of\\s+(?:loss\\s+)?(?:allowance|impairment)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*(?:balance\\s+)?(?:as\\s+)?at\\s+(?:1\\b|31\\b|30\\b|\\d{1,2}\\s+\\w+|the\\s+(?:beginning|end))",
@@ -26214,22 +25917,7 @@
      "^\\s*(?:placements?\\s+with\\s+banks?(?:\\s+and\\s+other\\s+financial\\s+institutions)?|funds?\\s+placed(?:\\s+with\\s+(?:banks?|other\\s+financial\\s+institutions))?)\\s*$",
      "^\\s*(?:inter.?company\\s+)?current\\s+account(?:\\s+receivables?|\\s+balances?)?\\s*$",
      "^\\s*(?:net\\s+(?:carrying\\s+)?(?:amount|value|book\\s+value)|carrying\\s+(?:amount|value))\\s*$",
-     "^\\s*other\\s+receivables?\\s*[-–—:]?\\s*net\\s+of\\s+(?:loss\\s+)?(?:allowance|impairment)\\s*$",
-     "^\\s*其他应收款项?\\s*(?:净额|账面价值)?\\s*$",
-     "^\\s*其他應收款項?\\s*(?:淨額|[帳賬]面價值)?\\s*$",
-     "^\\s*一年内到期的长期应收款\\s*$",
-     "^\\s*一年內到期的長期應收款\\s*$",
-     "^\\s*一年内到期的(?:发放)?贷款及垫款\\s*$",
-     "^\\s*一年內到期的(?:發放)?貸款及墊款\\s*$",
-     "^\\s*(?:拆出资金|拆放同业(?:及其他金融机构)?)\\s*$",
-     "^\\s*(?:拆出資金|拆放同業(?:及其他金融機構)?)\\s*$",
-     "^\\s*(?:往来款项?|内部往来(?:款项?)?|单位往来款?项?)\\s*$",
-     "^\\s*(?:往來款項?|內部往來(?:款項?)?|單位往來款?項?)\\s*$",
-     "^\\s*(?:期末)?(?:账面价值|账面净值|净额)\\s*$",
-     "^\\s*(?:期末)?(?:[帳賬]面價值|[帳賬]面淨值|淨額)\\s*$",
-     "^\\s*(?:其他应收款项?|拆出资金|往来款项?|一年内到期的长期应收款)\\s*(?:期末)?(?:账面价值|净额)\\s*$",
-     "(?:期末余额|账面余额)\\s*减\\s*(?:坏账准备|信用损失准备|信用减值准备|损失准备|减值准备)",
-     "(?:期末餘額|[帳賬]面餘額)\\s*減\\s*(?:壞[賬帳]準備|信用損失準備|信用減值準備|損失準備|減值準備)"
+     "^\\s*other\\s+receivables?\\s*[-–—:]?\\s*net\\s+of\\s+(?:loss\\s+)?(?:allowance|impairment)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*(?:balance\\s+)?(?:as\\s+)?at\\s+(?:1\\b|31\\b|30\\b|\\d{1,2}\\s+\\w+|the\\s+(?:beginning|end))",
@@ -26653,10 +26341,7 @@
      "往来款项?|往來款項?|内部往来|內部往來|单位往来|單位往來|其他流动资产|其他流動資產|other\\s+current\\s+assets?|(?:inter.?company\\s+)?current\\s+accounts?"
     ],
     "row_caption_any": [
-     "^\\s*(?:往来款项?|内部往来(?:款项?)?|单位往来款?项?)\\s*(?:净额|账面价值)?\\s*$",
-     "^\\s*(?:往來款項?|內部往來(?:款項?)?|單位往來款?項?)\\s*(?:淨額|[帳賬]面價值)?\\s*$",
-     "^\\s*(?:inter.?company\\s+)?current\\s+account(?:\\s+receivables?|\\s+balances?)?\\s*(?:[-–—,，]?\\s*net)?\\s*$",
-     "(?:往来款项?|内部往来款?项?)\\s*(?:期末余额|账面余额)\\s*减\\s*(?:坏账准备|损失准备)"
+     "^\\s*(?:inter.?company\\s+)?current\\s+account(?:\\s+receivables?|\\s+balances?)?\\s*(?:[-–—,，]?\\s*net)?\\s*$"
     ],
     "row_caption_none": [
      "^\\s*(?:balance\\s+)?(?:as\\s+)?at\\s+(?:1\\b|31\\b|30\\b|\\d{1,2}\\s+\\w+|the\\s+(?:beginning|end))",
@@ -27035,13 +26720,8 @@
      "其他应收款项?|其他應收款項?|other\\s+receivables?|按金[、,，]?\\s*(?:预付款项|預付款項)?\\s*及其他应收款项?|(?:预付款项|預付款項)[、,，]\\s*(?:按金|其他应收款|其他應收款)|prepay(?:ment|ments)?[,，\\s]+deposits?\\s+and\\s+other\\s+receivables?|deposits?[,，\\s]+prepay(?:ment|ments)?s?\\s+and\\s+other\\s+receivables?|non.?trade\\s+receivables?"
     ],
     "row_caption_any": [
-     "(?:关联方|關聯方|关联单位|關聯單位|关联企业|關聯企業|关联公司|關聯公司|其他关联方|其他關聯方)",
-     "^\\s*(?:应收关联方(?:的)?款项|关联方应收款项|关联方往来款?项?|关联方资金往来|关联方余额|关联方组合|关联方款项)\\s*$",
-     "^\\s*(?:應收關聯方(?:的)?款項|關聯方應收款項|關聯方往來款?項?|關聯方資金往來|關聯方餘額|關聯方組合|關聯方款項)\\s*$",
-     "^\\s*(?:母公司|子公司|联营企业|合营企业|受同一控制方控制的企业|聯營企業|合營企業|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款)?\\s*$",
      "(?:due\\s+from\\s+(?:a\\s+|the\\s+)?(?:related\\s+part|fellow\\s+subsidiar|holding\\s+compan|ultimate\\s+holding|immediate\\s+holding|subsidiar|associate|joint\\s+venture|group\\s+compan)|amounts?\\s+due\\s+from\\s+(?:related|fellow|group|a\\s+related))",
      "(?:related\\s+part(?:y|ies)|related\\s+compan(?:y|ies))",
-     "(?:母公司|子公司|联营企业|合营企业|聯營企業|合營企業|受同一控制方控制的企业|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款|余额|餘額)",
      "due\\s+from\\s+(?:a\\s+|an\\s+|the\\s+)?related\\s+(?:part|compan|corporat|entit|group)",
      "due\\s+from\\s+(?:a\\s+|the\\s+)?(?:fellow\\s+)?subsidiar",
      "due\\s+from\\s+(?:an?\\s+|the\\s+)?associat",
@@ -27053,27 +26733,7 @@
      "(?:loans?|loan\\s+receivables?|other\\s+receivables?|receivables?|advances?|balances?)\\s+(?:due\\s+)?(?:to|from|with)\\s+(?:a\\s+|an\\s+|the\\s+)?(?:related|associat|affiliat|fellow|subsidiar|joint|jointly|director|shareholder|connected|group\\s+compan)",
      "related\\s+(?:compan(?:y|ies)|part(?:y|ies))\\s*(?:'s|s')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
      "(?:directors?|subsidiar(?:y|ies)|associates?)\\s*(?:'s|s'|')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
-     "related\\s+part(?:y|ies)\\s+(?:receivables?|balances?)",
-     "应收关联方",
-     "关联方应收款项",
-     "其他应收关联方款项",
-     "关联方(?:资金)?往来",
-     "关联方款项",
-     "关联方余额",
-     "关联方组合",
-     "应收关联(?:公司|企业|单位)款项",
-     "应收(?:母公司|子公司|联营企业|联营公司|合营企业|合营公司|附属公司|同系附属公司|控股股东|股东|董事|高级管理人员)款项",
-     "受同一控制方控制的企业",
-     "其他关联方",
-     "^\\s*关联(?:方|公司|企业|单位)\\s*$",
-     "應收關聯方",
-     "應收關連人士款項",
-     "應收關聯(?:公司|企業)款項",
-     "應收(?:同系附屬公司|附屬公司|聯營公司|合營公司|董事|控股公司|股東|母公司)款項",
-     "關聯方(?:資金)?往來",
-     "關聯方款項",
-     "關連人士款項",
-     "^\\s*關(?:聯|連)(?:方|公司)\\s*$"
+     "related\\s+part(?:y|ies)\\s+(?:receivables?|balances?)"
     ],
     "row_caption_none": [
      "^\\s*(?:balance\\s+)?(?:as\\s+)?at\\s+(?:1\\b|31\\b|30\\b|\\d{1,2}\\s+\\w+|the\\s+(?:beginning|end))",
@@ -27420,9 +27080,6 @@
      "其他应收款项?|其他應收款項?|other\\s+receivables?|按金[、,，]?\\s*(?:预付款项|預付款項)?\\s*及其他应收款项?|(?:预付款项|預付款項)[、,，]\\s*(?:按金|其他应收款|其他應收款)|prepay(?:ment|ments)?[,，\\s]+deposits?\\s+and\\s+other\\s+receivables?|deposits?[,，\\s]+prepay(?:ment|ments)?s?\\s+and\\s+other\\s+receivables?|non.?trade\\s+receivables?"
     ],
     "row_caption_any": [
-     "^\\s*(?:应收利息|應收利息)\\s*$",
-     "^\\s*(?:应收股利|應收股利|应收股息|應收股息)\\s*$",
-     "^\\s*(?:应收利息及应收股利|應收利息及應收股利|应收利息和应收股利)\\s*$",
      "^\\s*(?:interest\\s+receivables?|interest\\s+income\\s+receivables?)\\s*$",
      "^\\s*(?:dividends?\\s+receivables?)\\s*$",
      "^\\s*(?:interest\\s+and\\s+dividends?\\s+receivables?|dividends?\\s+and\\s+interest\\s+receivables?)\\s*$"
@@ -27806,13 +27463,8 @@
      "一年内到期的非流动资产|一年內到期的非流動資產|一年内到期的长期应收款|一年內到期的長期應收款|长期应收款|長期應收款|current\\s+portion\\s+of\\s+long.?term\\s+receivables?|non.?current\\s+assets?\\s+(?:maturing|due)\\s+within\\s+one\\s+year|long.?term\\s+receivables?"
     ],
     "row_caption_any": [
-     "(?:关联方|關聯方|关联单位|關聯單位|关联企业|關聯企業|关联公司|關聯公司|其他关联方|其他關聯方)",
-     "^\\s*(?:应收关联方(?:的)?款项|关联方应收款项|关联方往来款?项?|关联方资金往来|关联方余额|关联方组合|关联方款项)\\s*$",
-     "^\\s*(?:應收關聯方(?:的)?款項|關聯方應收款項|關聯方往來款?項?|關聯方資金往來|關聯方餘額|關聯方組合|關聯方款項)\\s*$",
-     "^\\s*(?:母公司|子公司|联营企业|合营企业|受同一控制方控制的企业|聯營企業|合營企業|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款)?\\s*$",
      "(?:due\\s+from\\s+(?:a\\s+|the\\s+)?(?:related\\s+part|fellow\\s+subsidiar|holding\\s+compan|ultimate\\s+holding|immediate\\s+holding|subsidiar|associate|joint\\s+venture|group\\s+compan)|amounts?\\s+due\\s+from\\s+(?:related|fellow|group|a\\s+related))",
      "(?:related\\s+part(?:y|ies)|related\\s+compan(?:y|ies))",
-     "(?:母公司|子公司|联营企业|合营企业|聯營企業|合營企業|受同一控制方控制的企业|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款|余额|餘額)",
      "due\\s+from\\s+(?:a\\s+|an\\s+|the\\s+)?related\\s+(?:part|compan|corporat|entit|group)",
      "due\\s+from\\s+(?:a\\s+|the\\s+)?(?:fellow\\s+)?subsidiar",
      "due\\s+from\\s+(?:an?\\s+|the\\s+)?associat",
@@ -27824,27 +27476,7 @@
      "(?:loans?|loan\\s+receivables?|other\\s+receivables?|receivables?|advances?|balances?)\\s+(?:due\\s+)?(?:to|from|with)\\s+(?:a\\s+|an\\s+|the\\s+)?(?:related|associat|affiliat|fellow|subsidiar|joint|jointly|director|shareholder|connected|group\\s+compan)",
      "related\\s+(?:compan(?:y|ies)|part(?:y|ies))\\s*(?:'s|s')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
      "(?:directors?|subsidiar(?:y|ies)|associates?)\\s*(?:'s|s'|')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
-     "related\\s+part(?:y|ies)\\s+(?:receivables?|balances?)",
-     "应收关联方",
-     "关联方应收款项",
-     "其他应收关联方款项",
-     "关联方(?:资金)?往来",
-     "关联方款项",
-     "关联方余额",
-     "关联方组合",
-     "应收关联(?:公司|企业|单位)款项",
-     "应收(?:母公司|子公司|联营企业|联营公司|合营企业|合营公司|附属公司|同系附属公司|控股股东|股东|董事|高级管理人员)款项",
-     "受同一控制方控制的企业",
-     "其他关联方",
-     "^\\s*关联(?:方|公司|企业|单位)\\s*$",
-     "應收關聯方",
-     "應收關連人士款項",
-     "應收關聯(?:公司|企業)款項",
-     "應收(?:同系附屬公司|附屬公司|聯營公司|合營公司|董事|控股公司|股東|母公司)款項",
-     "關聯方(?:資金)?往來",
-     "關聯方款項",
-     "關連人士款項",
-     "^\\s*關(?:聯|連)(?:方|公司)\\s*$"
+     "related\\s+part(?:y|ies)\\s+(?:receivables?|balances?)"
     ],
     "row_caption_none": [
      "^\\s*(?:balance\\s+)?(?:as\\s+)?at\\s+(?:1\\b|31\\b|30\\b|\\d{1,2}\\s+\\w+|the\\s+(?:beginning|end))",
@@ -28181,13 +27813,8 @@
      "一年内到期的贷款及垫款|一年內到期的貸款及墊款|发放贷款及垫款|發放貸款及墊款|贷款及垫款|貸款及墊款|loans?\\s+and\\s+advances(?:\\s+to\\s+customers)?|current\\s+portion\\s+of\\s+loans?\\s+and\\s+advances"
     ],
     "row_caption_any": [
-     "(?:关联方|關聯方|关联单位|關聯單位|关联企业|關聯企業|关联公司|關聯公司|其他关联方|其他關聯方)",
-     "^\\s*(?:应收关联方(?:的)?款项|关联方应收款项|关联方往来款?项?|关联方资金往来|关联方余额|关联方组合|关联方款项)\\s*$",
-     "^\\s*(?:應收關聯方(?:的)?款項|關聯方應收款項|關聯方往來款?項?|關聯方資金往來|關聯方餘額|關聯方組合|關聯方款項)\\s*$",
-     "^\\s*(?:母公司|子公司|联营企业|合营企业|受同一控制方控制的企业|聯營企業|合營企業|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款)?\\s*$",
      "(?:due\\s+from\\s+(?:a\\s+|the\\s+)?(?:related\\s+part|fellow\\s+subsidiar|holding\\s+compan|ultimate\\s+holding|immediate\\s+holding|subsidiar|associate|joint\\s+venture|group\\s+compan)|amounts?\\s+due\\s+from\\s+(?:related|fellow|group|a\\s+related))",
      "(?:related\\s+part(?:y|ies)|related\\s+compan(?:y|ies))",
-     "(?:母公司|子公司|联营企业|合营企业|聯營企業|合營企業|受同一控制方控制的企业|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款|余额|餘額)",
      "due\\s+from\\s+(?:a\\s+|an\\s+|the\\s+)?related\\s+(?:part|compan|corporat|entit|group)",
      "due\\s+from\\s+(?:a\\s+|the\\s+)?(?:fellow\\s+)?subsidiar",
      "due\\s+from\\s+(?:an?\\s+|the\\s+)?associat",
@@ -28199,27 +27826,7 @@
      "(?:loans?|loan\\s+receivables?|other\\s+receivables?|receivables?|advances?|balances?)\\s+(?:due\\s+)?(?:to|from|with)\\s+(?:a\\s+|an\\s+|the\\s+)?(?:related|associat|affiliat|fellow|subsidiar|joint|jointly|director|shareholder|connected|group\\s+compan)",
      "related\\s+(?:compan(?:y|ies)|part(?:y|ies))\\s*(?:'s|s')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
      "(?:directors?|subsidiar(?:y|ies)|associates?)\\s*(?:'s|s'|')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
-     "related\\s+part(?:y|ies)\\s+(?:receivables?|balances?)",
-     "应收关联方",
-     "关联方应收款项",
-     "其他应收关联方款项",
-     "关联方(?:资金)?往来",
-     "关联方款项",
-     "关联方余额",
-     "关联方组合",
-     "应收关联(?:公司|企业|单位)款项",
-     "应收(?:母公司|子公司|联营企业|联营公司|合营企业|合营公司|附属公司|同系附属公司|控股股东|股东|董事|高级管理人员)款项",
-     "受同一控制方控制的企业",
-     "其他关联方",
-     "^\\s*关联(?:方|公司|企业|单位)\\s*$",
-     "應收關聯方",
-     "應收關連人士款項",
-     "應收關聯(?:公司|企業)款項",
-     "應收(?:同系附屬公司|附屬公司|聯營公司|合營公司|董事|控股公司|股東|母公司)款項",
-     "關聯方(?:資金)?往來",
-     "關聯方款項",
-     "關連人士款項",
-     "^\\s*關(?:聯|連)(?:方|公司)\\s*$"
+     "related\\s+part(?:y|ies)\\s+(?:receivables?|balances?)"
     ],
     "row_caption_none": [
      "^\\s*(?:balance\\s+)?(?:as\\s+)?at\\s+(?:1\\b|31\\b|30\\b|\\d{1,2}\\s+\\w+|the\\s+(?:beginning|end))",
@@ -28554,13 +28161,8 @@
      "拆出资金|拆出資金|拆放同业|拆放同業|placements?\\s+with\\s+(?:banks?|other\\s+financial\\s+institutions)|funds?\\s+placed(?:\\s+with)?|deposits?\\s+placed\\s+with\\s+(?:banks?|other\\s+financial\\s+institutions)"
     ],
     "row_caption_any": [
-     "(?:关联方|關聯方|关联单位|關聯單位|关联企业|關聯企業|关联公司|關聯公司|其他关联方|其他關聯方)",
-     "^\\s*(?:应收关联方(?:的)?款项|关联方应收款项|关联方往来款?项?|关联方资金往来|关联方余额|关联方组合|关联方款项)\\s*$",
-     "^\\s*(?:應收關聯方(?:的)?款項|關聯方應收款項|關聯方往來款?項?|關聯方資金往來|關聯方餘額|關聯方組合|關聯方款項)\\s*$",
-     "^\\s*(?:母公司|子公司|联营企业|合营企业|受同一控制方控制的企业|聯營企業|合營企業|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款)?\\s*$",
      "(?:due\\s+from\\s+(?:a\\s+|the\\s+)?(?:related\\s+part|fellow\\s+subsidiar|holding\\s+compan|ultimate\\s+holding|immediate\\s+holding|subsidiar|associate|joint\\s+venture|group\\s+compan)|amounts?\\s+due\\s+from\\s+(?:related|fellow|group|a\\s+related))",
      "(?:related\\s+part(?:y|ies)|related\\s+compan(?:y|ies))",
-     "(?:母公司|子公司|联营企业|合营企业|聯營企業|合營企業|受同一控制方控制的企业|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款|余额|餘額)",
      "due\\s+from\\s+(?:a\\s+|an\\s+|the\\s+)?related\\s+(?:part|compan|corporat|entit|group)",
      "due\\s+from\\s+(?:a\\s+|the\\s+)?(?:fellow\\s+)?subsidiar",
      "due\\s+from\\s+(?:an?\\s+|the\\s+)?associat",
@@ -28572,27 +28174,7 @@
      "(?:loans?|loan\\s+receivables?|other\\s+receivables?|receivables?|advances?|balances?)\\s+(?:due\\s+)?(?:to|from|with)\\s+(?:a\\s+|an\\s+|the\\s+)?(?:related|associat|affiliat|fellow|subsidiar|joint|jointly|director|shareholder|connected|group\\s+compan)",
      "related\\s+(?:compan(?:y|ies)|part(?:y|ies))\\s*(?:'s|s')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
      "(?:directors?|subsidiar(?:y|ies)|associates?)\\s*(?:'s|s'|')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
-     "related\\s+part(?:y|ies)\\s+(?:receivables?|balances?)",
-     "应收关联方",
-     "关联方应收款项",
-     "其他应收关联方款项",
-     "关联方(?:资金)?往来",
-     "关联方款项",
-     "关联方余额",
-     "关联方组合",
-     "应收关联(?:公司|企业|单位)款项",
-     "应收(?:母公司|子公司|联营企业|联营公司|合营企业|合营公司|附属公司|同系附属公司|控股股东|股东|董事|高级管理人员)款项",
-     "受同一控制方控制的企业",
-     "其他关联方",
-     "^\\s*关联(?:方|公司|企业|单位)\\s*$",
-     "應收關聯方",
-     "應收關連人士款項",
-     "應收關聯(?:公司|企業)款項",
-     "應收(?:同系附屬公司|附屬公司|聯營公司|合營公司|董事|控股公司|股東|母公司)款項",
-     "關聯方(?:資金)?往來",
-     "關聯方款項",
-     "關連人士款項",
-     "^\\s*關(?:聯|連)(?:方|公司)\\s*$"
+     "related\\s+part(?:y|ies)\\s+(?:receivables?|balances?)"
     ],
     "row_caption_none": [
      "^\\s*(?:balance\\s+)?(?:as\\s+)?at\\s+(?:1\\b|31\\b|30\\b|\\d{1,2}\\s+\\w+|the\\s+(?:beginning|end))",
@@ -28927,13 +28509,8 @@
      "往来款项?|往來款項?|内部往来|內部往來|单位往来|單位往來|其他流动资产|其他流動資產|other\\s+current\\s+assets?|(?:inter.?company\\s+)?current\\s+accounts?"
     ],
     "row_caption_any": [
-     "(?:关联方|關聯方|关联单位|關聯單位|关联企业|關聯企業|关联公司|關聯公司|其他关联方|其他關聯方)",
-     "^\\s*(?:应收关联方(?:的)?款项|关联方应收款项|关联方往来款?项?|关联方资金往来|关联方余额|关联方组合|关联方款项)\\s*$",
-     "^\\s*(?:應收關聯方(?:的)?款項|關聯方應收款項|關聯方往來款?項?|關聯方資金往來|關聯方餘額|關聯方組合|關聯方款項)\\s*$",
-     "^\\s*(?:母公司|子公司|联营企业|合营企业|受同一控制方控制的企业|聯營企業|合營企業|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款)?\\s*$",
      "(?:due\\s+from\\s+(?:a\\s+|the\\s+)?(?:related\\s+part|fellow\\s+subsidiar|holding\\s+compan|ultimate\\s+holding|immediate\\s+holding|subsidiar|associate|joint\\s+venture|group\\s+compan)|amounts?\\s+due\\s+from\\s+(?:related|fellow|group|a\\s+related))",
      "(?:related\\s+part(?:y|ies)|related\\s+compan(?:y|ies))",
-     "(?:母公司|子公司|联营企业|合营企业|聯營企業|合營企業|受同一控制方控制的企业|受同一控制方控制的企業|同系附属公司|同系附屬公司|控股股东|控股股東)\\s*(?:款项|款項|往来款?项?|往來款?項?|欠款|余额|餘額)",
      "due\\s+from\\s+(?:a\\s+|an\\s+|the\\s+)?related\\s+(?:part|compan|corporat|entit|group)",
      "due\\s+from\\s+(?:a\\s+|the\\s+)?(?:fellow\\s+)?subsidiar",
      "due\\s+from\\s+(?:an?\\s+|the\\s+)?associat",
@@ -28945,27 +28522,7 @@
      "(?:loans?|loan\\s+receivables?|other\\s+receivables?|receivables?|advances?|balances?)\\s+(?:due\\s+)?(?:to|from|with)\\s+(?:a\\s+|an\\s+|the\\s+)?(?:related|associat|affiliat|fellow|subsidiar|joint|jointly|director|shareholder|connected|group\\s+compan)",
      "related\\s+(?:compan(?:y|ies)|part(?:y|ies))\\s*(?:'s|s')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
      "(?:directors?|subsidiar(?:y|ies)|associates?)\\s*(?:'s|s'|')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
-     "related\\s+part(?:y|ies)\\s+(?:receivables?|balances?)",
-     "应收关联方",
-     "关联方应收款项",
-     "其他应收关联方款项",
-     "关联方(?:资金)?往来",
-     "关联方款项",
-     "关联方余额",
-     "关联方组合",
-     "应收关联(?:公司|企业|单位)款项",
-     "应收(?:母公司|子公司|联营企业|联营公司|合营企业|合营公司|附属公司|同系附属公司|控股股东|股东|董事|高级管理人员)款项",
-     "受同一控制方控制的企业",
-     "其他关联方",
-     "^\\s*关联(?:方|公司|企业|单位)\\s*$",
-     "應收關聯方",
-     "應收關連人士款項",
-     "應收關聯(?:公司|企業)款項",
-     "應收(?:同系附屬公司|附屬公司|聯營公司|合營公司|董事|控股公司|股東|母公司)款項",
-     "關聯方(?:資金)?往來",
-     "關聯方款項",
-     "關連人士款項",
-     "^\\s*關(?:聯|連)(?:方|公司)\\s*$"
+     "related\\s+part(?:y|ies)\\s+(?:receivables?|balances?)"
     ],
     "row_caption_none": [
      "^\\s*(?:balance\\s+)?(?:as\\s+)?at\\s+(?:1\\b|31\\b|30\\b|\\d{1,2}\\s+\\w+|the\\s+(?:beginning|end))",
@@ -29426,12 +28983,7 @@
      "^\\s*(?:\\d+[\\.、)]?\\s*)?其他应收款|^\\s*(?:\\d+[\\.、)]?\\s*)?其他應收款|other\\s+receivables?",
      "一年内到期的非流动资产|一年內到期的非流動資產|一年内到期的长期应收款|一年內到期的長期應收款|current\\s+portion\\s+of\\s+(?:non.?current\\s+assets|long.?term\\s+receivables?)|non.?current\\s+assets\\s+(?:due|maturing)\\s+within\\s+one\\s+year",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?长期应收款|^\\s*(?:\\d+[\\.、)]?\\s*)?長期應收款|^\\s*(?:\\d+[\\.、)]?\\s*)?long.?term\\s+receivables?",
-     "長期應收款|长期应收款",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:发放)?贷款及垫款|^\\s*(?:\\d+[\\.、)]?\\s*)?(?:發放)?貸款及墊款|^\\s*(?:\\d+[\\.、)]?\\s*)?loans?\\s+and\\s+advances(?:\\s+to\\s+customers?)?",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?应收(?:账|帐)款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?應收(?:賬|帳)款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?应收票据及应收(?:账|帐)款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?應收票據及應收(?:賬|帳)款",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?trade\\s+receivables?",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?trade\\s+and\\s+other\\s+receivables?",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?accounts?\\s+receivables?"
@@ -29448,29 +29000,7 @@
      "(?:loans?|loan\\s+receivables?|other\\s+receivables?|receivables?|advances?|balances?)\\s+(?:due\\s+)?(?:to|from|with)\\s+(?:a\\s+|an\\s+|the\\s+)?(?:related|associat|affiliat|fellow|subsidiar|joint|jointly|director|shareholder|connected|group\\s+compan)",
      "related\\s+(?:compan(?:y|ies)|part(?:y|ies))\\s*(?:'s|s')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
      "(?:directors?|subsidiar(?:y|ies)|associates?)\\s*(?:'s|s'|')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
-     "related\\s+part(?:y|ies)\\s+(?:receivables?|balances?)",
-     "应收关联方",
-     "关联方应收款项",
-     "其他应收关联方款项",
-     "关联方(?:资金)?往来",
-     "关联方款项",
-     "关联方余额",
-     "关联方组合",
-     "应收关联(?:公司|企业|单位)款项",
-     "应收(?:母公司|子公司|联营企业|联营公司|合营企业|合营公司|附属公司|同系附属公司|控股股东|股东|董事|高级管理人员)款项",
-     "受同一控制方控制的企业",
-     "其他关联方",
-     "^\\s*关联(?:方|公司|企业|单位)\\s*$",
-     "應收關聯方",
-     "應收關連人士款項",
-     "應收關聯(?:公司|企業)款項",
-     "應收(?:同系附屬公司|附屬公司|聯營公司|合營公司|董事|控股公司|股東|母公司)款項",
-     "關聯方(?:資金)?往來",
-     "關聯方款項",
-     "關連人士款項",
-     "^\\s*關(?:聯|連)(?:方|公司)\\s*$",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?关联(?:方)?借款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?關聯(?:方)?借款"
+     "related\\s+part(?:y|ies)\\s+(?:receivables?|balances?)"
     ],
     "row_caption_none": [
      "委托贷款",
@@ -29860,44 +29390,18 @@
      "^Related\\s+Party$"
     ],
     "row_caption_any": [
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?其他应收款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?其他應收款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?一年内到期的长期应收款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?一年內到期的長期應收款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?长期应收款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?長期應收款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:发放)?贷款及垫款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:發放)?貸款及墊款",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?other\\s+receivables?",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?long.?term\\s+receivables?",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?current\\s+portion\\s+of\\s+long.?term\\s+receivables?",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?loans?\\s+and\\s+advances",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?应收(?:母公司|控股公司|控股股东|最终控股公司|子公司|全资子公司|附属公司)款项",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?应收(?:联营企业|联营公司|合营企业|合营公司|合资公司)款项",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?应收(?:同系附属公司|同一控制下企业)款项",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?应收(?:董事|高级管理人员|关键管理人员|股东)款项",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?其他关联方",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?受同一控制方控制的企业",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?應收(?:母公司|控股公司|附屬公司|同系附屬公司|聯營公司|合營公司|董事|股東)款項",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?其他關聯方",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:amounts?\\s+)?due\\s+from\\s+(?:a\\s+|an\\s+|the\\s+)?(?:immediate\\s+|ultimate\\s+|intermediate\\s+)?(?:holding\\s+compan|parent\\s+compan|fellow\\s+subsidiar|subsidiar|associat|joint\\s+venture|jointly\\s+controlled\\s+entit|director|shareholder|key\\s+management)",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:loans?|advances?|other\\s+receivables?)\\s+(?:due\\s+)?(?:to|from)\\s+(?:a\\s+|an\\s+|the\\s+)?(?:fellow\\s+subsidiar|subsidiar|associat|joint\\s+venture|jointly\\s+controlled|director|shareholder|holding\\s+compan|parent\\s+compan)",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:directors?|subsidiar(?:y|ies)|associates?)\\s*(?:'s|s'|')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:其他)?应收关联(?:方|公司|企业|单位)款项",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?关联方应收款项",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:关联方款项|关联方余额|关联方往来款?|关联方资金往来)",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:其他)?應收關聯(?:方|公司|企業)款項",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?應收關連人士款項",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:關聯方款項|關聯方往來款?|關聯方餘額)",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:amounts?\\s+)?due\\s+from\\s+(?:a\\s+|the\\s+)?related\\s+(?:part(?:y|ies)|compan(?:y|ies)|corporations?|entit(?:y|ies))",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?related\\s+part(?:y|ies)\\s+(?:receivables?|balances?)",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?receivables?\\s+from\\s+related\\s+part",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?amounts?\\s+(?:owing|owed)\\s+by\\s+related\\s+(?:part|compan)",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?related\\s+compan(?:y|ies)\\s*(?:'s|s')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?应收(?:账|帐)款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?應收(?:賬|帳)款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?应收票据及应收(?:账|帐)款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?應收票據及應收(?:賬|帳)款",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?trade\\s+receivables?",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?trade\\s+and\\s+other\\s+receivables?",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?accounts?\\s+receivables?"
@@ -30280,44 +29784,18 @@
      "^Related\\s+Party$"
     ],
     "row_caption_any": [
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?其他应收款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?其他應收款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?一年内到期的长期应收款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?一年內到期的長期應收款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?长期应收款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?長期應收款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:发放)?贷款及垫款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:發放)?貸款及墊款",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?other\\s+receivables?",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?long.?term\\s+receivables?",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?current\\s+portion\\s+of\\s+long.?term\\s+receivables?",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?loans?\\s+and\\s+advances",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?应收(?:母公司|控股公司|控股股东|最终控股公司|子公司|全资子公司|附属公司)款项",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?应收(?:联营企业|联营公司|合营企业|合营公司|合资公司)款项",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?应收(?:同系附属公司|同一控制下企业)款项",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?应收(?:董事|高级管理人员|关键管理人员|股东)款项",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?其他关联方",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?受同一控制方控制的企业",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?應收(?:母公司|控股公司|附屬公司|同系附屬公司|聯營公司|合營公司|董事|股東)款項",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?其他關聯方",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:amounts?\\s+)?due\\s+from\\s+(?:a\\s+|an\\s+|the\\s+)?(?:immediate\\s+|ultimate\\s+|intermediate\\s+)?(?:holding\\s+compan|parent\\s+compan|fellow\\s+subsidiar|subsidiar|associat|joint\\s+venture|jointly\\s+controlled\\s+entit|director|shareholder|key\\s+management)",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:loans?|advances?|other\\s+receivables?)\\s+(?:due\\s+)?(?:to|from)\\s+(?:a\\s+|an\\s+|the\\s+)?(?:fellow\\s+subsidiar|subsidiar|associat|joint\\s+venture|jointly\\s+controlled|director|shareholder|holding\\s+compan|parent\\s+compan)",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:directors?|subsidiar(?:y|ies)|associates?)\\s*(?:'s|s'|')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:其他)?应收关联(?:方|公司|企业|单位)款项",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?关联方应收款项",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:关联方款项|关联方余额|关联方往来款?|关联方资金往来)",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:其他)?應收關聯(?:方|公司|企業)款項",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?應收關連人士款項",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:關聯方款項|關聯方往來款?|關聯方餘額)",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:amounts?\\s+)?due\\s+from\\s+(?:a\\s+|the\\s+)?related\\s+(?:part(?:y|ies)|compan(?:y|ies)|corporations?|entit(?:y|ies))",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?related\\s+part(?:y|ies)\\s+(?:receivables?|balances?)",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?receivables?\\s+from\\s+related\\s+part",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?amounts?\\s+(?:owing|owed)\\s+by\\s+related\\s+(?:part|compan)",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?related\\s+compan(?:y|ies)\\s*(?:'s|s')?\\s*(?:current\\s+account|c\\s*/\\s*a)",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?应收(?:账|帐)款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?應收(?:賬|帳)款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?应收票据及应收(?:账|帐)款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?應收票據及應收(?:賬|帳)款",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?trade\\s+receivables?",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?trade\\s+and\\s+other\\s+receivables?",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?accounts?\\s+receivables?"
@@ -30697,19 +30175,10 @@
    "section_scope": [],
    "note_source": {
     "note_title_any": [
-     "^\\s*[①②③④⑤⑥]?\\s*应付项目\\s*$",
-     "^\\s*[①②③④⑤⑥]?\\s*應付項目\\s*$",
      "关联方应收应付款项|關聯方應收應付款項|关联方往来|關聯方往來|关联方余额|關聯方餘額|关联方及关联交易|關聯方及關聯交易|(?:amounts?\\s+)?due\\s+to\\s+related\\s+(?:part(?:y|ies)|compan(?:y|ies))|related\\s+part(?:y|ies)(?:\\s+relationships?)?(?:\\s+and)?\\s+(?:transactions?|disclosures?|balances?)|关联债权债务往来|關聯債權債務往來|关联方债权债务|關聯方債權債務|财务公司.{0,12}往来情况|財務公司.{0,12}往來情況|关联方.{0,12}往来情况|關聯方.{0,12}往來情況"
     ],
     "row_caption_any": [
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?其他应付款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?其他應付款",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?other\\s+payables?",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?应付(?:母公司|控股公司|控股股东|最终控股公司|子公司|全资子公司|附属公司)款项",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?应付(?:联营企业|联营公司|合营企业|合营公司|合资公司)款项",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?应付(?:同系附属公司|同一控制下企业)款项",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?应付(?:董事|高级管理人员|关键管理人员|股东)款项",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?應付(?:母公司|控股公司|附屬公司|同系附屬公司|聯營公司|合營公司|董事|股東)款項",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:amounts?\\s+)?due\\s+to\\s+(?:a\\s+|an\\s+|the\\s+)?(?:immediate\\s+|ultimate\\s+|intermediate\\s+)?(?:holding\\s+compan|parent\\s+compan|fellow\\s+subsidiar|subsidiar|associat|joint\\s+venture|jointly\\s+controlled\\s+entit|director|shareholder|key\\s+management)",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:amounts?\\s+)?due\\s+to\\s+(?:a\\s+|the\\s+)?related\\s+(?:part(?:y|ies)|compan(?:y|ies)|corporations?|entit(?:y|ies))",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?amounts?\\s+(?:owing|owed)\\s+to\\s+related\\s+(?:part|compan)",
@@ -30989,16 +30458,10 @@
    "section_scope": [],
    "note_source": {
     "note_title_any": [
-     "^\\s*[①②③④⑤⑥]?\\s*应付项目\\s*$",
-     "^\\s*[①②③④⑤⑥]?\\s*應付項目\\s*$",
      "关联方应收应付款项|關聯方應收應付款項|关联方往来|關聯方往來|关联方余额|關聯方餘額|关联方及关联交易|關聯方及關聯交易|(?:amounts?\\s+)?due\\s+to\\s+related\\s+(?:part(?:y|ies)|compan(?:y|ies))|related\\s+part(?:y|ies)(?:\\s+relationships?)?(?:\\s+and)?\\s+(?:transactions?|disclosures?|balances?)|关联债权债务往来|關聯債權債務往來|关联方债权债务|關聯方債權債務|财务公司.{0,12}往来情况|財務公司.{0,12}往來情況|关联方.{0,12}往来情况|關聯方.{0,12}往來情況"
     ],
     "row_caption_any": [
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?长期应付款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?長期應付款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?long.?term\\s+payables?",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?一年内到期的长期应付款",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?一年內到期的長期應付款"
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?long.?term\\s+payables?"
     ],
     "row_caption_none": [
      "委托贷款",

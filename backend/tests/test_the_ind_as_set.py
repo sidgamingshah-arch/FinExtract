@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 
 import pytest
 
@@ -115,9 +116,123 @@ def test_it_declares_its_own_keys_and_targets_its_own_template(indas):
     assert indas.target_template_key == "output_csv_indas_v1"
 
 
+def _template() -> dict:
+    return json.loads(
+        (TEMPLATES / "output_csv_indas_v1_template.json").read_text(encoding="utf-8"))
+
+
+def _canonical_keys(node, out: list[str]) -> None:
+    if isinstance(node, dict):
+        key = node.get("canonical_key")
+        if isinstance(key, str) and key:
+            out.append(key)
+        for value in node.values():
+            _canonical_keys(value, out)
+    elif isinstance(node, list):
+        for value in node:
+            _canonical_keys(value, out)
+
+
 def test_the_template_it_targets_exists_and_declares_that_key():
-    raw = json.loads((TEMPLATES / "output_csv_indas_v1_template.json").read_text(encoding="utf-8"))
-    assert raw["template_key"] == "output_csv_indas_v1"
+    assert _template()["template_key"] == "output_csv_indas_v1"
+
+
+def test_the_template_declares_no_row_its_set_cannot_fill(indas):
+    """THE DEFECT THIS SET SHIPPED WITH, and the one that made it badly shaped.
+
+    The template drives the output's SHAPE (`services.statement_rows` emits its order faithfully),
+    so a row naming a concept the configuration does not have is a column that can never be filled.
+    The set was scoped from 549 items to 270 and the template was left as the HK one with a new key:
+    288 of its 480 rows named a scoped-out concept, including two entire statements — Statement
+    Setup & Controls and Covenants & Supplemental Data — whose every item had been deleted.
+
+    Asserted as a SUBSET rather than equality: a template may legitimately omit a concept the set
+    carries (a part is not a presentation row), but it may never name one the set lacks.
+    """
+    refs: list[str] = []
+    _canonical_keys(_template().get("statements"), refs)
+    item_keys = {i.key for i in indas.items}
+    sections = set(indas.section_defaults or ()) | set(
+        (getattr(indas.vocabulary, "scope_tokens", None) or {}))
+    unfillable = sorted({r for r in refs if r not in item_keys and r not in sections})
+    assert not unfillable, unfillable
+
+
+def test_the_template_has_no_empty_section_or_statement():
+    """A heading with nothing under it is the same defect one level up.
+
+    The first fix for the row problem tested every node's key against the set, which meant allowing
+    section keys — and that made a section unconditionally keepable, so five empty sections and two
+    zero-row statements survived. A group is its children; that is what this asserts.
+    """
+    empty = []
+    for statement in _template().get("statements") or ():
+        sections = statement.get("sections") or []
+        if not sections:
+            empty.append(statement.get("label"))
+        for section in sections:
+            if not (section.get("children") or []):
+                empty.append(section.get("canonical_key"))
+    assert not empty, empty
+
+
+def test_the_template_carries_no_chinese_labels():
+    """An Indian template captioned 資產負債表 is the HK template wearing a new key."""
+    blob = json.dumps(_template(), ensure_ascii=False)
+    assert '"zh"' not in blob
+    assert not re.search(r"[一-鿿]", blob)
+
+
+def test_the_prompt_is_written_for_an_indian_filing(indas):
+    """THE ARTEFACT THAT ACTIVELY MISLED. It travels on every mapping call, and it read "these are
+    HKEX / PRC filings" in the set named for India — the wrong jurisdiction, asserted as an
+    instruction."""
+    prompt = indas.prompt or ""
+    assert prompt, "a configuration with no master prompt sends the model nothing about the filing"
+    for wrong in ("HKEX", "PRC", "Hong Kong", "HKFRS"):
+        assert wrong.lower() not in prompt.lower(), wrong
+    assert "Ind AS" in prompt
+    assert "Schedule III" in prompt
+
+
+def test_no_pure_han_pattern_survives_in_a_positive_list(indas):
+    """DEAD WEIGHT, and only the dead weight.
+
+    A pattern that is entirely Han cannot match an English filing, so in an Ind AS set it is a
+    declaration that can never fire. A MIXED pattern is different — 120 of the 155 carrying Han are
+    alternations whose other branches are English (`fixed\\s+assets?|固定資產|固定资产`) — and those
+    stay, because editing inside an alternation to remove one branch is regex surgery whose failure
+    mode is a silent hole.
+    """
+    han, latin = re.compile(r"[一-鿿]"), re.compile(r"[A-Za-z]{3,}")
+    offenders = []
+    for item in indas.items:
+        source = item.note_source
+        if source is None:
+            continue
+        for field in ("note_title_any", "row_caption_any"):
+            for pattern in (getattr(source, field, None) or ()):
+                if han.search(pattern) and not latin.search(pattern):
+                    offenders.append(f"{item.key}.{field}: {pattern[:40]}")
+    assert not offenders, offenders[:10]
+
+
+def test_the_veto_lists_were_not_touched(indas):
+    """THE ASYMMETRY THAT MATTERS, and the reason the Han sweep was confined to two fields.
+
+    `note_title_any` and `row_caption_any` SELECT, so dropping one can only narrow what is read.
+    `row_caption_none` and `row_terms_none` VETO, so dropping one WIDENS what is accepted — which is
+    how a movement row or an allowance column gets taken for a balance. Every veto list must still
+    be exactly the HK set's.
+    """
+    hk = {i.key: i for i in _set(HK).items}
+    for item in indas.items:
+        mine, theirs = item.note_source, hk[item.key].note_source
+        if mine is None or theirs is None:
+            continue
+        for field in ("row_caption_none", "row_terms_none"):
+            assert list(getattr(mine, field) or ()) == list(getattr(theirs, field) or ()), (
+                f"{item.key}.{field} was modified — a veto may not be narrowed")
 
 
 def test_every_concept_is_one_of_the_hk_spine_s(indas):
@@ -264,10 +379,15 @@ def test_the_indian_note_vocabulary_widens_context_and_not_the_deterministic_rea
         if mine is None or theirs is None:
             assert (mine is None) == (theirs is None), item.key
             continue
-        assert list(mine.note_title_any) == list(theirs.note_title_any), (
-            f"{item.key}: a note TITLE was added or changed, which can move a published figure "
-            f"and cannot be justified without an Indian filing to measure it against")
-        assert list(mine.row_caption_any) == list(theirs.row_caption_any), item.key
+        # A SUBSET, NOT AN EQUALITY, and the direction is the whole point. ADDING a title pattern
+        # can move a published figure and cannot be justified without an Indian filing to measure
+        # it against; REMOVING one can only narrow what is read, and the pure-Han patterns were
+        # removed as dead weight. So every pattern this set declares must be one the HK set
+        # declares, and nothing new may appear.
+        assert set(mine.note_title_any) <= set(theirs.note_title_any), (
+            f"{item.key}: a note TITLE was ADDED, which can move a published figure: "
+            f"{sorted(set(mine.note_title_any) - set(theirs.note_title_any))}")
+        assert set(mine.row_caption_any) <= set(theirs.row_caption_any), item.key
         if list(mine.note_terms) != list(theirs.note_terms):
             assert set(theirs.note_terms) <= set(mine.note_terms), item.key
             widened += 1
