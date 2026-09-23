@@ -547,8 +547,13 @@ export const useDocumentAnalysis = (documentId: string | undefined, locale: Loca
 
 /** The configured line items. Deployment configuration, not per-document, so it is cached for
  *  the session rather than refetched per screen visit. */
-export const useLineItems = () =>
-  useQuery({ queryKey: ["line-items"], queryFn: () => api.lineItems(), staleTime: 300_000 });
+/** The configuration in force for `templateKey`, or the server's default when it is undefined.
+ *
+ * THE KEY CARRIES THE TEMPLATE, or switching template would read a cached answer for the previous
+ * one — the same mistake `useExtraction`'s comment records about its own configuration segment. */
+export const useLineItems = (templateKey?: string) =>
+  useQuery({ queryKey: ["line-items", templateKey ?? null],
+             queryFn: () => api.lineItems(templateKey), staleTime: 300_000 });
 
 /** Real per-document notes index + one note's detail. */
 export const useDocumentNotes = (documentId: string | undefined, runId?: string) =>

@@ -56,7 +56,7 @@ import { Button, Card } from "../components/ui";
 import { ApiError, refusalText } from "../lib/api";
 import {
   useAddLineItem, useDeleteLineItem, useEditLineItemConfig, useEditLineItemSet,
-  useLineItems,
+  useLineItems, useLineItemVersions,
 } from "../lib/queries";
 import { useCan } from "../lib/rbac";
 import { useUI } from "../store";
@@ -1958,7 +1958,31 @@ function Detail(p: EditorProps) {
 }
 
 export default function LineItemsScreen() {
-  const q = useLineItems();
+  // WHICH CONFIGURATION THIS SCREEN IS EDITING, and until now there was no way to say.
+  //
+  // `GET /line-items` has always taken `template_key` — `_resolve_in_force` reads it and falls back
+  // to "the most recently stored row" — and no caller ever passed one. With one shipped set that
+  // default was the answer; with two it is insertion order, so opening this screen showed whichever
+  // pair seeded last and the other configuration was unreachable from the UI entirely.
+  //
+  // The list comes from the stored VERSIONS rather than from `/templates`, because a template with
+  // no set targeting it has nothing for this screen to open — `hkfrs_hk_china_v1` is exactly that
+  // (see `sample.reference`: seeded template-only, "a run against it finds no set in force"). One
+  // option per target template, captioned with the set that answers for it.
+  const versionsQ = useLineItemVersions();
+  const [templateKey, setTemplateKey] = useState<string | undefined>(undefined);
+  const choices = (() => {
+    const byTemplate = new Map<string, { key: string; version: number }>();
+    for (const v of versionsQ.data ?? []) {
+      // `in_force` is the server's own verdict about which set answers for that template; taking
+      // it rather than re-deriving "latest" is the rule `config_select` documents at length.
+      if (v.in_force === false && byTemplate.has(v.target_template_key)) continue;
+      byTemplate.set(v.target_template_key,
+                     { key: v.line_items_key, version: v.version });
+    }
+    return [...byTemplate.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  })();
+  const q = useLineItems(templateKey);
   const canEdit = useCan("config:line_items");
   const save = useEditLineItemConfig();
   // Add and delete publish a new version exactly as an edit does — see `useAddLineItem`.
@@ -2388,6 +2412,33 @@ export default function LineItemsScreen() {
             </b>
             {" — the stored version in force, the one the next run pins. A save publishes the"}
             {" next one."}
+          </p>
+        )}
+        {choices.length > 1 && (
+          <p style={{ margin: "7px 0 0", fontSize: 11.5, color: color.muted }}>
+            <label htmlFor="li-template-pick">Configuration{" "}</label>
+            <select id="li-template-pick" data-testid="li-template-pick"
+                    value={templateKey ?? inForce?.target_template_key ?? ""}
+                    onChange={(e) => {
+                      // Clearing the local pick back to `undefined` would re-read the server
+                      // default, which is a different answer from "the one I just chose" — so the
+                      // choice is always explicit once a reader has made one.
+                      setTemplateKey(e.target.value || undefined);
+                      // The selection names a different SET, so anything pinned from the previous
+                      // one is about an item this set may not have.
+                      setSel(null);
+                    }}
+                    style={{ font: "inherit", fontFamily: font.mono, fontSize: 11.5,
+                             padding: "1px 4px", borderRadius: radius.control,
+                             border: `1px solid ${color.cardBorder}`,
+                             background: color.surface, color: color.sec2 }}>
+              {choices.map(([target, set]) => (
+                <option key={target} value={target}>
+                  {set.key} v{set.version} → {target}
+                </option>
+              ))}
+            </select>
+            {"  Each option is one output template and the set in force for it."}
           </p>
         )}
       </div>

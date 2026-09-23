@@ -479,7 +479,16 @@ export const api = {
    *  rather than through a cast — a cast is how a payload field gets renamed with no reader
    *  noticing. `GET /line-items` selects latest-stored-wins, which is what makes invalidating
    *  `["line-items"]` after an edit show the newly published version as the one in force. */
-  lineItems: () => req<LineItemsResponse>("/line-items"),
+  /** The configuration in force, for a template.
+   *
+   * `templateKey` reaches `GET /line-items?template_key=` — which the route has always accepted
+   * (`get_line_items(template_key: str | None = None)`) and no caller ever passed, so the screen
+   * could only ever show whichever set `_resolve_in_force` defaults to: "the most recently stored
+   * row". With a second configuration shipped that default is not a choice, it is an accident of
+   * insertion order. */
+  lineItems: (templateKey?: string) =>
+    req<LineItemsResponse>(`/line-items${templateKey
+      ? `?template_key=${encodeURIComponent(templateKey)}` : ""}`),
   /** Data-driven commentary computed from a document's real extraction (not the demo). */
   documentCommentary: (documentId: string, locale: Locale = "en") =>
     req<Commentary>(`/documents/${documentId}/commentary?locale=${locale}`),
