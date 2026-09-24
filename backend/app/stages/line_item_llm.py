@@ -247,10 +247,14 @@ class LineItemLlmStage(Stage):
                 # wrong rather than the caption.
                 may_face = line_item_routes.may_read_face(item)
                 may_pages = line_item_routes.reads_every_page(item)
+                # AND WHETHER A TABLE ROW MAY ANSWER AT ALL. A `prose` line's figure is stated in a
+                # sentence; `stages.note_sourced` has always honoured that (`[] if route_of(item)
+                # == "prose"`) and this path did not, so a cited note row filled it.
+                may_rows = line_item_routes.may_read_table_rows(item)
                 resolved, unresolved, _ = line_item_llm.resolve(
                     answer, doc.notes, face_context.face_index(doc), allow_face=may_face,
                     pages=face_context.other_page_index(doc) if may_pages else None,
-                    allow_pages=may_pages)
+                    allow_pages=may_pages, allow_rows=may_rows)
                 unresolved_total += len(unresolved)
                 for bad in unresolved:
                     ctx.log(f"line_item_llm:{key}: citation NOT resolved "

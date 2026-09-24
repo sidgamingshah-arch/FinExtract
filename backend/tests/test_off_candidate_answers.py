@@ -51,7 +51,14 @@ SEED = (pathlib.Path(__file__).resolve().parent.parent
         / "app" / "sample" / "templates" / "output_csv_hk_line_items.json")
 
 # The three kinds of key. That they differ is the whole subject of the file.
-SUB = "sub__pbt_oper_exp_depreciation"                    # the model's proper answer
+SUB = "sub__pbt_depreciation"   # a part: asked about, and TABULATED (route: note_tables).
+# NOT `sub__pbt_oper_exp_depreciation`, which these tests used until the route fence gained its
+# third side. That line declares `route: prose` — its author said the figure is stated in a
+# SENTENCE — so a citation naming a table ROW is now refused (`line_item_routes.
+# may_read_table_rows`). The prose-ness was incidental here: the comment on this line has always
+# read "a part: asked about", and what these tests pin is how a CITATION is resolved, which needs
+# a part whose figure is tabulated. Same parent, same shape, one that may be
+# answered with a row — and the model's proper answer here.
 COMPUTED = "is_pl__deprec_and_impairment_oper_exp"        # derived: never the model's to answer
 ORDINARY_OFF = "bs_nca__land"                             # `extract`, just not offered for THIS row
 DERIVABLE = "bs_ca__net_trade_receivables"                # `extract_or_derive`: not asked about
@@ -291,14 +298,18 @@ def test_a_sub_item_the_model_filled_reaches_the_PARENT_through_its_cascade(ship
 
 def test_the_parents_provenance_is_the_RUNG_that_computed_it(shipped):
     """THE RUNG IS THE PROVENANCE, and it is exactly what answering on the parent would have thrown
-    away. "P2" says the figure came from the profit-before-tax note's own operating-expense callout
-    rather than from summing the four expense notes — a materially different basis that the number
-    alone cannot show."""
+    away. "P3" says the figure is total depreciation less the cost-of-sales share, rather than a sum
+    of the four operating-expense notes (P1) or the profit-before-tax note's own operating-expense
+    callout (P2) — materially different bases that the number alone cannot show.
+
+    The rung moved from P2 to P3 with the key: `SUB` was `sub__pbt_oper_exp_depreciation`, P2's
+    only term, and is now `sub__pbt_depreciation`, P3's first. The assertion is the same one — that
+    the parent records WHICH rung computed it — measured on whichever rung this part sits on."""
     doc, _ctx = _run_to_parent(shipped, _answer(SUB, _PROSE_CITE), _prose_note())
 
     parent = next(li for li in doc.line_items if li.canonical_key == COMPUTED)
     trail = next(iter(parent.derivation.values()))
-    assert trail["method"] == "cascade:P2", trail["method"]
+    assert trail["method"] == "cascade:P3", trail["method"]
     assert trail["formula"] == SUB
 
 

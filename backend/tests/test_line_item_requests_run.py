@@ -44,7 +44,13 @@ from app.stages.line_item_llm import LineItemLlmStage
 SEED = (pathlib.Path(__file__).resolve().parent.parent
         / "app" / "sample" / "templates" / "output_csv_hk_line_items.json")
 
-SUB = "sub__pbt_oper_exp_depreciation"                 # a part: asked about
+SUB = "sub__pbt_depreciation"   # a part: asked about, and TABULATED (route: note_tables).
+# NOT `sub__pbt_oper_exp_depreciation`, which these tests used until the route fence gained its
+# third side. That line declares `route: prose` — its author said the figure is stated in a
+# SENTENCE — so a citation naming a table ROW is now refused (`line_item_routes.
+# may_read_table_rows`). The prose-ness was incidental here: the comment on this line has always
+# read "a part: asked about", and what these tests pin is how a CITATION is resolved, which needs
+# a part whose figure is tabulated. Same parent, same shape, one that may be answered with a row.
 PARENT = "is_pl__deprec_and_impairment_oper_exp"       # derived: never asked about
 
 

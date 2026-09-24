@@ -532,7 +532,7 @@ def plan_and_notes(line_item_set, notes, settings, *, doc=None):
 
 
 def resolve(answer: LineItemAnswer, notes, face=None, *, allow_face: bool = True,
-            pages=None, allow_pages: bool = False
+            pages=None, allow_pages: bool = False, allow_rows: bool = True
             ) -> tuple[list[dict], list[dict], dict[str, Decimal]]:
     """``(resolved, unresolved, figures)`` for one answer. The model supplies none of the figures.
 
@@ -540,6 +540,11 @@ def resolve(answer: LineItemAnswer, notes, face=None, *, allow_face: bool = True
     than a note is looked up in. It defaults to None so a caller with no document (the audit
     scripts) keeps working, and a citation naming a statement then reports unresolved rather than
     silently resolving against the notes.
+
+    `allow_rows=False` is a `prose` line: `services.line_item_routes.may_read_table_rows`. Its
+    author said the figure is in a sentence, so a citation naming a table ROW — in a note as much as
+    on the face — is refused, and the prose branch (an amount verified against the note's own text)
+    is the one way it is answered.
 
     `allow_face=False` is a line whose route says the face is not its source — `note_tables` or
     `prose`. Its request carries no statement block and a citation naming one is refused with that
@@ -551,6 +556,7 @@ def resolve(answer: LineItemAnswer, notes, face=None, *, allow_face: bool = True
     """
     resolved, unresolved = note_sourced.resolve_sources(answer.sources, notes, face,
                                                         allow_face=allow_face,
-                                                        pages=pages, allow_pages=allow_pages)
+                                                        pages=pages, allow_pages=allow_pages,
+                                                        allow_rows=allow_rows)
     component = str(answer.role or "").strip().lower() == "component"
     return resolved, unresolved, figures_of(resolved, list(answer.signs or ()), component)

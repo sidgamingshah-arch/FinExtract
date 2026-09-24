@@ -709,7 +709,8 @@ def _caption_matches(want: str, cap_norm: str) -> bool:
 
 
 def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
-                    pages=None, allow_pages: bool = False) -> tuple[list[dict], list[dict]]:
+                    pages=None, allow_pages: bool = False,
+                    allow_rows: bool = True) -> tuple[list[dict], list[dict]]:
     """Match each citation the model gave against the extracted rows. Returns (resolved, unresolved).
 
     WHY THIS EXISTS RATHER THAN TRUSTING THE CITATION. The candidates offered to the model are
@@ -733,6 +734,13 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
     row on balance_sheet matches that caption", which tells an author the caption was wrong when
     what was wrong was the place. A run has both states — a filing with no classified face pages
     really does have no face rows — so they must be distinguishable in the flag a reviewer reads.
+
+    `allow_rows=False` IS A `prose` LINE, whose author said the figure is stated in a SENTENCE and
+    tabulated nowhere. `allow_face` already refuses it a statement row; this refuses it a NOTE's
+    row, which nothing did — measured, a citation of note 9's "Depreciation of property, plant and
+    equipment" resolved for `sub__ga_depreciation` and took that row's figure. The prose branch
+    below is unaffected: an amount verified against the note's own text is still accepted, which is
+    the one way such a line is meant to be answered.
 
     `pages` / `allow_pages` ARE THE THIRD INDEX, and the narrowest. `services.face_context.
     other_page_index` holds the rows of pages that are neither a statement nor a note, which exist
@@ -901,6 +909,17 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
             continue
 
         hit = None
+        if want_cap and not allow_rows:
+            # NAMED RATHER THAN SILENTLY FALLING THROUGH, the same way the statement refusal is:
+            # "this line is read from a sentence, not a row" tells an author the PLACE was wrong,
+            # where an unresolved caption would send them to fix the caption.
+            unresolved.append({
+                "at": at, "note": want_note, "caption": getattr(ref, "caption", ""),
+                "quote": quote,
+                "why": ("this line's figure is stated in prose, not in a table row — a row "
+                        "citation cannot be its source (route=prose). Give the amount with the "
+                        "sentence it is printed in instead")})
+            continue
         if want_cap:
             for number, caption, row, table in rows:
                 if want_note and want_note not in number and number not in want_note:

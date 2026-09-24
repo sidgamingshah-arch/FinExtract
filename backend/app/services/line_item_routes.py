@@ -89,6 +89,27 @@ def may_read_notes(item) -> bool:
     return declared_route(item) != "face"
 
 
+def may_read_table_rows(item) -> bool:
+    """Whether a figure printed in a TABLE ROW may become this line's figure.
+
+    THE THIRD SIDE OF THE FENCE, and it was missing. `may_read_face` says whether the STATEMENT may
+    supply the figure and `may_read_notes` whether a NOTE may, so between them a `prose` line is
+    refused the face and allowed its note — which is right, because the sentence it wants is IN a
+    note. What neither asks is whether a TABLE ROW may supply it, and that is exactly what `prose`
+    denies: its author said the figure is stated in a sentence and tabulated nowhere.
+
+    MEASURED, before this existed: `sub__ga_depreciation` declares `route: prose`, and a citation
+    naming note 9's row "Depreciation of property, plant and equipment" RESOLVED and took 12,345
+    off that row. `stages.note_sourced` was the only reader honouring the route — it opens
+    `[] if route_of(item) == "prose"` — while the citation path consulted only `may_read_face`,
+    which is true of a face row and says nothing about a note's.
+
+    False for `prose` and true for everything else, silence included: a line carrying a
+    `note_source` has always meant its figure is tabulated.
+    """
+    return declared_route(item) != "prose"
+
+
 def reads_every_page(item) -> bool:
     """Whether this line may take a figure off a page that is NEITHER a statement nor a note.
 
