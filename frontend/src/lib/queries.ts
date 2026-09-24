@@ -226,6 +226,26 @@ export function activeTemplate(
     ?? rows[0];
 }
 
+/** One row per template KEY: the version the server flags `is_latest`.
+ *
+ * The documents screen's picker listed every stored version of every template, which grows without
+ * bound — `sample.reference` publishes one on every boot where a shipped file differs — and buries
+ * the handful of rows a reader wants. This is what it lists instead.
+ *
+ * `is_latest` IS READ, NOT RE-DERIVED. `/templates` computes it as
+ * `row.version == latest[row.template_key]`, and a client that ranked versions itself would be the
+ * third spelling of a rule the server owns — see `configurationInForce` below for what that cost.
+ * A key with nothing flagged (an older server) keeps its first row rather than vanishing.
+ */
+export function latestTemplates(list: TemplateRef[] | undefined): TemplateRef[] {
+  const byKey = new Map<string, TemplateRef>();
+  for (const tpl of list ?? []) {
+    const held = byKey.get(tpl.template_key);
+    if (!held || (tpl.is_latest && !held.is_latest)) byKey.set(tpl.template_key, tpl);
+  }
+  return [...byKey.values()];
+}
+
 /** The configuration IN FORCE among the rows matching `pred` — READ from the server, never ranked
  * here.
  *

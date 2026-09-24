@@ -345,6 +345,13 @@ test("analyst cannot reach the config template screen but can select a template"
   await page.getByRole("button", { name: "Choose another" }).click();
   const options = page.getByTestId("tpl-option");
   await expect(options.first()).toBeVisible({ timeout: 15_000 });
+  // THE PICKER NOW LISTS THE LATEST OF EACH TEMPLATE TYPE, not every stored version — a version is
+  // published on each boot where a shipped file differs, so the full list grows without bound and
+  // buries the rows a reader wants. Older versions are one click behind this toggle, which is why
+  // the capability this test exists for still exists: the screen once defaulted to v1 with no click
+  // able to change the selection, and that is what must not come back.
+  const showAll = page.getByTestId("tpl-show-all-versions");
+  if (await showAll.count()) await showAll.click();
   if (siblings.length > 1) {
     const older = siblings[1];
     await options.filter({ hasText: `v${older.version}` }).first().click();

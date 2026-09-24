@@ -12,6 +12,7 @@ import type { ExtractMode, SourceDoc, TemplateRef } from "../types";
 import {
   activeTemplate,
   configurationInForce,
+  latestTemplates,
   useDeleteDocument,
   useDocumentIntegrity,
   useDocuments,
@@ -236,8 +237,15 @@ function TemplateCard({
   const selectedId = useUI((s) => s.selectedTemplateId);
   const setSelectedId = useUI((s) => s.setSelectedTemplateId);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // WHETHER OLDER VERSIONS ARE SHOWN. The picker lists the latest of each template type; every
+  // version of every template grows without bound (a version is published on each boot where a
+  // shipped file differs) and buries the rows anyone wants. Older ones stay one click away rather
+  // than being removed: `e2e/smoke.spec.ts` pins the ability to choose one, and it pins it because
+  // this screen once defaulted to v1 with no click able to change the selection.
+  const [allVersions, setAllVersions] = useState(false);
 
-  const list: TemplateRef[] = templates ?? [];
+  const served: TemplateRef[] = templates ?? [];
+  const list: TemplateRef[] = allVersions ? served : latestTemplates(served);
   // THE ACTIVE TEMPLATE VERSION: the one chosen, else the LATEST the server names.
   //
   // Both halves were wrong. `find(x => x.template_key === selectedKey)` matched on a KEY over a list
@@ -288,6 +296,18 @@ function TemplateCard({
         <div style={{ border: `1px solid ${color.hairline3}`, borderRadius: 9, marginBottom: 9, overflow: "hidden" }}>
           {list.length === 0 && (
             <div style={{ padding: 12, fontSize: 11.5, color: color.muted }}>{t("u.noTemplates")}</div>
+          )}
+          {!allVersions && served.length > list.length && (
+            <div
+              role="button"
+              tabIndex={0}
+              data-testid="tpl-show-all-versions"
+              onClick={() => setAllVersions(true)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setAllVersions(true); }}
+              style={{ padding: "7px 12px", fontSize: 11, color: color.indigo, cursor: "pointer",
+                       borderBottom: `1px solid ${color.hairline3}` }}>
+              {`${t("u.tplShowAllVersions")} (${served.length})`}
+            </div>
           )}
           {list.map((tpl) => {
             // Per VERSION, so the highlight tracks the row that is actually selected. Keyed on

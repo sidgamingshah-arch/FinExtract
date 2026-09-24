@@ -19,6 +19,7 @@ export const upload: Record<Locale, Record<string, string>> = {
     "u.closePicker": "Close",
     "u.loadingTemplates": "Loading templates…",
     "u.noTemplates": "No templates available",
+    "u.tplShowAllVersions": "Show all versions",
     "u.newTemplate": "+ New template",
     // Shown only when no template is served, so it must describe nothing — it used to read
     // "312 line items · BS · P&L · CF", a description of a template that was not there.
@@ -68,6 +69,7 @@ export const upload: Record<Locale, Record<string, string>> = {
     "u.closePicker": "关闭",
     "u.loadingTemplates": "正在加载模板…",
     "u.noTemplates": "暂无可用模板",
+    "u.tplShowAllVersions": "显示所有版本",
     "u.newTemplate": "+ 新建模板",
     "u.templateMeta": "尚无可提取的目标模板",
     "u.lineItems": "3 · 行项目",
@@ -115,6 +117,7 @@ export const upload: Record<Locale, Record<string, string>> = {
     "u.closePicker": "إغلاق",
     "u.loadingTemplates": "جارٍ تحميل القوالب…",
     "u.noTemplates": "لا توجد قوالب متاحة",
+    "u.tplShowAllVersions": "إظهار كل الإصدارات",
     "u.newTemplate": "+ قالب جديد",
     "u.templateMeta": "لا يوجد قالب للاستخراج إليه بعد",
     "u.lineItems": "3 · البنود",
@@ -162,6 +165,7 @@ export const upload: Record<Locale, Record<string, string>> = {
     "u.closePicker": "Fermer",
     "u.loadingTemplates": "Chargement des modèles…",
     "u.noTemplates": "Aucun modèle disponible",
+    "u.tplShowAllVersions": "Afficher toutes les versions",
     "u.newTemplate": "+ Nouveau modèle",
     "u.templateMeta": "Aucun modèle vers lequel extraire pour l'instant",
     "u.lineItems": "3 · Postes",
