@@ -269,12 +269,24 @@ def _payload(col: Collision, definitions: dict[str, str], locale: str) -> dict:
     }
 
 
+# THE MARKER A FAILED TIE-BREAK CARRIES IN ITS RATIONALE. A constant rather than a bare string in
+# two files: `stages.shared_figures` reads it to decide how to log the outcome, and a prefix the two
+# sides spell differently is a distinction that silently stops being drawn.
+PROVIDER_ERROR = "provider error: "
+
+
 def resolve(provider, col: Collision, definitions: dict[str, str], *, locale: str = "en",
             max_tokens: int = 400, min_confidence: float = 0.0) -> tuple[str, str, float]:
     """`(keep, rationale, confidence)` — "both" or one offered key.
 
     A provider that errors, declines, or names a key outside the offered set returns "both", which
     leaves the document untouched. The safe answer is the one that changes nothing.
+
+    BUT THE REASON TRAVELS WITH IT. A failure used to return an EMPTY rationale, so the stage
+    recorded and logged it exactly as it records a considered "keep both" — and a duplicate figure
+    surviving a failed call became indistinguishable from one the model chose to leave. The error
+    now arrives in the rationale, prefixed `PROVIDER_ERROR`, so `doc.shared_figures[].rationale`
+    and the stage's log line both say which of the two happened.
     """
     try:
         result, _meta = provider.complete_structured(
@@ -284,8 +296,11 @@ def resolve(provider, col: Collision, definitions: dict[str, str], *, locale: st
                                              ensure_ascii=False, indent=2)}],
             response_schema=SharedFigureDecision, max_tokens=max_tokens,
         )
-    except Exception:                       # noqa: BLE001 — unreachable provider decides nothing
-        return "both", "", 0.0
+    except Exception as exc:                # noqa: BLE001 — unreachable provider decides nothing
+        # NAMED, NOT SWALLOWED. The decision is unchanged — nothing is deleted on a call that did
+        # not answer — but "the provider could not answer" and "the provider said keep both" are
+        # opposite facts about a run and must not read the same.
+        return "both", f"{PROVIDER_ERROR}{type(exc).__name__}: {exc}"[:300], 0.0
     keep = str(getattr(result, "keep", "") or "").strip()
     rationale = str(getattr(result, "rationale", "") or "")
     conf = float(getattr(result, "confidence", 0.0) or 0.0)

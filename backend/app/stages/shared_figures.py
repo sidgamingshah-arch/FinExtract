@@ -38,7 +38,7 @@ class SharedFiguresStage:
     def run(self, doc: DocumentModel, ctx: PipelineContext) -> DocumentModel:
         from app.config import get_settings
         from app.ports.registry import registry
-        from app.services.shared_figures import find_collisions, resolve
+        from app.services.shared_figures import PROVIDER_ERROR, find_collisions, resolve
 
         settings = get_settings()
         parent_of, definition_of = _config_maps(ctx)
@@ -84,7 +84,7 @@ class SharedFiguresStage:
             ctx.log(f"shared_figures:unknown provider {provider_id!r}")
             return doc
 
-        kept_both = removed = 0
+        kept_both = removed = unresolved = 0
         for n, c in enumerate(collisions):
             keep, rationale, conf = resolve(
                 provider, c, definition_of,
@@ -94,10 +94,19 @@ class SharedFiguresStage:
                                           "confidence": conf})
             if keep == "both":
                 kept_both += 1
+                # WHY IT WAS KEPT ON BOTH, because the two reasons are opposite. A tie-break that
+                # FAILED leaves the duplicate standing exactly as a considered "keep both" does, and
+                # a reader chasing a duplicated figure needs to know which happened before deciding
+                # whether the configuration is wrong or the provider is.
+                failed = rationale.startswith(PROVIDER_ERROR)
+                unresolved += 1 if failed else 0
                 for _key, _label, _d, idx, _v in c.claimants:
-                    _flag(doc, idx, f"shared_figure_kept_on_both:{'|'.join(c.keys)}")
-                ctx.log(f"shared_figures:{c.amount} on {'|'.join(c.keys)} kept on both "
-                        f"({provider_id}: {rationale[:80]})")
+                    _flag(doc, idx,
+                          f"shared_figure_unresolved:{'|'.join(c.keys)}" if failed
+                          else f"shared_figure_kept_on_both:{'|'.join(c.keys)}")
+                ctx.log(f"shared_figures:{c.amount} on {'|'.join(c.keys)} "
+                        + (f"NOT RESOLVED, left on both — {rationale[:140]}" if failed
+                           else f"kept on both ({provider_id}: {rationale[:80]})"))
                 continue
             # ONE LINE KEEPS IT. The value is removed from the others rather than zeroed: a zero
             # asserts the filing disclosed nothing, and what happened here is that this line never
@@ -116,8 +125,11 @@ class SharedFiguresStage:
             ctx.log(f"shared_figures:{c.amount} kept on {keep} only, removed from "
                     f"{len(c.claimants) - 1} other line(s) ({provider_id}: {rationale[:80]})")
 
-        ctx.log(f"shared_figures:{len(collisions)} contest(s) — {kept_both} kept on both, "
-                f"{removed} figure(s) removed, by {provider_id}")
+        # THE TALLY SEPARATES THEM TOO, so a run summary cannot read as "all considered" when the
+        # provider answered none of them.
+        ctx.log(f"shared_figures:{len(collisions)} contest(s) — "
+                f"{kept_both - unresolved} kept on both, {unresolved} NOT RESOLVED "
+                f"(provider failed), {removed} figure(s) removed, by {provider_id}")
         return doc
 
 
