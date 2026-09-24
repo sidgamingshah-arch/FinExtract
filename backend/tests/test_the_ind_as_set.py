@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import pathlib
 import re
+from decimal import Decimal
 
 import pytest
 
@@ -28,6 +29,24 @@ from app.config import get_settings
 from app.schemas.line_items import load_line_item_set
 from app.services.mapping import OntologyMatcher
 from app.services.working_view import build_working_view
+
+#: Any Han character. A template for Indian entities carries none in the vocabulary that steers
+#: either route — `_HAN` is what several assertions below read.
+_HAN = re.compile(r"[㐀-䶿一-鿿豈-﫿]")
+_LATIN = re.compile(r"[A-Za-z]{3,}")
+
+
+def _dead_here(value) -> bool:
+    """Whether a declared value can NEVER match a caption on an English Indian filing.
+
+    PURE HAN ONLY, and the qualification is the whole correctness of the clean-up this file
+    measures. 120 of the patterns carrying Han are ALTERNATIONS whose other branches are English,
+    so removing one takes the English with it — and on an exclusion that WIDENS what is accepted.
+    The rule here is deliberately the same one the seed was swept with, because a test using a
+    looser predicate than the edit it checks cannot catch that edit going too far.
+    """
+    text = str(value)
+    return bool(_HAN.search(text)) and not _LATIN.search(text)
 
 TEMPLATES = pathlib.Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
 INDAS = TEMPLATES / "output_csv_indas_line_items.json"
@@ -217,22 +236,54 @@ def test_no_pure_han_pattern_survives_in_a_positive_list(indas):
     assert not offenders, offenders[:10]
 
 
-def test_the_veto_lists_were_not_touched(indas):
-    """THE ASYMMETRY THAT MATTERS, and the reason the Han sweep was confined to two fields.
+def test_no_veto_that_could_ever_fire_was_narrowed(indas):
+    """THE ASYMMETRY THAT MATTERS, restated now that the Chinese vocabulary is gone.
 
     `note_title_any` and `row_caption_any` SELECT, so dropping one can only narrow what is read.
-    `row_caption_none` and `row_terms_none` VETO, so dropping one WIDENS what is accepted — which is
-    how a movement row or an allowance column gets taken for a balance. Every veto list must still
-    be exactly the HK set's.
+    `row_caption_none` and `row_terms_none` VETO, so dropping one WIDENS what is accepted — which
+    is how a movement row or an allowance column gets taken for a balance. 8,655 veto values were
+    removed from this set and NOT ONE of them could have fired: every one is pure Han, and a Han
+    veto cannot match a caption on an English Indian filing.
+
+    So the invariant is not "the veto lists are identical to the HK set's" — they are not, and
+    keeping them so kept 8,655 dead declarations in a template for Indian entities. It is that
+    every veto which could EVER match an Indian caption is still there, character for character.
     """
     hk = {i.key: i for i in _set(HK).items}
+    checked = 0
     for item in indas.items:
         mine, theirs = item.note_source, hk[item.key].note_source
         if mine is None or theirs is None:
             continue
         for field in ("row_caption_none", "row_terms_none"):
-            assert list(getattr(mine, field) or ()) == list(getattr(theirs, field) or ()), (
-                f"{item.key}.{field} was modified — a veto may not be narrowed")
+            survivors = [v for v in (getattr(theirs, field) or ()) if not _dead_here(v)]
+            assert list(getattr(mine, field) or ()) == survivors, (
+                f"{item.key}.{field}: a veto that can match an English caption was narrowed")
+            checked += len(survivors)
+    assert checked, "no veto survived at all, so this asserts nothing"
+
+
+def test_every_removed_veto_was_unable_to_match_an_english_caption(indas):
+    """THE OTHER HALF, and the one that makes the removal a measurement rather than a claim.
+
+    Counted rather than sampled: every value the HK set declares and this set does not must contain
+    Han and no Latin word, so `note_sourced`'s `re.search` against a caption of an English filing
+    could never have returned a match.
+    """
+    hk = {i.key: i for i in _set(HK).items}
+    latin = re.compile(r"[A-Za-z]{3,}")
+    removed = 0
+    for item in indas.items:
+        mine, theirs = item.note_source, hk[item.key].note_source
+        if mine is None or theirs is None:
+            continue
+        for field in ("row_caption_none", "row_terms_none", "row_terms", "row_caption_any"):
+            gone = set(getattr(theirs, field) or ()) - set(getattr(mine, field) or ())
+            for value in gone:
+                assert _dead_here(value), (
+                    f"{item.key}.{field}: {value!r} was removed but could have matched English")
+                removed += 1
+    assert removed > 8000, removed
 
 
 def test_every_concept_is_one_of_the_hk_spine_s(indas):
@@ -284,14 +335,87 @@ def test_no_derived_parent_lost_a_cascade_term(indas):
     assert not dangling, dangling
 
 
-def test_nothing_was_taken_away_from_the_inherited_vocabulary(indas):
+#: The one alias deliberately taken away, and why. `bs_cl__trade_payables_cp` carried BOTH halves
+#: of the Schedule III trade-payables split, so two printed rows with different figures claimed one
+#: key — measured on Asian Paints, the micro-enterprise row (₹216.67 crores) was winning over the
+#: principal one (₹2,897.81 crores), understating trade payables by the whole difference. Keeping
+#: the principal row means the MSME row goes to its section residual, where it is reviewable.
+DELIBERATELY_DROPPED_ALIASES = {
+    "bs_cl__trade_payables_cp": {
+        "total outstanding dues of micro enterprises and small enterprises",
+    },
+}
+
+
+def test_no_english_alias_was_taken_away_from_the_inherited_vocabulary(indas):
     """ADDED ALONGSIDE, NEVER REPLACING. An Ind AS filing that prints an IFRS spelling — and they
-    do, because Ind AS is IFRS-converged — must still match."""
+    do, because Ind AS is IFRS-converged — must still match.
+
+    TWO EXCEPTIONS, AND BOTH ARE NAMED. The Chinese aliases are gone, because an alias in Han
+    cannot match a caption on an English Indian filing and 651 of them made the configuration
+    screen unreadable; and one English alias is gone because it made two printed rows claim one
+    concept (`DELIBERATELY_DROPPED_ALIASES`). Anything else disappearing is a regression.
+    """
     hk = {i.key: i for i in _set(HK).items}
     for item in indas.items:
-        before = set(hk[item.key].aliases or ())
+        allowed = DELIBERATELY_DROPPED_ALIASES.get(item.key, set())
+        before = {a for a in (hk[item.key].aliases or ()) if not _HAN.search(a)}
+        before -= {a for a in before if a.strip().lower() in allowed}
         after = set(item.aliases or ())
         assert before <= after, (item.key, sorted(before - after))
+
+
+def test_no_purely_chinese_value_survives_anywhere_in_the_set(indas):
+    """A TEMPLATE FOR INDIAN ENTITIES CARRIES NO DEAD CHINESE VOCABULARY. Not as a matter of taste:
+    `aliases`, `keyword_hints` and the note vocabulary are what an author reads on the configuration
+    screen to decide whether a line is authored, and 125 of 276 items showed Traditional and
+    Simplified Chinese there. None of it can match anything an Indian company prints.
+
+    PURE-HAN VALUES ONLY, and a MIXED pattern deliberately survives. 30 items still carry Han
+    inside alternations whose other branches are English —
+
+        ^\\s*(?:total\\s+)?derivatives?\\b|derivative\\s+financial\\s+(?:instruments?|assets?)|^\\s*衍生
+
+    — and removing one of those takes the English branches with it. On an exclusion that WIDENS
+    what is accepted, which is the one direction this clean-up must never move: a first pass keyed
+    on "contains Han" removed 1,917 `row_caption_none` values including the mixed ones and
+    `test_every_removed_veto_was_unable_to_match_an_english_caption` caught it. Editing inside an
+    alternation is regex surgery whose failure mode is a silent hole, so mixed patterns stay.
+    """
+    latin = re.compile(r"[A-Za-z]{3,}")
+    offenders: list[str] = []
+
+    def walk(node, path: str) -> None:
+        if isinstance(node, str):
+            if _HAN.search(node) and not latin.search(node):
+                offenders.append(f"{path}: {node[:40]}")
+        elif isinstance(node, dict):
+            for k, v in node.items():
+                walk(v, f"{path}.{k}")
+        elif isinstance(node, (list, tuple)):
+            for v in node:
+                walk(v, path)
+
+    raw = json.loads(INDAS.read_text(encoding="utf-8"))
+    for item in raw["items"]:
+        walk(item, item["key"])
+    # `cascade.note` and `definition` are PROSE: a sentence of Chinese inside an English paragraph
+    # is not a pure-Han value and would not be caught above, so both are asserted directly.
+    for item in raw["items"]:
+        assert not _HAN.search(item.get("definition") or ""), item["key"]
+        for rung in (item.get("cascade") or []):
+            assert not _HAN.search(str(rung.get("note") or "")), item["key"]
+    assert not offenders, offenders[:10]
+
+
+#: Captions Schedule III mandates that this set deliberately does NOT place, each because the
+#: ontology has no concept that means it and mis-binding it would be worse than leaving it to the
+#: section residual. They are listed rather than quietly dropped so the gap is reviewable.
+UNPLACED_BY_DESIGN = {
+    # One half of the trade-payables split. The other half — "creditors other than" — is the
+    # principal row and keeps the concept; see DELIBERATELY_DROPPED_ALIASES.
+    "Total outstanding dues of micro enterprises and small enterprises",
+}
 
 
 @pytest.mark.parametrize("caption, statement, section", SCHEDULE_III)
@@ -304,7 +428,13 @@ def test_every_schedule_iii_caption_is_placed(matcher, caption, statement, secti
     `derived` key, which `mapping._computed_parent` makes unmatchable. Two captions here were
     authored onto their FACE PART for exactly that reason.
     """
-    assert matcher.match(caption, statement, section).canonical_key, caption
+    placed = bool(matcher.match(caption, statement, section).canonical_key)
+    if caption in UNPLACED_BY_DESIGN:
+        assert not placed, (
+            f"{caption!r} is listed as unplaced by design but now binds — if the ontology gained a "
+            f"concept for it, take it out of UNPLACED_BY_DESIGN")
+        return
+    assert placed, caption
 
 
 def test_it_places_materially_more_of_schedule_iii_than_the_hk_set(matcher):
@@ -313,7 +443,7 @@ def test_it_places_materially_more_of_schedule_iii_than_the_hk_set(matcher):
     hk = OntologyMatcher(build_working_view(_set(HK)), locale="en", settings=get_settings())
     mine = sum(bool(matcher.match(c, s, sec).canonical_key) for c, s, sec in SCHEDULE_III)
     theirs = sum(bool(hk.match(c, s, sec).canonical_key) for c, s, sec in SCHEDULE_III)
-    assert mine == len(SCHEDULE_III), mine
+    assert mine == len(SCHEDULE_III) - len(UNPLACED_BY_DESIGN), (mine, sorted(UNPLACED_BY_DESIGN))
     assert mine > theirs, (mine, theirs)
 
 
@@ -365,30 +495,95 @@ def test_both_shipped_sets_seed_and_each_template_resolves_its_own():
 
 
 def test_the_indian_note_vocabulary_widens_context_and_not_the_deterministic_read(indas):
-    """`note_terms` ONLY — the distinction that makes this safe without an Indian corpus.
+    """SCHEDULE III NOTE VOCABULARY ON EVERY LINE, AND STILL NO NEW DETERMINISTIC READ.
 
-    `note_sourced.select_rows` returns nothing unless a `note_title_any` pattern matches, so a
-    title admits a table to the read that produces a PUBLISHED FIGURE. `note_terms` is scoring
-    vocabulary and reaches only what the model READS. With no Indian filing to measure against,
-    this set may widen the second and must not touch the first.
+    THIS TEST USED TO FORBID ADDING A `note_title_any` AT ALL, on the reasoning that
+    `note_sourced.select_rows` needs a title match before it can take a row, so a new title could
+    move a published figure. The reasoning was right and the conclusion was too strong, and the
+    measurement that settled it is the first Indian filing in the corpus: of the 250 Ind AS lines
+    the model is asked about, 170 reached it with NO NOTES ATTACHED, because
+    `line_item_notes.note_probe` returns `note_terms` FIRST AND ALONE where it exists and 605 of
+    those 997 values were Chinese. Withholding note titles did not keep the set safe; it kept the
+    set blind.
+
+    WHAT MAKES ADDING THEM SAFE IS THE SECOND GATE, which the old reasoning missed.
+    `select_rows` opens
+
+        if not titles or not counts: return []
+
+    where `counts` is `row_caption_any`. BOTH are required. So a `note_source` carrying a title and
+    terms but NO `row_caption_any` can never produce a row, whatever it matches — and that is
+    exactly the shape written onto the 196 lines that had no `note_source` before. Asserted by
+    BEHAVIOUR below rather than by reading the source, against a note whose title those patterns
+    do match, because the whole claim is about what the function returns.
+
+    The 65 lines that already carried a full `note_source` keep their `row_caption_any`, so their
+    read is still gated by the row vocabulary their author wrote; what changed for them is only
+    WHICH note the title finds, from a Chinese heading that matches nothing on an Indian filing to
+    the Schedule III heading that does. That is a widening from nothing, not a redirection.
     """
+    from app.core.models.enums import Basis
+    from app.core.models.line_item import ExtractedValue, NoteItem, NotesTable, Provenance
+    from app.services.note_sourced import select_rows
+
+    from app.services import line_item_routes
+
     hk = {i.key: i for i in _set(HK).items}
-    widened = 0
+    created = inherited = 0
     for item in indas.items:
         mine, theirs = item.note_source, hk[item.key].note_source
-        if mine is None or theirs is None:
-            assert (mine is None) == (theirs is None), item.key
+        if str(getattr(item, "type", "") or "") == "derived":
+            # The loader refuses a `note_source` on a derived line — its figure is its cascade's.
+            assert mine is None, f"{item.key} is derived and may not declare a note_source"
             continue
-        # A SUBSET, NOT AN EQUALITY, and the direction is the whole point. ADDING a title pattern
-        # can move a published figure and cannot be justified without an Indian filing to measure
-        # it against; REMOVING one can only narrow what is read, and the pure-Han patterns were
-        # removed as dead weight. So every pattern this set declares must be one the HK set
-        # declares, and nothing new may appear.
-        assert set(mine.note_title_any) <= set(theirs.note_title_any), (
-            f"{item.key}: a note TITLE was ADDED, which can move a published figure: "
-            f"{sorted(set(mine.note_title_any) - set(theirs.note_title_any))}")
-        assert set(mine.row_caption_any) <= set(theirs.row_caption_any), item.key
-        if list(mine.note_terms) != list(theirs.note_terms):
-            assert set(theirs.note_terms) <= set(mine.note_terms), item.key
-            widened += 1
-    assert widened, "no Indian note vocabulary reached the set at all"
+        if not line_item_routes.may_read_notes(item):
+            # A DECLARED `face` LINE IS NEVER GIVEN NOTES, so vocabulary here is read by nothing.
+            # `note_sets` skips it (`may_read_notes` is False), `build_request` filters the
+            # document's identified notes by what the request's lines selected, and `select_rows`
+            # would refuse it for want of `row_caption_any`. What a face line gets instead is the
+            # statement block, which is the right context for a figure printed on the face —
+            # `build_request`'s own docstring says so. An earlier version of this set wrote note
+            # vocabulary onto all 276 lines; 156 of those declarations were inert, which is the
+            # same judgement the Chinese aliases got.
+            assert mine is None, (
+                f"{item.key} declares `face` and carries a note_source, which nothing reads")
+            continue
+        assert mine is not None, f"{item.key} has no note_source, so it is asked about blind"
+        assert mine.note_title_any, item.key
+        assert mine.note_terms, item.key
+        # NO CHINESE ANYWHERE IN THE VOCABULARY THE MODEL IS STEERED BY.
+        assert not _HAN.search(" ".join(mine.note_terms)), item.key
+        assert not _HAN.search(" ".join(mine.note_title_any)), item.key
+
+        if theirs is None:
+            created += 1
+            assert not mine.row_caption_any, (
+                f"{item.key}: a created note_source declared `row_caption_any`, which opens the "
+                f"deterministic note read on a line whose note vocabulary was never measured")
+        else:
+            inherited += 1
+            assert list(mine.row_caption_any) == [
+                v for v in theirs.row_caption_any if not _dead_here(v)], item.key
+
+    # 40 created on the note-routed and routeless lines, 65 rewritten onto the
+    # Schedule III note their HK concept corresponds to.
+    assert created == 40 and inherited == 65, (created, inherited)
+
+    # THE BEHAVIOURAL HALF. A note whose heading matches the PPE family's own title pattern, with a
+    # row that any depreciation vocabulary would claim. A line whose note_source was created must
+    # still read nothing out of it.
+    table = NotesTable(note_number="2A", title="Property, Plant and Equipment", page_index=9)
+    row = NoteItem(raw_label="Depreciation for the year", note_number="2A")
+    row.set_value(ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current",
+                                 value=Decimal("1085.7"), provenance=Provenance(page_index=9)))
+    table.items.append(row)
+    by_key = {i.key: i for i in indas.items}
+    created_keys = [i.key for i in indas.items
+                    if i.note_source is not None and hk[i.key].note_source is None]
+    assert created_keys, "nothing was created, so this asserts nothing"
+    for key in created_keys:
+        item = by_key[key]
+        assert item.note_source.note_title_any, key
+        assert select_rows(item, [table]) == [], (
+            f"{key} took a row off a note it merely names — `row_caption_any` is the second gate "
+            f"and this line declares none")

@@ -438,16 +438,25 @@ _ABBREV_GLOSS_TEMPLATE = (
 # with everything after "(note" lost. The truncation itself is a row-reconstruction defect and
 # belongs to that module; recognising the stump as the pointer it is costs nothing and is right
 # regardless, because a caption never ENDS on the word "note" as part of a concept's name.
+#: "REFER" IS HOW AN INDIAN FILING POINTS AT ITS NOTES. Schedule III statements write
+#: "(Refer note 36)" and "(Refer Note 2A)" where an HKEX filing writes the bare "(note 36)", and
+#: without the prefix the citation survived the strip: measured on Asian Paints' statement of
+#: changes in equity, "Changes on account of amalgamation (Refer note 36)" kept its bracket and
+#: matched no alias in any rulebook, while the same caption without the reference matches. Inline
+#: rather than in the inventory because it is a POINTER word and not a note word — the inventory's
+#: `note_word_latin` is what follows it — and the digits are still required either way, so the
+#: ordinary English words "refer" and "note" strip nothing on their own.
+_REFER = r"(?:refer(?:\s+to)?\s+)?"
 _NOTE_CITATION_TEMPLATE = (
-    # (note 12), （附註12）, (note 16(b)) — bracketed, the form the rulebook names.
-    r"[%(open)s]\s*(?:%(note_any)s)\s*\.?\s*\d{1,3}(?!\d)[a-z]?"
+    # (note 12), （附註12）, (note 16(b)), (Refer note 36) — bracketed, the form the rulebook names.
+    r"[%(open)s]\s*" + _REFER + r"(?:%(note_any)s)\s*\.?\s*\d{1,3}(?!\d)[a-z]?"
     r"(?:\s*[%(open)s][a-z0-9]{1,3}[%(close)s])?\s*[%(close)s]"
     # 附註12 — the bare CJK marker, which the rulebook names unbracketed.
     r"|(?:%(note_han)s)\s*\d{1,3}(?!\d)"
     # "Note 15: Trade receivables" — a citation LEADING a caption, delimited by its colon.
     r"|^\s*%(note_latin)s\s*\.?\s*\d{1,3}(?!\d)[a-z]?\s*[%(colon)s]"
-    # "... (note" — a citation truncated mid-word by row reconstruction.
-    r"|[%(open)s]\s*(?:%(note_any)s)\s*$")
+    # "... (note", "... (Refer note" — a citation truncated mid-word by row reconstruction.
+    r"|[%(open)s]\s*" + _REFER + r"(?:%(note_any)s)\s*$")
 
 # A BRACKETED BARE NUMBER — "(32)", "（32）", "(2022)". Two things leave one behind, and both are
 # noise rather than name:

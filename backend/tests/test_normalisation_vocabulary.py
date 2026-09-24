@@ -57,7 +57,10 @@ SEED = pathlib.Path("app/sample/templates/output_csv_hk_line_items.json")
 SHIPPED = {
     "_ABBREV_GLOSS":          ('[(（]\\s*                     # an opening bracket, either width\n        ["\'“”‘’「」『』《》]\\s*        # …whose content opens with a quotation mark\n        [^)）]*?                      # the abbreviation itself, never crossing the bracket\n        \\s*["\'“”‘’「」『』《》]\\s*     # …and closes with one\n        [)）]',
                                96),
-    "_NOTE_CITATION":         ('[(（]\\s*(?:notes?|附註|附注)\\s*\\.?\\s*\\d{1,3}(?!\\d)[a-z]?(?:\\s*[(（][a-z0-9]{1,3}[)）])?\\s*[)）]|(?:附註|附注)\\s*\\d{1,3}(?!\\d)|^\\s*notes?\\s*\\.?\\s*\\d{1,3}(?!\\d)[a-z]?\\s*[:：]|[(（]\\s*(?:notes?|附註|附注)\\s*$',
+    # `(?:refer(?:\s+to)?\s+)?` is the Indian form of the citation — Schedule III statements write
+    # "(Refer note 36)" where an HKEX filing writes "(note 36)". Added in both copies at once; the
+    # byte-equality test above is what enforces "both copies must recognise one shape".
+    "_NOTE_CITATION":         ('[(（]\\s*(?:refer(?:\\s+to)?\\s+)?(?:notes?|附註|附注)\\s*\\.?\\s*\\d{1,3}(?!\\d)[a-z]?(?:\\s*[(（][a-z0-9]{1,3}[)）])?\\s*[)）]|(?:附註|附注)\\s*\\d{1,3}(?!\\d)|^\\s*notes?\\s*\\.?\\s*\\d{1,3}(?!\\d)[a-z]?\\s*[:：]|[(（]\\s*(?:refer(?:\\s+to)?\\s+)?(?:notes?|附註|附注)\\s*$',
                                34),
     "_BRACKETED_NUMBER":      ('[(（]\\s*\\d{1,4}\\s*[)）]',
                                32),

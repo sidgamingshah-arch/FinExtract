@@ -1407,12 +1407,23 @@ _SUPERSCRIPT = re.compile("[*\u2020\u2021#\u00b9\u00b2\u00b3\u2070-\u209f]+")
 # caption with the colon that delimits it. ``(?!\d)`` refuses a digit run too long to be a note
 # number instead of taking a prefix of it. Duplicated in ``mapping._NOTE_CITATION`` — a note
 # reference is one shape and both copies must recognise it, so a change to either belongs in both.
+#: `(?:refer(?:\s+to)?\s+)?` IS THE INDIAN FORM OF THE SAME MARKER. An Indian annual report
+#: points at its notes as "(Refer note 36)" or "(Refer Note 2A)" rather than the bare
+#: "(note 36)" an HKEX filing prints, and without the prefix the marker survived the footnote
+#: step: measured on Asian Paints' statement of changes in equity, "Changes on account of
+#: amalgamation (Refer note 36)" kept its bracket and matched no alias in any rulebook, while
+#: the same caption without the reference matches. The digits are still required, so the
+#: ordinary English words "refer" and "note" cannot strip anything on their own.
+#:
+#: A DELIBERATE DUPLICATE of `mapping._NOTE_CITATION` — see that constant for why the copy
+#: exists — so the change is made in both and `test_normalisation_vocabulary` holds the two
+#: to byte equality.
 _NOTE_MARKER = re.compile(
-    r"[(（]\s*(?:notes?|附註|附注)\s*\.?\s*\d{1,3}(?!\d)[a-z]?"
+    r"[(（]\s*(?:refer(?:\s+to)?\s+)?(?:notes?|附註|附注)\s*\.?\s*\d{1,3}(?!\d)[a-z]?"
     r"(?:\s*[(（][a-z0-9]{1,3}[)）])?\s*[)）]"
     r"|(?:附註|附注)\s*\d{1,3}(?!\d)"
     r"|^\s*notes?\s*\.?\s*\d{1,3}(?!\d)[a-z]?\s*[:：]"
-    r"|[(（]\s*(?:notes?|附註|附注)\s*$",
+    r"|[(（]\s*(?:refer(?:\s+to)?\s+)?(?:notes?|附註|附注)\s*$",
     re.IGNORECASE)
 _TRAILING_PAREN_DIGITS = re.compile(r"\s*[(（]\s*\d{1,3}[a-z]?\s*[)）]\s*$")
 _LEADING_NUMBERING = re.compile(
