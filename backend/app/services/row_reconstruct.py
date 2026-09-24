@@ -33,6 +33,7 @@ from app.core.models.line_item import ExtractedValue, LineItem, NoteRef, UnitCon
 # still is; they are the very classes `LineItemSet.scope_selection` / `.normalisation` are typed
 # with, so this is the line-item set's own declaration being validated, not an ontology's.
 from app.schemas.ontology import Normalisation, ScopeSelection
+from app.services import page_spread
 from app.services.han import to_simplified
 from app.services.line_item_config import SEED as _LINE_ITEM_SEED
 # The section vocabulary is a property of how statements are PRINTED, not of any ontology, so
@@ -417,7 +418,29 @@ def _group_rows(words: list[Word], y_tol: float = _DEFAULT_Y_TOL) -> list[list[W
     """Cluster words into visual rows by vertical position, then order left→right.
 
     ``y_tol`` is the caller's, because only the caller knows how exact its coordinates are — see
-    :func:`row_tolerance`."""
+    :func:`row_tolerance`.
+
+    A ROW NEVER SPANS THE FOLD OF A 2-UP SPREAD. Two printed pages side by side share their
+    baselines, so clustering by vertical position alone folded a balance sheet row together with
+    the profit-and-loss row printed at the same height — measured on Asian Paints' 2025-26 report,
+    "Property, Plant and Equipment 2A 6,040.18 6,285.40 30,621.70 29,270.69", where the last two
+    figures are Revenue from Sale of Products'. Four value columns on a page that prints two also
+    collapses the inferred column geometry for the whole page, and captions fuse across the gutter
+    into text no rulebook can match ("Financial Assets EARNING BEFORE INTEREST, TAX,").
+
+    DETECTED HERE RATHER THAN PASSED IN, so every one of this module's ten callers is fixed by the
+    one change and none of their signatures moves. `page_spread.gutter_x` returns None for a single
+    printed page — including a genuinely wide single table, which it must never split — so this is
+    inert on every filing that is not a spread.
+    """
+    gutter = page_spread.gutter_x(words)
+    if gutter is not None:
+        left, right = page_spread.halves(words, gutter)
+        # EACH HALF GROUPED IN ISOLATION AND THE RESULTS CONCATENATED, left page first. Sorting the
+        # union back into one list by y would re-interleave the two pages' rows, which is the
+        # reading order of neither.
+        return (_group_rows(left, y_tol) if left else []) + \
+               (_group_rows(right, y_tol) if right else [])
     ordered = sorted(words, key=lambda w: (w.bbox.y0, w.bbox.x0))
     rows: list[list[Word]] = []
     for w in ordered:
