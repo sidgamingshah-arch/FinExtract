@@ -228,6 +228,43 @@ _NARRATIVE = re.compile(
     r"|\bdirectors'?\s+report\b|\bkey\s+audit\s+matters?\b|\bbasis\s+for\s+opinion\b"
     r"|[核][數数][師师][報报][告告]|[董][事][會会][報报][告告]|[獨独][立][核][數数][師师]", re.I)
 
+# THE SECTION OF THE REPORT THIS PAGE IS IN, as its own running header names it.
+#
+# An integrated annual report is built out of named sections and prints the section's name at the
+# top of every page of it. That header is the one piece of evidence that separates a statement
+# title from a discussion OF a statement, and nothing was reading it.
+#
+# MEASURED on Asian Paints' Integrated Annual Report 2025-26, 293 pages of which about 110 are
+# financial. Page 40 is the Management Discussion and Analysis' ten-year review, and its table
+# carries the mid-page heading "INCOME STATEMENT" — a perfect match for the P&L pattern, covering
+# the whole of its own line, so `_mid_page_statement` resolved it and the page arrived with a
+# STRONG TITLE worth +6 to the face state. Page 42 did the same with "Strong balance sheet
+# supporting".
+#
+# WHAT THAT COST IS NOT ONE PAGE, AND THAT IS WHY IT MATTERS. `(_FACE, _PRE)` costs 8.0 — front
+# matter may become a face but a face may not become front matter again — while `(_FACE, _NOTES)`
+# is free and `(_NOTES, _NOTES)` is free. So once page 40 latched a face, the 140 pages of ESG,
+# value-creation, governance and statutory narrative that follow it could only be NOTES, and their
+# prose became bindable note rows: 220 of 293 pages came out NOTES, and "Read more at Page"
+# published a figure onto `bs_nca__other_non_current_assets`.
+#
+# TESTED AGAINST THE TITLE ZONE ONLY, not the body text, because that is where a running header
+# is; the body of a genuine note may discuss management's analysis without being part of it.
+# "Financial Statements" is deliberately ABSENT — it is the header the real statements carry, and
+# pages 180-183 of that filing print it.
+#
+# INERT ON A FILING WITH NO SUCH HEADERS, which is the whole shipped corpus: an HKEX annual report
+# does not label its pages this way, so nothing matches and no page moves. Where an HKEX filing
+# DOES carry a Management Discussion and Analysis section, calling those pages narrative is correct
+# — they are not statements either.
+_REPORT_SECTION = re.compile(
+    r"management\s+discussion\s+and\s+analysis"
+    r"|business\s+responsibility\s+and\s+sustainability\s+report|\bbrsr\b"
+    r"|report\s+on\s+corporate\s+governance|corporate\s+governance\s+report"
+    r"|board'?s\s+report|corporate\s+overview|statutory\s+reports?"
+    r"|notice\s+of\s+(?:the\s+)?annual\s+general\s+meeting"
+    r"|value\s+(?:proposition|creation\s+model)", re.I)
+
 # The notes section opens at note 1 even when a filing omits the banner.
 _NOTE_ONE = re.compile(r"(?m)^\s*(?:note\s*)?1[.)、]?\s+[A-Za-z一-鿿]{2,}")
 # A numbered note heading, e.g. "14. Cash and cash equivalents" / "14 现金及现金等价物".
@@ -375,11 +412,24 @@ def _title_candidates(lines: list[dict]) -> list[dict]:
 
 
 def _mid_page_statement(lines: list[dict], title_zone: list[dict]) -> tuple[str | None, bool, str | None, bool]:
-    """Find an exact statement title that starts below a completed table on the same page."""
+    """Find an exact statement title that starts below a completed table on the same page.
+
+    "EXACT" IS ENFORCED HERE AND WAS ONLY STATED. This path considers every heading-shaped line
+    ANYWHERE below the title zone, which is far more text than the title zone offers, so the
+    coverage floor that keeps a sentence from being read as a title has to be higher here than the
+    0.35 `_TITLE_COVERAGE` calibrated for a printed title band.
+
+    MEASURED: Asian Paints' page 42 is value-creation narrative whose line "Strong balance sheet
+    supporting" gave "balance sheet" 13 of 30 characters — 0.43, comfortably over 0.35 — so the
+    page resolved a balance-sheet title and latched a face in the middle of the front matter. At
+    `_MID_PAGE_TITLE_COVERAGE` it does not, while a real mid-page title ("STATEMENT OF PROFIT AND
+    LOSS" below a finished balance sheet, which is the case this function exists for) covers
+    essentially all of its line.
+    """
     zone_ids = {id(line) for line in title_zone}
     candidates = [dict(line) for line in lines if id(line) not in zone_ids
                   and _looks_like_heading(line["text"])]
-    return _resolve_statement(candidates)
+    return _resolve_statement(candidates, coverage=_MID_PAGE_TITLE_COVERAGE)
 
 
 def _anchored(t: str) -> bool:
@@ -406,10 +456,21 @@ def _anchored(t: str) -> bool:
 _TITLE_COVERAGE = 0.35
 
 
-def _covers_title(match: str, text: str) -> bool:
+# THE SAME QUESTION ASKED OF A MID-PAGE LINE, where the answer has to be stricter.
+# `_TITLE_COVERAGE` is calibrated for the printed TITLE BAND — a handful of lines at the top of the
+# page, where a statement's name appearing at all is already strong evidence. `_mid_page_statement`
+# considers every heading-shaped line anywhere below that band, which is most of the page, so the
+# same floor admits sentence fragments: Asian Paints' "Strong balance sheet supporting" gives
+# "balance sheet" 0.43 of its line and latched a face in the front matter. A genuine mid-page title
+# is the statement's name and nothing else, so it covers essentially all of its line.
+_MID_PAGE_TITLE_COVERAGE = 0.70
+
+
+def _covers_title(match: str, text: str, coverage: float | None = None) -> bool:
     """Is ``match`` most of ``text`` — i.e. is this line the statement's name rather than a
     sentence that happens to contain it?"""
-    return len(match) / max(len(text), 1) >= _TITLE_COVERAGE
+    floor = _TITLE_COVERAGE if coverage is None else coverage
+    return len(match) / max(len(text), 1) >= floor
 
 
 # A SUMMARY OF A STATEMENT IS NOT THE STATEMENT. A filing's Financial Highlights page prints
@@ -433,8 +494,13 @@ _SUMMARY_TITLE = re.compile(
     r"|[摘概][要要]|[概][覽览]", re.I)
 
 
-def _resolve_statement(cands: list[dict]) -> tuple[str | None, bool, str | None, bool]:
+def _resolve_statement(cands: list[dict], *, coverage: float | None = None
+                       ) -> tuple[str | None, bool, str | None, bool]:
     """(statement, oci_combined, matched_title, ambiguous).
+
+    ``coverage`` overrides the `_covers_title` floor. Defaulted so the title-band path and the
+    worksheet path keep exactly the floor they were calibrated with, and only
+    :func:`_mid_page_statement` asks for a stricter one.
 
     POSITION first, then match length — never list order. Pages genuinely carry two candidates (an
     equity-statement tail above a cash-flow title; P&L above OCI), and longest-match-at-topmost-y is
@@ -456,7 +522,7 @@ def _resolve_statement(cands: list[dict]) -> tuple[str | None, bool, str | None,
         for name, strong, weak in _STATEMENTS:
             for p in strong:
                 m = re.search(p, low) or re.search(p, t)
-                if m and _covers_title(m.group(0), t) and (best is None
+                if m and _covers_title(m.group(0), t, coverage) and (best is None
                                                            or len(m.group(0)) > best[0]):
                     best = (len(m.group(0)), name)
             # ``anchored`` on the candidate itself, for text whose CONTEXT is the anchor. The
@@ -467,7 +533,7 @@ def _resolve_statement(cands: list[dict]) -> tuple[str | None, bool, str | None,
             if c.get("anchored") or _anchored(t):
                 for p in weak:
                     m = re.search(p, low) or re.search(p, t)
-                    if m and _covers_title(m.group(0), t) and (best is None
+                    if m and _covers_title(m.group(0), t, coverage) and (best is None
                                                               or len(m.group(0)) > best[0]):
                         best = (len(m.group(0)), name)
         if best:
@@ -696,9 +762,13 @@ def _features(index: int, lines: list[dict], page_h: float, text: str) -> PageFe
     if f.statement is None:
         f.statement, f.oci_combined, title, f.title_ambig = _mid_page_statement(lines, zone)
     joined = " ".join(f.title_lines)
-    f.narrative = bool(_NARRATIVE.search(joined) or _NARRATIVE.search(text[:1500]))
+    # `_REPORT_SECTION` against the TITLE ZONE alone — a running header is printed there, and a
+    # genuine note's body may discuss management's analysis without belonging to that section.
+    f.narrative = bool(_NARRATIVE.search(joined) or _NARRATIVE.search(text[:1500])
+                       or _REPORT_SECTION.search(joined))
     if f.narrative:
-        # The auditor's report names every statement it audited, in bold, in the top band.
+        # The auditor's report names every statement it audited, in bold, in the top band; a
+        # management discussion prints the name of every statement it discusses.
         f.statement, title = None, None
     f.matched_title = title
     if title is not None and page_h:
