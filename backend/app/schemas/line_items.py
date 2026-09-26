@@ -1096,13 +1096,36 @@ class LineItemDef(BaseModel):
         it `equity_changes`. Compared raw, a definition on that statement is refused on every page
         of it, which is the same failure the `income_statement` token would have caused. Folded
         through `services.mapping.normalize_statement`, they agree.
+
+        IT READS THE LIST, AND IT USED TO READ ONLY THE SINGULAR. `statements` is plural precisely
+        because one caption is genuinely printed on more than one statement, and
+        `mapping.OntologyMatcher._statements_of` says so in those words — "ONE MATCH IS ENOUGH now
+        that the declaration is a list". This predicate is the OTHER engine's gate
+        (`line_item_matching._allowed`) and it compared `self.statement`, so the two halves of one
+        decision disagreed: the ontology matcher admitted a multi-statement line under either
+        statement and the line-item matcher admitted it under one.
+
+        MEASURED ON THE SHIPPED SETS, which is what makes this a defect rather than tidying. 15 of
+        the 549 HK lines and 16 of the 276 Ind AS lines declare `[equity_changes,
+        profit_and_loss]` — every `is_oci__*` line and every `is_retained__*` appropriation, which
+        are exactly the lines a filing prints in its statement of changes in equity AND in its
+        other-comprehensive-income section. All of them were refused by `LineItemMatcher` on a
+        changes-in-equity page, because the singular folded out to `profit_and_loss`.
+
+        The singular is still honoured for a definition that declares only it: the loader folds
+        `statement` into `statements`, so reading the list first and falling back covers both a
+        set written before the plural existed and one written after.
         """
-        if self.statement is None or statement is None:
+        declared = list(self.statements or ())
+        if not declared and self.statement is not None:
+            declared = [self.statement]
+        if not declared or statement is None:
             return True
         if normalize is None:
             want = statement.value if isinstance(statement, StatementType) else str(statement)
-            return self.statement.value == want
-        return normalize(self.statement) == normalize(statement)
+            return any((s.value if isinstance(s, StatementType) else str(s)) == want
+                       for s in declared)
+        return any(normalize(s) == normalize(statement) for s in declared)
 
     def claimable_under(self, section: str | None,
                         resolve: Callable[[str], str | None] | None = None) -> bool:

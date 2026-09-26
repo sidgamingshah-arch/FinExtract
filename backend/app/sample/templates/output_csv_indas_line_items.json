@@ -12095,12 +12095,31 @@
      "general and administrative expenses"
     ]
    },
-   "statement": "notes",
    "section_scope": [],
-   "definition": "The total depreciation for the period as the profit-before-tax note reports it in a single unqualified row — the charge across every function, before any split between cost of sales and operating expenses. It is disclosed in the note itemising what profit or loss before taxation is arrived at after charging, or in the Depreciation and Amortisation Expense note that Schedule III requires. It is not any caption in that note qualified by a function, whether cost of sales or an operating-expense function, since each of those is a share of this figure rather than the figure. Nor is it itself the depreciation charged to operating expenses, which is what remains once the cost-of-sales share is deducted.\n\nTake the note's unqualified total depreciation row, never a caption qualified by cost of sales or by an operating-expense function, and remember the cost-of-sales share still has to be deducted from it. The sum of depreciation rows inside the profit-before-tax note.",
+   "definition": "The period's TOTAL depreciation and amortisation charge, across every asset class. Under Schedule III this is a single line on the face of the statement of profit and loss — Division II presents expenses by nature, so there is no cost-of-sales or administrative line for the charge to be split between — and it is captioned Depreciation and Amortisation Expense. A filing that instead states the total only in a note (the profit-before-tax note, or the note itemising what profit before tax is arrived at after charging) reports the same quantity and it is read from there. It is the TOTAL and not any one asset class's share: not the depreciation of property, plant and equipment alone, not the amortisation of intangibles alone, and never an accumulated depreciation balance or a movement line from a fixed-asset schedule.",
    "note_selection": "any",
    "note_use": "decomposition_allowed",
-   "route": "note_tables"
+   "statements": [
+    "profit_and_loss",
+    "notes"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Depreciation and Amortisation Expense",
+     "Depreciation and Amortization Expense",
+     "Depreciation & Amortisation Expense",
+     "Depreciation and Amortisation Expenses",
+     "Depreciation, Amortisation and Impairment Expense"
+    ]
+   },
+   "aliases": [
+    "Depreciation and Amortisation Expense",
+    "Depreciation and Amortization Expense",
+    "Depreciation & Amortisation Expense",
+    "Depreciation and Amortisation Expenses",
+    "Depreciation, Amortisation and Impairment Expense"
+   ],
+   "match_priority": 82
   },
   {
    "key": "sub__cos_depreciation",

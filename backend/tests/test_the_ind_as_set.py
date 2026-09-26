@@ -57,6 +57,14 @@ BS, PL = "balance_sheet", "profit_and_loss"
 # The Division II face, as Schedule III prints it. Not a sample: the balance sheet's own line
 # sequence and the statement of profit and loss's, in order.
 SCHEDULE_III = [
+    # THE FIVE SCHEDULE III LINES THAT WERE NEVER EXERCISED. One of them now binds; the other
+    # four are listed in `UNPLACED_BY_DESIGN` with the reason, so the boundary of this ontology is
+    # a tested statement rather than an absence nobody wrote down.
+    ("Depreciation and Amortisation Expense", PL, "is_pl"),
+    ("Other Financial Liabilities", BS, "bs_cl"),
+    ("Total Income", PL, "is_pl"),
+    ("Total Expenses", PL, "is_pl"),
+    ("Earnings per equity share", PL, "is_pl"),
     ("Property, Plant and Equipment", BS, "bs_nca"),
     ("Capital work-in-progress", BS, "bs_nca"),
     ("Other Intangible assets", BS, "bs_nca"),
@@ -413,9 +421,39 @@ def test_no_purely_chinese_value_survives_anywhere_in_the_set(indas):
 #: section residual. They are listed rather than quietly dropped so the gap is reviewable.
 UNPLACED_BY_DESIGN = {
     # One half of the trade-payables split. The other half — "creditors other than" — is the
-    # principal row and keeps the concept; see DELIBERATELY_DROPPED_ALIASES.
+    # principal row and keeps the concept; see DELIBERATELY_DROPPED_ALIASES. India-specific
+    # statute (the MSMED Act), so the HK spine has no key for it either.
     "Total outstanding dues of micro enterprises and small enterprises",
+    # Schedule III presents Other Financial Liabilities and Other Current Liabilities as SEPARATE
+    # lines. The spine has `bs_cl__other_current_liabilities` and
+    # `bs_cl__trade_and_other_payables_cp`; the first is the other line and the second means trade
+    # AND other, so binding this to either double-counts against a row already claimed.
+    "Other Financial Liabilities",
+    # Schedule III subtotals. "Total Income" is revenue from operations plus other income and
+    # "Total Expenses" is the by-nature expense block; the spine's nearest keys
+    # (`is_pl__total_cost_of_sales`, `is_pl__gross_profit`) are different quantities under a
+    # by-function presentation.
+    "Total Income",
+    "Total Expenses",
+    # A per-share metric rather than a statement line. Nothing in the spine means it, and the
+    # weighted average share count it is computed from is not a concept either — the template's
+    # `kpis` block is where a ratio of this kind belongs.
+    "Earnings per equity share",
 }
+
+#: WHY THE FOUR ABOVE ARE NOT SIMPLY ADDED, which is the decision this file records.
+#:
+#: `test_every_concept_is_one_of_the_hk_spine_s` requires every Ind AS key to exist in the HK
+#: spine: "A key that is NOT in the HK spine would be a fork — a new concept nobody can compare
+#: across GAAPs." None of these four has a spine key, so closing them means either forking that
+#: key space or extending the HK spine, and extending the spine changes the shipped HK ontology
+#: and its template's row count. Both are product decisions, not refactors.
+#:
+#: The fifth, "Depreciation and Amortisation Expense", needed NO new key: `sub__pbt_depreciation`
+#: already means the period's total depreciation, and the only difference between the GAAPs is
+#: whether that total is printed on the face (Schedule III) or in the profit-before-tax note
+#: (HKFRS). See `test_both_matchers_honour_the_statement_list`.
+_UNPLACED_NEEDS_A_NEW_KEY = True
 
 
 @pytest.mark.parametrize("caption, statement, section", SCHEDULE_III)
