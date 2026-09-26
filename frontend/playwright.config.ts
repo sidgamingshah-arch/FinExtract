@@ -62,6 +62,29 @@ const VENV_PY = [
 const PY = VENV_PY ? `"${VENV_PY}"` : "python";
 const SERVE = process.platform === "win32" ? `${PY} -m uvicorn` : `exec ${PY} -m uvicorn`;
 
+// LOOPBACK IS NEVER PROXIED, and saying so is what lets this suite run behind a corporate proxy.
+//
+// Playwright decides whether to start a `webServer` by REQUESTING its `url`, and that request
+// honours HTTP_PROXY/HTTPS_PROXY. On a machine where those are set — a corporate laptop, which is
+// most of them — the probe for http://127.0.0.1:8000/health goes out to the proxy, the proxy
+// answers something, and Playwright concludes the port is already occupied. With
+// `reuseExistingServer: false` on the backend (deliberately, see below) the run then stops before
+// it starts, with
+//
+//     Error: http://127.0.0.1:8000/health is already used, make sure that nothing is running
+//
+// which points at a stale server when nothing is listening at all: `netstat` shows the port free
+// and a TcpListener binds it happily. Measured on this checkout with
+// HTTP_PROXY=http://185.46.212.88:80 — the suite could not be run, and that is why the
+// latest-per-template work went unverified.
+//
+// Appended rather than assigned, so a value the developer set for their own reasons survives.
+for (const name of ["NO_PROXY", "no_proxy"]) {
+  const held = process.env[name];
+  const loopback = "127.0.0.1,localhost,::1";
+  process.env[name] = held ? `${held},${loopback}` : loopback;
+}
+
 export default defineConfig({
   testDir: "./e2e",
   timeout: 60_000,

@@ -350,8 +350,35 @@ test("analyst cannot reach the config template screen but can select a template"
   // buries the rows a reader wants. Older versions are one click behind this toggle, which is why
   // the capability this test exists for still exists: the screen once defaulted to v1 with no click
   // able to change the selection, and that is what must not come back.
+  // ASSERTED, NOT JUST DESCRIBED. The paragraph above stated the collapsed behaviour and nothing
+  // checked it, so the commit that introduced it shipped unverified — `latestTemplates` could have
+  // returned every row, or one row overall, and this test would still have passed.
+  //
+  // ONE ROW PER TEMPLATE KEY, and that row is the one the SERVER flags latest. The client must not
+  // rank versions itself; `is_latest` is the server's answer and the screen reads it.
+  const collapsed = await options.allInnerTexts();
+  const servedKeys = new Set(served.map((x) => x.template_key));
+  expect(collapsed.length,
+         `the picker should list one row per template type, got ${collapsed.length} for ` +
+         `${servedKeys.size} types`).toBe(servedKeys.size);
+  for (const key of servedKeys) {
+    const newest = latest.find((x) => x.template_key === key);
+    expect(newest, `nothing flagged latest for ${key}`).toBeTruthy();
+    const row = collapsed.filter((text) => text.includes(key));
+    expect(row.length, `${key} appears ${row.length} times in the collapsed list`).toBe(1);
+    expect(row[0]).toContain(`v${newest!.version}`);
+  }
+
+  // …AND EVERY VERSION IS ONE CLICK AWAY. The toggle is offered only when something is hidden, so
+  // its absence is itself a claim: nothing was collapsed.
   const showAll = page.getByTestId("tpl-show-all-versions");
-  if (await showAll.count()) await showAll.click();
+  if (served.length > servedKeys.size) {
+    await expect(showAll).toBeVisible();
+    await showAll.click();
+    await expect(options).toHaveCount(served.length);
+  } else {
+    await expect(showAll).toHaveCount(0);
+  }
   if (siblings.length > 1) {
     const older = siblings[1];
     await options.filter({ hasText: `v${older.version}` }).first().click();
@@ -391,12 +418,28 @@ test("the template screen is an index first: a row opens the detail, which dismi
   // Rows are focusable on the index itself — that is how the list is keyboard-operable.
   expect(await indexRowFocusable(page)).toBe(true);
 
-  // PAGE 2 opens on the row click, carrying the tree and the concept editor.
+  // PAGE 2 opens on the row click, carrying the tree.
   await rows.first().click();
   await expect(page.getByTestId("template-detail")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("tpl-node").first()).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByPlaceholder("New alias")).toBeVisible();
   await expect(page).toHaveURL(/[?&]template=/);              // reloadable / linkable
+
+  // AND THE EDITOR IS INERT HERE, WHICH IS THE POINT OF OPENING *THIS* TEMPLATE.
+  //
+  // This asserted `getByPlaceholder("New alias")` was visible, and that expectation belonged to an
+  // older seed. `hkfrs_hk_china_v1` is seeded TEMPLATE-ONLY — this file's own header says so — so
+  // no line-item set targets it and the detail legitimately has no rules to change. The screen
+  // says as much: `tpl-node-unmapped` plus "The line-item configuration in force for this template
+  // declares nothing for this line". The test was asking a read-only screen for an editor, and
+  // failed on the one template guaranteed not to have one.
+  //
+  // The editor itself is covered where it belongs — every test that drives it goes through
+  // `openTemplateDetail`, which filters to a row that HAS a configuration for exactly this reason.
+  // So this one now pins the OTHER half, which nothing was pinning: an admin opening a template
+  // with no configuration is told which of the two reasons the editor is inert, rather than shown
+  // a save that would be refused.
+  await expect(page.getByTestId("tpl-node-unmapped").first()).toBeVisible();
+  await expect(page.getByPlaceholder("New alias")).toHaveCount(0);
 
   // The tree says WHOSE structure it is. With several versions of several templates in the index,
   // the detail is the only thing on screen that can answer that, and the sidebar is where a reader
