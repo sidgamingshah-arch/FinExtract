@@ -212,6 +212,9 @@ class LineItemLlmStage(Stage):
                 # deterministic route — which is a defined outcome rather than a degraded one,
                 # because nothing here has overwritten anything yet.
                 failures += 1
+                # ON THE CONTEXT as well as locally, so the run record and the progress
+                # panel can say "attempted and failed" rather than showing nothing.
+                ctx.llm_failures += 1
                 ctx.log(f"line_item_llm:request({plan.name}) FAILED "
                         f"{type(exc).__name__}: {str(exc)[:160]}")
                 ctx.emit_step(done, len(plans), "line-item request")

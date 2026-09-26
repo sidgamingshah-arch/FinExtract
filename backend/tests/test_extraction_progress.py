@@ -115,18 +115,43 @@ def test_progress_moves_through_the_named_stages_of_the_real_pipeline(client):
     assert staged, ("no per-stage progress was ever committed — the pipeline's progress emits are "
                     "going nowhere, which is the defect this unit exists to close")
 
+    # TWO KINDS OF RECORD CARRY A STAGE, and this used to assume one.
+    #
+    # `Pipeline.run` emits once BEFORE each stage — the stage TRANSITION — and a stage may also
+    # report from inside itself through `PipelineContext.emit_step`, which `_RunProgress.step`
+    # commits under the stage in flight. `map_line_items` does exactly that: it cuts the document
+    # into subgroups and reports "4 of 4 rows", so it commits three records where every other
+    # stage commits one, and `reported == names` failed with `map_line_items` appearing three
+    # times. The emits are correct and the assertion was written before `emit_step` existed.
+    #
+    # THE TWO ARE TOLD APART BY `step_total`. `_RunProgress._step` is reset to `(0, 0, "")` on
+    # every stage entry — "a count left over from the previous stage would read as progress this
+    # one has not made" — so a transition carries `step_total == 0` and a step update carries the
+    # total it is counting towards.
+    transitions = [p for p in staged if not p["step_total"]]
+    steps = [p for p in staged if p["step_total"]]
+
     # The stages reported are the pipeline's, in the pipeline's order, and each one's index is its
     # own index in that pipeline — not a running counter that happens to agree.
-    reported = [p["stage"] for p in staged]
+    reported = [p["stage"] for p in transitions]
     assert reported == names, reported
-    assert [p["stage_index"] for p in staged] == list(range(len(names)))
+    assert [p["stage_index"] for p in transitions] == list(range(len(names)))
     assert all(p["stage_count"] == len(names) for p in staged)
 
     # `stages_done` is what has actually FINISHED at each emit: the emit precedes its stage, so it
-    # lists everything before it and never the stage being announced.
+    # lists everything before it and never the stage being announced. True of a step update too —
+    # it is reported from INSIDE the stage, which has therefore not finished either.
     for p in staged:
         assert p["stages_done"] == names[:p["stage_index"]], p
         assert p["stage"] not in p["stages_done"]
+
+    # A step update belongs to the stage in flight and counts towards a real total. Asserted
+    # rather than merely tolerated, because a step record attributed to the wrong stage is how the
+    # panel would show one stage's progress against another's name.
+    for p in steps:
+        assert p["stage"] in names, p
+        assert 0 <= p["step_done"] <= p["step_total"], p
+        assert p["step_label"], p
 
     pcts = [p["pct"] for p, _, _, _ in records]
     assert pcts == sorted(pcts), pcts

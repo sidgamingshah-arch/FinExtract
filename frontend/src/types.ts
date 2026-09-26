@@ -680,6 +680,10 @@ export interface ExtractionProgress {
   /** LLM calls the run has COMPLETED so far. Live — it used to appear only in the finished
    *  result, which is the one moment nobody needs it. */
   llm_calls: number;
+  /** Requests that FAILED. Zero calls means two opposite things — nothing was asked, or
+   *  everything was refused — and the panel used to hide the stat at zero, so a run whose every
+   *  request failed looked exactly like a deliberately deterministic one. */
+  llm_failures: number;
   started_at: string;
   elapsed_ms: number;
 }

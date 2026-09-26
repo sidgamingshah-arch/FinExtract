@@ -90,7 +90,7 @@ def _as_utc(stamp: datetime) -> datetime:
 def _progress_payload(phase: str, pct: float, *, started_at: datetime, stage_count: int,
                       stage: str = "", stages_done: list[str] | None = None,
                       step_done: int = 0, step_total: int = 0, step_label: str = "",
-                      llm_calls: int = 0) -> dict:
+                      llm_calls: int = 0, llm_failures: int = 0) -> dict:
     """One ``ExtractionProgress`` record (the shape declared in ``frontend/src/types.ts``).
 
     ``_PROGRESS_FIELDS`` is the same shape read back: a record missing any of these keys is not one
@@ -131,6 +131,10 @@ def _progress_payload(phase: str, pct: float, *, started_at: datetime, stage_cou
         # question actually being asked mid-run is "how many calls have completed", and the count
         # was already on the context — it just never left it until the run finished.
         "llm_calls": llm_calls,
+        # ATTEMPTS THAT FAILED. Sent beside the successes rather than folded into them: a
+        # reader seeing "0" needs to know whether nothing was asked or everything was
+        # refused, and only one of those is a problem to chase.
+        "llm_failures": llm_failures,
         "started_at": _as_utc(started_at).isoformat(),
         "elapsed_ms": max(0, int((datetime.now(timezone.utc)
                                   - _as_utc(started_at)).total_seconds() * 1000)),
@@ -563,7 +567,8 @@ class _RunProgress:
                                  stages_done=done,
                                  step_done=self._step[0], step_total=self._step[1],
                                  step_label=self._step[2],
-                                 llm_calls=int(getattr(self._ctx, "llm_calls", 0) or 0))
+                                 llm_calls=int(getattr(self._ctx, "llm_calls", 0) or 0),
+                                 llm_failures=int(getattr(self._ctx, "llm_failures", 0) or 0))
 
     def step(self, done: int, total: int, label: str = "") -> None:
         """The pipeline's ``step_cb``: a stage reporting progress from inside itself.
@@ -1493,6 +1498,7 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
                 "strategy": ctx.mapping_strategy or "deterministic",
                 "reason": ctx.mapping_strategy_reason,
                 "llm_calls": ctx.llm_calls,
+                "llm_failures": ctx.llm_failures,
                 "model": ctx.llm_model or "",
             },
         }

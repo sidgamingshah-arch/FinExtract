@@ -561,10 +561,24 @@ function RunProgress({ progress, stages, logTail, live, canStop, stopping, onSto
                  mono: true });
   }
   // Cumulative across the run, so it keeps its meaning after mapping has finished and the
-  // per-stage counter above has gone. Shown from the first call rather than from zero: a "0" on a
-  // run with no LLM configured would invite the reader to wait for a number that never comes.
-  if (progress && Number.isFinite(progress.llm_calls) && progress.llm_calls > 0) {
-    stats.push({ label: t("ex.run.llmCalls"), value: String(progress.llm_calls), mono: true });
+  // per-stage counter above has gone.
+  //
+  // SHOWN WHENEVER THE STAGE REACHED A PROVIDER, which is calls OR failures — not calls alone.
+  // Hiding it at zero was right for the case it was written for ("a 0 on a run with no LLM
+  // configured would invite the reader to wait for a number that never comes") and wrong for the
+  // one it could not see: `llm_calls` counts only requests whose reply VALIDATED, so a run that
+  // attempted twelve and lost all twelve also reported zero, and the panel hid that too. The
+  // degraded outcome was indistinguishable from the designed one. Failures are named in the value
+  // rather than given a stat of their own, so the row reads as one fact about one thing.
+  const llmCalls = Number.isFinite(progress?.llm_calls) ? Number(progress?.llm_calls) : 0;
+  const llmFailures = Number.isFinite(progress?.llm_failures) ? Number(progress?.llm_failures) : 0;
+  if (progress && (llmCalls > 0 || llmFailures > 0)) {
+    stats.push({
+      label: t("ex.run.llmCalls"),
+      value: llmFailures > 0 ? `${llmCalls} (${llmFailures} ${t("ex.run.llmFailed")})`
+                             : String(llmCalls),
+      mono: true,
+    });
   }
   if (elapsed) stats.push({ label: t("ex.run.elapsed"), value: elapsed, mono: true });
 

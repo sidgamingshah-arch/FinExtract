@@ -32,6 +32,16 @@ class PipelineContext:
     llm_input_tokens: int = 0
     llm_output_tokens: int = 0
     llm_calls: int = 0
+    # REQUESTS THAT FAILED, counted beside the ones that succeeded — because `llm_calls` alone
+    # cannot tell "no provider" from "every request failed", and those are opposite facts.
+    #
+    # `llm_calls` is incremented only after a reply validates (`stages.line_item_llm`), which is
+    # right: a failed request located nothing and must not read as work done. But it left zero
+    # meaning two things, and the UI hid the stat at zero, so a run whose every request failed
+    # rendered identically to a fully deterministic one — the degraded outcome disguised as the
+    # designed one, which is the exact confusion `mapping_strategy_reason` below exists to prevent
+    # for the mapper.
+    llm_failures: int = 0
     llm_model: str = ""
     # How ontology mapping actually ran, and why. A run with no LLM configured silently falls
     # back to the deterministic ensemble, which is materially weaker — recording it means a
