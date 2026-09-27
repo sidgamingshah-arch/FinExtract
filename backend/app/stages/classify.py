@@ -466,11 +466,68 @@ _TITLE_COVERAGE = 0.35
 _MID_PAGE_TITLE_COVERAGE = 0.70
 
 
+# WHAT A STATEMENT'S TITLE IS MADE OF BESIDES ITS NAME, and must therefore not count against it.
+#
+# MEASURED, AND IT IS WHY THE STRICTER MID-PAGE FLOOR NEEDS THIS BESIDE IT. At 0.70 against the raw
+# line, 河钢股份 000709 lost its balance sheet: a CAS filing prints each statement's title MID-PAGE,
+# ENUMERATED and QUALIFIED by basis — "1、合并资产负债表" covers 0.56, "2、母公司资产负债表" 0.50,
+# "3、合并利润表" 0.43 — so pages 81-86 resolved no statement, the first face moved from 81 to 87,
+# and the run went from 505 figures and 32 checked relations to 292 and none. Those are exact
+# titles. The enumerator names the statement's position in the report and the qualifier names
+# which entity's statement it is; neither makes the line a sentence.
+#
+# A BILINGUAL TITLE IS THE SAME TITLE TWICE, so it is measured in the script the match is in: an
+# HKEX title "CONSOLIDATED STATEMENT OF CASH FLOWS 綜合現金流量表" is 0.52 of its raw line (the
+# title-band test records this) and would fail the mid-page floor in exactly the same way.
+#
+# What is NOT stripped is what the floor exists to refuse: "Strong balance sheet supporting" has no
+# enumerator, no qualifier and one script, so it stays at 0.43 and stays refused.
+_TITLE_ENUMERATOR = re.compile(
+    r"^\s*(?:[（(]?\s*(?:\d{1,2}|[一二三四五六七八九十]{1,3}|[ivxIVX]{1,4}|[A-Za-z])\s*[)）]?\s*[、.．:：)]"
+    r"|[（(]\s*(?:\d{1,2}|[一二三四五六七八九十]{1,3})\s*[)）])\s*")
+# THREE KINDS OF WORD IN IT, each measured on the corpus rather than supposed:
+#   * WHOSE STATEMENT — 合并/母公司/Consolidated/Company. 000709's "1、合并资产负债表".
+#   * WHOSE EQUITY — 所有者/股东. 000709's "7、合并所有者权益变动表": the pattern names 权益变动表,
+#     so "owners'" counted against a title that is exactly the statement's name (0.625).
+#   * ITS SUPPLEMENTARY SCHEDULE — 补充资料. "现金流量表补充资料" is the one place a CAS filing prints
+#     the indirect-method reconciliation, which the run reads as the cash-flow statement and which
+#     is what fills `cf_oper_indirect__*`: refusing it cost 688008 and 000709 their indirect-method
+#     lines (29 and 126 figures), where the title band's 0.35 floor had always admitted it.
+_TITLE_QUALIFIER = re.compile(
+    r"合并|合併|母公司|本公司|本集团|本集團|集团|集團|公司|所有者|股东|股東"
+    r"|补充资料|補充資料"
+    r"|（\s*续\s*）|（\s*續\s*）|\(\s*continued\s*\)"
+    r"|\bsupplementary\s+information\b"
+    r"|\b(?:consolidated|standalone|separate|company|group|parent|the)\b", re.I)
+_LATIN_TEXT = re.compile(r"[A-Za-z][A-Za-z\s,&'’()/-]*")
+_HAN_TEXT = re.compile(r"[\u3001\u3400-\u9fff（）()]+")
+
+
+def _title_body(match: str, text: str) -> str:
+    """The part of a title line a statement's NAME has to cover: the enumerator stripped, only the
+    script the match is written in, and the basis qualifiers removed."""
+    body = _TITLE_ENUMERATOR.sub("", text or "", count=1)
+    has_latin, has_han = bool(re.search(r"[A-Za-z]", body)), bool(re.search(r"[\u3400-\u9fff]", body))
+    if has_latin and has_han:
+        script = _HAN_TEXT if re.search(r"[\u3400-\u9fff]", match or "") else _LATIN_TEXT
+        body = " ".join(run.strip() for run in script.findall(body) if run.strip())
+    body = _TITLE_QUALIFIER.sub(" ", body)
+    return re.sub(r"\s+", " ", body).strip()
+
+
 def _covers_title(match: str, text: str, coverage: float | None = None) -> bool:
     """Is ``match`` most of ``text`` — i.e. is this line the statement's name rather than a
-    sentence that happens to contain it?"""
-    floor = _TITLE_COVERAGE if coverage is None else coverage
-    return len(match) / max(len(text), 1) >= floor
+    sentence that happens to contain it?
+
+    With the default floor the RAW line is the denominator, exactly as the title band was
+    calibrated. Only the stricter mid-page floor measures the title's BODY (`_title_body`), because
+    that floor is the one a CAS filing's enumerated, qualified titles fell under."""
+    if coverage is None:
+        return len(match) / max(len(text), 1) >= _TITLE_COVERAGE
+    body = _title_body(match, text)
+    named = _TITLE_QUALIFIER.sub(" ", match or "")
+    named = re.sub(r"\s+", " ", named).strip() or (match or "")
+    return len(named) / max(len(body), 1) >= coverage
 
 
 # A SUMMARY OF A STATEMENT IS NOT THE STATEMENT. A filing's Financial Highlights page prints
