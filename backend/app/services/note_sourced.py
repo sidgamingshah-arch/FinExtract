@@ -708,6 +708,132 @@ def _caption_matches(want: str, cap_norm: str) -> bool:
     return shorter >= _CAPTION_SPECIFICITY * longer
 
 
+def _note_key(text) -> str:
+    """A cited or extracted note number in one comparable spelling.
+
+    NFKC so a full-width digit is a digit, and the prefixes a model or a filing puts in front of
+    a number removed — "Note 12", "附注七、9" and "12." name the same note as "12" and "七、9".
+    """
+    import re as _re
+    import unicodedata
+
+    t = unicodedata.normalize("NFKC", str(text or "")).strip()
+    t = _re.sub(r"^(?:notes?\.?|附注|附註)\s*", "", t, flags=_re.IGNORECASE)
+    return t.strip().rstrip(".").strip()
+
+
+def same_note(want, got) -> bool:
+    """Whether a CITED note number names this EXTRACTED note — by identity, never by substring.
+
+    THE BUG THIS REPLACES. Both call sites tested `want in got or got in want`, so a citation of
+    note 12 also accepted notes 1 and 2, and on a CAS filing "七、1" accepted every one of 七、10 to
+    七、19. Rows are scanned in document order and the first caption match wins, so note 1's
+    "Total" was published for a line citing note 12.
+
+    WHAT "EITHER HALF" STILL MEANS. A mainland note is chapter-qualified ("七、9") and a model may
+    cite only the number: a BARE citation matches a qualified note whose NUMBER half is equal, and
+    a qualified citation matches only itself. Two qualified numbers in different chapters never
+    match — 七、9 and 十九、9 are the group's note and the parent company's.
+    """
+    from app.services.notes_extract import split_note_number
+
+    w, g = _note_key(want), _note_key(got)
+    if not w or not g:
+        return False
+    if w == g:
+        return True
+    w_ch, w_no = split_note_number(w)
+    g_ch, g_no = split_note_number(g)
+    if w_ch and g_ch:
+        return False
+    return bool(w_no) and w_no == g_no
+
+
+def _notes_named(want, numbers):
+    """The extracted note numbers a citation names, EXACT matches first and only those if any.
+
+    A bare "9" on a CAS filing names both 七、9 and 十九、9, and nothing in the citation decides
+    between them — so both stay candidates. But where the citation is itself qualified, or where
+    one extracted number equals it exactly, that one is the note it named and the looser half-match
+    is not consulted.
+    """
+    w = _note_key(want)
+    exact = {n for n in numbers if _note_key(n) == w}
+    return exact or {n for n in numbers if same_note(want, n)}
+
+
+def best_caption(want: str, candidates, key=lambda c: c):
+    """The candidate whose normalised caption is the one a citation named — or None.
+
+    EXACT BEATS CONTAINMENT, and among containments the CLOSEST LENGTH wins; document order only
+    breaks a tie. `_caption_matches` decides WHETHER two captions may match — its 0.5 length floor
+    stops a two-character caption answering a citation meant for another row — and this decides
+    WHICH of the admitted candidates is meant. The floor alone does not: 应收账款 is 4/6 of
+    应收账款合计, so both pass it. The previous rule took the first caption where either contained the other,
+    so a citation of "应收账款合计" resolved to the "应收账款" gross row printed above the total, and
+    a bare "合计" row was contained in almost any cited "...合计" and matched from whichever note
+    came first.
+
+    `want` and every `key(candidate)` must already be normalised by the caller's `norm`.
+    """
+    if not want:
+        return None
+    exact = None
+    near: list[tuple[int, int, object]] = []
+    for index, cand in enumerate(candidates):
+        got = key(cand)
+        if not got:
+            continue
+        if got == want:
+            exact = cand
+            break
+        # CONTAINMENT THROUGH `_caption_matches`, so its specificity floor still refuses a short
+        # caption standing in for a much longer one; this function only decides AMONG the
+        # candidates that floor admits, which is the half it did not cover.
+        if _caption_matches(want, got):
+            near.append((abs(len(got) - len(want)), index, cand))
+    if exact is not None:
+        return exact
+    if not near:
+        return None
+    near.sort(key=lambda t: (t[0], t[1]))
+    return near[0][2]
+
+
+def _figures_by_basis(row) -> tuple[dict, dict, dict | None]:
+    """A row's figures, KEYED BY BASIS as well as period — and the one basis the row is filed under.
+
+    `(figures, by_basis, provenance)`. The flat `figures` was built from every value of the row
+    keyed by period alone, so a row printing both bases for one period kept whichever value came
+    last, and the caller had no way to say which basis the figure it wrote belonged to — it filed
+    everything under the document's majority basis, so a figure cited from the company-only
+    chapter landed in the CONSOLIDATED slot.
+
+    The chosen basis is the row's only one when it has one; where it has several, consolidated when
+    present (the slot the face populates), otherwise the first in document order. `figures` is that
+    basis's periods, so every existing consumer keyed on period reads one basis, not a blend.
+    """
+    by_basis: dict[str, dict[str, str]] = {}
+    order: list[str] = []
+    prov = None
+    for ev in (getattr(row, "values", None) or {}).values():
+        if getattr(ev, "column_index", None) is not None:
+            continue
+        if getattr(ev, "value", None) is None:
+            continue
+        basis = _basis_of(ev) or "consolidated"
+        if basis not in by_basis:
+            by_basis[basis] = {}
+            order.append(basis)
+        by_basis[basis][str(getattr(ev, "period_label", "") or "?")] = str(ev.value)
+        if prov is None:
+            prov = derivation._json_safe_provenance(getattr(ev, "provenance", None))
+    if not by_basis:
+        return {}, {}, None
+    chosen = "consolidated" if "consolidated" in by_basis else order[0]
+    return dict(by_basis[chosen]), {"basis": chosen, **{"by": by_basis}}, prov
+
+
 def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                     pages=None, allow_pages: bool = False,
                     allow_rows: bool = True) -> tuple[list[dict], list[dict]]:
@@ -802,10 +928,9 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                     "why": ("this line is not read from pages outside the statements and the "
                             "notes — only a line whose route is `anywhere` may cite one")})
                 continue
-            on_page = next(((pg, cap, row) for pg, cap, row in (pages or ())
-                            if int(pg) == int(want_page) and want_cap
-                            and _caption_matches(want_cap, norm(cap))),
-                           None)
+            on_page = best_caption(want_cap, [r for r in (pages or ())
+                                              if int(r[0]) == int(want_page)],
+                                   key=lambda r: norm(r[1]))
             if on_page is None:
                 elsewhere = sorted({int(pg) for pg, cap, _r in (pages or ())
                                     if _caption_matches(want_cap, norm(cap))
@@ -818,15 +943,7 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                                if elsewhere else ""))})
                 continue
             pg, caption, row = on_page
-            figures, prov = {}, None
-            for ev in (getattr(row, "values", None) or {}).values():
-                if getattr(ev, "column_index", None) is not None:
-                    continue
-                if getattr(ev, "value", None) is None:
-                    continue
-                figures[str(getattr(ev, "period_label", "") or "?")] = str(ev.value)
-                if prov is None:
-                    prov = derivation._json_safe_provenance(getattr(ev, "provenance", None))
+            figures, filed, prov = _figures_by_basis(row)
             if not figures:
                 unresolved.append({
                     "at": at, "note": "", "statement": "", "page": int(pg),
@@ -842,6 +959,7 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
             resolved.append({"at": at, "note": "", "statement": "", "title": "",
                              "page": int(pg), "caption": caption, "figures": figures,
                              "provenance": prov, "quote": quote, "on_face": False,
+                             "basis": filed.get("basis"), "figures_by_basis": filed.get("by"),
                              "off_statement": True,
                              "row_id": str(getattr(row, "id", "") or "")})
             continue
@@ -862,10 +980,8 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                         f"a row on {want_stmt} cannot be its source")})
             continue
         if want_stmt and not want_note:
-            on_face = next(((st, cap, row) for st, cap, row in face_rows
-                            if st == want_stmt and want_cap
-                            and _caption_matches(want_cap, norm(cap))),
-                           None)
+            on_face = best_caption(want_cap, [f for f in face_rows if f[0] == want_stmt],
+                                   key=lambda f: norm(f[1]))
             if on_face is None:
                 # EMPTY IS NOT A STATEMENT. A face row whose page resolved none carries "", and
                 # reporting it read "it is on " with nothing after it — a diagnostic worse than
@@ -880,15 +996,7 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                             + (f" — it is on {', '.join(elsewhere)}" if elsewhere else ""))})
                 continue
             st, caption, row = on_face
-            figures, prov = {}, None
-            for ev in (getattr(row, "values", None) or {}).values():
-                if getattr(ev, "column_index", None) is not None:
-                    continue
-                if getattr(ev, "value", None) is None:
-                    continue
-                figures[str(getattr(ev, "period_label", "") or "?")] = str(ev.value)
-                if prov is None:
-                    prov = derivation._json_safe_provenance(getattr(ev, "provenance", None))
+            figures, filed, prov = _figures_by_basis(row)
             if not figures:
                 unresolved.append({
                     "at": at, "note": "", "statement": st,
@@ -905,6 +1013,8 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
             resolved.append({"at": at, "note": "", "statement": st, "title": "",
                              "caption": caption, "figures": figures, "provenance": prov,
                              "quote": quote, "on_face": True,
+                             "basis": filed.get("basis"),
+                             "figures_by_basis": filed.get("by"),
                              "row_id": str(getattr(row, "id", "") or "")})
             continue
 
@@ -921,12 +1031,11 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                         "sentence it is printed in instead")})
             continue
         if want_cap:
-            for number, caption, row, table in rows:
-                if want_note and want_note not in number and number not in want_note:
-                    continue
-                if _caption_matches(want_cap, norm(caption)):
-                    hit = (number, caption, row, table)
-                    break
+            pool = rows
+            if want_note:
+                named = _notes_named(want_note, {r[0] for r in rows})
+                pool = [r for r in rows if r[0] in named]
+            hit = best_caption(want_cap, pool, key=lambda r: norm(r[1]))
         if hit is None:
             # THE PROSE CASE. A figure stated in a footnote belongs to no row, so there is nothing
             # to match a caption against. Where the model also gave the AMOUNT, this is the one
@@ -981,19 +1090,11 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                                        "be stated in prose, which carries no row")})
             continue
         number, caption, row, table = hit
-        figures = {}
-        prov = None
-        for ev in (getattr(row, "values", None) or {}).values():
-            if getattr(ev, "column_index", None) is not None:
-                continue
-            if getattr(ev, "value", None) is None:
-                continue
-            figures[str(getattr(ev, "period_label", "") or "?")] = str(ev.value)
-            if prov is None:
-                prov = derivation._json_safe_provenance(getattr(ev, "provenance", None))
+        figures, filed, prov = _figures_by_basis(row)
         resolved.append({"at": at,
                          "note": number, "title": getattr(table, "title", "") or "",
                          "caption": caption, "figures": figures, "provenance": prov,
+                         "basis": filed.get("basis"), "figures_by_basis": filed.get("by"),
                          "quote": quote})
     return resolved, unresolved
 
@@ -1011,18 +1112,18 @@ def _notes_by_number(notes, number: str) -> list:
     carried the digits and the check passed on the model's word. Verifying against the note alone
     is what exposed it, which is the argument for verifying against the note alone.
 
-    Matched loosely for the reason the single-fragment version gave: a PRC note number is
-    chapter-qualified ("七、9") and a model may cite either half.
+    MATCHED BY IDENTITY (`same_note`), NOT BY SUBSTRING. A PRC note number is chapter-qualified
+    ("七、9") and a model may cite only the number half, which is honoured; what is not is
+    containment, which let a citation of 七、1 collect every fragment of 七、10 to 七、19 as well —
+    so the witness was the concatenated text of eleven notes, and a figure printed in any of them
+    "verified" against a note that never states it. An exact number is preferred where one exists.
     """
     want = (number or "").strip()
     if not want:
         return []
-    out = []
-    for table in notes or ():
-        got = str(getattr(table, "note_number", "") or "")
-        if got and (want in got or got in want):
-            out.append(table)
-    return out
+    tables = [t for t in (notes or ()) if str(getattr(t, "note_number", "") or "")]
+    named = _notes_named(want, {str(t.note_number) for t in tables})
+    return [t for t in tables if str(t.note_number) in named]
 
 
 def _note_by_number(notes, number: str):
@@ -1046,26 +1147,37 @@ def _prose_provenance(table) -> dict | None:
 
 
 def _amount_in_text(stated: str, text: str) -> Decimal | None:
-    """The stated amount, but only if that number really is in the text. Otherwise None.
+    """The stated amount, but only if that NUMBER — whole, not a run of its digits — is in the text.
 
-    THE WHOLE SAFETY PROPERTY OF A PROSE FIGURE. The model is permitted to give an amount here and
-    nowhere else, and what makes that safe is that the number must be demonstrably printed: the
-    comparison is on DIGITS, so "HK$529,841,000", "529,841,000" and "529841000" are the same
-    number, while 529,842,000 is not there and is refused.
+    THE WHOLE SAFETY PROPERTY OF A PROSE FIGURE. The model may give an amount here and nowhere
+    else, and what makes that safe is that the number must be demonstrably printed. "HK$529,841,000",
+    "529,841,000" and "529841000" are the same number; 529,842,000 is not there and is refused.
+
+    COMPARED AS NUMBERS, NOT AS DIGIT STRINGS, and both halves of the old rule were wrong. It
+    stripped every separator from the text and asked whether the stated digits occurred ANYWHERE in
+    what was left, so an invented 841,000 was "verified" against HK$529,841,000. And it removed the
+    decimal point from the stated amount but not from the text, so a correctly printed 1,234.56 was
+    always refused. Each printed number is now read as a token — thousands separators are a comma
+    with at most one space after it, which is how a number wraps; a plain space is not a separator,
+    so "2023 529,841,000" is two numbers — and the stated amount must EQUAL one of them.
 
     Returns the parsed figure rather than a boolean so the caller stores what was verified and not
     what was typed.
     """
     import re as _re
 
-    digits = _re.sub(r"[^0-9]", "", stated or "")
-    if not digits:
-        return None
-    haystack = _re.sub(r"[,\s ]", "", text or "")
-    if digits not in haystack:
+    raw = _re.sub(r"[^0-9.]", "", stated or "")
+    if not raw or not _re.search(r"\d", raw):
         return None
     try:
-        return Decimal(digits) if "." not in stated else Decimal(
-            _re.sub(r"[^0-9.]", "", stated))
+        want = Decimal(raw)
     except (InvalidOperation, ValueError):
         return None
+    for token in _re.findall(r"(?<![\d.])\d{1,3}(?:,[ \u00a0\u202f]?\d{3})+(?:\.\d+)?(?![\d])"
+                             r"|(?<![\d.,])\d+(?:\.\d+)?(?![\d,])", text or ""):
+        try:
+            if Decimal(_re.sub(r"[^0-9.]", "", token)) == want:
+                return want
+        except (InvalidOperation, ValueError):
+            continue
+    return None

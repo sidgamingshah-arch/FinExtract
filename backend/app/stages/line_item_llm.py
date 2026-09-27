@@ -448,7 +448,22 @@ class LineItemLlmStage(Stage):
             row.confidence.flags.append(f"llm_reason:{answer.reason}")
         # A ROW figure is filed under the basis its own column carries; only a PROSE figure needs a
         # basis chosen for it, because a sentence carries no column.
-        basis = _prose_basis(doc)
+        #
+        # THAT WAS THE COMMENT AND NOT THE CODE. Every figure went under `_prose_basis(doc)`, the
+        # document's majority basis, so a row cited from the company-only notes chapter (which
+        # `notes_extract` tags STANDALONE) was written into the CONSOLIDATED slot. The basis now
+        # travels with each resolved row (`note_sourced._figures_by_basis`) and is used when the
+        # rows agree on one. Rows that disagree cannot be one figure's basis, so they fall back to
+        # the document's and the row is flagged rather than guessed at.
+        row_bases = {str(e.get("basis")) for e in resolved
+                     if e.get("basis") and not e.get("prose")}
+        if len(row_bases) == 1:
+            basis = next(iter(row_bases))
+        else:
+            basis = _prose_basis(doc)
+            if len(row_bases) > 1:
+                row.confidence.flags.append(
+                    "llm_cited_rows_disagree_on_basis:" + ",".join(sorted(row_bases)))
         written = 0
         for period, amount in figures.items():
             if period == "prose":

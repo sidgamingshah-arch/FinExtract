@@ -42,11 +42,18 @@ def _value(rows_by_key: dict, key: str, basis: str, period: str) -> Decimal | No
     and a netting rule that cannot resolve its target is dropped for the whole run — silently, since
     a policy that did not apply and a policy that could not be read look identical downstream.
     """
-    for row in _rows_for(rows_by_key, key):
-        for v in row.get("values") or []:
-            if (v.get("basis") or "consolidated") == basis and v.get("period_label") == period:
-                return _num(v.get("value"))
-    return None
+    # THROUGH `periods.concept_amount` — `concept_value`'s selection, exact — which is what the grid, the checks and the export read.
+    # This used to take the FIRST row's exact-label value, so a concept printed as two rows netted
+    # only one of them (the grid shows -1,710 and netting subtracted -1,000), an analyst's manual
+    # edit was ignored, and a column labelled positionally (`col0`/`col1`) never matched "current"
+    # and the rule silently did not apply. A netted figure that disagrees with the components shown
+    # beside it is the two-places-computing-one-quantity failure this codebase keeps closing.
+    from app.services.periods import concept_amount
+
+    group = _rows_for(rows_by_key, key)
+    if not group:
+        return None
+    return concept_amount(group, basis, period)
 
 
 def _rows_for(rows_by_key: dict, key: str) -> list[dict]:

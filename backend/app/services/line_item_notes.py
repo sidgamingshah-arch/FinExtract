@@ -667,8 +667,8 @@ def note_sets(items, notes, *, min_score: float = MIN_SCORE,
         # line with four confident headings widens to nothing extra.
         # READ OFF THE SCORED HITS, NOT OFF `hits`. A cited or declared note enters with score
         # 1.0, so asking `hits` would report a confident header match on every line the filing
-        # cites or the configuration declares for, and switch widening off — for the lines most likely to need it, since a citation and a thin probe
-        # often go together. The question widening answers is still "did the HEADER search come up
+        # cites or the configuration declares for, and switch widening off — for the lines
+        # most likely to need it, since a citation and a thin probe often go together. The question widening answers is still "did the HEADER search come up
         # short", and only the header search can answer it.
         best = max((h.score for h in scored), default=0.0)
         if best < WIDEN_BELOW and len(hits) < cap:

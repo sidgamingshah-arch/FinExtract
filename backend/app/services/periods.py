@@ -272,11 +272,48 @@ def summable(group: list[dict], basis: str, period: str) -> list[tuple[dict, flo
             continue
         ident = (caption_key(r), n)
         where = _printed_at(slot)
-        if ident in seen and where is not None and seen[ident] != where:
+        # ORDER-INDEPENDENT, and it was not. The rule drops a second printing of one fact on a
+        # DIFFERENT page; it recorded the first row's page even when that row HAD none, so a
+        # provenance-less row seen first anchored the fact at None and the paged row after it was
+        # dropped (100), while the same pair in the other order kept both (200). One concept then
+        # showed two figures depending on the order `line_items` was appended in. A row with no
+        # page is not evidence of where the fact is printed, so it neither anchors nor is dropped —
+        # the conservative direction `stages.note_sourced._row_identity` takes for the same reason.
+        if where is None:
+            out.append((r, n))
+            continue
+        if ident in seen and seen[ident] != where:
             continue
         seen.setdefault(ident, where)
         out.append((r, n))
     return out
+
+
+def concept_amount(group: list[dict], basis: str, period: str):
+    """`concept_value`, as an exact `Decimal` — the same rows, the same edit, the same dedupe.
+
+    For a consumer doing money arithmetic on the figure (`services.netting`), where the float that
+    `concept_value` returns for the grid would put 12,251,621,314.529999 into a subtraction. It
+    selects through exactly the functions `concept_value` does, so the two cannot disagree about
+    WHICH rows count — only about the representation of the answer.
+    """
+    from decimal import Decimal, InvalidOperation
+
+    def exact(slot):
+        try:
+            v = (slot or {}).get("value")
+            return None if v is None else Decimal(str(v).replace(",", ""))
+        except (InvalidOperation, ValueError):
+            return None
+
+    edited = next((r for r in group if edited_for(r, basis, period)), None)
+    if edited is not None:
+        return exact(slot_for(edited, basis, period))
+    counted = summable(group, basis, period)
+    if not counted:
+        return None
+    parts = [exact(slot_for(r, basis, period)) for r, _n in counted]
+    return sum((v for v in parts if v is not None), Decimal(0))
 
 
 def concept_value(group: list[dict], basis: str, period: str) -> float | None:

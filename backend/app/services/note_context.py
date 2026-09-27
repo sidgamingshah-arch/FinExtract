@@ -163,11 +163,19 @@ def title_variants(title: str) -> tuple[str, ...]:
     # written: the space between two Han runs is an artefact of the column merge, and removing it
     # reconstructs the phrase — 按公允值計量且其變動計 + 入損益的金融資產 is 按公允值計量且其變動計入
     # 損益的金融資產, which is what the filing prints and what a Han pattern is written against.
+    # ONLY A HEADING CARRYING BOTH SCRIPTS IS PROJECTED, which is the case the projection exists
+    # for. The first version gated on "two runs or more" and that was the wrong unit: `_LATIN_RUN`
+    # matches a WORD, so every multi-word English heading had two runs and gained a variant with
+    # its digits and punctuation stripped — "Leases (HKFRS 16) - lessee" became "Leases HKFRS
+    # lessee", and a Han heading lost its brackets ("其他应收款（续）" -> "其他应收款续"). Anchored
+    # patterns were then tested against headings no filing printed. The comment claimed a
+    # monolingual heading kept exactly its variants; this is what makes that true.
+    if not (_LATIN_RUN.search(raw) and _HAN_RUN.search(raw)):
+        return tuple(out)
     for pattern, glue in ((_LATIN_RUN, " "), (_HAN_RUN, "")):
         found = pattern.findall(raw)
-        # TWO RUNS OR MORE, because one run is the whole heading and adding it again matches
-        # nothing new. This is what keeps the projection to the interleaved case it is for: a
-        # monolingual heading yields exactly the variants it did before.
+        # TWO RUNS OR MORE within the script, because one run is that script's whole text and
+        # adding it again matches nothing new.
         if len(found) < 2:
             continue
         projected = glue.join(found)

@@ -646,8 +646,20 @@ def _in_dependency_order(children_of: dict[str, list], defs: dict) -> list[tuple
     depends: dict[str, set[str]] = {}
     for key in parents:
         definition = defs.get(key)
-        refs = {t.ref for rung in (getattr(definition, "cascade", None) or ())
-                for t in (getattr(rung, "terms", None) or ()) if getattr(t, "ref", None)}
+        # THREE WAYS ONE PARENT READS ANOTHER, and this used to see only the first. A rung term
+        # names it; a direct `terms` declaration names it — `_fill_parents` sends those to
+        # `_fill_by_cascade` too, so they are evaluated exactly as a cascade is; or it is simply
+        # this parent's CHILD, which a `rollup: sum` parent adds and a cascade parent reads through
+        # `known`. Missing the second and third let an outer parent be evaluated before a child
+        # parent it contains, marked `done`, and never revisited — so its figure left that child
+        # out. `_enrol_with_its_own_parent` adds the child row afterwards, but to a parent that
+        # will not be evaluated again.
+        terms = [t for rung in (getattr(definition, "cascade", None) or ())
+                 for t in (getattr(rung, "terms", None) or ())]
+        terms += list(getattr(definition, "terms", None) or ())
+        refs = {t.ref for t in terms if getattr(t, "ref", None)}
+        refs |= {k for k in children_of
+                 if str(getattr(defs.get(k), "parent", "") or "") == key}
         depends[key] = {r for r in refs if r in children_of and r != key}
 
     out: list[str] = []
@@ -786,6 +798,26 @@ def _fill_parents(children_of: dict[str, list], by_key: dict, doc: DocumentModel
                                        []).append((item, ev))
 
             for (basis, period), offers in sorted(by_slot.items()):
+                # ONE PRINTED ROW IS ONE QUANTITY, on this path as on the cascade path. The
+                # same-row guard was added to `services.line_items._apply_terms`, which only a
+                # cascade or `terms` parent reaches; a plain `rollup: sum` parent still added every
+                # offer, so two sibling parts citing one note total — asked in separate one-line
+                # requests, neither shown the other — published it twice. `_row_identity` is the
+                # same test, and it returns None where a row cannot be told apart from another, so
+                # an offer with no provenance is never dropped on a guess.
+                if rollup != "alternatives":
+                    seen_rows: set[tuple] = set()
+                    kept = []
+                    for item, ev in offers:
+                        ident = _row_identity(ev)
+                        if ident is not None and ident in seen_rows:
+                            ctx.log(f"note_sourced:{parent_key}: {item.key} reads a row already "
+                                    f"counted in {basis}/{period} — added once")
+                            continue
+                        if ident is not None:
+                            seen_rows.add(ident)
+                        kept.append((item, ev))
+                    offers = kept
                 existing = _slot(parent, basis, period)
                 if existing is not None and existing.value is not None:
                     taken = offers[0][1].value if rollup == "alternatives" else sum(

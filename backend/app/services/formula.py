@@ -20,8 +20,18 @@ _FUNCS: dict[str, Callable] = {
     "MIN": min,
     "MAX": max,
     "ABS": abs,
-    "ROUND": round,
+    "ROUND": lambda *a: _round(*a),
 }
+
+
+def _round(value: float, digits: float = 0) -> float:
+    """ROUND(x) and ROUND(x, n). Every literal reaches here as a float — `_eval` returns float so
+    arithmetic is uniform — and Python's `round` refuses a float for its DIGITS argument, so the
+    documented two-argument form always raised. The digits must be a whole number; a fractional
+    one is refused rather than truncated, because ROUND(x, 1.5) names no rounding anyone wrote."""
+    if float(digits) != int(digits):
+        raise ValueError("ROUND digits must be a whole number")
+    return round(value, int(digits))
 
 
 class FormulaError(ValueError):
