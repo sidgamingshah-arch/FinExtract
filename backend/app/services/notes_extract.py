@@ -849,7 +849,7 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                         source_kind: str, scope=None,
                         normalisation=None, llm_provider=None,
                         ai_required: bool = False,
-                        carry_note: tuple[str, str] | None = None,
+                        carry_note: tuple | None = None,
                         log=None,
                         carry_grid: ColumnGrid | None = None,
                         grid_out: list[ColumnGrid | None] | None = None,
@@ -931,6 +931,15 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
     carried: dict | None = None
     if carry_note is not None:
         carried = {"no": carry_note[0], "title": carry_note[1], "words": []}
+        # A CONTINUED NOTE KEEPS THE BASIS OF THE CHAPTER IT BEGAN IN, as it already keeps that
+        # chapter's number (`qualified_note_number`: "the chapter a note was printed under is the
+        # chapter it belongs to"). The basis used to come from the page, so the tail of a GROUP
+        # note spilling onto the page where 母公司财务报表主要项目注释 opens was tagged STANDALONE:
+        # 300319's 十七、1 (其他重要事项) arrives as three fragments, and the third, on page 181,
+        # was a company-only table under the group's note number. A two-element carry — every
+        # caller before this — keeps the page's basis, which is what it always had.
+        if len(carry_note) > 2:
+            carried["basis"] = carry_note[2]
         current = carried
     i = 0
     while i < len(rows):
@@ -1023,8 +1032,9 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
             group_out.append(carry_group)
         if not items and not sec["title"]:
             continue
+        sec_basis = sec["basis"] if "basis" in sec else chapter_basis
         table = NotesTable(note_number=qualified_note_number(chapter_numeral, sec["no"]),
-                           title=sec["title"], basis=chapter_basis, source_pages=[page_index],
+                           title=sec["title"], basis=sec_basis, source_pages=[page_index],
                            # THE CHAPTER'S OWN HEADING, carried rather than discarded. `read_chapter`
                            # returns `(numeral, ordinal, title)` and the title was used only for the
                            # 母公司 basis test above and for a log line, so a `note_source` naming
@@ -1076,6 +1086,15 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                           total_slot=_total_slot_of(li),
                           provenance=li.values and next(iter(li.values.values())).provenance or None)
             for ev in li.values.values():
+                # A COMPANY-ONLY NOTE'S FIGURES ARE THE COMPANY'S. The chapter's basis was put on
+                # the TABLE and nowhere else, while `build_line_items` — reading a note that prints no
+                # basis column — tags every value CONSOLIDATED. So every consumer that reads a
+                # figure's own basis (the deterministic row route, the model's cited rows) read a
+                # 母公司财务报表主要项目注释 figure as the GROUP's: measured, 95 values on 688008,
+                # 248 on 000709 and 227 on 300319 sat in standalone tables tagged consolidated.
+                # Re-keyed through `set_value`, because the value's key is derived from its basis.
+                if sec_basis is not None and ev.basis != sec_basis:
+                    ev = ev.model_copy(update={"basis": sec_basis})
                 ni.set_value(ev)
                 # The two-level-header call-out travels on the ROW as well as the value, because
                 # the notes payload serves the row's flags and the note pane reads them; a value

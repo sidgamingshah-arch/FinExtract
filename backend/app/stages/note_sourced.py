@@ -125,7 +125,7 @@ class NoteSourcedStage(Stage):
                     doc.line_items.append(row)
                     by_key[item.key] = row
                 touched += 1
-                basis = _prose_basis(doc)
+                basis = _prose_basis(doc, [h.note_number for h in prose])
                 scale = _prose_scale(doc)
                 # SEVERAL SENTENCES FOR ONE PERIOD ARE AGGREGATED, NOT WRITTEN IN TURN.
                 #
@@ -586,21 +586,50 @@ def _prose_scale(doc):
     except (InvalidOperation, ValueError, TypeError):
         return None
 
-def _prose_basis(doc) -> str:
+def _prose_basis(doc, notes_cited=()) -> str:
     """The basis a prose figure is filed under.
 
-    A SENTENCE CARRIES NO BASIS COLUMN, unlike a note row, so one has to be chosen. The document's
-    own prevailing basis is the only defensible answer: a footnote in a consolidated filing is
-    describing the consolidated figures, and filing it anywhere else would put it in a slot the
-    face never populates and the reconciliation never reads.
+    A SENTENCE CARRIES NO BASIS COLUMN, unlike a note row, so one has to be chosen — and the NOTE
+    it was read from is what knows. In order:
+
+      1. THE NOTE'S OWN BASIS, where every note the figure was read from agrees on one. A
+         company-only chapter (母公司财务报表主要项目注释) is tagged STANDALONE by
+         `notes_extract`, and a sentence in it describes the company's figures.
+      2. CONSOLIDATED, when the filing prints a consolidated statement at all. A note under no
+         company-only heading describes the GROUP: that is how both CAS and HKFRS number their
+         notes, the group's first and the parent's in a chapter of their own.
+      3. Otherwise the face's own prevailing basis — a filing with no group prints only its
+         company statements, and a note there can only be describing those.
+
+    THE PREVIOUS RULE WAS STEP 3 ALONE, a majority vote over the FACE's values, and it asked the
+    wrong population. A mainland filing prints the parent company's statements beside the
+    group's, often with more lines: 300319's face carries 335 standalone values against 260
+    consolidated, so every prose figure on that filing — every one read from a consolidated note —
+    was filed in the parent-company column.
+
+    `notes_cited` is the note numbers the figure was read from; empty keeps steps 2 and 3.
     """
+    from app.services.note_sourced import _notes_by_number
+
+    def value(b) -> str:
+        return str(getattr(b, "value", b) or "")
+
+    wanted = [n for n in (notes_cited or ()) if n]
+    if wanted:
+        bases = set()
+        for number in wanted:
+            for table in _notes_by_number(getattr(doc, "notes", None) or (), str(number)):
+                bases.add(value(getattr(table, "basis", None)) or "consolidated")
+        if len(bases) == 1:
+            return next(iter(bases))
+
     seen: dict[str, int] = {}
     for li in doc.line_items:
         for ev in (li.values or {}).values():
-            basis = str(getattr(getattr(ev, "basis", ""), "value", getattr(ev, "basis", "")) or "")
+            basis = value(getattr(ev, "basis", ""))
             if basis:
                 seen[basis] = seen.get(basis, 0) + 1
-    if not seen:
+    if not seen or "consolidated" in seen:
         return "consolidated"
     return max(seen.items(), key=lambda kv: kv[1])[0]
 

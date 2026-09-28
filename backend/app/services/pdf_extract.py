@@ -399,7 +399,7 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     # The (number, title) of the note still open at the end of the last NOTES page seen, so a
     # footnote legend that opens its page with no heading of its own (see ``extract_note_tables``)
     # still attaches to the note it explains. A non-NOTES page in between breaks the run.
-    notes_carry: tuple[str, str] | None = None
+    notes_carry: tuple | None = None
     # The two-level column grid (period band over measure band) the last NOTES page was read with.
     # A PRC related-party note prints that header once and runs for eight pages; without the carry
     # every page after the first reads its four columns positionally again — a 坏账准备 provision
@@ -482,7 +482,9 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                                          chapter=notes_chapter,
                                          known_captions=captions)
             doc.notes.extend(tables)
-            notes_carry = ((tables[-1].note_number, tables[-1].title) if tables
+            # The BASIS travels with the note, so a note continued onto the page where the
+            # company-only chapter opens stays the group's — see `extract_note_tables`.
+            notes_carry = ((tables[-1].note_number, tables[-1].title, tables[-1].basis) if tables
                            else notes_carry)
             # The note still open when this page ended is the LAST section, so its grid — None
             # included — is what the next page's continuation inherits.

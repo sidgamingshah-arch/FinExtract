@@ -647,7 +647,7 @@ class LineItemLlmStage(Stage):
         scale = _prose_scale(doc)
         value = amount / scale if scale and scale != 1 else amount
         target_period = _current_period(doc) or "current"
-        basis = _prose_basis(doc)
+        basis = _prose_basis(doc, [e.get("note") for e in resolved if e.get("prose")])
         slots = list((row.values or {}).values())
         target = next((ev for ev in slots
                        if str(getattr(ev, "period_label", "") or "") == target_period),

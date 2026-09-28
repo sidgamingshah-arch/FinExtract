@@ -171,9 +171,14 @@ def _restore_settings():
 
 
 def test_the_stage_writes_a_company_only_row_into_the_company_column(_restore_settings) -> None:
-    """END OF THE WIRE. The face is majority CONSOLIDATED, so `_prose_basis` says consolidated; the
-    cited row is STANDALONE. The old stage filed it by `_prose_basis` and it landed in the group's
-    column."""
+    """THE STAGE HALF OF THE WIRE. The face is majority CONSOLIDATED, so `_prose_basis` says
+    consolidated; the cited row is STANDALONE. The old stage filed it by `_prose_basis` and it
+    landed in the group's column.
+
+    NOT THE WHOLE WIRE, and this docstring used to say it was. The row here is built with a
+    STANDALONE value by hand, and the real extractor never produced one: a company-only note's rows
+    were tagged consolidated until `test_a_company_note_is_the_companys` fixed `notes_extract`,
+    which is where the extractor half is pinned."""
     from app.schemas.line_items import load_line_item_set
     from app.services.working_view import build_working_view
     from app.stages.line_item_llm import LineItemLlmStage
