@@ -555,6 +555,45 @@ def _same_note_key(title: str) -> str:
     return re.sub(r"\s+", "", text).strip().lower()
 
 
+def same_table_title(cited: str, key: str) -> bool:
+    """Whether a CITED block title names the block whose heading key is ``key``.
+
+    Through `_same_note_key` on the citation, so an enumerator the model dropped or kept, a
+    continuation marker, spacing and case do not decide it — the same reduction that decided which
+    fragments ARE one block when the request was built.
+    """
+    return bool(key) and _same_note_key(cited) == key
+
+
+def note_blocks(notes) -> list[tuple[tuple[str, str], str]]:
+    """Which request BLOCK each extracted table belongs to, in document order.
+
+    ``[((number, heading key), heading), …]``, one per table of ``notes``. A table with a heading
+    of its own opens a block keyed by it; one with none — a continuation page — joins the last
+    block opened under its number, and carries that block's heading. See `identified_notes` for
+    why a note NUMBER is not a block: a CAS filing prints a dozen differently-headed tables under
+    one number.
+
+    ONE DEFINITION FOR BOTH SIDES OF THE CITATION. The request labels each block with its heading,
+    and `note_sourced.resolve_sources` has to find the rows of the block a model named by that
+    heading — so the table-to-block mapping the request was built with is the one the answer is
+    resolved with, rather than a second reading that could disagree about a continuation page.
+    """
+    last: dict[str, tuple[str, str]] = {}
+    out: list[tuple[tuple[str, str], str]] = []
+    for table in notes or ():
+        title = getattr(table, "title", "") or ""
+        number = str(getattr(table, "note_number", "") or "")
+        same = _same_note_key(title)
+        if same:
+            last[number] = (same, title)
+            heading = title
+        else:
+            same, heading = last.get(number, ("", title))
+        out.append(((number, same) if number else ("", same or title), heading))
+    return out
+
+
 def identified_notes(line_item_set, notes, *, cited=None) -> list[dict]:
     """Every note a `note_source` declaration names, IN FULL — all rows and all prose.
 
@@ -711,9 +750,7 @@ def identified_notes(line_item_set, notes, *, cited=None) -> list[dict]:
     # appears once.
     by_number: dict[tuple[str, str], dict] = {}
     order: list[tuple[str, str]] = []
-    # The last heading seen under each number, so a fragment with none of its own continues it.
-    last_title: dict[str, str] = {}
-    for table in notes or ():
+    for table, (key, heading) in zip(notes or (), note_blocks(notes)):
         title = getattr(table, "title", "") or ""
         number = str(getattr(table, "note_number", "") or "")
         # THROUGH `matches_title`, so an anchored pattern is not defeated by the enumerator the
@@ -737,7 +774,15 @@ def identified_notes(line_item_set, notes, *, cited=None) -> list[dict]:
                 if getattr(ev, "value", None) is None:
                     continue
                 figures[str(getattr(ev, "period_label", "") or "?")] = str(ev.value)
-            rows.append({"caption": caption, **({"figures": figures} if figures else {})})
+            # THE ROW'S GROUP, WHEN IT HAS ONE. A mainland related-party note captions its rows with
+            # COUNTERPARTY names and states which line item each balance is under the group heading
+            # — `应收账款：` over a run of company names — so a row sent without it is "唐山唐钢气体有限
+            # 公司 118,850.00" with nothing to say whether that is a trade receivable, another
+            # receivable or a payable. The deterministic route has always read the group
+            # (`note_sourced.select_rows`); the model was given the rows without it.
+            group = str(getattr(row, "group_hint", "") or "").strip()
+            rows.append({"caption": caption, **({"group": group} if group else {}),
+                         **({"figures": figures} if figures else {})})
 
         # ONE ENTRY PER NOTE, WHICH IS NOT THE SAME AS ONE PER NUMBER.
         #
@@ -757,18 +802,12 @@ def identified_notes(line_item_set, notes, *, cited=None) -> list[dict]:
         # A CONTINUATION STILL MERGES, which is the property the comment above this loop defends: a
         # fragment with no heading of its own continues the last note under that number, and one
         # re-titled "(CONTINUED)" reduces to the same key. Only a genuinely DIFFERENT heading opens
-        # a new entry.
-        same = _same_note_key(title)
-        if not same:
-            same = last_title.get(number, "")
-        else:
-            last_title[number] = same
-        key = (number, same) if number else ("", same or title)
+        # a new entry. The keying is `note_blocks`', which the resolver reads the answer back with.
         acc = by_number.get(key)
         if acc is None:
             # THE FIRST FRAGMENT'S TITLE IS THE NOTE'S. A later one is a continuation line —
             # "SEGMENT INFORMATION (CONTINUED)" — or, on a CAS filing, a sentence fragment.
-            acc = {"note": number, "title": title, "_for": set(), "_rows": [], "_prose": []}
+            acc = {"note": number, "title": heading, "_for": set(), "_rows": [], "_prose": []}
             by_number[key] = acc
             order.append(key)
         elif not (acc.get("title") or "").strip() and (title or "").strip():

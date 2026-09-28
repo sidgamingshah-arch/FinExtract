@@ -110,6 +110,21 @@ class SourceRef(BaseModel):
                                                        "when the figure is printed on a page that "
                                                        "is neither a statement nor a note; leave "
                                                        "the note and the statement empty then")
+    # WHICH TABLE OF THE NOTE, AND WHICH GROUP OF THE TABLE — because a note number and a caption
+    # do not name one row on a mainland filing. A CAS note number carries a dozen differently
+    # headed tables (河钢股份 000709's 十二、1 carries nineteen), and "合计" is printed in most of
+    # them: a citation of {十二、1, 合计} meant for the related-party payables took the first 合计 in
+    # document order — 84,179,120,681.23, the purchases-of-goods table's — for a line whose own
+    # table totals 952,791,540.11. And inside one table the same caption repeats per group: a
+    # related-party balance table prints a 合计 under 应收账款：, another under 其他应收款：.
+    #
+    # Both are copied from the request, where each note block carries its `title` and each row its
+    # `group`, and `resolve_sources` narrows to them. A table the note does not have is refused
+    # rather than widened back to the whole note.
+    table: str = Field(default="", description="the `title` of the note block the row is in, as "
+                                               "given — needed when one note number has several "
+                                               "blocks")
+    group: str = Field(default="", description="the row's `group`, as given, when it has one")
     caption: str = Field(default="", description="the row caption, quoted as the document prints it")
     quote: str = Field(default="", description="the sentence it came from, when the figure is "
                                                "stated in prose rather than in a table row")

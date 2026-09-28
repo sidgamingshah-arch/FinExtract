@@ -44,12 +44,16 @@ class SpyLineItemLlm:
     id = "spy"
 
     def __init__(self, *, only: set[str] | None = None,
-                 cite: dict[str, tuple[str, str]] | None = None):
+                 cite: dict[str, tuple[str, ...]] | None = None, specific: bool = True):
         self.only = only
-        # An explicit override per key, `{key: (note, caption)}`, for a test that needs to say
-        # exactly which row each of two siblings cites — which is the difference between "both read
-        # one row" and "each read its own".
+        # An explicit override per key, `{key: (note, caption)}` or `(note, caption, table,
+        # group)`, for a test that needs to say exactly which row each of two siblings cites —
+        # which is the difference between "both read one row" and "each read its own".
         self.cite = dict(cite or {})
+        # WHETHER IT NAMES THE BLOCK AND THE GROUP, as the reply contract asks a compliant model
+        # to. False answers the way the contract read before `table` and `group` existed — note
+        # and caption only — which is how to show what the resolver now refuses as ambiguous.
+        self.specific = specific
         self.requests: list[dict] = []
         self.citations: list[dict] = []
 
@@ -74,11 +78,15 @@ class SpyLineItemLlm:
                 answers.append({"key": key, "sources": [], "role": "whole",
                                 "confidence": 0.0, "reason": "no note row to cite"})
                 continue
-            note, caption = cited
+            note, caption, table, group = (tuple(cited) + ("", ""))[:4]
+            source = {"note": note, "caption": caption}
+            if self.specific:
+                source.update({k: v for k, v in (("table", table), ("group", group)) if v})
             answers.append({"key": key, "role": "whole", "confidence": 0.9,
                             "reason": f"note {note} states it on its total line",
-                            "sources": [{"note": note, "caption": caption}]})
-            self.citations.append({"key": key, "note": note, "caption": caption})
+                            "sources": [source]})
+            self.citations.append({"key": key, "note": note, "caption": caption,
+                                   "table": table, "group": group})
 
         # A DICT FOR THE META, because `stages.line_item_llm` reads it with `.get` — every real
         # adapter returns a mapping, and a stand-in returning an object fails at the token
@@ -87,7 +95,10 @@ class SpyLineItemLlm:
             "input_tokens": 0, "output_tokens": 0, "model": "spy", "provider": "spy"}
 
     @staticmethod
-    def _total_row(line: dict, blocks: dict[str, list[dict]]) -> tuple[str, str] | None:
+    def _total_row(line: dict, blocks: dict[str, list[dict]]
+                   ) -> tuple[str, str, str, str] | None:
+        """`(note, caption, table, group)` — the block's `title` and the row's `group` copied
+        from the request, as the contract asks."""
         for ref in line.get("notes_supplied") or ():
             for block in blocks.get(str(ref), ()):
                 rows = block.get("rows") or []
@@ -96,7 +107,8 @@ class SpyLineItemLlm:
                 if row is None and rows:
                     row = rows[-1]          # a note with no total line: its last row is its sum
                 if row is not None:
-                    return str(ref), str(row.get("caption") or "")
+                    return (str(ref), str(row.get("caption") or ""),
+                            str(block.get("title") or ""), str(row.get("group") or ""))
         return None
 
     def cited_more_than_once(self) -> dict[tuple[str, str], list[str]]:
@@ -109,4 +121,5 @@ class SpyLineItemLlm:
         by_row: dict[tuple[str, str], list[str]] = {}
         for c in self.citations:
             by_row.setdefault((c["note"], c["caption"]), []).append(c["key"])
+        # (Keyed on note and caption as it always was: a test asserting on this reads those two.)
         return {row: keys for row, keys in by_row.items() if len(keys) > 1}

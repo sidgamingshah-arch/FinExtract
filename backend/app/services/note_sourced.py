@@ -49,7 +49,7 @@ from decimal import Decimal, InvalidOperation
 from app.services import derivation, prose_grammar
 from app.services.note_sections import open_to as _open_to
 # One split for every side of every comparison — see `line_item_notes`.
-from app.services.note_context import matches_title, subject_tokens
+from app.services.note_context import matches_title, note_blocks, same_table_title, subject_tokens
 
 # A pattern an author mistyped must not take the run down, and must not silently match nothing
 # either. Both outcomes are reported by `fill`, which returns the refusals alongside the fills.
@@ -800,6 +800,26 @@ def best_caption(want: str, candidates, key=lambda c: c):
     return near[0][2]
 
 
+def _tied_captions(want: str, candidates, key=lambda c: c) -> list:
+    """Every candidate `best_caption` would consider AS GOOD AS its pick, in document order.
+
+    The same two tiers: the exact matches when there are any, otherwise the containments admitted
+    by `_caption_matches` at the closest length. `best_caption` returns the first of these, so a
+    list of one is a citation that named its row; more is a tie that document order decided.
+    """
+    if not want:
+        return []
+    exact = [c for c in candidates if key(c) and key(c) == want]
+    if exact:
+        return exact
+    near = [(abs(len(key(c)) - len(want)), c) for c in candidates
+            if key(c) and _caption_matches(want, key(c))]
+    if not near:
+        return []
+    closest = min(d for d, _c in near)
+    return [c for d, c in near if d == closest]
+
+
 def _figures_by_basis(row) -> tuple[dict, dict, dict | None]:
     """A row's figures, KEYED BY BASIS as well as period — and the one basis the row is filed under.
 
@@ -884,13 +904,15 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
     def norm(text: str) -> str:
         return _re.sub(r"[^0-9a-z一-鿿]+", "", (text or "").lower())
 
-    rows: list[tuple[str, str, object, object]] = []
-    for table in notes or ():
+    # (number, caption, row, table, block key, block heading) — the BLOCK being the one the request
+    # showed the model this row in, by the same mapping the request was built with.
+    rows: list[tuple[str, str, object, object, tuple[str, str], str]] = []
+    for table, (block, heading) in zip(notes or (), note_blocks(notes)):
         number = str(getattr(table, "note_number", "") or "")
         for row in getattr(table, "items", None) or ():
             caption = getattr(row, "raw_label", "") or ""
             if caption:
-                rows.append((number, caption, row, table))
+                rows.append((number, caption, row, table, block, heading))
     face_rows = list(face or ())
 
     resolved: list[dict] = []
@@ -1035,7 +1057,55 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
             if want_note:
                 named = _notes_named(want_note, {r[0] for r in rows})
                 pool = [r for r in rows if r[0] in named]
+            # THE BLOCK, WHEN THE CITATION NAMES ONE. Refused rather than widened when the note has
+            # no such block: a citation of the wrong table is not made right by reading the note's
+            # first matching caption instead, which is exactly the answer this narrowing replaces.
+            want_table = str(getattr(ref, "table", "") or "").strip()
+            if want_table and pool:
+                in_table = [r for r in pool if same_table_title(want_table, r[4][1])]
+                if not in_table:
+                    headings = list(dict.fromkeys(r[5] for r in pool if r[5]))
+                    unresolved.append({
+                        "at": at, "note": want_note, "table": want_table,
+                        "caption": getattr(ref, "caption", ""), "quote": quote,
+                        "why": (f"note {want_note or '(none)'} has no table headed {want_table!r}"
+                                + (f" — its tables are headed {'; '.join(headings[:8])}"
+                                   if headings else ""))})
+                    continue
+                pool = in_table
+            # THE GROUP NARROWS WHERE IT CAN, and only there. A row may carry no group of its own
+            # while the model still names the heading it reads the row as being under, and that is
+            # not a wrong citation; a group that matches no row is simply not used.
+            want_group = norm(getattr(ref, "group", ""))
+            if want_group:
+                in_group = [r for r in pool
+                            if _caption_matches(want_group,
+                                                norm(getattr(r[2], "group_hint", "") or ""))]
+                if in_group:
+                    pool = in_group
             hit = best_caption(want_cap, pool, key=lambda r: norm(r[1]))
+            if hit is not None:
+                # A CAPTION THAT STILL NAMES SEVERAL ROWS IS REFUSED, where the request gave the
+                # model a way to name one — the rows sit in different blocks or different groups —
+                # and they print different figures. Document order used to break that tie, and on a
+                # CAS note that is whichever table of the number happens to come first. Rows the
+                # request presented identically keep the tie-break: nothing a model could have
+                # written would have named one of them.
+                tied = _tied_captions(want_cap, pool, key=lambda r: norm(r[1]))
+                places = {(r[4], norm(getattr(r[2], "group_hint", "") or "")) for r in tied}
+                figures = {tuple(sorted(_figures_by_basis(r[2])[0].items())) for r in tied}
+                if len(places) > 1 and len(figures) > 1:
+                    where = list(dict.fromkeys(
+                        " / ".join(t for t in (r[5], str(getattr(r[2], "group_hint", "") or ""))
+                                   if t) for r in tied))
+                    unresolved.append({
+                        "at": at, "note": want_note, "table": want_table,
+                        "group": str(getattr(ref, "group", "") or ""),
+                        "caption": getattr(ref, "caption", ""), "quote": quote,
+                        "why": (f"that caption names {len(tied)} rows with different figures — "
+                                f"under {'; '.join(where[:6])} — give the `table` and `group` "
+                                f"the row is printed under")})
+                    continue
         if hit is None:
             # THE PROSE CASE. A figure stated in a footnote belongs to no row, so there is nothing
             # to match a caption against. Where the model also gave the AMOUNT, this is the one
@@ -1089,7 +1159,7 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                                "why": ("no extracted row in that note matches the caption — it may "
                                        "be stated in prose, which carries no row")})
             continue
-        number, caption, row, table = hit
+        number, caption, row, table, _block, _heading = hit
         figures, filed, prov = _figures_by_basis(row)
         resolved.append({"at": at,
                          "note": number, "title": getattr(table, "title", "") or "",
