@@ -68,6 +68,35 @@ def _face_note_numbers(doc: DocumentModel) -> set[str]:
     return {w for w in wanted if w}
 
 
+def _sourced_note_numbers(doc: DocumentModel) -> set[str]:
+    """Note numbers a line's derivation trail names — the notes its figure was READ FROM.
+
+    THE FACE IS NOT THE ONLY THING THAT POINTS AT A NOTE. A part filled from a note (`note_source`,
+    or a row the model cited) records the note on every input of its trail, and that note is where
+    a reviewer clicks through to check the figure. The face points at the note that EXPLAINS a
+    line; the trail points at the note a figure was TAKEN from, and the two differ exactly where
+    the note-sourced routes earn their keep: a mainland related-party table is printed under its
+    chapter's own number and no face row cites it, so it was dropped here — after its figures had
+    been published from it — and the trail behind 688008's 应收账款 英特尔公司 balance pointed at a
+    note the result did not contain.
+
+    Every input, not only the counted ones: an alternative the rollup did not take is still shown in
+    the trail, and its note is what makes that line of the trail checkable. The parent of a
+    sub-reference is kept for the reason `_face_note_numbers` gives.
+    """
+    out: set[str] = set()
+    for li in doc.line_items:
+        for slot in (getattr(li, "derivation", None) or {}).values():
+            for item in (slot or {}).get("inputs") or ():
+                token = str((item or {}).get("note") or "").strip()
+                if not token:
+                    continue
+                out.add(token)
+                if (base := base_note_number(token)):
+                    out.add(base)
+    return out
+
+
 class PruneNotesStage:
     name = "prune_notes"
 
@@ -173,6 +202,12 @@ class PruneNotesStage:
             ctx.log(f"prune_notes:no_note_column_on_the_face kept={len(doc.notes)} dropped=0")
             return doc
 
+        # THE NOTES A PUBLISHED FIGURE WAS READ FROM, added only here — past both guards, so they
+        # neither decide whether the face's note column was read nor stand in for it when it was
+        # not. Either of those branches has already kept every note.
+        sourced = _sourced_note_numbers(doc) - wanted
+        wanted = wanted | sourced
+
         kept, dropped = [], []
         for nt in doc.notes:
             number = str(nt.note_number).strip() if nt.note_number is not None else ""
@@ -184,6 +219,9 @@ class PruneNotesStage:
                 dropped.append(number or "?")
 
         doc.notes = kept
+        kept_for_trail = sorted({str(nt.note_number).strip() for nt in kept
+                                 if str(nt.note_number).strip() in sourced})
         ctx.log(f"prune_notes:kept={len(kept)} dropped={len(dropped)}"
+                + (f" kept_for_derivations={kept_for_trail}" if kept_for_trail else "")
                 + (f" dropped_notes={sorted(dropped)}" if dropped else ""))
         return doc
