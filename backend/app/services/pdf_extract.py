@@ -11,6 +11,7 @@ from app.core.models.geometry import BBox
 from app.core.stage import PipelineContext
 from app.services.mapping import known_captions
 from app.services.buckets import PRINTED_ON_FLAG
+from app.services import page_spread
 from app.services.row_reconstruct import Word, build_line_items
 
 
@@ -436,6 +437,8 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         page = pdf[ps.index]
         rect = page.rect
         w, h = max(rect.width, 1.0), max(rect.height, 1.0)
+        # The angle the page's text is read at: an OCR page is read as scanned, upright.
+        rot = 0
 
         if ps.source_kind == PageSourceKind.SCANNED:
             if ocr is None:                      # resolve the OCR provider lazily, once
@@ -467,6 +470,10 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                 ctx.log(f"extract:page={ps.index}:foot_chrome_words={before - len(words)}")
             if not words:
                 continue
+        # WHETHER THIS PAGE IS TWO PRINTED PAGES, decided once, here, where the page's own shape is
+        # still known — see `page_spread.page_fold`. Every reader below is handed PART of the page
+        # (a note section, a batch below a statement title) and cannot answer it for itself.
+        fold = page_spread.page_fold(words, w, h, rot)
         # Notes pages → note detail tables (the breakdowns behind the face figures); every
         # other page → face line items. Both keep page + bbox provenance.
         if ps.kind == PageKind.NOTES:
@@ -480,7 +487,7 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                                          carry_grid=notes_grid, grid_out=grids,
                                          carry_group=notes_group, group_out=groups,
                                          chapter=notes_chapter,
-                                         known_captions=captions)
+                                         known_captions=captions, page_fold=fold)
             doc.notes.extend(tables)
             # The BASIS travels with the note, so a note continued onto the page where the
             # company-only chapter opens stays the group's — see `extract_note_tables`.
@@ -552,7 +559,7 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                 statement=statement, log=ctx.log, scope=scope, normalisation=normalisation,
                 page_scope=page_scope, page_title=page_title,
                 page_chrome=chrome, carry_caption=carry, spliced_out=spliced,
-                known_captions=captions)
+                known_captions=captions, page_fold=fold)
             if spliced and carried is not None:
                 # WRITTEN BACK ONTO THE ROW THAT HOLDS THE FIGURES, on the page before. The
                 # provenance snippet travels with it: it is what the inspector shows beside the

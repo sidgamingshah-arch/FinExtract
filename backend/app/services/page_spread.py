@@ -188,3 +188,22 @@ def halves(words, centre: float):
     left = [w for w in words if (w.bbox.x0 + w.bbox.x1) / 2 < centre]
     right = [w for w in words if (w.bbox.x0 + w.bbox.x1) / 2 >= centre]
     return left, right
+
+
+def page_fold(words, width: float, height: float, rotation: int | None = 0) -> float | None:
+    """The fold of a WHOLE PAGE, or None — `gutter_x` behind the one test only the page can answer.
+
+    A 2-UP SPREAD IS A LANDSCAPE SHEET. Two portrait pages set side by side are wider than they are
+    tall, so a sheet that is taller than it is wide — in READING space, which is the page turned
+    for a statement printed sideways — holds one printed page, and no band of empty space on it is
+    a fold. `gutter_x` cannot ask this, because it is handed normalised words and the page's shape
+    is gone by then; and without it, it misfired. Measured over the five reference filings: 31
+    pages called spreads, every one of them portrait — 河钢股份 000709's related-party note pages
+    among them, where a figure column on the right read as a second printed page and the rows
+    were rebuilt from half of each line. None of those filings is a spread at all.
+    """
+    quarter = (rotation or 0) % 180 == 90
+    wide, tall = (height, width) if quarter else (width, height)
+    if wide <= tall:
+        return None
+    return gutter_x(words)

@@ -414,7 +414,12 @@ def row_tolerance(words: list[Word], source_kind: str) -> float:
     return _line_tol(words) if source_kind == "native" else _DEFAULT_Y_TOL
 
 
-def _group_rows(words: list[Word], y_tol: float = _DEFAULT_Y_TOL) -> list[list[Word]]:
+# `_group_rows`' default: decide the fold of a 2-up spread from the words it is handed.
+DETECT_FOLD = object()
+
+
+def _group_rows(words: list[Word], y_tol: float = _DEFAULT_Y_TOL, *,
+                fold=DETECT_FOLD) -> list[list[Word]]:
     """Cluster words into visual rows by vertical position, then order left→right.
 
     ``y_tol`` is the caller's, because only the caller knows how exact its coordinates are — see
@@ -432,15 +437,24 @@ def _group_rows(words: list[Word], y_tol: float = _DEFAULT_Y_TOL) -> list[list[W
     one change and none of their signatures moves. `page_spread.gutter_x` returns None for a single
     printed page — including a genuinely wide single table, which it must never split — so this is
     inert on every filing that is not a spread.
+
+    ``fold`` IS FOR A CALLER HOLDING PART OF A PAGE. A spread is a property of the PRINTED PAGE,
+    and its four tests are tests of one — a blank band down the middle, two halves each with its
+    own caption column, the band clear on nearly every row. A note SECTION is a few rows of a page
+    and can pass all four: 河钢股份 000709's 计入当期损益的政府补助情况 prints its two figure columns
+    either side of a blank band, with a 其他收益 column down the right, and once the section ended
+    at the chapter heading beneath it rather than running on into that chapter's prose, it was read
+    as two printed pages — every 上期 figure torn off its row. A caller that has decided the page
+    passes the page's fold (a float, or None for one printed page) and it is used as given.
     """
-    gutter = page_spread.gutter_x(words)
+    gutter = page_spread.gutter_x(words) if fold is DETECT_FOLD else fold
     if gutter is not None:
         left, right = page_spread.halves(words, gutter)
         # EACH HALF GROUPED IN ISOLATION AND THE RESULTS CONCATENATED, left page first. Sorting the
         # union back into one list by y would re-interleave the two pages' rows, which is the
-        # reading order of neither.
-        return (_group_rows(left, y_tol) if left else []) + \
-               (_group_rows(right, y_tol) if right else [])
+        # reading order of neither. A half is one printed page, so it is not asked again.
+        return (_group_rows(left, y_tol, fold=None) if left else []) + \
+               (_group_rows(right, y_tol, fold=None) if right else [])
     ordered = sorted(words, key=lambda w: (w.bbox.y0, w.bbox.x0))
     rows: list[list[Word]] = []
     for w in ordered:
@@ -2700,13 +2714,19 @@ def _prc_period_row(rows: list[list[Word]], value_bands: list[float],
     be guessed.
     """
     region = _header_region(rows, fmt)
+    # HALF A COLUMN'S WIDTH OF A COLUMN IS OVER IT. The area is measured between the columns'
+    # figure CENTRES, and a two-column table's figures are right-aligned under captions set wider
+    # than they are: 迈捷 300319's 应付项目 prints 期末账面余额 centred at 0.60 over figures centred
+    # at 0.66, just past the area's pad, so only 期初账面余额 was read and the grid was refused.
+    half_pitch = _pitch(sorted(value_bands)) / 2 if len(value_bands) >= 2 else 0.0
     for idx, row in enumerate(region):
         if _carries_amounts(row, fmt):
             continue
         hits: list[tuple[str, int, float]] = []
         for run in _x_runs(row, _CAPTION_GAP):
             xc = sum(_xc(w) for w in run) / len(run)
-            if not _over_value_columns(xc, area):
+            if not (_over_value_columns(xc, area)
+                    or (half_pitch and min(abs(b - xc) for b in value_bands) <= half_pitch)):
                 continue
             text = _caption_text(run)
             slot = _prc_period_slot(text)
@@ -2813,6 +2833,102 @@ def _period_measure_grid(rows: list[list[Word]], value_bands: list[float],
         captions={c: (hits[which][0], measures[c][0] if c in measures else "")
                   for c, which in slot_by_caption.items()},
     )
+
+
+def _declared_value_columns(rows: list[list[Word]], fmt=None) -> list[float]:
+    """The x-centres of the value columns a table's OWN HEADER declares, left to right, or [].
+
+    The leaf level of a dateless PRC header: the measure band when one is printed under the period
+    band (期末余额 over 账面余额 | 坏账准备), the period captions themselves when it is not
+    (期末账面余额 | 期初账面余额). Held to the same clean partition as :func:`_prc_period_row` —
+    the reported period and its comparative, or a single period caption — so a movement schedule's
+    期初余额 | 本期增加 | 本期减少 | 期末余额 declares nothing and keeps its printed order.
+    """
+    region = _header_region(rows, fmt)
+    for idx, row in enumerate(region):
+        if _carries_amounts(row, fmt):
+            continue
+        periods: list[tuple[float, int]] = []
+        for run in _x_runs(row, _CAPTION_GAP):
+            slot = _prc_period_slot(_caption_text(run))
+            if slot is not None:
+                periods.append((sum(_xc(w) for w in run) / len(run), slot))
+        if not periods:
+            continue
+        if not (len(periods) == 1 or (len(periods) == 2 and {s for _, s in periods} == {0, 1})):
+            return []
+        for below in region[idx + 1:idx + 3]:
+            if _carries_amounts(below, fmt):
+                break
+            measures = sorted(sum(_xc(w) for w in run) / len(run)
+                              for run in _x_runs(below, _CAPTION_GAP)
+                              if _measure_slug(_caption_text(run)) is not None)
+            if measures:
+                return measures if len(measures) >= 2 else []
+        return sorted(x for x, _ in periods) if len(periods) == 2 else []
+    return []
+
+
+def _header_declared_bands(rows: list[list[Word]], figure_rows: list[list[Word]],
+                           fmt=None) -> list[float]:
+    """The value columns of a table TOO SHORT TO SHOW THEM, as its own header declares them.
+
+    :func:`_value_column_bands` establishes columns from the figures alone, and it refuses to on a
+    table with fewer than two rows that use more than one column — rightly, because one row of
+    figures says nothing its printed order does not. A PRC related-party note is exactly that
+    table: 澜起科技 688008 prints 应收项目, 应付项目 and 其他项目 as three tables ONE ROW deep, and
+    迈捷 300319 its 应收项目 the same. With no columns there is no grid, so the four figures under
+    期末余额{账面余额 | 坏账准备} 期初余额{账面余额 | 坏账准备} went out as current, prior, col2,
+    col3 — the model was shown this year's 坏账准备 of 431.30 as LAST YEAR'S balance with 英特尔公司,
+    and 1,914,028.85, the real opening balance, under a label nothing reads. And 应付账款 英特尔公司,
+    which prints a nil current balance and 1,403,741.56 at the opening date, published the opening
+    figure as the CURRENT one, because a lone figure is the first figure.
+
+    The header states where the columns are, so the header is read — and held to the figures
+    (``figure_rows``, each row's value words), under three vetoes. Every figure must sit under
+    exactly one declared caption, with no two of a row's figures under the same one. The figures
+    under one caption must line up as a printed column does, on their right edges or on their
+    centres, so a footnote's figure standing between two columns does not join either. And the
+    columns must stay in their printed order once placed. Anything else returns [] and the table
+    keeps the reading it has today. Each column is placed at its own figures' median centre (the
+    grid's measure tolerance is measured from there, as it is for every other table), or at its
+    caption when it prints no figure.
+
+    A bare year or day-of-month is not a figure here, as it is not in `_bands_with_a_figure`; a
+    token printed with a separator or a decimal point is one, whatever its value — "12.00" is an
+    amount, not the twelfth.
+    """
+    declared = _declared_value_columns(rows, fmt)
+    if len(declared) < 2:
+        return []
+    tol = max(0.06, 0.4 * _pitch(declared))
+    members: list[list[Word]] = [[] for _ in declared]
+    for figures in figure_rows:
+        taken: set[int] = set()
+        for w in figures:
+            text = w.text.strip()
+            value = _num(text, fmt)
+            if (value is None or not _is_money_like(text, fmt)
+                    or (_is_date_ish(value) and not _AMOUNT_SHAPED.match(text))):
+                continue
+            col = min(range(len(declared)), key=lambda i: abs(declared[i] - _xc(w)))
+            if abs(declared[col] - _xc(w)) > tol or col in taken:
+                return []
+            taken.add(col)
+            members[col].append(w)
+    if not any(members):
+        return []
+    for column in members:
+        if len(column) > 1 and not (
+                max(w.bbox.x1 for w in column) - min(w.bbox.x1 for w in column) <= _COL_TOL
+                or max(map(_xc, column)) - min(map(_xc, column)) <= _COL_TOL):
+            return []
+    bands = [_median([_xc(w) for w in m]) if m else declared[i] for i, m in enumerate(members)]
+    if any(b >= nxt for b, nxt in zip(bands, bands[1:])):
+        return []
+    if any(_nearest_col(_xc(w), bands) != i for i, m in enumerate(members) for w in m):
+        return []
+    return bands
 
 
 # The flag a value carries when its column was read from a two-level header. Raised on
@@ -3714,7 +3830,7 @@ def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id:
 
 
 def _maybe_matrix(words: list[Word], *, statement: str | None,
-                  fmt=None) -> tuple[_Matrix | None, list[str] | None]:
+                  fmt=None, page_fold=DETECT_FOLD) -> tuple[_Matrix | None, list[str] | None]:
     """Matrix geometry + column names for a matrix page, else (None, None).
 
     Skips the (re-)grouping entirely for pages that cannot be a matrix, so the two-column
@@ -3725,7 +3841,7 @@ def _maybe_matrix(words: list[Word], *, statement: str | None,
                       or _NIL_CELL.match(_cell_text(w.text)))
         if numeric < _MATRIX_MIN_COLS * _MATRIX_MIN_ROWS:
             return None, None
-    m = _detect_matrix(_group_rows(words, _line_tol(words)), fmt)
+    m = _detect_matrix(_group_rows(words, _line_tol(words), fold=page_fold), fmt)
     if m is None:
         return None, None
     return m, _matrix_column_names(m)
@@ -3775,7 +3891,10 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                      # from. See `_caption_continued_from_the_previous_page`.
                      carry_caption: str | None = None,
                      spliced_out: list[str] | None = None,
-                     known_captions: frozenset[str] | None = None) -> tuple[list[LineItem], int]:
+                     known_captions: frozenset[str] | None = None,
+                     # THE PAGE'S FOLD, for a caller handing over PART of a page — see
+                     # `_group_rows`. Left to detect, it is decided from ``words`` as before.
+                     page_fold=DETECT_FOLD) -> tuple[list[LineItem], int]:
     """Reconstruct line items from positioned words. Returns (items, next_ordinal).
 
     Both bases are extracted in one pass: a two-basis header band (Group | Company,
@@ -3819,7 +3938,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     dims = guard_dimensions(scope)
     unit_signals = _unit_signals(scope)
 
-    matrix, names = _maybe_matrix(words, statement=statement, fmt=number_format)
+    matrix, names = _maybe_matrix(words, statement=statement, fmt=number_format,
+                                  page_fold=page_fold)
     if matrix is not None and names is not None:
         if log:
             log(f"extract:page={page_index}:equity_matrix_columns={len(names)}")
@@ -3858,7 +3978,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         # The width of ONE row decides it, because that is the only evidence a header-less
         # continuation page carries. A genuinely two-column equity statement — which small
         # entities do present — prints two amounts per row and still falls through below.
-        if _widest_valued_row(_group_rows(words, _line_tol(words)),
+        if _widest_valued_row(_group_rows(words, _line_tol(words), fold=page_fold),
                               number_format) >= _MATRIX_MIN_COLS:
             if log:
                 log(f"extract:page={page_index}:equity_matrix_continuation_no_header(skipped)")
@@ -3874,7 +3994,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     # `_basis_bands` correctly refuses it — the page then reads as single-basis and the Company's
     # column is added to the Group's. (Value words are untouched by the merge, so the note column
     # and the value columns come out the same either way.)
-    raw_rows = _group_rows(words, row_tolerance(words, source_kind))
+    raw_rows = _group_rows(words, row_tolerance(words, source_kind), fold=page_fold)
     entity_signals = _entity_signals(scope)
     # real period-end dates for column headers, if any
     period_bands = _period_bands(raw_rows, number_format)
@@ -3883,14 +4003,16 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     # column is removed, so note references never look like a column) so a row reporting only one
     # of two periods still files that figure under the period it is printed in.
     col_xs: list[list[tuple[float, str]]] = []
+    # The same figures as WORDS, row by row, for the one reader that needs their edges.
+    col_words: list[list[Word]] = []
     for row in raw_rows:
         _lw, _nr, _vw = _scan_row(row, number_format, extract_note_refs=on_face)
         if on_face:
             _nr, _vw = _resolve_note_column(_nr, _vw, note_x, number_format)
-        xs = [((w.bbox.x0 + w.bbox.x1) / 2, w.text) for w in _vw
-              if _num(w.text, number_format) is not None]
-        if xs and not _is_folio_row(row, number_format):
-            col_xs.append(xs)
+        figures = [w for w in _vw if _num(w.text, number_format) is not None]
+        if figures and not _is_folio_row(row, number_format):
+            col_xs.append([((w.bbox.x0 + w.bbox.x1) / 2, w.text) for w in figures])
+            col_words.append(figures)
     value_bands = _value_column_bands(col_xs)
     # A COLUMN NEEDS A FIGURE IN IT. The statement's title and its own column-header row print a
     # period — "合并资产负债表 2024 年12 月31 日", "项目 附注 2024 年12 月31 日 2023 年12 月31 日" —
@@ -3907,6 +4029,11 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     # refused is a whole band with no GROUPED figure behind it: a column of nothing but years,
     # day-of-month numbers and the page's own folio is a caption, not a column.
     value_bands = _bands_with_a_figure(value_bands, col_xs, number_format)
+    if not value_bands:
+        # Too few rows for the figures to show their columns — see `_header_declared_bands`.
+        value_bands = _header_declared_bands(raw_rows, col_words, number_format)
+        if value_bands and log:
+            log(f"extract:page={page_index}:value_columns=header_declared({len(value_bands)})")
     bands = _basis_bands(raw_rows, value_bands, _value_area(value_bands, col_xs),
                          signals=entity_signals, fmt=number_format,
                          log=log, page_index=page_index)
@@ -3994,6 +4121,9 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         basis_cols, value_bands, period_bands, restated=restated,
         restated_cols=_restated_columns(raw_rows, value_bands, restated, number_format),
         grid=grid, log=log, page_index=page_index)
+    # Where the value columns stand, for telling a nil cell from the caption beside it. None on a
+    # page without columns, where there is nothing to stand over.
+    value_area = _value_area(value_bands, col_xs) if value_bands else None
     section: str | None = None
     # THE SUB-HEADING WITHIN THE SECTION, kept separately from it and for a different job.
     #
@@ -4056,6 +4186,14 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         if on_face:
             note_ref, value_words = _resolve_note_column(
                 note_ref, value_words, note_x, number_format)
+        # A NIL CELL IS A CELL, NOT THE END OF THE CAPTION. `_scan_row` files text before the first
+        # figure as label, and a dash printed for "nothing this period" is text — so 688008's
+        # "应付账款 英特尔公司 - 1,403,741.56" was captioned "应付账款英特尔公司 -". Only a dash standing
+        # over the value columns, and only on a row that reports a figure beside it.
+        while (value_words and label_words and value_area is not None
+               and _NIL_CELL.match(_cell_text(label_words[-1].text))
+               and _over_value_columns(_xc(label_words[-1]), value_area)):
+            label_words = label_words[:-1]
 
         if value_words:
             # Only for a VALUED row: a label-only row is already handled by the banner branch

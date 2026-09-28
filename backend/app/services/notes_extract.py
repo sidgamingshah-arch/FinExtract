@@ -14,8 +14,10 @@ from decimal import Decimal
 
 from app.core.models.enums import Basis, LineRole
 from app.core.models.line_item import NoteItem, NotesTable
+from app.services import page_spread
 from app.services.row_reconstruct import (
-    DATE_TOKEN, GRID_FLAG, ColumnGrid, Word, _group_rows, _scan_row, build_line_items,
+    _CAPTION_GAP, DATE_TOKEN, DETECT_FOLD, GRID_FLAG, ColumnGrid, Word, _caption_text,
+    _group_rows, _measure_slug, _prc_period_slot, _scan_row, _x_runs, build_line_items,
     row_tolerance)
 
 # "Note 15: Trade receivables", "Note 15 Trade receivables", "15. Trade receivables"
@@ -299,8 +301,25 @@ def read_chapter(rows: list[list[Word]], seen: int) -> tuple[str, int, str] | No
     ``seen`` is the highest ordinal read so far in this document, which is why the caller carries
     it from page to page — a chapter heads a run of pages and is printed once.
     """
-    found: tuple[str, int, str] | None = None
-    for row in rows:
+    found = chapter_headings(rows, seen)
+    return found[-1][1] if found else None
+
+
+def chapter_headings(rows: list[list[Word]], seen: int) -> list[tuple[int, tuple[str, int, str]]]:
+    """Every top-level chapter heading on this page, IN ORDER, as ``(row index, chapter)``.
+
+    `read_chapter`'s rule — strictly increasing ordinals, no figures on the row, no sentence
+    punctuation in the title — applied to each heading rather than only the last, because a page
+    can END one chapter and OPEN the next, and the sections above the heading belong to the first.
+
+    MEASURED, and it is why the position matters: 澜起科技 688008 prints its related-party balances
+    (6. 应收、应付关联方等未结算项目情况, page 242) above the heading 十五、股份支付 on the same page.
+    Numbered by the page's LAST chapter, 应收项目 and 应付项目 became 十五、1 and 十五、2 — share-based
+    payment's numbers, sharing a key with 各项权益工具 — and 迈捷 300319's did the same under
+    十四、股份支付.
+    """
+    out: list[tuple[int, tuple[str, int, str]]] = []
+    for index, row in enumerate(rows):
         _, _, values = _scan_row(row)
         if values:
             continue                       # a row with figures is a detail line, not a heading
@@ -309,13 +328,13 @@ def read_chapter(rows: list[list[Word]], seen: int) -> tuple[str, int, str] | No
         if match is None:
             continue
         ordinal = chapter_ordinal(match.group("ch"))
-        if ordinal is None or ordinal <= max(seen, found[1] if found else 0):
+        if ordinal is None or ordinal <= max(seen, out[-1][1][1] if out else 0):
             continue
         title = match.group("title").strip()
         if title and _CJK_SENTENCE.search(title):
             continue                       # a sentence that happens to open with a numeral
-        found = (match.group("ch"), ordinal, title)
-    return found
+        out.append((index, (match.group("ch"), ordinal, title)))
+    return out
 
 
 def split_note_number(identity: str | None) -> tuple[int, str]:
@@ -534,6 +553,10 @@ def _narrative_only(words: list[Word], items: list, source_kind: str) -> str:
     """
     from app.services import caption_shape
 
+    # ITS OWN FOLD, deliberately not the page's. This reads PROSE in reading order, and a bilingual
+    # note that sets its English and Chinese side by side is read one language column at a time —
+    # which is what asking the section, rather than the page, gives. The page's fold is for the
+    # rows a table is rebuilt from (see `extract_note_tables`), where a column break is not a fold.
     rows = _group_rows(words, row_tolerance(words, source_kind))
     inline = {i for i, row in enumerate(rows) if _amount_is_inline(row)}
     # The y-midpoint of every line that became a row, against the caption that row carried.
@@ -596,7 +619,14 @@ def _category_cells(rows: list[list[Word]], fmt=None) -> list[tuple[float, str]]
     main = statistics.mode(edges)
     limit = main - _OUTER_COLUMN_GAP
     frags: list[tuple[float, float, str]] = []
-    for row, (lw, _nr, _vw) in scanned:
+    header = _header_rows(rows, fmt)
+    for i, (row, (lw, _nr, _vw)) in enumerate(scanned):
+        # THE COLUMN HEADER IS NOT A CATEGORY. Its label-column caption stands in the outer column
+        # too, directly above the first category — so the merged-cell join below read 迈捷 300319's
+        # 应付项目 header and first cell as ONE category, "项目名称应付账款", and its inventory
+        # note's header as a category called "项目".
+        if i in header:
+            continue
         # Measured on the word's LEFT edge and bounded by the caption column's: a category cell
         # STARTS a clear gap to the left of the captions and ENDS before them. Testing the right
         # edge instead found nothing — "其他应收" is four characters wide and runs to within 0.02
@@ -623,6 +653,113 @@ def _category_cells(rows: list[list[Word]], fmt=None) -> list[tuple[float, str]]
     out = [(y0, text) for y0, _y1, text in cells
            if len(text) <= _MAX_CATEGORY_CHARS and not _CJK_SENTENCE_MARK.search(text)]
     return out if len(out) >= 2 else []
+
+
+# THE HEADER THAT NAMES BOTH LABEL COLUMNS. A mainland related-party note captions its two label
+# columns 项目名称 | 关联方: the line item the balance is (应收账款, 预付款项) in the outer column, the
+# counterparty in the inner one. Exact captions only, because a header that names one label column
+# says nothing about a second.
+_CATEGORY_HEADER = re.compile(r"^(?:项目名称|項目名稱|项目|項目)$")
+_COUNTERPARTY_HEADER = re.compile(r"^(?:关联方|關聯方|关联方名称|關聯方名稱|关联方单位|關聯方單位)$")
+
+
+def _is_caption_run(text: str) -> bool:
+    """Whether one header phrase captions a COLUMN — a label column, or a period or measure over
+    the value columns — rather than being anything a table body prints."""
+    return bool(_CATEGORY_HEADER.match(text) or _COUNTERPARTY_HEADER.match(text)
+                or _prc_period_slot(text) is not None or _measure_slug(text) is not None)
+
+
+def _header_rows(rows: list[list[Word]], fmt=None) -> set[int]:
+    """The indexes of the rows that make up a note's COLUMN HEADER.
+
+    Above the first row carrying a figure, and every phrase on the row a column caption — both,
+    because a category cell is ALSO printed above the first figure when it is merged over several
+    rows ("其他应收" / "款", straddling the block's first data row) and must still be read.
+    """
+    first = next((i for i, row in enumerate(rows)
+                  if _scan_row(row, fmt, extract_note_refs=False)[2]), len(rows))
+    out: set[int] = set()
+    for i, row in enumerate(rows[:first]):
+        runs = [_caption_text(run) for run in _x_runs(row, _CAPTION_GAP)]
+        if runs and all(_is_caption_run(text) for text in runs):
+            out.add(i)
+    return out
+
+
+def _declared_categories(rows: list[list[Word]], fmt=None
+                         ) -> tuple[list[tuple[float, str]], set[int]] | None:
+    """A note's category column AS ITS OWN HEADER DECLARES IT, or None.
+
+    Returns the category cells — ``(top y, caption)``, as :func:`_category_cells` does — and the
+    ids of the words that printed them, which are not part of any row's caption.
+
+    :func:`_category_cells` finds an outer label column from the figures' rows, and has to: with
+    nothing else to go on it needs three valued rows and two categories before a margin is a
+    column. A related-party note says so in its header instead — 项目名称 over the outer column,
+    关联方 over the inner — and 澜起科技 688008 prints three such tables ONE ROW deep, with the
+    category on the same line as the counterparty:
+
+        项目名称   关联方
+        应收账款   英特尔公司    86,260.80   431.30   1,914,028.85   9,570.14
+
+    Nothing else read that row, so its caption was "应收账款英特尔公司" and its group was empty: the
+    model was offered a counterparty glued to a line item, and a related-party receivable with no
+    group to say which receivable it is.
+
+    The two label columns divide at the midpoint of the two header captions. Below the header, a
+    row's words left of it are its category and the rest its caption, with one exception: a row
+    with FIGURES and nothing right of the boundary is a total or a line printed across both label
+    columns (合计), which keeps its caption and ends the category above it. Vetoed — None, and the
+    geometric reading is used — for a cell that is a sentence or longer than a caption.
+    """
+    boundary: float | None = None
+    start = 0
+    for i, row in enumerate(rows):
+        if _scan_row(row, fmt, extract_note_refs=False)[2]:
+            break
+        runs = [(sum((w.bbox.x0 + w.bbox.x1) / 2 for w in run) / len(run), _caption_text(run))
+                for run in _x_runs(row, _CAPTION_GAP)]
+        outer = [x for x, text in runs if _CATEGORY_HEADER.match(text)]
+        inner = [x for x, text in runs if _COUNTERPARTY_HEADER.match(text)]
+        if len(outer) == 1 and len(inner) == 1 and outer[0] < inner[0]:
+            boundary, start = (outer[0] + inner[0]) / 2, i + 1
+            break
+    if boundary is None:
+        return None
+    header = _header_rows(rows, fmt)
+    taken: set[int] = set()
+    # (top, bottom, caption, closes) — a closing fragment is a total row ending the category.
+    frags: list[tuple[float, float, str, bool]] = []
+    for i, row in enumerate(rows[start:], start):
+        if i in header:
+            continue
+        lw, _nr, vw = _scan_row(row, fmt, extract_note_refs=False)
+        outer = [w for w in lw if (w.bbox.x0 + w.bbox.x1) / 2 < boundary]
+        if not outer:
+            continue
+        top, bottom = min(w.bbox.y0 for w in outer), max(w.bbox.y1 for w in outer)
+        if vw and len(outer) == len(lw):
+            frags.append((top, bottom, "", True))
+            continue
+        taken.update(id(w) for w in outer)
+        text = "".join(w.text for w in sorted(outer, key=lambda w: w.bbox.x0)).strip()
+        frags.append((top, bottom, text, False))
+    # A merged cell drawn on several lines is ONE category — the same join `_category_cells` makes.
+    cells: list[tuple[float, float, str, bool]] = []
+    for frag in sorted(frags):
+        if cells and not frag[3] and not cells[-1][3]:
+            py0, py1, ptext, _ = cells[-1]
+            line_h = max(py1 - py0, 1e-4)
+            if -0.5 * line_h <= frag[0] - py1 <= 0.6 * line_h:
+                cells[-1] = (py0, frag[1], ptext + frag[2], False)
+                continue
+        cells.append(frag)
+    named = [text for _y0, _y1, text, closes in cells if not closes]
+    if not named or any(len(text) > _MAX_CATEGORY_CHARS or _CJK_SENTENCE_MARK.search(text)
+                        for text in named):
+        return None
+    return [(y0, text) for y0, _y1, text, _closes in cells], taken
 
 
 # ── the period a MOVEMENT row belongs to ─────────────────────────────────────────────────────────
@@ -856,7 +993,8 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                         carry_group: str | None = None,
                         group_out: list[str] | None = None,
                         chapter: list | None = None,
-                        known_captions: frozenset[str] | None = None) -> list[NotesTable]:
+                        known_captions: frozenset[str] | None = None,
+                        page_fold=DETECT_FOLD) -> list[NotesTable]:
     """Split a notes page into note sections and reconstruct each note's detail rows.
 
     ``scope``/``normalisation`` are the run's own rulebook blocks; a note's columns are read by
@@ -906,31 +1044,42 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
     # The same page-derived tolerance the face uses: a note's detail lines are set as tightly as a
     # statement's, and two of them merged into one row interleave their captions (row_reconstruct.
     # row_tolerance). A note whose caption comes out scrambled ties to nothing.
-    rows = _group_rows(words, row_tolerance(words, source_kind))
+    # THE FOLD IS DECIDED ONCE, ON THE PAGE — by the caller, which still knows the page's shape
+    # (`page_spread.page_fold`), and from these words only when it does not. A section is a few
+    # rows of the page, and asked on its own a two-column table with a text column beside it can
+    # pass for a 2-up spread — see `row_reconstruct._group_rows`. Every grouping of this page's
+    # words below takes this answer.
+    fold = page_spread.gutter_x(words) if page_fold is DETECT_FOLD else page_fold
+    rows = _group_rows(words, row_tolerance(words, source_kind), fold=fold)
     # READ BEFORE THE SECTIONS ARE WALKED, because a chapter heading is a label-only row and the
     # walker would otherwise fold it into whichever note is open — it reaches the
     # ``current["words"].extend(row)`` arm and disappears into that note's text. The chapter is
     # orthogonal to the note number, so it changes nothing about where a section starts.
+    #
+    # BY POSITION, NOT BY PAGE. The chapter used to be read once per page and applied to every
+    # section on it, so a section printed ABOVE a page's chapter heading was numbered under the
+    # chapter that heading OPENS — see `chapter_headings` for 688008's related-party balances
+    # arriving as share-based payment's 十五、1. Each section now takes the chapter in force where
+    # it STARTS: the page-start chapter until the first heading, and each heading's after it.
+    page_start = (tuple(chapter[:3]) if chapter is not None else (None, 0, ""))
+    transitions: dict[int, tuple[str, int, str]] = {}
     if chapter is not None:
-        found = read_chapter(rows, chapter[1] if chapter[0] else 0)
-        if found is not None:
-            chapter[0], chapter[1], chapter[2] = found
+        for index, found in chapter_headings(rows, chapter[1] if chapter[0] else 0):
+            transitions[index] = found
             if log:
                 log(f"notes:page={page_index}:chapter={found[0]}、{found[2]}({found[1]})")
-    chapter_numeral = chapter[0] if chapter else None
-    # A COMPANY-ONLY NOTE, from the chapter that holds it. The heading is printed once, pages
-    # before the note itself, so the chapter is the only thing on the page that can say so — and
-    # the concepts these notes state are the same ones the group's notes state.
-    chapter_basis = (Basis.STANDALONE
-                     if chapter and len(chapter) > 2 and chapter[2]
-                     and _COMPANY_CHAPTER.search(chapter[2]) else None)
+        if transitions:
+            last = transitions[max(transitions)]
+            chapter[0], chapter[1], chapter[2] = last
+    in_force = page_start
     sections: list[dict] = []
     current: dict | None = None
     # Not appended to ``sections`` until it actually claims a row — a page that opens straight
     # onto a real heading must not leave a spurious empty table behind under the OLD note number.
     carried: dict | None = None
     if carry_note is not None:
-        carried = {"no": carry_note[0], "title": carry_note[1], "words": []}
+        carried = {"no": carry_note[0], "title": carry_note[1], "words": [],
+                   "chapter": page_start}
         # A CONTINUED NOTE KEEPS THE BASIS OF THE CHAPTER IT BEGAN IN, as it already keeps that
         # chapter's number (`qualified_note_number`: "the chapter a note was printed under is the
         # chapter it belongs to"). The basis used to come from the page, so the tail of a GROUP
@@ -944,6 +1093,25 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
     i = 0
     while i < len(rows):
         row = rows[i]
+        # A CHAPTER HEADING ENDS THE OPEN NOTE AND OPENS ONE OF ITS OWN. A note cannot run on into
+        # the next chapter, and the heading row used to reach the `words.extend` arm below and be
+        # folded into whatever note was open — its text, and every row after it until the next note
+        # heading, credited to the previous chapter's last note.
+        #
+        # OPENS, NOT MERELY ENDS, and the first version of this only ended it, which lost figures:
+        # a chapter may print its content with no note heading of its own. 河钢股份 000709's
+        # 八、研发支出 goes straight from the heading into its table (人工费 … 合计
+        # 2,343,028,433.26), and 迈捷 300319's does the same — both used to be folded into the
+        # previous chapter's lease note, and with the open note merely ended they were dropped. The
+        # chapter's own content is now a section identified as the chapter itself (`八、`), titled
+        # with the chapter's heading; one with no rows is not published (see the table loop).
+        if i in transitions:
+            in_force = transitions[i]
+            current = {"no": f"{in_force[0]}、", "title": in_force[2], "words": [],
+                       "chapter": in_force, "chapter_own": True}
+            sections.append(current)
+            i += 1
+            continue
         head = _is_heading(row)
         if head is not None:
             no, title = head
@@ -979,7 +1147,7 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                         and _is_heading(nxt) is None and _bare_note_number(nxt) is None):
                     title = f"{title} {more}".strip() if title else more
                     i += 1
-            current = {"no": no, "title": title, "words": []}
+            current = {"no": no, "title": title, "words": [], "chapter": in_force}
             sections.append(current)
         elif current is None:
             no = _bare_note_number(row)
@@ -990,7 +1158,7 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                     if next_title is not None:
                         title = next_title
                         i += 1
-                current = {"no": no, "title": title, "words": []}
+                current = {"no": no, "title": title, "words": [], "chapter": in_force}
                 sections.append(current)
         elif current is not None:
             if current is carried and carried not in sections:
@@ -1011,14 +1179,25 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
         # grid to whatever four columns the next note happens to print — the same wrong-column
         # failure this closes, in the opposite direction.
         open_group: list[str] = []
-        items, _ = build_line_items(sec["words"], page_index=page_index,
+        # The note's own 项目名称 column, if it has one — see `_category_cells` for the nine-row
+        # block whose eight continuation rows named no receivable class at all without it, and
+        # `_declared_categories` for the one-row table whose header names the column outright.
+        # A DECLARED category is not part of any row's caption, so its words never reach the
+        # reconstructor: "应收账款 英特尔公司" is the counterparty 英特尔公司 in the 应收账款 group.
+        grouped = _group_rows(sec["words"], row_tolerance(sec["words"], source_kind), fold=fold)
+        declared = _declared_categories(grouped)
+        cells = declared[0] if declared is not None else _category_cells(grouped)
+        row_words = ([w for w in sec["words"] if id(w) not in declared[1]]
+                     if declared is not None else sec["words"])
+        items, _ = build_line_items(row_words, page_index=page_index,
                                     document_id=document_id, source_kind=source_kind,
                                     on_face=False, scope=scope, normalisation=normalisation,
                                     log=log,
                                     column_grid=(carry_grid if sec is carried else None),
                                     grid_out=seen,
                                     carry_group=(carry_group if sec is carried else None),
-                                    group_out=open_group, known_captions=known_captions)
+                                    group_out=open_group, known_captions=known_captions,
+                                    page_fold=fold)
         # What the NEXT page inherits is the grid of the note still open when this page ended, so
         # the carry is whatever the last section was read with — None included.
         carry_grid = seen[0] if seen else None
@@ -1030,26 +1209,30 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
         carry_group = open_group[0] if open_group else ""
         if group_out is not None:
             group_out.append(carry_group)
-        if not items and not sec["title"]:
+        if not items and (not sec["title"] or sec.get("chapter_own")):
             continue
+        # THE SECTION'S OWN CHAPTER — the one in force where it started (see the walk above).
+        sec_numeral, _sec_ordinal, sec_chapter_title = sec.get("chapter") or page_start
+        # A COMPANY-ONLY NOTE, from the chapter that holds it. The heading is printed once, pages
+        # before the note itself, so the chapter is the only thing on the page that can say so —
+        # and the concepts these notes state are the same ones the group's notes state. A carried
+        # note's own basis wins, for the reason given where it is carried.
+        chapter_basis = (Basis.STANDALONE
+                         if sec_chapter_title and _COMPANY_CHAPTER.search(sec_chapter_title)
+                         else None)
         sec_basis = sec["basis"] if "basis" in sec else chapter_basis
-        table = NotesTable(note_number=qualified_note_number(chapter_numeral, sec["no"]),
+        table = NotesTable(note_number=qualified_note_number(sec_numeral, sec["no"]),
                            title=sec["title"], basis=sec_basis, source_pages=[page_index],
                            # THE CHAPTER'S OWN HEADING, carried rather than discarded. `read_chapter`
                            # returns `(numeral, ordinal, title)` and the title was used only for the
                            # 母公司 basis test above and for a log line, so a `note_source` naming
                            # the chapter — which is how a human says where a figure lives — matched
                            # nothing. See `NotesTable.chapter_title`.
-                           chapter_title=(chapter[2] if chapter and len(chapter) > 2
-                                          else "") or "",
+                           chapter_title=sec_chapter_title or "",
                    source_text=" ".join(word.text for word in sec["words"]).strip(),
                            # THE NARRATIVE, for the PROSE route alone — see `_narrative_only` for
                            # the figure a flattened table published as a depreciation charge.
                            prose_text=_narrative_only(sec["words"], items, source_kind))
-        # The note's own 项目名称 column, if it has one — see `_category_cells` for the nine-row
-        # block whose eight continuation rows named no receivable class at all without it.
-        grouped = _group_rows(sec["words"], row_tolerance(sec["words"], source_kind))
-        cells = _category_cells(grouped)
         # THE PERIOD STATED ON A BLOCK rather than on a column — read from the RAW rows, because the
         # caption-only header that opens a block carries no figures and so is never built into an
         # item. Same shape as the category pass above: scan the page's own rows, then attribute each
