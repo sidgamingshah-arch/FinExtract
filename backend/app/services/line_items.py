@@ -142,6 +142,9 @@ class Evaluation:
     # discarded: "P3 computed -50, so P4 was used" is the sentence a reviewer needs, and a silent
     # skip looks identical to a rung whose inputs were simply absent.
     refused_rungs: list[str] = field(default_factory=list)
+    # WHY THIS RUNG'S OWN INPUTS CONTRADICT EACH OTHER, when they do — see `_apply_terms`. A cascade
+    # treats it as it treats a negative rung: passed over, reported, and the next rung tried.
+    contradiction: str | None = None
 
     @property
     def resolved(self) -> bool:
@@ -189,6 +192,14 @@ def _apply_terms(terms: list[Term], known: dict[str, Decimal | None],
     # nothing. Only `sum` needs it: `max`/`min`/`first` CHOOSE between candidates rather than
     # adding them, and two candidates that happen to be the same row are not a double count there.
     counted: set[tuple] = set()
+    # THE ROWS THE BASE READS, collected BEFORE any term is applied, because an adjustment may be
+    # declared ahead of the base term whose row it repeats and order must not decide the figure.
+    base_rows = {(sources or {}).get(t.ref) for t in terms
+                 if t.role != "adjustment" and t.ref and known.get(t.ref) is not None}
+    base_rows.discard(None)
+    # THE ROWS ALREADY DEDUCTED, so two adjustments reading one row deduct it once.
+    deducted: set[tuple] = set()
+    contradiction: str | None = None
     for t in terms:
         raw = Decimal(str(t.const)) if t.const is not None else known.get(t.ref)
         if raw is None:
@@ -204,6 +215,51 @@ def _apply_terms(terms: list[Term], known: dict[str, Decimal | None],
                  "abs": t.abs, "role": t.role,
                  "value": str(raw), "used": str(contribution)}
         if t.role == "adjustment":
+            # ONE PRINTED ROW IS ONE QUANTITY ON THE DEDUCTION SIDE TOO — the guard below covered
+            # the base alone, and that is what turned a correct figure into zero.
+            #
+            # MEASURED on China SCE 1966, `bs_ca__secur_and_other_fincl_assets_cp`'s
+            # CP_INTERMEDIATE, with the model route answering: note 26's single Total row
+            # (344,135) was cited by three `any_of` note totals — added ONCE, by the base guard —
+            # and by three adjustments, the non-current split and the derivatives and other
+            # receivables "disclosed inside those notes" — subtracted THREE TIMES. The rung came
+            # to 344,135 - 3 x 344,135, `refuse_negative` declined it, and the column published 0
+            # where the face prints 344,135 under CURRENT ASSETS.
+            #
+            # Two rules, each the configuration's own words applied to a row identity:
+            #   * A DEDUCTION THAT IS THE BASE'S OWN ROW CONTRADICTS THE RUNG. Every adjustment
+            #     here is a PART the note discloses inside its total; the row that states the total
+            #     is not one of its parts, so a citation resolving to it says the inputs were not
+            #     what the rung assumed — the same reading `refuse_negative` gives a rung below
+            #     zero. The rung is REFUSED and the cascade tries the next one down.
+            #
+            #     NOT DROPPED, and the first version of this dropped it. Dropping published the
+            #     contradiction as a figure: 1966's LTP_P2 takes a REQUIRED non-current portion and
+            #     deducts three parts, and all four named note 26's one Total — so dropping the
+            #     three published 344,135 as NON-CURRENT when the face prints it under current
+            #     assets, and other receivables' CP_P1 published twice its face figure. Refusing
+            #     leaves CP_INTERMEDIATE to FROM_THE_FACE, which reads the printed 344,135.
+            #
+            #     A different row that merely carries the same amount — a note holding nothing but
+            #     derivatives — is a different identity and deducts normally, which is the case
+            #     where zero IS the answer.
+            #   * ONE ROW IS DEDUCTED ONCE, however many adjustments name it.
+            # Neither fires without `sources`, so a caller that passes none keeps its arithmetic.
+            row = (sources or {}).get(t.ref) if t.ref else None
+            if row is not None and row in base_rows:
+                entry["part_is_the_totals_own_row"] = list(row)
+                entry["used"] = "0"
+                inputs.append(entry)
+                contradiction = contradiction or (
+                    f"a deduction ({t.ref}) resolves to the printed row the base already reads")
+                continue
+            if row is not None and row in deducted:
+                entry["duplicate_of_row"] = list(row)
+                entry["used"] = "0"
+                inputs.append(entry)
+                continue
+            if row is not None:
+                deducted.add(row)
             adjustments += contribution
         else:
             # SAME ROW, ALREADY IN THE BASE: the term is SATISFIED — its figure was found, and a
@@ -223,6 +279,8 @@ def _apply_terms(terms: list[Term], known: dict[str, Decimal | None],
         inputs.append(entry)
     if not base:
         return Evaluation(None, inputs, missing)
+    if contradiction:
+        return Evaluation(None, inputs, missing, contradiction=contradiction)
 
     if op == "sum":
         total = sum((c for c, _e in base), Decimal(0))
@@ -289,6 +347,9 @@ def evaluate(d: LineItemDef, known: dict[str, Decimal | None],
         refused: list[str] = []
         for rung in d.cascade:
             got = _apply_terms(rung.terms, known, getattr(rung, "terms_op", "sum"), sources)
+            if got.contradiction:
+                refused.append(f"{rung.id}: {got.contradiction}")
+                continue
             if not got.resolved:
                 continue
             # A RUNG BELOW ZERO IS NOT AN ANSWER, it is evidence this rung's inputs did not mean

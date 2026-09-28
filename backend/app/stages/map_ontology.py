@@ -223,6 +223,52 @@ def _same_section_decompositions(ontology) -> list[tuple[str, list[str], str]]:
     return out
 
 
+def route_fenced_decompositions(decls, defs):
+    """`(kept, declined)` — the split candidates the ROUTE FENCE allows, and the aggregates it refused.
+
+    The fence `services.line_item_routes` draws around a BINDING, applied to a SPLIT, in both
+    directions; it had been applied to neither.
+
+      * A face PART is never decomposed by its note. An internal `route: face` part
+        (`in_output: false`) exists to state what the FACE prints — the fallback reading of a
+        derived parent whose own cascade already reads the note — and `may_read_notes` is False
+        for it. Splitting it un-files that figure and hands it to the note's itemisation.
+
+        ONLY THE PART, NOT EVERY FACE LINE, and the first version of this got that wrong: most
+        template lines declare `route: face` too, and fencing all of them stopped every split on
+        every filing. A printed template line ("Prepayments, other receivables and other assets")
+        read into the components its note itemises is exactly what the split is for.
+      * A note-only line (`note_tables`, `prose`) never receives a split component. Each component
+        is stamped `printed_in = FACE` — "a face concept of this statement, sourced from the note"
+        — and `may_read_face` is False for those lines, so filing one there writes a face figure
+        into a line that refuses the face. Its own route reads the note.
+
+    MEASURED on China SCE 1966: the FVTPL face row (344,135 under current assets) bound to
+    `sub__cp_face_trading_fincl_assets`, cited note 26, and was split into
+    `sub__fa_cp_fvtoci_note_total` — a NOTE part, and the wrong fair-value category besides. The
+    face part was left holding nothing, so `bs_ca__secur_and_other_fincl_assets_cp`'s FROM_THE_FACE
+    rung had nothing to read and the column fell to CP_ZERO. With the fence, 1966's one other split
+    (`is_pl__interest_expense`, a template line) is unchanged and no other filing split anything.
+
+    `defs` maps a key to its `LineItemDef`; a key it does not know is left alone, which is what a
+    run with no line-item set (a rulebook-only ontology) gets.
+    """
+    from app.services import line_item_routes
+
+    kept, declined = [], []
+    for aggregate, children, section in decls:
+        owner = defs.get(aggregate)
+        if (owner is not None and getattr(owner, "in_output", None) is False
+                and not line_item_routes.may_read_notes(owner)):
+            declined.append(aggregate)
+            continue
+        survivors = [c for c in children
+                     if defs.get(c) is None or line_item_routes.may_read_face(defs[c])]
+        if survivors:
+            kept.append((aggregate, survivors, section))
+    return kept, declined
+
+
 def _note_permitted_decompositions(ontology, template) -> list[tuple[str, list[str], str]]:
     """Aggregates the run's two definitions BETWEEN THEM authorise reading out of a note.
 
@@ -1097,6 +1143,12 @@ class MapOntologyStage:
                 decls.append((key, children, section))
                 seen.add(key)
                 dynamic.add(key)
+        # THE ROUTE FENCE — see `route_fenced_decompositions`.
+        defs = {i.key: i for i in (getattr(getattr(ctx, "line_items", None), "items", None) or ())}
+        decls, fence_declined = route_fenced_decompositions(decls, defs)
+        for aggregate in fence_declined:
+            ctx.log(f"map_line_items:split_declined({aggregate}): a face PART states the "
+                    f"face and is not decomposed by its note")
         if not decls:
             return 0
         tol = Decimal(str(ctx.settings.extraction.recon_abs_tolerance))

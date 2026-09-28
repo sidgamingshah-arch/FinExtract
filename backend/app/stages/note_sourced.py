@@ -1280,8 +1280,8 @@ def _fill_childless_internal(all_items, children_of: dict[str, list], by_key: di
             if ev.value is None:
                 if ev.rung_used is None and getattr(item, "cascade", None):
                     ctx.log(f"note_sourced:{item.key}: no rung resolved in {basis}/{period}"
-                            + (f", refused for computing below zero: {ev.refused_rungs}"
-                               if ev.refused_rungs else ""))
+                            + (f", refused (below zero, or inputs that contradict each "
+                               f"other): {ev.refused_rungs}" if ev.refused_rungs else ""))
                 continue
             if row is None:
                 row = LineItem(source_label=item.label or item.key, canonical_key=item.key)

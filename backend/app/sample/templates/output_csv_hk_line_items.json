@@ -39844,16 +39844,26 @@
     "Investments",
     "Investment securities",
     "交易性金融资产",
-    "交易性金融資產"
+    "交易性金融資產",
+    "Financial assets at fair value through profit or loss",
+    "Financial assets at FVTPL",
+    "按公允值計量且其變動計入損益的金融資產",
+    "按公平值計入損益之金融資產",
+    "按公平值計入損益的金融資產"
    ],
    "aliases_i18n": {
     "en": [
      "Investments",
-     "Investment securities"
+     "Investment securities",
+     "Financial assets at fair value through profit or loss",
+     "Financial assets at FVTPL"
     ],
     "zh": [
      "交易性金融资产",
-     "交易性金融資產"
+     "交易性金融資產",
+     "按公允值計量且其變動計入損益的金融資產",
+     "按公平值計入損益之金融資產",
+     "按公平值計入損益的金融資產"
     ]
    },
    "keyword_hints": [],
