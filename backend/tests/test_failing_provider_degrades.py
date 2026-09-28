@@ -141,9 +141,15 @@ def test_the_focus_list_names_the_parts_and_not_only_the_wholes(shipped):
     # each swapped its own entry for its two leaves: a derived parent is never asked about, so
     # leaving the parent here named a line no request could answer while the rows that CAN be
     # cited went unoffered.
-    assert len(focus) == 87, len(focus)
-    # 62 nameable parts — see the item census in `test_retired_derivations`.
-    assert len(nameable) == 62, len(nameable)
+    #
+    # 94 SINCE THE RELATED-PARTY BALANCE PARTS WERE NAMED — Find 2, Find 3's gross and allowance,
+    # the trade receivable's gross and allowance, and the two payables. Every one reads a mainland
+    # 关联方应收应付款项 table, and none had been asked about: on a CAS filing the model never saw
+    # the note that tabulates a related party's balance by line item. All seven are parts, so the
+    # nameable count moves with them and the withheld count does not.
+    assert len(focus) == 94, len(focus)
+    # 69 nameable parts — see the item census in `test_retired_derivations`.
+    assert len(nameable) == 69, len(nameable)
     # THE UNREACHABLE ONES ARE THE WHOLES, every one of them — a part that turned up in this list
     # would mean the layer meant to be answerable had been withheld.
     assert all(not getattr(by_key[k], "parent", "") for k in withheld), withheld

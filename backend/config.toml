@@ -292,6 +292,18 @@ llm_focus_keys = [
   "sub__rp_note_entrusted_loans",
   "sub__rp_note_umbrella_total",
   "sub__rp_other_receivables_note",
+  # THE PARTS THAT READ A MAINLAND 关联方应收应付款项 TABLE, which the list above did not name —
+  # so on a CAS filing the model was never asked about the one note that tabulates a related
+  # party's balance by line item (应收账款, 其他应收款, 应付账款, 长期应付款), and every one of these
+  # figures was the deterministic route's alone. Find 2 and Find 3 feed Due from Related Parties
+  # (LTP); the trade receivable feeds its CP twin; the payables feed Due to Related Parties.
+  "sub__rp_find_2",
+  "sub__rp_find_3_gross",
+  "sub__rp_find_3_allowance",
+  "sub__rp_trade_receivable_gross",
+  "sub__rp_trade_receivable_allowance",
+  "sub__rp_other_payable",
+  "sub__rp_payable_ltp",
 
   "bs_ca__other_receivables_cp",
   "sub__cp_current_account_net",
