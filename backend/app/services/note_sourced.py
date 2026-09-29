@@ -582,10 +582,14 @@ def select_prose(item, notes, grammar=None, siblings=()) -> list[ProseHit]:
     # depreciation is usually printed in the asset or profit-before-tax note, which the sibling
     # parts that read those notes name and this part does not.
     #
-    # THE ORDER IS WHAT STOPS ONE CHARGE BEING COUNTED TWICE. Read unconditionally, a cost-of-sales
-    # note stating its depreciation and a profit-before-tax note restating a different figure for it
-    # published their SUM. And the sibling bound is what keeps it off an unrelated note: a sentence
-    # sitting under SHARE CAPITAL is not about any part of this line.
+    # THE ORDER STOPS ONE CHARGE BEING COUNTED TWICE ACROSS THE TWO SCOPES: read unconditionally, a
+    # cost-of-sales note stating its depreciation and a profit-before-tax note restating a different
+    # figure for it published their SUM. WITHIN the sibling scope sentences are still summed, and
+    # the only guard is the equal-amount de-duplication below — so an asset note and a PBT note
+    # stating DIFFERENT figures for one share still add, and two genuinely separate charges of the
+    # same amount count once. The sibling bound keeps the route off unrelated notes: a sentence
+    # under SHARE CAPITAL is not about any part of this line. A note with no number is in neither
+    # scope, because coverage is decided per note number.
     everywhere = not titles and bool(list(getattr(src, "note_terms", None) or ()))
     if not (titles or everywhere) or not counts:
         return []
