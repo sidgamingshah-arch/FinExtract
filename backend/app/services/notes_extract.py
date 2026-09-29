@@ -16,7 +16,7 @@ from app.core.models.enums import Basis, LineRole
 from app.core.models.line_item import NoteItem, NotesTable
 from app.services import page_spread
 from app.services.row_reconstruct import (
-    _CAPTION_GAP, DATE_TOKEN, DETECT_FOLD, GRID_FLAG, ColumnGrid, Word, _caption_text,
+    _AGE_UNIT, _CAPTION_GAP, DATE_TOKEN, DETECT_FOLD, GRID_FLAG, ColumnGrid, Word, _caption_text,
     _group_rows, _measure_slug, _prc_period_slot, _scan_row, _x_runs, build_line_items,
     row_tolerance)
 
@@ -129,6 +129,13 @@ def note_row_role(caption: str | None) -> LineRole:
     if not _NOTE_TOTAL.match(text):
         return LineRole.LINE
     return LineRole.SUBTOTAL if _NOTE_SUBTOTAL.match(text) else LineRole.TOTAL
+
+
+def _is_bracketed(row: list[Word]) -> bool:
+    """Whether a heading row is numbered in brackets or with a circled numeral — （1）, (2), ① —
+    the levels a mainland note uses for the tables INSIDE it, not for notes."""
+    text = " ".join(w.text for w in row).strip().translate(_CIRCLED_DIGITS)
+    return bool(re.match(r"^[（(]\s*\d", text))
 
 
 def _bare_note_number(row: list[Word]) -> str | None:
@@ -451,6 +458,10 @@ def _is_heading(row: list[Word]) -> tuple[str, str] | None:
         if not (title[0].isalpha() or ord(title[0]) > 0x2E7F):
             return None                     # punctuation or a digit — names nothing
         if _CJK_SENTENCE.search(title):
+            return None
+        # "1 年以内" is an ageing bucket, not note 1 — a count and its unit, now kept together as a
+        # caption by `_scan_row`, so on a row with no figures it must not open a note instead.
+        if not starts_note and _AGE_UNIT.match(title) and not re.match(r"^\s*[（(]", text):
             return None
     return no, title
 
@@ -1090,6 +1101,17 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
         if len(carry_note) > 2:
             carried["basis"] = carry_note[2]
         current = carried
+    # THE NUMBERED NOTE A BRACKETED SUB-TABLE BELONGS TO. A mainland note numbers three levels
+    # deep — 十二、the chapter, 6、the note, （1）/① the tables inside it — and every level used to
+    # become a note NUMBER, so （1）应收项目 was note 十二、1 and ①采购商品情况表 was 十二、1 too:
+    # 河钢股份 000709's 十二、1 pooled nineteen tables from four different notes (the parent company,
+    # purchases, leases, guarantees, receivables), and the notes the face and the rulebook name as
+    # 十二、5 and 十二、6 held no rows at all. A bracketed heading under a numbered note is a table
+    # OF that note: it takes the note's number and keeps its own title, the way an English filing's
+    # "(a)" sub-heading stays inside its note. Carried from the previous page, because a note's
+    # tables run on across pages; a chapter heading closes it.
+    open_note: str | None = (carry_note[0] if carry_note is not None and carry_note[0]
+                             and not str(carry_note[0]).endswith("、") else None)
     i = 0
     while i < len(rows):
         row = rows[i]
@@ -1107,6 +1129,7 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
         # with the chapter's heading; one with no rows is not published (see the table loop).
         if i in transitions:
             in_force = transitions[i]
+            open_note = None
             current = {"no": f"{in_force[0]}、", "title": in_force[2], "words": [],
                        "chapter": in_force, "chapter_own": True}
             sections.append(current)
@@ -1147,6 +1170,10 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                         and _is_heading(nxt) is None and _bare_note_number(nxt) is None):
                     title = f"{title} {more}".strip() if title else more
                     i += 1
+            if _is_bracketed(row):
+                no = open_note or no
+            else:
+                open_note = no
             current = {"no": no, "title": title, "words": [], "chapter": in_force}
             sections.append(current)
         elif current is None:
@@ -1158,6 +1185,7 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                     if next_title is not None:
                         title = next_title
                         i += 1
+                open_note = no
                 current = {"no": no, "title": title, "words": [], "chapter": in_force}
                 sections.append(current)
         elif current is not None:
