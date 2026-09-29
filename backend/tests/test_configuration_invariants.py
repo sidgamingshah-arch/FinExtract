@@ -247,8 +247,17 @@ def test_the_three_finds_can_each_admit_the_captions_the_spec_names(raw):
     # FIND 3'S ROW GATES MOVED to its gross half when the net had to be computed: the
     # 关联方应收应付款项 note prints 账面余额 and 坏账准备 and no net column, so Find 3 became
     # gross-less-allowance and the two halves carry the note_source between them.
-    where = {"sub__rp_find_2": "note_title_any",
-             "sub__rp_find_3_gross": "row_caption_any"}
+    # FIND 2 NOW FINDS ITS NOTES BY MEANING (note_terms, no title regex), so for it the four
+    # captions are headings its terms must COVER; Find 3 still admits them as grouping rows.
+    from types import SimpleNamespace as _NS
+
+    from app.services.line_item_notes import heading_covered
+    find2 = by_key["sub__rp_find_2"]["note_source"]
+    for caption in spec_captions:
+        assert heading_covered(_NS(note_source=_NS(note_terms=find2["note_terms"])), caption), (
+            f"sub__rp_find_2's note terms no longer cover {caption!r}")
+    assert find2.get("row_caption_none"), "sub__rp_find_2 declares no row veto at all"
+    where = {"sub__rp_find_3_gross": "row_caption_any"}
     for key, field in where.items():
         src = by_key[key].get("note_source") or {}
         admits = [re.compile(p) for p in (src.get(field) or ())]

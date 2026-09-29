@@ -75,12 +75,10 @@ def test_an_anchored_pattern_reaches_its_note_whatever_precedes_it(shipped):
     """THE CASE THIS FILE EXISTS FOR, on the shipped pattern rather than an invented one."""
     import re
 
-    # `sub__rp_other_receivables_note` was one of nine related-party FEEDERS collapsed into
-    # the three Find items the spec asks for. Find 2 absorbed its note titles, so the
-    # shipped anchored pattern this test exercises lives there now.
-    item = {i.key: i for i in shipped.items}["sub__rp_find_2"]
-    patterns = [re.compile(p, re.IGNORECASE) for p in item.note_source.note_title_any]
-    assert patterns, "the line declares no note pattern, so this test proves nothing"
+    # The shipped Find 2 that carried this anchored pattern now finds its notes by meaning, so the
+    # pattern is written out here: the enumerator handling is a property of `matches_title`, which
+    # every line still declaring a title pattern goes through.
+    patterns = [re.compile(r"^\s*(?:\d+[\.、)]?\s*)?其他应收款", re.IGNORECASE)]
 
     for title in ("其他应收款", "、其他应收款", "、 其他应收款", "五、 其他应收款"):
         assert any(matches_title(p, title) for p in patterns), title

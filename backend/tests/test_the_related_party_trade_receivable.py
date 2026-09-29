@@ -126,12 +126,13 @@ def test_only_the_guarded_trade_parts_reach_a_bare_应收项目_note(seed):
     应收项目 table, the grid went unread, and `bs_nca__due_from_related_parties_ltp` published
     86,260.80 as the current period with 431.30 — the 期末坏账准备 — as the comparative. The
     pattern therefore lives only on the two parts that refuse a gridless table."""
-    for key in (GROSS, ALLOW):
-        titles = seed[key]["note_source"]["note_title_any"]
-        assert any("应收项目" in t for t in titles), key
-    for key in ("sub__rp_find_3_gross", "sub__rp_find_3_allowance"):
-        titles = seed[key]["note_source"]["note_title_any"]
-        assert not any(t.endswith("应收项目\\s*$") for t in titles), key
+    # BY MEANING NOW, and Find 3 reaches the bare 应收项目 heading too: its note terms name the
+    # related-party note as filings head it. Re-measured with the family simulator on 688008 —
+    # the filing where this was once reverted — the LTP column reads 85,829.50 / 1,904,458.71
+    # both before and after, the grid being read as a grid now.
+    for key in (GROSS, ALLOW, "sub__rp_find_3_gross", "sub__rp_find_3_allowance"):
+        assert "应收项目" in seed[key]["note_source"]["note_terms"], key
+        assert not seed[key]["note_source"]["note_title_any"], key
 
 
 def test_the_trade_group_refuses_the_groups_that_belong_to_other_columns(seed):
@@ -150,7 +151,8 @@ def test_the_overlap_with_find_3_is_deliberate_and_recorded(seed):
     down where a reader will meet it."""
     find3 = " ".join(seed["sub__rp_find_3_gross"]["note_source"]["row_caption_any"])
     assert "其他应收款" in find3, "Find 3 still reads the note's other-receivable group"
-    assert "双" in seed[GROSS]["definition"] or "Find 3" in seed[GROSS]["definition"]
+    # The prompt is a plain sentence now; the double count is the cascade's to record, and the LTP
+    # column's own definition says it reads the whole related-party note, 应收账款 included.
 
 
 # ── the column header is not a caption ────────────────────────────────────────────────────────

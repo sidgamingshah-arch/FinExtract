@@ -565,10 +565,15 @@ def claimed_notes(items, notes) -> dict[str, set[str]]:
         if by_meaning_only(item):
             covered[item.key] = covered_notes(item, notes)
     out: dict[str, set[str]] = {key: set() for key in covered}
-    by_parent: dict[str, list] = {}
+    # SIBLINGS COMPETE ONLY FOR THE SAME COLUMN. A gross part (the primary measure) and its
+    # allowance part (`measure: allowance`) read two columns of the same rows and the parent NETS
+    # them, so neither can count the other's money; handing the note to one of them would leave
+    # the other reading nothing.
+    by_parent: dict[tuple[str, str], list] = {}
     for item in items or ():
         if item.key in covered:
-            by_parent.setdefault(str(getattr(item, "parent", "") or ""), []).append(item)
+            measure = str(getattr(getattr(item, "note_source", None), "measure", "") or "")
+            by_parent.setdefault((str(getattr(item, "parent", "") or ""), measure), []).append(item)
     for siblings in by_parent.values():
         score = {}
         for item in siblings:

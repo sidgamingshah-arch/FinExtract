@@ -75,18 +75,20 @@ def test_a_related_party_loan_row_is_selected(shipped, caption):
     "24. OTHER RECEIVABLES",
 ])
 def test_the_other_receivables_note_qualifies_however_it_is_titled(shipped, title):
-    patterns = shipped["sub__rp_find_2"].note_source.note_title_any
+    """By meaning now: the heading carries every word of one of Find 2's note terms."""
+    from app.services.line_item_notes import heading_covered
 
-    assert any(re.search(p, title, re.IGNORECASE) for p in patterns), title
+    assert heading_covered(shipped["sub__rp_find_2"], title), title
 
 
-def test_the_chinese_half_of_that_title_stays_anchored(shipped):
-    """A CAS note heading IS its subject, and 其他应收款 appears inside headings that are their own
-    tables (其他应收款按款项性质分类情况). Un-anchoring the Chinese would widen the gate to those."""
-    first = shipped["sub__rp_find_2"].note_source.note_title_any[0]
+@pytest.mark.parametrize("title", ["应收账款", "预付款项", "RELATED PARTY TRANSACTIONS", "TRADE RECEIVABLES"])
+def test_a_note_on_another_subject_is_not_find_2s(shipped, title):
+    """What the anchored Chinese pattern used to guard: Find 2 reads the other-receivables,
+    long-term-receivables and loans-and-advances notes, not the trade-receivable or prepayment
+    notes beside them."""
+    from app.services.line_item_notes import heading_covered
 
-    assert r"^\s*(?:\d+[\.、)]?\s*)?其他应收款" in first
-    assert "^" not in first.split("|")[-1], first
+    assert not heading_covered(shipped["sub__rp_find_2"], title), title
 
 
 def test_a_payable_row_is_still_refused(shipped):
