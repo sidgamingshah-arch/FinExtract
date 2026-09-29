@@ -66,7 +66,7 @@ RULEBOOK = TEMPLATES / "output_csv_hk_ontology.json"
 PROJECTED = sorted(set(SAME) | set(RENAMED))
 
 CONCEPTS = 462                 # the rulebook's concepts, and the set's `namespace == "template"`
-ITEMS = 543                    # …plus the 69 `sub__*` note-level parts, which ARE concepts too:
+ITEMS = 535                    # …plus the 69 `sub__*` note-level parts, which ARE concepts too:
                                # the view projects every definition, and `namespace` decides only
                                # where a figure is PUBLISHED. See
                                # test_shipped_set_projects_every_definition_including_the_parts.

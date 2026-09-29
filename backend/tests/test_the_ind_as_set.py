@@ -615,7 +615,8 @@ def test_the_indian_note_vocabulary_widens_context_and_not_the_deterministic_rea
     # Schedule III note their HK concept corresponds to.
     # 62 since the three Securities (CP) Find 2 and non-current parts left both sets.
     # 58 since the four Securities (LTP) Find 2 and split parts left both sets.
-    assert created == 40 and inherited == 58, (created, inherited)
+    # 51 since contingent liabilities' nine note parts became one.
+    assert created == 40 and inherited == 51, (created, inherited)
 
     # THE BEHAVIOURAL HALF. A note whose heading matches the PPE family's own title pattern, with a
     # row that any depreciation vocabulary would claim. A line whose note_source was created must

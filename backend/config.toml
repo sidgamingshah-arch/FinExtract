@@ -262,17 +262,9 @@ llm_focus_keys = [
   "sub__ltp_structured_deposits_note_total",
 
   "notes__contingent_liabilities",
-  "sub__cl_bank_guarantees",
-  "sub__cl_corporate_guarantees",
-  "sub__cl_guarantee_note_amount",
+  "sub__cl_contingency_note_exposures",
   "sub__cl_guarantee_note_balance",
-  "sub__cl_guarantee_released_repaid",
-  "sub__cl_letters_of_credit",
-  "sub__cl_performance_bonds",
-  "sub__cl_related_party_guarantee_amount",
   "sub__cl_related_party_guarantee_balance",
-  "sub__cl_reported_total",
-  "sub__cl_unclassified_matters",
 
   "bs_nca__due_from_related_parties_ltp",
   "sub__rp_bs_face_receivables",

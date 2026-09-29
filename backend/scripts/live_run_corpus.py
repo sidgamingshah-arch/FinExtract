@@ -9,7 +9,7 @@ wholes make a change visible in a PUBLISHED FIGURE rather than only in a log:
     sub__fixed_asset_depreciation     -> is_pl__deprec_and_impairment_oper_exp
     sub__prepaid_lease_depreciation   -> is_pl__deprec_and_impairment_oper_exp
     sub__face_principal_revenue       -> is_pl__sales_revenues
-    sub__cl_reported_total            -> notes__contingent_liabilities
+    sub__cl_contingency_note_exposures            -> notes__contingent_liabilities
 
 EACH FILING IS EXTRACTED TWICE, with `llm_mapping` the only difference, and the eight focus wholes
 plus the four parts are read through `_serialize_rows` then `concept_value` — the same boundary the
@@ -45,7 +45,7 @@ PARTS = [
     "sub__fixed_asset_depreciation",
     "sub__prepaid_lease_depreciation",
     "sub__face_principal_revenue",
-    "sub__cl_reported_total",
+    "sub__cl_contingency_note_exposures",
 ]
 WHOLES = [
     "is_pl__sales_revenues", "is_pl__deprec_and_impairment_oper_exp",

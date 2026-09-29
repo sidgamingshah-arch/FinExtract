@@ -89,7 +89,7 @@ PARTS = [
     "sub__fixed_asset_depreciation",
     "sub__prepaid_lease_depreciation",
     "sub__face_principal_revenue",
-    "sub__cl_reported_total",
+    "sub__cl_contingency_note_exposures",
 ]
 
 # What `line_item_payload` can emit. Presence is reported because a line whose evidence WAS in the
