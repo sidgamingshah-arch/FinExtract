@@ -39927,13 +39927,34 @@
    "match_priority": 78,
    "aliases": [
     "其他非流动金融资产",
-    "其他非流動金融資產"
+    "其他非流動金融資產",
+    "Financial assets at fair value through profit or loss",
+    "Financial assets at FVTPL",
+    "Financial assets at fair value through other comprehensive income",
+    "Financial assets at FVOCI",
+    "按公平值計入損益之金融資產",
+    "按公平值計入損益的金融資產",
+    "按公允值計量且其變動計入損益的金融資產",
+    "按公平值計入其他全面收益之金融資產",
+    "按公平值計入其他全面收益的金融資產",
+    "按公允值計量且其變動計入其他全面收益的金融資產"
    ],
    "aliases_i18n": {
-    "en": [],
+    "en": [
+     "Financial assets at fair value through profit or loss",
+     "Financial assets at FVTPL",
+     "Financial assets at fair value through other comprehensive income",
+     "Financial assets at FVOCI"
+    ],
     "zh": [
      "其他非流动金融资产",
-     "其他非流動金融資產"
+     "其他非流動金融資產",
+     "按公平值計入損益之金融資產",
+     "按公平值計入損益的金融資產",
+     "按公允值計量且其變動計入損益的金融資產",
+     "按公平值計入其他全面收益之金融資產",
+     "按公平值計入其他全面收益的金融資產",
+     "按公允值計量且其變動計入其他全面收益的金融資產"
     ]
    },
    "keyword_hints": [],

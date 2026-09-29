@@ -22276,12 +22276,20 @@
    "match_priority": 78,
    "aliases": [
     "Investments",
-    "Other financial assets"
+    "Other financial assets",
+    "Financial assets at fair value through profit or loss",
+    "Financial assets at FVTPL",
+    "Financial assets at fair value through other comprehensive income",
+    "Financial assets at FVOCI"
    ],
    "aliases_i18n": {
     "en": [
      "Investments",
-     "Other financial assets"
+     "Other financial assets",
+     "Financial assets at fair value through profit or loss",
+     "Financial assets at FVTPL",
+     "Financial assets at fair value through other comprehensive income",
+     "Financial assets at FVOCI"
     ]
    },
    "keyword_hints": [],
