@@ -140,7 +140,8 @@ def _is_money_like(t: str, fmt=None) -> bool:
 # A running-header / statement-title / period-caption label. These carry the entity or the
 # statement name + a period date, not a financial line — and the only "number" on them is a
 # date fragment (a year or a day-of-month).
-_RUNNING_HDR = re.compile(r"annual report|interim report|年報|年度報告|中期報告", re.IGNORECASE)
+_RUNNING_HDR = re.compile(r"annual report|interim report|年報|年度報告|中期報告|年报|年度报告|中期报告",
+                          re.IGNORECASE)
 _HDR_LABEL = re.compile(
     r"statement of|year ended|for the (year|period)|as at\b|as of\b|period ended|"
     # The notes pages' own running header. It belongs in THIS list rather than with the structural
@@ -664,6 +665,10 @@ def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True) -> t
         # label nor value — the rest of the caption went with it. 澜起科技 688008's 应付账款 and
         # 预收款项 ageing tables came out captioned with their HEADER ("项目期末余额期初余额",
         # merged down onto a row left with no caption) and a current-period figure of 1.
+        if (not value_words and _REPORT_YEAR.match(tok) and i + 1 < len(row)
+                and _REPORT_TAIL.match(row[i + 1].text.strip())
+                and _tight_after(row[i], row[i + 1])):
+            label_words.append(row[i]); i += 1; continue
         if (not value_words and _AGE_COUNT.match(tok) and i + 1 < len(row)
                 and _AGE_UNIT.match(row[i + 1].text.strip())
                 and _tight_after(row[i], row[i + 1])):
@@ -680,6 +685,12 @@ def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True) -> t
 
 # The count that opens an ageing bucket, and the unit it is tight against. See `_scan_row`.
 _AGE_COUNT = re.compile(r"^\d{1,3}$")
+# THE REPORT'S OWN YEAR IN A RUNNING HEADER: "澜起科技股份有限公司 2024 年年度报告". The year is set
+# tight against 年…报告, and read as the row's first figure it took the rest of the header with it
+# — the caption became the company name and its amount 2024, a row inside every note that page
+# carried (688008's 七、2 and 七、15 each gained one). Kept in the caption, the header is a header.
+_REPORT_YEAR = re.compile(r"^(?:19|20)\d{2}$")
+_REPORT_TAIL = re.compile(r"^年?(?:年度|半年度|中期)?(?:报告|報告|年报|年報|报|報)")
 _AGE_UNIT = re.compile(r"^(?:年|个月|個月|月|天|日|周|週|至)")
 
 
