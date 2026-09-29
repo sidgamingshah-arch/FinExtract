@@ -562,7 +562,11 @@ def claimed_notes(items, notes) -> dict[str, set[str]]:
     pool = header_pool(notes)
     covered: dict[str, tuple[str, ...]] = {}
     for item in items or ():
-        if by_meaning_only(item):
+        # A PROSE LINE READS NO ROWS, so it takes no part in the one-note-one-sibling contest,
+        # which exists to stop two row sums reading the same rows. Measured: the profit-before-tax
+        # prose part, declared first with the same terms, took note 8 from the PBT row part on
+        # 1966 and kaming, and 1966 lost 102,572 / 129,347.
+        if by_meaning_only(item) and str(getattr(item, "route", "") or "") != "prose":
             covered[item.key] = covered_notes(item, notes)
     out: dict[str, set[str]] = {key: set() for key in covered}
     # SIBLINGS COMPETE ONLY FOR THE SAME COLUMN. A gross part (the primary measure) and its

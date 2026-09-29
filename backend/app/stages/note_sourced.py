@@ -120,8 +120,12 @@ class NoteSourcedStage(Stage):
                 # THE SET'S GRAMMAR, passed in: the subject and connective vocabularies every
                 # prose line shares live on the SET, so `select_prose` is given one item and
                 # cannot reach them itself. Without it only raw `prose_any` patterns are consulted.
+                # ITS SIBLINGS — the other parts of the same parent — bound where a line that finds
+                # its notes by meaning may look for the sentence when its own notes do not state it.
                 prose = note_sourced.select_prose(
-                    item, doc.notes, getattr(line_item_set, "prose_grammar", None))
+                    item, doc.notes, getattr(line_item_set, "prose_grammar", None),
+                    siblings=[i for i in items
+                              if getattr(i, "parent", None) and i.parent == getattr(item, "parent", None)])
                 if not prose:
                     continue
                 row = by_key.get(item.key)

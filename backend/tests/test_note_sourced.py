@@ -106,7 +106,9 @@ def test_the_shipped_configuration_still_declares_note_sources_to_read():
     patterns = sum(len(i["note_source"].get(f) or [])
                    for i in declaring
                    for f in ("note_title_any", "row_caption_any", "row_caption_none"))
-    assert patterns > 400, f"only {patterns} authored patterns — the corpus has shrunk"
+    # 256 since every family reads its note by MEANING: no `note_title_any` anywhere, and at most
+    # four row captions and four vetoes per part.
+    assert patterns > 200, f"only {patterns} authored patterns — the corpus has shrunk"
 
 
 def test_a_figure_is_read_out_of_the_note_the_configuration_names(shipped):
@@ -565,16 +567,17 @@ def test_a_matrix_column_is_not_a_period(shipped):
     from app.core.models.line_item import NoteItem
     from app.services import note_sourced as svc
 
-    row = NoteItem(raw_label="Depreciation included in research and development expenses")
+    row = NoteItem(raw_label="Depreciation")
     # A period fact and a matrix-column fact on the same row.
     row.values["p"] = ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current",
                                      value=Decimal("1200"), value_raw=Decimal("1200"))
     row.values["m"] = ExtractedValue(basis=Basis.CONSOLIDATED, period_label="col3",
                                      value=Decimal("400"), value_raw=Decimal("400"),
                                      column_index=3)
-    note = NotesTable(note_number="8", title="Property, plant and equipment", items=[row])
+    note = NotesTable(note_number="8", title="Research and development expenses", items=[row])
 
-    sub = next(i for i in shipped.items if i.key == "sub__rd_depreciation")
+    # A TABLE-READING part: the six functional splits read prose only, so they have no rows.
+    sub = next(i for i in shipped.items if i.key == "sub__expense_notes_depreciation")
     hits = svc.select_rows(sub, [note])
 
     assert [h.period for h in hits] == ["current"], [h.period for h in hits]
@@ -592,13 +595,14 @@ def test_a_note_column_the_statements_do_not_use_is_not_a_period(shipped):
     from app.core.models.line_item import NoteItem
     from app.services import note_sourced as svc
 
-    row = NoteItem(raw_label="Depreciation included in research and development expenses")
+    row = NoteItem(raw_label="Depreciation")
     row.values["a"] = ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current",
                                      value=Decimal("1200"), value_raw=Decimal("1200"))
     row.values["b"] = ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current:cost",
                                      value=Decimal("999"), value_raw=Decimal("999"))
-    note = NotesTable(note_number="8", title="Property, plant and equipment", items=[row])
-    sub = next(i for i in shipped.items if i.key == "sub__rd_depreciation")
+    note = NotesTable(note_number="8", title="Research and development expenses", items=[row])
+    # A TABLE-READING part: the six functional splits read prose only, so they have no rows.
+    sub = next(i for i in shipped.items if i.key == "sub__expense_notes_depreciation")
 
     kept = svc.select_rows(sub, [note], {"current", "prior"})
     assert [(h.period, str(h.amount)) for h in kept] == [("current", "1200")]
@@ -776,7 +780,7 @@ def test_a_note_sourced_line_declares_which_part_of_a_note_it_is_read_from(shipp
     declared = [i for i in shipped.items if getattr(i, "note_source", None) is not None]
     # 62: the other-receivables net's two readings each declare their own `note_source`, and the
     # parent they feed declares none.
-    assert len(declared) == 45, len(declared)   # 45: Other Receivables (CP) lost eight note parts; 53: contingent liabilities folded nine parts into one; 61: the four Securities (LTP) Find 2 and non-current-split parts left the set   # 65: the three Securities (CP) Find 2 and non-current parts left the set   # 68 with the related-party TRADE RECEIVABLE's two note readings — the 账面余额 gross and the 坏账准备 allowance it is net of, one part per `measure` of the same 应收账款 group   # 66 for the same reason the part count moved: the two related-party payable groups
+    assert len(declared) == 46, len(declared)   # 46: sub__expense_notes_depreciation added;   # 45: Other Receivables (CP) lost eight note parts; 53: contingent liabilities folded nine parts into one; 61: the four Securities (LTP) Find 2 and non-current-split parts left the set   # 65: the three Securities (CP) Find 2 and non-current parts left the set   # 68 with the related-party TRADE RECEIVABLE's two note readings — the 账面余额 gross and the 坏账准备 allowance it is net of, one part per `measure` of the same 应收账款 group   # 66 for the same reason the part count moved: the two related-party payable groups
 
     with_prose = [i for i in declared
                   if (i.note_source.prose_subject or i.note_source.prose_any)]

@@ -120,7 +120,7 @@ def test_a_line_with_no_prose_destination_yields_nothing(shipped):
                 if getattr(i, "note_source", None)
                 and not getattr(i.note_source, "prose_landed_in", None)
                 and not getattr(i.note_source, "prose_any", None)
-                and getattr(i.note_source, "note_title_any", None))
+                and getattr(i.note_source, "note_terms", None))
     assert note_sourced.select_prose(bare, [_note()], shipped.prose_grammar) == []
 
 

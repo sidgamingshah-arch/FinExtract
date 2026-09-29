@@ -394,7 +394,9 @@ def test_every_pattern_in_the_shipped_seed_compiles():
     patterns = [v for d in defs if d.note_source
                 for f in ("note_title_any", "row_caption_any", "row_caption_none")
                 for v in getattr(d.note_source, f)]
-    assert len(patterns) > 700, "the seed lost its caption patterns"
+    # 256 since every family reads its note by MEANING: `note_title_any` is empty throughout and
+    # each part keeps at most four row captions and four vetoes, where it used to carry dozens.
+    assert len(patterns) > 200, "the seed lost its caption patterns"
     assert build(defs).ok
 
 

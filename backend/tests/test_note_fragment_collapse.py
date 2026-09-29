@@ -114,8 +114,9 @@ def test_one_entry_per_note_and_every_fragment_contributes(shipped):
     """Three fragments of one note become one entry carrying all three fragments' rows and prose,
     with `identified_for` unioned — a line whose pattern matched only the continuation page still
     asked for this note."""
+    # Every shipped line now finds its note by MEANING (`note_terms`), not by a title pattern.
     item = next(i for i in shipped.items
-                if getattr(getattr(i, "note_source", None), "note_title_any", None))
+                if getattr(getattr(i, "note_source", None), "note_terms", None))
     title = "PROFIT BEFORE TAX"
     notes = [
         _note("7", title, ["Auditor's remuneration"],

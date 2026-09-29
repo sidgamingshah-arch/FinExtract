@@ -227,6 +227,7 @@ llm_focus_keys = [
   "is_pl__deprec_and_impairment_oper_exp",
   "sub__cfo_depreciation",
   "sub__cip_depreciation",
+  "sub__expense_notes_depreciation",
   "sub__fixed_asset_depreciation",
   "sub__ga_depreciation",
   "sub__investment_property_depreciation",

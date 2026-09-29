@@ -229,30 +229,35 @@ def test_a_filing_at_a_loss_prints_loss_and_the_declaration_now_says_so() -> Non
     one was to let the join swallow note 8's prose.
 
     kaming prints "LOSS BEFORE TAXATION 8. 除稅前虧損" where 1966 prints "PROFIT BEFORE TAX", and
-    the shared pattern named only profit — so the six depreciation-by-function parts were sent no
-    declared note on a filing that made a loss. Over-capture measured before landing it: 1 of 342
-    distinct corpus note titles is claimed by the new alternations, and it is that heading.
+    the shared pattern once named only profit — so the depreciation parts that read that note were
+    sent no declared note on a filing that made a loss.
+
+    NOW BY MEANING. The parts that read the profit-before-tax note carry `note_terms` ("before tax",
+    "除稅前") instead of a title pattern, and a heading is covered when it holds every word of one
+    term — so profit and loss headings are covered alike, and the neighbouring LOSS PER SHARE note,
+    a different disclosure entirely, is not.
     """
     import json
     import pathlib
-    import re
 
-    from app.services.note_context import matches_title
+    from app.core.models import NotesTable
+    from app.schemas.line_items import load_line_item_set
+    from app.services.line_item_notes import covered_notes
 
     seed = json.loads((pathlib.Path(__file__).resolve().parents[1]
                        / "app/sample/templates/output_csv_hk_line_items.json")
                       .read_text(encoding="utf-8"))
-    carriers = [i["key"] for i in seed["items"]
-                for p in ((i.get("note_source") or {}).get("note_title_any") or ())
-                if "profit\\s+before\\s+tax(?:ation)?" in p]
-    assert len(carriers) == 6, carriers
+    st = load_line_item_set(seed, resolve=True)
+    carriers = [i for i in st.items
+                if i.key in ("sub__pbt_depreciation", "sub__pbt_oper_exp_depreciation")]
+    assert len(carriers) == 2, [i.key for i in carriers]
 
-    for key in carriers:
-        item = next(i for i in seed["items"] if i["key"] == key)
-        pats = [re.compile(p, re.IGNORECASE)
-                for p in item["note_source"]["note_title_any"]]
+    for item in carriers:
+        assert not item.note_source.note_title_any, item.key
         for heading in ("LOSS BEFORE TAXATION 8. 除稅前虧損",
                         "PROFIT BEFORE TAX (Continued) 8. 除稅前溢利（續）"):
-            assert any(matches_title(p, heading) for p in pats), (key, heading)
+            assert covered_notes(item, [NotesTable(note_number="8", title=heading)]) == ("8",), \
+                (item.key, heading)
         # AND NOT THE NEIGHBOURING LOSS NOTE, which is a different disclosure entirely.
-        assert not any(matches_title(p, "LOSS PER SHARE 14. 每股虧損") for p in pats), key
+        assert covered_notes(item, [NotesTable(note_number="14", title="LOSS PER SHARE 14. 每股虧損")]) == (), \
+            item.key

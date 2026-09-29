@@ -2288,9 +2288,11 @@ class LineItemSet(BaseModel):
             elif name not in known:
                 bad.append(f"{item.key}: prose_subject {name!r} is not in "
                            f"prose_grammar.subjects ({', '.join(sorted(known)) or 'empty'})")
-            if not [t for t in (src.note_title_any or ()) if (t or "").strip()]:
-                bad.append(f"{item.key}: prose_landed_in is set but note_title_any is empty, so "
-                           f"the prose route has no note to read and can never fire")
+            if not ([t for t in (src.note_title_any or ()) if (t or "").strip()]
+                    or [t for t in (src.note_terms or ()) if (t or "").strip()]):
+                bad.append(f"{item.key}: prose_landed_in is set but note_title_any is empty and "
+                           f"no note_terms are declared, so the prose route has no note to read "
+                           f"and can never fire")
         if bad:
             raise ValueError("prose rule is incomplete — " + "; ".join(bad))
         return self

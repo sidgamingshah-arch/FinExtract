@@ -6149,7 +6149,7 @@
    "key": "is_pl__deprec_and_impairment_cos",
    "exclude_criteria": [],
    "label": "Deprec & Impairment(COS)",
-   "definition": "Depreciation, amortisation and impairment charged to COST OF SALES — the part of the period's depreciation and amortisation borne by the cost of goods sold or of services rendered, rather than by operating expenses. A filing states it either as a depreciation row inside the cost of sales note, or as a footnote saying that depreciation charges are included in cost of sales. Depreciation charged to cost of sales. Read from the cost-of-sales note.",
+   "definition": "Sum of all depreciation charged to cost of sales, excluding the share charged to operating expenses, impairment, and amortisation of intangible assets printed on a row of its own.",
    "sign_rule": {},
    "inherits": "is_pl",
    "face_only": false,
@@ -6537,7 +6537,7 @@
    "key": "is_pl__deprec_and_impairment_oper_exp",
    "exclude_criteria": [],
    "label": "Deprec & Impairment(Oper Exp)",
-   "definition": "Depreciation, amortisation and impairment charged to OPERATING EXPENSES — the part of the period's depreciation and amortisation borne by administrative, general, selling, distribution, marketing or research and development expenses, rather than by cost of sales. A filing states it either as a depreciation and amortisation row inside one of those expense notes, or as a footnote saying that depreciation charges are included in other operating expenses on the face of the income statement. Depreciation charged to operating expenses. Never printed as one caption — assembled from the notes and resolved by trying the rungs in order.",
+   "definition": "Sum of all depreciation charged to operating expenses — selling and distribution, administrative, research and development and other operating expenses — excluding the share charged to cost of sales, impairment, and amortisation of intangible assets printed on a row of its own. A combined depreciation and amortisation row is taken whole.",
    "sign_rule": {},
    "inherits": "is_pl",
    "face_only": false,
@@ -6565,7 +6565,7 @@
        "role": "any_of"
       }
      ],
-     "note": "The four operating-expense notes, summed. Any subset a filing discloses is still a sum, so each term is optional."
+     "note": "The sentences that state each operating-expense function's share, summed. Any subset a filing states is still a sum, so each term is optional."
     },
     {
      "id": "P2",
@@ -6589,6 +6589,15 @@
       }
      ],
      "note": "Total depreciation less the cost-of-sales share. A filing that discloses no cost-of-sales depreciation is taken to charge none, so the deduction is optional and the base is not."
+    },
+    {
+     "id": "EXPENSE_NOTES",
+     "terms": [
+      {
+       "ref": "sub__expense_notes_depreciation"
+      }
+     ],
+     "note": "The depreciation rows of the selling, administrative and R&D expense notes, summed. After the sentences and the PBT note, so a filing that states its split keeps it."
     },
     {
      "id": "P4",
@@ -10725,37 +10734,22 @@
   },
   {
    "key": "sub__rd_depreciation",
-   "label": "R&D note — depreciation",
+   "label": "R&D expenses — depreciation",
    "in_output": false,
    "parent": "is_pl__deprec_and_impairment_oper_exp",
    "order": 1,
    "namespace": "internal",
    "inherits": "notes",
    "note_source": {
-    "note_title_any": [
-     "other\\s+expenses?",
-     "depreciation\\s+and\\s+amorti[sz]ation\\s+expense",
-     "depreciation.{0,24}amorti[sz]ation"
-    ],
+    "note_title_any": [],
     "row_caption_any": [
      "(?:depreciation|amortisation|amortization).{0,40}(?:research\\s+and\\s+development\\s+expenses|research\\s+and\\s+development\\s+costs|r\\&d\\s+expenses|r\\&d\\s+costs)",
      "(?:research\\s+and\\s+development\\s+expenses|research\\s+and\\s+development\\s+costs|r\\&d\\s+expenses|r\\&d\\s+costs).{0,40}(?:depreciation|amortisation|amortization)"
     ],
     "row_caption_none": [
-     "^\\s*at\\s+\\d",
-     "^\\s*at\\s+(?:1|31)",
-     "opening",
-     "closing",
-     "disposal",
-     "write.?off",
-     "transfer",
-     "reclassif",
-     "exchange\\s+difference",
-     "acquisition",
-     "impairment",
-     "accumulated\\s+(?:depreciation|amortisation|amortization|impairment)",
-     "^\\s*additions?\\b|\\badditions\\s+(?:during|for)\\b",
-     "writ(?:e|ten|ing)[\\s.\\-]?off"
+     "^\\s*at\\s+\\d|opening|closing|accumulated\\s+(?:depreciation|amortisation|amortization|impairment)|累計|累计|期初|期末|账面原值|账面价值|到期",
+     "transfer|reclassif|exchange\\s+difference|acquisition|轉撥|转拨|转出|滙兌|匯兌|汇兑|收購|收购|外币折算|^\\s*additions?\\b|\\badditions\\s+(?:during|for)\\b",
+     "disposal|write.?off|writ(?:e|ten|ing)[\\s.\\-]?off|處置|处置|impairment|減值|减值"
     ],
     "prose_any": [],
     "prose_subject": "depreciation",
@@ -10767,92 +10761,41 @@
      "software development"
     ],
     "note_terms": [
-     "other expenses",
-     "consumption of stores and spare parts",
-     "power and fuel",
-     "freight and forwarding charges",
-     "advertisement and sales promotion",
-     "rent expense",
-     "rates and taxes",
-     "repairs and maintenance",
-     "insurance",
-     "travelling and conveyance",
-     "legal and professional charges",
-     "payment to auditors",
-     "corporate social responsibility expenditure",
-     "bad debts written off",
-     "provision for doubtful debts",
-     "loss on sale of property plant and equipment",
-     "bank charges",
-     "information technology expenses",
-     "miscellaneous expenses",
-     "depreciation and amortisation expense",
-     "depreciation on property plant and equipment",
-     "depreciation on right of use assets",
-     "depreciation on investment property",
-     "amortisation of other intangible assets",
-     "impairment loss on assets",
-     "less amount capitalised"
+     "research and development",
+     "research costs"
     ],
     "row_terms": [
      "depreciation",
-     "Depreciation included in research or development costs"
+     "amortisation"
     ],
-    "row_terms_none": [
-     "opening",
-     "closing",
-     "disposal",
-     "write off",
-     "transfer",
-     "reclassification",
-     "exchange difference",
-     "acquisition",
-     "impairment"
-    ]
+    "row_terms_none": []
    },
    "statement": "notes",
    "section_scope": [],
-   "definition": "The depreciation and amortisation charged to RESEARCH AND DEVELOPMENT. Indian companies disclose research and development expenditure in aggregate — often to support a weighted deduction claim or in the directors' report — and where that disclosure itemises the depreciation component, that component is this figure. Never the total research and development expenditure; only the depreciation inside it.\n\nSCHEDULE III PRESENTS EXPENSES BY NATURE, SO THIS SPLIT IS USUALLY NOT DISCLOSED. Division II prescribes Cost of Materials Consumed, Employee Benefits Expense, Finance Costs, Depreciation and Amortisation Expense and Other Expenses — there is no cost-of-sales or administrative-expenses line — and the notes break the depreciation charge down by ASSET CLASS (property, plant and equipment; right-of-use assets; intangible assets), not by function. Expect to find nothing, and report nothing when there is nothing: leaving this line empty is the correct answer for most Indian filings. Claim a figure only where a sentence expressly attributes depreciation to this function — for instance a segment note, a capitalisation callout, or a voluntary disclosure of expenses by function.\n\nWHERE A SENTENCE DOES STATE IT, read it as a sentence and never from a tabulated row: a row that appears to state this share is almost always the total the share is a component of. Amounts are in ₹ and are usually scaled in crores or lakhs. Where one sentence states several amounts, the figure in brackets is the comparative year, and amounts are matched to functions in the order the sentence names them — such sentences typically end with \"respectively\". Figures from different asset-class notes may be added together; figures from an asset-class note and from a profit-before-tax or expenses note may never be added, because one is a component of the other.",
+   "definition": "Sum of all depreciation charged to research and development expenses, excluding the share charged to cost of sales or to other functions and amortisation of intangible assets printed on a row of its own. Only the research and development expenses share — not the period's total depreciation.",
    "note_selection": "any",
    "note_use": "decomposition_allowed",
    "route": "prose"
   },
   {
    "key": "sub__selling_marketing_depreciation",
-   "label": "Selling & marketing note — depreciation",
+   "label": "Selling & marketing expenses — depreciation",
    "in_output": false,
    "parent": "is_pl__deprec_and_impairment_oper_exp",
    "order": 2,
    "namespace": "internal",
    "inherits": "notes",
    "note_source": {
-    "note_title_any": [
-     "other\\s+expenses?",
-     "depreciation\\s+and\\s+amorti[sz]ation\\s+expense",
-     "depreciation.{0,24}amorti[sz]ation"
-    ],
+    "note_title_any": [],
     "row_caption_any": [
      "(?:depreciation|amortisation|amortization).{0,40}(?:selling\\s+expenses|selling\\s+and\\s+distribution\\s+expenses|selling\\s+and\\s+marketing\\s+expenses|distribution\\s+costs|marketing\\s+expenses)",
      "(?:selling\\s+expenses|selling\\s+and\\s+distribution\\s+expenses|selling\\s+and\\s+marketing\\s+expenses|distribution\\s+costs|marketing\\s+expenses).{0,40}(?:depreciation|amortisation|amortization)"
     ],
     "row_caption_none": [
-     "^\\s*at\\s+\\d",
-     "^\\s*at\\s+(?:1|31)",
-     "opening",
-     "closing",
-     "disposal",
-     "write.?off",
-     "transfer",
-     "reclassif",
-     "exchange\\s+difference",
-     "acquisition",
-     "impairment",
-     "accumulated\\s+(?:depreciation|amortisation|amortization|impairment)",
-     "^\\s*additions?\\b|\\badditions\\s+(?:during|for)\\b",
-     "writ(?:e|ten|ing)[\\s.\\-]?off",
-     "^cost\\s+of\\s+sales$",
-     "^Sales$",
-     "Sales$"
+     "^\\s*at\\s+\\d|opening|closing|accumulated\\s+(?:depreciation|amortisation|amortization|impairment)|累計|累计|期初|期末|账面原值|账面价值|到期",
+     "transfer|reclassif|exchange\\s+difference|acquisition|轉撥|转拨|转出|滙兌|匯兌|汇兑|收購|收购|外币折算|^\\s*additions?\\b|\\badditions\\s+(?:during|for)\\b",
+     "disposal|write.?off|writ(?:e|ten|ing)[\\s.\\-]?off|處置|处置|impairment|減值|减值",
+     "sales$"
     ],
     "prose_any": [],
     "prose_subject": "depreciation",
@@ -10864,85 +10807,41 @@
      "marketing expenses"
     ],
     "note_terms": [
-     "other expenses",
-     "consumption of stores and spare parts",
-     "power and fuel",
-     "freight and forwarding charges",
-     "advertisement and sales promotion",
-     "rent expense",
-     "rates and taxes",
-     "repairs and maintenance",
-     "insurance",
-     "travelling and conveyance",
-     "legal and professional charges",
-     "payment to auditors",
-     "corporate social responsibility expenditure",
-     "bad debts written off",
-     "provision for doubtful debts",
-     "loss on sale of property plant and equipment",
-     "bank charges",
-     "information technology expenses",
-     "miscellaneous expenses",
-     "depreciation and amortisation expense",
-     "depreciation on property plant and equipment",
-     "depreciation on right of use assets",
-     "depreciation on investment property",
-     "amortisation of other intangible assets",
-     "impairment loss on assets",
-     "less amount capitalised"
+     "selling",
+     "distribution costs",
+     "marketing expenses"
     ],
     "row_terms": [
      "depreciation",
-     "Depreciation or Amortization associated with Selling & Marketing expenses"
+     "amortisation"
     ],
-    "row_terms_none": [
-     "transfer",
-     "reclassification",
-     "exchange difference",
-     "acquisition",
-     "impairment"
-    ]
+    "row_terms_none": []
    },
    "statement": "notes",
    "section_scope": [],
-   "definition": "The depreciation and amortisation charged to SELLING AND MARKETING. Under Schedule III advertisement and sales promotion, freight and forwarding and other distribution costs sit inside Other Expenses, and depreciation on selling infrastructure is not separated from the single Depreciation and Amortisation Expense line. Never the total selling or marketing expense; only the depreciation attributed to it.\n\nSCHEDULE III PRESENTS EXPENSES BY NATURE, SO THIS SPLIT IS USUALLY NOT DISCLOSED. Division II prescribes Cost of Materials Consumed, Employee Benefits Expense, Finance Costs, Depreciation and Amortisation Expense and Other Expenses — there is no cost-of-sales or administrative-expenses line — and the notes break the depreciation charge down by ASSET CLASS (property, plant and equipment; right-of-use assets; intangible assets), not by function. Expect to find nothing, and report nothing when there is nothing: leaving this line empty is the correct answer for most Indian filings. Claim a figure only where a sentence expressly attributes depreciation to this function — for instance a segment note, a capitalisation callout, or a voluntary disclosure of expenses by function.\n\nWHERE A SENTENCE DOES STATE IT, read it as a sentence and never from a tabulated row: a row that appears to state this share is almost always the total the share is a component of. Amounts are in ₹ and are usually scaled in crores or lakhs. Where one sentence states several amounts, the figure in brackets is the comparative year, and amounts are matched to functions in the order the sentence names them — such sentences typically end with \"respectively\". Figures from different asset-class notes may be added together; figures from an asset-class note and from a profit-before-tax or expenses note may never be added, because one is a component of the other.",
+   "definition": "Sum of all depreciation charged to selling and distribution expenses, excluding the share charged to cost of sales or to other functions and amortisation of intangible assets printed on a row of its own. Only the selling and distribution expenses share — not the period's total depreciation.",
    "note_selection": "any",
    "note_use": "decomposition_allowed",
    "route": "prose"
   },
   {
    "key": "sub__ga_depreciation",
-   "label": "G&A note — depreciation",
+   "label": "G&A expenses — depreciation",
    "in_output": false,
    "parent": "is_pl__deprec_and_impairment_oper_exp",
    "order": 3,
    "namespace": "internal",
    "inherits": "notes",
    "note_source": {
-    "note_title_any": [
-     "other\\s+expenses?",
-     "depreciation\\s+and\\s+amorti[sz]ation\\s+expense",
-     "depreciation.{0,24}amorti[sz]ation"
-    ],
+    "note_title_any": [],
     "row_caption_any": [
      "(?:depreciation|amortisation|amortization).{0,40}(?:administrative\\s+expenses|general\\s+and\\s+administrative\\s+expenses)",
      "(?:administrative\\s+expenses|general\\s+and\\s+administrative\\s+expenses).{0,40}(?:depreciation|amortisation|amortization)"
     ],
     "row_caption_none": [
-     "^\\s*at\\s+\\d",
-     "^\\s*at\\s+(?:1|31)",
-     "opening",
-     "closing",
-     "disposal",
-     "write.?off",
-     "transfer",
-     "reclassif",
-     "exchange\\s+difference",
-     "acquisition",
-     "impairment",
-     "accumulated\\s+(?:depreciation|amortisation|amortization|impairment)",
-     "^\\s*additions?\\b|\\badditions\\s+(?:during|for)\\b",
-     "writ(?:e|ten|ing)[\\s.\\-]?off"
+     "^\\s*at\\s+\\d|opening|closing|accumulated\\s+(?:depreciation|amortisation|amortization|impairment)|累計|累计|期初|期末|账面原值|账面价值|到期",
+     "transfer|reclassif|exchange\\s+difference|acquisition|轉撥|转拨|转出|滙兌|匯兌|汇兑|收購|收购|外币折算|^\\s*additions?\\b|\\badditions\\s+(?:during|for)\\b",
+     "disposal|write.?off|writ(?:e|ten|ing)[\\s.\\-]?off|處置|处置|impairment|減值|减值"
     ],
     "prose_any": [],
     "prose_subject": "depreciation",
@@ -10951,90 +10850,40 @@
      "general and administrative expenses"
     ],
     "note_terms": [
-     "other expenses",
-     "consumption of stores and spare parts",
-     "power and fuel",
-     "freight and forwarding charges",
-     "advertisement and sales promotion",
-     "rent expense",
-     "rates and taxes",
-     "repairs and maintenance",
-     "insurance",
-     "travelling and conveyance",
-     "legal and professional charges",
-     "payment to auditors",
-     "corporate social responsibility expenditure",
-     "bad debts written off",
-     "provision for doubtful debts",
-     "loss on sale of property plant and equipment",
-     "bank charges",
-     "information technology expenses",
-     "miscellaneous expenses",
-     "depreciation and amortisation expense",
-     "depreciation on property plant and equipment",
-     "depreciation on right of use assets",
-     "depreciation on investment property",
-     "amortisation of other intangible assets",
-     "impairment loss on assets",
-     "less amount capitalised"
+     "administrative expenses",
+     "general and administrative"
     ],
     "row_terms": [
-     "Depreciation",
-     "Amortization",
-     "depreciation included in administrative or general expenses"
+     "depreciation",
+     "amortisation"
     ],
-    "row_terms_none": [
-     "opening",
-     "closing",
-     "disposal",
-     "write off",
-     "transfer",
-     "reclassification",
-     "exchange difference",
-     "acquisition",
-     "impairment"
-    ]
+    "row_terms_none": []
    },
    "statement": "notes",
    "section_scope": [],
-   "definition": "The depreciation and amortisation charged to GENERAL AND ADMINISTRATIVE activity. Never the total administrative expense; only the depreciation attributed to it. Where a sentence attributes one amount jointly to administrative AND other operating expenses without separating them, do not claim it here — it belongs to the other-operating-expenses line, which is the wider of the two.\n\nSCHEDULE III PRESENTS EXPENSES BY NATURE, SO THIS SPLIT IS USUALLY NOT DISCLOSED. Division II prescribes Cost of Materials Consumed, Employee Benefits Expense, Finance Costs, Depreciation and Amortisation Expense and Other Expenses — there is no cost-of-sales or administrative-expenses line — and the notes break the depreciation charge down by ASSET CLASS (property, plant and equipment; right-of-use assets; intangible assets), not by function. Expect to find nothing, and report nothing when there is nothing: leaving this line empty is the correct answer for most Indian filings. Claim a figure only where a sentence expressly attributes depreciation to this function — for instance a segment note, a capitalisation callout, or a voluntary disclosure of expenses by function.\n\nWHERE A SENTENCE DOES STATE IT, read it as a sentence and never from a tabulated row: a row that appears to state this share is almost always the total the share is a component of. Amounts are in ₹ and are usually scaled in crores or lakhs. Where one sentence states several amounts, the figure in brackets is the comparative year, and amounts are matched to functions in the order the sentence names them — such sentences typically end with \"respectively\". Figures from different asset-class notes may be added together; figures from an asset-class note and from a profit-before-tax or expenses note may never be added, because one is a component of the other.",
+   "definition": "Sum of all depreciation charged to general and administrative expenses, excluding the share charged to cost of sales or to other functions and amortisation of intangible assets printed on a row of its own. Only the general and administrative expenses share — not the period's total depreciation.",
    "note_selection": "any",
    "note_use": "decomposition_allowed",
    "route": "prose"
   },
   {
    "key": "sub__operating_expense_depreciation",
-   "label": "Other operating expenses note — depreciation",
+   "label": "Other operating expenses — depreciation",
    "in_output": false,
    "parent": "is_pl__deprec_and_impairment_oper_exp",
    "order": 4,
    "namespace": "internal",
    "inherits": "notes",
    "note_source": {
-    "note_title_any": [
-     "other\\s+expenses?",
-     "depreciation\\s+and\\s+amorti[sz]ation\\s+expense",
-     "depreciation.{0,24}amorti[sz]ation"
-    ],
+    "note_title_any": [],
     "row_caption_any": [
      "(?:depreciation|amortisation|amortization).{0,40}(?:operating\\s+expenses|operating\\s+costs|other\\s+operating\\s+expenses|other\\s+operating\\s+costs)",
      "(?:operating\\s+expenses|operating\\s+costs|other\\s+operating\\s+expenses|other\\s+operating\\s+costs).{0,40}(?:depreciation|amortisation|amortization)"
     ],
     "row_caption_none": [
-     "^\\s*at\\s+\\d",
-     "^\\s*at\\s+(?:1|31)",
-     "opening",
-     "closing",
-     "disposal",
-     "write.?off",
-     "transfer",
-     "reclassif",
-     "exchange\\s+difference",
-     "acquisition",
-     "impairment",
-     "accumulated\\s+(?:depreciation|amortisation|amortization|impairment)",
-     "^\\s*additions?\\b|\\badditions\\s+(?:during|for)\\b",
-     "writ(?:e|ten|ing)[\\s.\\-]?off"
+     "^\\s*at\\s+\\d|opening|closing|accumulated\\s+(?:depreciation|amortisation|amortization|impairment)|累計|累计|期初|期末|账面原值|账面价值|到期",
+     "transfer|reclassif|exchange\\s+difference|acquisition|轉撥|转拨|转出|滙兌|匯兌|汇兑|收購|收购|外币折算|^\\s*additions?\\b|\\badditions\\s+(?:during|for)\\b",
+     "disposal|write.?off|writ(?:e|ten|ing)[\\s.\\-]?off|處置|处置|impairment|減值|减值"
     ],
     "prose_any": [],
     "prose_subject": "depreciation",
@@ -11045,573 +10894,216 @@
      "other operating costs"
     ],
     "note_terms": [
-     "other expenses",
-     "consumption of stores and spare parts",
-     "power and fuel",
-     "freight and forwarding charges",
-     "advertisement and sales promotion",
-     "rent expense",
-     "rates and taxes",
-     "repairs and maintenance",
-     "insurance",
-     "travelling and conveyance",
-     "legal and professional charges",
-     "payment to auditors",
-     "corporate social responsibility expenditure",
-     "bad debts written off",
-     "provision for doubtful debts",
-     "loss on sale of property plant and equipment",
-     "bank charges",
-     "information technology expenses",
-     "miscellaneous expenses",
-     "depreciation and amortisation expense",
-     "depreciation on property plant and equipment",
-     "depreciation on right of use assets",
-     "depreciation on investment property",
-     "amortisation of other intangible assets",
-     "impairment loss on assets",
-     "less amount capitalised"
+     "operating expenses",
+     "other operating costs"
     ],
     "row_terms": [
      "depreciation",
-     "Depreciation or Amortization in other operating expenses"
+     "amortisation"
     ],
-    "row_terms_none": [
-     "opening",
-     "closing",
-     "disposal",
-     "write off",
-     "transfer",
-     "reclassification",
-     "exchange difference",
-     "acquisition",
-     "impairment"
-    ]
+    "row_terms_none": []
    },
    "statement": "notes",
    "section_scope": [],
-   "definition": "The depreciation and amortisation charged to OTHER OPERATING EXPENSES — the Schedule III Other Expenses head. Never the total of Other Expenses; only the depreciation attributed to it. Where a sentence attributes one amount jointly to administrative and other operating expenses without separating them, claim it here rather than on the general and administrative line.\n\nSCHEDULE III PRESENTS EXPENSES BY NATURE, SO THIS SPLIT IS USUALLY NOT DISCLOSED. Division II prescribes Cost of Materials Consumed, Employee Benefits Expense, Finance Costs, Depreciation and Amortisation Expense and Other Expenses — there is no cost-of-sales or administrative-expenses line — and the notes break the depreciation charge down by ASSET CLASS (property, plant and equipment; right-of-use assets; intangible assets), not by function. Expect to find nothing, and report nothing when there is nothing: leaving this line empty is the correct answer for most Indian filings. Claim a figure only where a sentence expressly attributes depreciation to this function — for instance a segment note, a capitalisation callout, or a voluntary disclosure of expenses by function.\n\nWHERE A SENTENCE DOES STATE IT, read it as a sentence and never from a tabulated row: a row that appears to state this share is almost always the total the share is a component of. Amounts are in ₹ and are usually scaled in crores or lakhs. Where one sentence states several amounts, the figure in brackets is the comparative year, and amounts are matched to functions in the order the sentence names them — such sentences typically end with \"respectively\". Figures from different asset-class notes may be added together; figures from an asset-class note and from a profit-before-tax or expenses note may never be added, because one is a component of the other.",
+   "definition": "Sum of all depreciation charged to other operating expenses, excluding the share charged to cost of sales or to other functions and amortisation of intangible assets printed on a row of its own. Only the other operating expenses share — not the period's total depreciation.",
    "note_selection": "any",
    "note_use": "decomposition_allowed",
    "route": "prose"
   },
   {
    "key": "sub__ppe_depreciation",
-   "label": "PP&E note — depreciation",
+   "label": "PP&E note — depreciation charge",
    "in_output": false,
    "parent": "is_pl__deprec_and_impairment_oper_exp",
    "order": 5,
    "namespace": "internal",
    "inherits": "notes",
    "note_source": {
-    "note_title_any": [
-     "propert(?:y|ies)\\s*,?\\s*plant\\s+and\\s+equipment",
-     "tangible\\s+assets",
-     "depreciation\\s+and\\s+amorti[sz]ation\\s+expense",
-     "depreciation.{0,24}amorti[sz]ation"
-    ],
+    "note_title_any": [],
     "row_caption_any": [
-     "depreciation\\s+of\\s+investment\\s+propert",
-     "depreciation\\s+of\\s+fixed\\s+assets",
-     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
-     "depreciation\\s+of\\s+propert(?:y|ies)\\s+and\\s+equipment",
-     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
-     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
-     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "^\\s*depreciation\\s*$",
-     "^\\s*amorti[sz]ation\\s*$",
-     "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$",
-     "provided\\s+for\\s+the\\s+(?:year|period)",
-     "provision\\s+for\\s+the\\s+(?:year|period)",
-     "depreciation\\s+charge",
-     "amorti[sz]ation\\s+charge",
-     "charge\\s+for\\s+the\\s+(?:year|period)"
+     "^\\s*(?:depreciation|amorti[sz]ation)\\b",
+     "charge\\s+for\\s+the\\s+(?:year|period)|provided\\s+(?:for|during)\\s+the\\s+(?:year|period)"
     ],
     "row_caption_none": [
-     "^\\s*at\\s+\\d",
-     "^\\s*at\\s+(?:1|31)",
-     "opening",
-     "closing",
-     "disposal",
-     "write.?off",
-     "transfer",
-     "reclassif",
-     "exchange\\s+difference",
-     "acquisition",
-     "impairment"
+     "disposal|eliminat|written\\s+back|write[\\s-]*back|reclassif|transfer|處置|处置|出售|轉撥|转出|转入|撥回|转回",
+     "impairment\\s+(?:loss|charge|provision)|减值准备|減值準備|減值虧損|减值损失"
     ],
     "prose_any": [],
     "prose_subject": "",
     "prose_landed_in": [],
     "note_terms": [
-     "property plant and equipment",
-     "freehold land",
-     "leasehold land",
-     "buildings",
-     "plant and equipment",
-     "furniture and fixtures",
-     "vehicles",
-     "office equipment",
-     "leasehold improvements",
-     "gross carrying amount",
-     "accumulated depreciation",
-     "net carrying amount",
-     "depreciation for the year",
-     "additions",
-     "disposals",
-     "capitalised during the year",
-     "assets held under lease",
-     "impairment loss recognised",
-     "depreciation and amortisation expense",
-     "depreciation on property plant and equipment",
-     "depreciation on right of use assets",
-     "depreciation on investment property",
-     "amortisation of other intangible assets",
-     "impairment loss on assets",
-     "less amount capitalised"
+     "property and equipment",
+     "plant and equipment"
     ],
     "row_terms": [
-     "depreciation of investment property",
-     "depreciation of fixed assets",
-     "depreciation of property plant and equipment",
-     "depreciation of construction in progress",
-     "depreciation of right of use assets",
-     "amortisation of prepaid lease payments",
-     "release of prepaid lease payments",
      "depreciation",
-     "amortisation",
-     "amortization and depreciation",
-     "amortization",
-     "property and equipment"
+     "amortisation"
     ],
-    "row_terms_none": [
-     "opening",
-     "closing",
-     "disposal",
-     "write off",
-     "transfer",
-     "reclassification",
-     "exchange difference",
-     "acquisition",
-     "impairment",
-     "Accumulated",
-     "Net Assets"
-    ]
+    "row_terms_none": []
    },
    "statement": "notes",
    "section_scope": [
     "bs_nca"
    ],
-   "definition": "The total depreciation charged for the period on property, plant and equipment, including right-of-use assets where the note presents them together — the charge recognised in profit or loss during the period, whatever functions it was charged to. It is disclosed as the depreciation line of the movement schedule inside the property, plant and equipment note, or in the fixed asset or right-of-use asset note of a filing that heads that asset class differently. It is not the accumulated depreciation carried at either end of the period, nor the cost or net carrying amount of the assets.\n\nTake the period's depreciation charge from the asset note's movement schedule, not the accumulated depreciation balance or carrying amount, and treat it as depreciation for all functions rather than the operating-expense share. Depreciation rows inside the note that PP&E note names.",
+   "definition": "Sum of all depreciation charged for the period in the property, plant and equipment note, excluding accumulated depreciation, disposals, transfers and impairment. Only the period's charge — not a balance.",
    "note_use": "decomposition_allowed",
    "note_selection": "any",
    "route": "note_tables"
   },
   {
    "key": "sub__prepaid_lease_depreciation",
-   "label": "Prepaid lease payments note — amortisation",
+   "label": "Right-of-use / prepaid lease note — depreciation charge",
    "in_output": false,
    "parent": "is_pl__deprec_and_impairment_oper_exp",
    "order": 6,
    "namespace": "internal",
    "inherits": "notes",
    "note_source": {
-    "note_title_any": [
-     "right[-\\s]?of[-\\s]?use\\s+assets?",
-     "^leases?$",
-     "\\bleases\\b",
-     "depreciation\\s+and\\s+amorti[sz]ation\\s+expense",
-     "depreciation.{0,24}amorti[sz]ation"
-    ],
+    "note_title_any": [],
     "row_caption_any": [
-     "depreciation\\s+of\\s+investment\\s+propert",
-     "depreciation\\s+of\\s+fixed\\s+assets",
-     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
-     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
-     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
-     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "^\\s*depreciation\\s*$",
-     "^\\s*amorti[sz]ation\\s*$",
-     "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$",
-     "depreciation\\s+charge",
-     "charge\\s+for\\s+the\\s+(?:year|period)",
-     "provided\\s+for\\s+the\\s+(?:year|period)",
-     "provision\\s+for\\s+the\\s+(?:year|period)",
-     "amorti[sz]ation\\s+charge"
+     "^\\s*(?:depreciation|amorti[sz]ation)\\b",
+     "charge\\s+for\\s+the\\s+(?:year|period)|provided\\s+(?:for|during)\\s+the\\s+(?:year|period)"
     ],
     "row_caption_none": [
-     "^\\s*at\\s+\\d",
-     "^\\s*at\\s+(?:1|31)",
-     "opening",
-     "closing",
-     "disposal",
-     "write.?off",
-     "transfer",
-     "reclassif",
-     "exchange\\s+difference",
-     "acquisition",
-     "impairment"
+     "disposal|eliminat|written\\s+back|write[\\s-]*back|reclassif|transfer|處置|处置|出售|轉撥|转出|转入|撥回|转回",
+     "impairment\\s+(?:loss|charge|provision)|减值准备|減值準備|減值虧損|减值损失"
     ],
     "prose_any": [],
     "prose_subject": "",
     "prose_landed_in": [],
     "note_terms": [
-     "right of use assets",
-     "leasehold land right of use",
-     "buildings right of use",
-     "lease term",
-     "depreciation on right of use assets",
-     "additions to right of use",
-     "short term leases",
-     "low value assets",
-     "extension options",
-     "amounts recognised in the statement of profit and loss for leases",
-     "depreciation and amortisation expense",
-     "depreciation on property plant and equipment",
-     "depreciation on investment property",
-     "amortisation of other intangible assets",
-     "impairment loss on assets",
-     "less amount capitalised"
+     "prepaid lease payments",
+     "right of use assets"
     ],
     "row_terms": [
-     "depreciation of investment property",
-     "depreciation of fixed assets",
-     "depreciation of property plant and equipment",
-     "depreciation of construction in progress",
-     "depreciation of right of use assets",
-     "amortisation of prepaid lease payments",
-     "release of prepaid lease payments",
      "depreciation",
-     "amortisation",
-     "amortization and depreciation",
-     "amortization"
+     "amortisation"
     ],
-    "row_terms_none": [
-     "opening",
-     "closing",
-     "disposal",
-     "write off",
-     "transfer",
-     "reclassification",
-     "exchange difference",
-     "acquisition",
-     "impairment",
-     "Accumulated",
-     "Net Lease"
-    ]
+    "row_terms_none": []
    },
    "statement": "notes",
    "section_scope": [],
-   "definition": "The amortisation charged for the period on prepaid land lease payments — the amount released to profit or loss over the lease term, which some filings caption as a release rather than an amortisation. It is disclosed inside the note for prepaid lease payments or prepaid land lease payments, under those headings, or in the right-of-use asset note that superseded them. It is not the unamortised balance of the prepayment at either end of the period, nor the split of that balance into current and non-current portions, and it is not an accumulated amortisation figure or an amount transferred out, disposed of or written off during the period.\n\nTake the amount released or amortised to profit or loss during the period, never the remaining prepaid lease balance or its current and non-current split. Depreciation rows inside the note that Prepaid lease payments note names.",
+   "definition": "Sum of all depreciation charged for the period on right-of-use assets and prepaid lease payments, excluding accumulated depreciation, disposals, transfers and impairment. Only the period's charge — not a balance.",
    "note_use": "decomposition_allowed",
    "note_selection": "any",
    "route": "note_tables"
   },
   {
    "key": "sub__fixed_asset_depreciation",
-   "label": "Fixed assets note — depreciation",
+   "label": "Fixed assets note — depreciation charge",
    "in_output": false,
    "parent": "is_pl__deprec_and_impairment_oper_exp",
    "order": 7,
    "namespace": "internal",
    "inherits": "notes",
    "note_source": {
-    "note_title_any": [
-     "propert(?:y|ies)\\s*,?\\s*plant\\s+and\\s+equipment",
-     "tangible\\s+assets",
-     "depreciation\\s+and\\s+amorti[sz]ation\\s+expense",
-     "depreciation.{0,24}amorti[sz]ation"
-    ],
+    "note_title_any": [],
     "row_caption_any": [
-     "depreciation\\s+of\\s+investment\\s+propert",
-     "depreciation\\s+of\\s+fixed\\s+assets",
-     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
-     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
-     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
-     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "^\\s*depreciation\\s*$",
-     "^\\s*amorti[sz]ation\\s*$",
-     "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$",
-     "provided\\s+for\\s+the\\s+(?:year|period)",
-     "provision\\s+for\\s+the\\s+(?:year|period)",
-     "depreciation\\s+charge",
-     "amorti[sz]ation\\s+charge",
-     "charge\\s+for\\s+the\\s+(?:year|period)"
+     "^\\s*(?:depreciation|amorti[sz]ation)\\b",
+     "charge\\s+for\\s+the\\s+(?:year|period)|provided\\s+(?:for|during)\\s+the\\s+(?:year|period)"
     ],
     "row_caption_none": [
-     "^\\s*at\\s+\\d",
-     "^\\s*at\\s+(?:1|31)",
-     "opening",
-     "closing",
-     "disposal",
-     "write.?off",
-     "transfer",
-     "reclassif",
-     "exchange\\s+difference",
-     "acquisition",
-     "impairment"
+     "disposal|eliminat|written\\s+back|write[\\s-]*back|reclassif|transfer|處置|处置|出售|轉撥|转出|转入|撥回|转回",
+     "impairment\\s+(?:loss|charge|provision)|减值准备|減值準備|減值虧損|减值损失"
     ],
     "prose_any": [],
     "prose_subject": "",
     "prose_landed_in": [],
     "note_terms": [
-     "property plant and equipment",
-     "freehold land",
-     "leasehold land",
-     "buildings",
-     "plant and equipment",
-     "furniture and fixtures",
-     "vehicles",
-     "office equipment",
-     "leasehold improvements",
-     "gross carrying amount",
-     "accumulated depreciation",
-     "net carrying amount",
-     "depreciation for the year",
-     "additions",
-     "disposals",
-     "capitalised during the year",
-     "assets held under lease",
-     "impairment loss recognised",
-     "depreciation and amortisation expense",
-     "depreciation on property plant and equipment",
-     "depreciation on right of use assets",
-     "depreciation on investment property",
-     "amortisation of other intangible assets",
-     "impairment loss on assets",
-     "less amount capitalised"
+     "fixed assets",
+     "fixed asset"
     ],
     "row_terms": [
-     "depreciation of investment property",
-     "depreciation of fixed assets",
-     "depreciation of property plant and equipment",
-     "depreciation of construction in progress",
-     "depreciation of right of use assets",
-     "amortisation of prepaid lease payments",
-     "release of prepaid lease payments",
      "depreciation",
-     "amortisation",
-     "amortization and depreciation",
-     "amortization"
+     "amortisation"
     ],
-    "row_terms_none": [
-     "opening",
-     "closing",
-     "disposal",
-     "write off",
-     "transfer",
-     "reclassification",
-     "exchange difference",
-     "acquisition",
-     "impairment",
-     "Accumulated",
-     "Net Assets"
-    ]
+    "row_terms_none": []
    },
    "statement": "notes",
    "section_scope": [
     "bs_nca"
    ],
-   "definition": "The depreciation charged for the period on fixed assets — the period's charge, in a filing that names its tangible asset class fixed assets rather than property, plant and equipment. It is disclosed as the depreciation line of the movement schedule inside the fixed assets note, under that heading or the Schedule III wording for the same asset class. It is not the accumulated depreciation balance shown alongside it, nor the original cost or net book value of the assets.\n\nTake the current period depreciation charge from the fixed assets note, never the accumulated depreciation, original cost or net book value columns beside it. Depreciation rows inside the note that Fixed assets note names.",
+   "definition": "Sum of all depreciation charged for the period in the fixed assets note, excluding accumulated depreciation, disposals, transfers and impairment. Only the period's charge — not a balance.",
    "note_use": "decomposition_allowed",
    "note_selection": "any",
    "route": "note_tables"
   },
   {
    "key": "sub__investment_property_depreciation",
-   "label": "Investment property note — depreciation",
+   "label": "Investment property note — depreciation charge",
    "in_output": false,
    "parent": "is_pl__deprec_and_impairment_oper_exp",
    "order": 8,
    "namespace": "internal",
    "inherits": "notes",
    "note_source": {
-    "note_title_any": [
-     "investment\\s+propert(?:y|ies)",
-     "depreciation\\s+and\\s+amorti[sz]ation\\s+expense",
-     "depreciation.{0,24}amorti[sz]ation"
-    ],
+    "note_title_any": [],
     "row_caption_any": [
-     "depreciation\\s+of\\s+investment\\s+propert",
-     "depreciation\\s+of\\s+fixed\\s+assets",
-     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
-     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
-     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
-     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "^\\s*depreciation\\s*$",
-     "^\\s*amorti[sz]ation\\s*$",
-     "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$",
-     "provided\\s+for\\s+the\\s+(?:year|period)",
-     "provision\\s+for\\s+the\\s+(?:year|period)",
-     "depreciation\\s+charge",
-     "amorti[sz]ation\\s+charge",
-     "charge\\s+for\\s+the\\s+(?:year|period)"
+     "^\\s*(?:depreciation|amorti[sz]ation)\\b",
+     "charge\\s+for\\s+the\\s+(?:year|period)|provided\\s+(?:for|during)\\s+the\\s+(?:year|period)"
     ],
     "row_caption_none": [
-     "^\\s*at\\s+\\d",
-     "^\\s*at\\s+(?:1|31)",
-     "opening",
-     "closing",
-     "disposal",
-     "write.?off",
-     "transfer",
-     "reclassif",
-     "exchange\\s+difference",
-     "acquisition",
-     "impairment"
+     "disposal|eliminat|written\\s+back|write[\\s-]*back|reclassif|transfer|處置|处置|出售|轉撥|转出|转入|撥回|转回",
+     "impairment\\s+(?:loss|charge|provision)|减值准备|減值準備|減值虧損|减值损失"
     ],
     "prose_any": [],
     "prose_subject": "",
     "prose_landed_in": [],
     "note_terms": [
      "investment property",
-     "rental income from investment property",
-     "fair value of investment property",
-     "direct operating expenses",
-     "depreciation on investment property",
-     "depreciation and amortisation expense",
-     "depreciation on property plant and equipment",
-     "depreciation on right of use assets",
-     "amortisation of other intangible assets",
-     "impairment loss on assets",
-     "less amount capitalised"
+     "investment properties"
     ],
     "row_terms": [
-     "depreciation of investment property",
-     "depreciation of fixed assets",
-     "depreciation of property plant and equipment",
-     "depreciation of construction in progress",
-     "depreciation of right of use assets",
-     "amortisation of prepaid lease payments",
-     "release of prepaid lease payments",
      "depreciation",
-     "amortisation",
-     "amortization and depreciation",
-     "amortization"
+     "amortisation"
     ],
-    "row_terms_none": [
-     "opening",
-     "closing",
-     "disposal",
-     "write off",
-     "transfer",
-     "reclassification",
-     "exchange difference",
-     "acquisition",
-     "impairment",
-     "Accumulated",
-     "Net investment property"
-    ]
+    "row_terms_none": []
    },
    "statement": "notes",
    "section_scope": [
     "bs_nca"
    ],
-   "definition": "The depreciation charged for the period on investment property — the systematic charge recognised by a filing that carries its investment property at cost less depreciation. It is disclosed as the depreciation line of the movement schedule inside the investment property note, under that heading or the Schedule III wording for the same asset class. It is not a fair value gain or loss, revaluation movement or impairment recognised on the same properties, and it is not the carrying amount, the accumulated depreciation or the rental income disclosed in the same note.\n\nTake the period's depreciation charge on investment property, never a fair value or revaluation movement, an impairment, or the property's carrying amount. Depreciation rows inside the note that Investment property note names.",
+   "definition": "Sum of all depreciation charged for the period on investment property carried at cost, excluding fair value changes, accumulated depreciation, disposals, transfers and impairment. Only the period's charge — not a balance.",
    "note_selection": "any",
    "note_use": "decomposition_allowed",
    "route": "note_tables"
   },
   {
    "key": "sub__cip_depreciation",
-   "label": "Construction in progress note — depreciation",
+   "label": "Construction in progress note — depreciation charge",
    "in_output": false,
    "parent": "is_pl__deprec_and_impairment_oper_exp",
    "order": 9,
    "namespace": "internal",
    "inherits": "notes",
    "note_source": {
-    "note_title_any": [
-     "capital\\s+work[-\\s]?in[-\\s]?progress",
-     "\\bcwip\\b",
-     "depreciation\\s+and\\s+amorti[sz]ation\\s+expense",
-     "depreciation.{0,24}amorti[sz]ation"
-    ],
+    "note_title_any": [],
     "row_caption_any": [
-     "depreciation\\s+of\\s+investment\\s+propert",
-     "depreciation\\s+of\\s+fixed\\s+assets",
-     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
-     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
-     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
-     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "^\\s*depreciation\\s*$",
-     "^\\s*amorti[sz]ation\\s*$",
-     "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$",
-     "provided\\s+for\\s+the\\s+(?:year|period)",
-     "provision\\s+for\\s+the\\s+(?:year|period)",
-     "depreciation\\s+charge",
-     "amorti[sz]ation\\s+charge",
-     "charge\\s+for\\s+the\\s+(?:year|period)"
+     "^\\s*(?:depreciation|amorti[sz]ation)\\b",
+     "charge\\s+for\\s+the\\s+(?:year|period)|provided\\s+(?:for|during)\\s+the\\s+(?:year|period)"
     ],
     "row_caption_none": [
-     "^\\s*at\\s+\\d",
-     "^\\s*at\\s+(?:1|31)",
-     "opening",
-     "closing",
-     "disposal",
-     "write.?off",
-     "transfer",
-     "reclassif",
-     "exchange\\s+difference",
-     "acquisition",
-     "impairment"
+     "disposal|eliminat|written\\s+back|write[\\s-]*back|reclassif|transfer|處置|处置|出售|轉撥|转出|转入|撥回|转回",
+     "impairment\\s+(?:loss|charge|provision)|减值准备|減值準備|減值虧損|减值损失"
     ],
     "prose_any": [],
     "prose_subject": "",
     "prose_landed_in": [],
     "note_terms": [
-     "capital work in progress",
-     "projects in progress",
-     "projects temporarily suspended",
-     "ageing schedule of capital work in progress",
-     "capitalised during the year",
-     "amount in cwip for a period of",
-     "cost incurred on projects",
-     "intangible assets under development",
-     "depreciation and amortisation expense",
-     "depreciation on property plant and equipment",
-     "depreciation on right of use assets",
-     "depreciation on investment property",
-     "amortisation of other intangible assets",
-     "impairment loss on assets",
-     "less amount capitalised"
+     "construction in progress",
+     "capital work in progress"
     ],
     "row_terms": [
-     "depreciation of investment property",
-     "depreciation of fixed assets",
-     "depreciation of property plant and equipment",
-     "depreciation of construction in progress",
-     "depreciation of right of use assets",
-     "amortisation of prepaid lease payments",
-     "release of prepaid lease payments",
      "depreciation",
-     "amortisation",
-     "amortization and depreciation",
-     "amortization"
+     "amortisation"
     ],
-    "row_terms_none": [
-     "opening",
-     "closing",
-     "disposal",
-     "write off",
-     "transfer",
-     "reclassification",
-     "exchange difference",
-     "acquisition",
-     "impairment",
-     "Accumulated"
-    ]
+    "row_terms_none": []
    },
    "statement": "notes",
    "section_scope": [
     "bs_nca"
    ],
-   "definition": "The depreciation charged for the period on construction in progress — the charge recognised on assets still presented under that caption, which arises only where a filing depreciates them before completion. It is disclosed as the depreciation line of the movement schedule inside the construction in progress note, under that heading or the Schedule III wording for it. It is not additions or costs capitalised during the period, nor an amount transferred out on completion to property, plant and equipment, and it is not the construction in progress balance carried at either end of the period.\n\nTake only the depreciation charge shown for construction in progress, never additions, capitalised costs, transfers out on completion, or the closing balance. Depreciation rows inside the note that Construction in progress note names.",
+   "definition": "Sum of all depreciation charged for the period on construction in progress, excluding additions, accumulated depreciation, disposals, transfers and impairment. Only the period's charge — not a balance.",
    "note_selection": "any",
    "note_use": "decomposition_allowed",
    "route": "note_tables"
@@ -11629,7 +11121,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "definition": "The depreciation and amortisation added back to profit in reconciling it to cash generated from operations — a non-cash charge for the whole group, covering every function to which depreciation was charged.\n\nTake the depreciation and amortisation add-back line only",
+   "definition": "The depreciation and amortisation added back to profit in the operating cash flow. Only that add-back line — the charge for every function, not the operating-expense share.",
    "note_use": "decomposition_allowed",
    "keyword_hints": [
     "depreciation"
@@ -11656,37 +11148,22 @@
   },
   {
    "key": "sub__pbt_oper_exp_depreciation",
-   "label": "PBT note — operating-expense depreciation callout",
+   "label": "PBT note — operating-expense depreciation",
    "in_output": false,
    "parent": "is_pl__deprec_and_impairment_oper_exp",
    "order": 11,
    "namespace": "internal",
    "inherits": "notes",
    "note_source": {
-    "note_title_any": [
-     "other\\s+expenses?",
-     "depreciation\\s+and\\s+amorti[sz]ation\\s+expense",
-     "depreciation.{0,24}amorti[sz]ation"
-    ],
+    "note_title_any": [],
     "row_caption_any": [
-     "(?:depreciation|amortisation|amortization).{0,40}(?:(?:general\\s+and\\s+)?administrative(?:\\s+expenses?)?|selling(?:\\s+and\\s+(?:distribution|marketing))?(?:\\s+expenses?)?|distribution(?:\\s+expenses?|\\s+costs?)?|marketing(?:\\s+expenses?)?|operating\\s+(?:expenses?|costs?)|research\\s+and\\s+development|r\\s*&\\s*d)",
-     "(?:(?:general\\s+and\\s+)?administrative(?:\\s+expenses?)?|selling(?:\\s+and\\s+(?:distribution|marketing))?(?:\\s+expenses?)?|distribution(?:\\s+expenses?|\\s+costs?)?|marketing(?:\\s+expenses?)?|operating\\s+(?:expenses?|costs?)|research\\s+and\\s+development|r\\s*&\\s*d).{0,40}(?:depreciation|amortisation|amortization)"
+     "(?:depreciation|amorti[sz]ation).{0,40}(?:administrative|selling|distribution|marketing|operating\\s+(?:expenses|costs))",
+     "(?:administrative|selling|distribution|marketing|operating\\s+(?:expenses|costs)).{0,40}(?:depreciation|amorti[sz]ation)"
     ],
     "row_caption_none": [
-     "^\\s*at\\s+\\d",
-     "^\\s*at\\s+(?:1|31)",
-     "opening",
-     "closing",
-     "disposal",
-     "write.?off",
-     "transfer",
-     "reclassif",
-     "exchange\\s+difference",
-     "acquisition",
-     "impairment",
-     "accumulated\\s+(?:depreciation|amortisation|amortization|impairment)",
-     "^\\s*additions?\\b|\\badditions\\s+(?:during|for)\\b",
-     "writ(?:e|ten|ing)[\\s.\\-]?off"
+     "^\\s*at\\s+\\d|opening|closing|accumulated\\s+(?:depreciation|amortisation|amortization|impairment)|累計|累计|期初|期末|账面原值|账面价值|到期",
+     "transfer|reclassif|exchange\\s+difference|acquisition|轉撥|转拨|转出|滙兌|匯兌|汇兑|收購|收购|外币折算|^\\s*additions?\\b|\\badditions\\s+(?:during|for)\\b",
+     "disposal|write.?off|writ(?:e|ten|ing)[\\s.\\-]?off|處置|处置|impairment|減值|减值"
     ],
     "prose_any": [],
     "prose_subject": "depreciation",
@@ -11702,64 +11179,19 @@
      "distribution costs"
     ],
     "note_terms": [
-     "other expenses",
-     "consumption of stores and spare parts",
-     "power and fuel",
-     "freight and forwarding charges",
-     "advertisement and sales promotion",
-     "rent expense",
-     "rates and taxes",
-     "repairs and maintenance",
-     "insurance",
-     "travelling and conveyance",
-     "legal and professional charges",
-     "payment to auditors",
-     "corporate social responsibility expenditure",
-     "bad debts written off",
-     "provision for doubtful debts",
-     "loss on sale of property plant and equipment",
-     "bank charges",
-     "information technology expenses",
-     "miscellaneous expenses",
-     "depreciation and amortisation expense",
-     "depreciation on property plant and equipment",
-     "depreciation on right of use assets",
-     "depreciation on investment property",
-     "amortisation of other intangible assets",
-     "impairment loss on assets",
-     "less amount capitalised"
+     "before tax",
+     "before taxation",
+     "from operating activities"
     ],
     "row_terms": [
      "depreciation",
-     "amortisation",
-     "amortization general and administrative expenses",
-     "selling and distribution",
-     "marketing expenses",
-     "distribution expenses",
-     "costs",
-     "operating expenses",
-     "research and development",
-     "general and administrative expenses",
-     "r&d depreciation",
-     "amortization"
+     "amortisation"
     ],
-    "row_terms_none": [
-     "opening",
-     "closing",
-     "disposal",
-     "write off",
-     "transfer",
-     "reclassification",
-     "exchange difference",
-     "acquisition",
-     "impairment",
-     "cost of sales",
-     "depreciation included in cost of sales"
-    ]
+    "row_terms_none": []
    },
    "statement": null,
    "section_scope": [],
-   "definition": "The depreciation or amortisation that a profit-before-tax or expenses note states was charged to an operating-expense FUNCTION — administrative, selling, distribution, marketing, research and development, or other operating expenses. The qualifier in the caption is what makes it this figure rather than another: a note commonly discloses several depreciation amounts and only the one tied to such a function belongs here. It is not the note's unqualified total depreciation, and it is not the amount qualified as charged to cost of sales; both read as depreciation in the same place and are different quantities.\n\nSCHEDULE III PRESENTS EXPENSES BY NATURE, SO THIS SPLIT IS USUALLY NOT DISCLOSED. Division II prescribes Cost of Materials Consumed, Employee Benefits Expense, Finance Costs, Depreciation and Amortisation Expense and Other Expenses — there is no cost-of-sales or administrative-expenses line — and the notes break the depreciation charge down by ASSET CLASS (property, plant and equipment; right-of-use assets; intangible assets), not by function. Expect to find nothing, and report nothing when there is nothing: leaving this line empty is the correct answer for most Indian filings. Claim a figure only where a sentence expressly attributes depreciation to this function — for instance a segment note, a capitalisation callout, or a voluntary disclosure of expenses by function.\n\nWHERE A SENTENCE DOES STATE IT, read it as a sentence and never from a tabulated row: a row that appears to state this share is almost always the total the share is a component of. Amounts are in ₹ and are usually scaled in crores or lakhs. Where one sentence states several amounts, the figure in brackets is the comparative year, and amounts are matched to functions in the order the sentence names them — such sentences typically end with \"respectively\". Figures from different asset-class notes may be added together; figures from an asset-class note and from a profit-before-tax or expenses note may never be added, because one is a component of the other.",
+   "definition": "Sum of all depreciation that the profit-before-tax note says was charged to administrative, selling, distribution or other operating expenses, excluding the share charged to cost of sales. Only the stated operating-expense share — not the note's total depreciation.",
    "note_selection": "any",
    "note_use": "decomposition_allowed",
    "route": "prose"
@@ -11773,95 +11205,32 @@
    "namespace": "internal",
    "inherits": "notes",
    "note_source": {
-    "note_title_any": [
-     "depreciation\\s+and\\s+amorti[sz]ation\\s+expense",
-     "depreciation.{0,24}amorti[sz]ation"
-    ],
+    "note_title_any": [],
     "row_caption_any": [
-     "depreciation\\s+of\\s+investment\\s+propert",
-     "depreciation\\s+of\\s+fixed\\s+assets",
-     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
-     "depreciation\\s+of\\s+propert(?:y|ies)\\s+and\\s+equipment",
-     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
-     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
-     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "^\\s*depreciation\\s*$",
-     "^\\s*amorti[sz]ation\\s*$",
-     "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$"
+     "depreciation|(?:amorti[sz]ation|release)\\s+of\\s+prepaid"
     ],
     "row_caption_none": [
-     "^\\s*at\\s+\\d",
-     "^\\s*at\\s+(?:1|31)",
-     "opening",
-     "closing",
-     "disposal",
-     "write.?off",
-     "transfer",
-     "reclassif",
-     "exchange\\s+difference",
-     "acquisition",
-     "impairment",
-     "(?:depreciation|amortisation|amortization).{0,40}(?:(?:general\\s+and\\s+)?administrative(?:\\s+expenses?)?|selling(?:\\s+and\\s+(?:distribution|marketing))?(?:\\s+expenses?)?|distribution(?:\\s+expenses?|\\s+costs?)?|marketing(?:\\s+expenses?)?|operating\\s+(?:expenses?|costs?)|research\\s+and\\s+development|r\\s*&\\s*d)",
-     "(?:(?:general\\s+and\\s+)?administrative(?:\\s+expenses?)?|selling(?:\\s+and\\s+(?:distribution|marketing))?(?:\\s+expenses?)?|distribution(?:\\s+expenses?|\\s+costs?)?|marketing(?:\\s+expenses?)?|operating\\s+(?:expenses?|costs?)|research\\s+and\\s+development|r\\s*&\\s*d).{0,40}(?:depreciation|amortisation|amortization)",
-     "accumulated\\s+(?:depreciation|amortisation|amortization|impairment)",
-     "^\\s*additions?\\b|\\badditions\\s+(?:during|for)\\b",
-     "writ(?:e|ten|ing)[\\s.\\-]?off"
+     "cost\\s+of\\s+(?:sales|revenue|services|goods)|(?:銷售|服務|销售|营业|服务)成本",
+     "administrative|selling|distribution|marketing|operating\\s+(?:expenses|costs)|research|行政|銷售|销售|分銷|分销|經營|经营|研發|研发|管理费用",
+     "累计|累計|accumulated|impairment|減值|减值",
+     "^\\s*(?:total|sub-?total|合計|合计|總計|总计|小計|小计)"
     ],
     "prose_any": [],
     "prose_subject": "",
     "prose_landed_in": [],
     "note_terms": [
-     "depreciation and amortisation expense",
-     "depreciation on property plant and equipment",
-     "depreciation on right of use assets",
-     "depreciation on investment property",
-     "amortisation of other intangible assets",
-     "impairment loss on assets",
-     "less amount capitalised"
+     "before tax",
+     "before taxation",
+     "from operating activities"
     ],
     "row_terms": [
      "depreciation",
-     "depreciation of investment property",
-     "depreciation of fixed assets",
-     "depreciation of property plant and equipment",
-     "depreciation of construction in progress",
-     "depreciation of right of use assets",
-     "amortisation of prepaid lease payments",
-     "release of prepaid lease payments",
-     "property and equipment"
+     "amortisation"
     ],
-    "row_terms_none": [
-     "opening",
-     "closing",
-     "disposal",
-     "write off",
-     "transfer",
-     "reclassification",
-     "exchange difference",
-     "acquisition",
-     "impairment",
-     "amortization cost of sales",
-     "revenue",
-     "revenues",
-     "goods sold",
-     "services",
-     "inventories",
-     "cost of sales",
-     "inventories depreciation",
-     "amortization",
-     "amortization general and administrative expenses",
-     "selling and distribution",
-     "marketing expenses",
-     "distribution expenses",
-     "costs",
-     "operating expenses",
-     "research and development",
-     "general and administrative expenses"
-    ]
+    "row_terms_none": []
    },
    "section_scope": [],
-   "definition": "The period's TOTAL depreciation and amortisation charge, across every asset class. Under Schedule III this is a single line on the face of the statement of profit and loss — Division II presents expenses by nature, so there is no cost-of-sales or administrative line for the charge to be split between — and it is captioned Depreciation and Amortisation Expense. A filing that instead states the total only in a note (the profit-before-tax note, or the note itemising what profit before tax is arrived at after charging) reports the same quantity and it is read from there. It is the TOTAL and not any one asset class's share: not the depreciation of property, plant and equipment alone, not the amortisation of intangibles alone, and never an accumulated depreciation balance or a movement line from a fixed-asset schedule.",
+   "definition": "Sum of all depreciation rows in the profit-before-tax note, for every class of asset and every function, excluding a total row and any row the note qualifies as charged to cost of sales or to an operating-expense function.",
    "note_selection": "any",
    "note_use": "decomposition_allowed",
    "statements": [
@@ -11888,44 +11257,21 @@
   },
   {
    "key": "sub__cos_depreciation",
-   "label": "Cost of sales note — depreciation",
+   "label": "Cost of sales — depreciation",
    "in_output": false,
    "parent": "is_pl__deprec_and_impairment_cos",
    "order": 13,
    "namespace": "internal",
    "inherits": "notes",
    "note_source": {
-    "note_title_any": [
-     "cost\\s+of\\s+materials?\\s+consumed",
-     "purchases?\\s+of\\s+stock[-\\s]?in[-\\s]?trade",
-     "depreciation\\s+and\\s+amorti[sz]ation\\s+expense",
-     "depreciation.{0,24}amorti[sz]ation"
-    ],
+    "note_title_any": [],
     "row_caption_any": [
-     "depreciation\\s+of\\s+investment\\s+propert",
-     "depreciation\\s+of\\s+fixed\\s+assets",
-     "depreciation\\s+of\\s+property\\s*,?\\s*plant\\s+and\\s+equipment",
-     "depreciation\\s+of\\s+construction\\s+in\\s+progress",
-     "depreciation\\s+of\\s+right.?of.?use\\s+assets",
-     "amortisation\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "release\\s+of\\s+prepaid\\s+lease\\s+payments?",
-     "^\\s*(?:depreciation|amortisation|amortization)\\s+and\\s+(?:depreciation|amortisation|amortization)\\s*$"
+     "depreciation"
     ],
     "row_caption_none": [
-     "^\\s*at\\s+\\d",
-     "^\\s*at\\s+(?:1|31)",
-     "opening",
-     "closing",
-     "disposal",
-     "write.?off",
-     "transfer",
-     "reclassif",
-     "exchange\\s+difference",
-     "acquisition",
-     "impairment",
-     "accumulated\\s+(?:depreciation|amortisation|amortization|impairment)",
-     "^\\s*additions?\\b|\\badditions\\s+(?:during|for)\\b",
-     "writ(?:e|ten|ing)[\\s.\\-]?off"
+     "^\\s*at\\s+\\d|opening|closing|accumulated\\s+(?:depreciation|amortisation|amortization|impairment)|累計|累计|期初|期末|账面原值|账面价值|到期",
+     "transfer|reclassif|exchange\\s+difference|acquisition|轉撥|转拨|转出|滙兌|匯兌|汇兑|收購|收购|外币折算|^\\s*additions?\\b|\\badditions\\s+(?:during|for)\\b",
+     "disposal|write.?off|writ(?:e|ten|ing)[\\s.\\-]?off|處置|处置|impairment|減值|减值"
     ],
     "prose_any": [],
     "prose_subject": "depreciation",
@@ -11936,51 +11282,18 @@
      "cost of services"
     ],
     "note_terms": [
-     "cost of materials consumed",
-     "raw materials consumed",
-     "packing materials consumed",
-     "opening stock of raw materials",
-     "purchases during the year",
-     "closing stock of raw materials",
-     "purchases of stock in trade",
-     "consumption of imported materials",
-     "consumption of indigenous materials",
-     "depreciation and amortisation expense",
-     "depreciation on property plant and equipment",
-     "depreciation on right of use assets",
-     "depreciation on investment property",
-     "amortisation of other intangible assets",
-     "impairment loss on assets",
-     "less amount capitalised"
+     "cost of sales",
+     "cost of revenue"
     ],
     "row_terms": [
      "depreciation",
-     "depreciation of investment property",
-     "depreciation of fixed assets",
-     "depreciation of property plant and equipment",
-     "depreciation of construction in progress",
-     "depreciation of right of use assets",
-     "amortisation of prepaid lease payments",
-     "release of prepaid lease payments",
-     "amortisation",
-     "amortization and depreciation",
-     "amortization"
+     "amortisation"
     ],
-    "row_terms_none": [
-     "opening",
-     "closing",
-     "disposal",
-     "write off",
-     "transfer",
-     "reclassification",
-     "exchange difference",
-     "acquisition",
-     "impairment"
-    ]
+    "row_terms_none": []
    },
    "statement": "notes",
    "section_scope": [],
-   "definition": "The depreciation and amortisation absorbed into the COST OF GOODS SOLD or of services rendered. Schedule III has no cost-of-sales line — cost of materials consumed, changes in inventories and purchases of stock-in-trade are presented separately and carry no depreciation — so for an Indian filing this is the production share of the depreciation charge, which is disclosed only where a filing volunteers it or where depreciation has been capitalised into inventory. It is not the cost of materials consumed, not any subtotal of that note, and not the period's total depreciation, of which this is only one share. It is also never a movement line from a fixed-asset schedule — opening or closing carrying amounts, accumulated depreciation, additions, disposals or transfers — and never an impairment loss.\n\nSCHEDULE III PRESENTS EXPENSES BY NATURE, SO THIS SPLIT IS USUALLY NOT DISCLOSED. Division II prescribes Cost of Materials Consumed, Employee Benefits Expense, Finance Costs, Depreciation and Amortisation Expense and Other Expenses — there is no cost-of-sales or administrative-expenses line — and the notes break the depreciation charge down by ASSET CLASS (property, plant and equipment; right-of-use assets; intangible assets), not by function. Expect to find nothing, and report nothing when there is nothing: leaving this line empty is the correct answer for most Indian filings. Claim a figure only where a sentence expressly attributes depreciation to this function — for instance a segment note, a capitalisation callout, or a voluntary disclosure of expenses by function.\n\nWHERE A SENTENCE DOES STATE IT, read it as a sentence and never from a tabulated row: a row that appears to state this share is almost always the total the share is a component of. Amounts are in ₹ and are usually scaled in crores or lakhs. Where one sentence states several amounts, the figure in brackets is the comparative year, and amounts are matched to functions in the order the sentence names them — such sentences typically end with \"respectively\". Figures from different asset-class notes may be added together; figures from an asset-class note and from a profit-before-tax or expenses note may never be added, because one is a component of the other.",
+   "definition": "Sum of all depreciation that a note says was charged to cost of sales, excluding the share charged to operating expenses and amortisation of intangible assets printed on a row of its own. Only the cost-of-sales share — not the period's total depreciation.",
    "note_selection": "any",
    "note_use": "decomposition_allowed",
    "route": "prose"
@@ -13564,6 +12877,43 @@
     ],
     "row_terms": [],
     "row_terms_none": []
+   },
+   "aliases": []
+  },
+  {
+   "key": "sub__expense_notes_depreciation",
+   "label": "Selling, administrative and R&D expense notes — depreciation",
+   "in_output": false,
+   "parent": "is_pl__deprec_and_impairment_oper_exp",
+   "order": 14,
+   "namespace": "internal",
+   "inherits": "notes",
+   "statement": "notes",
+   "section_scope": [],
+   "definition": "Sum of all depreciation rows in the selling, administrative and research and development expense notes, a combined depreciation and amortisation row taken whole, excluding the notes' totals and amortisation of intangible assets on a row of its own. Only the operating-expense share — not depreciation charged to cost of sales.",
+   "note_use": "decomposition_allowed",
+   "note_selection": "any",
+   "route": "note_tables",
+   "note_source": {
+    "note_title_any": [],
+    "note_terms": [
+     "selling",
+     "administrative expenses",
+     "research and development"
+    ],
+    "row_caption_any": [
+     "depreciation"
+    ],
+    "row_caption_none": [
+     "^\\s*(?:合计|合計|小计|小計|总计|總計|total|sub-?total)\\b",
+     "累计|累計|accumulated",
+     "impairment|減值|减值"
+    ],
+    "row_terms": [],
+    "row_terms_none": [],
+    "prose_any": [],
+    "prose_subject": "",
+    "prose_landed_in": []
    },
    "aliases": []
   }

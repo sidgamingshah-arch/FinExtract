@@ -617,7 +617,8 @@ def test_the_indian_note_vocabulary_widens_context_and_not_the_deterministic_rea
     # 58 since the four Securities (LTP) Find 2 and split parts left both sets.
     # 51 since contingent liabilities' nine note parts became one.
     # 43 since Other Receivables (CP) lost eight note parts.
-    assert created == 40 and inherited == 43, (created, inherited)
+    # 44 with the expense-notes depreciation part.
+    assert created == 40 and inherited == 44, (created, inherited)
 
     # THE BEHAVIOURAL HALF. A note whose heading matches the PPE family's own title pattern, with a
     # row that any depreciation vocabulary would claim. A line whose note_source was created must

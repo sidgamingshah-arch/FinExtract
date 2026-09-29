@@ -525,7 +525,7 @@ def _sentences(text: str) -> list[str]:
     return out
 
 
-def select_prose(item, notes, grammar=None) -> list[ProseHit]:
+def select_prose(item, notes, grammar=None, siblings=()) -> list[ProseHit]:
     r"""The figures this item's PROSE PATTERNS find in a matched note's prose.
 
     THE PATTERNS, NOT THE TERMS, and that distinction is the whole correctness of this function.
@@ -574,16 +574,47 @@ def select_prose(item, notes, grammar=None) -> list[ProseHit]:
     counts = _compiled(list(getattr(src, "prose_any", None) or ())
                        + prose_grammar.compile_for(src, grammar))
     vetoes = _compiled(getattr(src, "row_caption_none", None))
-    if not titles or not counts:
+    # A PROSE LINE THAT FINDS ITS NOTES BY MEANING reads the notes its own `note_terms` cover
+    # FIRST, and the notes its SIBLINGS' terms cover — the other parts of the same parent — only
+    # when none of those states it. The sentence carries the meaning (the grammar requires the
+    # subject, depreciation, and the destination, research and development expenses, in one
+    # sentence with a grouped amount), but it is stated where the CHARGE is: a function's share of
+    # depreciation is usually printed in the asset or profit-before-tax note, which the sibling
+    # parts that read those notes name and this part does not.
+    #
+    # THE ORDER IS WHAT STOPS ONE CHARGE BEING COUNTED TWICE. Read unconditionally, a cost-of-sales
+    # note stating its depreciation and a profit-before-tax note restating a different figure for it
+    # published their SUM. And the sibling bound is what keeps it off an unrelated note: a sentence
+    # sitting under SHARE CAPITAL is not about any part of this line.
+    everywhere = not titles and bool(list(getattr(src, "note_terms", None) or ()))
+    if not (titles or everywhere) or not counts:
         return []
+    if not everywhere:
+        return _prose_hits(item, notes, counts, vetoes, titles)
+    from app.services.line_item_notes import covered_notes
+    own = set(covered_notes(item, notes or ()))
+    near = {n for sib in siblings or () if sib is not item and getattr(sib, "key", None) != item.key
+            for n in covered_notes(sib, notes or ())} - own
+    for scope in (own, near):
+        within = [t for t in (notes or ()) if str(getattr(t, "note_number", "") or "") in scope]
+        got = _prose_hits(item, within, counts, vetoes, None) if within else []
+        if got:
+            return got
+    return []
 
+
+def _prose_hits(item, notes, counts, vetoes, titles) -> list[ProseHit]:
+    """The sentences of `notes` a prose line counts. `titles` None reads every note given."""
+    everywhere = titles is None
     hits: list[ProseHit] = []
+    seen: dict[tuple[str, Decimal], str] = {}
     for table in notes or ():
         title = getattr(table, "title", "") or ""
         number = str(getattr(table, "note_number", "") or "")
         # The PROSE route reaches its note the same way the row route does, so a heading whose
         # enumerator defeated the pattern withheld the sentence as well as the table.
-        if not (_matches_title_any(title, titles) or _matches_any(number, titles)):
+        if not everywhere and not (_matches_title_any(title, titles)
+                                   or _matches_any(number, titles)):
             continue
         # THE NARRATIVE, NOT THE WHOLE NOTE. `prose_text` is the section's text with its tabulated
         # lines removed (`notes_extract._narrative_only`); `None` means nothing computed it — a
@@ -617,6 +648,11 @@ def select_prose(item, notes, grammar=None) -> list[ProseHit]:
             for period, text in (("current", current), ("prior", prior_text)):
                 value = _num((text or "").replace(",", ""))
                 if value is None:
+                    continue
+                # ONE FACT STATED IN TWO NOTES IS ONE FACT. Two covered notes restating the same
+                # share would otherwise be summed by the line's rollup. Same amount, same period, a
+                # DIFFERENT note: once.
+                if everywhere and seen.setdefault((period, value), number) != number:
                     continue
                 hits.append(ProseHit(
                     key=item.key, note_number=number, note_title=title,
