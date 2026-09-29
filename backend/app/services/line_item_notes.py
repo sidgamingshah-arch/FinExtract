@@ -508,6 +508,47 @@ def heading_covered(item, title: str) -> bool:
                for term in (getattr(src, "note_terms", None) or ()) if term)
 
 
+def sums_line_items(item) -> bool:
+    """Whether this part ADDS UP A NOTE'S LINE ITEMS — `row_caption_any` is the catch-all `\\S` —
+    rather than reading rows it names. Only such a part is kept out of movement tables: a
+    depreciation part reads exactly the movement row it names ("Depreciation charge for the
+    year"), while a line-item sum over a movement table adds opening balance, additions and
+    closing balance together."""
+    src = getattr(item, "note_source", None)
+    return list(getattr(src, "row_caption_any", None) or ()) == [r"\S"]
+
+
+def readable_tables(item, notes) -> set[int]:
+    """The TABLES a by-meaning line may read: every table in an unbroken run of one note number,
+    where some table of that run carries a heading the line's terms cover.
+
+    A RUN, NOT EACH TABLE'S OWN HEADING. A mainland related-party note prints its subject once —
+    "6、关联方应收应付款项" — and then its tables under generic titles, "（1）应收项目" and
+    "（2）应付项目"; a rule asking each table's heading would read none of them. What it has to keep
+    out is a table filed under the number by mistake: 300319's 七、2 holds the 交易性金融资产 table
+    (p145) and, pages and notes later, an ageing table (按账龄披露, p148) whose own note heading
+    was not recognised. The first is a run the heading opens; the second is a later run of the same
+    number with no heading of its own subject, and summing it added ageing buckets into FVTPL
+    (431,478,888.81 became 510,484,980.09).
+    """
+    out: set[int] = set()
+    run: list = []
+    number = None
+
+    def close():
+        if run and any(heading_covered(item, str(getattr(t, "title", "") or "")) for t in run):
+            out.update(id(t) for t in run)
+
+    for table in notes or ():
+        n = str(getattr(table, "note_number", "") or "")
+        if n != number:
+            close()
+            run, number = [], n
+        run.append(table)
+    close()
+    return out
+
+
 def claimed_notes(items, notes) -> dict[str, set[str]]:
     """For every by-meaning line: the covered notes it may READ ROWS FROM, one sibling per note.
 

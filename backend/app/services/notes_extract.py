@@ -133,9 +133,12 @@ def note_row_role(caption: str | None) -> LineRole:
 
 def _is_bracketed(row: list[Word]) -> bool:
     """Whether a heading row is numbered in brackets or with a circled numeral — （1）, (2), ① —
-    the levels a mainland note uses for the tables INSIDE it, not for notes."""
+    or with a CLOSING bracket alone — 1）, 2) — the levels a mainland note uses for the tables
+    INSIDE it, not for notes. The half-bracket level is the one below （1）: 300319 prints
+    "6、其他应收款" → "（1）其他应收款" → "1）其他应收款按款项性质分类情况" / "2）按账龄披露", and read as
+    note numbers those became 七、1 and 七、2 — the ageing table filed under 交易性金融资产."""
     text = " ".join(w.text for w in row).strip().translate(_CIRCLED_DIGITS)
-    return bool(re.match(r"^[（(]\s*\d", text))
+    return bool(re.match(r"^(?:[（(]\s*\d|\d{1,2}\s*[)）])", text))
 
 
 def _bare_note_number(row: list[Word]) -> str | None:

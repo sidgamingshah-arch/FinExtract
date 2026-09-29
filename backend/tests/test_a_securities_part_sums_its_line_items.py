@@ -89,8 +89,17 @@ def test_other_receivables_and_the_non_current_portion_are_not_line_items_of_it(
 def test_a_table_under_the_same_number_about_something_else_is_not_read(by_key):
     """300319's 七、2 also carries an ageing table whose own note heading was not recognised."""
     note = _table("、交易性金融资产", [_row("股权投资", "100")])
+    between = _table("应收票据分类列示", [_row("银行承兑票据", "5")], number="七、3")
     ageing = _table("按账龄披露", [_row("1 年以内（含1 年）", "14100819.85")])
-    assert _sum(by_key[FVTPL], [note, ageing]) == {"current": "100"}
+    assert _sum(by_key[FVTPL], [note, between, ageing]) == {"current": "100"}
+
+
+def test_a_note_whose_tables_carry_generic_titles_is_read_through_its_heading(by_key):
+    """A related-party note prints its subject once and its tables as （1）应收项目 / （2）应付项目:
+    the run the heading opens is read, table titles notwithstanding."""
+    heading = _table("交易性金融资产", [])
+    table = _table("（1）分类列示", [_row("结构性存款", "300")])
+    assert _sum(by_key[FVTPL], [heading, table]) == {"current": "300"}
 
 
 def test_a_movement_table_is_not_a_list_of_line_items(by_key):

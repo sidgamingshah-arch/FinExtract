@@ -205,6 +205,8 @@ def select_rows(item, notes, periods: set[str] | None = None,
     if by_meaning:
         mine = (set(claimed.get(item.key, ())) if claimed is not None
                 else set(line_item_notes.covered_notes(item, notes)))
+        readable = line_item_notes.readable_tables(item, notes)
+    sums_items = line_item_notes.sums_line_items(item)
     # See `NoteSource.measure`: the slug of the note column this part reads, "" for the primary.
     measure = str(getattr(src, "measure", "") or "")
     wanted = {f"{p}:{measure}" for p in (periods or ())} if measure else None
@@ -241,7 +243,7 @@ def select_rows(item, notes, periods: set[str] | None = None,
         # from its first character.
         if by_meaning:
             if (str(getattr(table, "note_number", "") or "") not in mine
-                    or not line_item_notes.heading_covered(item, title)):
+                    or id(table) not in readable):
                 continue
         elif not (_matches_title_any(title, titles)
                   or _matches_any(str(getattr(table, "note_number", "")), titles)
@@ -285,11 +287,12 @@ def select_rows(item, notes, periods: set[str] | None = None,
             # inside the prior-year 181,124,711.32.
             if index in broken_down:
                 continue
-            # A LINE THAT FINDS ITS NOTES BY MEANING ADDS UP LINE ITEMS, and a movement table has
-            # none: its rows are the year's movements (at 1 January, additions, disposals, at 31
-            # December), so summing them is not a balance. Its vetoes are three or four by design,
-            # which is too few to name every movement caption — so the table is not read at all.
-            if by_meaning and block_periods:
+            # A LINE-ITEM SUM IS NOT READ OUT OF A MOVEMENT TABLE: its rows are the year's
+            # movements (at 1 January, additions, disposals, at 31 December), and summing them is
+            # not a balance. Its vetoes are three or four by design, too few to name every movement
+            # caption — so the table is not read at all. A part that NAMES its row (a depreciation
+            # charge) reads movement tables as it always did.
+            if sums_items and block_periods:
                 continue
             caption = getattr(row, "raw_label", "") or ""
             # THE GROUPING HEADER COUNTS AS THIS ROW'S CAPTION TOO, because one common note shape
