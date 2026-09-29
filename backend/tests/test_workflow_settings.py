@@ -44,34 +44,17 @@ def test_submit_for_review_requires_review_on(client, auth, anon_client):
         settings_state.reset()
 
 
-def test_admin_edits_llm_config_key_never_accepted(client):
-    """Admin edits provider/model/base_url live; the API key is never taken from the UI."""
+def test_the_llm_cannot_be_edited_from_the_settings_api(client):
+    """The LLM is defined only in config.toml [llm]; an admin edit — key included — is refused."""
     from app.config import get_settings
-    from app.services import settings_state
 
-    try:
-        r = client.patch("/api/v1/settings", json={"llm": {
-            "provider": "openai", "model": "moonshotai/kimi-k3-free",
-            "base_url": "https://api.tokenrouter.com/v1", "temperature": 0.3,
-            "api_key": "sk-should-be-ignored",  # extra field — must be dropped
-        }})
-        assert r.status_code == 200, r.text
-        llm = r.json()["llm"]
-        assert llm["provider"] == "openai"
-        assert llm["model"] == "moonshotai/kimi-k3-free"
-        assert llm["base_url"] == "https://api.tokenrouter.com/v1"
-        # `temperature` is sent above with the ignored `api_key`, and for the same reason: it is a
-        # key this endpoint no longer knows. It was editable, persisted and echoed while reaching
-        # no provider call, so it was deleted rather than wired — the body must not echo it, and
-        # its presence in the request must not disturb the fields that ARE honoured (asserted
-        # above). Sampling temperature is fixed at 0.0 for deterministic structured extraction.
-        assert "temperature" not in llm
-        # Applied onto the live settings so the provider registry picks it up.
-        assert get_settings().llm.provider == "openai"
-        # The key was NOT stored anywhere on the LLM settings.
-        assert not hasattr(get_settings().llm, "api_key")
-    finally:
-        settings_state.reset()
+    before = get_settings().llm.provider
+    r = client.patch("/api/v1/settings", json={"llm": {
+        "provider": "openai", "model": "moonshotai/kimi-k3-free",
+        "api_key": "sk-should-be-ignored"}})
+    assert r.status_code == 400 and "config.toml" in r.json()["detail"]
+    assert get_settings().llm.provider == before
+    assert not hasattr(get_settings().llm, "api_key")
 
 
 def test_llm_config_edit_requires_admin(auth, anon_client):

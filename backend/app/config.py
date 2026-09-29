@@ -3,11 +3,20 @@
 Settings are layered, highest precedence first:
 
   1. Environment variables (prefix ``FINEX_``; nested keys use ``__``, e.g.
-     ``FINEX_LLM__MODEL``, ``FINEX_FEATURES__UI_LOCALIZATION``).
+     ``FINEX_FEATURES__UI_LOCALIZATION``).
   2. ``.env`` file.
   3. ``config.toml`` at the backend root — the human-editable, git-safe config file
      for LLM / OCR / extraction / auth / feature settings (see that file's comments).
   4. Built-in defaults below.
+
+**THE LLM IS THE EXCEPTION: it is defined in ONE place, ``config.toml``'s ``[llm]`` table.**
+Layers 1 and 2 are not read for it — a ``FINEX_LLM__*`` variable is ignored and named in a
+startup WARNING — and nothing at run time (no Settings screen, no stored override) can change
+it. Four places used to be able to, each overriding the next: a value saved from the Settings
+screen, then ``FINEX_LLM__*``, then ``.env``, then ``config.toml``; the file said one gateway
+while the process called another. Only the API key lives elsewhere — in the environment (or
+``.env``), under the variable NAME that ``[llm].api_key_env`` gives. Tests and offline scripts
+that need a different provider say so in code with ``pin_llm``.
 
 Everything infra-specific (database URL, object store, which OCR/LLM adapters to
 use) can therefore be deferred to deployment. Defaults are chosen so the app runs
@@ -75,11 +84,9 @@ class FeatureSettings(BaseModel):
 class LlmSettings(BaseModel):
     """Configuration for the selected LLM adapter (used for mapping disambiguation).
 
-    The default is GPT-5 mini on Azure OpenAI. Every field here is editable at run time from the
-    Settings screen and persisted (see services.settings_state), so the default is a starting point
-    rather than a commitment — switching model, deployment, region or provider is configuration, not
-    a code change. The KEY is never configuration: only the NAME of the environment variable holding
-    it is stored, so a credential cannot end up in the database or in a settings export.
+    Set in ONE place: ``config.toml``'s ``[llm]`` table (see the module docstring). These defaults
+    apply only to a deployment with no config.toml. The KEY is never configuration: only the NAME
+    of the environment variable holding it is, so a credential cannot end up in a file or an export.
     """
 
     provider: str = "openai_compatible"  # azure_openai | anthropic | bedrock_gateway | openai | openai_compatible | stub
@@ -101,15 +108,17 @@ class LlmSettings(BaseModel):
     # filled in: the gateway replied "max_tokens is too large: 4096000. This model supports at most
     # 128000 completion tokens". 32768 is above every callee default (largest: run_analysis's 4096)
     # and below any advertised completion ceiling, so no reply is truncated and none is rejected.
-    max_tokens: int = 32768
-    timeout_seconds: int = 600
+    # Bounded, so a value no model can serve fails at startup naming the field instead of being
+    # sent to the gateway on every call.
+    max_tokens: int = Field(default=32768, ge=256, le=262144)
+    timeout_seconds: int = Field(default=600, ge=1, le=3600)
     base_url: str = "https://llmgateway.crisil.local/api/openai"
     api_key_env: str = "AZURE_OPENAI_API_KEY"  # env var the key is read from (not the key)
     reasoning_effort: str = "low"      # low | medium | high (provider/gateway dependent)
     # >0 sends OpenRouter's `reasoning.max_tokens` to CAP reasoning. Needed for free models where
     # reasoning is mandatory (cannot be disabled) and would otherwise spend the whole completion
     # budget thinking, leaving no JSON (finish_reason=length, empty content). 0 = don't send it.
-    reasoning_max_tokens: int = 0
+    reasoning_max_tokens: int = Field(default=0, ge=0, le=262144)
     disable_ssl_verify: bool = True
 
     # Azure OpenAI only. Azure does not address a model by name on a shared endpoint the way OpenAI
@@ -605,11 +614,79 @@ class Settings(BaseSettings):
         _report_unbound_toml_keys(toml_settings, settings_cls)
         return (
             init_settings,
-            env_settings,
-            dotenv_settings,
+            _PinnedLlm(settings_cls),
+            _WithoutLlm(settings_cls, env_settings, "environment"),
+            _WithoutLlm(settings_cls, dotenv_settings, ".env"),
             toml_settings,
             file_secret_settings,
         )
+
+
+# --- the LLM has one home ------------------------------------------------------------------------
+
+_PINNED_LLM: dict[str, Any] = {}
+_WARNED_LLM_SOURCES: set[str] = set()
+
+
+def pin_llm(**fields: Any) -> None:
+    """Pin LLM fields IN CODE, over config.toml — for the test suite and offline scripts only.
+
+    Not a configuration location: nothing an operator edits reaches it. The suite pins the offline
+    ``stub`` provider so no test calls a real model; a script that probes one model pins that
+    model for its own process. Applied to every ``Settings()`` built afterwards and to the cached
+    one. ``pin_llm()`` with no fields clears the pins.
+    """
+    if not fields:
+        _PINNED_LLM.clear()
+    _PINNED_LLM.update(fields)
+    if get_settings.cache_info().currsize:
+        live = get_settings().llm
+        base = LlmSettings(**{**_toml_llm(), **_PINNED_LLM})
+        for name in LlmSettings.model_fields:
+            setattr(live, name, getattr(base, name))
+
+
+def _toml_llm() -> dict[str, Any]:
+    import tomllib
+    try:
+        with open(_CONFIG_TOML, "rb") as fh:
+            return dict(tomllib.load(fh).get("llm") or {})
+    except FileNotFoundError:
+        return {}
+
+
+class _PinnedLlm(PydanticBaseSettingsSource):
+    def get_field_value(self, field, field_name):  # pragma: no cover - __call__ is used instead
+        return None, field_name, False
+
+    def __call__(self) -> dict[str, Any]:
+        return {"llm": dict(_PINNED_LLM)} if _PINNED_LLM else {}
+
+
+class _WithoutLlm(PydanticBaseSettingsSource):
+    """An env / .env source with the ``llm`` table removed, and a WARNING naming what was dropped.
+
+    A ``FINEX_LLM__MODEL`` that silently lost to config.toml would be the same trap as the one this
+    removes, so it is named once per process rather than ignored in silence.
+    """
+
+    def __init__(self, settings_cls, inner: PydanticBaseSettingsSource, where: str) -> None:
+        super().__init__(settings_cls)
+        self._inner, self._where = inner, where
+
+    def get_field_value(self, field, field_name):  # pragma: no cover - __call__ is used instead
+        return None, field_name, False
+
+    def __call__(self) -> dict[str, Any]:
+        data = dict(self._inner())
+        dropped = data.pop("llm", None)
+        if dropped and self._where not in _WARNED_LLM_SOURCES:
+            _WARNED_LLM_SOURCES.add(self._where)
+            names = ", ".join(f"FINEX_LLM__{k.upper()}" for k in sorted(dropped))
+            _LOG.warning(
+                "LLM settings in the %s are IGNORED (%s): the LLM is defined only in %s [llm]. "
+                "Move the values there and delete these.", self._where, names, _CONFIG_TOML)
+        return data
 
 
 def _export_provider_keys(settings: Settings) -> None:

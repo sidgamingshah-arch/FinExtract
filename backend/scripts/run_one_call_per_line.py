@@ -61,11 +61,11 @@ def main() -> int:
             continue
         key, value = line.split("=", 1)
         os.environ[key.strip()] = value.strip()
-    # 2. …then the overrides, so they beat what .env said
-    os.environ["FINEX_LLM__PROVIDER"] = "openai_compatible"
-    os.environ["FINEX_LLM__BASE_URL"] = args.base_url
-    os.environ["FINEX_LLM__API_KEY_ENV"] = args.key_env
-    os.environ["FINEX_LLM__MODEL"] = args.model
+    # 2. …then this probe's model, pinned in code: the LLM is defined only in config.toml [llm]
+    # and the environment is not read for it, so FINEX_LLM__* would be ignored here.
+    from app.config import pin_llm
+    pin_llm(provider="openai_compatible", base_url=args.base_url, api_key_env=args.key_env,
+            model=args.model)
     os.environ["FINEX_EXTRACTION__LLM_BATCH_MAX_ITEMS"] = str(args.batch)
     os.environ["FINEX_EXTRACTION__LLM_MAX_CONCURRENCY"] = str(args.concurrency)
 

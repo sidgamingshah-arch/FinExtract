@@ -1,9 +1,9 @@
 /** Settings (admin) — surfaces backend configuration on the frontend and lets an admin
  * edit the runtime-mutable pieces: interface localization, the reviewer sign-off step,
- * the LLM configuration (provider / model / endpoint / params), and the FX rate master
- * used for presentation currency conversion, and the extraction thresholds. The API key is
- * never entered or shown here — only the name of the env var it is read from. Everything else
- * is config.toml / env driven and shown read-only.
+ * the FX rate master
+ * used for presentation currency conversion, and the extraction thresholds. The LLM is NOT
+ * here: it is defined only in backend/config.toml [llm]. Everything else is config.toml / env
+ * driven and shown read-only.
  *
  * Edits are SAVED: the backend persists them and re-applies them at startup, so a change holds
  * across a restart. "Restore defaults" puts back what config.toml shipped. */
@@ -22,7 +22,7 @@ import {
   useUpsertFxRate,
 } from "../lib/queries";
 import { color, font, radius } from "../theme";
-import type { AppSettings, ExtractionField, FxRate, FxRateInput, LlmConfigPatch } from "../types";
+import type { AppSettings, ExtractionField, FxRate, FxRateInput } from "../types";
 
 /** Read-only key/value row. */
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
@@ -85,7 +85,7 @@ const inputStyle: React.CSSProperties = {
   background: "#fff", boxSizing: "border-box",
 };
 
-/** One labeled editable field in the LLM config form. */
+/** One labeled editable field in a form. */
 function Field({
   label, children,
 }: { label: string; children: React.ReactNode }) {
@@ -94,114 +94,6 @@ function Field({
       <span style={{ fontSize: 11, color: color.muted }}>{label}</span>
       {children}
     </label>
-  );
-}
-
-// The llm adapter ids actually registered in backend adapters/__init__.py, in the order the
-// config.toml [llm] menu documents them. This list was wrong in BOTH directions: it offered
-// "local" (an object_store id, no llm adapter — the backend now refuses it outright) and omitted
-// azure_openai, the documented DEFAULT provider, so the one option an operator most needs was the
-// one option the dropdown could not select. "azure" is a registered alias of azure_openai and is
-// deliberately not listed; the canonical id belongs in a menu.
-const PROVIDERS = ["azure_openai", "anthropic", "bedrock_gateway", "openai", "openai_compatible", "stub"];
-
-/** Editable LLM configuration (admin). The API key stays in the environment — only its
- * env-var name is editable; we surface whether the key is currently populated. */
-function LlmConfigCard({ s, canEdit }: { s: AppSettings; canEdit: boolean }) {
-  const t = useT();
-  const patch = usePatchSettings();
-  const [form, setForm] = useState<LlmConfigPatch>({});
-  // Re-sync the form from server state whenever it changes (e.g. after save).
-  useEffect(() => {
-    setForm({
-      provider: s.llm.provider, model: s.llm.model, base_url: s.llm.base_url,
-      max_tokens: s.llm.max_tokens,
-      timeout_seconds: s.llm.timeout_seconds, api_key_env: s.llm.api_key_env,
-    });
-  }, [s.llm.provider, s.llm.model, s.llm.base_url, s.llm.max_tokens, s.llm.timeout_seconds, s.llm.api_key_env]);
-
-  const set = (k: keyof LlmConfigPatch, v: string | number) => setForm((f) => ({ ...f, [k]: v }));
-
-  if (!canEdit) {
-    return (
-      <SectionCard title={t("st.llm")} note={t("st.readOnly")}>
-        <Row label={t("st.provider")} value={s.llm.provider} />
-        <Row label={t("st.model")} value={s.llm.model} />
-        <Row label={t("st.maxTokens")} value={s.llm.max_tokens} />
-        <Row label={t("st.timeout")} value={s.llm.timeout_seconds} />
-        <Row label={t("st.baseUrl")} value={s.llm.base_url || "(provider default)"} />
-        <Row label={t("st.apiKey")} value={<KeyStatus s={s} t={t} />} />
-      </SectionCard>
-    );
-  }
-
-  return (
-    <SectionCard title={t("st.llm")} note={t("st.editable")}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <Field label={t("st.provider")}>
-          <select value={form.provider} onChange={(e) => set("provider", e.target.value)} style={inputStyle}>
-            {PROVIDERS.map((p) => <option key={p} value={p}>{p}</option>)}
-          </select>
-        </Field>
-        <Field label={t("st.model")}>
-          <input value={form.model ?? ""} onChange={(e) => set("model", e.target.value)} style={inputStyle} />
-        </Field>
-        <Field label={t("st.baseUrl")}>
-          <input value={form.base_url ?? ""} placeholder="(provider default)"
-                 onChange={(e) => set("base_url", e.target.value)} style={inputStyle} />
-        </Field>
-        <Field label={t("st.apiKeyEnv")}>
-          <input value={form.api_key_env ?? ""} onChange={(e) => set("api_key_env", e.target.value)} style={inputStyle} />
-        </Field>
-        {/* No temperature input. It was an editable number that the backend accepted, stored and
-            echoed back while no provider call ever carried it — the screen confirmed a change that
-            did not exist. Temperature is fixed at 0.0 in code for deterministic structured
-            extraction, so there is nothing here to edit. */}
-        <Field label={t("st.maxTokens")}>
-          <input type="number" value={form.max_tokens ?? 0}
-                 onChange={(e) => set("max_tokens", Number(e.target.value))} style={inputStyle} />
-        </Field>
-        <Field label={t("st.timeout")}>
-          <input type="number" value={form.timeout_seconds ?? 0}
-                 onChange={(e) => set("timeout_seconds", Number(e.target.value))} style={inputStyle} />
-        </Field>
-      </div>
-
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 13 }}>
-        <span style={{ fontSize: 11.5 }}><KeyStatus s={s} t={t} /></span>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {patch.isSuccess && !patch.isPending && (
-            <span style={{ fontSize: 11, color: color.greenFg, fontWeight: 600 }}>✓ {t("st.saved")}</span>
-          )}
-          <button
-            data-testid="llm-reset"
-            onClick={() => patch.mutate({ reset_llm: true })}
-            disabled={patch.isPending}
-            style={{ fontSize: 12, fontWeight: 600, color: color.sec2, background: "#fff",
-                     border: `1px solid ${color.controlBorder}`, borderRadius: 8,
-                     padding: "8px 14px", cursor: patch.isPending ? "default" : "pointer" }}
-          >
-            {t("st.restoreDefaults")}
-          </button>
-          <button
-            data-testid="llm-save"
-            onClick={() => patch.mutate({ llm: form })}
-            disabled={patch.isPending}
-            style={{
-              fontSize: 12, fontWeight: 600, color: "#fff",
-              background: patch.isPending ? color.faint : color.indigo,
-              border: "none", borderRadius: 8, padding: "8px 16px",
-              cursor: patch.isPending ? "default" : "pointer",
-            }}
-          >
-            {patch.isPending ? t("st.saving") : t("st.save")}
-          </button>
-        </div>
-      </div>
-      <div style={{ fontSize: 10.5, color: color.muted2, marginTop: 8, lineHeight: 1.5 }}>
-        {t("st.keyNote")}
-      </div>
-    </SectionCard>
   );
 }
 
@@ -410,15 +302,6 @@ function ExtractionConfigCard({ s, canEdit }: { s: AppSettings; canEdit: boolean
         </div>
       </div>
     </SectionCard>
-  );
-}
-
-function KeyStatus({ s, t }: { s: AppSettings; t: (k: string) => string }) {
-  return (
-    <span style={{ color: s.llm.key_configured ? color.greenFg : color.amberFg, fontWeight: 600 }}>
-      {s.llm.key_configured ? t("st.keyConfigured") : t("st.keyMissing")}{" "}
-      <span style={{ color: color.muted, fontWeight: 400 }}>({t("st.keyFrom")} {s.llm.api_key_env})</span>
-    </span>
   );
 }
 
@@ -674,9 +557,7 @@ export default function SettingsScreen() {
         </div>
       </SectionCard>
 
-      {/* LLM — editable for admins */}
-      <LlmConfigCard s={s} canEdit={canEdit} />
-
+      {/* No LLM card: the LLM is defined only in backend/config.toml [llm], never from here. */}
       {/* FX rate master — the rates the Workspace converts presentation currency with */}
       <FxRatesCard canEdit={canEdit} />
 

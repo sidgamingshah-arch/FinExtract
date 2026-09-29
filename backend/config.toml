@@ -104,8 +104,7 @@ supported_locales = ["en", "zh", "ar", "fr"]
 
 # ---------------------------------------------------------------------------
 # LLM (used for extraction disambiguation + could back the analysis commentary).
-# The adapter is selected by the top-level llm_provider registry id; this section
-# configures whichever adapter is selected.
+# `provider` below selects the adapter; the rest of this section configures it.
 # ---------------------------------------------------------------------------
 [llm]
 # azure_openai       → Azure OpenAI (DEFAULT). Addresses a DEPLOYMENT on your own resource and
@@ -122,10 +121,11 @@ supported_locales = ["en", "zh", "ar", "fr"]
 # aliased to `stub` either — map_ontology.py fast-paths the literal "stub" only, so an alias would
 # resolve and stamp mapping_strategy="llm_description" on a run that made zero model calls.
 #
-# Every value here is editable at run time from the Settings screen and persisted, so this file is
-# the starting point rather than the commitment: changing model, deployment, region or provider is
-# configuration. The KEY is the exception and is never stored — only the NAME of the env var it is
-# read from, so it cannot reach the database or a settings export.
+# THIS TABLE IS THE ONE PLACE THE LLM IS DEFINED. Nothing overrides it: FINEX_LLM__* environment
+# variables and .env are not read for it (a startup WARNING names any that are set), and the
+# Settings screen neither shows an editor nor stores a value. Change a value here and restart.
+# The KEY is the exception and never appears here — only the NAME of the env var it is read from
+# (`api_key_env`); the key itself goes in the environment or in the gitignored backend/.env.
 provider = "openai_compatible"
 model = "azure-openai/gpt5.4-mini"  # gateway model id: "<vendor>/<deployment name>"
 # `temperature` was here and is GONE: it reached no provider call (the port default of 0.0 won

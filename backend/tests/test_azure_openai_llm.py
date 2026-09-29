@@ -101,38 +101,32 @@ def test_a_missing_resource_or_deployment_says_which(monkeypatch):
         AzureOpenAiLlmProvider(s)._endpoint()
 
 
-def test_the_azure_address_is_editable_and_persisted(client):
-    """"With the ability to change" means from the running product, not by editing config.toml —
-    and it has to SURVIVE, or the next process reverts to the default silently."""
+def test_the_azure_address_comes_from_config_toml_not_the_running_product(client):
+    """The LLM is defined only in config.toml [llm]; the running product reports the Azure
+    address but cannot change it."""
     r = client.patch("/api/v1/settings", json={"llm": {
-        "provider": "azure_openai",
-        "model": "gpt-5-mini",
-        "azure_endpoint": "https://tenant-a.openai.azure.com",
-        "azure_deployment": "spread-mini",
-        "azure_api_version": "2025-01-01-preview",
-    }})
-    assert r.status_code == 200, r.text
+        "provider": "azure_openai", "azure_endpoint": "https://tenant-a.openai.azure.com"}})
+    assert r.status_code == 400 and "config.toml" in r.json()["detail"]
 
-    got = client.get("/api/v1/settings").json()["llm"]
-    assert got["azure_endpoint"] == "https://tenant-a.openai.azure.com"
-    assert got["azure_deployment"] == "spread-mini"
-    assert got["azure_api_version"] == "2025-01-01-preview"
-    assert "api_key" not in got                      # never round-trips a secret
+    from app.config import Settings, pin_llm, _PINNED_LLM
 
-    from app.services.settings_state import SCOPE_LLM, _stored
+    saved = dict(_PINNED_LLM)
+    try:
+        pin_llm(provider="azure_openai", azure_endpoint="https://tenant-a.openai.azure.com",
+                azure_deployment="spread-mini", azure_api_version="2025-01-01-preview")
+        got = client.get("/api/v1/settings").json()["llm"]
+        assert got["azure_endpoint"] == "https://tenant-a.openai.azure.com"
+        assert got["azure_deployment"] == "spread-mini"
+        assert got["azure_api_version"] == "2025-01-01-preview"
+        assert "api_key" not in got                      # never round-trips a secret
+        assert Settings().llm.azure_deployment == "spread-mini"
+    finally:
+        pin_llm()
+        pin_llm(**saved)
 
-    assert _stored(SCOPE_LLM).get("azure_deployment") == "spread-mini"
 
-
-def test_switching_provider_away_from_azure_still_works(client):
-    """Default, not commitment: the whole point of it being configuration."""
-    r = client.patch("/api/v1/settings", json={"llm": {
-        "provider": "anthropic", "model": "claude-opus-4-8",
-        "api_key_env": "ANTHROPIC_API_KEY",
-    }})
-    assert r.status_code == 200, r.text
-    assert client.get("/api/v1/settings").json()["llm"]["provider"] == "anthropic"
-
+def test_switching_provider_away_from_azure_still_works():
+    """Default, not commitment: any registered provider can be named in config.toml [llm]."""
     from app.adapters import register_builtins
     from app.ports.registry import registry
 

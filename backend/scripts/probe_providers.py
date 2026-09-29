@@ -135,12 +135,12 @@ def probe(captured: dict) -> int:
 
     print()
     if ok:
-        print("USABLE:")
+        print("USABLE — put one in config.toml [llm], the only place the LLM is defined:")
         for label, base_url, key_env, model in ok:
             print(f"   {label}")
-            print(f"      FINEX_LLM__BASE_URL={base_url}")
-            print(f"      FINEX_LLM__API_KEY_ENV={key_env}")
-            print(f"      FINEX_LLM__MODEL={model}")
+            print(f'      base_url = "{base_url}"')
+            print(f'      api_key_env = "{key_env}"')
+            print(f'      model = "{model}"')
     else:
         print("NONE of the candidates accepted a real request.")
     return 0 if ok else 1

@@ -1,13 +1,13 @@
 """An administrator's settings survive a restart.
 
-The point of persisting these is that an admin who lowers a threshold or points the app at a
-different model does not silently get the config-file value back the next time the process
+The point of persisting these is that an admin who lowers a threshold does not silently get the config-file value back the next time the process
 restarts. So the tests here do not check that a row was written — they check that the value is
 still in force after the in-process state has been thrown away and reloaded from the database,
 which is what a restart actually is.
 
-Two things must NOT persist: the API key (never written at all), and the config-file defaults
-(a reset deletes the rows rather than saving the old default over the new one).
+Two things must NOT persist: the LLM (defined only in config.toml [llm] — not editable here at
+all), and the config-file defaults (a reset deletes the rows rather than saving the old default
+over the new one).
 """
 from __future__ import annotations
 
@@ -59,22 +59,6 @@ def test_an_extraction_threshold_survives_a_restart(client):
     assert live["evidence_floor"] == 0.62 and live["llm_request_grouping"] == "identical"
 
 
-def test_the_llm_configuration_survives_a_restart(client):
-    client.patch("/api/v1/settings", headers=_admin(client),
-                 json={"llm": {"provider": "anthropic", "model": "claude-sonnet-5",
-                               "temperature": 0.3, "max_tokens": 2048}})
-    _restart()
-
-    llm = get_settings().llm
-    assert llm.provider == "anthropic"
-    assert llm.model == "claude-sonnet-5"
-    assert llm.max_tokens == 2048
-    # `temperature` is still SENT above on purpose: it was an editable, persisted knob that no
-    # provider call ever read, so it was deleted. An older client that keeps sending it must not
-    # break the fields around it — the key is ignored, not stored, and not a field any more.
-    assert not hasattr(llm, "temperature")
-
-
 def test_the_feature_flags_survive_a_restart(client):
     before = client.get("/api/v1/settings", headers=_admin(client)).json()["features"]
     client.patch("/api/v1/settings", headers=_admin(client),
@@ -85,21 +69,6 @@ def test_the_feature_flags_survive_a_restart(client):
     after = client.get("/api/v1/settings", headers=_admin(client)).json()["features"]
     assert after["ui_localization"] is not before["ui_localization"]
     assert after["review_required"] is not before["review_required"]
-
-
-def test_the_api_key_is_never_persisted(client):
-    """Only the NAME of the env var is stored. A client that tries to send a key must not get
-    it written to the database — nor accepted at all."""
-    client.patch("/api/v1/settings", headers=_admin(client),
-                 json={"llm": {"api_key_env": "MY_KEY_VAR", "api_key": "sk-secret-value",
-                               "key": "sk-secret-value"}})
-
-    stored = _rows(settings_state.SCOPE_LLM)
-    assert stored.get("api_key_env") == "MY_KEY_VAR"
-    assert "api_key" not in stored and "key" not in stored
-    with SessionLocal() as s:
-        blob = " ".join(str(r.value) for r in s.execute(select(SettingOverride)).scalars().all())
-    assert "sk-secret-value" not in blob
 
 
 def test_restoring_defaults_deletes_the_rows_rather_than_saving_the_old_value(client):
@@ -115,17 +84,6 @@ def test_restoring_defaults_deletes_the_rows_rather_than_saving_the_old_value(cl
     _restart()
     shipped = client.get("/api/v1/settings", headers=h).json()["extraction_defaults"]
     assert get_settings().extraction.evidence_floor == shipped["evidence_floor"]
-
-
-def test_resetting_the_llm_config_also_clears_its_rows(client):
-    h = _admin(client)
-    client.patch("/api/v1/settings", headers=h, json={"llm": {"model": "some-other-model"}})
-    assert _rows(settings_state.SCOPE_LLM).get("model") == "some-other-model"
-
-    client.patch("/api/v1/settings", headers=h, json={"reset_llm": True})
-    assert _rows(settings_state.SCOPE_LLM) == {}
-    _restart()
-    assert get_settings().llm.model != "some-other-model"
 
 
 def test_defaults_are_the_config_files_even_after_a_restart_with_overrides_stored(client):
@@ -192,3 +150,32 @@ def test_whether_the_sample_project_is_loaded_also_survives_a_restart(client):
     client.patch("/api/v1/settings", headers=h, json={"seed_demo": False})
     _restart()
     assert client.get("/api/v1/settings", headers=h).json()["features"]["seed_demo"] is False
+
+
+def test_the_llm_cannot_be_set_from_the_settings_api(client):
+    """The LLM has one home, config.toml [llm]. A client that still sends an edit — or a key —
+    is told so, and nothing is applied or written."""
+    h = _admin(client)
+    before = get_settings().llm.model
+    for body in ({"llm": {"model": "some-other-model"}}, {"reset_llm": True},
+                 {"llm": {"api_key": "sk-secret-value"}}):
+        r = client.patch("/api/v1/settings", headers=h, json=body)
+        assert r.status_code == 400 and "config.toml" in r.json()["detail"]
+    assert get_settings().llm.model == before
+    assert _rows(settings_state.SCOPE_LLM) == {}
+    with SessionLocal() as s:
+        assert "sk-secret-value" not in " ".join(
+            str(r.value) for r in s.execute(select(SettingOverride)).scalars().all())
+
+
+def test_an_llm_setting_saved_by_an_older_release_is_removed_not_applied(client):
+    """A row saved from the old Settings screen outranked the file; on the next start it is
+    deleted and the file's value stands."""
+    shipped = get_settings().llm.model
+    with SessionLocal() as s:
+        s.add(SettingOverride(scope=settings_state.SCOPE_LLM, key="model",
+                              value={"v": "minimax/minimax-m2.7:free"}))
+        s.commit()
+    _restart()
+    assert get_settings().llm.model == shipped
+    assert _rows(settings_state.SCOPE_LLM) == {}

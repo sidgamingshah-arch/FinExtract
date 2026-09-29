@@ -75,7 +75,8 @@ def main() -> int:
     scratch = Path(tempfile.mkdtemp(prefix="finex-run-"))
     _isolate(scratch)
     if args.no_llm:
-        os.environ["FINEX_LLM__PROVIDER"] = "stub"
+        from app.config import pin_llm   # the environment is not read for the LLM
+        pin_llm(provider="stub")
 
     from fastapi.testclient import TestClient
 

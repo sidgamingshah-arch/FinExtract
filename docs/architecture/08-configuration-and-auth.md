@@ -6,10 +6,17 @@ Non-secret, deployment-tunable settings live in `backend/config.toml` and are lo
 `app/config.py` via pydantic-settings. Layering, highest precedence first:
 
 1. **Environment variables** — prefix `FINEX_`, nested keys use `__`
-   (e.g. `FINEX_LLM__MODEL`, `FINEX_FEATURES__UI_LOCALIZATION=true`).
+   (e.g. `FINEX_FEATURES__UI_LOCALIZATION=true`).
 2. **`.env`** file.
 3. **`config.toml`** — the human-editable file (checked into git).
 4. Built-in defaults in `app/config.py`.
+
+**The LLM is the exception: `config.toml [llm]` is the only place it is defined.** Layers 1
+and 2 are not read for the `[llm]` table (a `FINEX_LLM__*` variable is ignored and named in a
+startup WARNING), and nothing at run time — no Settings screen, no stored override — can
+change it. Only the API key lives outside the file, in the environment (or `.env`) under the
+name `[llm].api_key_env` gives. Tests and offline scripts pin a provider in code with
+`app.config.pin_llm` (the suite pins `stub` in `tests/conftest.py`).
 
 `settings_customise_sources` inserts a `TomlConfigSettingsSource` between dotenv and the
 defaults, so env always wins over the file. Most settings are grouped into nested models, one
@@ -20,7 +27,7 @@ model per table; a few sit at the top level and take no table at all:
 | *(no table — bare top-level keys, before the first `[section]`)* | `app_name`, `api_prefix`, `database_url`, `object_store_backend`, `object_store_root` |
 | `[auth]` | `allow_role_header`, `demo_mode`, `session_ttl_minutes` |
 | `[features]` | `ui_localization`, `review_required`, `seed_demo`, `default_output_locale`, `supported_locales` |
-| `[llm]` | `provider`, `model`, `temperature`, `max_tokens`, `timeout_seconds`, `base_url`, `api_key_env`, plus the Azure address: `azure_endpoint`, `azure_api_version`, `azure_deployment` |
+| `[llm]` | `provider`, `model`, `max_tokens`, `timeout_seconds`, `base_url`, `api_key_env`, plus the Azure address: `azure_endpoint`, `azure_api_version`, `azure_deployment` |
 | `[ocr]` | `engine`, `languages`, `dpi`, plus the Azure Document Intelligence address: `azure_endpoint`, `azure_model`, `azure_api_version`, `azure_api_key_env` |
 | `[extraction]` | native/scanned thresholds, the mapping thresholds (`evidence_floor` and `alias_coverage_floor` — how nearly a caption must BE an authored alias for the two guards that read it; `mapping_margin`, `auto_accept_confidence`), reconciliation tolerances (`recon_*`), and the LLM-mapping knobs (`llm_mapping`, `llm_candidate_cap`, `mapping_scope`, `llm_gap_routing`) |
 
@@ -51,7 +58,7 @@ variable into a hard startup crash. `app/main.py` also prints the effective `app
 
 **Secrets are never stored here.** The LLM key is read at call time from the environment
 variable named by `llm.api_key_env` (shipped default **`AZURE_OPENAI_API_KEY`**, matching
-the shipped `llm.provider = "azure_openai"`); the config only names the variable. The OCR
+the shipped `llm.provider = "openai_compatible"` gateway); the config only names the variable. The OCR
 key is the same arrangement under `ocr.azure_api_key_env` (default `AZURE_DI_KEY`).
 `GET /settings` reports whether the LLM variable is populated (`key_configured`), never its
 value.
@@ -60,16 +67,12 @@ value.
 
 `GET /settings` (any authenticated caller) returns a non-secret snapshot of the config —
 so the frontend can surface it and read runtime flags. `PATCH /settings`
-(`config:settings`, admin only) changes the runtime-mutable settings, which are **three
-groups, not one flag**:
+(`config:settings`, admin only) changes the runtime-mutable settings, which are **two
+groups**:
 
 1. the **feature flags** — `ui_localization`, `review_required`, `seed_demo` (load/clear
    the sample project);
-2. the **LLM configuration** — `provider`, `model`, `base_url`, `temperature`,
-   `max_tokens`, `timeout_seconds`, `api_key_env`, `azure_endpoint`, `azure_api_version`,
-   `azure_deployment` (`LLM_EDITABLE`). The **key itself is never accepted from the UI** —
-   only the *name* of the env var;
-3. the **extraction thresholds** — the mapping ensemble's accept/candidate/margin bars and
+2. the **extraction thresholds** — the mapping ensemble's accept/candidate/margin bars and
    the reconciliation tolerances (`EXTRACTION_KNOBS`). Each knob's bounds, step and
    explanation are served by the API as `extraction_fields`, so the screen renders and
    validates from the backend's own definition instead of a second copy; an out-of-range
@@ -141,16 +144,10 @@ input/output token usage in `LlmMeta` for the audit log. Adapters are registered
 registration needs neither the SDK nor a key. Keys are read from the environment at call
 time, never from `config.toml`.
 
-**Editable at runtime.** An admin can change the LLM configuration (provider, model,
-base_url, temperature, max_tokens, timeout, the Azure endpoint / api-version / deployment,
-and the *name* of the key's env var) live from the Settings screen —
-`PATCH /settings {"llm": {…}}`. `settings_state.set_llm_config` applies the edit onto the
-process-wide `Settings.llm` so the provider registry and adapters pick it up immediately,
-**and persists it to `setting_overrides`** so it survives a restart and is picked up by
-every process against the same database (`PATCH /settings {"reset_llm": true}` restores what
-`config.toml` shipped). The **API key itself is never accepted from the UI** — only
-`api_key_env` is editable; the snapshot reports whether that env var is currently populated
-(`key_configured`).
+**Not editable at runtime.** The LLM configuration is read-only in `GET /settings` (for
+diagnosis, with `key_configured`) and is not on the Settings screen. `PATCH /settings` with `llm`
+or `reset_llm` answers 400 naming `config.toml`. Rows an older release saved under the `llm`
+scope of `setting_overrides` are deleted at startup and logged.
 
 ## Frontend flow
 

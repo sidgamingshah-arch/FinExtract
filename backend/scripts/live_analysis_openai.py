@@ -12,11 +12,10 @@ It reuses the exact schema, system prompt and payload builder from ``live_analys
 so the two runners stay in lockstep; only the transport differs. No SDK required —
 just ``httpx`` (already a dependency).
 
-Config is read from settings (config.toml + .env), highest precedence env vars:
-  FINEX_LLM__BASE_URL   e.g. https://api.tokenrouter.com/v1
-  FINEX_LLM__MODEL      e.g. moonshotai/kimi-k3-free
-  <api_key_env>         the key, env var named by config.toml [llm].api_key_env
-                        (default ANTHROPIC_API_KEY)
+Config is read from config.toml [llm] — the only place the LLM is defined:
+  base_url              e.g. https://api.tokenrouter.com/v1
+  model                 e.g. moonshotai/kimi-k3-free
+  <api_key_env>         the key, from the env var named by [llm].api_key_env
 
 Usage:
     # dry run — prints the exact request that WOULD be sent (no key/network needed):

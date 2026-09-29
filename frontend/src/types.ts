@@ -119,17 +119,6 @@ export interface AdminAuditResponse {
   truncated: boolean;
 }
 
-/** Editable (non-secret) LLM configuration fields — the API key is never sent. */
-export interface LlmConfigPatch {
-  provider?: string;
-  model?: string;
-  base_url?: string;
-  /* No `temperature`: the backend dropped the knob (it reached no provider call), and sending it
-     would now be an ignored extra key. Temperature is fixed at 0.0 server-side. */
-  max_tokens?: number;
-  timeout_seconds?: number;
-  api_key_env?: string;
-}
 /** One tunable extraction setting, as DESCRIBED BY THE BACKEND — bounds, step and an
  *  explanation of what it does. The Settings screen renders and validates from this, so the
  *  UI cannot disagree with what the API will accept. */
@@ -149,9 +138,8 @@ export interface SettingsPatch {
   ui_localization?: boolean;
   review_required?: boolean;
   seed_demo?: boolean;
-  llm?: LlmConfigPatch;
-  /** Restore the LLM configuration to what config.toml shipped. */
-  reset_llm?: boolean;
+  /* No `llm` / `reset_llm`: the LLM is defined only in backend/config.toml [llm]; the API
+     answers 400 to either. */
   /** Mapping / reconciliation thresholds. Out-of-range values are refused by the API (422). */
   extraction?: Record<string, number | boolean | string>;
   /** Restore every extraction knob to the value config.toml shipped. */
@@ -166,10 +154,11 @@ export interface AppSettings {
     default_output_locale: string;
     supported_locales: string[];
   };
+  /** READ-ONLY echo of backend/config.toml [llm]; not shown on the Settings screen. */
   llm: {
+    defined_in?: string;
     provider: string;
     model: string;
-    /* `temperature` is no longer in the GET /settings body — see LlmConfigPatch above. */
     max_tokens: number;
     timeout_seconds: number;
     base_url: string;

@@ -48,5 +48,5 @@ class StubLlmProvider:
     ) -> tuple[BaseModel, LlmMeta]:
         raise NotImplementedError(
             "LLM disambiguation requested but no LLM adapter is configured. Install "
-            "the 'llm' extra and set FINEX_LLM_PROVIDER (e.g. 'anthropic')."
+            "the 'llm' extra and set provider in config.toml [llm] (e.g. 'anthropic')."
         )

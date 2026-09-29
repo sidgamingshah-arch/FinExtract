@@ -5,14 +5,10 @@ meant to be flipped live by an admin from the Settings screen:
 
   * ``ui_localization``  — localize the whole interface.
   * ``review_required``  — require a reviewer step (else the workflow closes at analyst).
-  * the LLM configuration — provider / model / base_url / max_tokens / timeout /
-    api_key_env (plus the Azure address fields). Edits are applied onto the process-wide
-    ``Settings.llm`` so the provider registry and adapters pick them up immediately. The
-    **API key is never stored here** — only the *name* of the env var it is read from.
-    ``temperature`` was in this list and is not any more: no ``complete_structured`` call
-    site ever forwarded it, so editing it changed nothing that was sent — the one claim
-    this docstring makes ("pick them up immediately") was false for exactly that field.
-    It is now fixed at the port default 0.0; see ``config.LlmSettings``.
+  * NOT the LLM. It is defined only in ``config.toml``'s ``[llm]`` table (see ``app.config``).
+    It used to be editable here and persisted, and a saved value outranked the file and the
+    environment alike — so the file could name one gateway while every call went to another.
+    Rows an older release stored under the ``llm`` scope are deleted at startup, and logged.
   * the EXTRACTION thresholds — the mapping ensemble's accept/candidate/margin bars and the
     reconciliation tolerances (see ``EXTRACTION_KNOBS``). Applied onto the process-wide
     ``Settings.extraction``, which the pipeline reads per run, so a change takes effect on the
@@ -29,8 +25,7 @@ setting); two changing the SAME one are last-write-wins, and the losing process 
 value until it restarts or is told again — acceptable for an admin screen, and the reason the
 table stores one row per setting rather than a single blob.
 
-**No secrets are persisted.** The LLM API key is never written: only the NAME of the
-environment variable it is read from.
+**No secrets are persisted.**
 """
 from __future__ import annotations
 
@@ -47,104 +42,11 @@ SCOPE_LLM = "llm"
 SCOPE_EXTRACTION = "extraction"
 
 _RUNTIME: dict = {}
-# Snapshot of the config-file LLM defaults, captured once so reset() can restore them.
-_LLM_DEFAULTS: dict | None = None
 # …and of the extraction defaults, so "restore defaults" means the shipped config values
 # rather than whatever the last edit happened to be.
 _EXTRACTION_DEFAULTS: dict | None = None
 # Whether the persisted overrides have been read into this process yet.
 _LOADED = False
-
-# LLM fields an admin may edit from the UI (the key itself is intentionally excluded).
-#
-# ``temperature`` is deliberately absent — the field no longer exists on ``LlmSettings`` at all.
-# Removing it here is also what makes the upgrade safe for a deployment that already SAVED a
-# temperature: ``load_persisted`` filters the stored rows through this tuple, so such a row is
-# skipped rather than ``setattr``-ed onto a model that has no such field. The rows are left in
-# ``setting_overrides`` (inert) rather than migrated away.
-LLM_EDITABLE = ("provider", "model", "base_url", "max_tokens",
-                "timeout_seconds", "api_key_env",
-                # Azure addresses a DEPLOYMENT on the customer's own resource, so the resource, the
-                # api-version and the deployment name are part of the address — as editable as
-                # base_url is for OpenAI, and unusable if they are not.
-                "azure_endpoint", "azure_api_version", "azure_deployment")
-
-# Bounds on the NUMERIC LLM fields, as ``(minimum, maximum, type)``.
-#
-# These exist because ``set_llm_config`` was a bare ``setattr``: the ``Knob`` min/max machinery
-# below runs only over ``EXTRACTION_KNOBS``, so any number an admin typed into the LLM section was
-# accepted and then sent to the gateway on every call. The shipped configuration was itself the
-# proof — ``max_tokens`` shipped as 4,096,000, and the real gateway answered "max_tokens is too
-# large: 4096000. This model supports at most 128000 completion tokens" (recorded in
-# tests/test_llm_audit.py). A completion allocation no model can serve is not a setting.
-#
-#   max_tokens            256 .. 262144 — floor sits above the largest callee default that this
-#                         ceiling overrides (run_analysis's 4096); the ceiling is above any
-#                         advertised completion limit while staying far short of "millions".
-#   timeout_seconds       1 .. 3600     — 0 fails every call before it is sent; an hour is already
-#                         longer than any single completion this app makes.
-#   reasoning_max_tokens  0 .. 262144   — 0 means "do not send a cap". DORMANT: the field is not in
-#                         ``LLM_EDITABLE``, so nothing can set it today; the bound is written here
-#                         so it arrives WITH the field rather than after it.
-LLM_NUMERIC_BOUNDS: dict[str, tuple[float, float, type]] = {
-    "max_tokens": (256, 262144, int),
-    "timeout_seconds": (1, 3600, int),
-    # No "temperature": unlike `reasoning_max_tokens` above, which is dormant but REAL, there is
-    # no such field on `LlmSettings` any more — a bound for a field that does not exist is a
-    # third copy of a deleted knob, so it goes with it.
-    "reasoning_max_tokens": (0, 262144, int),
-}
-
-
-def _checked_llm_value(key: str, value):
-    """Coerce and range-check one LLM field. Non-numeric fields pass straight through.
-
-    Out of range is REJECTED, not clamped — the same choice ``set_extraction_config`` documents:
-    quietly substituting a different number than the one an admin typed makes the Settings screen
-    lie about what is actually being sent to the provider.
-
-    ``provider`` is checked against the adapter REGISTRY, for the same reason: it was a bare
-    ``setattr`` of any string at all, so an unregistered id was accepted here and only discovered
-    per-stage, differently each time — HTTP 400 on two paths, a logged no-op on gap_closing and
-    contingent_liabilities, and a deterministic-only mapping run with a reason line. The shipped
-    menus were themselves the proof: config.toml's [llm] comment and the Settings dropdown both
-    offered ``local``, which is an OBJECT_STORE id and has no llm adapter. Refuse at the moment of
-    setting instead, with the registry's own message, so the operator learns it from the screen
-    they typed it into rather than from a half-finished run.
-
-    Raises ValueError naming the offending field.
-    """
-    if key == "provider":
-        # Consult the registry only after the built-ins have registered themselves; nothing else
-        # in this module imports the adapter package, and an empty registry would refuse every
-        # provider including the config default.
-        import app.adapters  # noqa: F401 — import for its registration side effect
-
-        available = registry.available("llm")
-        if value not in available:
-            # Same wording as Registry.get's KeyError, so the message an admin sees on the
-            # Settings screen matches the one in the logs if an id ever slips past.
-            raise ValueError(
-                f"No 'llm' adapter registered with id {value!r}. "
-                f"Available: {available or '[]'}"
-            )
-        return value
-    bound = LLM_NUMERIC_BOUNDS.get(key)
-    if bound is None:
-        return value
-    minimum, maximum, cast = bound
-    try:
-        num = float(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"{key} must be a number (got {value!r})") from exc
-    if cast is int and num != int(num):
-        raise ValueError(f"{key} must be a whole number (got {value!r})")
-    if num < minimum:
-        raise ValueError(f"{key} must be at least {minimum} (got {num})")
-    if num > maximum:
-        raise ValueError(f"{key} must be at most {maximum} (got {num})")
-    return cast(num)
-
 
 class Knob(NamedTuple):
     """One tunable extraction setting, described well enough for a UI to render and validate it
@@ -323,26 +225,17 @@ def load_persisted() -> None:
         if key in feats and feats[key] is not None:
             _RUNTIME[key] = bool(feats[key])
 
-    llm_stored = {k: v for k, v in _stored(SCOPE_LLM).items() if k in LLM_EDITABLE}
+    # THE LLM IS NOT STORED HERE ANY MORE (see the module docstring). A row an older release
+    # saved would otherwise sit in the table looking like configuration; it is removed, and what
+    # it said is logged so nobody wonders where their setting went.
+    llm_stored = _stored(SCOPE_LLM)
     if llm_stored:
-        llm = get_settings().llm
-        for key, value in llm_stored.items():
-            if value is None:
-                continue
-            try:
-                setattr(llm, key, _checked_llm_value(key, value))
-            except ValueError:
-                # A stored number that is out of range — saved before these bounds existed (the
-                # 4,096,000 max_tokens this file's LLM_NUMERIC_BOUNDS comment records is exactly
-                # that case), or a range tightened between releases — must neither stop the app
-                # from starting nor be sent to a gateway; the config default stands. Same
-                # treatment as the extraction knobs below.
-                #
-                # This is also what makes the new `provider` registry check safe to add: a
-                # deployment that already SAVED `local` from the old dropdown lands here on the
-                # next boot and falls back to the shipped provider, rather than raising out of
-                # startup.
-                continue
+        import logging
+        logging.getLogger(__name__).warning(
+            "Removed LLM settings saved from the Settings screen (%s): the LLM is defined only in "
+            "config.toml [llm].", ", ".join(f"{k}={v!r}" for k, v in sorted(llm_stored.items())))
+        _forget(SCOPE_LLM)
+    _warn_if_provider_unregistered()
 
     ex_stored = _stored(SCOPE_EXTRACTION)
     if ex_stored:
@@ -355,14 +248,11 @@ def load_persisted() -> None:
 
 
 def _seed() -> None:
-    global _LLM_DEFAULTS, _EXTRACTION_DEFAULTS
+    global _EXTRACTION_DEFAULTS
     feats = get_settings().features
     _RUNTIME.setdefault("ui_localization", feats.ui_localization)
     _RUNTIME.setdefault("review_required", feats.review_required)
     _RUNTIME.setdefault("seed_demo", feats.seed_demo)
-    if _LLM_DEFAULTS is None:
-        llm = get_settings().llm
-        _LLM_DEFAULTS = {k: getattr(llm, k) for k in LLM_EDITABLE}
     if _EXTRACTION_DEFAULTS is None:
         ex = get_settings().extraction
         _EXTRACTION_DEFAULTS = {k.key: getattr(ex, k.key) for k in EXTRACTION_KNOBS}
@@ -405,30 +295,18 @@ def set_review_required(value: bool) -> bool:
     return _RUNTIME["review_required"]
 
 
-def set_llm_config(*, persist: bool = True, **fields) -> dict:
-    """Apply admin LLM-config edits onto the live Settings.llm (never the API key).
+def _warn_if_provider_unregistered() -> None:
+    """Say at startup, not per stage, when config.toml names an LLM provider no adapter answers to."""
+    import logging
 
-    Only keys in ``LLM_EDITABLE`` are honoured; unknown keys and any ``api_key``/secret
-    values are ignored — which is also what keeps the key out of the persisted rows, since
-    only the honoured keys are written. Returns the resulting editable LLM config.
+    import app.adapters  # noqa: F401 — import for its registration side effect
 
-    A numeric field outside ``LLM_NUMERIC_BOUNDS`` is REJECTED rather than clamped, as in
-    ``set_extraction_config``. Validation happens BEFORE anything is applied, so one bad field
-    leaves the live configuration (and the persisted rows) untouched instead of half-updated.
-
-    Raises ValueError naming the offending field.
-    """
-    _seed()
-    llm = get_settings().llm
-    applied: dict = {}
-    for key, value in fields.items():
-        if key in LLM_EDITABLE and value is not None:
-            applied[key] = _checked_llm_value(key, value)
-    for key, value in applied.items():
-        setattr(llm, key, value)
-    if persist and applied:
-        _persist(SCOPE_LLM, applied)
-    return {k: getattr(llm, k) for k in LLM_EDITABLE}
+    provider = get_settings().llm.provider
+    available = registry.available("llm")
+    if provider not in available:
+        logging.getLogger(__name__).warning(
+            "config.toml [llm] provider=%r is not a registered LLM adapter (available: %s); "
+            "LLM steps will be skipped or refused.", provider, ", ".join(sorted(available)))
 
 
 def extraction_config() -> dict:
@@ -492,20 +370,6 @@ def set_extraction_config(*, persist: bool = True, **fields) -> dict:
     return extraction_config()
 
 
-def reset_llm_config() -> dict:
-    """Restore the LLM configuration to what the config file shipped.
-
-    Like the extraction reset, the stored rows are DELETED rather than rewritten, so a later
-    change to config.toml is picked up instead of masked by a saved copy of the old default.
-    """
-    _seed()
-    llm = get_settings().llm
-    for key, value in (_LLM_DEFAULTS or {}).items():
-        setattr(llm, key, value)
-    _forget(SCOPE_LLM)
-    return {k: getattr(llm, k) for k in LLM_EDITABLE}
-
-
 def reset_extraction_config() -> dict:
     """Restore every extraction knob to the value the config file shipped.
 
@@ -526,17 +390,12 @@ def reset(*, persisted: bool = True) -> None:
     Also clears the persisted rows by default — otherwise one test's saved threshold would be
     re-applied to the next by ``load_persisted``.
     """
-    global _LLM_DEFAULTS, _EXTRACTION_DEFAULTS, _LOADED
+    global _EXTRACTION_DEFAULTS, _LOADED
     _RUNTIME.clear()
     _LOADED = False
     if persisted:
         for scope in (SCOPE_FEATURES, SCOPE_LLM, SCOPE_EXTRACTION):
             _forget(scope)
-    if _LLM_DEFAULTS is not None:
-        llm = get_settings().llm
-        for k, v in _LLM_DEFAULTS.items():
-            setattr(llm, k, v)
-        _LLM_DEFAULTS = None
     if _EXTRACTION_DEFAULTS is not None:
         ex = get_settings().extraction
         for k, v in _EXTRACTION_DEFAULTS.items():

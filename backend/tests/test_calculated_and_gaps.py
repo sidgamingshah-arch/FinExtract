@@ -427,8 +427,7 @@ def test_the_stage_is_a_no_op_without_a_provider(monkeypatch):
     from app.core.stage import PipelineContext
     from app.stages.gap_closing import GapClosingStage
 
-    monkeypatch.setenv("FINEX_LLM__PROVIDER", "stub")
-    get_settings.cache_clear()
+    get_settings.cache_clear()                 # conftest pins the stub provider
     try:
         doc = DocumentModel(filename="f.pdf")
         ctx = PipelineContext()

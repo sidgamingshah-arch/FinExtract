@@ -51,6 +51,9 @@ tests/                 Unit/golden tests + synthetic fixture generators
 | `FINEX_DATABASE_URL` | `sqlite:///./finex.db` | Postgres URL in prod |
 | `FINEX_OBJECT_STORE_BACKEND` | `local` | `local` / `s3` / `minio` |
 | `FINEX_OCR_PROVIDER` | `stub` | e.g. `paddle` once installed |
-| `FINEX_LLM_PROVIDER` | `stub` | e.g. `anthropic` once installed |
+
+**The LLM is not an env var.** It is defined in one place, `config.toml`'s `[llm]` table; only
+its API key comes from the environment (or `.env`), under the name `[llm].api_key_env` gives.
+`FINEX_LLM__*` is ignored and named in a startup warning, and the Settings screen does not edit it.
 
 See `docs/architecture/` for the full design.

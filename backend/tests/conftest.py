@@ -21,9 +21,12 @@ os.environ.setdefault("FINEX_OBJECT_STORE_ROOT", f"{_tmp}/objects")
 # consulted, and a disabled tier makes them fail for the opposite reason. The stub keeps the path
 # wired and answers deterministically, which is what a test needs from it.
 #
-# `setdefault`, so a developer can still point the suite at a real provider deliberately
-# (FINEX_LLM__PROVIDER=anthropic pytest ...) without editing this file.
-os.environ.setdefault("FINEX_LLM__PROVIDER", "stub")
+# PINNED IN CODE, not through FINEX_LLM__PROVIDER: the LLM is defined only in config.toml [llm]
+# and the environment is no longer read for it (app.config). To run the suite against a real
+# provider deliberately, drop this line and set config.toml.
+from app.config import pin_llm  # noqa: E402
+
+pin_llm(provider="stub")
 
 
 @pytest.fixture(autouse=True)
