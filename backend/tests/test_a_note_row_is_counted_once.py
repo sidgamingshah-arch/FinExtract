@@ -177,16 +177,18 @@ def test_no_sources_at_all_is_the_arithmetic_this_had_before(by_key):
 
 def test_a_duplicate_does_not_kill_a_rung_that_required_it(by_key):
     """A `required` term whose figure was already counted is SATISFIED — it was found — so the rung
-    resolves. Killing it would publish nothing for a line whose figure is on the page."""
-    rung = _rung(by_key, LTP, "LTP_P1")
-    required = [t.ref for t in rung.terms if t.role == "required" and t.ref]
-    assert len(required) >= 2, [t.ref for t in rung.terms]
+    resolves. Killing it would publish nothing for a line whose figure is on the page. Asserted on
+    a rung built for it: no shipped rung requires two note parts any more."""
+    from app.schemas.line_items import LineItemDef
 
+    line = LineItemDef.model_validate({
+        "key": "x", "label": "x", "type": "derived", "cascade": [{"id": "R", "terms": [
+            {"ref": "a", "role": "required"}, {"ref": "b", "role": "required"}]}]})
     one_row = (NOTE_PAGE, "合计", None, "100")
-    known = {ref: Decimal("100") for ref in required}
-    got = evaluate(by_key[LTP], known, {ref: one_row for ref in required})
+    got = evaluate(line, {"a": Decimal("100"), "b": Decimal("100")}, {"a": one_row, "b": one_row})
 
     assert got.resolved, "a figure found twice is still a figure found"
+    assert got.value == Decimal("100"), got.value
 
 
 def test_the_trail_names_a_term_that_was_read_and_not_added(by_key):

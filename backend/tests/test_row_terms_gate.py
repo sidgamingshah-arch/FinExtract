@@ -181,7 +181,9 @@ def test_no_shipped_line_is_left_with_nothing_to_match_on(shipped):
     # 58 now: the seven Securities (CP) parts read a note's LINE ITEMS by four vetoes rather than
     # by a row vocabulary, so they carry no `row_terms` — see the next test for why that is safe —
     # and three of their siblings (Find 2 and the non-current deduction) left the set.
-    assert len(judged) >= 58
+    # 46 now: the eight Securities (LTP) Find 1 parts read line items by four vetoes too, and
+    # the four Securities (LTP) Find 2 and non-current-split parts left the set.
+    assert len(judged) >= 46
     for item in judged:
         terms = [str(x) for x in item.note_source.row_terms]
         every = {tok for term in terms for tok in subject_tokens(term)}

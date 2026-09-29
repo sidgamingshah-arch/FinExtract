@@ -54,6 +54,9 @@ FACE_PARTS = {
     "sub__ltp_face_other_non_current_fincl_assets": (
         "bs_nca__secur_and_other_fincl_assets_ltp", "bs_nca",
         ("其他非流动金融资产", "其他非流動金融資產")),
+    # CAS 其他权益工具投资: read off the face because its note prints the movement as columns.
+    "sub__ltp_face_other_equity_instrument_investments": (
+        "bs_nca__secur_and_other_fincl_assets_ltp", "bs_nca", ("其他权益工具投资", "其他權益工具投資")),
 }
 
 
@@ -64,6 +67,7 @@ def shipped():
 
 @pytest.fixture(scope="module")
 def by_key(shipped):
+    _SHIPPED.update({i.key: i for i in shipped.items})
     return {i.key: i for i in shipped.items}
 
 
@@ -104,7 +108,11 @@ def test_each_part_is_wired_into_its_parents_last_rung(key, by_key):
 
     face = [r for r in parent.cascade if r.id == "FROM_THE_FACE"]
     assert len(face) == 1, [r.id for r in parent.cascade]
-    assert [(t.ref, t.role, t.sign) for t in face[0].terms] == [(key, "required", 1)]
+    # `required` where the part is the rung's only reading; `any_of` where the face prints the
+    # line as several rows (Securities (LTP): 其他非流动金融资产 and 其他权益工具投资).
+    terms = {t.ref: (t.role, t.sign) for t in face[0].terms}
+    assert terms.get(key) in (("required", 1), ("any_of", 1)), terms
+    assert len(terms) == 1 or all(role == "any_of" for role, _ in terms.values()), terms
 
 
 def test_an_overshoot_floors_at_zero_before_the_face_is_tried(by_key):
@@ -136,6 +144,9 @@ def test_the_face_rung_never_outranks_the_figure_it_is(key, by_key):
 
 # --- 2. one note, one claimant ------------------------------------------------------------------
 
+_SHIPPED: dict = {}
+
+
 def _claims(item, caption: str) -> bool:
     """Whether this part's `note_title_any` would claim a note under this heading.
 
@@ -149,9 +160,19 @@ def _claims(item, caption: str) -> bool:
     src = item.note_source
     if src is None:
         return False
-    # A part that finds its notes BY MEANING claims a heading its `note_terms` cover.
+    # A part that finds its notes BY MEANING claims a heading its `note_terms` cover — and where
+    # SIBLINGS cover the same heading, the reader gives it to one of them (`claimed_notes`), so
+    # the claim asked about here is that one, not the bare coverage.
     if by_meaning_only(item):
-        return heading_covered(item, caption)
+        if not heading_covered(item, caption):
+            return False
+        from types import SimpleNamespace as NS
+
+        from app.services.line_item_notes import claimed_notes
+        siblings = [i for i in _SHIPPED.values()
+                    if by_meaning_only(i) and i.parent == item.parent]
+        note = NS(title=caption, note_number="1", items=[])
+        return "1" in claimed_notes(siblings, [note]).get(item.key, set())
     return any(re.search(p, caption, _FLAGS) for p in (src.note_title_any or []))
 
 
@@ -165,9 +186,12 @@ def test_only_one_note_part_claims_the_other_non_current_financial_assets_note(b
     assert not _claims(bare, "其他非流动金融资产"), (
         "the BARE-heading part must not claim 其他非流动金融资产; its own definition says it reads "
         "a note headed simply 金融资产 / 非流动金融资产")
-    # It still reads the bare headings it exists for, so this is a narrowing and not a deletion.
+    # It still reads the non-current bare headings it exists for. A heading of just 金融资产 /
+    # "Financial assets" is NOT a meaning term: as a line-item sum it would claim 交易性金融资产 and
+    # every other financial-asset note, so it is left to the model's note search.
     assert _claims(bare, "非流动金融资产")
-    assert _claims(bare, "金融资产")
+    assert _claims(bare, "Non-current financial assets")
+    assert not _claims(bare, "交易性金融资产")
 
 
 def test_no_two_any_of_terms_of_one_rung_claim_the_same_caption(by_key):
@@ -205,5 +229,10 @@ def test_the_current_fvtoci_part_does_not_claim_a_non_current_caption(by_key):
 
 
 def test_the_non_current_twin_still_claims_it(by_key):
-    """So the narrowing above moves the caption between parts rather than orphaning it."""
-    assert _claims(by_key["sub__ltp_fvtoci_note_total"], "其他权益工具投资")
+    """So the narrowing above moves the caption rather than orphaning it: on a CAS filing
+    其他权益工具投资 is read off the FACE by the LTP line's own part, because the note prints its
+    movement as columns and was misread on two of three filings."""
+    part = by_key["sub__ltp_face_other_equity_instrument_investments"]
+    assert "其他权益工具投资" in (part.aliases or [])
+    ltp = by_key["bs_nca__secur_and_other_fincl_assets_ltp"]
+    assert all(any(t.ref == part.key for t in r.terms) for r in ltp.cascade), [r.id for r in ltp.cascade]

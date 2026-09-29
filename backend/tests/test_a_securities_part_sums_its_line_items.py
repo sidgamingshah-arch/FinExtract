@@ -131,3 +131,38 @@ def test_the_prompt_is_the_simple_one(by_key):
     assert d.startswith("Sum of all current financial assets which are available-for-sale (AFS) or "
                         "held-to-maturity (HTM), excluding derivatives and other receivables.")
     assert "note total" not in d.lower() and "non-current portion" in d
+
+
+# ── the non-current twin ──────────────────────────────────────────────────────────────────────
+
+def test_688008s_other_non_current_financial_assets_note_is_its_line_items(by_key):
+    note = _table("其他非流动金融资产", [
+        _row("非上市股权投资", "531795561.02", "534338138.95"),
+        _row("私募基金投资", "43448364.95", "48529611.96"),
+        _row("合计", "575243925.97", "582867750.91"),
+    ], number="七、19")
+    assert _sum(by_key["sub__ltp_other_fincl_assets_note_total"], [note]) == {
+        "current": "575243925.97", "prior": "582867750.91"}
+
+
+def test_a_non_current_part_leaves_out_associates_and_the_current_portion(by_key):
+    note = _table("Financial assets at fair value through profit or loss", [
+        _row("Unlisted equity investments", "700"),
+        _row("Investment in an associate designated at FVTPL", "90"),
+        _row("Amounts due from related parties", "40"),
+        _row("Other receivables", "10"),
+        _row("Current portion", "-100"),
+    ], number="18")
+    assert _sum(by_key["sub__ltp_fvtpl_note_total"], [note]) == {"current": "700"}
+
+
+def test_the_cas_fvtoci_equity_caption_is_read_off_the_face(by_key):
+    """其他权益工具投资's note prints its movement as COLUMNS and was misread on 688008 and 300319;
+    the face row is right on all three mainland filings, so the LTP line reads it there."""
+    fvtoci = by_key["sub__ltp_fvtoci_note_total"].note_source.note_terms
+    assert "其他权益工具投资" not in fvtoci and "其他權益工具投資" not in fvtoci
+    face = by_key["sub__ltp_face_other_equity_instrument_investments"]
+    assert face.route == "face" and "其他权益工具投资" in face.aliases
+    ltp = by_key["bs_nca__secur_and_other_fincl_assets_ltp"]
+    assert [r.id for r in ltp.cascade] == ["LTP_P1", "LTP_P2", "FROM_THE_FACE"]
+    assert all(any(t.ref == face.key and t.role == "any_of" for t in r.terms) for r in ltp.cascade)

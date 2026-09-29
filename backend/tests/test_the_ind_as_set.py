@@ -291,7 +291,9 @@ def test_every_removed_veto_was_unable_to_match_an_english_caption(indas):
                 assert _dead_here(value), (
                     f"{item.key}.{field}: {value!r} was removed but could have matched English")
                 removed += 1
-    assert removed > 8000, removed
+    # 6,951 since the securities parts' long veto lists were replaced by four vetoes each: those
+    # values are gone from the HK set too, so they are no longer removals here.
+    assert removed > 6900, removed
 
 
 def test_every_concept_is_one_of_the_hk_spine_s(indas):
@@ -609,7 +611,8 @@ def test_the_indian_note_vocabulary_widens_context_and_not_the_deterministic_rea
     # 40 created on the note-routed and routeless lines, 65 rewritten onto the
     # Schedule III note their HK concept corresponds to.
     # 62 since the three Securities (CP) Find 2 and non-current parts left both sets.
-    assert created == 40 and inherited == 62, (created, inherited)
+    # 58 since the four Securities (LTP) Find 2 and split parts left both sets.
+    assert created == 40 and inherited == 58, (created, inherited)
 
     # THE BEHAVIOURAL HALF. A note whose heading matches the PPE family's own title pattern, with a
     # row that any depreciation vocabulary would claim. A line whose note_source was created must

@@ -290,6 +290,13 @@ def test_every_reported_line_resolves_a_gate_and_parts_deliberately_do_not():
         "sub__fa_cp_fvtpl_note_total", "sub__fa_cp_fvtoci_note_total",
         "sub__fa_cp_afs_htm_note_total",
         "sub__fa_cp_investment_and_money_market_securities_note_total",
+        # THE EIGHT SECURITIES (LTP) FIND 1 PARTS, scoped to `bs_nca` for the reason their current
+        # twins are scoped to `bs_ca`: a note the face cites under current assets (1966's note 26)
+        # is closed to them, so it is not read into both sections.
+        "sub__ltp_fvtpl_note_total", "sub__ltp_fvtoci_note_total", "sub__ltp_afs_htm_note_total",
+        "sub__ltp_debt_investments_note_total", "sub__ltp_other_fincl_assets_note_total",
+        "sub__ltp_investment_securities_note_total", "sub__ltp_structured_deposits_note_total",
+        "sub__ltp_fincl_assets_note_total",
         "sub__face_principal_revenue", "sub__revenue_note_principal_revenue",
         # FOUR MORE, READ DELIBERATELY RATHER THAN ABSORBED — which is what the note above asks of
         # a ninth. The asset-depreciation parts were scoped to `bs_nca`, and they mean by it exactly
@@ -376,6 +383,7 @@ def test_every_reported_line_resolves_a_gate_and_parts_deliberately_do_not():
                                 "sub__rp_face_loan_from_shareholder",
                                 "sub__rp_face_trade_receivable",
                                 "sub__cp_face_trading_fincl_assets",
+                                "sub__ltp_face_other_equity_instrument_investments",
                                 "sub__cp_face_other_receivables",
                                 "sub__ltp_face_other_non_current_fincl_assets"}
     aliased = [d.key for d in parts
@@ -407,7 +415,7 @@ def test_the_note_level_parts_are_off_template():
     # COLUMN of a gross/allowance/net grid, and a row whose own reported amount is the net. One
     # part holds one `measure`, so two readings are two parts; 000709 needs both, its consolidated
     # note printing the grid and its parent-company note a plain comparative.
-    assert len(subs) == 83   # 83: the three Securities (CP) Find 2 and non-current parts left the set   # 83 with the related-party TRADE RECEIVABLE's three parts (账面余额 gross, 坏账准备 allowance, and the face part holding the aliases)   # 80: 543 with the three related-party PAYABLE face parts — `mapping._computed_parent` forbids a `derived` column from matching a caption, so a column with a note cascade could not read its own printed row, so each grew a FACE part carrying the aliases the column had to give up; two on the LTP twin because kaming prints the holding-company loan and the shareholder loan as separate rows   # 77: the two related-party payable readings, one per group the note prints
+    assert len(subs) == 80   # 80: plus the Securities (LTP) face part for CAS 其他权益工具投资, whose note is misread and whose face row is right   # 79: the four Securities (LTP) Find 2 and non-current-split parts left the set   # 83: the three Securities (CP) Find 2 and non-current parts left the set   # 83 with the related-party TRADE RECEIVABLE's three parts (账面余额 gross, 坏账准备 allowance, and the face part holding the aliases)   # 80: 543 with the three related-party PAYABLE face parts — `mapping._computed_parent` forbids a `derived` column from matching a caption, so a column with a note cascade could not read its own printed row, so each grew a FACE part carrying the aliases the column had to give up; two on the LTP twin because kaming prints the holding-company loan and the shareholder loan as separate rows   # 77: the two related-party payable readings, one per group the note prints
     assert all(d.namespace == "internal" for d in subs)
     assert all(d.namespace == "template" for d in st.items if d.in_output)
 

@@ -257,11 +257,7 @@ llm_focus_keys = [
   "sub__ltp_fincl_assets_note_total",
   "sub__ltp_fvtoci_note_total",
   "sub__ltp_fvtpl_note_total",
-  "sub__ltp_included_derivatives",
-  "sub__ltp_included_equity_method_investments",
-  "sub__ltp_included_other_receivables",
   "sub__ltp_investment_securities_note_total",
-  "sub__ltp_nc_portion_of_fincl_asset_notes",
   "sub__ltp_other_fincl_assets_note_total",
   "sub__ltp_structured_deposits_note_total",
 

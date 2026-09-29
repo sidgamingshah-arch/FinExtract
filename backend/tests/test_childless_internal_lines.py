@@ -228,7 +228,7 @@ def test_the_residual_is_the_carry_forward_the_long_term_line_always_described(s
     # …as a DEDUCTION, and `required`, which is what makes the fallback work.
     using = [r for r in by_key[LTP].cascade
              if any(t.ref == RESIDUAL for t in r.terms)]
-    assert len(using) == 2, [r.id for r in by_key[LTP].cascade]
+    assert len(using) == 1, [r.id for r in by_key[LTP].cascade]   # LTP_P1
     for rung in using:
         term = next(t for t in rung.terms if t.ref == RESIDUAL)
         assert term.sign == -1, f"{rung.id} adds the overshoot instead of deducting it"
@@ -238,31 +238,25 @@ def test_the_residual_is_the_carry_forward_the_long_term_line_always_described(s
             f"says otherwise")
 
 def test_the_long_term_line_falls_through_when_there_was_no_overshoot(shipped):
-    """The MISSING_CP_CARRYFORWARD_TO_LTP path, which is the common case: on all three reference
-    filings the current arithmetic is positive, so there is no residual and the rung below answers.
-    """
+    """The common case: on every reference filing the current arithmetic is positive, so there is
+    no residual and LTP_P2 — Find 1 LTP with no carry-forward — answers. Each Find 1 part is already
+    net of derivatives, other receivables and associate investments, so nothing is deducted."""
     from app.services.line_items import evaluate
 
     ltp = next(i for i in shipped.items if i.key == LTP)
-    # A NOTE TOTAL AND NO SPLIT ROW, so the note-total source answers — rungs 3 and 4. The SPLIT
-    # ROW LEADS (rungs 1 and 2) and that ordering is load-bearing: measured on the 2024 report,
-    # putting the note totals first published 15,759,270 on the non-current line, which is
-    # 12,291,312 (its non-current portion) PLUS 3,467,958 (the current portion, already on the
-    # current line). The whole note total on a non-current line counts the current part twice.
-    base = {"sub__ltp_fvtpl_note_total": Decimal(1000),
-            "sub__ltp_included_derivatives": Decimal(100)}
+    base = {"sub__ltp_fvtpl_note_total": Decimal(1000), "sub__ltp_fvtoci_note_total": Decimal(50)}
 
     without = evaluate(ltp, dict(base))
-    assert without.value == 900 and without.rung_used == "LTP_P4", (
+    assert without.value == 1050 and without.rung_used == "LTP_P2", (
         without.value, without.rung_used)
 
     with_carry = evaluate(ltp, {**base, RESIDUAL: Decimal(200)})
-    assert with_carry.value == 700 and with_carry.rung_used == "LTP_P3", (
+    assert with_carry.value == 850 and with_carry.rung_used == "LTP_P1", (
         with_carry.value, with_carry.rung_used)
 
-    # …and the split row, when the filing gives one, takes precedence over the note total.
-    both = evaluate(ltp, {**base, "sub__ltp_nc_portion_of_fincl_asset_notes": Decimal(600)})
-    assert both.rung_used == "LTP_P2" and both.value == 500, (both.rung_used, both.value)
+    # An overshoot larger than Find 1 LTP is passed over, and the no-carry-forward figure stands.
+    too_big = evaluate(ltp, {**base, RESIDUAL: Decimal(5000)})
+    assert too_big.value == 1050 and too_big.rung_used == "LTP_P2", (too_big.value, too_big.rung_used)
 
 
 def test_every_long_term_rung_still_outranks_a_printed_figure(shipped):

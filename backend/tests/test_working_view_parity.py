@@ -66,7 +66,7 @@ RULEBOOK = TEMPLATES / "output_csv_hk_ontology.json"
 PROJECTED = sorted(set(SAME) | set(RENAMED))
 
 CONCEPTS = 462                 # the rulebook's concepts, and the set's `namespace == "template"`
-ITEMS = 546                    # …plus the 69 `sub__*` note-level parts, which ARE concepts too:
+ITEMS = 543                    # …plus the 69 `sub__*` note-level parts, which ARE concepts too:
                                # the view projects every definition, and `namespace` decides only
                                # where a figure is PUBLISHED. See
                                # test_shipped_set_projects_every_definition_including_the_parts.
@@ -415,6 +415,13 @@ def test_shipped_set_projects_every_definition_including_the_parts():
         "sub__fa_cp_fvtpl_note_total", "sub__fa_cp_fvtoci_note_total",
         "sub__fa_cp_afs_htm_note_total",
         "sub__fa_cp_investment_and_money_market_securities_note_total",
+        # THE EIGHT SECURITIES (LTP) FIND 1 PARTS, scoped to `bs_nca` for the reason their current
+        # twins are scoped to `bs_ca`: a note the face cites under current assets (1966's note 26)
+        # is closed to them, so it is not read into both sections.
+        "sub__ltp_fvtpl_note_total", "sub__ltp_fvtoci_note_total", "sub__ltp_afs_htm_note_total",
+        "sub__ltp_debt_investments_note_total", "sub__ltp_other_fincl_assets_note_total",
+        "sub__ltp_investment_securities_note_total", "sub__ltp_structured_deposits_note_total",
+        "sub__ltp_fincl_assets_note_total",
         "sub__face_principal_revenue", "sub__revenue_note_principal_revenue",
         # THE FOUR ASSET-DEPRECIATION PARTS, scoped to `bs_nca` to mean "consider the non-current
         # asset notes" — the same CONTEXT sense the six securities parts give `bs_ca`, and named
@@ -465,6 +472,7 @@ def test_shipped_set_projects_every_definition_including_the_parts():
         # published 11,271,578,867.08 against a printed 9,461,304,025.38.
         "sub__cp_face_trading_fincl_assets", "sub__cp_face_other_receivables",
         "sub__ltp_face_other_non_current_fincl_assets",
+        "sub__ltp_face_other_equity_instrument_investments",
     }
     # A RESIDUAL BUCKET IS NOT A PART and declares its statement properly: `bs_ca_residual_L3`
     # is a balance-sheet current-assets bucket, so `balance_sheet` is where it belongs.
