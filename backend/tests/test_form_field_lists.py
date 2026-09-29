@@ -119,7 +119,7 @@ def test_parent_is_authorable_because_every_part_declares_it() -> None:
     # `section_scope: ['cf_oper_indirect']` against `section_defaults[...].face_only`, the same way
     # `sub__face_principal_revenue` declares it for the income statement.
     # 61 since Find 3 split into a gross half and an allowance half, each declaring `parent`.
-    assert len(parts) == 53, len(parts)   # 53: Contingent liabilities: nine parts folded into one line-item sum over the contingencies note  # 61 before; 61: the four Securities (LTP) Find 2 and non-current-split parts left the set   # 65: the three Securities (CP) Find 2 and non-current parts left the set   # 68 with the related-party TRADE RECEIVABLE's two note readings — the 账面余额 gross and the 坏账准备 allowance it is net of, one part per `measure` of the same 应收账款 group   # 66 for the same reason the part count moved: the two related-party payable groups   # 62: the other-receivables net's two readings are two
+    assert len(parts) == 45, len(parts)   # 45: Other Receivables (CP): the grid gross/allowance readings and six carve-outs went; the related-party carve-out reads the note by meaning  # 53 before; 53: Contingent liabilities: nine parts folded into one line-item sum over the contingencies note  # 61 before; 61: the four Securities (LTP) Find 2 and non-current-split parts left the set   # 65: the three Securities (CP) Find 2 and non-current parts left the set   # 68 with the related-party TRADE RECEIVABLE's two note readings — the 账面余额 gross and the 坏账准备 allowance it is net of, one part per `measure` of the same 应收账款 group   # 66 for the same reason the part count moved: the two related-party payable groups   # 62: the other-receivables net's two readings are two
     # parts, and it is itself no longer one of them — a derived parent is not note-sourced.
     assert all(i.get("parent") for i in parts), (
         "a note-read part with no parent has nothing to trace back to")
@@ -178,9 +178,17 @@ def test_the_deterministic_tab_is_exactly_what_the_request_withholds() -> None:
     from app.services.line_item_llm import line_item_payload
 
     st = load_shipped_set()
-    # The line with the most authored recognition of any in the set — 39 row regexes, 51 row terms,
-    # aliases and a full prose block — so every field on the tab has a value to leak.
-    item = next(i for i in st.items if i.key == "sub__cp_other_receivables_rp")
+    # A shipped part carrying a value in EVERY field on the tab, so each has something to leak. The
+    # recognition is supplied here rather than borrowed from whichever line happens to carry the
+    # most, because the families are being cut down to four row rules and no row terms at all.
+    base = next(i for i in st.items if i.key == "sub__cp_other_receivables_rp_rows")
+    item = base.model_copy(update={
+        "aliases": ["Amounts due from related parties", "应收关联方款项"],
+        "note_source": base.note_source.model_copy(update={
+            "row_terms": ["related party loans", "关联借款"],
+            "row_terms_none": ["entrusted loans", "委托贷款"],
+            "prose_any": ["amounts? due from related parties"],
+            "prose_landed_in": ["other receivables"]})})
     payload = line_item_payload(item, ("24",))
 
     ns = item.note_source

@@ -291,27 +291,19 @@ llm_focus_keys = [
   "sub__rp_payable_ltp",
 
   "bs_ca__other_receivables_cp",
-  "sub__cp_current_account_net",
-  "sub__cp_current_account_rp",
-  "sub__cp_current_loans_advances_net",
-  "sub__cp_current_loans_advances_rp",
   "sub__cp_current_ltr_net",
-  "sub__cp_current_ltr_rp",
   "sub__cp_funds_placed_net",
-  "sub__cp_funds_placed_rp",
-  "sub__cp_other_receivables_gross",
   # The allowance is now a two-rung cascade over the two ways a note prints one, so a model
   # cannot answer it — a derived parent's figure is its cascade's. Its two leaves are what a
   # citation can name: the 坏账准备 COLUMN of a measure grid, and a row of its own.
-  "sub__cp_other_receivables_loss_allowance_col",
-  "sub__cp_other_receivables_loss_allowance_row",
   # The net is now a two-rung cascade over the two ways a note prints one, so a model cannot
   # answer it — a derived parent's figure is its cascade's. Its two leaves are what a
   # citation can name: the 账面价值 COLUMN of a gross/allowance/net grid, and a row whose own
   # reported amount is the net.
   "sub__cp_other_receivables_net_col",
   "sub__cp_other_receivables_net_row",
-  "sub__cp_other_receivables_rp",
+  "sub__cp_other_receivables_rp_note",
+  "sub__cp_other_receivables_rp_rows",
 
   "is_pl__sales_revenues",
   "sub__contract_revenue_note_revenue",
