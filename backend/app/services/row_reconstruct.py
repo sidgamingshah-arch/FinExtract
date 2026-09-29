@@ -658,12 +658,29 @@ def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True) -> t
             note_ref = _note_ref_value(tok)
             i += 1
             continue
+        # AN AGEING BUCKET'S NUMBER IS PART OF ITS CAPTION. "1 年以内（含1 年）", "1 至2 年", "3 年以上"
+        # open on a bare integer set tight against the unit that follows it, and read as a figure
+        # that integer took the row's first value slot and — text after a figure being neither
+        # label nor value — the rest of the caption went with it. 澜起科技 688008's 应付账款 and
+        # 预收款项 ageing tables came out captioned with their HEADER ("项目期末余额期初余额",
+        # merged down onto a row left with no caption) and a current-period figure of 1.
+        if (not value_words and _AGE_COUNT.match(tok) and i + 1 < len(row)
+                and _AGE_UNIT.match(row[i + 1].text.strip())
+                and _tight_after(row[i], row[i + 1])):
+            label_words.append(row[i])
+            i += 1
+            continue
         if _num(tok, fmt) is not None:
             value_words.append(row[i])
         elif not value_words:   # text before any number is part of the label
             label_words.append(row[i])
         i += 1
     return label_words, note_ref, value_words
+
+
+# The count that opens an ageing bucket, and the unit it is tight against. See `_scan_row`.
+_AGE_COUNT = re.compile(r"^\d{1,3}$")
+_AGE_UNIT = re.compile(r"^(?:年|个月|個月|月|天|日|周|週|至)")
 
 
 # A TOKEN THAT IS PART OF A DATE, not a figure.
@@ -1024,6 +1041,9 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
     out: list[list[Word]] = []
     pending: list[Word] = []
     seen_value = False
+    # THE CAPTION LAST FOLDED ONTO A ROW THAT PRINTS NO CAPTION OF ITS OWN, with that row's box — a
+    # caption that STRADDLES its figures. See the branch after the valued-row one.
+    straddle: tuple[list[Word], BBox] | None = None
     for idx, row in enumerate(rows):
         label_words, note_ref, value_words = _scan_row(row, fmt)
         if value_words:
@@ -1047,10 +1067,39 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             if pending and _opens_its_own_line(label_words):
                 out.append(pending)
                 pending = []
+            straddle = ((list(pending), _row_box(row))
+                        if pending and not label_words else None)
             out.append(pending + row if pending else row)
             pending = []
             seen_value = True
             continue
+        # A CAPTION WRAPPED AROUND ITS OWN FIGURES. A table cell whose caption runs to two lines
+        # sets its figures on the line BETWEEN them, and the second line was folded FORWARD onto
+        # the next row's caption: 迈捷 300319 printed 深圳市特发信息技术服务有 / figures / 限公司, and
+        # the payables table came out with "深圳市特发信息技术服务有" and "限公司深圳特发东智科技有限
+        # 公司". The line below belongs to the caption above when that caption was folded onto a row
+        # printing none of its own, it starts where that caption starts, and it sits as close below
+        # the figures as the caption sits above them — the geometry of one cell, centred.
+        if (straddle is not None and label_words and note_ref is None and out and not pending
+                and not _opens_its_own_line(label_words)
+                and not _is_known_caption(label_words, steps, known)):
+            head, figures_box = straddle
+            head_box, tail_box = _row_box(head), _row_box(row)
+            above = figures_box.y0 - head_box.y0
+            below = tail_box.y0 - figures_box.y0
+            line_h = max(head_box.y1 - head_box.y0, 1e-4)
+            # BETWEEN two consecutive lines, not a line of its own: the figures sit less than a line
+            # below the head. Prose is left-aligned and evenly spaced too, and without this bound
+            # a policy paragraph on 1966 took the heading printed under it ("…the Group of
+            # Investment properties").
+            if (abs(tail_box.x0 - head_box.x0) <= 0.01 and 0 < below and 0 < above < 0.9 * line_h
+                    and abs(below - above) <= 0.5 * line_h):
+                consumed = {id(w) for w in head}
+                rest = [w for w in out[-1] if id(w) not in consumed]
+                out[-1] = head + label_words + rest
+                straddle = None
+                continue
+        straddle = None
         if not seen_value and _is_page_title(label_words, page_title):
             out.append(pending + row if pending else row)   # chrome: never a caption's head
             pending = []
@@ -2042,7 +2091,15 @@ def _opens_its_own_line(label_words: list[Word]) -> bool:
     pipeline strips exactly the numbering this is reading (`numbering` in ``normalisation``).
     """
     text = _join_words(label_words).strip()
-    return bool(text) and bool(_CAS_STATEMENT_LINE.match(text) or _CAS_SUB_LINE.match(text))
+    return bool(text) and bool(_CAS_STATEMENT_LINE.match(text) or _CAS_SUB_LINE.match(text)
+                               or _AGE_BUCKET.match(text))
+
+
+# AN AGEING BUCKET IS A LINE OF ITS OWN — "1 年以内", "1 至2 年", "3 年以上". A table breaking an
+# ageing band down prints the band's name on a line of its own and its sub-heading under it
+# (1 年以内 / 其中：1 年以内分项 / 1 年以内 222,936,138.65), and without this both label-only lines
+# were folded onto the bucket's own caption: "1 年以内其中：1 年以内分项 1 年以内".
+_AGE_BUCKET = re.compile(r"^\d{1,3}\s*(?:[-–—~至]\s*\d{1,3}\s*)?(?:年|个月|個月|月|天|日)")
 
 # AND ITS TOTALS, which carry no enumeration. The balance sheet is not enumerated at all — its
 # spine is 流动资产合计 / 非流动资产合计 / 资产总计 / 流动负债合计 / 负债合计 /
