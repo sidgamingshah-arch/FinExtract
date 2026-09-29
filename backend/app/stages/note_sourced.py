@@ -236,7 +236,11 @@ class NoteSourcedStage(Stage):
                     ctx.log(f"note_sourced:{item.key}[{basis}:{period}]: {amount} NOT written — "
                             f"the model answered this row; its figure joins the cascade instead")
                     continue
-                _write(row, basis, period, amount, by="note_source")
+                # A NOTE TABLE IS STATED IN THE STATEMENTS' UNITS (`normalize` scales both by the
+                # document's `unit_context`), so the figure is written in them. Written without,
+                # it took scale 1 beside RMB'000 siblings: China SCE 1966's other receivables
+                # (note 24, 5,818,375) made `bs_ca`'s reconciliation `mixed_scale`.
+                _write(row, basis, period, amount, by="note_source", unit_ctx=_doc_unit(doc))
                 row.derivation = note_sourced.derivation.record(
                     row.derivation, basis=basis, period_label=period,
                     derivation=note_sourced.trail(rollup=rollup, item_label=item.label or item.key,
@@ -332,6 +336,7 @@ class NoteSourcedStage(Stage):
         # child's. Idempotent: the pass skips any slot that already carries a value, so a line
         # settled above is not recomputed here.
         standalone += _fill_childless_internal(all_items, children_of, by_key, doc, ctx)
+        _settle_against_the_face(doc, ctx, all_items)
         ctx.log(f"note_sourced: {touched} item(s) filled from notes, {filled} figure(s), "
                 f"{parents} parent(s) resolved, {standalone} standalone line(s) computed")
         return doc
@@ -424,6 +429,14 @@ def _row_unit(row: LineItem):
         uc = getattr(ev, "unit_ctx", None)
         if uc is not None and (uc.currency or uc.scale_factor != 1):
             return uc
+    return None
+
+
+def _doc_unit(doc):
+    """The document's declared unit, where it declares one — see `_row_unit`."""
+    uc = getattr(doc, "unit_context", None)
+    if uc is not None and (uc.currency or uc.scale_factor != 1):
+        return uc
     return None
 
 
@@ -1310,3 +1323,140 @@ def _children_by_parent(all_items) -> dict[str, list[str]]:
         if parent:
             out.setdefault(parent, []).append(item.key)
     return out
+
+
+# ── A NOTE'S MONEY IS ON THE FACE ONCE ─────────────────────────────────────────────────────────
+#
+# A balance-sheet line filled from a note publishes money the face has ALREADY printed, in the row
+# that cites that note. Where that row is the line's own (or one of its parts) nothing is counted
+# twice. Where it is ANOTHER line's, it was: China SCE 1966 prints "Prepayments, other receivables
+# and other assets 15,062,723", cites note 24, and files it under Other Current Assets; note 24
+# states other receivables at 5,818,375, which Other Receivables (CP) now reads — and the same
+# 5,818,375 stood inside the residual as well, so total current assets rose by exactly that and the
+# section stopped reconciling.
+#
+# TWO ANSWERS, by what the other line IS:
+#   * an `exclusive_residual` in the same section — "whatever is left of the printed money once the
+#     named lines have theirs" — gives the note-sourced figure up: the residual is the face row LESS
+#     it, which is that line's own definition. Refused where the figure exceeds what the row holds.
+#   * a printed leaf, or a row only in ANOTHER section, has committed the money elsewhere: the
+#     note-sourced figure is withheld for that period and the row it would have duplicated is named.
+#     嘉民 kaming prints "Trade and other receivables" as its own printed column, so the other
+#     receivables its note breaks out are in it already; 1966's FVTPL note is cited by a CURRENT
+#     row, so a non-current reading of the same note is the same money in the wrong column.
+#
+# BALANCE SHEET ONLY. A P&L memo line (a depreciation charge inside an expense row) reads a note an
+# expense row cites by design, and is not added into the row it is part of.
+
+
+def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items) -> None:
+    from app.stages.prune_notes import _is_face_item
+
+    defs = {i.key: i for i in all_items}
+    parent_of = {i.key: str(getattr(i, "parent", "") or "") for i in all_items}
+    kids: dict[str, list[str]] = {}
+    for key, parent in parent_of.items():
+        if parent:
+            kids.setdefault(parent, []).append(key)
+    scope_of = {}
+    ontology = getattr(ctx, "ontology", None)
+    for m in (getattr(ontology, "mappings", None) or ()):
+        scope_of[m.canonical_key] = str(getattr(m, "value_scope", "") or "")
+
+    def section(key: str) -> str:
+        item = defs.get(key)
+        scope = list(getattr(item, "section_scope", None) or ()) if item is not None else []
+        return scope[0] if len(scope) == 1 else ""
+
+    def family(key: str) -> set[str]:
+        out, todo = {key}, [key]
+        while todo:
+            for k in kids.get(todo.pop(), ()):
+                if k not in out:
+                    out.add(k)
+                    todo.append(k)
+        up = parent_of.get(key, "")
+        while up and up not in out:
+            out.add(up)
+            up = parent_of.get(up, "")
+        return out
+
+    by_key: dict[str, list[LineItem]] = {}
+    for li in doc.line_items:
+        if li.canonical_key:
+            by_key.setdefault(li.canonical_key, []).append(li)
+
+    def notes_of(key: str, slot: str, seen: set[str]) -> set[str]:
+        """The notes THIS slot's figure was counted from — its own trail, and the trails of the
+        parts that trail counted, and nothing else. Pooled over the whole family, one part's
+        citation withheld a sibling's printed figure: on the spy route 1966's
+        `bs_ca__secur_and_other_fincl_assets_cp` took 344,135 from its face part, a sibling part
+        cited note 22, and note 22 is the face's completed-properties row."""
+        if key in seen:
+            return set()
+        seen.add(key)
+        found: set[str] = set()
+        for row in by_key.get(key, ()):
+            for item in ((row.derivation or {}).get(slot) or {}).get("inputs") or ():
+                if not item or item.get("counted") is False or item.get("deducted"):
+                    continue
+                token = str(item.get("note") or "").strip()
+                if token:
+                    found.add(token)
+                part = str(item.get("canonical_key") or item.get("ref") or "")
+                if part:
+                    found |= notes_of(part, slot, seen)
+        return found
+
+    # A FACE ROW is printed and derived from nothing; a filled line carries the trail it came from.
+    face = [li for li in doc.line_items
+            if li.canonical_key and not li.derivation and not li.is_computed
+            and _is_face_item(li, doc)
+            and any(ev.provenance is not None for ev in li.values.values())]
+    for item in all_items:
+        key = item.key
+        home = section(key)
+        if not getattr(item, "in_output", True) or not home.startswith("bs_"):
+            continue
+        rows = [li for li in doc.line_items if li.canonical_key == key and li.derivation]
+        if not rows:
+            continue
+        mine = family(key)
+        for row in rows:
+            for slot_key, ev in list(row.values.items()):
+                if ev.value is None:
+                    continue
+                notes = notes_of(key, f"{_basis(ev)}:{ev.period_label}", set())
+                if not notes:
+                    continue
+                citing = [r for r in face if r.canonical_key not in mine
+                          and any(note_sourced.same_note(n, c) for n in notes
+                                  for c in (*r.cited_notes(), r.note_number or "") if c)]
+                here = [r for r in citing if section(r.canonical_key) == home]
+                residual = next((r for r in here
+                                 if scope_of.get(r.canonical_key) == "exclusive_residual"), None)
+                committed = ([r for r in here if r is not residual] if residual is None and here
+                             else ([] if here else citing))
+                if residual is None and not committed:
+                    continue
+                if residual is not None:
+                    target = next((t for t in residual.values.values()
+                                   if t.basis == ev.basis and t.period_label == ev.period_label
+                                   and t.value is not None), None)
+                    if target is None or target.value < ev.value:
+                        row.confidence.flags.append(
+                            f"face_settlement_refused:{residual.canonical_key}")
+                        continue
+                    before = target.value
+                    target.value = before - ev.value
+                    residual.confidence.flags.append(f"carved_out:{key}:{ev.value}")
+                    ctx.log(f"note_sourced:face_settlement: {residual.canonical_key}"
+                            f"[{_basis(ev)}:{ev.period_label}] {before} less {key} {ev.value} "
+                            f"= {target.value} (the note it was read from is this row's)")
+                else:
+                    other = committed[0]
+                    del row.values[slot_key]
+                    row.confidence.flags.append(f"withheld_printed_in:{other.canonical_key}")
+                    ctx.log(f"note_sourced:face_settlement: {key}[{_basis(ev)}:{ev.period_label}] "
+                            f"{ev.value} withheld — its note is printed on the face in "
+                            f"{other.canonical_key} ({other.source_label[:60]!r})")

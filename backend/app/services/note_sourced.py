@@ -72,11 +72,33 @@ def _compiled(patterns) -> list[tuple[str, re.Pattern | None]]:
 
 
 def _matches_any(text: str, compiled: list[tuple[str, re.Pattern | None]]) -> str | None:
-    """The first pattern that matches, or None. Returns the PATTERN so the trail can name it."""
-    for raw, rx in compiled:
-        if rx is not None and rx.search(text or ""):
-            return raw
+    """The first pattern that matches, or None. Returns the PATTERN so the trail can name it.
+
+    A BILINGUAL CAPTION IS TRIED WHOLE AND AS EACH OF ITS TWO LANGUAGES. An HKEX note prints every
+    row twice over — "Other receivables 其他應收款項" — and the authored patterns are anchored to a
+    caption's whole extent (`^\s*other\s+receivables?\s*$`), so neither the English pattern nor the
+    Chinese one could match either half: China SCE 1966's note 24 prints its other receivables at
+    5,818,375 / 7,028,687 and `sub__cp_other_receivables_gross` selected nothing, so
+    Other Receivables (CP) was blank. A caption in one script is tried exactly as before.
+    """
+    for candidate in _script_halves(text or ""):
+        for raw, rx in compiled:
+            if rx is not None and rx.search(candidate):
+                return raw
     return None
+
+
+_HAN_RUN = re.compile(r"[㐀-鿿豈-﫿]")
+_HAN_PART = re.compile(r"[㐀-鿿豈-﫿　-〿＀-￯]+")
+
+
+def _script_halves(text: str) -> list[str]:
+    """``[text]``, or ``[text, latin half, han half]`` when the caption carries both scripts."""
+    if not (_HAN_RUN.search(text) and re.search(r"[A-Za-z]{2,}", text)):
+        return [text]
+    han = "".join(_HAN_PART.findall(text))
+    latin = re.sub(r"\s+", " ", _HAN_PART.sub(" ", text)).strip()
+    return [text] + [h for h in (latin, han) if h and h != text]
 
 
 def _matches_title_any(title: str, compiled: list[tuple[str, re.Pattern | None]]) -> str | None:
