@@ -114,19 +114,21 @@ def test_without_sources_the_arithmetic_is_what_it_was() -> None:
 # ── through the shipped cascade: 1966's column ────────────────────────────────────────────────
 
 def test_1966s_securities_column_reaches_the_face_rung(by_key) -> None:
-    """Note 26's Total cited for three note totals and three deductions: CP_INTERMEDIATE is refused
-    for the contradiction, and FROM_THE_FACE reads the printed face figure."""
+    """Note 26's Total cited for three Find 1 parts AND for Level 3: the Level 3 deduction resolves
+    to the row the base already reads, so CP_INTERMEDIATE is refused for the contradiction. The
+    overshoot residual is refused for the same reason, so CP_ZERO does not fire either, and
+    FROM_THE_FACE reads the printed face figure."""
     cp = by_key["bs_ca__secur_and_other_fincl_assets_cp"]
     note_keys = ["sub__fa_cp_fvtpl_note_total", "sub__fa_cp_fvtoci_note_total",
-                 "sub__fa_cp_other_fincl_assets_note_total",
-                 "sub__fa_cp_noncurrent_split_of_note_total", "sub__fa_cp_included_derivatives",
-                 "sub__fa_cp_included_other_receivables"]
+                 "sub__fa_cp_other_fincl_assets_note_total", "sub__fa_cp_level_3_total"]
     known = {k: Decimal("344135") for k in note_keys}
     known["sub__cp_face_trading_fincl_assets"] = Decimal("344135")
     sources = {k: TOTAL for k in note_keys}
     sources["sub__cp_face_trading_fincl_assets"] = ("p103", "Financial assets at fair value "
                                                     "through profit or loss", (0.8, 0.6), "344135")
 
+    residual = evaluate(by_key["sub__fa_cp_intermediate_residual"], known, sources)
+    assert residual.value is None, residual
     got = evaluate(cp, known, sources)
 
     assert got.value == Decimal("344135"), got

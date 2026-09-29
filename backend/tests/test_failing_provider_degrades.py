@@ -147,9 +147,9 @@ def test_the_focus_list_names_the_parts_and_not_only_the_wholes(shipped):
     # 关联方应收应付款项 table, and none had been asked about: on a CAS filing the model never saw
     # the note that tabulates a related party's balance by line item. All seven are parts, so the
     # nameable count moves with them and the withheld count does not.
-    assert len(focus) == 94, len(focus)
+    assert len(focus) == 91, len(focus)   # 91: the three Securities (CP) Find 2 and non-current parts left the set and the focus list
     # 69 nameable parts — see the item census in `test_retired_derivations`.
-    assert len(nameable) == 69, len(nameable)
+    assert len(nameable) == 66, len(nameable)   # 66: the three Securities (CP) Find 2 and non-current parts left the set
     # THE UNREACHABLE ONES ARE THE WHOLES, every one of them — a part that turned up in this list
     # would mean the layer meant to be answerable had been withheld.
     assert all(not getattr(by_key[k], "parent", "") for k in withheld), withheld

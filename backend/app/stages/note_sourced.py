@@ -73,6 +73,10 @@ class NoteSourcedStage(Stage):
             ctx.log(f"note_sourced: face periods {sorted(periods)}")
 
         all_items = getattr(line_item_set, "items", None) or []
+        # WHICH NOTES EACH BY-MEANING LINE READS, one sibling per note — resolved once for the run
+        # because it compares siblings (`line_item_notes.claimed_notes`).
+        from app.services.line_item_notes import claimed_notes
+        claimed = claimed_notes(items, doc.notes)
         by_key = {li.canonical_key: li for li in doc.line_items if li.canonical_key}
         children_of: dict[str, list] = {}
         filled = touched = 0
@@ -97,7 +101,8 @@ class NoteSourcedStage(Stage):
             # `note_tables` line that gains a `prose_subject` gets the sentence as a second chance,
             # which is the right default for a line whose author said its figure IS tabulated.
             hits = ([] if route_of(item) == "prose"
-                    else note_sourced.select_rows(item, doc.notes, periods, note_sections))
+                    else note_sourced.select_rows(item, doc.notes, periods, note_sections,
+                                                  claimed))
             if not hits:
                 # A FIGURE THE FILING STATES ONLY IN PROSE, and this is the one route to it.
                 #

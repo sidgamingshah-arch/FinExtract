@@ -650,6 +650,8 @@ def identified_notes(line_item_set, notes, *, cited=None) -> list[dict]:
     #
     # `note_selection` now decides only whether the FILING's own citation ranks ahead of a score —
     # applied below, per line, where the budget is spent.
+    from app.services.line_item_notes import by_meaning_only, covered_notes
+    meaning_claims = {i.key: set(covered_notes(i, notes)) for i in decls if by_meaning_only(i)}
     semantic_by_note: dict[str, set[str]] = {}
     if decls:
         from app.services.line_item_notes import header_pool, notes_for_line_item
@@ -759,6 +761,9 @@ def identified_notes(line_item_set, notes, *, cited=None) -> list[dict]:
         claimed = {key for key, pats in compiled
                    if any(matches_title(p, title) or p.search(number) for p in pats)}
         claimed |= semantic_by_note.get(number or title, set())
+        # A LINE THAT FINDS ITS NOTES BY MEANING declares them through its terms, and is owed the
+        # same unconditional attachment a title pattern gets — see `line_item_notes.covered_notes`.
+        claimed |= {key for key, numbers in meaning_claims.items() if number in numbers}
         wanted_by = sorted(claimed)
         if not wanted_by:
             continue

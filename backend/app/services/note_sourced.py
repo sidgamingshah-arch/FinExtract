@@ -183,7 +183,8 @@ def _table_basis(table, value) -> str:
 
 
 def select_rows(item, notes, periods: set[str] | None = None,
-                note_sections: dict[str, set[str]] | None = None) -> list[NoteRowHit]:
+                note_sections: dict[str, set[str]] | None = None,
+                claimed: dict[str, set[str]] | None = None) -> list[NoteRowHit]:
     """The note rows THIS item's `note_source` declares, across every note whose title matches.
 
     Three gates, in the order the declaration reads: the note's title must match, the row's caption
@@ -196,6 +197,14 @@ def select_rows(item, notes, periods: set[str] | None = None,
     if src is None:
         return []
     titles = _compiled(getattr(src, "note_title_any", None))
+    # A LINE THAT FINDS ITS NOTES BY MEANING has no title pattern; its notes are the ones its
+    # `note_terms` cover, one sibling per note (`line_item_notes.claimed_notes`). Without the
+    # run's claims to hand, the covered set is used as it stands.
+    from app.services import line_item_notes
+    by_meaning = line_item_notes.by_meaning_only(item)
+    if by_meaning:
+        mine = (set(claimed.get(item.key, ())) if claimed is not None
+                else set(line_item_notes.covered_notes(item, notes)))
     # See `NoteSource.measure`: the slug of the note column this part reads, "" for the primary.
     measure = str(getattr(src, "measure", "") or "")
     wanted = {f"{p}:{measure}" for p in (periods or ())} if measure else None
@@ -213,7 +222,7 @@ def select_rows(item, notes, periods: set[str] | None = None,
     want_grid = getattr(src, "from_measure_grid", None)
     counts = _compiled(getattr(src, "row_caption_any", None))
     vetoes = _compiled(getattr(src, "row_caption_none", None))
-    if not titles or not counts:
+    if not (titles or by_meaning) or not counts:
         return []
 
     hits: list[NoteRowHit] = []
@@ -230,9 +239,13 @@ def select_rows(item, notes, periods: set[str] | None = None,
         # A THIRD ALTERNATIVE rather than concatenated, so an anchored pattern (`^\s*其他应收款`,
         # which is how almost every authored pattern is written) still matches the note's own title
         # from its first character.
-        if not (_matches_title_any(title, titles)
-                or _matches_any(str(getattr(table, "note_number", "")), titles)
-                or _matches_title_any(str(getattr(table, "chapter_title", "") or ""), titles)):
+        if by_meaning:
+            if (str(getattr(table, "note_number", "") or "") not in mine
+                    or not line_item_notes.heading_covered(item, title)):
+                continue
+        elif not (_matches_title_any(title, titles)
+                  or _matches_any(str(getattr(table, "note_number", "")), titles)
+                  or _matches_title_any(str(getattr(table, "chapter_title", "") or ""), titles)):
             continue
         # THE LINE'S SECTION NARROWS WHICH NOTES IT MAY READ. `section_scope` says where a line
         # lives; until now the note path read it nowhere, so a line declaring `['bs_ca']` still
@@ -260,7 +273,24 @@ def select_rows(item, notes, periods: set[str] | None = None,
         # evidence that its periods live on the ROW axis is what rules them out.
         block_periods = any(str(getattr(r, "period_hint", "") or "")
                             for r in (getattr(table, "items", None) or ()))
-        for row in getattr(table, "items", None) or ():
+        rows_here = list(getattr(table, "items", None) or ())
+        broken_down = _broken_down(rows_here, counts)
+        for index, row in enumerate(rows_here):
+            # A ROW WITH A 其中 BREAKDOWN UNDER IT is the sum of that breakdown, so where the
+            # breakdown is read the row is not read as well. Measured on 688008's 交易性金融资产
+            # note and 300319's: "以公允价值计量且其变动计入当期损益的金融资产 1,783,494,750.68"
+            # prints its 其中：结构性存款 and 其中：权益工具投资 beneath it, and a sum of the note's
+            # line items counted the money twice. Reading the breakdown rather than the row is what
+            # lets a vetoed component drop out — 300319's 其中：远期结售汇, a forward contract
+            # inside the prior-year 181,124,711.32.
+            if index in broken_down:
+                continue
+            # A LINE THAT FINDS ITS NOTES BY MEANING ADDS UP LINE ITEMS, and a movement table has
+            # none: its rows are the year's movements (at 1 January, additions, disposals, at 31
+            # December), so summing them is not a balance. Its vetoes are three or four by design,
+            # which is too few to name every movement caption — so the table is not read at all.
+            if by_meaning and block_periods:
+                continue
             caption = getattr(row, "raw_label", "") or ""
             # THE GROUPING HEADER COUNTS AS THIS ROW'S CAPTION TOO, because one common note shape
             # puts the line-item caption on the GROUP and the counterparty on the row. A mainland
@@ -419,6 +449,24 @@ def select_rows(item, notes, periods: set[str] | None = None,
                     period=label))
     return hits
 
+
+
+_BREAKDOWN_GROUP = re.compile(r"^\s*(?:其中|of\s+which|including)\b", re.IGNORECASE)
+
+
+def _broken_down(rows, counts) -> set[int]:
+    """Indices of rows followed by a 其中 / "of which" breakdown that this line also reads."""
+    out: set[int] = set()
+    parent: int | None = None
+    for i, row in enumerate(rows):
+        group = str(getattr(row, "group_hint", "") or "")
+        if _BREAKDOWN_GROUP.match(group):
+            if parent is not None and _matches_any(str(getattr(row, "raw_label", "") or ""),
+                                                   counts):
+                out.add(parent)
+            continue
+        parent = i
+    return out
 
 
 # ── a figure the filing states only in PROSE ─────────────────────────────────────────────────────

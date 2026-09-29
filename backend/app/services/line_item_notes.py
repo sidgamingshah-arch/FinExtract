@@ -450,8 +450,99 @@ def cited_notes(doc) -> dict[str, tuple[str, ...]]:
     return {key: tuple(values) for key, values in out.items()}
 
 
+def by_meaning_only(item) -> bool:
+    """Whether this line READS ROWS from notes it finds BY MEANING: `note_terms` and row rules,
+    and no title regex. A line with `note_terms` and no row rules is not one — its terms steer
+    which notes the model is shown and nothing else, as they always have."""
+    src = getattr(item, "note_source", None)
+    return (src is not None and not list(getattr(src, "note_title_any", None) or ())
+            and bool(list(getattr(src, "note_terms", None) or ()))
+            and bool(list(getattr(src, "row_caption_any", None) or ())))
+
+
+def covered_notes(item, notes) -> tuple[str, ...]:
+    """The notes whose HEADING carries every word of one of this line's `note_terms`, in order.
+
+    SEARCH BY MEANING THAT A DETERMINISTIC READER CAN TRUST. The header score alone is too loose to
+    add rows up from: measured on the five reference filings at the 0.25 floor, the current FVTPL
+    terms ranked the fair-value HIERARCHY note first on 688008 (0.56, above 交易性金融资产 at 0.48)
+    and admitted 计入当期损益的政府补助 and 交易性金融负债; the FVTOCI terms took kaming's
+    "Other comprehensive income" note at 0.81. A model told what to sum can ignore a wrong note; a
+    row sum cannot. So a note is this line's when its heading holds ALL the subject words of one
+    term — any order, either script — which is meaning without phrasing: "Financial assets at fair
+    value through profit or loss" and "按公允值計量且其變動計入損益的金融資產" are the same subject
+    worded differently, and neither is "Financial liabilities at FVTPL".
+
+    A note arrives in fragments, so its words are the union over every fragment under its number.
+    """
+    src = getattr(item, "note_source", None)
+    terms = [set(subject_tokens(t)) for t in (getattr(src, "note_terms", None) or ()) if t]
+    terms = [t for t in terms if t]
+    if not terms:
+        return ()
+    words: dict[str, set[str]] = {}
+    order: list[str] = []
+    for table in notes or ():
+        number = str(getattr(table, "note_number", "") or "")
+        if not number:
+            continue
+        if number not in words:
+            words[number] = set()
+            order.append(number)
+        words[number].update(subject_tokens(str(getattr(table, "title", "") or "")))
+    return tuple(n for n in order if any(t <= words[n] for t in terms))
+
+
+def heading_covered(item, title: str) -> bool:
+    """Whether ONE TABLE's own heading carries every word of one of this line's `note_terms`.
+
+    The note-level test above lets a line see a note; this one decides which of its TABLES it adds
+    up. A note number can carry blocks that are not about it at all — 300319's 七、2 holds the
+    交易性金融资产 table and also an ageing table (按账龄披露, p148) whose own note heading was not
+    recognised, so a line-item sum over the note number added ageing buckets into FVTPL
+    (431,478,888.81 became 510,484,980.09).
+    """
+    src = getattr(item, "note_source", None)
+    words = set(subject_tokens(title or ""))
+    return any((t := set(subject_tokens(term))) and t <= words
+               for term in (getattr(src, "note_terms", None) or ()) if term)
+
+
+def claimed_notes(items, notes) -> dict[str, set[str]]:
+    """For every by-meaning line: the covered notes it may READ ROWS FROM, one sibling per note.
+
+    ONE NOTE, ONE SIBLING. Parts of one parent add up, so a note two of them cover would be counted
+    twice — 1966's note 26 "Financial assets at fair value through profit or loss" is covered by the
+    FVTPL part and, through 公允值計量 in its Chinese heading, by the Level 3 part. It goes to the
+    sibling whose header score for it is highest (0.92 against 0.39), ties to the one declared
+    first. Different parents may share a note: the current and non-current lines both read a
+    securities note and take different rows of it.
+    """
+    pool = header_pool(notes)
+    covered: dict[str, tuple[str, ...]] = {}
+    for item in items or ():
+        if by_meaning_only(item):
+            covered[item.key] = covered_notes(item, notes)
+    out: dict[str, set[str]] = {key: set() for key in covered}
+    by_parent: dict[str, list] = {}
+    for item in items or ():
+        if item.key in covered:
+            by_parent.setdefault(str(getattr(item, "parent", "") or ""), []).append(item)
+    for siblings in by_parent.values():
+        score = {}
+        for item in siblings:
+            score[item.key] = {h.note: h.score for h in notes_for_line_item(
+                item, pool, min_score=0.0, cap=len(notes or ()) or 1)}
+        for number in {n for item in siblings for n in covered[item.key]}:
+            wanting = [i for i in siblings if number in covered[i.key]]
+            best = max(wanting, key=lambda i: score[i.key].get(number, 0.0))
+            out[best.key].add(number)
+    return out
+
+
 def declared_notes(item, notes) -> tuple[str, ...]:
-    """The notes of THIS filing that the line's own `note_title_any` names, in printed order.
+    """The notes of THIS filing that the line's own `note_title_any` names, in printed order —
+    or, for a line that finds its notes by meaning alone, the notes its `note_terms` cover.
 
     ONE PREDICATE, because three places ask this question and each used to answer it in its own
     code. `note_context.identified_notes` decides on it which note's TEXT is attached to a request;
@@ -468,6 +559,8 @@ def declared_notes(item, notes) -> tuple[str, ...]:
     note ("^7$") are how several declarations name a disclosure whose heading the filing does not
     print in a form any pattern could anchor. Both halves mirror `identified_notes` exactly.
     """
+    if by_meaning_only(item):
+        return covered_notes(item, notes)
     src = getattr(item, "note_source", None)
     raw = list(getattr(src, "note_title_any", None) or ()) if src is not None else []
     if not raw:

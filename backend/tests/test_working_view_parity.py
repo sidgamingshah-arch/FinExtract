@@ -66,7 +66,7 @@ RULEBOOK = TEMPLATES / "output_csv_hk_ontology.json"
 PROJECTED = sorted(set(SAME) | set(RENAMED))
 
 CONCEPTS = 462                 # the rulebook's concepts, and the set's `namespace == "template"`
-ITEMS = 549                    # …plus the 69 `sub__*` note-level parts, which ARE concepts too:
+ITEMS = 546                    # …plus the 69 `sub__*` note-level parts, which ARE concepts too:
                                # the view projects every definition, and `namespace` decides only
                                # where a figure is PUBLISHED. See
                                # test_shipped_set_projects_every_definition_including_the_parts.
@@ -413,9 +413,8 @@ def test_shipped_set_projects_every_definition_including_the_parts():
     # sit in tension with. Unpinned still means reachable everywhere for the other fifty-six.
     SECTION_SCOPED_PARTS = {
         "sub__fa_cp_fvtpl_note_total", "sub__fa_cp_fvtoci_note_total",
-        "sub__fa_cp_afs_htm_note_total", "sub__fa_cp_included_derivatives",
+        "sub__fa_cp_afs_htm_note_total",
         "sub__fa_cp_investment_and_money_market_securities_note_total",
-        "sub__fa_cp_noncurrent_split_of_note_total",
         "sub__face_principal_revenue", "sub__revenue_note_principal_revenue",
         # THE FOUR ASSET-DEPRECIATION PARTS, scoped to `bs_nca` to mean "consider the non-current
         # asset notes" — the same CONTEXT sense the six securities parts give `bs_ca`, and named

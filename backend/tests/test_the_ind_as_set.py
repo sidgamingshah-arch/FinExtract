@@ -587,7 +587,10 @@ def test_the_indian_note_vocabulary_widens_context_and_not_the_deterministic_rea
                 f"{item.key} declares `face` and carries a note_source, which nothing reads")
             continue
         assert mine is not None, f"{item.key} has no note_source, so it is asked about blind"
-        assert mine.note_title_any, item.key
+        # A title pattern, or none at all for a line that finds its notes BY MEANING — the
+        # Securities (CP) parts, whose `note_terms` are the whole of their note selection.
+        from app.services.line_item_notes import by_meaning_only
+        assert mine.note_title_any or by_meaning_only(item), item.key
         assert mine.note_terms, item.key
         # NO CHINESE ANYWHERE IN THE VOCABULARY THE MODEL IS STEERED BY.
         assert not _HAN.search(" ".join(mine.note_terms)), item.key
@@ -605,7 +608,8 @@ def test_the_indian_note_vocabulary_widens_context_and_not_the_deterministic_rea
 
     # 40 created on the note-routed and routeless lines, 65 rewritten onto the
     # Schedule III note their HK concept corresponds to.
-    assert created == 40 and inherited == 65, (created, inherited)
+    # 62 since the three Securities (CP) Find 2 and non-current parts left both sets.
+    assert created == 40 and inherited == 62, (created, inherited)
 
     # THE BEHAVIOURAL HALF. A note whose heading matches the PPE family's own title pattern, with a
     # row that any depreciation vocabulary would claim. A line whose note_source was created must

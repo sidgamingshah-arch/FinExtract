@@ -122,11 +122,11 @@ def test_the_shipped_set_asks_for_this_on_sixty_lines_and_no_more(shipped):
     # it reads neither the face nor the notes and the ban has nothing to bite on for it.
     # 510 since Find 3 split into a gross half and an allowance half: the 关联方应收应付款项 note prints 账面余额 and 坏账准备 and no net column, so the 淨金額 the spec asks for is computed: the two halves both declare `route: note_tables`, while Find 3 itself
     # stopped declaring a route at all, so the ban's blast radius grows by one.
-    assert len(asked) == 521, len(asked)   # 511: two leaves gained, their derived parent no
+    assert len(asked) == 518, len(asked)   # 518: the three Securities (CP) Find 2 and non-current parts left the set   # 511: two leaves gained, their derived parent no
     # longer asked about — a derived parent's figure is its cascade's.
     # 61 since Find 3's two halves both read notes while Find 3 itself no longer declares a
     # route: the refused population grows by one for the same reason `asked` did.
-    assert len(refused) == 68, len(refused)   # 68 with the related-party TRADE RECEIVABLE's two note readings — the 账面余额 gross and the 坏账准备 allowance it is net of, one part per `measure` of the same 应收账款 group   # 66 for the same reason the part count moved: the two related-party payable groups   # 62 for the same reason the note-sourced count
+    assert len(refused) == 65, len(refused)   # 65: the three Securities (CP) Find 2 and non-current parts left the set   # 68 with the related-party TRADE RECEIVABLE's two note readings — the 账面余额 gross and the 坏账准备 allowance it is net of, one part per `measure` of the same 应收账款 group   # 66 for the same reason the part count moved: the two related-party payable groups   # 62 for the same reason the note-sourced count
     # moved: two readings of the other-receivables net, each reading its own notes.
     # BOTH NOTE ROUTES, since the six functional depreciation splits declare `prose`: the ban is
     # about the FACE, and `note_tables` and `prose` refuse it for the same reason — the author said

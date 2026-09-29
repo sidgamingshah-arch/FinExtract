@@ -178,7 +178,10 @@ def test_no_shipped_line_is_left_with_nothing_to_match_on(shipped):
     # of. A floor rather than an equality so a part gaining terms does not fail it.
     # 60 now: `sub__rp_find_1` reads the balance-sheet face rather than a note, so it carries
     # no note ROW terms and needs none — the same reason `sub__cfo_depreciation` is exempt.
-    assert len(judged) >= 60
+    # 58 now: the seven Securities (CP) parts read a note's LINE ITEMS by four vetoes rather than
+    # by a row vocabulary, so they carry no `row_terms` — see the next test for why that is safe —
+    # and three of their siblings (Find 2 and the non-current deduction) left the set.
+    assert len(judged) >= 58
     for item in judged:
         terms = [str(x) for x in item.note_source.row_terms]
         every = {tok for term in terms for tok in subject_tokens(term)}
@@ -269,7 +272,15 @@ def test_every_part_carries_terms_in_both_scripts(shipped):
         "an exempt part declares an alias, so a deterministic tier could bind a caption to it with "
         "nothing left to refuse the claim")
 
-    missing = [i.key for i in reads_a_note
+    # A PART THAT ADDS UP A NOTE'S LINE ITEMS carries no row vocabulary to be one-script in: its
+    # rows are every line item less four vetoes, and `caption_agrees_with_row_terms` does not judge
+    # a line with no terms. Proved, not waived: none of them can be bound to a printed caption.
+    from app.services.line_item_notes import by_meaning_only
+    line_item_sums = [i for i in reads_a_note if by_meaning_only(i)
+                      and not (getattr(i.note_source, "row_terms", None) or ())]
+    assert all(not (getattr(i, "aliases", None) or ()) and str(getattr(i, "route", "")) == "note_tables"
+               for i in line_item_sums), [i.key for i in line_item_sums]
+    missing = [i.key for i in reads_a_note if i not in line_item_sums
                if not any(han.search(str(t))
                           for t in (getattr(i.note_source, "row_terms", None) or ()))]
     assert not missing, f"these parts carry no Han row terms: {missing[:6]}"

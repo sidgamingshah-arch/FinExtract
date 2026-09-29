@@ -776,7 +776,7 @@ def test_a_note_sourced_line_declares_which_part_of_a_note_it_is_read_from(shipp
     declared = [i for i in shipped.items if getattr(i, "note_source", None) is not None]
     # 62: the other-receivables net's two readings each declare their own `note_source`, and the
     # parent they feed declares none.
-    assert len(declared) == 68, len(declared)   # 68 with the related-party TRADE RECEIVABLE's two note readings — the 账面余额 gross and the 坏账准备 allowance it is net of, one part per `measure` of the same 应收账款 group   # 66 for the same reason the part count moved: the two related-party payable groups
+    assert len(declared) == 65, len(declared)   # 65: the three Securities (CP) Find 2 and non-current parts left the set   # 68 with the related-party TRADE RECEIVABLE's two note readings — the 账面余额 gross and the 坏账准备 allowance it is net of, one part per `measure` of the same 应收账款 group   # 66 for the same reason the part count moved: the two related-party payable groups
 
     with_prose = [i for i in declared
                   if (i.note_source.prose_subject or i.note_source.prose_any)]

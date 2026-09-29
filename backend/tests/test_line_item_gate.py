@@ -288,9 +288,8 @@ def test_every_reported_line_resolves_a_gate_and_parts_deliberately_do_not():
     # a NINTH is read deliberately rather than absorbed.
     SECTION_SCOPED_PARTS = {
         "sub__fa_cp_fvtpl_note_total", "sub__fa_cp_fvtoci_note_total",
-        "sub__fa_cp_afs_htm_note_total", "sub__fa_cp_included_derivatives",
+        "sub__fa_cp_afs_htm_note_total",
         "sub__fa_cp_investment_and_money_market_securities_note_total",
-        "sub__fa_cp_noncurrent_split_of_note_total",
         "sub__face_principal_revenue", "sub__revenue_note_principal_revenue",
         # FOUR MORE, READ DELIBERATELY RATHER THAN ABSORBED — which is what the note above asks of
         # a ninth. The asset-depreciation parts were scoped to `bs_nca`, and they mean by it exactly
@@ -408,7 +407,7 @@ def test_the_note_level_parts_are_off_template():
     # COLUMN of a gross/allowance/net grid, and a row whose own reported amount is the net. One
     # part holds one `measure`, so two readings are two parts; 000709 needs both, its consolidated
     # note printing the grid and its parent-company note a plain comparative.
-    assert len(subs) == 86   # 83 with the related-party TRADE RECEIVABLE's three parts (账面余额 gross, 坏账准备 allowance, and the face part holding the aliases)   # 80: 543 with the three related-party PAYABLE face parts — `mapping._computed_parent` forbids a `derived` column from matching a caption, so a column with a note cascade could not read its own printed row, so each grew a FACE part carrying the aliases the column had to give up; two on the LTP twin because kaming prints the holding-company loan and the shareholder loan as separate rows   # 77: the two related-party payable readings, one per group the note prints
+    assert len(subs) == 83   # 83: the three Securities (CP) Find 2 and non-current parts left the set   # 83 with the related-party TRADE RECEIVABLE's three parts (账面余额 gross, 坏账准备 allowance, and the face part holding the aliases)   # 80: 543 with the three related-party PAYABLE face parts — `mapping._computed_parent` forbids a `derived` column from matching a caption, so a column with a note cascade could not read its own printed row, so each grew a FACE part carrying the aliases the column had to give up; two on the LTP twin because kaming prints the holding-company loan and the shareholder loan as separate rows   # 77: the two related-party payable readings, one per group the note prints
     assert all(d.namespace == "internal" for d in subs)
     assert all(d.namespace == "template" for d in st.items if d.in_output)
 

@@ -107,12 +107,18 @@ def test_each_part_is_wired_into_its_parents_last_rung(key, by_key):
     assert [(t.ref, t.role, t.sign) for t in face[0].terms] == [(key, "required", 1)]
 
 
-def test_the_face_rung_is_tried_before_a_line_floors_at_zero(by_key):
-    """`bs_ca__secur_and_other_fincl_assets_cp` ends with a const-zero rung. A rung placed AFTER it
-    could never fire, so the printed row would still have nowhere to go."""
-    ids = [r.id for r in by_key["bs_ca__secur_and_other_fincl_assets_cp"].cascade]
+def test_an_overshoot_floors_at_zero_before_the_face_is_tried(by_key):
+    """The rule for Securities (CP): "if Find 1 − Find 3 is negative, make this field zero". So
+    CP_ZERO comes BEFORE the face. It is no longer a constant that always resolves — it resolves
+    only when the overshoot residual does — so the face rung after it still answers a filing whose
+    notes give none of Find 1."""
+    cp = by_key["bs_ca__secur_and_other_fincl_assets_cp"]
+    ids = [r.id for r in cp.cascade]
 
-    assert ids.index("FROM_THE_FACE") < ids.index("CP_ZERO")
+    assert ids.index("CP_ZERO") < ids.index("FROM_THE_FACE")
+    zero = next(r for r in cp.cascade if r.id == "CP_ZERO")
+    assert any(t.ref == "sub__fa_cp_intermediate_residual" and t.role == "required"
+               for t in zero.terms), "CP_ZERO would fire on every filing and hide the face"
 
 
 @pytest.mark.parametrize("key", sorted(FACE_PARTS))
@@ -138,9 +144,14 @@ def _claims(item, caption: str) -> bool:
     """
     from app.services.note_sourced import _FLAGS
 
+    from app.services.line_item_notes import by_meaning_only, heading_covered
+
     src = item.note_source
     if src is None:
         return False
+    # A part that finds its notes BY MEANING claims a heading its `note_terms` cover.
+    if by_meaning_only(item):
+        return heading_covered(item, caption)
     return any(re.search(p, caption, _FLAGS) for p in (src.note_title_any or []))
 
 
@@ -190,7 +201,7 @@ def test_the_current_fvtoci_part_does_not_claim_a_non_current_caption(by_key):
     # The English/HKEX headings it exists for are untouched — this is a narrowing, and the HKEX
     # filings in the corpus move no figure because of it.
     assert _claims(current, "financial assets at fair value through other comprehensive income")
-    assert _claims(current, "FVTOCI")
+    assert _claims(current, "Financial assets at FVTOCI")
 
 
 def test_the_non_current_twin_still_claims_it(by_key):

@@ -247,11 +247,8 @@ llm_focus_keys = [
   "sub__fa_cp_debt_investments_note_total",
   "sub__fa_cp_fvtoci_note_total",
   "sub__fa_cp_fvtpl_note_total",
-  "sub__fa_cp_included_derivatives",
-  "sub__fa_cp_included_other_receivables",
   "sub__fa_cp_investment_and_money_market_securities_note_total",
   "sub__fa_cp_level_3_total",
-  "sub__fa_cp_noncurrent_split_of_note_total",
   "sub__fa_cp_other_fincl_assets_note_total",
 
   "bs_nca__secur_and_other_fincl_assets_ltp",

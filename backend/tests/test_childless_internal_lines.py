@@ -24,6 +24,7 @@ test below pins that the shipped set has none of those except the one deliberate
 from __future__ import annotations
 
 import json
+import re
 import pathlib
 from decimal import Decimal
 
@@ -46,10 +47,9 @@ SIX = ["sub__fa_cp_fvtpl_note_total", "sub__fa_cp_fvtoci_note_total",
        "sub__fa_cp_afs_htm_note_total", "sub__fa_cp_debt_investments_note_total",
        "sub__fa_cp_investment_and_money_market_securities_note_total",
        "sub__fa_cp_other_fincl_assets_note_total"]
-NONCURRENT = "sub__fa_cp_noncurrent_split_of_note_total"
-FIND2 = ["sub__fa_cp_included_derivatives", "sub__fa_cp_included_other_receivables"]
 LEVEL3 = "sub__fa_cp_level_3_total"
 MAIN = "bs_ca__secur_and_other_fincl_assets_cp"
+LTP = "bs_nca__secur_and_other_fincl_assets_ltp"
 
 
 @pytest.fixture(scope="module")
@@ -191,18 +191,15 @@ def test_the_residual_is_not_published(shipped):
 
 
 def test_the_residual_is_a_part_and_is_unpinned(shipped):
-    """WHY IT HAS A PARENT, which an earlier version of this test had backwards.
+    """WHY IT HAS A PARENT: a REPORTED line must be pinned to a statement and a PART must not
+    (`test_line_item_gate`), so a diagnostic line like this has to be a part — and being a part does
+    not make it a component, because the securities line declares a CASCADE and `_fill_parents`
+    ignores `rollup` when one is present.
 
-    `test_line_item_gate.test_every_reported_line_resolves_a_gate_and_parts_deliberately_do_not`
-    sets the rule: a REPORTED line — one with no parent — must be pinned to a statement, or it is
-    claimable on any statement; a PART must be pinned to neither, because where the part is PRINTED
-    and where its whole is REPORTED differ by design. Parentless and unpinned is the one combination
-    refused, so a diagnostic like this has to be a part.
-
-    AND BEING A PART DOES NOT MAKE IT A COMPONENT. The objection was that a parent would sum it into
-    the parent's figure through `rollup`. It does not: the securities line declares a CASCADE, and
-    `_fill_parents` evaluates the cascade and ignores `rollup` entirely when one is present. Asserted
-    below against the cascade itself rather than trusted.
+    THE PARENT NAMES IT IN ONE RUNG, CP_ZERO, AND ONLY AS A CONDITION. The rule is "if Find 1 −
+    Find 3 is negative, this field is zero", and the residual is the line that resolves exactly
+    then. No cycle: the residual is computed from the Find parts, never from the parent's figure,
+    and CP_ZERO takes min(0, residual), so its magnitude never reaches the published number.
     """
     item = next(i for i in shipped.items if i.key == RESIDUAL)
     assert item.parent == MAIN
@@ -211,34 +208,22 @@ def test_the_residual_is_a_part_and_is_unpinned(shipped):
 
     parent = next(i for i in shipped.items if i.key == MAIN)
     assert parent.cascade, "the parent must declare a cascade, or `rollup` would sum its children"
-    assert not any(t.ref == RESIDUAL for rung in parent.cascade for t in rung.terms), (
-        "the parent's own arithmetic names the residual — it would then depend on the thing that "
-        "describes it")
-
-
-LTP = "bs_nca__secur_and_other_fincl_assets_ltp"
-
+    naming = [r for r in parent.cascade if any(t.ref == RESIDUAL for t in r.terms)]
+    assert [r.id for r in naming] == ["CP_ZERO"], [r.id for r in naming]
+    zero = naming[0]
+    assert zero.terms_op == "min" and any(t.const == 0.0 for t in zero.terms), (
+        "CP_ZERO must be min(0, residual) — anything else lets the overshoot into the figure")
+    assert not any(t.ref == MAIN for t in item.cascade[0].terms), "the residual reads its parent"
 
 def test_the_residual_is_the_carry_forward_the_long_term_line_always_described(shipped):
-    """WHAT THE RESIDUAL IS FOR, and it was not invented for this.
-
-    The long-term securities cascade has always described a carry-forward from the current line in
-    its own rung notes — "Find_1_LTP … less Find_2_LTP, PLUS THE CP CARRY-FORWARD", with a named
-    escape hatch, MISSING_CP_CARRYFORWARD_TO_LTP, for when it is unavailable. And NO RUNG CARRIED
-    THAT TERM: the with/without pairing was implemented, the thing being carried forward was never
-    referenced, because no line held the quantity. This residual is that quantity.
-
-    THE LINE ITSELF MUST NOT REFERENCE IT. The current securities line is what the residual
-    describes, so a term naming it there would make the figure depend on its own description.
-    """
+    """WHAT THE RESIDUAL IS FOR: the Level 3 amount the current line could not absorb, carried to
+    the long-term line as a DEDUCTION ("treat Find 1 as Find 3" on the current side). The current
+    line names it only in CP_ZERO — see the test above."""
     by_key = {i.key: i for i in shipped.items}
     referrers = {i.key for i in shipped.items
                  if any(t.ref == RESIDUAL for rung in (i.cascade or []) for t in rung.terms)
                  or any(t.ref == RESIDUAL for t in (i.terms or []))}
-    assert referrers == {LTP}, sorted(referrers)
-    assert MAIN not in referrers, (
-        "the current securities line names its own residual — the figure would depend on the thing "
-        "that describes it")
+    assert referrers == {LTP, MAIN}, sorted(referrers)
 
     # …as a DEDUCTION, and `required`, which is what makes the fallback work.
     using = [r for r in by_key[LTP].cascade
@@ -251,7 +236,6 @@ def test_the_residual_is_the_carry_forward_the_long_term_line_always_described(s
             f"{rung.id} takes the carry-forward as optional; absent, the rung would then resolve "
             f"WITHOUT it and silently publish the no-carry-forward figure under a rung id that "
             f"says otherwise")
-
 
 def test_the_long_term_line_falls_through_when_there_was_no_overshoot(shipped):
     """The MISSING_CP_CARRYFORWARD_TO_LTP path, which is the common case: on all three reference
@@ -302,29 +286,27 @@ def test_every_long_term_rung_still_outranks_a_printed_figure(shipped):
 # ── THE MAIN LINE'S TWO RUNGS ─────────────────────────────────────────────────────────────────
 
 def test_the_main_line_floors_at_zero_and_says_which_rung_answered(shipped):
-    """Rung 1 passed over for computing below zero, rung 2 a constant. The distinction has to be
-    visible: a line that computed 0 and a line whose arithmetic went negative are different facts."""
+    """Find 1 − Find 3 below zero publishes ZERO — the rule: "if the answer is negative, treat Find
+    1 as Find 3 and make this field zero". CP_ZERO therefore sits AHEAD of the face: an overshoot
+    is an answer (zero), not an absence for the printed row to fill. The face stays last, for a
+    filing whose notes give none of Find 1."""
     item = next(i for i in shipped.items if i.key == MAIN)
-    # `FROM_THE_FACE` sits BETWEEN them, and the order is the point: a rung that reads the printed
-    # 交易性金融资产 row must be tried before the line gives up and floors at zero, because a
-    # figure the balance sheet states is a better answer than a constant. It cannot displace
-    # CP_INTERMEDIATE either, which is why it is second and not first.
-    assert [r.id for r in item.cascade] == ["CP_INTERMEDIATE", "FROM_THE_FACE", "CP_ZERO"]
+    assert [r.id for r in item.cascade] == ["CP_INTERMEDIATE", "CP_ZERO", "FROM_THE_FACE"]
     by_id = {r.id: r for r in item.cascade}
     assert by_id["CP_INTERMEDIATE"].refuse_negative is True
-    assert by_id["CP_ZERO"].terms[0].const == 0.0
 
     from app.services.line_items import evaluate
 
-    ev = evaluate(item, {SIX[0]: Decimal(1000), LEVEL3: Decimal(5000)})
-    assert ev.value == 0
-    assert ev.rung_used == "CP_ZERO"
-    # The entry carries the rung id AND what it computed — "CP_INTERMEDIATE computed -4000" —
-    # which is the sentence a reviewer needs rather than a bare id.
-    assert any(r.startswith("CP_INTERMEDIATE") for r in ev.refused_rungs), (
-        "the declined rung must be recorded, or a floor looks like a computation")
+    face = "sub__cp_face_trading_fincl_assets"
+    # The residual is what the note stage computes from the same inputs: 5000 − 1000.
+    ev = evaluate(item, {SIX[0]: Decimal(1000), LEVEL3: Decimal(5000), RESIDUAL: Decimal(4000),
+                         face: Decimal(1000)})
+    assert ev.value == 0 and ev.rung_used == "CP_ZERO", (ev.value, ev.rung_used)
     assert any("-4000" in r for r in ev.refused_rungs), ev.refused_rungs
 
+    # No note gave Find 1 at all: no overshoot, so the printed row answers.
+    ev = evaluate(item, {face: Decimal(1000)})
+    assert ev.value == 1000 and ev.rung_used == "FROM_THE_FACE", (ev.value, ev.rung_used)
 
 def test_a_missing_level_3_subtracts_nothing_rather_than_killing_the_rung(shipped):
     """What the removed `CP_P2_MISSING_LEVEL_3` rung existed for. Level 3 is an `adjustment`, so a
@@ -369,54 +351,60 @@ def test_a_missing_level_3_subtracts_nothing_rather_than_killing_the_rung(shippe
 # config plus per-category rows is the right shape. On these twelve filings it removes the figure.
 
 def test_each_of_the_six_identifies_its_own_note(shipped):
-    """Per-category note identification, which is what keeps the six apart. Sharing one note config
-    across them makes every child match every note, and since their row configs are near-identical
-    generic totals they then all take the same row — measured above at six times the figure."""
-    by_key = {i.key: i for i in shipped.items}
-    notes = {k: tuple(by_key[k].note_source.note_title_any) for k in SIX}
-    assert len(set(notes.values())) == len(SIX), (
-        "two of the six share a note config; with their generic row patterns they will take the "
-        "same row and the rung will sum it twice — see the measurement above")
-    for k, patterns in notes.items():
-        assert patterns, f"{k} identifies no note, so it can never produce a figure"
+    """BY MEANING, 2-3 TERMS PER LANGUAGE, NO TITLE REGEX. Each of the six declares its own
+    `note_terms`, and a note two of them cover goes to ONE of them (`claimed_notes`), which is what
+    keeps a line-item sum from reading the same rows twice."""
+    from app.services.line_item_notes import by_meaning_only
 
+    by_key = {i.key: i for i in shipped.items}
+    terms = {k: tuple(by_key[k].note_source.note_terms) for k in SIX + [LEVEL3]}
+    assert len(set(terms.values())) == len(terms), "two parts share their note terms"
+    for k in SIX + [LEVEL3]:
+        assert by_meaning_only(by_key[k]), f"{k} still carries a title regex"
+        han = [t for t in terms[k] if re.search(r"[\u4e00-\u9fff]", t)]
+        latin = [t for t in terms[k] if not re.search(r"[\u4e00-\u9fff]", t)]
+        assert 2 <= len(latin) <= 3, (k, latin)
+        assert 4 <= len(han) <= 6, (k, han)          # 2-3 each, Traditional and Simplified
+
+
+def test_a_note_two_siblings_cover_is_read_by_one():
+    """1966's note 26 is covered by the FVTPL part and, through 公允值計量 in its Chinese heading,
+    by the Level 3 part. It goes to FVTPL, whose header score for it is higher."""
+    from types import SimpleNamespace as NS
+
+    from app.services.line_item_notes import claimed_notes
+
+    notes = [NS(title="FINANCIAL ASSETS AT FAIR VALUE THROUGH PROFIT OR LOSS 按公允值計量且其變動計入損益的金融資產",
+                note_number="26", items=[]),
+             NS(title="FAIR VALUE AND FAIR VALUE HIERARCHY OF FINANCIAL INSTRUMENTS 公允值及公允值層級",
+                note_number="46", items=[]),
+             NS(title="TRADE RECEIVABLES 應收貿易賬款", note_number="23", items=[])]
+
+    def part(key, terms):
+        return NS(key=key, parent=MAIN, label=key, definition="", aliases=[], aliases_i18n={},
+                  note_source=NS(note_terms=terms, note_title_any=[], row_caption_any=["\\S"]))
+
+    got = claimed_notes([part(SIX[0], ["financial assets at fair value through profit or loss"]),
+                         part(LEVEL3, ["fair value hierarchy", "公允值計量"])], notes)
+    assert got == {SIX[0]: {"26"}, LEVEL3: {"46"}}, got
 
 def test_the_six_row_configs_are_generic_totals_and_that_is_deliberate(shipped):
-    r"""The row patterns are `^\s*total\s*$` and its kin on all six, which is safe ONLY because
-    each child is scoped to its own note. Making them per-category while the note config is shared
-    was measured to read nothing on one filing and a negative asset on another."""
+    """THE ROW RULE IS THE PROMPT'S: the note's line items, less totals, derivatives, other
+    receivables and the non-current portion — four vetoes, so there is no Find 2 to subtract."""
     by_key = {i.key: i for i in shipped.items}
     for k in SIX:
-        rows = by_key[k].note_source.row_caption_any
-        assert rows, f"{k} has no row patterns, so it can never produce a figure"
-        assert any("total" in p for p in rows), (
-            f"{k} no longer matches a total row; if its note config is still per-category it will "
-            f"find nothing inside a note whose heading is its own category")
+        src = by_key[k].note_source
+        assert len(src.row_caption_any) <= 4 and len(src.row_caption_none) <= 4, k
+        vetoes = " ".join(src.row_caption_none)
+        for word in ("total", "derivative", "receiv", "non"):
+            assert re.search(word, vetoes), (k, word)
 
-
-def test_the_three_adjustment_children_do_share_the_note_union(shipped):
-    """The non-current split and the two Find_2 lines look for their row across EVERY in-scope note,
-    which is right: a derivative or an other-receivable line can appear inside any of them, and
-    those children match by the row's own subject rather than by a generic total — so sharing the
-    note config costs them nothing."""
-    by_key = {i.key: i for i in shipped.items}
-    shared = {k: tuple(by_key[k].note_source.note_title_any) for k in [NONCURRENT] + FIND2}
-    assert len(set(shared.values())) == 1, {k: len(v) for k, v in shared.items()}
-    assert len(next(iter(shared.values()))) == len(SIX), (
-        "the union should name one note per category")
-    # …and each of them matches by SUBJECT, not by a bare total — which is what makes that safe.
-    for k in FIND2:
-        rows = by_key[k].note_source.row_caption_any
-        assert not any(p == r"^\s*total\s*$" for p in rows), (
-            f"{k} shares the note union AND matches a bare total row — it would take whichever "
-            f"note came first rather than its own subject")
 
 
 def test_level_3_reads_a_different_note_entirely(shipped):
-    """The one exception the request itself named. Level 3 comes from the fair value hierarchy note,
-    which is not one of the in-scope category notes, and its row patterns name the level."""
+    """Level 3 comes from the fair value hierarchy note, which is not one of the category notes,
+    and its row patterns name the level."""
     by_key = {i.key: i for i in shipped.items}
-    l3_notes = tuple(by_key[LEVEL3].note_source.note_title_any)
-    assert l3_notes not in {tuple(by_key[k].note_source.note_title_any) for k in SIX}
-    assert any("hierarch" in p or "fair" in p for p in l3_notes), l3_notes
-    assert any("level" in p.lower() for p in by_key[LEVEL3].note_source.row_caption_any)
+    l3 = by_key[LEVEL3].note_source
+    assert any("hierarch" in t or "fair value" in t for t in l3.note_terms), l3.note_terms
+    assert any("level" in p.lower() for p in l3.row_caption_any)
