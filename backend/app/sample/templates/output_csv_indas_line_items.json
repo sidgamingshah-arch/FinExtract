@@ -6112,7 +6112,7 @@
    "key": "is_pl__sales_revenues",
    "exclude_criteria": [],
    "label": "Sales(Revenues)",
-   "definition": "Revenue from the ordinary course of business — turnover from the sale of goods and the rendering of services, before cost of sales and excluding other income, finance income and gains. This is the top line of the income statement, and a revenue note disaggregates the same figure by product, service line, geography, segment or timing of transfer. The top line. Priority 1 is the face caption the spec accepts; Priority 2 is the revenue note's own total.",
+   "definition": "Revenue from the ordinary course of business — turnover from the sale of goods and the rendering of services, before cost of sales and excluding other income, finance income and gains. This is the top line of the income statement, and a revenue note disaggregates the same figure by product, service line, geography, segment or timing of transfer. The principal-business revenue the revenue note prints, or the face's revenue line where no note gives it.",
    "sign_rule": {},
    "inherits": "is_pl",
    "face_only": false,
@@ -6132,7 +6132,7 @@
        "role": "required"
       }
      ],
-     "note": "operation specific revenue",
+     "note": "Principal-business revenue from the revenue note, total revenue on an HKFRS one).",
      "refuse_negative": true,
      "outranks_printed": false
     },
@@ -6147,7 +6147,7 @@
        "role": "required"
       }
      ],
-     "note": "fallback to the face in case note doesn't exist",
+     "note": "The face's revenue line, where the revenue note gives no figure.",
      "refuse_negative": false,
      "outranks_printed": false
     }
@@ -12433,7 +12433,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "definition": "Revenue or turnover or sales earned in the period as printed on the face of the income statement itself — the top line in most cases, stated before cost of sales and other revenue generally. It is read from the consolidated statement of profit or loss, comprehensive income or income statement.\n\nFor certain type of entities like Banks / Financial institutions, this maybe named as Interest Income.",
+   "definition": "Revenue (turnover, sales) for the period as printed on the face of the income statement — the top line, before cost of sales, excluding other income and gains. For a bank or other financial institution this may be its interest income.",
    "aliases": [
     "Sales(Revenues)",
     "Turnover/Sales/Revenues",
@@ -12490,70 +12490,30 @@
    "namespace": "internal",
    "inherits": "notes",
    "note_source": {
-    "note_title_any": [
-     "revenue\\s+from\\s+operations?",
-     "revenue\\s+from\\s+contracts\\s+with\\s+customers?"
-    ],
+    "note_title_any": [],
     "row_caption_any": [
-     "^\\s*revenue\\s+from\\s+contracts\\s+with\\s+customers\\s*$",
-     "^\\s*revenue\\s+from\\s+external\\s+customers\\s*$",
-     "total\\s+turnover\\s+from\\s+contracts\\s+with\\s+customers",
-     "revenue\\s+from\\s+contracts\\s+with\\s+customers\\s*(?:總計|总计)?\\s*$",
-     "^Income$"
+     "^\\s*total\\s+(?:revenues?|turnover)\\b(?!\\s+from\\s+contracts)"
     ],
     "row_caption_none": [
-     "by\\s+(?:product|segment|region|geograph\\w*|channel|market|business\\s+line|industry|location)",
-     "from\\s+other\\s+source",
-     "\\bother\\s+income\\b|其他收入(?!及)",
-     "^Other\\s+Income$"
+     "^\\s*(?:合计|合計|小计|小計|总计|總計|subtotal)",
+     "(?:分|按)(?:行业|行業|业务|業務|产品|產品|地区|地區|区域|區域|渠道)|\\bby\\s+(?:product|segment|region|geograph|channel)",
+     "other\\s+(?:income|revenue|gains?)|其他收入|其他收益"
     ],
     "prose_any": [],
     "prose_subject": "",
     "prose_landed_in": [],
     "note_terms": [
-     "revenue from operations",
-     "revenue from sale of products",
-     "revenue from sale of services",
-     "other operating revenue",
-     "revenue from contracts with customers",
-     "disaggregation of revenue",
-     "sale of goods",
-     "processing and service income",
-     "scrap sales",
-     "royalty income",
-     "export incentives",
-     "reconciliation of gross revenue with the revenue from contracts with customers",
-     "discounts and rebates",
-     "timing of revenue recognition",
-     "goods transferred at a point in time"
-    ],
-    "row_terms": [
      "revenue",
-     "revenues",
-     "turnover",
-     "sales",
-     "net sales revenue",
-     "operating activities",
-     "operating",
-     "activities revenue",
-     "core operations",
-     "core business",
-     "revenue from contracts with customers",
-     "revenue from external customers"
+     "turnover"
     ],
-    "row_terms_none": [
-     "Expense",
-     "Other Income",
-     "Total Income",
-     "Total turnover",
-     "Total Sales"
-    ]
+    "row_terms": [],
+    "row_terms_none": []
    },
    "statement": "notes",
    "section_scope": [
-    "notes"
+    "is_pl"
    ],
-   "definition": "Objective is to identify what is the breakup of revenue provided in the note and then classify each of the line item as principal business or not. Principal business is identified basis the industries the entity is operating in, sometime the entity itself might provide other income/other revenue in the breakup which can be kept aside and rest can be consumed. Never consume total revenue or sub totals as a part of this line item.\nFor example: Interest income should be considered if the entity has banking / FI operations, Rental Income should be considered if there is real estate exposure.\n\nEnsure when you are adding up values you do not add up values across different brakdowns as it could lead to double counting. So thing like breakup by country, segment, etc. may not be factored into summation when there is a table already being used.",
+   "definition": "Sum of all revenue from the entity's principal business — revenue from contracts with customers, plus rental or interest income where leasing or lending is its business — excluding other business revenue, other income and gains. Count each amount once — not again in a breakdown by product, region, channel or timing.",
    "note_use": "decomposition_allowed",
    "exclude_criteria": [
     "Other income"
