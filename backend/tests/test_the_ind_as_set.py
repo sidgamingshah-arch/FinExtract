@@ -293,7 +293,10 @@ def test_every_removed_veto_was_unable_to_match_an_english_caption(indas):
                 removed += 1
     # 6,951 since the securities parts' long veto lists were replaced by four vetoes each: those
     # values are gone from the HK set too, so they are no longer removals here.
-    assert removed > 6900, removed
+    # NOT A MAGNITUDE. The HK set's families are being moved to four-rule row vocabularies, so the
+    # Chinese-only vetoes there are to strip here fall with every family converted; each removal
+    # is still asserted dead above, which is the property this test exists for.
+    assert removed > 0, removed
 
 
 def test_every_concept_is_one_of_the_hk_spine_s(indas):

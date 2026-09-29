@@ -1368,6 +1368,19 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
     for m in (getattr(ontology, "mappings", None) or ()):
         scope_of[m.canonical_key] = str(getattr(m, "value_scope", "") or "")
 
+    def side(key: str) -> str:
+        """Assets or claims. A double count happens within one side's totals, so a face row on the
+        OTHER side cannot be printing this line's money: 1966's note 25 "Balances with related
+        parties" holds both the amounts due FROM and due TO related parties, the face cites it for
+        "Due from related parties" under current assets, and reading it as a duplicate withheld the
+        liability's 2,588,416 — putting current liabilities out by exactly that."""
+        where = key if key.startswith("bs_") else section(key)
+        if where.startswith(("bs_ca", "bs_nca")):
+            return "assets"
+        if where.startswith(("bs_cl", "bs_ncl", "bs_eq")):
+            return "claims"
+        return where
+
     def section(key: str) -> str:
         item = defs.get(key)
         scope = list(getattr(item, "section_scope", None) or ()) if item is not None else []
@@ -1435,6 +1448,7 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
                 if not notes:
                     continue
                 citing = [r for r in face if r.canonical_key not in mine
+                          and side(r.canonical_key) == side(key)
                           and any(note_sourced.same_note(n, c) for n in notes
                                   for c in (*r.cited_notes(), r.note_number or "") if c)]
                 here = [r for r in citing if section(r.canonical_key) == home]

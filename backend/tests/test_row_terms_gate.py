@@ -183,7 +183,16 @@ def test_no_shipped_line_is_left_with_nothing_to_match_on(shipped):
     # and three of their siblings (Find 2 and the non-current deduction) left the set.
     # 46 now: the eight Securities (LTP) Find 1 parts read line items by four vetoes too, and
     # the four Securities (LTP) Find 2 and non-current-split parts left the set.
-    assert len(judged) >= 46
+    # NOT A COUNT ANY MORE. The families are being moved to note selection by meaning with at
+    # most four row rules, and a converted part carries no `row_terms` at all (see the next test
+    # for why that is safe), so the population shrinks with every family converted. What must hold
+    # is that every part still using a row VOCABULARY is judged here — none has been left with a
+    # half-emptied one.
+    from app.services.line_item_notes import by_meaning_only
+    legacy = [i for i in shipped.items
+              if getattr(i, "note_source", None) is not None and not by_meaning_only(i)
+              and i.note_source.row_caption_any]
+    assert all(i in judged for i in legacy), [i.key for i in legacy if i not in judged][:6]
     for item in judged:
         terms = [str(x) for x in item.note_source.row_terms]
         every = {tok for term in terms for tok in subject_tokens(term)}

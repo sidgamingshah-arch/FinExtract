@@ -53,7 +53,9 @@ ITEMS = [_item("bs_ca__other_receivables_cp", "bs_ca"), _item("bs_ca__other_curr
          _item("bs_nca__secur_and_other_fincl_assets_ltp", "bs_nca"),
          _item("sub__cp_face_trading_fincl_assets", "bs_ca", parent="bs_ca__secur_cp", in_output=False),
          _item("bs_ca__secur_cp", "bs_ca"), _item("bs_ca__finished_goods", "bs_ca"),
-         _item("sub__fa_cp_afs_htm_note_total", "bs_ca", parent="bs_ca__secur_cp", in_output=False)]
+         _item("sub__fa_cp_afs_htm_note_total", "bs_ca", parent="bs_ca__secur_cp", in_output=False),
+         _item("bs_ca__due_from_related_parties_cp", "bs_ca"),
+         _item("bs_cl__due_to_related_parties_cp", "bs_cl")]
 SCOPES = {"bs_ca__other_current_assets": "exclusive_residual",
           "bs_ca__trade_and_other_receivables": "exclusive_leaf",
           "sub__cp_face_trading_fincl_assets": "exclusive_leaf"}
@@ -129,3 +131,11 @@ def test_a_siblings_citation_does_not_withhold_a_figure_taken_from_the_face():
     got = _run([_face("sub__cp_face_trading_fincl_assets", "344135", "26"),
                 _face("bs_ca__finished_goods", "6253504", "22"), line, sibling])
     assert got["bs_ca__secur_cp"] == ["344135"]
+
+
+def test_a_note_printed_on_the_other_side_of_the_balance_sheet_is_not_a_duplicate():
+    """1966's note 25 holds due-from AND due-to balances; the face cites it for the asset row.
+    The liability read from it is not money the asset row printed."""
+    got = _run([_face("bs_ca__due_from_related_parties_cp", "4065231", "25"),
+                _filled("bs_cl__due_to_related_parties_cp", "2588416", "25")])
+    assert got["bs_cl__due_to_related_parties_cp"] == ["2588416"]

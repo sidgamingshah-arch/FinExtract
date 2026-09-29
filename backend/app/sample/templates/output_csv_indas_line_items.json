@@ -4413,7 +4413,7 @@
        "sign": 1
       }
      ],
-     "note": "READ FROM THE RELATED-PARTY NOTE, which is the only place a mainland filing states it. This line carried nothing but its own template label and four COMPOUND aliases enumerating every kind of related party at once (\"Due to related parties / Associates / Jointly controlled entities / fellow subsidiaries/Affiliates\"), and no filing prints that — so it was empty on every filing in the corpus. A DERIVED PARENT IS UNMATCHABLE BY CAPTION, and that is the shipped design rather than a side effect: `mapping._computed_parent` forbids it so that a figure cannot arrive by a route that skips every rung and loses which disclosure it came from, and it says where a caption belongs instead — on the PART. It used to be swept into `bs_cl__other_current_liabilities` — a related-party payable published as an unexplained remainder — and it is now refused from there by the residual's own \"dedicated not tested\" prohibition and reported for review naming this line. Recovering it properly needs a FACE part, the shape `sub__rp_find_1` declares for the receivable and which nothing fills yet."
+     "note": "The related-party note's non-current payables: the counterparty rows under the, without any portion due within one year (that is the current line's). FIRST, because the note is the specific disclosure."
     },
     {
      "id": "FROM_THE_FACE",
@@ -4432,14 +4432,14 @@
        "sign": 1
       }
      ],
-     "note": "FALLBACK TO THE FACE, because a BALANCE SHEET LINE is printed on the balance sheet and this column could not be matched to it. `line_items.evaluate` runs a cascade only for a `derived` line and `mapping._computed_parent` makes every `derived` key unmatchable by caption, so the note rung above cost this column its face reading entirely: measured at 63c5eb0, the printed row went to the section's catch-all instead. The aliases therefore live on a PART, which is the shape `sub__face_principal_revenue` already uses for `is_pl__sales_revenues`.\n\nSECOND AND NOT FIRST, deliberately. The note rung is the specific disclosure and is what resolves on the mainland filings; this one answers only where no note was read — the same ordering `is_pl__sales_revenues` uses (P1 the note, P2 \"fallback to the face in case note doesn't exist\"). On this corpus the two never both resolve, so the order changes no figure; it is chosen so that adding the face can never displace a note reading that already works.\n\nEVERY TERM IS `any_of`, so a filing printing one of these rows resolves the rung and one printing none leaves the column empty rather than publishing zero."
+     "note": "FALLBACK TO THE FACE: the printed loans from the holding company and from a shareholder, summed; `any_of`, so a filing printing one of them resolves and one printing neither stays empty. TWO PARTS, NOT ONE: a cascade takes the first printed row per part and slot, so one part matching both of kaming's rows handed the rung 36,800 of 581,054. LAST, so it never displaces a note reading."
     }
    ]
   },
   {
    "key": "sub__rp_face_loan_from_shareholder",
    "label": "Loan from a shareholder, on the face of the balance sheet",
-   "definition": "A non-current loan owed to a shareholder, as the balance sheet itself prints it — a row captioned as a loan from a shareholder or from a promoter under Non-Current Liabilities, usually inside Financial Liabilities / Borrowings. Read from the face, not from the Related Party Transactions note, which reports the same money as a transaction and a closing balance rather than as a presented liability.",
+   "definition": "A non-current loan from a controlling or other shareholder, as the balance sheet prints it under non-current liabilities.",
    "exclude_criteria": [],
    "parent": "bs_ncl__due_to_related_parties_ltp",
    "type": "extracted",
@@ -4481,7 +4481,7 @@
   {
    "key": "sub__rp_face_loan_from_holding_co",
    "label": "Loan from the holding company, on the face of the balance sheet",
-   "definition": "A non-current loan owed to the holding or ultimate holding company, as the balance sheet itself prints it, under Non-Current Liabilities. Kept separate from the shareholder loan because a filing that prints both prints them as different counterparties, and the cascade that consumes these parts takes the first writer per key — so two counterparties sharing one part would silently drop one of them.",
+   "definition": "A non-current loan from the parent or ultimate holding company, as the balance sheet prints it under non-current liabilities. Excludes loans from third parties.",
    "exclude_criteria": [],
    "parent": "bs_ncl__due_to_related_parties_ltp",
    "type": "extracted",
@@ -5195,7 +5195,7 @@
        "sign": 1
       }
      ],
-     "note": "READ FROM THE RELATED-PARTY NOTE, which is the only place a mainland filing states it. This line carried nothing but its own template label and four COMPOUND aliases enumerating every kind of related party at once (\"Due to related parties / Associates / Jointly controlled entities / fellow subsidiaries/Affiliates\"), and no filing prints that — so it was empty on every filing in the corpus. A DERIVED PARENT IS UNMATCHABLE BY CAPTION, and that is the shipped design rather than a side effect: `mapping._computed_parent` forbids it so that a figure cannot arrive by a route that skips every rung and loses which disclosure it came from, and it says where a caption belongs instead — on the PART. It used to be swept into `bs_cl__other_current_liabilities` — a related-party payable published as an unexplained remainder — and it is now refused from there by the residual's own \"dedicated not tested\" prohibition and reported for review naming this line. Recovering it properly needs a FACE part, the shape `sub__rp_find_1` declares for the receivable and which nothing fills yet."
+     "note": "The related-party note's current non-trade payables. A mainland (CAS) note prints them as counterparty rows under the; an HKFRS note under a \"Due to related parties\" heading. FIRST, because the note is the specific disclosure."
     },
     {
      "id": "FROM_THE_FACE",
@@ -5209,14 +5209,14 @@
        "sign": 1
       }
      ],
-     "note": "FALLBACK TO THE FACE, because a BALANCE SHEET LINE is printed on the balance sheet and this column could not be matched to it. `line_items.evaluate` runs a cascade only for a `derived` line and `mapping._computed_parent` makes every `derived` key unmatchable by caption, so the note rung above cost this column its face reading entirely: measured at 63c5eb0, the printed row went to the section's catch-all instead. The aliases therefore live on a PART, which is the shape `sub__face_principal_revenue` already uses for `is_pl__sales_revenues`.\n\nSECOND AND NOT FIRST, deliberately. The note rung is the specific disclosure and is what resolves on the mainland filings; this one answers only where no note was read — the same ordering `is_pl__sales_revenues` uses (P1 the note, P2 \"fallback to the face in case note doesn't exist\"). On this corpus the two never both resolve, so the order changes no figure; it is chosen so that adding the face can never displace a note reading that already works."
+     "note": "FALLBACK TO THE FACE, for a filing whose note gives none: the printed \"Due to related parties\" row through its face part. A derived parent is unmatchable by caption (`mapping._computed_parent`), so the aliases live on the part; without it the printed row was swept into the section's catch-all. LAST, so it never displaces a note reading."
     }
    ]
   },
   {
    "key": "sub__rp_face_due_to_cp",
    "label": "Due to related parties on the face of the balance sheet",
-   "definition": "The CURRENT related-party payable as the balance sheet prints it — a row captioned as dues to related parties, to the holding company or to fellow subsidiaries under Current Liabilities, typically within Other Financial Liabilities or Trade Payables. The non-current counterpart is a separate part, because Schedule III requires the current and non-current split to be presented and the two are different rows.",
+   "definition": "The current amount due to related parties as the balance sheet prints it, as its own row under current liabilities. Excludes trade payables to related parties and entrusted loans.",
    "exclude_criteria": [],
    "parent": "bs_cl__due_to_related_parties_cp",
    "type": "extracted",
@@ -17989,8 +17989,8 @@
   },
   {
    "key": "sub__rp_other_payable",
-   "label": "Related-party note — other payables to related parties",
-   "definition": "Other payables to related parties as the Related Party Transactions note reports them — amounts owed that are not trade payables and not borrowings, such as reimbursable expenses, dividends payable to the holding company and amounts payable to key management personnel.",
+   "label": "Current amounts due to related parties (excl. trade payables)",
+   "definition": "Sum of all current amounts owed to related parties other than for goods and services — other payables, interest and dividends payable, and amounts due to related parties — excluding trade payables, borrowings and entrusted loans, contract liabilities, guarantees and totals. Only the current portion — not the non-current portion.",
    "exclude_criteria": [],
    "parent": "bs_cl__due_to_related_parties_cp",
    "type": "extracted",
@@ -18003,143 +18003,34 @@
    "note_selection": "any",
    "section_scope": [],
    "note_source": {
-    "note_title_any": [
-     "related\\s+part(?:y|ies)\\s*(?:transactions?|disclosures?)?",
-     "other\\s+financial\\s+liabilit(?:y|ies)"
-    ],
+    "note_title_any": [],
     "row_caption_any": [
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?other\\s+payables?",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:amounts?\\s+)?due\\s+to\\s+(?:a\\s+|an\\s+|the\\s+)?(?:immediate\\s+|ultimate\\s+|intermediate\\s+)?(?:holding\\s+compan|parent\\s+compan|fellow\\s+subsidiar|subsidiar|associat|joint\\s+venture|jointly\\s+controlled\\s+entit|director|shareholder|key\\s+management)",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:amounts?\\s+)?due\\s+to\\s+(?:a\\s+|the\\s+)?related\\s+(?:part(?:y|ies)|compan(?:y|ies)|corporations?|entit(?:y|ies))",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?amounts?\\s+(?:owing|owed)\\s+to\\s+related\\s+(?:part|compan)",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?related\\s+part(?:y|ies)\\s+payables?"
+     "其他应付款|其他應付款|other\\s+payables?",
+     "应付(?:利息|股利)|應付(?:利息|股利)|(?:interest|dividends?)\\s+payable",
+     "due\\s+to|owing\\s+to|owed\\s+to|应付关联|應付關聯|應付關連"
     ],
     "row_caption_none": [
-     "entrusted\\s+(?:bank\\s+)?(?:loans?|lending|borrowings?)",
-     "contract\\s+liabilit",
-     "receipts?\\s+in\\s+advance",
-     "investments?\\s+in\\s+(?:an?\\s+)?(?:associat|joint|subsidiar)",
-     "guarantee",
-     "transaction\\s+(?:amount|value|volume)",
-     "(?:purchases?\\s+from|sales?\\s+to|rental\\s+income|interest\\s+income|service\\s+fees?)",
-     "opening\\s+balance",
-     "^\\s*(?:at|as\\s+at)\\s+1\\b",
-     "^\\s*balance\\s+(?:at|as\\s+at)\\s+1\\b",
-     "closing\\s+balance",
-     "^\\s*(?:at|as\\s+at)\\s+31\\b",
-     "(?:^\\s*additions?\\b|增加|新增)",
-     "purchase",
-     "(?:disposal|处置|處置|出售|转让|轉讓)",
-     "(?:redemption|redeem|赎回|贖回)",
-     "(?:maturit|matured|已到期|到期收回|到期兑付)",
-     "(?:write.?off|written\\s+off|核销|核銷|冲销|沖銷)",
-     "(?:transfer|reclassif|转入|转出|轉入|轉出|转拨|轉撥|重分类|重分類)",
-     "(?:exchange\\s+difference|currency\\s+translation|汇兑|匯兌|滙兌|外币折算|外幣折算)",
-     "(?:acquisition|acquired|business\\s+combination|收购|收購|业务合并|業務合併)",
-     "(?:accumulated|cumulative|累计|累計|累積)",
-     "(?:sub)?total",
-     "^\\s*(?:减|減|less)?\\s*[:：]?\\s*(?:坏账准备|壞賬準備|坏帐准备|信用损失准备|信用損失準備|损失准备|損失準備|减值准备|減值準備|预期信用损失|預期信用損失)\\s*$",
-     "^\\s*(?:less\\s*[:：]?\\s*)?(?:loss\\s+allowance|allowance\\s+for|provision\\s+for|impairment\\s+(?:loss|allowance|provision))",
-     "gross\\s+(?:carrying\\s+)?(?:amount|balance)",
-     "entrusted\\s+loans?",
-     "entrusted\\s+(?:loan\\s+)?(?:receivables?|advances?|balances?)"
+     "total|合计|合計|小计|小計|总计|總計|合共",
+     "担保|擔保|guarantee|交易金[额額]|交易[额額]|发生[额額]|發生[額额]|transaction|期初|年初|opening\\s+balance|^\\s*(?:at|as\\s+at)\\s+\\d|advances?\\b|repayments?\\b|closing\\s+balance",
+     "委托|委託|entrusted|合同[负負][债債]|contract\\s+liabilit|预收|預收|receipts?\\s+in\\s+advance|坏账|壞賬|[准準]备|[准準]備|allowance",
+     "^(?!.*(?:一年内到期|一年內到期)).*(?:non.?current|非流动|非流動)"
     ],
     "prose_any": [],
     "prose_subject": "",
     "prose_landed_in": [],
     "note_terms": [
-     "related party transactions",
-     "holding company",
-     "subsidiary companies",
-     "associate companies",
-     "joint ventures",
-     "key management personnel",
-     "enterprises over which key management personnel exercise significant influence",
-     "relatives of key management personnel",
-     "transactions with related parties during the year",
-     "balances outstanding with related parties",
-     "remuneration to key management personnel",
-     "sale of goods to related parties",
-     "purchase of goods from related parties",
-     "loans given to related parties",
-     "dividend received",
-     "outstanding receivable from related parties",
-     "outstanding payable to related parties",
-     "post employment benefit plans",
-     "other financial liabilities",
-     "interest accrued but not due on borrowings",
-     "unpaid dividends",
-     "capital creditors",
-     "creditors for capital expenditure",
-     "employee benefits payable",
-     "security deposits from dealers",
-     "derivative financial liabilities",
-     "payable to related parties",
-     "book overdraft"
+     "due to related parties",
+     "due to related companies",
+     "balances with related parties"
     ],
-    "row_terms": [
-     "other payables",
-     "amounts due to a",
-     "holding company",
-     "fellow subsidiary",
-     "related party payables"
-    ],
-    "row_terms_none": [
-     "entrusted bank loans",
-     "lending",
-     "borrowings",
-     "contract liability",
-     "receipts in advance",
-     "investments in an associate",
-     "guarantee",
-     "transaction amount",
-     "volume",
-     "purchases from",
-     "sales to",
-     "rental income",
-     "interest income",
-     "service fees",
-     "opening balance",
-     "balance at",
-     "closing balance",
-     "additions",
-     "purchase",
-     "disposal",
-     "redemption",
-     "redeem",
-     "maturit",
-     "matured",
-     "write off",
-     "written off",
-     "transfer",
-     "reclassification",
-     "exchange difference",
-     "currency translation",
-     "acquisition",
-     "acquired",
-     "business combination",
-     "accumulated",
-     "cumulative",
-     "sub total",
-     "less坏账准备",
-     "less：坏账准备",
-     "less loss allowance",
-     "allowance for",
-     "provision for",
-     "impairment loss",
-     "allowance",
-     "provision",
-     "less： loss allowance",
-     "gross carrying amount",
-     "entrusted loan",
-     "entrusted loans"
-    ]
+    "row_terms": [],
+    "row_terms_none": []
    }
   },
   {
    "key": "sub__rp_payable_ltp",
-   "label": "Related-party note — long-term payables to related parties",
-   "definition": "Long-term payables to related parties as the Related Party Transactions note reports them — the portion of related-party dues that falls due after twelve months.",
+   "label": "Non-current amounts due to related parties (long-term payables)",
+   "definition": "Sum of all non-current long-term payables and loans owed to related parties, excluding entrusted loans, trade and other payables, guarantees and totals. Only the non-current portion — not the portion due within one year.",
    "exclude_criteria": [],
    "parent": "bs_ncl__due_to_related_parties_ltp",
    "type": "extracted",
@@ -18152,129 +18043,26 @@
    "note_selection": "any",
    "section_scope": [],
    "note_source": {
-    "note_title_any": [
-     "related\\s+part(?:y|ies)\\s*(?:transactions?|disclosures?)?",
-     "other\\s+financial\\s+liabilit(?:y|ies)"
-    ],
+    "note_title_any": [],
     "row_caption_any": [
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?long.?term\\s+payables?"
+     "长期应付款|長期應付款|long.?term\\s+payables?"
     ],
     "row_caption_none": [
-     "entrusted\\s+(?:bank\\s+)?(?:loans?|lending|borrowings?)",
-     "contract\\s+liabilit",
-     "receipts?\\s+in\\s+advance",
-     "investments?\\s+in\\s+(?:an?\\s+)?(?:associat|joint|subsidiar)",
-     "guarantee",
-     "transaction\\s+(?:amount|value|volume)",
-     "(?:purchases?\\s+from|sales?\\s+to|rental\\s+income|interest\\s+income|service\\s+fees?)",
-     "opening\\s+balance",
-     "^\\s*(?:at|as\\s+at)\\s+1\\b",
-     "^\\s*balance\\s+(?:at|as\\s+at)\\s+1\\b",
-     "closing\\s+balance",
-     "^\\s*(?:at|as\\s+at)\\s+31\\b",
-     "(?:^\\s*additions?\\b|增加|新增)",
-     "purchase",
-     "(?:disposal|处置|處置|出售|转让|轉讓)",
-     "(?:redemption|redeem|赎回|贖回)",
-     "(?:maturit|matured|已到期|到期收回|到期兑付)",
-     "(?:write.?off|written\\s+off|核销|核銷|冲销|沖銷)",
-     "(?:transfer|reclassif|转入|转出|轉入|轉出|转拨|轉撥|重分类|重分類)",
-     "(?:exchange\\s+difference|currency\\s+translation|汇兑|匯兌|滙兌|外币折算|外幣折算)",
-     "(?:acquisition|acquired|business\\s+combination|收购|收購|业务合并|業務合併)",
-     "(?:accumulated|cumulative|累计|累計|累積)",
-     "(?:sub)?total",
-     "^\\s*(?:减|減|less)?\\s*[:：]?\\s*(?:坏账准备|壞賬準備|坏帐准备|信用损失准备|信用損失準備|损失准备|損失準備|减值准备|減值準備|预期信用损失|預期信用損失)\\s*$",
-     "^\\s*(?:less\\s*[:：]?\\s*)?(?:loss\\s+allowance|allowance\\s+for|provision\\s+for|impairment\\s+(?:loss|allowance|provision))",
-     "gross\\s+(?:carrying\\s+)?(?:amount|balance)",
-     "entrusted\\s+loans?",
-     "entrusted\\s+(?:loan\\s+)?(?:receivables?|advances?|balances?)"
+     "total|合计|合計|小计|小計|总计|總計|合共",
+     "担保|擔保|guarantee|交易金[额額]|交易[额額]|发生[额額]|發生[額额]|transaction|期初|年初|opening\\s+balance|^\\s*(?:at|as\\s+at)\\s+\\d|advances?\\b|repayments?\\b|closing\\s+balance",
+     "委托|委託|entrusted|合同[负負][债債]|contract\\s+liabilit|预收|預收|receipts?\\s+in\\s+advance|坏账|壞賬|[准準]备|[准準]備|allowance",
+     "一年内|一年內|within\\s+one\\s+year|(?<!non-)(?<!non )\\bcurrent\\b"
     ],
     "prose_any": [],
     "prose_subject": "",
     "prose_landed_in": [],
     "note_terms": [
-     "related party transactions",
-     "holding company",
-     "subsidiary companies",
-     "associate companies",
-     "joint ventures",
-     "key management personnel",
-     "enterprises over which key management personnel exercise significant influence",
-     "relatives of key management personnel",
-     "transactions with related parties during the year",
-     "balances outstanding with related parties",
-     "remuneration to key management personnel",
-     "sale of goods to related parties",
-     "purchase of goods from related parties",
-     "loans given to related parties",
-     "dividend received",
-     "outstanding receivable from related parties",
-     "outstanding payable to related parties",
-     "post employment benefit plans",
-     "other financial liabilities",
-     "interest accrued but not due on borrowings",
-     "unpaid dividends",
-     "capital creditors",
-     "creditors for capital expenditure",
-     "employee benefits payable",
-     "security deposits from dealers",
-     "derivative financial liabilities",
-     "payable to related parties",
-     "book overdraft"
+     "due to related parties",
+     "due to related companies",
+     "balances with related parties"
     ],
-    "row_terms": [
-     "long term payables"
-    ],
-    "row_terms_none": [
-     "entrusted bank loans",
-     "lending",
-     "borrowings",
-     "contract liability",
-     "receipts in advance",
-     "investments in an associate",
-     "guarantee",
-     "transaction amount",
-     "volume",
-     "purchases from",
-     "sales to",
-     "rental income",
-     "interest income",
-     "service fees",
-     "opening balance",
-     "balance at",
-     "closing balance",
-     "additions",
-     "purchase",
-     "disposal",
-     "redemption",
-     "redeem",
-     "maturit",
-     "matured",
-     "write off",
-     "written off",
-     "transfer",
-     "reclassification",
-     "exchange difference",
-     "currency translation",
-     "acquisition",
-     "acquired",
-     "business combination",
-     "accumulated",
-     "cumulative",
-     "sub total",
-     "less坏账准备",
-     "less：坏账准备",
-     "less loss allowance",
-     "allowance for",
-     "provision for",
-     "impairment loss",
-     "allowance",
-     "provision",
-     "less： loss allowance",
-     "gross carrying amount",
-     "entrusted loan",
-     "entrusted loans"
-    ]
+    "row_terms": [],
+    "row_terms_none": []
    }
   },
   {
