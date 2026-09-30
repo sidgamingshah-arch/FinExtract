@@ -507,7 +507,13 @@ def covered_notes(item, notes, *, unnumbered: bool = False) -> tuple[str, ...]:
             words[number] = set()
             order.append(number)
         words[number].update(subject_tokens(str(getattr(table, "title", "") or "")))
-    return tuple(n for n in order if any(t <= words[n] for t in terms))
+    refused = _term_sets(getattr(src, "note_terms_none", None))
+    return tuple(n for n in order
+                 if any(t <= words[n] for t in terms) and not any(t <= words[n] for t in refused))
+
+
+def _term_sets(terms) -> list[set[str]]:
+    return [t for t in (set(subject_tokens(x)) for x in (terms or ()) if x) if t]
 
 
 def heading_covered(item, title: str) -> bool:
@@ -521,6 +527,8 @@ def heading_covered(item, title: str) -> bool:
     """
     src = getattr(item, "note_source", None)
     words = set(subject_tokens(title or ""))
+    if any(t <= words for t in _term_sets(getattr(src, "note_terms_none", None))):
+        return False
     return any((t := set(subject_tokens(term))) and t <= words
                for term in (getattr(src, "note_terms", None) or ()) if term)
 

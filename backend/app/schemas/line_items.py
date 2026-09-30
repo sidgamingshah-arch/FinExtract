@@ -403,6 +403,11 @@ class NoteSource(BaseModel):
     # through this field.
     prose_landed_in: list[str] = Field(default_factory=list)
     note_terms: list[str] = Field(default_factory=list)
+    # HEADINGS THAT ARE NOT THIS LINE'S NOTE, by meaning: a note whose heading carries every word of
+    # one of these is refused even when a `note_terms` entry covers it. Written for the combined
+    # "Cost of sales, selling and distribution expenses and administrative expenses" note, which the
+    # selling/administrative terms cover and whose depreciation row includes the cost-of-sales share.
+    note_terms_none: list[str] = Field(default_factory=list)
     row_terms: list[str] = Field(default_factory=list)
     row_terms_none: list[str] = Field(default_factory=list)
     # `caption_normalization` IS GONE. It claimed to say which text these patterns are authored

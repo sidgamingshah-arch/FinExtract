@@ -218,6 +218,18 @@ _DEFINITION_FOLDED = 76
 # failure. `tests/test_a_definition_is_a_meaning_not_a_formula.py` is what holds the rewrite itself.
 _DEFINITION_DEFORMULATED = 30
 
+# AND 351 MORE, WHERE A BOILERPLATE TAIL WENT. Every plain face line ended "…Do not calculate or
+# replace it from other rows, because the revised template does not designate this field as
+# formula-driven." — one sentence of template jargon repeated 351 times, sent in every request and
+# folded into every note-selection probe, where the same nine words on every line only add noise.
+# The seed now says "Do not calculate it." The rulebook still carries the long form.
+_DEFINITION_PLAINED = 351
+
+# AND `decomposition_rule`, WHICH THE SEED NO LONGER REPEATS PER LINE. 401 lines carried one of two
+# identical sentences; `global_rules.no_fabricated_split` states the rule once for the whole set,
+# and no request path reads the per-line copy. Bounded by count, and only where the seed has none.
+_DECOMPOSITION_RULE_DROPPED = 401
+
 # Fields on which the SHIPPED seed may lag the rulebook — see the module docstring. `description`
 # is by design (the 8 merged keys keep the configurator's prose); the rest are staleness, and the
 # assertion is that the divergence goes no wider than these names.
@@ -535,7 +547,9 @@ def test_shipped_set_diverges_only_in_the_known_classes():
         if field == "exclude" and len(keys) <= _EXCLUDE_BLANKED:
             continue
         if (field == "definition"
-                and len(keys) <= _DEFINITION_FOLDED + _DEFINITION_DEFORMULATED):
+                and len(keys) <= _DEFINITION_FOLDED + _DEFINITION_DEFORMULATED + _DEFINITION_PLAINED):
+            continue
+        if field == "decomposition_rule" and len(keys) <= _DECOMPOSITION_RULE_DROPPED:
             continue
         unexpected[field] = keys
     assert not unexpected, (

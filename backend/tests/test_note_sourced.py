@@ -1146,3 +1146,31 @@ def test_the_llm_is_told_the_same_rule_the_cascade_applies(shipped):
     assert "坏账准备" in halves["sub__rp_find_3_allowance"]
     assert "Do NOT read 坏账准备" in halves["sub__rp_find_3_gross"]
     assert "POSITIVE" in halves["sub__rp_find_3_allowance"]
+
+
+# ── the expense-notes rung and a combined cost-of-sales note ────────────────────────────────────
+
+def test_a_combined_cost_of_sales_and_expenses_note_does_not_feed_the_expense_notes_rung(shipped):
+    """HKFRS filings often print ONE note for "Cost of sales, selling and distribution expenses and
+    administrative expenses". Its heading holds the selling and administrative terms, so
+    `sub__expense_notes_depreciation` used to cover it — and its depreciation row is the WHOLE
+    charge, cost-of-sales share included, published as the operating-expense figure with nothing
+    deducted. `note_terms_none` refuses the heading; the line falls through to the asset notes
+    (P4), which subtract the cost-of-sales share."""
+    combined = NotesTable(
+        note_number="6",
+        title="Cost of sales, selling and distribution expenses and administrative expenses",
+        items=[_note_row("Depreciation of property, plant and equipment", "5000")])
+    doc, _ctx = _run(shipped, [combined])
+    assert _figure(doc, "sub__expense_notes_depreciation") is None
+    assert _figure(doc, OPER_EXP) is None
+
+
+def test_a_plain_administrative_expenses_note_still_feeds_the_expense_notes_rung(shipped):
+    """The refusal is about the combined heading, not the subject: an expense note that is only
+    about the administrative function is still read."""
+    admin = NotesTable(note_number="6", title="Administrative expenses",
+                       items=[_note_row("Depreciation", "1300")])
+    doc, _ctx = _run(shipped, [admin])
+    assert _figure(doc, "sub__expense_notes_depreciation") == Decimal("1300")
+    assert _figure(doc, OPER_EXP) == Decimal("1300")

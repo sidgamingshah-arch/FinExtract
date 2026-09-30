@@ -12913,7 +12913,10 @@
     "row_terms_none": [],
     "prose_any": [],
     "prose_subject": "",
-    "prose_landed_in": []
+    "prose_landed_in": [],
+    "note_terms_none": [
+     "cost of sales"
+    ]
    },
    "aliases": []
   }

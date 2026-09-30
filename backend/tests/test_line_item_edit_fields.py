@@ -228,6 +228,7 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
         "prose_subject": "cash",
         "prose_landed_in": ["bank balances", "现金"],
         "note_terms": ["cash and cash equivalents", "现金及现金等价物"],
+        "note_terms_none": ["cost of sales"],
         "row_terms": ["bank balances", "银行存款"],
         "row_terms_none": ["restricted"],
         # WHICH NOTE COLUMN the part reads — "" is the primary measure, "allowance" is 坏账准备.
