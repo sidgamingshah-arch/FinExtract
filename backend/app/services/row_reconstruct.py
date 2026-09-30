@@ -669,6 +669,12 @@ def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True) -> t
                 and _REPORT_TAIL.match(row[i + 1].text.strip())
                 and _tight_after(row[i], row[i + 1])):
             label_words.append(row[i]); i += 1; continue
+        # A STANDARD'S NUMBER IS PART OF ITS NAME. "Revenue from contract with customers within
+        # the scope of HKFRS 15" is a HEADING with no figures, and read as a figure its 15 became
+        # the row's current amount — 嘉民's revenue note published a revenue of 15.
+        if (not value_words and label_words and _STANDARD_NUMBER.match(tok)
+                and _names_a_standard(label_words)):
+            label_words.append(row[i]); i += 1; continue
         if (not value_words and _AGE_COUNT.match(tok) and i + 1 < len(row)
                 and _AGE_UNIT.match(row[i + 1].text.strip())
                 and _tight_after(row[i], row[i + 1])):
@@ -681,6 +687,22 @@ def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True) -> t
             label_words.append(row[i])
         i += 1
     return label_words, note_ref, value_words
+
+
+# AN ACCOUNTING STANDARD NAMED IN A CAPTION, and the number that follows it. Upper-case only, so
+# the English word "as" in "such as 15" is never a standard; "Ind AS" needs its "Ind".
+_STANDARD_NUMBER = re.compile(r"^\d{1,3}[A-Z]?[,.;:)）]?$")
+_STANDARD_NAME = re.compile(r"^(?:HK)?(?:IFRS|FRS|IAS|AS|IFRIC|SIC)$|^HK\(IFRIC\)$|^HKAS$|^SFRS$")
+
+
+def _names_a_standard(label_words: list[Word]) -> bool:
+    last = label_words[-1].text.strip()
+    if not _STANDARD_NAME.match(last):
+        return False
+    if last in ("AS", "FRS"):
+        # Bare "AS"/"FRS" only as "Ind AS" / "Ind FRS"-style names, never on their own.
+        return len(label_words) > 1 and label_words[-2].text.strip() == "Ind"
+    return True
 
 
 # The count that opens an ageing bucket, and the unit it is tight against. See `_scan_row`.
@@ -1665,6 +1687,7 @@ def apply_pipeline(text: str, steps: tuple[tuple[str, object], ...] = (), *,
 # comprehensive income banner — so the title's leftovers scoped an entire income statement into OCI
 # and re-homed its tax line. Nothing in a financial statement opens a section with "and".
 _TAIL_CONTINUATION = re.compile(r"^\s*(and|or|及|与|與|和)\b", re.IGNORECASE)
+
 
 # A PARENTHETICAL ALTERNATIVE, which always attaches to text before it. The mainland equity block
 # names each of its lines twice — 所有者权益（或股东权益）合计 — and in the narrow caption column of
