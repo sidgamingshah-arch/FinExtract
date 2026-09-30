@@ -1500,6 +1500,12 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
                 "llm_calls": ctx.llm_calls,
                 "llm_failures": ctx.llm_failures,
                 "model": ctx.llm_model or "",
+                # Where the tokens went. `llm_cached_tokens` is PART of `llm_input_tokens` — the
+                # share the provider served from its prompt cache.
+                "llm_input_tokens": ctx.llm_input_tokens,
+                "llm_cached_tokens": ctx.llm_cached_tokens,
+                "llm_cache_write_tokens": ctx.llm_cache_write_tokens,
+                "llm_output_tokens": ctx.llm_output_tokens,
             },
         }
         run.status = "succeeded"

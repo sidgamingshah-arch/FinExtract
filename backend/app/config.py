@@ -375,6 +375,14 @@ class ExtractionSettings(BaseModel):
     #               components, or two lines whose DISTINCTION is what the model keeps
     #               getting wrong. Read by `services.line_item_requests.plan_requests`.
     llm_request_grouping: Literal["none", "identical", "similar", "manual"] = "none"
+    # WHAT THE MODEL READS BESIDE EACH LINE-ITEM QUESTION. "selected" is each request's own notes
+    # and statements — only what its lines selected. "full" is the WHOLE document every time:
+    # every extracted note and every statement's printed rows, in one block that is identical on
+    # every request of the run and is sent BEFORE the question, so a provider's prompt cache can
+    # serve it after the first call. The model is told the same thing either way — where each
+    # figure is printed — and its citations are checked against the same extracted rows.
+    # Read by `stages.line_item_llm`; an admin can flip it from the Settings screen.
+    llm_document_context: Literal["selected", "full"] = "selected"
     # MAY AN AUTHORED EXCLUSION REFUSE A MODEL'S CITATION?
     #
     # `note_source.row_caption_none` and `row_terms_none` are the author's statement of rows that

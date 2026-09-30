@@ -390,6 +390,45 @@ def build_request(plan, by_key: dict, notes_of: dict, identified: list[dict],
     return out
 
 
+# THE FULL-DOCUMENT LAYOUT, said once in the system text. It replaces nothing in the contract
+# above; it says where the notes and statements now are, because the contract's sentence about
+# `notes` ("the ones this line's configuration selected") describes the other mode.
+FULL_DOCUMENT_GUIDE = (
+    "THE WHOLE DOCUMENT IS SENT ONCE, BEFORE THE QUESTIONS. The first message is the filing: "
+    "`notes` is EVERY note it prints, not only those a line selected, and `statement_rows` is "
+    "every statement as printed. Each line item's `notes_supplied` still names the notes its "
+    "configuration points to — look there first — but a figure printed in any note or statement "
+    "of the document may be cited. The second message holds the line items to answer.")
+
+
+def build_document(doc, line_item_set, *, cited=None) -> dict:
+    """The whole document, in the shape a request's note and statement blocks already have.
+
+    Every extracted note (`note_context.identified_notes(..., every_note=True)`, filing order) and
+    every statement's printed rows (`face_context.face_rows` over every labelled statement page),
+    plus the other-pages block where the extractor built one. Built ONCE per run and sent
+    unchanged on every request, so it is byte-identical from call to call — the property a prompt
+    cache keys on. Nothing in it varies per request: no line, no count, no time.
+    """
+    from app.services import face_context
+    statements = {str(getattr(pg, "statement", "") or "") for pg in (getattr(doc, "pages", None) or ())}
+    statements.discard("")
+    statements.discard("None")
+    out = {"notes": note_context.identified_notes(line_item_set, doc.notes, cited=cited,
+                                                  every_note=True),
+           "statement_rows": face_context.face_rows(doc, sorted(statements))}
+    other = face_context.other_page_rows(doc)
+    if other:
+        out["other_pages"] = other
+    return out
+
+
+def document_message(document: dict) -> str:
+    """The first user message of a full-document request. Deterministic: fixed lead-in, fixed keys."""
+    return ("THE DOCUMENT (every note and statement of this filing). The questions follow in the "
+            "next message.\n" + json.dumps(document, ensure_ascii=False, indent=2))
+
+
 def _amount(text: str) -> Decimal | None:
     try:
         return Decimal(str(text).replace(",", "").strip())
@@ -497,16 +536,22 @@ def combine_terms(resolved: list[dict], unresolved: list[dict], signs: list[int]
     return out, unverified
 
 
-def ask(provider, system: str, request: dict, *, max_tokens: int) -> LineItemReply:
+def ask(provider, system: str, request: dict, *, max_tokens: int,
+        document: str | None = None) -> LineItemReply:
     """One provider call. Raises whatever the provider raises — the caller records it per request.
 
     The whole request is the unit of failure on purpose. A reply that does not validate is not a
     partial answer, and a request that fails leaves its lines to the deterministic route, which is
     a defined outcome rather than a degraded one.
     """
+    # WITH A DOCUMENT, TWO MESSAGES: the document first — identical on every call, so the prompt
+    # up to its end is a reusable prefix — and the question after it. Without one, the request is
+    # one message as before.
+    question = {"role": "user", "content": json.dumps(request, ensure_ascii=False, indent=2)}
+    messages = ([{"role": "user", "content": document}, question] if document else [question])
     reply, meta = provider.complete_structured(
         system=system,
-        messages=[{"role": "user", "content": json.dumps(request, ensure_ascii=False, indent=2)}],
+        messages=messages,
         response_schema=LineItemReply,
         max_tokens=max_tokens,
     )

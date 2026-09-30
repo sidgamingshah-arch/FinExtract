@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from app.adapters._structured import LlmConfigError, schema_instruction, strip_fences
 from app.config import Settings, get_settings
-from app.ports.llm import LlmMessage, LlmMeta
+from app.ports.llm import LlmMessage, LlmMeta, anthropic_usage
 
 
 class BedrockGatewayLlmProvider:
@@ -60,9 +60,7 @@ class BedrockGatewayLlmProvider:
         text = "".join(block.get("text", "") for block in payload.get("content", [])
                        if block.get("type") == "text")
         parsed = response_schema.model_validate_json(strip_fences(text))
-        usage = payload.get("usage") or {}
         return parsed, {
             "model": payload.get("model", self._settings.llm.model),
-            "input_tokens": usage.get("input_tokens", 0),
-            "output_tokens": usage.get("output_tokens", 0),
+            **anthropic_usage(payload.get("usage") or {}),
         }

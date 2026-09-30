@@ -28,7 +28,7 @@ from pydantic import BaseModel
 
 from app.adapters._structured import LlmConfigError
 from app.adapters.openai_llm import OpenAiLlmProvider
-from app.ports.llm import LlmMessage, LlmMeta
+from app.ports.llm import LlmMessage, LlmMeta, openai_usage
 
 __all__ = ["AzureOpenAiLlmProvider"]
 
@@ -132,13 +132,11 @@ class AzureOpenAiLlmProvider(OpenAiLlmProvider):
         content = payload["choices"][0]["message"]["content"]
         parsed = response_schema.model_validate_json(strip_fences(content))
 
-        usage = payload.get("usage", {}) or {}
         meta: LlmMeta = {
             # Azure echoes the underlying model, which is what the audit log should record — the
             # deployment name is an address, not an identity.
             "model": payload.get("model") or cfg.azure_deployment_name() or cfg.model,
-            "input_tokens": usage.get("prompt_tokens", 0),
-            "output_tokens": usage.get("completion_tokens", 0),
+            **openai_usage(payload.get("usage")),
         }
         rid = resp.headers.get("apim-request-id") or resp.headers.get("x-request-id")
         if rid:

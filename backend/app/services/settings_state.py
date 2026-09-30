@@ -93,6 +93,15 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "bleed: lines sharing a call can influence each other's answers. \"manual\" uses the "
          "groups authored on the line-item set and asks about everything else one line at a time.",
          choices=("none", "identical", "similar", "manual")),
+    Knob("llm_document_context", "choice", "What the model reads with each question",
+         "\"selected\" sends each request only the notes and statements its line items selected: "
+         "the smallest requests. \"full\" sends the WHOLE document with every request — every "
+         "note and every statement — so the model always has the full filing in view. The "
+         "document goes first and is identical on every request of a run, so a provider that "
+         "caches prompts charges the cached rate for it after the first request; the run log "
+         "shows input, cached and output tokens per request and a summary at the end. Combine "
+         "with grouping to send the document fewer times.",
+         choices=("selected", "full")),
     Knob("llm_group_similarity", "number", "How much note overlap counts as similar",
          "Only read when grouping is \"similar\". The fraction of two line items' selected notes "
          "that must be the same (Jaccard overlap) before they share a request. 1.0 is the same "

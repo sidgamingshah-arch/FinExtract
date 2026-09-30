@@ -159,6 +159,21 @@ class LineItemLlmStage(Stage):
         # contract goes FIRST and is not configurable — see `line_item_llm.REPLY_CONTRACT`.
         working = getattr(ctx, "ontology", None) or build_working_view(line_item_set)
         system = line_item_llm.REPLY_CONTRACT + "\n\n" + authored_guidance(working, ctx.settings)
+        # THE WHOLE DOCUMENT WITH EVERY QUESTION, when an admin has asked for it. Built once, before
+        # the first request, and sent unchanged on every one — after the system text and before
+        # the question, so everything up to the question is the same bytes on every call and a
+        # provider's prompt cache can serve it. The system text gains one fixed paragraph saying
+        # where the notes now are; it is still identical from call to call.
+        doc_context = str(getattr(ctx.settings.extraction, "llm_document_context", "selected")
+                          or "selected")
+        document = None
+        if doc_context == "full":
+            system += "\n\n" + line_item_llm.FULL_DOCUMENT_GUIDE
+            document = line_item_llm.document_message(line_item_llm.build_document(
+                doc, line_item_set, cited=line_item_notes.cited_notes(doc)))
+            ctx.log(f"line_item_llm:document_context=full document_chars={len(document)} "
+                    f"system_chars={len(system)}")
+        tok = {"input": 0, "cached": 0, "write": 0, "output": 0}
 
         shared = sum(1 for p in plans if p.shared)
         mode = str(getattr(ctx.settings.extraction, "llm_request_grouping", "none") or "none")
@@ -198,14 +213,19 @@ class LineItemLlmStage(Stage):
                            if any(k in by_key and line_item_routes.reads_every_page(by_key[k])
                                   for k in plan.keys)
                            else [])
-            request = line_item_llm.build_request(plan, by_key, notes_of, identified, face,
-                                                  other_pages)
+            if document is not None:
+                # THE QUESTION ALONE: the notes and statements are in the document message.
+                request = {"line_items": line_item_llm.build_request(
+                    plan, by_key, notes_of, [], None, None)["line_items"]}
+            else:
+                request = line_item_llm.build_request(plan, by_key, notes_of, identified, face,
+                                                      other_pages)
             if not request["line_items"]:
                 continue
             try:
                 reply, meta = line_item_llm.ask(
                     provider, system, request,
-                    max_tokens=_max_tokens(len(request["line_items"])))
+                    max_tokens=_max_tokens(len(request["line_items"])), document=document)
             except Exception as exc:  # noqa: BLE001
                 # THE WHOLE REQUEST IS THE UNIT OF FAILURE, on purpose. A reply that does not
                 # validate is not a partial answer, and the lines in a failed request fall to the
@@ -221,8 +241,21 @@ class LineItemLlmStage(Stage):
                 continue
             calls += 1
             ctx.llm_calls += 1
-            ctx.llm_input_tokens += int((meta or {}).get("input_tokens") or 0)
-            ctx.llm_output_tokens += int((meta or {}).get("output_tokens") or 0)
+            used = {"input": int((meta or {}).get("input_tokens") or 0),
+                    "cached": int((meta or {}).get("cached_input_tokens") or 0),
+                    "write": int((meta or {}).get("cache_write_tokens") or 0),
+                    "output": int((meta or {}).get("output_tokens") or 0)}
+            for k, v in used.items():
+                tok[k] += v
+            ctx.llm_input_tokens += used["input"]
+            ctx.llm_output_tokens += used["output"]
+            ctx.llm_cached_tokens += used["cached"]
+            ctx.llm_cache_write_tokens += used["write"]
+            # PER REQUEST, so a reader can see where the tokens went — which request was large,
+            # and whether the cache served the ones after the first.
+            ctx.log(f"line_item_llm:usage request={plan.name} lines={len(request['line_items'])} "
+                    f"input={used['input']} cached={used['cached']} cache_write={used['write']} "
+                    f"output={used['output']}")
             if (meta or {}).get("model"):
                 ctx.llm_model = meta["model"]
 
@@ -347,6 +380,11 @@ class LineItemLlmStage(Stage):
             ctx.emit_step(done, len(plans), "line-item request")
 
         blanked = self._reconcile_claimed_printed_rows(kept_printed, claimed_face_rows, ctx)
+        # THE RUN'S ONE-LINE TOKEN SUMMARY. `cached` is part of `input`, not added to it.
+        hit = (100.0 * tok["cached"] / tok["input"]) if tok["input"] else 0.0
+        ctx.log(f"line_item_llm:tokens document_context={doc_context} requests={calls} "
+                f"input={tok['input']} cached={tok['cached']} ({hit:.0f}% of input) "
+                f"cache_write={tok['write']} output={tok['output']}")
         ctx.log(f"line_item_llm:calls={calls} failed={failures} lines_answered={answered} "
                 f"figures_written={filled} citations_unresolved={unresolved_total}"
                 + (f" printed_rows_blanked_because_claimed_elsewhere={blanked}" if blanked else ""))

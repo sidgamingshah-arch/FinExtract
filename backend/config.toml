@@ -213,6 +213,12 @@ recon_rel_tolerance = 0.005     # relative tolerance (fraction of the face value
 # ROWS were forwarded to the model; rows are no longer offered to a model, so there is nothing to
 # route. The list below needs no change — a key names a line item either way.
 llm_focus_only = true
+# WHAT THE MODEL READS WITH EACH LINE-ITEM QUESTION — "selected" (only the notes and statements
+# the request's lines selected) or "full" (the whole document, every request: every note and every
+# statement, sent first and identical on every call so a provider's prompt cache can serve it).
+# An admin can flip it from the Settings screen; the run log then shows input / cached / output
+# tokens per request and a summary line (`line_item_llm:tokens …`).
+llm_document_context = "selected"
 # THE PARTS ARE NAMED TOO, NOT ONLY THE EIGHT WHOLES, and that is the whole point of this list
 # being longer than it looks. Seven of the eight are `derived` or `extract_or_derive`, so the model
 # is not offered them at all (`_llm_withheld`) — forwarding a row whose deterministic answer is one

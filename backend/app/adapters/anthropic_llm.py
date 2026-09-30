@@ -22,7 +22,7 @@ from pydantic import BaseModel
 
 from app.adapters._structured import LlmConfigError, schema_instruction, strip_fences
 from app.config import Settings, get_settings
-from app.ports.llm import LlmMessage, LlmMeta
+from app.ports.llm import LlmMessage, LlmMeta, anthropic_usage
 
 __all__ = ["AnthropicLlmProvider", "LlmConfigError"]
 
@@ -97,8 +97,7 @@ class AnthropicLlmProvider:
 
         meta: LlmMeta = {
             "model": resp.model,
-            "input_tokens": resp.usage.input_tokens,
-            "output_tokens": resp.usage.output_tokens,
+            **anthropic_usage(resp.usage),
         }
         # request_id is public despite the underscore; log it when reporting to Anthropic.
         rid = getattr(resp, "_request_id", None)

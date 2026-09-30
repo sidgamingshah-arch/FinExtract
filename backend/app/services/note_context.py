@@ -594,8 +594,11 @@ def note_blocks(notes) -> list[tuple[tuple[str, str], str]]:
     return out
 
 
-def identified_notes(line_item_set, notes, *, cited=None) -> list[dict]:
+def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = False) -> list[dict]:
     """Every note a `note_source` declaration names, IN FULL — all rows and all prose.
+
+    `every_note` keeps the notes NO line claims too, in the same shape and order — the whole
+    document, for `extraction.llm_document_context = "full"`. Their `identified_for` is empty.
 
     WHY IN FULL, AND WHY NOT SCORED. These are not notes a similarity function guessed at: an
     author has declared, in configuration, that this note is where a line's figure lives. That is a
@@ -765,7 +768,7 @@ def identified_notes(line_item_set, notes, *, cited=None) -> list[dict]:
         # same unconditional attachment a title pattern gets — see `line_item_notes.covered_notes`.
         claimed |= {key for key, numbers in meaning_claims.items() if number in numbers}
         wanted_by = sorted(claimed)
-        if not wanted_by:
+        if not wanted_by and not every_note:
             continue
         rows = []
         for row in getattr(table, "items", None) or ():

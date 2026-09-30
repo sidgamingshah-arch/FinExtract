@@ -24,7 +24,7 @@ from pydantic import BaseModel
 
 from app.adapters._structured import LlmConfigError, extract_json, schema_instruction
 from app.config import Settings, get_settings
-from app.ports.llm import LlmMessage, LlmMeta
+from app.ports.llm import LlmMessage, LlmMeta, openai_usage
 
 __all__ = ["OpenAiLlmProvider", "LlmConfigError"]
 
@@ -261,11 +261,9 @@ class OpenAiLlmProvider:
             )
         parsed = response_schema.model_validate_json(extract_json(content))
 
-        usage = payload.get("usage", {}) or {}
         meta: LlmMeta = {
             "model": payload.get("model", self._settings.llm.model),
-            "input_tokens": usage.get("prompt_tokens", 0),
-            "output_tokens": usage.get("completion_tokens", 0),
+            **openai_usage(payload.get("usage")),
         }
         rid = resp.headers.get("x-request-id") or payload.get("id")
         if rid:

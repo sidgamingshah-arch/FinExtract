@@ -31,6 +31,10 @@ class PipelineContext:
     # LLM usage accumulated across stages (description-based mapping, …) for the audit log.
     llm_input_tokens: int = 0
     llm_output_tokens: int = 0
+    # …and how much of the input the provider served from its prompt cache / stored for reuse.
+    # Part of `llm_input_tokens`, not in addition to it (see `ports.llm.LlmMeta`).
+    llm_cached_tokens: int = 0
+    llm_cache_write_tokens: int = 0
     llm_calls: int = 0
     # REQUESTS THAT FAILED, counted beside the ones that succeeded — because `llm_calls` alone
     # cannot tell "no provider" from "every request failed", and those are opposite facts.
