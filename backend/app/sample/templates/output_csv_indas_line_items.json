@@ -10186,7 +10186,8 @@
      "margin money deposits",
      "deposits with maturity of more than three months"
     ]
-   }
+   },
+   "extraction_mode": "derive"
   },
   {
    "key": "sub__rd_depreciation",

@@ -132,6 +132,15 @@ _EXTRACTION_MODE_DECISIONS = frozenset({
     "bs_ca__secur_and_other_fincl_assets_cp", "notes__contingent_liabilities",
     "bs_nca__due_from_related_parties_ltp", "bs_ca__other_receivables_cp",
     "bs_nca__secur_and_other_fincl_assets_ltp",
+    # …and the nine lines the APP fills, which no filing prints: the workflow fields and the
+    # control totals computed from other lines. `derive` keeps them out of every model request —
+    # each one used to spend a whole request, carrying the whole document in "full" mode, to be
+    # told the filing does not print it.
+    "statement_setup_controls__analyst", "statement_setup_controls__status",
+    "notes__confirmed_with_rm", "statement_setup_controls__target_currency",
+    "statement_setup_controls__total_assets", "statement_setup_controls__total_equity_reserves_liab",
+    "statement_setup_controls__total_income_expenses",
+    "statement_setup_controls__unexplained_adj_to_ret_profits", "statement_setup_controls__difference",
 })
 
 # RECOGNITION MOVED DOWN TO THE FACE-READING PARTS, so these two parents no longer carry it.

@@ -102,6 +102,13 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "shows input, cached and output tokens per request and a summary at the end. Combine "
          "with grouping to send the document fewer times.",
          choices=("selected", "full")),
+    Knob("llm_parallel_requests", "number", "Requests sent at once",
+         "How many line-item requests are in flight together. The first request of a run is "
+         "always sent on its own — it fills the provider's prompt cache — and the rest follow "
+         "this many at a time. Replies are processed in the same order whatever this is, so it "
+         "changes how long a run takes and not what it finds. Lower it if the provider starts "
+         "refusing requests for rate limits; 1 sends one request at a time.",
+         minimum=1, maximum=16, step=1),
     Knob("llm_group_similarity", "number", "How much note overlap counts as similar",
          "Only read when grouping is \"similar\". The fraction of two line items' selected notes "
          "that must be the same (Jaccard overlap) before they share a request. 1.0 is the same "

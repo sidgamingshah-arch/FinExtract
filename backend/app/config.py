@@ -383,6 +383,11 @@ class ExtractionSettings(BaseModel):
     # figure is printed — and its citations are checked against the same extracted rows.
     # Read by `stages.line_item_llm`; an admin can flip it from the Settings screen.
     llm_document_context: Literal["selected", "full"] = "selected"
+    # HOW MANY LINE-ITEM REQUESTS ARE IN FLIGHT AT ONCE. The first request of a run is always
+    # sent on its own (it is the one that fills the provider's prompt cache), then up to this many
+    # together. Replies are processed in plan order either way, so the figures a run writes do not
+    # depend on it — only how long the run takes. 1 is one request at a time.
+    llm_parallel_requests: int = Field(default=1, ge=1, le=16)
     # MAY AN AUTHORED EXCLUSION REFUSE A MODEL'S CITATION?
     #
     # `note_source.row_caption_none` and `row_terms_none` are the author's statement of rows that

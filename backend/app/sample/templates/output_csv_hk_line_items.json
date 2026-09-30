@@ -15358,7 +15358,8 @@
    ],
    "sign_rule": {},
    "inherits": "statement_setup_controls",
-   "namespace": "template"
+   "namespace": "template",
+   "extraction_mode": "derive"
   },
   {
    "key": "statement_setup_controls__statement_date",
@@ -15408,7 +15409,8 @@
    ],
    "sign_rule": {},
    "inherits": "statement_setup_controls",
-   "namespace": "template"
+   "namespace": "template",
+   "extraction_mode": "derive"
   },
   {
    "key": "statement_setup_controls__total_equity_reserves_liab",
@@ -15425,7 +15427,8 @@
    ],
    "sign_rule": {},
    "inherits": "statement_setup_controls",
-   "namespace": "template"
+   "namespace": "template",
+   "extraction_mode": "derive"
   },
   {
    "key": "statement_setup_controls__total_income_expenses",
@@ -15441,7 +15444,8 @@
    ],
    "sign_rule": {},
    "inherits": "statement_setup_controls",
-   "namespace": "template"
+   "namespace": "template",
+   "extraction_mode": "derive"
   },
   {
    "key": "statement_setup_controls__unexplained_adj_to_ret_profits",
@@ -15459,7 +15463,8 @@
    ],
    "sign_rule": {},
    "inherits": "statement_setup_controls",
-   "namespace": "template"
+   "namespace": "template",
+   "extraction_mode": "derive"
   },
   {
    "key": "statement_setup_controls__difference",
@@ -15477,7 +15482,8 @@
    ],
    "sign_rule": {},
    "inherits": "statement_setup_controls",
-   "namespace": "template"
+   "namespace": "template",
+   "extraction_mode": "derive"
   },
   {
    "key": "statement_setup_controls__audit_opinion_stmt_source",
@@ -15558,7 +15564,8 @@
    ],
    "sign_rule": {},
    "inherits": "statement_setup_controls",
-   "namespace": "template"
+   "namespace": "template",
+   "extraction_mode": "derive"
   },
   {
    "key": "statement_setup_controls__statement_type",
@@ -15597,7 +15604,8 @@
    ],
    "sign_rule": {},
    "inherits": "statement_setup_controls",
-   "namespace": "template"
+   "namespace": "template",
+   "extraction_mode": "derive"
   },
   {
    "key": "statement_setup_controls__reconcile_to",
@@ -16553,7 +16561,8 @@
    ],
    "sign_rule": {},
    "inherits": "notes",
-   "namespace": "template"
+   "namespace": "template",
+   "extraction_mode": "derive"
   },
   {
    "key": "sub__rd_depreciation",

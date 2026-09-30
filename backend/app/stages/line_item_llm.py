@@ -30,6 +30,7 @@ untouched. A run with no provider is a fully deterministic run, which is a defin
 """
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, wait
 from decimal import Decimal
 
 import app.adapters  # noqa: F401 - registers configured LLM adapters
@@ -190,18 +191,21 @@ class LineItemLlmStage(Stage):
         # row can be made long after the request that left another line standing on it.
         # `_reconcile_claimed_printed_rows` says what is then done.
         claimed_face_rows: dict[str, str] = {}
+        # EVERY line that cited each printed face row, in order, and what each line's figure rests
+        # on — settled after the last request by `_settle_shared_printed_rows`.
+        face_claims: dict[str, list[str]] = {}
+        cited_by_key: dict[str, list[str | None]] = {}
         kept_printed: list[tuple[str, LineItem]] = []
         calls = failures = 0
-        for done, plan in enumerate(plans, start=1):
-            # THE STATEMENT THIS REQUEST'S LINES MAY BE READ FROM, supplied once beside them. A
-            # face line selects no note, so without this its request carries nothing to locate a
-            # figure in — see `services.face_context`. Built per plan rather than once per document
-            # because a plan names its own statements and another plan's statement is noise.
-            #
-            # THE ROUTE DECIDES, NOT THE GATE. `plan.sections` says where the lines are GATED; a
-            # line declared `note_tables` or `prose` is gated to a statement and forbidden to take
-            # a figure off it, so `face_statements` intersects the gate with the routes before the
-            # block is built. A plan whose lines are all note-only gets no statement block at all.
+        # EVERY REQUEST IS BUILT FIRST, THEN SENT — the first on its own, the rest together.
+        #
+        # The first goes alone because it is the one that stores the prompt's shared beginning (the
+        # instructions, and in "full" mode the whole document) in the provider's cache; sent in
+        # parallel with it, the others would each pay for that beginning in full. After it, up to
+        # `extraction.llm_parallel_requests` are in flight at once. Replies are still PROCESSED in
+        # plan order, one at a time, so what a run writes does not depend on which call returned
+        # first. 1 is the old behaviour: one request at a time.
+        def _build(plan):
             face = face_context.face_rows(
                 doc, line_item_requests.face_statements(plan, by_key))
             # AND THE PAGES THAT ARE NEITHER, for a request holding a line that declares
@@ -220,166 +224,191 @@ class LineItemLlmStage(Stage):
             else:
                 request = line_item_llm.build_request(plan, by_key, notes_of, identified, face,
                                                       other_pages)
-            if not request["line_items"]:
-                continue
-            try:
-                reply, meta = line_item_llm.ask(
-                    provider, system, request,
-                    max_tokens=_max_tokens(len(request["line_items"])), document=document)
-            except Exception as exc:  # noqa: BLE001
-                # THE WHOLE REQUEST IS THE UNIT OF FAILURE, on purpose. A reply that does not
-                # validate is not a partial answer, and the lines in a failed request fall to the
-                # deterministic route — which is a defined outcome rather than a degraded one,
-                # because nothing here has overwritten anything yet.
-                failures += 1
-                # ON THE CONTEXT as well as locally, so the run record and the progress
-                # panel can say "attempted and failed" rather than showing nothing.
-                ctx.llm_failures += 1
-                ctx.log(f"line_item_llm:request({plan.name}) FAILED "
-                        f"{type(exc).__name__}: {str(exc)[:160]}")
-                ctx.emit_step(done, len(plans), "line-item request")
-                continue
-            calls += 1
-            ctx.llm_calls += 1
-            used = {"input": int((meta or {}).get("input_tokens") or 0),
-                    "cached": int((meta or {}).get("cached_input_tokens") or 0),
-                    "write": int((meta or {}).get("cache_write_tokens") or 0),
-                    "output": int((meta or {}).get("output_tokens") or 0)}
-            for k, v in used.items():
-                tok[k] += v
-            ctx.llm_input_tokens += used["input"]
-            ctx.llm_output_tokens += used["output"]
-            ctx.llm_cached_tokens += used["cached"]
-            ctx.llm_cache_write_tokens += used["write"]
-            # PER REQUEST, so a reader can see where the tokens went — which request was large,
-            # and whether the cache served the ones after the first.
-            ctx.log(f"line_item_llm:usage request={plan.name} lines={len(request['line_items'])} "
-                    f"input={used['input']} cached={used['cached']} cache_write={used['write']} "
-                    f"output={used['output']}")
-            if (meta or {}).get("model"):
-                ctx.llm_model = meta["model"]
+            return request
 
-            asked = {e["key"] for e in request["line_items"]}
-            seen: set[str] = set()
-            for answer in reply.answers:
-                key = (answer.key or "").strip()
-                if key not in asked:
-                    # A key nobody asked about in THIS request. Refused rather than applied: the
-                    # notes carried here are the ones this request's lines selected, so an answer
-                    # about another line rests on notes that line never asked for.
-                    ctx.log(f"line_item_llm:foreign_key_ignored({key or '<empty>'}) "
-                            f"request={plan.name}")
+        prepared = [(plan, request) for plan in plans
+                    for request in [_build(plan)] if request["line_items"]]
+        workers = max(1, int(getattr(ctx.settings.extraction, "llm_parallel_requests", 1) or 1))
+
+        def _send(request):
+            return line_item_llm.ask(provider, system, request,
+                                     max_tokens=_max_tokens(len(request["line_items"])),
+                                     document=document)
+
+        pool = ThreadPoolExecutor(max_workers=workers) if prepared else None
+        futures = []
+        if pool is not None:
+            futures.append(pool.submit(_send, prepared[0][1]))
+            wait(futures[:1])
+            futures += [pool.submit(_send, request) for _plan, request in prepared[1:]]
+        try:
+            for done, (plan, request) in enumerate(prepared, start=1):
+                try:
+                    reply, meta = futures[done - 1].result()
+                except Exception as exc:  # noqa: BLE001
+                    # THE WHOLE REQUEST IS THE UNIT OF FAILURE, on purpose. A reply that does not
+                    # validate is not a partial answer, and the lines in a failed request fall to the
+                    # deterministic route — which is a defined outcome rather than a degraded one,
+                    # because nothing here has overwritten anything yet.
+                    failures += 1
+                    # ON THE CONTEXT as well as locally, so the run record and the progress
+                    # panel can say "attempted and failed" rather than showing nothing.
+                    ctx.llm_failures += 1
+                    ctx.log(f"line_item_llm:request({plan.name}) FAILED "
+                            f"{type(exc).__name__}: {str(exc)[:160]}")
+                    ctx.emit_step(done, len(plans), "line-item request")
                     continue
-                if key in seen:
-                    ctx.log(f"line_item_llm:duplicate_answer_ignored({key}) request={plan.name}")
-                    continue
-                seen.add(key)
-                item = by_key[key]
-                # THE SAME FENCE ON THE WAY BACK. Supplying no statement block does not stop
-                # a model naming a statement token anyway, and a caption that matches a printed
-                # face row would then resolve — publishing, for a line whose author said the
-                # figure is in a note, the statement row the request never showed it. Refused by
-                # `resolve_sources` and named as itself, so the flag on the row says the PLACE was
-                # wrong rather than the caption.
-                may_face = line_item_routes.may_read_face(item)
-                may_pages = line_item_routes.reads_every_page(item)
-                # AND WHETHER A TABLE ROW MAY ANSWER AT ALL. A `prose` line's figure is stated in a
-                # sentence; `stages.note_sourced` has always honoured that (`[] if route_of(item)
-                # == "prose"`) and this path did not, so a cited note row filled it.
-                may_rows = line_item_routes.may_read_table_rows(item)
-                resolved, unresolved, _ = line_item_llm.resolve(
-                    answer, doc.notes, face_context.face_index(doc), allow_face=may_face,
-                    pages=face_context.other_page_index(doc) if may_pages else None,
-                    allow_pages=may_pages, allow_rows=may_rows)
-                unresolved_total += len(unresolved)
-                for bad in unresolved:
-                    ctx.log(f"line_item_llm:{key}: citation NOT resolved "
-                            f"note={bad.get('note')!r} caption={str(bad.get('caption'))[:60]!r} "
-                            f"({bad.get('why')})")
-                # THE FLOOR THE ANSWER IS CHECKED AGAINST, and what it now does with a failure.
-                #
-                # A line that declares `row_terms` has said what its ROW is called, and a citation
-                # whose caption shares no DISCRIMINATING word with those terms is not that row — it
-                # is almost always the note or expense TOTAL the line is a component of. Measured:
-                # the face row "Other operating expenses" (1,026,959, a real income-statement
-                # total) was bound to a depreciation part, whose meaning is the depreciation
-                # CHARGED TO those expenses. It matched the CONTAINER's name.
-                #
-                # MARKED, NOT DROPPED, and that is the change. Dropping a refused term published a
-                # PARTIAL SUM as the line's whole figure — 500,000 where the model said
-                # 500,000 - 120,000 — and, because `signs` is positional and was not filtered with
-                # it, moved the survivor onto another term's sign, publishing a declared deduction
-                # as an addition. The figure of a refused row is REAL (it came off an extracted
-                # row); only its identity is in doubt. So it is counted, the line goes to review,
-                # and the term is named so a reader sees which part of the arithmetic is unverified.
-                #
-                # A PROSE ENTRY IS EXEMPT from the floor, and it has to be: a sentence belongs to no
-                # row, so it carries no caption to test, and an empty caption shares no word with
-                # anything. What verifies a prose amount is that it appears in the cited note's own
-                # text, which `resolve_sources` checks before returning it at all.
-                # THE ROW_TERMS FLOOR AND THE VETO CHECK ARE GONE, and their removal is the other
-                # half of the two-route split rather than a relaxation decided here.
-                #
-                # `row_terms`, `row_terms_none`, `row_caption_any` and `row_caption_none` are
-                # DETERMINISTIC-route artefacts and are no longer sent to the model
-                # (`services.line_item_llm._entry_for` says why). Grading an answer against a
-                # constraint the request never carried is precisely the unfairness the split
-                # exists to remove: a filled deterministic tab would otherwise make the model's
-                # answers fail for reasons the model was never told, so the same definition would
-                # score differently depending on authoring the model cannot see.
-                #
-                # WHAT THIS GIVES UP, said plainly because it was a real signal: a model citing a
-                # row the author had explicitly vetoed ("accumulated depreciation" for a
-                # depreciation line) used to be counted, marked `row_terms_refused` and sent to
-                # review. It is now counted and NOT marked. The deterministic route still enforces
-                # every one of those vetoes on its own reading — `services.note_sourced.select_rows`
-                # applies `row_caption_none` and `row_terms_none` — so the exclusions are unenforced
-                # only on the route whose request never mentioned them.
-                #
-                # `extraction.llm_vetoes_bind_model_answers` is consequently unread. It is left in
-                # the settings schema rather than deleted: it is the switch this behaviour comes
-                # back on if the split is judged too strict, and removing it would make restoring
-                # it a schema change instead of a default change.
-                component = str(answer.role or "").lower() == "component"
-                figures, unverified = line_item_llm.combine_terms(
-                    resolved, unresolved, list(answer.signs or ()), component,
-                    fallback_period=_current_period(doc) or "current")
-                if not figures:
-                    # NOTHING WAS LOCATED AND NOTHING WAS EVEN CLAIMED. No figure can be published,
-                    # so the answer is recorded on the row instead of vanishing — `_write_unanswered`
-                    # says why, so the review queue and the workspace can show what the model said.
-                    self._write_unanswered(doc, by_concept, item, answer, unresolved, ctx,
-                                           kept_printed)
-                    continue
-                answered += 1
-                filled += self._write(doc, by_concept, item, answer, resolved, figures, ctx,
-                                      unverified)
-                # THE CITATION IS ALSO A CLAIM. A printed face row states ONE line's figure, so
-                # naming it here is also saying it is not any other line's — recorded by row
-                # identity rather than by caption, because two statements can print the same words.
-                for entry in resolved:
-                    if not (entry.get("on_face") and entry.get("row_id")):
+                calls += 1
+                ctx.llm_calls += 1
+                used = {"input": int((meta or {}).get("input_tokens") or 0),
+                        "cached": int((meta or {}).get("cached_input_tokens") or 0),
+                        "write": int((meta or {}).get("cache_write_tokens") or 0),
+                        "output": int((meta or {}).get("output_tokens") or 0)}
+                for k, v in used.items():
+                    tok[k] += v
+                ctx.llm_input_tokens += used["input"]
+                ctx.llm_output_tokens += used["output"]
+                ctx.llm_cached_tokens += used["cached"]
+                ctx.llm_cache_write_tokens += used["write"]
+                # PER REQUEST, so a reader can see where the tokens went — which request was large,
+                # and whether the cache served the ones after the first.
+                ctx.log(f"line_item_llm:usage request={plan.name} lines={len(request['line_items'])} "
+                        f"input={used['input']} cached={used['cached']} cache_write={used['write']} "
+                        f"output={used['output']}")
+                if (meta or {}).get("model"):
+                    ctx.llm_model = meta["model"]
+
+                asked = {e["key"] for e in request["line_items"]}
+                seen: set[str] = set()
+                for answer in reply.answers:
+                    key = (answer.key or "").strip()
+                    if key not in asked:
+                        # A key nobody asked about in THIS request. Refused rather than applied: the
+                        # notes carried here are the ones this request's lines selected, so an answer
+                        # about another line rests on notes that line never asked for.
+                        ctx.log(f"line_item_llm:foreign_key_ignored({key or '<empty>'}) "
+                                f"request={plan.name}")
                         continue
-                    rid = str(entry["row_id"])
-                    first = claimed_face_rows.setdefault(rid, item.key)
-                    if first != item.key:
-                        # TWO LINES GIVEN THE SAME PRINTED ROW. Both publish it — the figures are
-                        # already written by the time this is known, and this pass withholds a
-                        # figure only from a line the model answered EMPTY, which neither of these
-                        # is. Said out loud because it is the model contradicting itself about a
-                        # row, and the first claimant is the owner only because it was asked first.
-                        ctx.log(f"line_item_llm:{item.key}: cites a printed row already given to "
-                                f"{first} ({str(entry.get('caption') or '')[:48]!r}) — both lines "
-                                f"publish it")
-            missing = sorted(asked - seen)
-            if missing:
-                # Said out loud: these lines were paid for and came back unanswered. They fall to
-                # the deterministic route, which is what would have happened with no provider —
-                # but "unanswered" and "not asked" are different facts about a run.
-                ctx.log(f"line_item_llm:unanswered({plan.name}) {missing}")
-            ctx.emit_step(done, len(plans), "line-item request")
+                    if key in seen:
+                        ctx.log(f"line_item_llm:duplicate_answer_ignored({key}) request={plan.name}")
+                        continue
+                    seen.add(key)
+                    item = by_key[key]
+                    # THE SAME FENCE ON THE WAY BACK. Supplying no statement block does not stop
+                    # a model naming a statement token anyway, and a caption that matches a printed
+                    # face row would then resolve — publishing, for a line whose author said the
+                    # figure is in a note, the statement row the request never showed it. Refused by
+                    # `resolve_sources` and named as itself, so the flag on the row says the PLACE was
+                    # wrong rather than the caption.
+                    may_face = line_item_routes.may_read_face(item)
+                    may_pages = line_item_routes.reads_every_page(item)
+                    # AND WHETHER A TABLE ROW MAY ANSWER AT ALL. A `prose` line's figure is stated in a
+                    # sentence; `stages.note_sourced` has always honoured that (`[] if route_of(item)
+                    # == "prose"`) and this path did not, so a cited note row filled it.
+                    may_rows = line_item_routes.may_read_table_rows(item)
+                    resolved, unresolved, _ = line_item_llm.resolve(
+                        answer, doc.notes, face_context.face_index(doc), allow_face=may_face,
+                        pages=face_context.other_page_index(doc) if may_pages else None,
+                        allow_pages=may_pages, allow_rows=may_rows)
+                    unresolved_total += len(unresolved)
+                    for bad in unresolved:
+                        ctx.log(f"line_item_llm:{key}: citation NOT resolved "
+                                f"note={bad.get('note')!r} caption={str(bad.get('caption'))[:60]!r} "
+                                f"({bad.get('why')})")
+                    # THE FLOOR THE ANSWER IS CHECKED AGAINST, and what it now does with a failure.
+                    #
+                    # A line that declares `row_terms` has said what its ROW is called, and a citation
+                    # whose caption shares no DISCRIMINATING word with those terms is not that row — it
+                    # is almost always the note or expense TOTAL the line is a component of. Measured:
+                    # the face row "Other operating expenses" (1,026,959, a real income-statement
+                    # total) was bound to a depreciation part, whose meaning is the depreciation
+                    # CHARGED TO those expenses. It matched the CONTAINER's name.
+                    #
+                    # MARKED, NOT DROPPED, and that is the change. Dropping a refused term published a
+                    # PARTIAL SUM as the line's whole figure — 500,000 where the model said
+                    # 500,000 - 120,000 — and, because `signs` is positional and was not filtered with
+                    # it, moved the survivor onto another term's sign, publishing a declared deduction
+                    # as an addition. The figure of a refused row is REAL (it came off an extracted
+                    # row); only its identity is in doubt. So it is counted, the line goes to review,
+                    # and the term is named so a reader sees which part of the arithmetic is unverified.
+                    #
+                    # A PROSE ENTRY IS EXEMPT from the floor, and it has to be: a sentence belongs to no
+                    # row, so it carries no caption to test, and an empty caption shares no word with
+                    # anything. What verifies a prose amount is that it appears in the cited note's own
+                    # text, which `resolve_sources` checks before returning it at all.
+                    # THE ROW_TERMS FLOOR AND THE VETO CHECK ARE GONE, and their removal is the other
+                    # half of the two-route split rather than a relaxation decided here.
+                    #
+                    # `row_terms`, `row_terms_none`, `row_caption_any` and `row_caption_none` are
+                    # DETERMINISTIC-route artefacts and are no longer sent to the model
+                    # (`services.line_item_llm._entry_for` says why). Grading an answer against a
+                    # constraint the request never carried is precisely the unfairness the split
+                    # exists to remove: a filled deterministic tab would otherwise make the model's
+                    # answers fail for reasons the model was never told, so the same definition would
+                    # score differently depending on authoring the model cannot see.
+                    #
+                    # WHAT THIS GIVES UP, said plainly because it was a real signal: a model citing a
+                    # row the author had explicitly vetoed ("accumulated depreciation" for a
+                    # depreciation line) used to be counted, marked `row_terms_refused` and sent to
+                    # review. It is now counted and NOT marked. The deterministic route still enforces
+                    # every one of those vetoes on its own reading — `services.note_sourced.select_rows`
+                    # applies `row_caption_none` and `row_terms_none` — so the exclusions are unenforced
+                    # only on the route whose request never mentioned them.
+                    #
+                    # `extraction.llm_vetoes_bind_model_answers` is consequently unread. It is left in
+                    # the settings schema rather than deleted: it is the switch this behaviour comes
+                    # back on if the split is judged too strict, and removing it would make restoring
+                    # it a schema change instead of a default change.
+                    component = str(answer.role or "").lower() == "component"
+                    figures, unverified = line_item_llm.combine_terms(
+                        resolved, unresolved, list(answer.signs or ()), component,
+                        fallback_period=_current_period(doc) or "current")
+                    if not figures:
+                        # NOTHING WAS LOCATED AND NOTHING WAS EVEN CLAIMED. No figure can be published,
+                        # so the answer is recorded on the row instead of vanishing — `_write_unanswered`
+                        # says why, so the review queue and the workspace can show what the model said.
+                        self._write_unanswered(doc, by_concept, item, answer, unresolved, ctx,
+                                               kept_printed)
+                        continue
+                    answered += 1
+                    filled += self._write(doc, by_concept, item, answer, resolved, figures, ctx,
+                                          unverified)
+                    # THE CITATION IS ALSO A CLAIM. A printed face row states ONE line's figure, so
+                    # naming it here is also saying it is not any other line's — recorded by row
+                    # identity rather than by caption, because two statements can print the same words.
+                    for entry in resolved:
+                        on_face = bool(entry.get("on_face") and entry.get("row_id"))
+                        cited_by_key.setdefault(item.key, []).append(
+                            str(entry["row_id"]) if on_face else None)
+                        if not on_face:
+                            continue
+                        rid = str(entry["row_id"])
+                        face_claims.setdefault(rid, [])
+                        if item.key not in face_claims[rid]:
+                            face_claims[rid].append(item.key)
+                        first = claimed_face_rows.setdefault(rid, item.key)
+                        if first != item.key:
+                            # TWO LINES GIVEN THE SAME PRINTED ROW. Settled after the last request —
+                            # see `_settle_shared_printed_rows` — because the figures are already
+                            # written by the time this is known and a later request may claim it too.
+                            ctx.log(f"line_item_llm:{item.key}: cites a printed row already given to "
+                                    f"{first} ({str(entry.get('caption') or '')[:48]!r}) — settled "
+                                    f"after the last request")
+                missing = sorted(asked - seen)
+                if missing:
+                    # Said out loud: these lines were paid for and came back unanswered. They fall to
+                    # the deterministic route, which is what would have happened with no provider —
+                    # but "unanswered" and "not asked" are different facts about a run.
+                    ctx.log(f"line_item_llm:unanswered({plan.name}) {missing}")
+                ctx.emit_step(done, len(plans), "line-item request")
+        finally:
+            if pool is not None:
+                # A canceled run stops paying for requests nobody will read.
+                pool.shutdown(wait=False, cancel_futures=True)
 
         blanked = self._reconcile_claimed_printed_rows(kept_printed, claimed_face_rows, ctx)
+        blanked += self._settle_shared_printed_rows(doc, face_claims, cited_by_key, by_concept,
+                                                    ctx)
         # THE RUN'S ONE-LINE TOKEN SUMMARY. `cached` is part of `input`, not added to it.
         hit = (100.0 * tok["cached"] / tok["input"]) if tok["input"] else 0.0
         ctx.log(f"line_item_llm:tokens document_context={doc_context} requests={calls} "
@@ -655,6 +684,62 @@ class LineItemLlmStage(Stage):
             ctx.log(f"line_item_llm:{key}: printed figure withheld — the model gave that printed "
                     f"row to {owner}, so this line is left empty"
                     + (f" (was {printed[0]})" if printed else ""))
+        return blanked
+
+    @staticmethod
+    def _settle_shared_printed_rows(doc, face_claims: dict[str, list[str]],
+                                    cited_by_key: dict[str, list[str | None]],
+                                    by_concept: dict, ctx) -> int:
+        """One printed row, one line: when the model gave the SAME printed face row to two lines.
+
+        THE CASE. The filing prints "Interest and other borrowing costs paid" once, under Financing
+        activities; the template has an interest-paid line in the operating section AND in the
+        financing section, and the model cited the one printed row for both. Both lines then
+        published it, and the cash flow statement counted the payment twice.
+
+        WHO KEEPS IT: the line whose section is the one the row is PRINTED under (the banner it sat
+        beneath, `section_hint`, read by `mapping.section_of_banner`, against each line's own
+        section, `mapping.section_of_key`). Where no claimant's section matches — or the banner
+        names no section — the first line to claim it keeps it, as before.
+
+        THE OTHERS ARE EMPTIED AND SENT TO REVIEW, the same answer `_reconcile_claimed_printed_rows`
+        gives and for the same reason: an export counting one printed number twice cannot be
+        unpicked downstream. A line whose figure ALSO rests on other citations is left as it is and
+        said so, because emptying it would throw away figures nobody else claimed.
+        """
+        from app.services.mapping import section_of_banner, section_of_key
+        rows = {str(getattr(li, "id", "") or ""): li for li in (doc.line_items or ())}
+        blanked = 0
+        for rid, keys in face_claims.items():
+            if len(keys) < 2:
+                continue
+            printed = rows.get(rid)
+            where = section_of_banner(getattr(printed, "section_hint", "") or "") if printed else None
+            matching = [k for k in keys if where and section_of_key(k) == where]
+            owner = matching[0] if matching else keys[0]
+            caption = str(getattr(printed, "source_label", "") or "")[:48]
+            for key in keys:
+                if key == owner:
+                    continue
+                row = by_concept.get(key)
+                if row is None:
+                    continue
+                if any(r != rid for r in cited_by_key.get(key, ())):
+                    ctx.log(f"line_item_llm:{key}: shares the printed row {caption!r} with "
+                            f"{owner}, but its figure also rests on other citations — left as is")
+                    continue
+                figures = [str(ev.value) for ev in (row.values or {}).values()
+                           if getattr(ev, "value", None) is not None]
+                row.values = {}
+                row.confidence.flags.append(f"llm_printed_row_claimed_by:{owner}")
+                if figures:
+                    row.confidence.flags.append(
+                        f"llm_printed_row_withheld:{','.join(sorted(set(figures))[:4])}")
+                row.confidence.flags.append("low_mapping_confidence")
+                blanked += 1
+                ctx.log(f"line_item_llm:{key}: printed row {caption!r} is printed under "
+                        f"{where or 'no recognised section'} and goes to {owner}; this line is "
+                        f"left empty" + (f" (was {figures[0]})" if figures else ""))
         return blanked
 
     @staticmethod

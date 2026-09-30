@@ -77,7 +77,8 @@ def _face_row(caption, *, value, key):
     return li
 
 
-def _run(shipped, answers: dict[str, list[dict]]):
+def _run(shipped, answers: dict[str, list[dict]], *, statement="balance_sheet", rows=None,
+         keys=None):
     """Two face lines, each its own request, each answered as `answers` says.
 
     `answers` maps a line key to that line's `sources`. A key absent from it is not answered at
@@ -87,15 +88,15 @@ def _run(shipped, answers: dict[str, list[dict]]):
     from app.services.working_view import build_working_view
 
     doc = DocumentModel(filename="ar.pdf")
-    doc.pages = [PageSource(index=FACE_PAGE, kind=PageKind.FACE, statement="balance_sheet")]
-    doc.line_items = [_face_row("Buildings", value="9999", key=BUILDINGS),
-                      _face_row("Land", value="4200", key=LAND)]
+    doc.pages = [PageSource(index=FACE_PAGE, kind=PageKind.FACE, statement=statement)]
+    doc.line_items = rows or [_face_row("Buildings", value="9999", key=BUILDINGS),
+                              _face_row("Land", value="4200", key=LAND)]
     ctx = PipelineContext(raw_bytes=b"", settings=get_settings())
     ctx.line_items = shipped
     ctx.ontology = build_working_view(shipped)
     ctx.settings.extraction.llm_mapping = True
     ctx.settings.extraction.llm_focus_only = True
-    ctx.settings.extraction.llm_focus_keys = [BUILDINGS, LAND]
+    ctx.settings.extraction.llm_focus_keys = list(keys or [BUILDINGS, LAND])
 
     class _P:
         id = "answers"
@@ -209,17 +210,52 @@ def test_the_pass_does_nothing_when_no_row_was_claimed():
     assert row.confidence.flags == []
 
 
-def test_two_lines_given_the_same_row_both_publish_and_the_run_says_so(shipped):
-    """THE MODEL CONTRADICTING ITSELF, which this pass does not resolve and does not hide.
-
-    Both lines cited the BUILDINGS row, so neither answered empty and neither is a candidate for
-    withholding — the rule is about an empty answer, not about deduplicating citations. The first
-    claimant owns the row only because it was asked first, which is not a fact worth acting on, so
-    what happens instead is that the run names it.
-    """
+def test_two_lines_given_the_same_row_one_keeps_it_and_the_other_is_emptied(shipped):
+    """THE MODEL GIVING ONE PRINTED ROW TO TWO LINES. It used to be named in the log and left, so
+    both lines published the figure and a total counted it twice. Now one line keeps it — here the
+    first claimant, because the row sits under no banner that names a section — and the other is
+    emptied and flagged for review."""
     rows, ctx = _run(shipped, {BUILDINGS: [{"statement": "balance_sheet", "caption": "Buildings"}],
                                LAND: [{"statement": "balance_sheet", "caption": "Buildings"}]})
-    assert next(iter(rows[BUILDINGS].values.values())).value == Decimal("9999")
-    assert next(iter(rows[LAND].values.values())).value == Decimal("9999")
-    assert any("already given to" in line for line in ctx.logs), \
-        f"a printed row went to two lines in silence: {ctx.logs[-4:]}"
+    kept = [k for k in (BUILDINGS, LAND)
+            if any(ev.value == Decimal("9999") for ev in rows[k].values.values())]
+    assert len(kept) == 1, kept
+    emptied = LAND if kept == [BUILDINGS] else BUILDINGS
+    assert not rows[emptied].values
+    assert f"llm_printed_row_claimed_by:{kept[0]}" in rows[emptied].confidence.flags
+    assert "low_mapping_confidence" in rows[emptied].confidence.flags
+    assert any("left empty" in line for line in ctx.logs), ctx.logs[-4:]
+
+
+OPER, FIN = "cf_oper_indirect__interest_paid_oper", "cf_financing__interest_paid_fin"
+
+
+def test_a_row_printed_under_financing_goes_to_the_financing_line(shipped):
+    """MEASURED ON 嘉民 (kaming): "Interest and other borrowing costs paid" is printed once, under
+    Financing activities, and the model cited it for the operating AND the financing interest-paid
+    lines — so the cash flow counted it twice. The row goes to the line of the section it is
+    printed under, whichever the model named first."""
+    paid = _face_row("Interest and other borrowing costs paid", value="-323914", key=FIN)
+    paid.section_hint = "Financing activities 融資活動"
+    cite = [{"statement": "cash_flow", "caption": "Interest and other borrowing costs paid"}]
+    rows, ctx = _run(shipped, {OPER: cite, FIN: cite}, statement="cash_flow", rows=[paid],
+                     keys=[OPER, FIN])
+    fin = rows.get(FIN)
+    oper = next(r for r in [*rows.values()] if r.canonical_key == OPER)
+    assert any(ev.value == Decimal("-323914") for ev in fin.values.values())
+    assert not oper.values, oper.values
+    assert f"llm_printed_row_claimed_by:{FIN}" in oper.confidence.flags
+
+
+def test_the_same_row_printed_under_operating_goes_to_the_operating_line(shipped):
+    """The mirror of the case above, so it is the printed SECTION that decides and not the order
+    the two lines happened to be asked in."""
+    paid = _face_row("Interest paid", value="-323914", key=OPER)
+    paid.section_hint = "Operating activities 經營活動"
+    cite = [{"statement": "cash_flow", "caption": "Interest paid"}]
+    rows, _ctx = _run(shipped, {OPER: cite, FIN: cite}, statement="cash_flow", rows=[paid],
+                      keys=[OPER, FIN])
+    oper = rows[OPER]
+    fin = next(r for r in rows.values() if r.canonical_key == FIN)
+    assert any(ev.value == Decimal("-323914") for ev in oper.values.values())
+    assert not fin.values

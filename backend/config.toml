@@ -219,6 +219,9 @@ llm_focus_only = true
 # An admin can flip it from the Settings screen; the run log then shows input / cached / output
 # tokens per request and a summary line (`line_item_llm:tokens …`).
 llm_document_context = "selected"
+# HOW MANY LINE-ITEM REQUESTS ARE SENT AT ONCE, after the first (which always goes alone, so the
+# provider can cache the shared beginning of the prompt). Replies are processed in order either way.
+llm_parallel_requests = 4
 # THE PARTS ARE NAMED TOO, NOT ONLY THE EIGHT WHOLES, and that is the whole point of this list
 # being longer than it looks. Seven of the eight are `derived` or `extract_or_derive`, so the model
 # is not offered them at all (`_llm_withheld`) — forwarding a row whose deterministic answer is one
