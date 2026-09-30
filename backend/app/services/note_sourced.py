@@ -1265,12 +1265,33 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                     "why": (f"the amount {stated} does not appear in note {want_note}'s text — a "
                             f"figure the model stated rather than located is refused")})
                 continue
+            # A SENTENCE CITED AS IF IT WERE A ROW. The model found the right place — a covenant, a
+            # footnote — but named the sentence in `caption` (or `quote`) without giving the
+            # amount. Refusing it lost figures the filing plainly states: "consolidated tangible net
+            # worth shall not be less than $1,…" was refused on 嘉民's note 29 for exactly this.
+            # The amount is taken from the NOTE'S OWN TEXT, never from the model's: see
+            # `_amount_from_cited_sentence`, which accepts only one unambiguous amount.
+            if fragments:
+                found, table, why = _amount_from_cited_sentence(
+                    " ".join(t for t in (getattr(ref, "caption", "") or "", quote) if t),
+                    fragments)
+                if found is not None:
+                    resolved.append({
+                        "at": at,
+                        "note": want_note, "title": getattr(table, "title", "") or "",
+                        "caption": getattr(ref, "caption", ""),
+                        "figures": {"prose": str(found)},
+                        "provenance": _prose_provenance(table),
+                        "quote": quote, "prose": True, "sentence_located": True})
+                    continue
+            else:
+                why = ""
             unresolved.append({"at": at,
                                "note": want_note,
                                "caption": getattr(ref, "caption", ""),
                                "quote": quote,
-                               "why": ("no extracted row in that note matches the caption — it may "
-                                       "be stated in prose, which carries no row")})
+                               "why": why or ("no extracted row in that note matches the caption, "
+                                              "and no sentence of the note contains it")})
             continue
         number, caption, row, table, _block, _heading = hit
         figures, filed, prov = _figures_by_basis(row)
@@ -1280,6 +1301,53 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                          "basis": filed.get("basis"), "figures_by_basis": filed.get("by"),
                          "quote": quote})
     return resolved, unresolved
+
+
+def _amount_from_cited_sentence(cited: str, fragments) -> tuple[Decimal | None, object, str]:
+    """The one amount a cited sentence states, read off the note's own text. `(amount, table, why)`.
+
+    For a citation that matched no row and gave no `amount`. Two ways to an amount, both verified
+    against the note's text rather than taken on the model's word:
+
+      1. The cited text itself carries a grouped amount ("…not be less than $1,100,000,000") and
+         that number is printed in the note — exactly one such number, or it is ambiguous.
+      2. Otherwise the note's text is searched for the cited words, and the rest of THAT sentence
+         (to its full stop) must state exactly one grouped amount.
+
+    Anything else — the words are not in the note, or the sentence states several amounts — is
+    refused, and `why` says which, so the log names the reason rather than "no row".
+    """
+    text_of = [(t, " ".join((getattr(t, "source_text", "") or "").split())) for t in fragments]
+    cited = " ".join((cited or "").split())
+    # 1. An amount the model's own words carry, if the note prints it.
+    in_cited = {str(_amount_in_text(tok, txt)) : t
+                for tok in _PROSE_AMOUNT.findall(cited)
+                for t, txt in text_of if _amount_in_text(tok, txt) is not None}
+    if len(in_cited) == 1:
+        (amount, table), = in_cited.items()
+        return Decimal(amount), table, ""
+    if len(in_cited) > 1:
+        return None, None, (f"the cited text states {len(in_cited)} amounts printed in the note "
+                            f"— give the one that is this line's figure in `amount`")
+    # 2. The sentence of the note that contains the cited words.
+    probe = re.sub(r"^[\s\-–—•·*]+", "", cited)
+    probe = re.sub(r"[\s$€£¥HKRMB]*[\d,.]*$", "", probe).strip().lower()[:80]
+    if len(probe) < 12:
+        return None, None, "no extracted row in that note matches the caption"
+    for table, txt in text_of:
+        at = txt.lower().find(probe)
+        if at < 0:
+            continue
+        stop = re.search(r"[.。;；](?=\s|$)", txt[at + len(probe):])
+        clause = txt[at: at + len(probe) + (stop.end() if stop else 300)]
+        amounts = list(dict.fromkeys(_PROSE_AMOUNT.findall(clause)))
+        if len(amounts) == 1:
+            return _num(amounts[0].replace(",", "")), table, ""
+        return None, None, (f"the sentence the caption quotes states {len(amounts)} amounts — "
+                            f"give the one that is this line's figure in `amount`"
+                            if amounts else "the sentence the caption quotes states no amount")
+    return None, None, ("no extracted row in that note matches the caption, and no sentence of "
+                        "the note contains it")
 
 
 def _notes_by_number(notes, number: str) -> list:
