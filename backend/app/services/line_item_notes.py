@@ -460,7 +460,23 @@ def by_meaning_only(item) -> bool:
             and bool(list(getattr(src, "row_caption_any", None) or ())))
 
 
-def covered_notes(item, notes) -> tuple[str, ...]:
+def note_key(table, *, unnumbered: bool = False) -> str:
+    """What identifies a note for `covered_notes`: its number, and its fragments share it.
+
+    A note printed WITHOUT a number has nothing to group its fragments by. By default it is left
+    out, which is what the row route and the model's note selection rely on. With `unnumbered`
+    it is keyed by its own heading instead, so a reader that only needs the note's TEXT — the prose
+    route — can still reach it. Fragments of one unnumbered note are then separate notes unless
+    they repeat the same heading, which is the stated cost.
+    """
+    number = str(getattr(table, "note_number", "") or "").strip()
+    if number or not unnumbered:
+        return number
+    title = " ".join(str(getattr(table, "title", "") or "").split())
+    return f"untitled:{title}" if title else ""
+
+
+def covered_notes(item, notes, *, unnumbered: bool = False) -> tuple[str, ...]:
     """The notes whose HEADING carries every word of one of this line's `note_terms`, in order.
 
     SEARCH BY MEANING THAT A DETERMINISTIC READER CAN TRUST. The header score alone is too loose to
@@ -474,6 +490,7 @@ def covered_notes(item, notes) -> tuple[str, ...]:
     worded differently, and neither is "Financial liabilities at FVTPL".
 
     A note arrives in fragments, so its words are the union over every fragment under its number.
+    `unnumbered` also admits notes printed without a number, keyed by heading (see `note_key`).
     """
     src = getattr(item, "note_source", None)
     terms = [set(subject_tokens(t)) for t in (getattr(src, "note_terms", None) or ()) if t]
@@ -483,7 +500,7 @@ def covered_notes(item, notes) -> tuple[str, ...]:
     words: dict[str, set[str]] = {}
     order: list[str] = []
     for table in notes or ():
-        number = str(getattr(table, "note_number", "") or "")
+        number = note_key(table, unnumbered=unnumbered)
         if not number:
             continue
         if number not in words:

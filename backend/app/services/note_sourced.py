@@ -588,19 +588,19 @@ def select_prose(item, notes, grammar=None, siblings=()) -> list[ProseHit]:
     # the only guard is the equal-amount de-duplication below — so an asset note and a PBT note
     # stating DIFFERENT figures for one share still add, and two genuinely separate charges of the
     # same amount count once. The sibling bound keeps the route off unrelated notes: a sentence
-    # under SHARE CAPITAL is not about any part of this line. A note with no number is in neither
-    # scope, because coverage is decided per note number.
+    # under SHARE CAPITAL is not about any part of this line. A note printed with no number is
+    # keyed by its heading (`line_item_notes.note_key`), so its sentences are still reachable.
     everywhere = not titles and bool(list(getattr(src, "note_terms", None) or ()))
     if not (titles or everywhere) or not counts:
         return []
     if not everywhere:
         return _prose_hits(item, notes, counts, vetoes, titles)
-    from app.services.line_item_notes import covered_notes
-    own = set(covered_notes(item, notes or ()))
+    from app.services.line_item_notes import covered_notes, note_key
+    own = set(covered_notes(item, notes or (), unnumbered=True))
     near = {n for sib in siblings or () if sib is not item and getattr(sib, "key", None) != item.key
-            for n in covered_notes(sib, notes or ())} - own
+            for n in covered_notes(sib, notes or (), unnumbered=True)} - own
     for scope in (own, near):
-        within = [t for t in (notes or ()) if str(getattr(t, "note_number", "") or "") in scope]
+        within = [t for t in (notes or ()) if note_key(t, unnumbered=True) in scope]
         got = _prose_hits(item, within, counts, vetoes, None) if within else []
         if got:
             return got

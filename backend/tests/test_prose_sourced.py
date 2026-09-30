@@ -145,6 +145,48 @@ def test_the_note_title_still_gates_it(shipped):
     assert _prose(shipped, [_note(title="SHARE CAPITAL", number="40")]) == []
 
 
+# ── a note printed without a number ──────────────────────────────────────────────────────────────
+
+def test_a_note_printed_without_a_number_is_still_read(shipped):
+    """Finding notes by meaning groups a note's fragments under its NUMBER, and once dropped a
+    note with none, so its sentence could not be read however plainly it stated the figure. The
+    prose route keys such a note by its heading instead."""
+    hits = _prose(shipped, [_note(number="")])
+
+    assert {(h.period, str(h.amount)) for h in hits} == {
+        ("current", "529841000"), ("prior", "665553000")}
+
+
+def test_an_unnumbered_note_about_something_else_is_still_not_read(shipped):
+    """The heading key widens what is REACHABLE, not what is relevant: the heading still has to be
+    about this line, or about one of its siblings."""
+    assert _prose(shipped, [_note(title="SHARE CAPITAL", number="")]) == []
+
+
+def test_an_unnumbered_sibling_note_is_read_through_the_sibling_scope(shipped):
+    """The usual home of a function's depreciation share is the ASSET note, which this part's own
+    terms do not name and a sibling part's do. Unnumbered, it is still in that scope."""
+    ga = _item(shipped, "sub__ga_depreciation")
+    siblings = [i for i in shipped.items if getattr(i, "parent", None) == ga.parent]
+    asset = _note("Depreciation of HK$1,200 is included in administrative expenses.",
+                  number="", title="Property, plant and equipment")
+
+    hits = note_sourced.select_prose(ga, [asset], shipped.prose_grammar, siblings=siblings)
+    assert [(h.period, str(h.amount)) for h in hits] == [("current", "1200")]
+    # And without the siblings the part's own terms do not reach an asset note.
+    assert note_sourced.select_prose(ga, [asset], shipped.prose_grammar) == []
+
+
+def test_the_row_route_still_leaves_an_unnumbered_note_out(shipped):
+    """The heading key is the prose route's alone. Summing ROWS across the fragments of a note
+    needs the number that joins them, so `covered_notes` without the option is unchanged."""
+    from app.services.line_item_notes import covered_notes
+    item = _item(shipped)
+    assert covered_notes(item, [_note(number="")]) == ()
+    assert covered_notes(item, [_note(number="")], unnumbered=True) == (
+        "untitled:LOSS FROM OPERATING ACTIVITIES",)
+
+
 def test_a_sibling_whose_container_differs_does_not_claim_the_same_sentence(shipped):
     """THE PRECISION THE PATTERN BUYS. `sub__ga_depreciation` is the administrative-expense share
     and this footnote is about operating expenses — a term-based rule claimed it for both."""
