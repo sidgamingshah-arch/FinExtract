@@ -273,18 +273,10 @@ def test_the_net_asset_layouts_subtotals_are_never_swept(shipped, residual, capt
     assert _vetoed_by_never_sweep(bucket, caption)
 
 
-@pytest.mark.parametrize("caption", ["永续债", "其中：优先股", "永續債"])
-def test_a_cas_other_equity_instruments_breakdown_is_never_swept_into_other_reserves(shipped,
-                                                                                    caption):
-    """CAS prints 其他权益工具 with an "其中：优先股 / 永续债" breakdown beneath it. On 河钢 000709 the
-    永续债 row (7,001,608,333.33, the whole of 其他权益工具 7,001,608,333.33) was swept into Other
-    Reserves, so the same money was in Other Equity and Other Reserves. While Total Equity &
-    Reserves did not reach Other Reserves that double count stayed inside Equity & Reserves; once
-    it does, it would have taken 000709's total equity 7,001,608,333.33 over the printed
-    67,582,377,917.48."""
-    hints = next(i for i in shipped.items if i.key == OTHER).exclude_hints
-    bucket = _Residual(OTHER, "section", None, None, exclude_patterns=tuple(hints))
-    assert _vetoed_by_never_sweep(bucket, caption)
+# THE CAS 其中：永续债 BREAKDOWN (河钢 000709, 7,001,608,333.33 under 其他权益工具) is refused by the
+# geometry-based breakdown rule — `tests/test_an_of_which_breakdown_is_counted_once.py` — which
+# refuses it only when it is printed UNDER its parent. A blanket exclusion here would also refuse a
+# filing's own standalone 永续债 line, which that rule's counterweight test keeps sweepable.
 
 
 def test_the_residuals_still_take_their_own_rows(shipped):
