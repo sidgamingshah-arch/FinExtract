@@ -32,6 +32,9 @@ from dataclasses import dataclass, field
 #: the structural checks.
 CARVED_FROM_FACE = "carved_from_face"
 
+#: How far a printed line may differ from its disclosed parts and still be taken to contain them.
+_PARTS_TOLERANCE = 1.0
+
 # Ops a template may declare. `diff` is "first term minus the rest" — how a net figure is
 # written (net current assets = current assets − current liabilities).
 SUM = "sum"
@@ -444,6 +447,29 @@ def evaluate(template_def: dict | None, reported, *, labels: dict[str, str] | No
         complete = not requires_complete or all(component.value is not None
                               for component in calc.components)
         calc.computable = total is not None and complete
+        # A LINE WHOSE PARTS ARE ONLY PARTLY DISCLOSED — net fixed assets, the one plain rollup on a
+        # `line` (gross fixed assets + accumulated depreciation). A face that prints net figures
+        # discloses no accumulated depreciation, so the line was never computable; and what it fell
+        # back to lost the parts printed beside it. Each face line is a separate figure, so:
+        #
+        #   * the line is not printed, but parts are (1966 prints its fixed assets only by class):
+        #     the line is the sum of the parts disclosed;
+        #   * the line is printed AND parts are printed as lines of their own (a mainland 固定资产,
+        #     with 在建工程 and 使用权资产 below it): the line is the printed figure plus those
+        #     parts — unless they already add up to it, in which case the printed figure stands.
+        #
+        # MEASURED: 000709 non-current assets 175.5bn against a printed 203.7bn, short by exactly
+        # 在建工程 + 使用权资产 (28.25bn); 688008, 300319 and 1966 short by their gross figure too.
+        if (not calc.computable and total is not None and reported_total is None
+                and nodes[key].get("role") == "line" and not reported_total_key):
+            own = reported(key)
+            if own is None:
+                calc.value, calc.computable = total, True
+            elif abs(float(own) - float(total)) > _PARTS_TOLERANCE:
+                calc.value, calc.computable = float(own) + float(total), True
+                calc.components.insert(0, Component(canonical_key=key,
+                                                    label=names.get(key, key) + " (printed)",
+                                                    value=float(own)))
         out[key] = calc
     for key in cyclic:
         if key in out:

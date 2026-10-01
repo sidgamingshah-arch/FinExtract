@@ -124,3 +124,54 @@ def test_a_related_party_line_printed_on_the_face_is_still_added():
     rows = [_row("bs_cl__other_payables", 1000), _row("bs_cl__due_to_related_parties_cp", 102)]
     shown = rollups.figures_as_shown(_TEMPLATE, rows, "consolidated", "current")
     assert shown["bs_cl__total_current_liabilities"] == 1102
+
+
+# ── a line whose parts are only partly disclosed ─────────────────────────────────────────────────
+
+_FA = {"statements": [{"type": "balance_sheet", "sections": [{
+    "node_id": "bs_nca", "canonical_key": "bs_nca", "label": "NCA", "role": "header", "children": [
+        {"node_id": "cip", "canonical_key": "bs_nca__construction_in_progress", "label": "CIP",
+         "role": "line"},
+        {"node_id": "rou", "canonical_key": "bs_nca__other_fixed_assets", "label": "ROU",
+         "role": "line"},
+        {"node_id": "gross", "canonical_key": "bs_nca__gross_fixed_assets", "label": "Gross",
+         "role": "subtotal", "rollup": {"op": "sum", "children": [
+             "bs_nca__construction_in_progress", "bs_nca__other_fixed_assets"]}},
+        {"node_id": "acc", "canonical_key": "bs_nca__accum_deprec_and_impairment", "label": "Acc",
+         "role": "line"},
+        {"node_id": "net", "canonical_key": "bs_nca__net_fixed_assets", "label": "Net",
+         "role": "line", "rollup": {"op": "sum", "children": [
+             "bs_nca__gross_fixed_assets", "bs_nca__accum_deprec_and_impairment"]}},
+        {"node_id": "tot", "canonical_key": "bs_nca__total_non_current_assets", "label": "Total",
+         "role": "subtotal", "rollup": {"op": "sum", "children": ["bs_nca__net_fixed_assets"]}}]}]}]}
+
+
+def _nca(rows):
+    return rollups.figures_as_shown(_FA, rows, "consolidated", "current")
+
+
+def test_a_printed_net_figure_is_added_to_the_parts_printed_beside_it():
+    """000709: 固定资产 159.96bn is printed with 在建工程 and 使用权资产 as lines of their own, and no
+    accumulated depreciation. Non-current assets lost the two, 28.25bn short of print."""
+    shown = _nca([_row("bs_nca__net_fixed_assets", 160), _row("bs_nca__construction_in_progress", 24),
+                  _row("bs_nca__other_fixed_assets", 4)])
+    assert shown["bs_nca__net_fixed_assets"] == 188
+    assert shown["bs_nca__total_non_current_assets"] == 188
+
+
+def test_an_unprinted_net_figure_is_the_sum_of_the_parts_disclosed():
+    """1966 prints its fixed assets only by class: the line was empty and the total 725,257 short."""
+    shown = _nca([_row("bs_nca__construction_in_progress", 700), _row("bs_nca__other_fixed_assets", 25)])
+    assert shown["bs_nca__total_non_current_assets"] == 725
+
+
+def test_a_printed_net_figure_that_already_holds_its_parts_is_not_added_to_them():
+    shown = _nca([_row("bs_nca__net_fixed_assets", 28), _row("bs_nca__construction_in_progress", 24),
+                  _row("bs_nca__other_fixed_assets", 4)])
+    assert shown["bs_nca__total_non_current_assets"] == 28
+
+
+def test_a_fully_disclosed_net_figure_is_computed_as_before():
+    shown = _nca([_row("bs_nca__net_fixed_assets", 999), _row("bs_nca__construction_in_progress", 24),
+                  _row("bs_nca__other_fixed_assets", 4), _row("bs_nca__accum_deprec_and_impairment", -8)])
+    assert shown["bs_nca__net_fixed_assets"] == 20
