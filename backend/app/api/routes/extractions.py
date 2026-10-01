@@ -167,6 +167,22 @@ def _safe_decimal(value) -> Decimal | None:
         return None
 
 
+_SCALE_NAMES = {Decimal(1): "units", Decimal(1000): "thousands", Decimal(100000): "lakhs",
+                Decimal(1000000): "millions", Decimal(10000000): "crores",
+                Decimal(1000000000): "billions"}
+
+
+def _scale_name(scale) -> str | None:
+    """The reported scale as a word ("thousands" for 1,000), or None when nothing was detected."""
+    if scale in (None, ""):
+        return None
+    try:
+        value = Decimal(str(scale))
+    except (InvalidOperation, ValueError):
+        return None
+    return _SCALE_NAMES.get(value, f"x{value.normalize()}")
+
+
 def _pick_row_value(rows: list[dict], key: str, period: str = "current") -> str | None:
     for row in rows:
         if row.get("canonical_key") != key:
@@ -279,12 +295,21 @@ def _build_supplemental_rows(*, template_def: dict | None, base_rows: list[dict]
     periods_text = " / ".join([x for x in [current_display, prior_display] if x]) or None
 
     computed = evaluate_rows(template_def, base_rows, "consolidated", "current", "en") if template_def else {}
-    assets = (_safe_decimal(computed.get("bs_total_assets"))
-              or _safe_decimal(_pick_row_value(base_rows, "bs_total_assets", "current")))
-    erl = (_safe_decimal(computed.get("bs_total_equity_and_liabilities"))
-           or _safe_decimal(_pick_row_value(base_rows, "bs_total_equity_and_liabilities", "current")))
-    total_income = (_safe_decimal(computed.get("pl_profit_for_the_year"))
-                    or _safe_decimal(_pick_row_value(base_rows, "pl_profit_for_the_year", "current")))
+
+    def _control(*keys: str) -> Decimal | None:
+        # THE TEMPLATE'S OWN KEY FOR THE TOTAL, whichever template this is. These controls named
+        # only the HKFRS template's keys (bs_total_assets, …), so on the output_csv templates —
+        # whose totals are bs_ca__total_assets, bs_cl__total_equity_and_liabilities and
+        # is_pl__profit_for_the_year — all four control rows were blank on every export.
+        for k in keys:
+            got = _safe_decimal(computed.get(k)) or _safe_decimal(_pick_row_value(base_rows, k, "current"))
+            if got is not None:
+                return got
+        return None
+
+    assets = _control("bs_total_assets", "bs_ca__total_assets")
+    erl = _control("bs_total_equity_and_liabilities", "bs_cl__total_equity_and_liabilities")
+    total_income = _control("pl_profit_for_the_year", "is_pl__profit_for_the_year")
     diff = (assets - erl) if (assets is not None and erl is not None) else None
 
     # Ratios keyed by their standard derived identifiers for covenant/supplemental fields.
@@ -298,10 +323,13 @@ def _build_supplemental_rows(*, template_def: dict | None, base_rows: list[dict]
     hit_disclosures = {str(d.get("key") or ""): d for d in disclosures if d.get("present")}
     unit = getattr(doc_model, "unit_context", None)
     target_currency = (options or {}).get("target_currency") or getattr(unit, "target_currency", None)
-    source_currency = getattr(unit, "source_currency", None)
-    rounding = (options or {}).get("target_units")
-    if rounding is None and unit is not None:
-        rounding = getattr(unit, "target_units", None)
+    # THE FILING'S OWN CURRENCY AND SCALE, as detected. `UnitContext` carries `currency` and
+    # `scale_factor`; it never had a `source_currency` or `target_units`, so Source Currency was
+    # blank on every export and Rounding showed the requested TARGET units (or nothing) rather than
+    # the scale the statements are printed in. A filing that names a currency but no scale (a PRC
+    # 单位：元 header) is printed in units.
+    source_currency = (getattr(unit, "currency", "") or "").strip() or None
+    rounding = _scale_name(getattr(unit, "scale_factor", None)) if unit is not None else None
     statement_date = current_display
 
     setup_values: dict[str, str | None] = {
