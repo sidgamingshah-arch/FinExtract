@@ -280,12 +280,13 @@ def build_template_xlsx(definition: dict, *, filename_hint: str = "template") ->
                                  "ratios, statement headings and cross-statement ties have no "
                                  "column here. Uploading onto this template keeps them as they "
                                  "are; an edit that would change a residual line's Kind, "
-                                 "Calculation or 'Calculated from' is refused — make that edit "
-                                 "in the JSON template."),
-        ("Every column is read", "Do not delete, merge or duplicate a column header, and do not "
-                                 "merge cells under a header: a merged cell is read as blank in "
-                                 "every row but its first. Columns may be reordered, and columns "
-                                 "of your own may be added."),
+                                 "Calculation, 'Calculated from' or canonical key is refused — "
+                                 "make that edit in the JSON template."),
+        ("Every column is read", "Do not delete, merge or duplicate one of these column headers, "
+                                 "and do not merge cells under one within the table: a merged "
+                                 "cell is read as blank in every row but its first. Columns may "
+                                 "be reordered, and columns of your own may be added and merged "
+                                 "freely."),
     ]
     lost = inexpressible_statements(definition)
     if lost:
@@ -327,12 +328,6 @@ def _cells(ws, columns=COLUMNS, sheet: str = "Template") -> list[dict]:
     * a MERGED DATA CELL holds its value in its first cell only, so merged Section cells over six
       lines promoted five of them to top-level sections.
     """
-    for rng in ws.merged_cells.ranges:
-        if rng.min_row <= 1:
-            raise TemplateSheetError(
-                f"{sheet} sheet, header row: cells {rng.coord} are merged. Unmerge them so every "
-                f"column has a header of its own — the columns under a merged header cannot be "
-                f"identified, so their values would be read as missing.")
     header = [str(c.value or "").strip().lower() for c in ws[1]]
     by_head = {h.lower(): (k, h) for k, h in columns}
     idx: dict[str, int] = {}
@@ -349,6 +344,14 @@ def _cells(ws, columns=COLUMNS, sheet: str = "Template") -> list[dict]:
                 f"which one would be a guess.")
         idx[key] = i
         title_at[i] = title
+    # A merge on the header row is refused only where it touches one of OUR headers: over the
+    # author's own columns it hides nothing this importer reads.
+    for rng in ws.merged_cells.ranges:
+        if rng.min_row <= 1 and any(i in title_at for i in range(rng.min_col - 1, rng.max_col)):
+            raise TemplateSheetError(
+                f"{sheet} sheet, header row: cells {rng.coord} are merged. Unmerge them so every "
+                f"column has a header of its own — the columns under a merged header cannot be "
+                f"identified, so their values would be read as missing.")
     missing = [h for k, h in columns if k not in idx]
     if missing:
         raise TemplateSheetError(
@@ -357,7 +360,14 @@ def _cells(ws, columns=COLUMNS, sheet: str = "Template") -> list[dict]:
             f"read, and without one every row would be published with that column's default. "
             f"Restore it with the header spelled as downloaded (columns may be reordered, and "
             f"columns of your own may be added).")
+    # A merged data cell is refused only inside the table: a merge in blank rows below it (or
+    # above none of our values) holds nothing that could be read short.
+    used = {n for n, row in enumerate(ws.iter_rows(min_row=2), start=2)
+            if any(i < len(row) and str(row[i].value or "").strip() for i in idx.values())}
     for rng in ws.merged_cells.ranges:
+        if rng.max_row < 2 or not any(r in used for r in range(max(rng.min_row, 2),
+                                                                rng.max_row + 1)):
+            continue
         hit = [title_at[i] for i in range(rng.min_col - 1, rng.max_col) if i in title_at]
         if hit:
             raise TemplateSheetError(
@@ -694,6 +704,7 @@ def _carry_forward(definition: dict, previous: dict, row_of: dict[str, int],
     src = previous.get("template_key") or "the current template"
     keys = {n["canonical_key"] for n in _nodes_of(definition)}
     prev_nodes = {n.get("canonical_key"): n for n in _nodes_of(previous)}
+    prev_by_id = {n.get("node_id"): n for n in _nodes_of(previous) if n.get("node_id")}
     carried: list[str] = []
 
     # --- lines: residual rollups, and labels in a locale the sheet has no column for ---
@@ -703,7 +714,18 @@ def _carry_forward(definition: dict, previous: dict, row_of: dict[str, int],
         key = node["canonical_key"]
         old = prev_nodes.get(key)
         if old is None:
-            continue                                   # a line the workbook added
+            # A line the workbook added — unless it is a residual line under a new key: the same
+            # Node ID, the old key gone. Carried by key, its residual would be dropped in silence.
+            was = prev_by_id.get(node.get("node_id"))
+            if (was is not None and was.get("canonical_key") not in keys
+                    and _rollup_extras(was.get("rollup") or {})):
+                raise TemplateSheetError(
+                    f"Row {row_of[key]}: '{key}' has the Node ID of the residual line "
+                    f"'{was['canonical_key']}' in '{src}' "
+                    f"({_describe(_rollup_extras(was['rollup']))}). Renaming it here would "
+                    f"publish it as a plain line and drop the residual. Restore the canonical key "
+                    f"'{was['canonical_key']}', or rename it in the JSON template.")
+            continue
         row = row_of[key]
         for loc, text in (old.get("label_i18n") or {}).items():
             if loc not in ("en", *_LOCALES) and text and loc not in node["label_i18n"]:

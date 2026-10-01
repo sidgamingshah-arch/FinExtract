@@ -174,6 +174,24 @@ def test_a_merge_confined_to_an_authors_own_column_is_harmless():
     _parse(_book(columns=cols, edit=merge))
 
 
+def test_a_header_merge_over_the_authors_own_columns_only_is_harmless():
+    cols = [*COLUMNS, ("x", "My notes"), ("y", "More notes")]
+
+    def merge(wb):
+        wb["Template"].merge_cells("O1:P1")
+
+    _parse(_book(columns=cols, edit=merge))
+
+
+def test_a_merge_in_blank_rows_below_the_table_is_harmless():
+    def merge(wb):
+        wb["Template"].merge_cells("B20:B24")              # Section column, past the last line
+
+    d = _parse(_book(edit=merge))
+    assert [c["canonical_key"] for c in d["statements"][0]["sections"][0]["children"]] == [
+        "cash", "recv", "tot"]
+
+
 # --- the Identities sheet -----------------------------------------------------------------------
 
 _IDENT = ["Balance sheet", "bs_tie", "tot", "sum", "cash\nrecv", 2.0, 0.01]
@@ -288,6 +306,26 @@ def test_an_edit_that_would_turn_a_residual_into_a_plain_sum_is_refused_on_its_r
     demoted[3].update(kind=KIND_EXTRACTED, op="", children="")
     with pytest.raises(TemplateSheetError, match="Row 5: 'tot' is a residual line"):
         _parse(_book(rows=demoted), previous=previous)
+
+
+def test_renaming_a_residual_lines_key_is_refused_by_its_node_id():
+    """Matched by key alone, the renamed line looked new and its residual was dropped in silence."""
+    previous, rows = _with_residual()
+    tot = next(c for c in previous["statements"][0]["sections"][0]["children"]
+               if c["canonical_key"] == "tot")
+    renamed = copy.deepcopy(rows)
+    renamed[3].update(canonical_key="tot_renamed", node_id=tot["node_id"])
+    with pytest.raises(TemplateSheetError) as exc:
+        _parse(_book(rows=renamed), previous=previous)
+    msg = str(exc.value)
+    assert msg.startswith(f"Row 5: 'tot_renamed' has the Node ID of the residual line 'tot'")
+    assert "Restore the canonical key 'tot'" in msg
+
+    plain = copy.deepcopy(rows)                        # a plain line renamed is just a rename
+    plain[1].update(canonical_key="cash_renamed", node_id="cash")
+    plain[3]["children"] = "cash_renamed\nrecv"
+    with pytest.raises(TemplateSheetError, match="Row 5: 'tot' is a residual line"):
+        _parse(_book(rows=plain), previous=previous)  # …and its residual parent still guards
 
 
 def test_deleting_a_residuals_reported_total_or_a_kpis_line_is_refused():
