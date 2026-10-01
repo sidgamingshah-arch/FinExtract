@@ -15257,7 +15257,7 @@
   {
    "key": "bs_equity__equity_and_reserves",
    "label": "Equity & Reserves",
-   "definition": "Calculated equity and reserves subtotal from the declared component fields. The face amount for the selected entity_scope, period, currency and unit.",
+   "definition": "Calculated equity and reserves subtotal from the declared component fields: the reserves, retained profits and other equity components, EXCLUDING Permanent Equity (share capital, share premium, capital and restricted reserves) and minority interests. Not the equity attributable to owners of the parent (归属于母公司所有者权益合计), which includes share capital: that printed total is Permanent Equity plus this line, and no output column carries it.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Equity & Reserves"
@@ -15265,13 +15265,6 @@
    "aliases_i18n": {
     "en": [
      "Equity & Reserves"
-    ],
-    "zh": [
-     "归属于母公司所有者权益",
-     "归属于母公司所有者权益合计",
-     "归属于母公司所有者权益（或股东权益）合计",
-     "归属于母公司股东权益合计",
-     "归属于母公司股东权益（或所有者权益）合计"
     ]
    },
    "sign_rule": {},

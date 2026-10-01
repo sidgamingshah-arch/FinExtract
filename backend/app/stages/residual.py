@@ -211,6 +211,33 @@ _OF_WHICH = re.compile(
     r"^\W*(?:其中|其中|內中|内中)\s*[:：]"                      # 其中：… / 其中:…
     r"|^\W*(?:of which|including|thereof)\b\s*[:：]?",         # of which: … / including: …
     re.IGNORECASE)
+# …AND THE BREAKDOWN'S FURTHER LINES, which carry no marker. Only the FIRST line of a 其中 group is
+# captioned 其中：; the rest are set beneath it with a bare caption, so `_OF_WHICH` cannot see them.
+# `row_reconstruct` reads the group off the page and records each line's `parent_id` — see
+# `row_reconstruct._breakdown_parent`, which also carries the measurement (000709's 永续债
+# 7,001,608,333.33 swept into the equity residual beside the 其他权益工具 that contains it, and
+# 应收股利 / 应付股利 beside 其他应收款 / 其他应付款).
+#
+# EXCEPT UNDER A STATEMENT-SPINE LINE. 二、营业总成本 prints its components as a 其中 group —
+# 其中：营业成本, then 税金及附加 … 财务费用 aligned beneath it — and 一、营业总收入 the same. There the
+# parent is the statement's own TOTAL, which no residual ever holds, and the breakdown IS the list of
+# lines the section is made of: refusing them would empty the section rather than stop a double
+# count. A breakdown of anything else — a line (其他权益工具), a total printed after its components
+# (…合计) — is money the section already holds once.
+_CAS_SPINE_LINE = re.compile(r"^\W*[一二三四五六七八九十]+、\s*(?![0-9０-９])\S")
+
+
+def _broken_down_rows(ordered: list) -> set:
+    """Ids of face rows printed as a further line of a 其中 breakdown of a row the section counts."""
+    by_id = {li.id: li for li in ordered}
+    out: set = set()
+    for li in ordered:
+        parent = by_id.get(getattr(li, "parent_id", None))
+        if parent is not None and not _CAS_SPINE_LINE.match(_label(parent)):
+            out.add(li.id)
+    return out
+
+
 # A per-share figure is a ratio in cents, not an amount: added into a section subtotal it is
 # nonsense, and it is small enough that no rollup notices.
 _PER_SHARE = re.compile(r"per share|per ordinary share|每股|hk cents|rmb cents", re.IGNORECASE)
@@ -304,6 +331,9 @@ def _is_narrative(label: str) -> bool:
 # Phrase in the framework's eligibility list -> the test it switches on. The row is the argument;
 # ``role`` and the caption are all that is needed.
 _PER_SHARE_PHRASE = "per-share figure"
+# Like the per-share phrase, also answered from the ROW'S NEIGHBOURS: a further line of a 其中
+# breakdown carries no marker of its own (see `_broken_down_rows`).
+_OF_WHICH_PHRASE = "of which breakdown"
 _EXCLUSIONS: tuple[tuple[str, object], ...] = (
     ("section subtotal", lambda row: row.role is LineRole.SUBTOTAL),
     ("statement total", lambda row: row.role is LineRole.TOTAL),
@@ -312,7 +342,7 @@ _EXCLUSIONS: tuple[tuple[str, object], ...] = (
     (_PER_SHARE_PHRASE, lambda row: bool(_PER_SHARE.search(_label(row)))),
     ("narrative row", lambda row: _is_narrative(_label(row))),
     ("note-reference-only row", lambda row: bool(_NOTE_REF_ONLY.match(_label(row)))),
-    ("of which breakdown", lambda row: bool(_OF_WHICH.match(_label(row)))),
+    (_OF_WHICH_PHRASE, lambda row: bool(_OF_WHICH.match(_label(row)))),
     ("sub-enumerated component", lambda row: bool(_CAS_SUB_ENUMERATED.match(_label(row)))),
     # A CAPTION THAT NAMES NOTHING, because the rest of it is printed where the reader could not
     # reach it. A mainland balance sheet's balancing total is the last line of its page and wraps:
@@ -1045,6 +1075,8 @@ class ResidualStage:
             if section is not None and section not in closed_at:
                 closed_at[section] = position
         per_share = (_per_share_rows(ordered) if _PER_SHARE_PHRASE in terms.exclusions else set())
+        broken_down = (_broken_down_rows(ordered) if _OF_WHICH_PHRASE in terms.exclusions
+                       else set())
 
         swept = ineligible = unresolved = 0
         for idx, li in enumerate(ordered):
@@ -1061,7 +1093,9 @@ class ResidualStage:
             reason = next((phrase for phrase, test in _EXCLUSIONS
                            if phrase in terms.exclusions
                            and (test(li)
-                                or (phrase == _PER_SHARE_PHRASE and li.id in per_share))), None)
+                                or (phrase == _PER_SHARE_PHRASE and li.id in per_share)
+                                or (phrase == _OF_WHICH_PHRASE and li.id in broken_down))),
+                          None)
             if reason is None and "narrative row" in terms.exclusions:
                 end = closing.get(stmt or "")
                 if end is not None and li.ordinal > end:

@@ -191,6 +191,11 @@ class ExtractedValue(BaseModel):
 class LineItem(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     statement_id: UUID | None = None
+    # THE FACE ROW THIS ROW IS PRINTED AS A BREAKDOWN OF — a mainland face's 其中 ("of which") group,
+    # whose figure is already inside that row's. Set by `row_reconstruct` from the page geometry,
+    # for every line of the breakdown and not only the one carrying the 其中： marker (see
+    # `row_reconstruct._breakdown_parent`). Structure, not a verdict: the residual sweep is what
+    # decides that such a row must not be added beside its parent.
     parent_id: UUID | None = None
 
     source_label: str = ""                # text exactly as printed

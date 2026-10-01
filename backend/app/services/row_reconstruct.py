@@ -3961,6 +3961,113 @@ _COLUMN_EDGE_SLACK = 0.02
 _INDENT_MIN = 0.01
 
 
+# A 其中 ("OF WHICH") BREAKDOWN ON A STATEMENT FACE, BEYOND ITS FIRST LINE.
+#
+# A mainland face itemises a line with 其中：, and only the FIRST line of the breakdown carries the
+# marker. The rest are set under it, aligned to the caption after 其中：
+#
+#     其他权益工具                        7,001,608,333.33
+#       其中：优先股
+#             永续债                     7,001,608,333.33
+#     资本公积                           21,990,801,392.04
+#
+# The amount on 永续债 is ALREADY INSIDE 其他权益工具 — the row is a breakdown of the row above it,
+# not a line of its own. `stages/residual` refuses a breakdown by its caption (`_OF_WHICH`), and the
+# caption here is a bare 永续债: the 其中：优先股 line above it printed no figure and never became a
+# row, so nothing downstream could tell. MEASURED ON 000709 (河钢股份): 永续债 7,001,608,333.33 was
+# swept into the equity residual (`bs_equity__other_reserves`) BESIDE 其他权益工具 on
+# `bs_equity__other_equity`, both sheets, so the published Equity & Reserves counted the perpetual
+# bonds twice: 29,744,807,996.29 where the template's own definition gives 22,743,199,662.96. The
+# same shape put 应收股利 (230,806,800.00 consolidated, 794,688,800.00 parent) into other current
+# assets beside the 其他应收款 that contains it, and 应付股利 23,255,582.94 into other current
+# liabilities beside its 其他应付款; 688008's parent sheet 应收股利 40,000,000.00 the same way.
+#
+# WHY GEOMETRY HERE, when `_completes_the_caption_above` refuses an indent rule. That rule asks
+# whether a fragment is the TAIL of a caption, and the indent of a tail says nothing. This asks
+# something narrower that the indent DOES answer: having seen a 其中： line, is the next line still
+# inside that breakdown? A breakdown's further lines are aligned to the caption after the marker —
+# measured on all three mainland filings, 3 characters inboard of the 其中： line's own start — and the
+# line that ends it returns to the parent's margin. The edge is taken from the 其中： line ITSELF, so
+# a filing that sets 其中： flush with its parent (688008) and one that indents it a character
+# (000709) are read the same way, and a 加： line one character in (688008's 加：其他收益, under the
+# 其中：营业成本 breakdown of 营业总成本) is correctly outside it. The edge is the marker's own width
+# and not something looser on purpose: 688008 sets its 加： group's further lines two characters in
+# (投资收益 under 加：其他收益), so a looser edge would read a 加： sibling as a breakdown. The cost is
+# that a breakdown set narrower than its marker is not recognised — measured once, 688008's
+# cash-composition note (p227: 可随时用于支付的银行存款 two characters in under 其中：库存现金), whose
+# parent 一、现金 is a spine line and keeps its components either way.
+#
+# RECORDED, NOT ACTED ON. The row keeps its caption, its figures and its mapping; `parent_id` names
+# the row it is a breakdown of, and the reader that would add the two together — the residual sweep —
+# decides what that means. A concept may still map a breakdown line by its caption (利息收入 under
+# 财务费用 is `is_pl__interest_income`), exactly as for a 其中：-captioned one.
+#
+# MAINLAND ONLY. An HKEX face writes "of which", and an English caption's character widths say
+# nothing about where the caption after "of which:" begins.
+_BREAKDOWN_LINE = re.compile(r"^\W*(?:其中|內中|内中)\s*[:：]")
+
+
+@dataclass
+class _Breakdown:
+    """An open 其中 breakdown: the row it breaks down, and where its lines are set."""
+    parent: LineItem
+    line_x0: float      # where the 其中： line itself starts
+    body_x0: float      # where the caption after 其中： starts — the edge its further lines share
+
+
+def _breakdown_body_x0(label_words: list[Word]) -> float | None:
+    """Where the caption after 其中： starts on this line, or None if the line does not open one.
+
+    The marker may be a word of its own ("其中：" "优先股") or the head of one ("其中：优先股"); a run
+    of CJK carries no spaces, so the second is the usual case and the edge is interpolated by the
+    word's own character width. A bare "其中：" line gives the end of the marker.
+    """
+    consumed = ""
+    for i, w in enumerate(label_words):
+        text = w.text or ""
+        m = _BREAKDOWN_LINE.match(consumed + text)
+        if m is None:
+            consumed += text
+            if len(consumed) > 8:           # the marker is at the head of the line or nowhere
+                return None
+            continue
+        cut = m.end() - len(consumed)        # how much of THIS word the marker takes
+        if cut >= len(text):
+            nxt = label_words[i + 1] if i + 1 < len(label_words) else None
+            return nxt.bbox.x0 if nxt is not None else w.bbox.x1
+        return w.bbox.x0 + (w.bbox.x1 - w.bbox.x0) * cut / max(len(text), 1)
+    return None
+
+
+def _breakdown_parent(open_breakdowns: list[_Breakdown], label_words: list[Word], label: str,
+                      above: LineItem | None) -> LineItem | None:
+    """The row this printed line is a 其中 breakdown of, if any — and the bookkeeping for that.
+
+    ``open_breakdowns`` is the stack of breakdowns still open on this page, innermost last (财务费用's
+    其中：利息费用 is opened inside 营业总成本's 其中：营业成本), and is updated in place. ``above`` is the
+    row emitted for the line DIRECTLY above this one, or None when that line produced no row — a
+    其中： line under a caption with no figure has nothing to be a breakdown of.
+    """
+    if not label_words:
+        return None
+    x0 = min(w.bbox.x0 for w in label_words)
+    # A line set outboard of the innermost breakdown's captions has left that breakdown.
+    closed: _Breakdown | None = None
+    while open_breakdowns and x0 < open_breakdowns[-1].body_x0 - _INDENT_MIN:
+        closed = open_breakdowns.pop()
+    if _BREAKDOWN_LINE.match(label):
+        body = _breakdown_body_x0(label_words)
+        # A SECOND 其中： line at the first one's margin continues the same breakdown; any other
+        # 其中： line breaks down the row printed directly above it.
+        parent = (closed.parent if closed is not None
+                  and abs(x0 - closed.line_x0) <= _INDENT_MIN else above)
+        if parent is None or body is None:
+            return None
+        open_breakdowns.append(_Breakdown(parent=parent, line_x0=x0, body_x0=body))
+        return parent
+    return open_breakdowns[-1].parent if open_breakdowns else None
+
+
 def build_line_items(words: list[Word], *, page_index: int, document_id: str | None,
                      source_kind: str, ordinal_start: int = 0,
                      number_format=None, statement: str | None = None,
@@ -4271,6 +4378,11 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     # which governs every row below it until the next title. None until one is seen, so a page
     # printing one statement behaves exactly as before.
     title_basis: Basis | None = None
+    # The 其中 breakdowns open at this point of the page, innermost last — see `_breakdown_parent`.
+    # Face only. ``above_emitted`` says whether the line just read produced a row, because a 其中：
+    # line breaks down the row printed DIRECTLY above it and nothing further up.
+    open_breakdowns: list[_Breakdown] = []
+    above_emitted = False
     for row in rows:
         label_words, note_ref, value_words = _scan_row(
             row, number_format, extract_note_refs=on_face)
@@ -4294,11 +4406,18 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             if merged_banner:
                 section = merged_banner
                 group = ""
+                open_breakdowns.clear()     # a new section ends every breakdown above it
         # AFTER the banner split, so a banner just merged out of the label cannot be pulled back in
         # by rebuilding from the whole row; BEFORE the join, because it is the label's WORDS this
         # repairs. See `_label_keeping_its_date` for the measurement.
         label_words = _label_keeping_its_date(row, label_words, value_words, number_format)
         label = _join_words(_regroup_scripts(label_words))
+        # WHICH ROW THIS LINE IS A 其中 BREAKDOWN OF, read before any branch below can drop the line:
+        # the 其中：优先股 line that opens 永续债's breakdown has no figure and is dropped as a row.
+        breakdown_of = (_breakdown_parent(open_breakdowns, label_words, label,
+                                          items[-1] if above_emitted and items else None)
+                        if on_face else None)
+        above_emitted = False
 
         # A FIGURE WITH NO CAPTION, DIRECTLY UNDER A BLOCK IT TOTALS.
         #
@@ -4482,6 +4601,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                 if banner is not None or not _ends_with_colon(label, steps):
                     section = label
                     group = ""          # a new section ends the sub-heading's scope
+                    open_breakdowns.clear()     # …and every 其中 breakdown above it
                 else:
                     group = label
                 # THE ONE BOUNDARY THAT DECIDES ANYTHING, and three others were removed for saying
@@ -4529,7 +4649,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                             else LineRole.TOTAL if statement_line else LineRole.LINE),
                       caption_borrowed=promoted,
                       component_ordinals=list(block_ordinals) if promoted else [],
-                      section_hint=section, group_hint=group, source=ValueSource.MACHINE)
+                      section_hint=section, group_hint=group, source=ValueSource.MACHINE,
+                      parent_id=breakdown_of.id if breakdown_of is not None else None)
         # THE HEADING'S BOX FOR A BORROWED CAPTION. A promoted row has no label words of its own, so
         # this was None — and `_prov_anchor` then falls back to the value box's vertical band alone,
         # which two sub-tables printed on one baseline share. The judgement layer refuses to attribute
@@ -4604,6 +4725,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             li.note_refs.append(NoteRef(raw=note_ref, numbers=[note_ref]))
             li.note_number = note_ref
         items.append(li)
+        above_emitted = True
         ordinal += 1
         # A BLOCK'S MEMBERS END AT ITS SUBTOTAL, but `group` IS LEFT ALONE.
         #
