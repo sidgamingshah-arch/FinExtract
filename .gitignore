@@ -35,6 +35,8 @@ playwright-report/
 .env
 .env.*
 !.env.example
+# This machine's LLM gateway address and model (copied from config.local.example.toml).
+backend/config.local.toml
 
 # OS / editor
 .DS_Store

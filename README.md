@@ -49,6 +49,7 @@ repo-extra-1/
 ```bash
 # backend  (terminal 1)
 cd backend && pip install -e ".[dev]"
+cp config.local.example.toml config.local.toml   # then fill in the LLM gateway address + model
 pytest -q                                 # backend tests
 uvicorn app.main:app --port 8000          # API at http://127.0.0.1:8000  (/docs for OpenAPI)
 
@@ -119,7 +120,9 @@ before anything has been uploaded.
   [`docs/architecture/07-rbac-and-commentary.md`](docs/architecture/07-rbac-and-commentary.md).
 - **Configuration** — `backend/config.toml` (LLM, OCR, embeddings, extraction
   thresholds, auth, feature flags), env-overridable, surfaced on the admin Settings
-  screen. See [`docs/architecture/08-configuration-and-auth.md`](docs/architecture/08-configuration-and-auth.md).
+  screen. This machine's LLM gateway address and model go in the gitignored
+  `backend/config.local.toml` (copy `config.local.example.toml`), which overrides
+  `config.toml` key by key; the API key goes in the environment or `backend/.env`. See [`docs/architecture/08-configuration-and-auth.md`](docs/architecture/08-configuration-and-auth.md).
 - **Multilingual** — English, Chinese, Arabic (RTL) and French. By default the language
   picker localizes **only the extracted financial output and line items**; localizing the
   whole interface is an admin toggle. See

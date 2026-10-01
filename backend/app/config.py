@@ -5,11 +5,17 @@ Settings are layered, highest precedence first:
   1. Environment variables (prefix ``FINEX_``; nested keys use ``__``, e.g.
      ``FINEX_FEATURES__UI_LOCALIZATION``).
   2. ``.env`` file.
-  3. ``config.toml`` at the backend root — the human-editable, git-safe config file
+  3. ``config.local.toml`` at the backend root — THIS MACHINE'S values, never committed
+     (gitignored). Any table or key in it overrides ``config.toml``; it is where the LLM gateway
+     address and model live, so internal hostnames stay out of the repository. Copy
+     ``config.local.example.toml`` to create it.
+  4. ``config.toml`` at the backend root — the human-editable, git-safe config file
      for LLM / OCR / extraction / auth / feature settings (see that file's comments).
-  4. Built-in defaults below.
+  5. Built-in defaults below.
 
-**THE LLM IS THE EXCEPTION: it is defined in ONE place, ``config.toml``'s ``[llm]`` table.**
+**THE LLM IS THE EXCEPTION: it is defined in ONE place, the ``[llm]`` table** — of
+``config.local.toml`` for this machine's gateway address and model, over ``config.toml`` for the
+shared settings.
 Layers 1 and 2 are not read for it — a ``FINEX_LLM__*`` variable is ignored and named in a
 startup WARNING — and nothing at run time (no Settings screen, no stored override) can change
 it. Four places used to be able to, each overriding the next: a value saved from the Settings
@@ -47,6 +53,8 @@ _LOG = logging.getLogger(__name__)
 
 # config.toml lives at the backend root (two levels up from this file: app/config.py).
 _CONFIG_TOML = Path(__file__).resolve().parent.parent / "config.toml"
+# …and beside it this machine's own values, gitignored: the gateway address and the model name.
+_LOCAL_TOML = _CONFIG_TOML.with_name("config.local.toml")
 
 
 class AuthSettings(BaseModel):
@@ -84,13 +92,15 @@ class FeatureSettings(BaseModel):
 class LlmSettings(BaseModel):
     """Configuration for the selected LLM adapter (used for mapping disambiguation).
 
-    Set in ONE place: ``config.toml``'s ``[llm]`` table (see the module docstring). These defaults
-    apply only to a deployment with no config.toml. The KEY is never configuration: only the NAME
+    Set in ONE place: the ``[llm]`` table — ``config.local.toml`` (this machine's gateway address
+    and model, never committed) over ``config.toml`` (see the module docstring). The address and
+    model default to EMPTY on purpose: neither belongs in the repository, and an empty one is
+    reported at startup (`warn_if_llm_unconfigured`) instead of being guessed. The KEY is never configuration: only the NAME
     of the environment variable holding it is, so a credential cannot end up in a file or an export.
     """
 
     provider: str = "openai_compatible"  # azure_openai | anthropic | bedrock_gateway | openai | openai_compatible | stub
-    model: str = "azure-openai/gpt5.4-mini"
+    model: str = ""                    # set in config.local.toml
     # NO `temperature` here, deliberately. It used to be a field, admin-editable, persisted and
     # echoed back by GET /settings — and passed to NOTHING: none of the nine `complete_structured`
     # call sites forwarded it, so `ports.llm.LlmProvider.complete_structured`'s own
@@ -112,7 +122,7 @@ class LlmSettings(BaseModel):
     # sent to the gateway on every call.
     max_tokens: int = Field(default=32768, ge=256, le=262144)
     timeout_seconds: int = Field(default=600, ge=1, le=3600)
-    base_url: str = "https://llmgateway.crisil.local/api/openai"
+    base_url: str = ""                 # set in config.local.toml
     api_key_env: str = "AZURE_OPENAI_API_KEY"  # env var the key is read from (not the key)
     reasoning_effort: str = "low"      # low | medium | high (provider/gateway dependent)
     # >0 sends OpenRouter's `reasoning.max_tokens` to CAP reasoning. Needed for free models where
@@ -619,17 +629,25 @@ class Settings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        # Precedence (first wins): init args > env > .env > config.toml > file secrets.
+        # Precedence (first wins): init args > env > .env > config.local.toml > config.toml >
+        # file secrets. The two TOML files merge table by table, so config.local.toml need only
+        # hold the keys this machine changes.
         toml_settings = TomlConfigSettingsSource(settings_cls)
         # …and say so when a key in that file binds to nothing. See _report_unbound_toml_keys:
         # extra="ignore" drops an unknown key without a word, which is how the shipped `[app]`
         # table was read and discarded on every boot.
         _report_unbound_toml_keys(toml_settings, settings_cls)
+        local = []
+        if _LOCAL_TOML.is_file():
+            local_settings = TomlConfigSettingsSource(settings_cls, toml_file=_LOCAL_TOML)
+            _report_unbound_toml_keys(local_settings, settings_cls)
+            local = [local_settings]
         return (
             init_settings,
             _PinnedLlm(settings_cls),
             _WithoutLlm(settings_cls, env_settings, "environment"),
             _WithoutLlm(settings_cls, dotenv_settings, ".env"),
+            *local,
             toml_settings,
             file_secret_settings,
         )
@@ -660,12 +678,39 @@ def pin_llm(**fields: Any) -> None:
 
 
 def _toml_llm() -> dict[str, Any]:
+    """The ``[llm]`` table as the two TOML files give it — config.local.toml over config.toml."""
     import tomllib
-    try:
-        with open(_CONFIG_TOML, "rb") as fh:
-            return dict(tomllib.load(fh).get("llm") or {})
-    except FileNotFoundError:
-        return {}
+    out: dict[str, Any] = {}
+    for path in (_CONFIG_TOML, _LOCAL_TOML):
+        try:
+            with open(path, "rb") as fh:
+                out.update(dict(tomllib.load(fh).get("llm") or {}))
+        except FileNotFoundError:
+            continue
+    return out
+
+
+def warn_if_llm_unconfigured(settings: "Settings") -> list[str]:
+    """Say, once at startup, that the LLM gateway address or model is missing — and where to set it.
+
+    Both are deliberately absent from the repository, so a fresh checkout has neither until
+    `config.local.toml` is created. Returned as well as logged, so the caller can print it.
+    """
+    llm = settings.llm
+    if str(llm.provider or "").lower() in ("stub", ""):
+        return []
+    missing = [name for name, value in (("base_url", llm.base_url), ("model", llm.model))
+               if not str(value or "").strip()]
+    if llm.provider in ("anthropic", "openai") and missing == ["base_url"]:
+        return []        # these two have a public default address
+    if not missing:
+        return []
+    message = (f"LLM not configured: [llm] {' and '.join(missing)} not set. Copy "
+               f"{_LOCAL_TOML.with_name('config.local.example.toml').name} to {_LOCAL_TOML.name} "
+               f"(it is gitignored) and fill in the gateway address and model. Until then every "
+               f"model call fails and extraction runs on the deterministic route only.")
+    _LOG.warning(message)
+    return [message]
 
 
 class _PinnedLlm(PydanticBaseSettingsSource):
@@ -698,7 +743,8 @@ class _WithoutLlm(PydanticBaseSettingsSource):
             names = ", ".join(f"FINEX_LLM__{k.upper()}" for k in sorted(dropped))
             _LOG.warning(
                 "LLM settings in the %s are IGNORED (%s): the LLM is defined only in %s [llm]. "
-                "Move the values there and delete these.", self._where, names, _CONFIG_TOML)
+                "Move the values there and delete these.", self._where, names,
+                f"{_LOCAL_TOML.name} / {_CONFIG_TOML.name}")
         return data
 
 

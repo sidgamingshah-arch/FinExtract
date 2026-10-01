@@ -1,0 +1,18 @@
+# THIS MACHINE'S LLM GATEWAY — copy this file to config.local.toml (same folder) and fill it in.
+#
+# config.local.toml is gitignored: it is where the gateway address and the model name live, so
+# neither appears in the repository. Any key here overrides the same key in config.toml, which
+# holds the shared settings (provider, timeouts, reasoning effort, …). Restart the app after a
+# change. The API KEY never goes in either file: it is read from the environment variable that
+# `api_key_env` in config.toml names (AZURE_OPENAI_API_KEY), or from the gitignored backend/.env.
+
+[llm]
+# The gateway's base address. The app adds the path for each call; with the default provider
+# ("openai_compatible") a request goes to <base_url>/chat/completions.
+base_url = "https://<your-gateway-host>/api/openai"
+
+# The model id the gateway serves, as "<vendor>/<deployment name>".
+model = "<vendor>/<deployment-name>"
+
+# Uncomment to change the provider for this machine only (see config.toml [llm] for the list).
+# provider = "openai_compatible"

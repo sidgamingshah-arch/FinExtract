@@ -13,14 +13,14 @@ class _Out(BaseModel):
 def test_bedrock_gateway_builds_anthropic_invoke_request():
     settings = Settings()
     settings.llm.provider = "bedrock_gateway"
-    settings.llm.base_url = "https://llmgateway.crisil.local/api/bedrock"
+    settings.llm.base_url = "https://llm-gateway.example.invalid/api/bedrock"
     settings.llm.model = "us.anthropic.claude-opus-4-7"
     provider = BedrockGatewayLlmProvider(settings)
 
     body = provider.build_body(system="map", messages=[{"role": "user", "content": "caption"}],
                                response_schema=_Out, max_tokens=256)
 
-    assert provider._endpoint() == "https://llmgateway.crisil.local/api/bedrock/model/bedrock.us.anthropic.claude-opus-4-7/invoke"
+    assert provider._endpoint() == "https://llm-gateway.example.invalid/api/bedrock/model/bedrock.us.anthropic.claude-opus-4-7/invoke"
     assert body["anthropic_version"] == "bedrock-2023-05-31"
     assert body["max_tokens"] == 256
     assert body["messages"] == [{"role": "user", "content": "caption"}]

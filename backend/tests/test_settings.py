@@ -19,7 +19,9 @@ def test_settings_requires_auth(anon_client):
 def test_settings_snapshot_exposes_config_without_secrets(anon_client, auth):
     body = anon_client.get("/api/v1/settings", headers=auth("analyst")).json()
     # LLM / OCR / extraction config from config.toml is surfaced for the frontend.
-    assert body["llm"]["provider"] and body["llm"]["model"]
+    # `model` is surfaced but may be empty: the gateway address and model live in the gitignored
+    # config.local.toml, and the suite runs the offline stub provider without one.
+    assert body["llm"]["provider"] and "model" in body["llm"]
     assert "api_key_env" in body["llm"] and "key_configured" in body["llm"]
     assert "api_key" not in body["llm"]  # no raw key present
     assert body["ocr"]["engine"]

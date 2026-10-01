@@ -26,7 +26,9 @@ def test_the_shipped_default_and_the_code_fallback_name_the_same_model():
     # and a base_url in config.toml. What this test is FOR is unchanged by that: whatever the
     # default is, the file and the code must agree on it.
     assert shipped["provider"] == "openai_compatible"
-    assert shipped["model"] == "azure-openai/gpt5.4-mini"
+    # The gateway address and the model are NOT in the repository: config.toml ships them empty and
+    # each machine sets them in the gitignored config.local.toml (config.local.example.toml).
+    assert shipped["model"] == "" and shipped["base_url"] == ""
     assert shipped["api_key_env"] == "AZURE_OPENAI_API_KEY"
 
     # And the code's own fallback agrees, so a deployment without config.toml lands in the same
@@ -132,3 +134,46 @@ def test_switching_provider_away_from_azure_still_works():
 
     register_builtins()
     assert registry.get("llm", "anthropic") is not None
+
+
+def test_config_local_toml_overrides_the_shared_file_key_by_key(tmp_path, monkeypatch):
+    """This machine's gateway address and model come from the gitignored config.local.toml, over
+    config.toml, and only the keys it names change — the shared settings stay config.toml's."""
+    import app.config as config
+
+    local = tmp_path / "config.local.toml"
+    local.write_text('[llm]\nbase_url = "https://gw.example.invalid/api/openai"\n'
+                     'model = "vendor/deployment"\n', encoding="utf-8")
+    monkeypatch.setattr(config, "_LOCAL_TOML", local)
+    s = config.Settings()
+    assert s.llm.base_url == "https://gw.example.invalid/api/openai"
+    assert s.llm.model == "vendor/deployment"
+    assert s.llm.api_key_env == "AZURE_OPENAI_API_KEY"      # still config.toml's
+    assert config.warn_if_llm_unconfigured(s) == []
+
+
+def test_a_missing_gateway_is_reported_at_startup_with_where_to_set_it(tmp_path, monkeypatch):
+    import app.config as config
+
+    monkeypatch.setattr(config, "_LOCAL_TOML", tmp_path / "config.local.toml")   # absent
+    s = config.Settings()
+    s.llm.provider = "openai_compatible"
+    lines = config.warn_if_llm_unconfigured(s)
+    assert lines and "base_url and model" in lines[0] and "config.local.toml" in lines[0]
+
+
+def test_a_gateway_with_no_address_is_refused_not_sent_to_openai():
+    """With the gateway address missing (no config.local.toml), the OpenAI-format adapter must not
+    fall back to api.openai.com: that would send a filing to a provider nobody configured."""
+    import pytest
+
+    from app.adapters.openai_llm import OpenAiLlmProvider as P
+    from app.config import Settings
+    from app.adapters._structured import LlmConfigError
+
+    s = Settings()
+    s.llm.provider, s.llm.base_url = "openai_compatible", ""
+    with pytest.raises(LlmConfigError, match="config.local.toml"):
+        P(s)._endpoint()
+    s.llm.provider = "openai"                     # OpenAI itself keeps its public address
+    assert P(s)._endpoint() == "https://api.openai.com/v1/chat/completions"

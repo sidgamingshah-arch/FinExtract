@@ -121,13 +121,17 @@ supported_locales = ["en", "zh", "ar", "fr"]
 # aliased to `stub` either — map_ontology.py fast-paths the literal "stub" only, so an alias would
 # resolve and stamp mapping_strategy="llm_description" on a run that made zero model calls.
 #
-# THIS TABLE IS THE ONE PLACE THE LLM IS DEFINED. Nothing overrides it: FINEX_LLM__* environment
-# variables and .env are not read for it (a startup WARNING names any that are set), and the
-# Settings screen neither shows an editor nor stores a value. Change a value here and restart.
+# THIS TABLE IS THE ONE PLACE THE LLM IS DEFINED, together with the same table in the gitignored
+# backend/config.local.toml, which overrides it key by key. The GATEWAY ADDRESS and the MODEL live
+# only there — internal hostnames do not belong in the repository — so `base_url` and `model` are
+# empty below. To set them on a machine: copy config.local.example.toml to config.local.toml and
+# fill them in. Nothing else overrides either file: FINEX_LLM__* environment variables and .env are
+# not read for it (a startup WARNING names any that are set), and the Settings screen neither shows
+# an editor nor stores a value. Change a value and restart.
 # The KEY is the exception and never appears here — only the NAME of the env var it is read from
 # (`api_key_env`); the key itself goes in the environment or in the gitignored backend/.env.
 provider = "openai_compatible"
-model = "azure-openai/gpt5.4-mini"  # gateway model id: "<vendor>/<deployment name>"
+model = ""                          # set in config.local.toml — gateway model id "<vendor>/<deployment name>"
 # `temperature` was here and is GONE: it reached no provider call (the port default of 0.0 won
 # everywhere), so it is fixed at 0.0 in code and is not configuration. See app/config.py's
 # LlmSettings for the full note. A leftover value in a local copy of this file is still ignored
@@ -148,7 +152,7 @@ model = "azure-openai/gpt5.4-mini"  # gateway model id: "<vendor>/<deployment na
 # run_analysis's 4096 (services/analysis_llm.py) — so nothing is truncated by the change.
 max_tokens = 32768
 timeout_seconds = 600
-base_url = "https://llmgateway.crisil.local/api/openai"
+base_url = ""                       # set in config.local.toml — the gateway address
 api_key_env = "AZURE_OPENAI_API_KEY" # env var the key is read from (the key itself is NOT stored here)
 reasoning_effort = "low"
 # Hard ceiling on hidden reasoning tokens; 0 = do not send a cap. Distinct from

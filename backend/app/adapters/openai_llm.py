@@ -83,8 +83,19 @@ class OpenAiLlmProvider:
         self._settings = settings or get_settings()
 
     def _endpoint(self) -> str:
-        base = self._settings.llm.base_url or "https://api.openai.com/v1"
-        return base.rstrip("/") + "/chat/completions"
+        cfg = self._settings.llm
+        # A GATEWAY WITH NO ADDRESS IS REFUSED, never sent to OpenAI's public API instead. The
+        # gateway address lives in the gitignored config.local.toml, so a machine without that
+        # file has an empty `base_url` — and falling back to api.openai.com there would send the
+        # filing's text to a different provider than the one configured. Only `provider =
+        # "openai"`, which IS OpenAI, keeps the public default.
+        if not (cfg.base_url or "").strip():
+            if str(cfg.provider or "").lower() != "openai":
+                raise LlmConfigError(
+                    f"[llm] base_url is not set for provider {cfg.provider!r}. Set the gateway "
+                    "address in backend/config.local.toml (copy config.local.example.toml).")
+            return "https://api.openai.com/v1/chat/completions"
+        return cfg.base_url.rstrip("/") + "/chat/completions"
 
     def _headers(self) -> dict:
         """Auth + content type. Overridden by the Azure adapter, which authenticates with an
