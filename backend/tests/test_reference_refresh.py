@@ -437,21 +437,16 @@ def test_a_shipped_template_that_fails_its_own_gate_fails_the_boot(session, tmp_
     assert session.execute(select(func.count()).select_from(LineItemVersion)).scalar() == 0
 
 
-def test_a_shipped_configuration_that_fails_its_own_gate_is_never_stored(session, tmp_path,
-                                                                        monkeypatch, caplog):
-    """The same gate on the CONFIGURATION half: a set that would be refused is not published.
+def test_a_shipped_configuration_that_fails_its_own_gate_fails_the_boot(session, tmp_path,
+                                                                      monkeypatch):
+    """The same gate on the CONFIGURATION half, at the same strength: the boot stops.
 
-    HOW THIS DIFFERS FROM THE TEMPLATE CASE ABOVE, stated rather than left to be discovered. The
-    configuration is seeded through ``_seed_extra_pair``, which CATCHES ``ReferenceSeedError``, logs
-    it at ERROR and returns — so a broken configuration file does not fail the boot the way a broken
-    template does; the app comes up with no configuration for that template and every run recognises
-    nothing until somebody republishes. What is asserted here is therefore the half the code
-    actually provides, at full strength: a file that would not survive its own door NEVER reaches
-    the database, and the refusal is on the record with the path in it. The missing half — the boot
-    itself failing — is a gap in ``sample.reference._seed_extra_pair``, not in this test, and it is
-    named here so the next reader does not mistake the weaker assertion for the whole invariant.
+    This test used to assert the weaker half and say so — ``_seed_extra_pair`` CAUGHT the refusal,
+    logged it at ERROR and returned, so the app came up healthy with no configuration for
+    ``output_csv_hk_v1`` and every run recognised nothing. The pair is gated like the primary
+    template now (``reference._gate_pair``), and nothing is written by a pass that refuses.
     """
-    from app.db.models import LineItemVersion
+    from app.db.models import LineItemVersion, TemplateVersion
     from app.sample import reference
 
     broken = tmp_path / "broken_line_items.json"
@@ -460,14 +455,12 @@ def test_a_shipped_configuration_that_fails_its_own_gate_is_never_stored(session
     monkeypatch.setattr(reference, "_EXTRA_PAIRS",
                         [(reference._DIR / "output_csv_hk_v1_template.json", broken)])
 
-    with caplog.at_level(logging.ERROR, logger="app.sample.reference"):
-        notes = reference.ensure_reference_data(session)
+    with pytest.raises(reference.ReferenceSeedError) as exc:
+        reference.ensure_reference_data(session)
 
+    assert broken.name in str(exc.value) and "totally_unknown_key" in str(exc.value)
     assert session.execute(select(func.count()).select_from(LineItemVersion)).scalar() == 0
-    assert not any("line items" in n for n in notes), notes
-    # …and the refusal names the file to fix, which is the only thing an operator can act on.
-    assert any(broken.name in r.getMessage() and "refused" in r.getMessage()
-               for r in caplog.records), caplog.text
+    assert session.execute(select(func.count()).select_from(TemplateVersion)).scalar() == 0
 
 
 # --- which configuration the refresh puts in force ----------------------------------------------
@@ -561,3 +554,327 @@ def test_a_genuinely_changed_shipped_file_still_takes_precedence(session, tmp_pa
     in_force = select_for_template(session, base.target_template_key)
     assert in_force.definition["metadata"]["version"] == "shipped-later"
     assert in_force.version == 3, "the shipped file publishes ON TOP of the human's edit"
+
+
+# --- the shipped pair is required, and refused whole --------------------------------------------
+#
+# ``output_csv_hk_v1`` is an ``_EXTRA_PAIRS`` entry, and it is the template every output_csv_hk run
+# targets. A refusal there used to be one ERROR line and a healthy boot: on a fresh database no HK
+# template and no configuration at all, on an existing one the previous stored version left in
+# force. These pin the boot failing instead, with the file named and nothing written.
+
+HK_TEMPLATE_FILE = "output_csv_hk_v1_template.json"
+
+
+def _shipped_hk_template() -> dict:
+    from app.sample import reference
+
+    return json.loads((reference._DIR / HK_TEMPLATE_FILE).read_text(encoding="utf-8"))
+
+
+def _own_hk_pair(tmp_path, monkeypatch) -> tuple[callable, callable]:
+    """Point the HK pair at this test's OWN copies of both files; returns a writer for each.
+
+    Only the HK pair: the Ind AS pair is left out of ``_EXTRA_PAIRS`` here so what is asserted is
+    about one pair. The writers bump mtime for ``_key_in_file``'s cache, as in
+    ``_own_line_items_file``.
+    """
+    from app.sample import reference
+
+    tpl_path, li_path = tmp_path / "own_hk_template.json", tmp_path / "own_hk_line_items.json"
+    tpl_path.write_text(json.dumps(_shipped_hk_template()), encoding="utf-8")
+    li_path.write_text(json.dumps(_shipped_line_items()), encoding="utf-8")
+    monkeypatch.setattr(reference, "_LINE_ITEMS", li_path)
+    monkeypatch.setattr(reference, "_EXTRA_PAIRS", [(tpl_path, li_path)])
+
+    def writer(path):
+        def write(definition: dict) -> None:
+            path.write_text(json.dumps(definition), encoding="utf-8")
+            path.touch()
+        return write
+
+    return writer(tpl_path), writer(li_path)
+
+
+def _bad_role(definition: dict) -> dict:
+    """The probe's refused HK template: an invalid role on the first node."""
+    out = json.loads(json.dumps(definition))
+    out["statements"][0]["sections"][0]["role"] = "not_a_role"
+    return out
+
+
+def _counts(session: Session) -> dict:
+    from app.db.models import LineItemVersion, TemplateVersion
+
+    return {m.__tablename__: session.execute(select(func.count()).select_from(m)).scalar()
+            for m in (TemplateVersion, LineItemVersion)}
+
+
+NOTHING_STORED = {"template_versions": 0, "line_item_versions": 0}
+
+
+def test_a_refused_shipped_hk_template_fails_the_boot_of_a_fresh_database(session, tmp_path,
+                                                                          monkeypatch):
+    from app.sample import reference
+
+    write_tpl, _ = _own_hk_pair(tmp_path, monkeypatch)
+    write_tpl(_bad_role(_shipped_hk_template()))
+
+    with pytest.raises(reference.ReferenceSeedError) as exc:
+        reference.ensure_reference_data(session)
+
+    assert "own_hk_template.json" in str(exc.value) and "not_a_role" in str(exc.value)
+    # Not even the primary template, which was gated first and is fine: one pass, one transaction.
+    assert _counts(session) == NOTHING_STORED
+
+
+def test_a_refused_shipped_hk_template_fails_the_boot_of_an_existing_database(session, tmp_path,
+                                                                             monkeypatch):
+    from app.sample import reference
+
+    write_tpl, _ = _own_hk_pair(tmp_path, monkeypatch)
+    reference.ensure_reference_data(session)
+    before = _counts(session)
+
+    write_tpl(_bad_role(_shipped_hk_template()))
+    with pytest.raises(reference.ReferenceSeedError, match="own_hk_template.json"):
+        reference.ensure_reference_data(session)
+    session.rollback()
+    assert _counts(session) == before
+
+
+def test_a_refusal_in_a_later_pair_writes_nothing_from_an_earlier_one(session, tmp_path,
+                                                                     monkeypatch):
+    """The pairs used to commit one at a time, so a second pair's refusal left the first's rows."""
+    from app.sample import reference
+
+    broken = tmp_path / "broken_indas_line_items.json"
+    indas = json.loads((reference._DIR / "output_csv_indas_line_items.json")
+                       .read_text(encoding="utf-8"))
+    broken.write_text(json.dumps({**indas, "totally_unknown_key": 1}), encoding="utf-8")
+    monkeypatch.setattr(reference, "_EXTRA_PAIRS", [
+        reference._EXTRA_PAIRS[0],
+        (reference._DIR / "output_csv_indas_v1_template.json", broken)])
+
+    with pytest.raises(reference.ReferenceSeedError, match="broken_indas_line_items.json"):
+        reference.ensure_reference_data(session)
+    assert _counts(session) == NOTHING_STORED
+
+
+@pytest.mark.parametrize("which", ["template", "line_items", "primary"])
+def test_a_missing_shipped_file_fails_the_boot_rather_than_being_skipped(session, tmp_path,
+                                                                        monkeypatch, which):
+    """No deployment ships without these files; one that means to drop a pair edits ``_EXTRA_PAIRS``.
+
+    An absent file used to be skipped in silence — and an absent primary returned before the pairs
+    were looked at, so a non-editable install booted with no reference data at all.
+    """
+    from app.sample import reference
+
+    gone = tmp_path / f"absent_{which}.json"
+    hk_tpl, hk_li = reference._EXTRA_PAIRS[0]
+    if which == "primary":
+        monkeypatch.setattr(reference, "_TEMPLATE", gone)
+    else:
+        monkeypatch.setattr(reference, "_EXTRA_PAIRS",
+                            [(gone, hk_li) if which == "template" else (hk_tpl, gone)])
+
+    with pytest.raises(reference.ReferenceSeedError) as exc:
+        reference.ensure_reference_data(session)
+    assert gone.name in str(exc.value) and "missing" in str(exc.value)
+    assert _counts(session) == NOTHING_STORED
+
+
+def test_unreadable_json_names_the_file(session, tmp_path, monkeypatch):
+    """It used to escape as a bare ``JSONDecodeError``: a line and a column, and no file."""
+    from app.sample import reference
+
+    _own_hk_pair(tmp_path, monkeypatch)
+    (tmp_path / "own_hk_line_items.json").write_text('{"items": [', encoding="utf-8")
+
+    with pytest.raises(reference.ReferenceSeedError) as exc:
+        reference.ensure_reference_data(session)
+    assert "own_hk_line_items.json" in str(exc.value) and "JSON" in str(exc.value)
+
+
+def test_a_set_that_does_not_target_its_partner_fails_the_boot(session, tmp_path, monkeypatch):
+    """A set stored against another template key is one ``config_select`` never finds for this one."""
+    from app.sample import reference
+
+    _, write_li = _own_hk_pair(tmp_path, monkeypatch)
+    write_li({**_shipped_line_items(), "target_template_key": "output_csv_indas_v1"})
+
+    with pytest.raises(reference.ReferenceSeedError, match="not its partner"):
+        reference.ensure_reference_data(session)
+
+
+# --- a reverted shipped file is restored, over the seeder's own write only ----------------------
+#
+# THE RULE (``reference._plan``): nothing stored -> publish; newest is the shipped content ->
+# nothing; content never stored -> publish (a new shipped file wins); content stored earlier ->
+# republish it as the newest ONLY when the version in force is the seeder's own write, otherwise
+# hold and say so.
+
+def _variant(definition: dict, marker: str) -> dict:
+    """Loadable, gate-passing, and wrong: what a silently accepted broken file looks like here.
+
+    Marked in a field each schema declares — a template's ``name``, a set's ``metadata.version`` —
+    because an undeclared key is refused by the very gate these files have to pass.
+    """
+    out = json.loads(json.dumps(definition))
+    if "statements" in out:
+        out["name"] = marker
+    else:
+        out["metadata"] = {**(out.get("metadata") or {}), "version": marker}
+    return out
+
+
+def _marker(definition: dict) -> str:
+    if "statements" in definition:
+        return definition.get("name")
+    return (definition.get("metadata") or {}).get("version")
+
+
+def _newest_row(session: Session, model, key_column, key: str):
+    return session.execute(select(model).where(key_column == key)
+                           .order_by(model.version.desc())).scalars().first()
+
+
+def test_a_reverted_template_is_restored_as_the_newest_version(session, tmp_path, monkeypatch,
+                                                               caplog):
+    from app.db.models import TemplateVersion
+    from app.sample import reference
+
+    write_tpl, _ = _own_hk_pair(tmp_path, monkeypatch)
+    shipped = _shipped_hk_template()
+    key = shipped["template_key"]
+    reference.ensure_reference_data(session)                         # boot 1: v1
+    write_tpl(_variant(shipped, "broken"))
+    reference.ensure_reference_data(session)                         # boot 2: v2, the variant
+    write_tpl(shipped)                                                # the file is reverted
+
+    planned = reference.ensure_reference_data(session, dry_run=True)
+    with caplog.at_level(logging.WARNING, logger="app.sample.reference"):
+        notes = reference.ensure_reference_data(session)             # boot 3
+
+    assert notes == planned, "the dry run describes what the boot does"
+    assert any(f"template {key}: restored" in n and "v3" in n for n in notes), notes
+    newest = _newest_row(session, TemplateVersion, TemplateVersion.template_key, key)
+    assert newest.version == 3 and newest.definition == shipped
+    assert _published_versions(session, key) == [3]
+    assert any("was reverted" in r.getMessage() for r in caplog.records), caplog.text
+    # …and the restore is itself idempotent.
+    assert reference.ensure_reference_data(session) == []
+
+
+def test_a_reverted_configuration_is_restored_and_back_in_force(session, tmp_path, monkeypatch):
+    from app.db.models import LineItemVersion
+    from app.sample import reference
+    from app.services.config_select import select_for_template
+
+    _, write_li = _own_hk_pair(tmp_path, monkeypatch)
+    shipped = _shipped_line_items()
+    reference.ensure_reference_data(session)
+    write_li(_variant(shipped, "broken"))
+    reference.ensure_reference_data(session)
+    write_li(shipped)
+
+    notes = reference.ensure_reference_data(session)
+
+    assert any("line items" in n and "restored" in n for n in notes), notes
+    in_force = select_for_template(session, shipped["target_template_key"])
+    assert in_force.version == 3 and in_force.definition == shipped
+    assert ([r.seeded_from for r in _rows(session, LineItemVersion)]
+            == ["own_hk_line_items.json"] * 3)
+
+
+def test_a_template_an_administrator_uploaded_after_the_seed_is_not_overwritten(session, tmp_path,
+                                                                               monkeypatch):
+    """Revert after an UPLOAD through the API: the upload is the version in force and stays it."""
+    from app.api.routes.templates import _publish
+    from app.db.models import TemplateVersion
+    from app.sample import reference
+
+    write_tpl, _ = _own_hk_pair(tmp_path, monkeypatch)
+    shipped = _shipped_hk_template()
+    key = shipped["template_key"]
+    reference.ensure_reference_data(session)
+    write_tpl(_variant(shipped, "broken"))
+    reference.ensure_reference_data(session)                          # v2, the seeder's
+    _publish(session, _variant(shipped, "administrator"))             # v3, a person's
+    write_tpl(shipped)
+
+    notes = reference.ensure_reference_data(session)
+
+    assert any(f"template {key}:" in n and "stays in force" in n for n in notes), notes
+    newest = _newest_row(session, TemplateVersion, TemplateVersion.template_key, key)
+    assert newest.version == 3 and _marker(newest.definition) == "administrator"
+
+
+def test_a_configuration_an_administrator_published_after_the_seed_is_not_overwritten(
+        session, tmp_path, monkeypatch):
+    """Under the shipped key, through the real publish route."""
+    from app.api.routes.line_items import LineItemSetCreate, create_line_item_set
+    from app.sample import reference
+    from app.services.config_select import select_for_template
+
+    _, write_li = _own_hk_pair(tmp_path, monkeypatch)
+    shipped = _shipped_line_items()
+    reference.ensure_reference_data(session)
+    write_li(_variant(shipped, "broken"))
+    reference.ensure_reference_data(session)
+    create_line_item_set(LineItemSetCreate(definition=_variant(shipped, "administrator")),
+                         session=session)
+    write_li(shipped)
+
+    notes = reference.ensure_reference_data(session)
+
+    assert any("line items" in n and "stays in force" in n for n in notes), notes
+    in_force = select_for_template(session, shipped["target_template_key"])
+    assert _marker(in_force.definition) == "administrator"
+    assert in_force.seeded_from is None
+
+
+def test_a_set_published_under_an_administrators_own_key_is_not_overwritten(session, tmp_path,
+                                                                           monkeypatch):
+    """``config_select`` picks the latest set ACROSS keys, so restoring the shipped key over an
+    administrator's own key would put the shipped set back in force on top of their work."""
+    from app.sample import reference
+    from app.services.config_select import select_for_template
+
+    _, write_li = _own_hk_pair(tmp_path, monkeypatch)
+    shipped = _shipped_line_items()
+    reference.ensure_reference_data(session)
+    write_li(_variant(shipped, "broken"))
+    reference.ensure_reference_data(session)
+    _insert_config(session, _variant(shipped, "administrator"), key="analyst_own_set")
+    write_li(shipped)
+
+    notes = reference.ensure_reference_data(session)
+
+    assert any("line items" in n and "stays in force" in n for n in notes), notes
+    in_force = select_for_template(session, shipped["target_template_key"])
+    assert in_force.line_items_key == "analyst_own_set"
+
+
+def test_configuration_rows_older_than_the_seeded_from_column_are_held(session, tmp_path,
+                                                                      monkeypatch):
+    """A database seeded before the column existed: its rows read as "not the seeder's", the
+    conservative answer — held and reported, never overwritten on a guess."""
+    from app.db.models import LineItemVersion
+    from app.sample import reference
+
+    _, write_li = _own_hk_pair(tmp_path, monkeypatch)
+    shipped = _shipped_line_items()
+    reference.ensure_reference_data(session)
+    write_li(_variant(shipped, "broken"))
+    reference.ensure_reference_data(session)
+    for row in _rows(session, LineItemVersion):
+        row.seeded_from = None
+    session.commit()
+    write_li(shipped)
+
+    notes = reference.ensure_reference_data(session)
+
+    assert any("line items" in n and "stays in force" in n for n in notes), notes
+    assert [r.version for r in _rows(session, LineItemVersion)] == [1, 2]

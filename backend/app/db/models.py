@@ -126,6 +126,20 @@ class LineItemVersion(Base):
     # from "created and then written to".
     authored_in_session: Mapped[str | None] = mapped_column(String(36), nullable=True)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # THE SHIPPED FILE THE REFERENCE SEEDER PUBLISHED THIS VERSION FROM, or null when anything else
+    # published it — an upload, an inline edit, a template upload's provisioned set.
+    #
+    # Written once, at insert, by ``sample.reference._seed_line_items`` and by no other writer, and
+    # READ: it is how the boot refresh tells its own last write from a person's
+    # (``sample.reference._line_items_seeded``), so that a reverted shipped file is republished over
+    # the seeder's version and never over an administrator's. Nothing else on the row can say so —
+    # every service-side publish is unattributed — and content cannot either, since an administrator
+    # may upload exactly what the file says. Not ``is_published`` coming back: that flag was
+    # mutable and read by nobody; this is immutable and has one reader.
+    #
+    # Null on every row older than the column (``db.base`` adds it on the way past), which the
+    # refresh reads as "not the seeder's" — the conservative answer.
+    seeded_from: Mapped[str | None] = mapped_column(String(256), nullable=True)
 
 
 class FxRate(Base):
