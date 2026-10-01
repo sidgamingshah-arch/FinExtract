@@ -2014,8 +2014,7 @@
    "children_if_decomposed": [
     "bs_nca__net_fixed_assets",
     "bs_nca__net_intangibles",
-    "bs_nca__investment_property_net",
-    "bs_nca__restricted_cash"
+    "bs_nca__investment_property_net"
    ],
    "type": "calculated",
    "terms": [
@@ -2996,12 +2995,9 @@
    "match_priority": 100,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "bs_ca__operating_lease_receivables",
     "bs_ca__inventories",
-    "bs_ca__due_from_jvs_and_partnerships",
     "bs_ca__trade_and_other_receivables",
     "bs_ca__net_trade_receivables",
-    "bs_ca__subscribed_capital_called_not_paid",
     "bs_ca__cash_in_hand_and_at_banks"
    ],
    "type": "calculated",
@@ -3649,18 +3645,6 @@
    "inherits": "bs_equity",
    "face_only": false,
    "match_priority": 80,
-   "is_gross_parent": true,
-   "children_if_decomposed": [
-    "bs_ca__total_assets",
-    "bs_ncl__total_non_current_liabilities",
-    "bs_cl__total_current_liabilities",
-    "bs_equity__minority_interest_equity",
-    "bs_equity__permanent_equity",
-    "bs_equity__revaluation_reserves",
-    "bs_equity__auditor_adj_on_retained_profits",
-    "bs_equity__treasury_shares",
-    "bs_equity__accum_oth_eqty_rsrv_inc"
-   ],
    "type": "calculated",
    "namespace": "template",
    "note_source": {
@@ -5915,7 +5899,6 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "is_pl__derivatives_cos",
     "is_pl__deprec_and_impairment_cos"
    ],
    "type": "calculated",
@@ -6007,7 +5990,6 @@
    "is_gross_parent": true,
    "children_if_decomposed": [
     "is_pl__sales_revenues",
-    "is_pl__expenses_own_work_capitalized",
     "is_pl__total_cost_of_sales"
    ],
    "type": "calculated",
@@ -6385,11 +6367,7 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "is_pl__gross_profit",
-    "is_pl__rents_and_royalty_income",
-    "is_pl__grants_and_subsidies",
-    "is_pl__selling_and_marketing_expenses",
-    "is_pl__capitalized_costs"
+    "is_pl__gross_profit"
    ],
    "type": "calculated",
    "terms": [
@@ -6661,10 +6639,7 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "is_pl__interest_income_from_derivatives",
-    "is_pl__interest_income",
-    "is_pl__interest_on_lease_liabilities",
-    "is_pl__deferred_interest_expense"
+    "is_pl__interest_income"
    ],
    "type": "calculated",
    "terms": [
@@ -6819,11 +6794,6 @@
    "sign_rule": {},
    "inherits": "is_pl",
    "face_only": false,
-   "is_gross_parent": true,
-   "children_if_decomposed": [
-    "is_pl__income_loss_from_related_party",
-    "is_pl__fmv_adj_on_fncl_assets"
-   ],
    "type": "calculated",
    "terms": [
     {
@@ -6931,11 +6901,6 @@
    "sign_rule": {},
    "inherits": "is_pl",
    "face_only": false,
-   "is_gross_parent": true,
-   "children_if_decomposed": [
-    "is_pl__gain_loss_disp_of_fixed_assets",
-    "is_pl__other_non_oper_inc_exp_nc"
-   ],
    "terms": [
     {
      "ref": "is_pl__gain_loss_disp_of_fixed_assets",
@@ -7178,8 +7143,7 @@
    "face_only": false,
    "is_gross_parent": true,
    "children_if_decomposed": [
-    "is_pl__current_income_taxes",
-    "is_pl__prior_year_tax_adj"
+    "is_pl__current_income_taxes"
    ],
    "type": "calculated",
    "terms": [
@@ -8581,11 +8545,6 @@
    "sign_rule": {},
    "inherits": "cf_oper_direct",
    "face_only": false,
-   "is_gross_parent": true,
-   "children_if_decomposed": [
-    "cf_oper_direct__cash_receipts_from_customers",
-    "cf_oper_direct__borrowing_costs_paid"
-   ],
    "terms": [
     {
      "ref": "cf_oper_direct__cash_receipts_from_customers",
@@ -9598,15 +9557,6 @@
    "inherits": "cf_financing",
    "face_only": false,
    "match_priority": 100,
-   "is_gross_parent": true,
-   "children_if_decomposed": [
-    "cf_financing__end_of_period_cash_and_cash_equiv",
-    "cf_financing__beg_of_period_cash_and_cash_equiv",
-    "cf_oper_indirect__cash_flows_oper_activ_indirect",
-    "cf_investing__cash_flows_from_invest_activities",
-    "cf_financing__cash_flows_from_finance_activities",
-    "cf_financing__net_foreign_exchange_difference"
-   ],
    "type": "calculated",
    "terms": [
     {

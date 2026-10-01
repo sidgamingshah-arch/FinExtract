@@ -5006,18 +5006,6 @@
    "inherits": "bs_equity",
    "face_only": false,
    "match_priority": 80,
-   "is_gross_parent": true,
-   "children_if_decomposed": [
-    "bs_ca__total_assets",
-    "bs_ncl__total_non_current_liabilities",
-    "bs_cl__total_current_liabilities",
-    "bs_equity__minority_interest_equity",
-    "bs_equity__permanent_equity",
-    "bs_equity__revaluation_reserves",
-    "bs_equity__auditor_adj_on_retained_profits",
-    "bs_equity__treasury_shares",
-    "bs_equity__accum_oth_eqty_rsrv_inc"
-   ],
    "type": "calculated",
    "namespace": "template"
   },
@@ -15215,15 +15203,6 @@
    "inherits": "cf_financing",
    "face_only": false,
    "match_priority": 100,
-   "is_gross_parent": true,
-   "children_if_decomposed": [
-    "cf_financing__end_of_period_cash_and_cash_equiv",
-    "cf_financing__beg_of_period_cash_and_cash_equiv",
-    "cf_oper_indirect__cash_flows_oper_activ_indirect",
-    "cf_investing__cash_flows_from_invest_activities",
-    "cf_financing__cash_flows_from_finance_activities",
-    "cf_financing__net_foreign_exchange_difference"
-   ],
    "type": "calculated",
    "terms": [
     {
