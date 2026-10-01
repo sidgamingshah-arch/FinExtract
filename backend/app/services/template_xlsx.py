@@ -21,6 +21,8 @@ from __future__ import annotations
 import io
 import re
 
+from app.core.models.enums import SignConvention
+from app.services.mapping import normalize_statement
 from app.services.statements import TITLES as STATEMENT_TITLES
 
 # Column order of the Template sheet. Kept as data so the reader and the writer cannot drift.
@@ -32,6 +34,13 @@ from app.services.statements import TITLES as STATEMENT_TITLES
 # removal. An analyst's saved copy of an older workbook still re-imports cleanly: :func:`_cells`
 # matches on HEADER TEXT, so the leftover column is ignored rather than shifting every value one
 # to the left — it simply stops being able to set the key.
+#
+# EVERY COLUMN HERE IS REQUIRED ON THE WAY BACK IN. Only four used to be: a workbook without its
+# Section column then published every line as a top-level section, one without Role published no
+# subtotal or total, and one without Sign turned every natural_negative line natural — each a
+# valid template that said something the author never wrote, because every column has a default
+# for a blank cell and a missing column reads as a blank cell on every row. A column of the author's own (notes, the
+# legacy 'Required') is still ignored; a column of OURS that is absent is refused by name.
 COLUMNS = [
     ("statement", "Statement"),
     ("section", "Section"),
@@ -63,11 +72,47 @@ _KINDS = {KIND_EXTRACTED, KIND_CALCULATED, KIND_HEADING}
 _OPS = {"sum", "diff"}
 _ROLES = {"header", "line", "subtotal", "total"}
 _LOCALES = ("zh", "ar", "fr")
+# Exactly the values ``schemas.template.TemplateNode.sign`` accepts, checked on the row that names
+# one: left to the schema, a typo was refused at publish with an enum error naming no row.
+_SIGNS = tuple(s.value for s in SignConvention)
 
 # The vocabulary lives in ``services.statements`` because the API serves it too — a screen
 # offering a statement this importer would refuse is a disagreement with no owner.
 _STATEMENT_TITLE = STATEMENT_TITLES
 _TITLE_STATEMENT = {v.lower(): k for k, v in _STATEMENT_TITLE.items()}
+
+# The Identities sheet, read by header text exactly as the Template sheet is. It used to be read by
+# POSITION, so an inserted or reordered column moved values between fields without an error: with
+# the two tolerance columns swapped, the balance-sheet identity's relative tolerance went from 0.1%
+# to 100% and it could no longer fail.
+IDENTITY_COLUMNS = [
+    ("statement", "Statement"),
+    ("id", "Identity ID"),
+    ("lhs", "Left (canonical key)"),
+    ("op", "Calculation"),
+    ("rhs", "Right (canonical keys)"),
+    ("tolerance_abs", "Tolerance (abs)"),
+    ("tolerance_rel", "Tolerance (rel)"),
+]
+
+# The Read me row that names the template a workbook was downloaded from, so an upload under a new
+# key can still find what the sheet itself cannot carry (see :func:`import_workbook`).
+_SOURCE_KEY_LABEL = "Template key"
+
+
+def _sheet_statement(st_type) -> str | None:
+    """A definition's statement type → the workbook's spelling of it, or None when the workbook
+    has no row for it. Folded first: a definition may store ``equity_changes``, which is the
+    enum's spelling of the statement the sheet calls "Changes in equity"."""
+    st = normalize_statement(str(st_type or ""))
+    return st if st in _STATEMENT_TITLE else None
+
+
+def inexpressible_statements(definition: dict) -> list[str]:
+    """The statement types in a definition that a workbook cannot hold — a row for one is refused
+    on the way back in, so the template can be read as a workbook but not authored as one."""
+    return [str(st.get("type") or "") for st in definition.get("statements") or []
+            if _sheet_statement(st.get("type")) is None]
 
 
 class TemplateSheetError(ValueError):
@@ -140,7 +185,7 @@ def build_template_xlsx(definition: dict, *, filename_hint: str = "template") ->
 
     for stmt in definition.get("statements", []):
         st = str(stmt.get("type") or "")
-        title = _STATEMENT_TITLE.get(st, st.replace("_", " ").capitalize())
+        title = _STATEMENT_TITLE.get(_sheet_statement(st) or "", st.replace("_", " ").capitalize())
         for sec in stmt.get("sections") or []:
             write(sec, title, "")
             for child in sec.get("children") or []:
@@ -155,13 +200,12 @@ def build_template_xlsx(definition: dict, *, filename_hint: str = "template") ->
 
     # --- identity checks (statement-level, also calculated relationships) ---
     ids = wb.create_sheet("Identities")
-    ids.append(["Statement", "Identity ID", "Left (canonical key)", "Calculation",
-                "Right (canonical keys)", "Tolerance (abs)", "Tolerance (rel)"])
+    ids.append([h for _k, h in IDENTITY_COLUMNS])
     for c in ids[1]:
         c.font, c.fill = head_font, head_fill
     for stmt in definition.get("statements", []):
         st = str(stmt.get("type") or "")
-        title = _STATEMENT_TITLE.get(st, st)
+        title = _STATEMENT_TITLE.get(_sheet_statement(st) or "", st)
         for ident in stmt.get("identities", []) or []:
             rhs = ident.get("rhs") or {}
             ids.append([title, ident.get("id") or "", ident.get("lhs") or "",
@@ -181,6 +225,9 @@ def build_template_xlsx(definition: dict, *, filename_hint: str = "template") ->
     lines = [
         ("Template", f"{definition.get('name') or filename_hint} "
                      f"(key: {definition.get('template_key') or '—'})"),
+        # Machine-read on upload: an upload under a NEW key carries forward from this template what
+        # the sheet cannot hold. Leave it as it is.
+        (_SOURCE_KEY_LABEL, definition.get("template_key") or ""),
         ("", ""),
         ("How to use this", "Edit the Template sheet, then upload it back on the Template & "
                             "Ontology screen. A new template VERSION is created — earlier runs "
@@ -207,7 +254,10 @@ def build_template_xlsx(definition: dict, *, filename_hint: str = "template") ->
         ("Calculated from", "One canonical key per line. These are recomputed and compared with "
                             "the extracted figure, which is what makes a mis-mapping show up as a "
                             "failed check instead of a wrong number."),
-        ("Sign", "natural (as reported) or contra (an expense/outflow shown positive)."),
+        # This used to offer "natural or contra". 'contra' is not a sign convention the schema
+        # knows, so a line marked with it was refused at publish with an enum error naming no row.
+        ("Sign", f"One of {', '.join(_SIGNS)}. Leave natural (as reported) unless the "
+                 f"template you downloaded already says otherwise for the line."),
         # This entry used to promise that 'yes' flagged a line "whose absence should be raised".
         # Nothing raises it: there is no post-run completeness check anywhere in app/. 'Required'
         # was the worse half of that promise — read by no code at all — and its column is now
@@ -221,8 +271,28 @@ def build_template_xlsx(definition: dict, *, filename_hint: str = "template") ->
         ("", ""),
         ("Shading", "Grey rows are section headings. Amber rows are calculated lines."),
         ("Identities sheet", "Statement-level equalities (e.g. total assets = total equity and "
-                             "liabilities) checked after extraction, with their tolerances."),
+                             "liabilities) checked after extraction, with their tolerances. "
+                             "Columns are read by header text. Deleting the sheet is refused "
+                             "when the template has identities; to remove them all, keep the "
+                             "sheet with only its header row."),
+        ("", ""),
+        ("Not in this workbook", "Residual subtotals checked against a reported total, KPI "
+                                 "ratios, statement headings and cross-statement ties have no "
+                                 "column here. Uploading onto this template keeps them as they "
+                                 "are; an edit that would change a residual line's Kind, "
+                                 "Calculation or 'Calculated from' is refused — make that edit "
+                                 "in the JSON template."),
+        ("Every column is read", "Do not delete, merge or duplicate a column header, and do not "
+                                 "merge cells under a header: a merged cell is read as blank in "
+                                 "every row but its first. Columns may be reordered, and columns "
+                                 "of your own may be added."),
     ]
+    lost = inexpressible_statements(definition)
+    if lost:
+        lines.insert(3, ("CANNOT BE UPLOADED BACK",
+                         f"This template declares statement(s) a workbook cannot hold "
+                         f"({', '.join(lost)}). This file is for reading; an upload of it is "
+                         f"refused. Edit the template as JSON instead."))
     for a, b in lines:
         rm.append([a, b])
         rm.cell(rm.max_row, 1).font = sec_font
@@ -234,21 +304,67 @@ def build_template_xlsx(definition: dict, *, filename_hint: str = "template") ->
     return buf.getvalue()
 
 
-def _cells(ws) -> list[dict]:
+def _letter(i: int) -> str:
+    """A 0-based column index → its sheet letter, for a message an admin can find the cell by."""
+    from openpyxl.utils import get_column_letter
+
+    return get_column_letter(i + 1)
+
+
+def _cells(ws, columns=COLUMNS, sheet: str = "Template") -> list[dict]:
     """Sheet rows as dicts keyed by our column names, matched on the HEADER TEXT so a reordered
-    or extra column in an edited workbook doesn't shift every value one to the left."""
+    or extra column in an edited workbook doesn't shift every value one to the left.
+
+    WHAT IS REFUSED HERE, AND WHY NONE OF IT COULD BE READ ANYWAY. Each of these used to come back
+    as a well-formed row with some of its values missing, and every column has a default for a
+    missing value — so the edit published, and said something nobody wrote:
+
+    * a MERGED HEADER hides the columns under it (a Statement+Section merge lost Section, and every
+      line became a top-level section);
+    * a recognised header seen TWICE resolved to whichever came last, so a blank duplicate 'Sign'
+      added at the end turned every contra line natural;
+    * a MISSING column read as blank on every row (no Role column: no subtotal, no total);
+    * a MERGED DATA CELL holds its value in its first cell only, so merged Section cells over six
+      lines promoted five of them to top-level sections.
+    """
+    for rng in ws.merged_cells.ranges:
+        if rng.min_row <= 1:
+            raise TemplateSheetError(
+                f"{sheet} sheet, header row: cells {rng.coord} are merged. Unmerge them so every "
+                f"column has a header of its own — the columns under a merged header cannot be "
+                f"identified, so their values would be read as missing.")
     header = [str(c.value or "").strip().lower() for c in ws[1]]
-    by_head = {h.lower(): k for k, h in COLUMNS}
-    idx = {}
+    by_head = {h.lower(): (k, h) for k, h in columns}
+    idx: dict[str, int] = {}
+    title_at: dict[int, str] = {}
     for i, h in enumerate(header):
-        key = by_head.get(h)
-        if key:
-            idx[key] = i
-    missing = [h for k, h in COLUMNS
-               if k in ("statement", "canonical_key", "label", "kind") and k not in idx]
+        hit = by_head.get(h)
+        if not hit:
+            continue                                   # a column of the author's own, or 'Required'
+        key, title = hit
+        if key in idx:
+            raise TemplateSheetError(
+                f"{sheet} sheet, header row: '{title}' appears twice (columns {_letter(idx[key])} "
+                f"and {_letter(i)}). Delete or rename one of them — only one can be read, and "
+                f"which one would be a guess.")
+        idx[key] = i
+        title_at[i] = title
+    missing = [h for k, h in columns if k not in idx]
     if missing:
         raise TemplateSheetError(
-            f"The Template sheet is missing required column(s): {', '.join(missing)}")
+            f"{sheet} sheet, header row: missing column(s) "
+            f"{', '.join(repr(h) for h in missing)}. Every column of the downloaded workbook is "
+            f"read, and without one every row would be published with that column's default. "
+            f"Restore it with the header spelled as downloaded (columns may be reordered, and "
+            f"columns of your own may be added).")
+    for rng in ws.merged_cells.ranges:
+        hit = [title_at[i] for i in range(rng.min_col - 1, rng.max_col) if i in title_at]
+        if hit:
+            raise TemplateSheetError(
+                f"{sheet} sheet, cells {rng.coord}: merged across the "
+                f"{', '.join(repr(h) for h in hit)} column. Unmerge them and type the value into "
+                f"every row — a merged range holds its value in its first cell only, so every "
+                f"other row in it would be read with that column blank.")
     out = []
     for n, row in enumerate(ws.iter_rows(min_row=2), start=2):
         vals = {k: row[i].value if i < len(row) else None for k, i in idx.items()}
@@ -289,14 +405,130 @@ def _statement_type(title: str) -> str | None:
     return next((st for st, disp in _STATEMENT_TITLE.items() if _slug(disp) == slug), None)
 
 
-def parse_template_xlsx(data: bytes, *, template_key: str, name: str) -> dict:
+def _tolerance(v, row_no: int, header: str) -> float | None:
+    """A tolerance cell → a number, or None for a blank one (the schema default applies).
+
+    Strict for the same reason the columns are read by header: a tolerance that was not a number
+    used to be dropped in silence, so a typo restored the default and nobody was told."""
+    if v is None or not _s(v):
+        return None
+    num = None
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        num = float(v)
+    elif not isinstance(v, bool):
+        try:
+            num = float(_s(v))
+        except ValueError:
+            num = None
+    if num is None or num < 0:
+        raise TemplateSheetError(
+            f"Identities row {row_no}: {header} must be a number of zero or more, not '{_s(v)}'. "
+            f"Leave it blank to use the default.")
+    return num
+
+
+def _walk(nodes):
+    for n in nodes or ():
+        yield n
+        yield from _walk(n.get("children"))
+
+
+def _nodes_of(definition: dict):
+    for st in definition.get("statements") or ():
+        yield from _walk(st.get("sections"))
+
+
+# What a rollup can say that the sheet's two columns — Calculation and Calculated from — cannot,
+# with the value that means "nothing was said". A field off its default here is a RESIDUAL (or a
+# magnitude convention), and rebuilt from op and children alone it silently becomes a plain sum:
+# on the five reference filings that is 29 false structural failures, the "residual read as an
+# equation" break ``structural_checks`` exists to prevent.
+_ROLLUP_DEFAULTS = {"reported_total_key": None, "reported_total_op": "sum",
+                    "use_reported_total_components": False, "cost_magnitude_children": []}
+
+
+def _rollup_extras(rollup: dict | None) -> dict:
+    return {k: v for k, v in (rollup or {}).items()
+            if k not in ("op", "children") and v != _ROLLUP_DEFAULTS.get(k)}
+
+
+def _describe(extras: dict) -> str:
+    parts = []
+    if extras.get("reported_total_key"):
+        parts.append(f"checked against the reported total '{extras['reported_total_key']}'")
+    if extras.get("use_reported_total_components"):
+        parts.append("built from the reported total's own components")
+    if extras.get("reported_total_op", "sum") != "sum":
+        parts.append(f"combined with its reported total by {extras['reported_total_op']}")
+    if extras.get("cost_magnitude_children"):
+        parts.append("with " + ", ".join(extras["cost_magnitude_children"])
+                     + " spent as magnitudes")
+    return "; ".join(parts) or "with rollup fields the workbook has no column for"
+
+
+def workbook_source_key(data: bytes) -> str | None:
+    """The template key a workbook was downloaded from, off its Read me sheet, or None.
+
+    Read from the machine row the writer puts there, falling back to the "(key: …)" the title row
+    has always carried, so a workbook downloaded before that row existed still names its source."""
+    import openpyxl
+
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(data), data_only=True)
+    except Exception:  # noqa: BLE001 — a corrupt file is the importer's error to report
+        return None
+    if "Read me" not in wb.sheetnames:
+        return None
+    fallback = None
+    for row in wb["Read me"].iter_rows(max_col=2, values_only=True):
+        a, b = (list(row) + [None, None])[:2]
+        if _s(a) == _SOURCE_KEY_LABEL and _s(b):
+            return _s(b)
+        if _s(a) == "Template" and fallback is None:
+            m = re.search(r"\(key: ([^)\s]+)\)\s*$", _s(b))
+            if m and m.group(1) != "—":
+                fallback = m.group(1)
+    return fallback
+
+
+def parse_template_xlsx(data: bytes, *, template_key: str, name: str,
+                        previous: dict | None = None) -> dict:
     """An edited workbook → a template definition, or a TemplateSheetError naming the bad row.
+
+    See :func:`import_workbook`, which also says what was carried forward from ``previous``."""
+    return import_workbook(data, template_key=template_key, name=name, previous=previous)[0]
+
+
+def import_workbook(data: bytes, *, template_key: str, name: str,
+                    previous: dict | None = None) -> tuple[dict, list[str]]:
+    """An edited workbook → ``(definition, carried)``, or a TemplateSheetError naming the bad row.
 
     Deliberately strict. A template drives what every extraction maps to and what every check
     recomputes, so a row this reader is unsure about is a row it refuses: guessing here would
     show up much later as a figure on the wrong line.
+
+    ``previous`` is the definition the workbook is being published over — the latest version of
+    its key, or of the template it was downloaded from. THE SHEET CANNOT SAY EVERYTHING A JSON
+    TEMPLATE CAN: residual rollups (``reported_total_key`` and its companions), the KPI block,
+    statement headings, cross-statement ties, labels in a locale without a column. Rebuilding the
+    template from the sheet alone dropped all of them, and the result was still schema-valid, so
+    no gate downstream could notice. They are now carried forward from ``previous`` wherever the
+    sheet left the line they hang on unchanged, and every carry is named in ``carried`` so the
+    upload can say so. An edit that would CHANGE one of them — a residual's components rewritten,
+    a KPI's line deleted, a statement the sheet has no row for — is refused instead, because the
+    sheet has no way to say what the author meant it to become.
     """
     import openpyxl
+
+    if previous:
+        lost = inexpressible_statements(previous)
+        if lost:
+            raise TemplateSheetError(
+                f"Template '{previous.get('template_key') or template_key}' declares "
+                f"statement(s) a workbook cannot hold: {', '.join(lost)}. Publishing a workbook "
+                f"over it would drop them and every line in them, so it is refused. Edit this "
+                f"template as JSON and upload that instead.")
+    prev_nodes = {n.get("canonical_key"): n for n in _nodes_of(previous or {})}
 
     wb = openpyxl.load_workbook(io.BytesIO(data), data_only=True)
     if "Template" not in wb.sheetnames:
@@ -319,6 +551,7 @@ def parse_template_xlsx(data: bytes, *, template_key: str, name: str) -> dict:
     statements: dict[str, dict] = {}
     order: list[str] = []
     sections: dict[tuple[str, str], dict] = {}
+    row_of: dict[str, int] = {}
 
     for r in rows:
         row_no = r["_row"]
@@ -329,9 +562,11 @@ def parse_template_xlsx(data: bytes, *, template_key: str, name: str) -> dict:
         if st is None:
             raise TemplateSheetError(
                 f"Row {row_no}: unknown Statement '{title}'. Use one of: "
-                f"{', '.join(sorted(_STATEMENT_TITLE.values()))}.")
+                f"{', '.join(sorted(_STATEMENT_TITLE.values()))}. A template with any other "
+                f"statement can only be authored as JSON.")
 
         key = _s(r.get("canonical_key"))
+        row_of[key] = row_no
         label = _s(r.get("label"))
         if not label:
             raise TemplateSheetError(f"Row {row_no}: Label (en) is required for '{key}'.")
@@ -343,10 +578,20 @@ def parse_template_xlsx(data: bytes, *, template_key: str, name: str) -> dict:
         if role not in _ROLES:
             raise TemplateSheetError(
                 f"Row {row_no}: Role must be one of {', '.join(sorted(_ROLES))}, not '{role}'.")
+        sign = _s(r.get("sign")).lower() or "natural"
+        if sign not in _SIGNS:
+            raise TemplateSheetError(
+                f"Row {row_no}: Sign must be one of {', '.join(_SIGNS)}, not '{sign}'.")
         children = _keys(r.get("children"))
         op = _s(r.get("op")).lower() or "sum"
         if kind == KIND_CALCULATED:
-            if not children:
+            # The one calculated line that legitimately names no components: a residual built from
+            # its reported total's own components. The sheet cannot declare that, so it is
+            # accepted only where the version being replaced already says so — and then carried.
+            prev_roll = (prev_nodes.get(key) or {}).get("rollup") or {}
+            childless_residual = (not children and not prev_roll.get("children")
+                                  and bool(prev_roll.get("use_reported_total_components")))
+            if not children and not childless_residual:
                 raise TemplateSheetError(
                     f"Row {row_no}: '{key}' is marked {KIND_CALCULATED} but 'Calculated from' is "
                     f"empty — a calculated line has to say what it is calculated from.")
@@ -371,7 +616,7 @@ def parse_template_xlsx(data: bytes, *, template_key: str, name: str) -> dict:
             "label_i18n": {"en": label,
                            **{loc: _s(r.get(f"label_{loc}")) for loc in _LOCALES
                               if _s(r.get(f"label_{loc}"))}},
-            "sign": _s(r.get("sign")).lower() or "natural",
+            "sign": sign,
         }
         if _truthy(r.get("expects_note")):
             node["expects_note"] = True
@@ -397,29 +642,177 @@ def parse_template_xlsx(data: bytes, *, template_key: str, name: str) -> dict:
             parent["children"].append(node)
 
     # --- identities ---
-    if "Identities" in wb.sheetnames:
-        ws = wb["Identities"]
-        for n, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
-            cells = list(row) + [None] * (7 - len(row))
-            title, ident_id, lhs, op, rhs, tol_abs, tol_rel = cells[:7]
-            if not _s(ident_id) and not _s(lhs):
+    ident_row_of: dict[str, int] = {}
+    has_identities = "Identities" in wb.sheetnames
+    if has_identities:
+        for r in _cells(wb["Identities"], IDENTITY_COLUMNS, "Identities"):
+            n = r["_row"]
+            title, ident_id, lhs = _s(r.get("statement")), _s(r.get("id")), _s(r.get("lhs"))
+            if not ident_id and not lhs:
                 continue
-            st = _statement_type(_s(title)) or _slug(_s(title))
+            if not lhs:
+                raise TemplateSheetError(
+                    f"Identities row {n}: Left (canonical key) is required for '{ident_id}'.")
+            st = _statement_type(title) or _slug(title)
             if st not in statements:
                 raise TemplateSheetError(
-                    f"Identities row {n}: statement '{_s(title)}' is not in the Template sheet.")
-            terms = _keys(rhs)
-            for k in [_s(lhs), *terms]:
-                if k and k not in known:
+                    f"Identities row {n}: statement '{title}' is not in the Template sheet.")
+            terms = _keys(r.get("rhs"))
+            for k in [lhs, *terms]:
+                if k not in known:
                     raise TemplateSheetError(
                         f"Identities row {n}: '{k}' is not a canonical key in this template.")
-            ident = {"id": _s(ident_id) or f"{st}_identity_{n}", "lhs": _s(lhs),
-                     "rhs": {"op": _s(op).lower() or "sum", "children": terms}}
-            if isinstance(tol_abs, (int, float)):
-                ident["tolerance_abs"] = float(tol_abs)
-            if isinstance(tol_rel, (int, float)):
-                ident["tolerance_rel"] = float(tol_rel)
+            op = _s(r.get("op")).lower() or "sum"
+            if op not in _OPS:
+                raise TemplateSheetError(
+                    f"Identities row {n}: Calculation must be one of {', '.join(sorted(_OPS))}, "
+                    f"not '{op}'.")
+            ident = {"id": ident_id or f"{st}_identity_{n}", "lhs": lhs,
+                     "rhs": {"op": op, "children": terms}}
+            for field, header in (("tolerance_abs", "Tolerance (abs)"),
+                                  ("tolerance_rel", "Tolerance (rel)")):
+                tol = _tolerance(r.get(field), n, header)
+                if tol is not None:
+                    ident[field] = tol
+            ident_row_of[ident["id"]] = n
             statements[st]["identities"].append(ident)
 
-    return {"schema_version": 1, "template_key": template_key, "name": name,
-            "statements": [statements[st] for st in order]}
+    definition = {"schema_version": 1, "template_key": template_key, "name": name,
+                  "statements": [statements[st] for st in order]}
+    carried = (_carry_forward(definition, previous, row_of, ident_row_of, has_identities)
+               if previous else [])
+    return definition, carried
+
+
+def _carry_forward(definition: dict, previous: dict, row_of: dict[str, int],
+                   ident_row_of: dict[str, int], has_identities: bool) -> list[str]:
+    """Put back onto ``definition`` what ``previous`` says and the sheet cannot; refuse what it
+    cannot put back faithfully. Returns one line per kind of thing carried, for the upload to
+    report. See :func:`import_workbook`."""
+    import copy
+
+    src = previous.get("template_key") or "the current template"
+    keys = {n["canonical_key"] for n in _nodes_of(definition)}
+    prev_nodes = {n.get("canonical_key"): n for n in _nodes_of(previous)}
+    carried: list[str] = []
+
+    # --- lines: residual rollups, and labels in a locale the sheet has no column for ---
+    residuals = 0
+    locales: set[str] = set()
+    for node in _nodes_of(definition):
+        key = node["canonical_key"]
+        old = prev_nodes.get(key)
+        if old is None:
+            continue                                   # a line the workbook added
+        row = row_of[key]
+        for loc, text in (old.get("label_i18n") or {}).items():
+            if loc not in ("en", *_LOCALES) and text and loc not in node["label_i18n"]:
+                node["label_i18n"][loc] = text
+                locales.add(loc)
+        old_roll = old.get("rollup") or {}
+        extras = _rollup_extras(old_roll)
+        if not extras:
+            continue
+        old_op, old_children = old_roll.get("op") or "sum", list(old_roll.get("children") or [])
+        new_roll = node.get("rollup")
+        if (new_roll is None or new_roll["op"] != old_op
+                or list(new_roll["children"]) != old_children):
+            raise TemplateSheetError(
+                f"Row {row}: '{key}' is a residual line in '{src}' ({_describe(extras)}), and the "
+                f"workbook has no column for that. Its Kind, Calculation or 'Calculated from' was "
+                f"changed, which would publish it as a plain calculation and drop the residual. "
+                f"Restore Kind '{KIND_CALCULATED}', Calculation '{old_op}' and 'Calculated from' "
+                f"{', '.join(old_children) or '(blank)'}, or make this edit in the JSON template.")
+        rtk = extras.get("reported_total_key")
+        if rtk and rtk not in keys:
+            raise TemplateSheetError(
+                f"Row {row}: '{key}' is checked against the reported total '{rtk}', which is no "
+                f"longer in the Template sheet. Keep the '{rtk}' row, or make this edit in the "
+                f"JSON template.")
+        new_roll.update(copy.deepcopy(extras))
+        residuals += 1
+    if residuals:
+        carried.append(f"the reported-total and magnitude fields of {residuals} rollup(s)")
+    if locales:
+        carried.append(f"labels in {', '.join(sorted(locales))}")
+
+    # --- statements: headings and anything else declared beside the section tree ---
+    prev_st = {_sheet_statement(st.get("type")): st for st in previous.get("statements") or ()}
+    headed = 0
+    for st in definition["statements"]:
+        old = prev_st.get(st["type"])
+        if not old:
+            continue
+        kept = False
+        for k, v in old.items():
+            if k in ("type", "sections", "identities") or v in (None, "", [], {}):
+                continue
+            st[k] = copy.deepcopy(v)
+            kept = True
+        headed += kept
+    if headed:
+        carried.append(f"heading(s) of {headed} statement(s)")
+
+    # --- identities: a deleted sheet is not "no identities", and a residual rhs is kept ---
+    prev_idents = [i for st in previous.get("statements") or () for i in st.get("identities") or ()]
+    if prev_idents and not has_identities:
+        raise TemplateSheetError(
+            f"The workbook has no 'Identities' sheet, but '{src}' declares {len(prev_idents)} "
+            f"identit{'y' if len(prev_idents) == 1 else 'ies'} "
+            f"({', '.join(str(i.get('id')) for i in prev_idents)}); publishing it would drop "
+            f"every one. Restore the sheet from a fresh download — to remove them deliberately, "
+            f"keep the sheet with only its header row.")
+    prev_by_id = {i.get("id"): i for i in prev_idents}
+    for st in definition["statements"]:
+        for ident in st["identities"]:
+            old_rhs = (prev_by_id.get(ident["id"]) or {}).get("rhs") or {}
+            extras = _rollup_extras(old_rhs)
+            if not extras:
+                continue
+            if (ident["rhs"]["op"] != (old_rhs.get("op") or "sum")
+                    or ident["rhs"]["children"] != list(old_rhs.get("children") or [])):
+                raise TemplateSheetError(
+                    f"Identities row {ident_row_of[ident['id']]}: '{ident['id']}' is "
+                    f"{_describe(extras)} in '{src}', which the sheet cannot express, and its "
+                    f"Calculation or right-hand side was changed. Restore them, or make this "
+                    f"edit in the JSON template.")
+            ident["rhs"].update(copy.deepcopy(extras))
+
+    # --- the template's own blocks: KPIs, cross-statement ties ---
+    for k, v in previous.items():
+        if k in ("schema_version", "template_key", "name", "statements") or not v:
+            continue
+        if k == "kpis":
+            inters = list(v.get("intermediates") or ())
+            ratios = list(v.get("ratios") or ())
+            if not inters and not ratios:
+                continue
+            names = {i.get("key") for i in inters}
+            broken = []
+            for item in inters + ratios:
+                for term in [*(item.get("terms") or ()), *(item.get("numerator") or ()),
+                             *(item.get("denominator") or ())]:
+                    for ref in [term.get("key"), *(term.get("fallback_keys") or ())]:
+                        if ref and ref not in keys and ref not in names:
+                            broken.append(f"{item.get('key')} uses {ref}")
+            if broken:
+                raise TemplateSheetError(
+                    f"'{src}' has KPI(s) built on line(s) this workbook no longer has: "
+                    f"{'; '.join(broken)}. A workbook cannot edit KPIs, so publishing it would "
+                    f"leave them unable to compute. Keep those rows, or remove the KPIs in the "
+                    f"JSON template first.")
+            carried.append(f"{len(ratios)} KPI ratio(s) and {len(inters)} KPI intermediate(s)")
+        elif k == "cross_statement_ties":
+            broken = [f"{t.get('id')} uses {side.get('key')}" for t in v
+                      for side in (t.get("lhs") or {}, t.get("rhs") or {})
+                      if side.get("key") and side.get("key") not in keys]
+            if broken:
+                raise TemplateSheetError(
+                    f"'{src}' has cross-statement tie(s) on line(s) this workbook no longer has: "
+                    f"{'; '.join(broken)}. Keep those rows, or remove the ties in the JSON "
+                    f"template first.")
+            carried.append(f"{len(v)} cross-statement tie(s)")
+        else:
+            carried.append(f"'{k}'")
+        definition[k] = copy.deepcopy(v)
+    return carried

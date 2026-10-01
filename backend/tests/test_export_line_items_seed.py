@@ -3,9 +3,10 @@
 WHAT THIS IS FOR. `sample/reference.ensure_reference_data` publishes the shipped seed into
 `line_item_versions` at every boot, and `scripts/reconcile_reference_data.py` repairs a database
 that has drifted from the files. Both run file -> database. An analyst's work on the Line Items
-screen therefore lived in one database: it survives a restart OF THAT DATABASE (`_already_stored`
-asks "has this file's content ever been published", not "does it differ from the newest row",
-precisely so a boot does not republish the file over a human edit) and does not survive a NEW one —
+screen therefore lived in one database: it survives a restart OF THAT DATABASE (the boot refresh,
+`sample.reference._plan`, publishes over a human edit only for content never stored, and restores
+earlier content only over its own last write, so a restart does not republish the file over a
+human edit) and does not survive a NEW one —
 a fresh container, a redeploy, a colleague's clone, or this suite, which points
 `FINEX_DATABASE_URL` at an empty temp database.
 

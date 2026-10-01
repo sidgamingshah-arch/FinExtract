@@ -183,8 +183,17 @@ async def create_template_from_xlsx(
     Uploading onto an existing ``template_key`` publishes the next version of it rather than
     replacing anything: a past extraction still explains itself against the version it actually
     ran with. Leave the key blank to start a new template from the workbook's own name.
+
+    WHAT THE SHEET CANNOT SAY IS CARRIED, AND SAID SO. The workbook has no column for a residual
+    rollup's reported total, the KPI block, statement headings or cross-statement ties, and this
+    route used to publish whatever the sheet held: a schema-valid template that had silently lost
+    all of them, so no gate in ``_publish`` could notice. The importer now carries them forward from
+    the version being replaced — the latest of the target key or, for a new key, of the template
+    the workbook was downloaded from — and refuses an edit that would change one. The response's
+    ``carried_forward`` names what was kept, so the keeping is not silent either.
     """
-    from app.services.template_xlsx import TemplateSheetError, parse_template_xlsx
+    from app.services.template_xlsx import (
+        TemplateSheetError, import_workbook, workbook_source_key)
 
     raw = await file.read()
     if not raw:
@@ -192,8 +201,11 @@ async def create_template_from_xlsx(
     stem = re.sub(r"\.(xlsx|xlsm)$", "", file.filename or "template", flags=re.IGNORECASE)
     title = (name or stem).strip() or "Template"
     key = _slug(template_key) or _slug(title) or "template"
+    lineage = _latest_version(session, key) or _latest_version(session, workbook_source_key(raw))
     try:
-        definition = parse_template_xlsx(raw, template_key=key, name=title)
+        definition, carried = import_workbook(
+            raw, template_key=key, name=title,
+            previous=lineage.definition if lineage is not None else None)
     except TemplateSheetError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001 — a corrupt/foreign workbook
@@ -201,7 +213,27 @@ async def create_template_from_xlsx(
             status_code=422,
             detail=f"That file could not be read as a template workbook ({exc}). Download the "
                    f"current template, edit it, and upload that.") from exc
-    return _publish(session, definition)
+    published = _publish(session, definition)
+    if carried:
+        published["carried_forward"] = {
+            "from": {"template_key": lineage.template_key, "version": lineage.version},
+            "kept": carried,
+        }
+    return published
+
+
+def _latest_version(session: Session, template_key: str | None):
+    """The newest stored version of a template key, or None — also for a blank key."""
+    from app.db.models import TemplateVersion
+
+    if not template_key:
+        return None
+    return session.execute(
+        select(TemplateVersion)
+        .where(TemplateVersion.template_key == template_key)
+        .order_by(TemplateVersion.version.desc())
+        .limit(1)
+    ).scalars().first()
 
 
 @router.get("/xlsx/columns")
@@ -219,7 +251,8 @@ def template_xlsx_columns() -> dict:
              "help": "Computed from other lines and never mapped; needs 'Calculated from'."},
             {"value": KIND_HEADING, "help": "A section heading; carries no figure."},
         ],
-        "required": ["Statement", "Canonical key", "Label (en)", "Kind"],
+        # Every column: one left out used to publish every row at that column's default.
+        "required": [h for _k, h in COLUMNS],
     }
 
 

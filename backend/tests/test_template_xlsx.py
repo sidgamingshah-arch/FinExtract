@@ -165,18 +165,29 @@ def test_reordered_and_extra_columns_do_not_shift_the_values():
     # workbook still reads correctly instead of filing every value one column to the left.
     import openpyxl
 
+    from app.services.template_xlsx import COLUMNS
+
+    rest = [h for _k, h in COLUMNS
+            if h not in ("Kind", "Canonical key", "Label (en)", "Statement", "Section", "Role",
+                         "Sign")]
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Template"
-    ws.append(["My notes", "Kind", "Canonical key", "Label (en)", "Statement", "Section", "Role"])
-    ws.append(["check this", KIND_HEADING, "sec", "Current assets", "Balance sheet", "", "header"])
-    ws.append(["", KIND_EXTRACTED, "a", "Cash", "Balance sheet", "sec", "line"])
+    ws.append(["My notes", "Kind", "Canonical key", "Label (en)", "Statement", "Section", "Role",
+               "Required", "Sign", *rest])
+    ws.append(["check this", KIND_HEADING, "sec", "Current assets", "Balance sheet", "", "header",
+               "yes", "natural"])
+    ws.append(["", KIND_EXTRACTED, "a", "Cash", "Balance sheet", "sec", "line", "",
+               "natural_negative"])
     buf = io.BytesIO()
     wb.save(buf)
     d = parse_template_xlsx(buf.getvalue(), template_key="t", name="T")
     sec = d["statements"][0]["sections"][0]
     assert sec["canonical_key"] == "sec"
     assert [c["canonical_key"] for c in sec["children"]] == ["a"]
+    assert sec["children"][0]["sign"] == "natural_negative"
+    # The legacy 'Required' column is a column of the author's own now: read by nothing.
+    assert "required" not in sec
 
 
 def test_a_workbook_that_is_not_a_template_says_so():

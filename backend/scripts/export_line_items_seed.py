@@ -6,10 +6,11 @@ seed into `line_item_versions` at every boot, and `scripts/reconcile_reference_d
 database that has drifted from the files. Both run file -> database. Nothing ran the other way, so
 an analyst's work on the Line Items screen lived in exactly one database:
 
-  * IT DOES survive a restart of that database. `_already_stored` asks "has this file's content
-    ever been published", not "does it differ from the newest row", precisely so a boot does not
-    republish the file on top of a human edit. The edit stays newest, and `config_select` says the
-    latest set wins, so it stays in force.
+  * IT DOES survive a restart of that database. The boot refresh (`sample.reference._plan`)
+    publishes over a human edit only when the file has changed to content never stored, and
+    restores earlier content only over its OWN last write — never merely because the file differs
+    from the newest row. The edit stays newest, and `config_select` says the latest set wins, so it
+    stays in force.
   * IT DOES NOT survive a NEW database — a fresh container, a redeploy, a colleague's clone, or the
     test suite, which points `FINEX_DATABASE_URL` at an empty temp database. There the seed is all
     there is, and `tests/test_retired_derivations` puts the reason plainly: "it is in git" and "it
