@@ -130,38 +130,9 @@ class KnownDefect:
     why: str
 
 
-_HK_SET = "output_csv_hk_line_items.json"
-_INDAS_SET = "output_csv_indas_line_items.json"
-
-#: The Ind AS subtotals whose `terms` are the HK set's, verbatim — 19 of 19 identical — and so name
-#: 230 keys the Ind AS set does not define. A run computes these subtotals from the TEMPLATE's
-#: rollup, so no published figure reads them; the registry calls every one an error, and the
-#: configuration screen shows all 230. `tests/test_formula_in_config.py` holds the HK copy to its
-#: template and nothing holds this one.
-_INDAS_FOREIGN_TERMS = (
-    "bs_ca__total_current_assets", "bs_cl__total_current_liabilities",
-    "bs_equity__equity_and_reserves", "bs_equity__permanent_equity",
-    "bs_equity__total_equity_and_reserves", "bs_nca__total_non_current_assets",
-    "bs_ncl__total_non_current_liabilities", "cf_financing__cash_flows_from_finance_activities",
-    "cf_investing__cash_flows_from_invest_activities",
-    "cf_oper_direct__cash_flows_oper_activ_direct",
-    "cf_oper_indirect__cash_flows_oper_activ_indirect", "is_pl__gross_profit",
-    "is_pl__net_interest_income_expense", "is_pl__net_operating_profit",
-    "is_pl__net_other_financial_inc_exp", "is_pl__other_income_expense",
-    "is_pl__profit_for_the_year", "is_pl__total_cost_of_sales", "is_pl__total_income_tax",
-)
-
 #: Every entry is a defect somebody is removing, not a defect accepted. Remove an entry when its fix
 #: lands — `tests/test_reference_data_validator.py` fails while one is listed and no longer found.
-KNOWN_DEFECTS: tuple[KnownDefect, ...] = (
-    # FOUND BY THIS VALIDATOR, AND NOT YET OWNED BY ANY FIX. See `_INDAS_FOREIGN_TERMS`. Listed so
-    # the shipped data passes while the finding is reported, not so it is forgotten: the fix is to
-    # derive these `terms` from the Ind AS template's rollups (or drop them), which is a
-    # configuration change to measure and land on its own.
-    *(KnownDefect(_INDAS_SET, "dangling-ref", key,
-                  "HK terms copied into the Ind AS set; UNOWNED — reported, not yet fixed")
-      for key in _INDAS_FOREIGN_TERMS),
-)
+KNOWN_DEFECTS: tuple[KnownDefect, ...] = ()
 
 
 #: Probe findings this script does NOT turn into a check, and why. Kept as data so the report says
@@ -176,8 +147,7 @@ RULED_OUT: tuple[tuple[str, str], ...] = (
      "reachable only by a database row that bypassed the gate; a shipped file goes through the "
      "schema, which refuses the op (boot-gate)"),
     ("a calculated line's terms disagree with its template rollup",
-     "pinned for the HK set by tests/test_formula_in_config.py; the Ind AS set's terms are the HK "
-     "set's verbatim and are reported here as dangling-ref"),
+     "pinned for both regimes by tests/test_formula_in_config.py"),
 )
 
 

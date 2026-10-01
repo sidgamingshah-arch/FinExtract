@@ -113,43 +113,50 @@ def test_every_known_defect_is_still_found(report):
         "them: " + "; ".join(f"{k.file} {k.check} {k.subject}" for k in report.stale))
 
 
-def test_a_known_defect_is_an_error_and_never_a_warning(report):
+# The shipped files carry no known defect any more, so these use a stand-in entry: the Ind AS gross
+# profit given a term naming a line the set lacks — the defect the list last held.
+_STAND_IN = V.KnownDefect(INDAS_SET, "dangling-ref", "is_pl__gross_profit", "stand-in for the test")
+
+
+def _foreign_term(key):
+    def mutate(files):
+        _item(files[INDAS_SET], key).setdefault("terms", []).append(
+            {"ref": "is_pl__no_such_line", "sign": 1})
+    return mutate
+
+
+def test_a_known_defect_is_an_error_and_never_a_warning(shipped, monkeypatch):
     """The list excuses ERRORs. A WARN is already reported without failing, so an entry for one
     would only hide it from the report."""
-    assert report.known
-    assert {f.level for f, _k in report.known} == {"ERROR"}
-    assert all((f.file, f.check, f.subject) == (k.file, k.check, k.subject)
-               for f, k in report.known)
+    monkeypatch.setattr(V, "KNOWN_DEFECTS", (_STAND_IN,))
+    r = _run(shipped, (INDAS_TEMPLATE, INDAS_SET), _foreign_term("is_pl__gross_profit"))
+    assert r.known and not r.errors() and r.exit_code == 0
+    assert {f.level for f, _k in r.known} == {"ERROR"}
+    assert all((f.file, f.check, f.subject) == (k.file, k.check, k.subject) for f, k in r.known)
 
 
-def test_a_known_defect_excuses_only_the_finding_it_names(shipped):
-    """The Ind AS gross profit's copied HK terms are KNOWN; the same defect on a key the list does
-    not name is still an ERROR."""
-    def foreign_term(files):
-        _item(files[INDAS_SET], "is_pl__profit_loss_before_tax").setdefault("terms", []).append(
-            {"ref": "is_pl__no_such_line", "sign": 1})
+def test_a_known_defect_excuses_only_the_finding_it_names(shipped, monkeypatch):
+    """The same defect on a key the list does not name is still an ERROR."""
+    monkeypatch.setattr(V, "KNOWN_DEFECTS", (_STAND_IN,))
 
-    r = _run(shipped, (INDAS_TEMPLATE, INDAS_SET), foreign_term)
+    def both(files):
+        _foreign_term("is_pl__gross_profit")(files)
+        _foreign_term("is_pl__profit_loss_before_tax")(files)
+
+    r = _run(shipped, (INDAS_TEMPLATE, INDAS_SET), both)
     assert _found(r, "dangling-ref", "is_pl__profit_loss_before_tax")
-    assert "is_pl__gross_profit" in {k.subject for f, k in r.known if f.check == "dangling-ref"}
+    assert [k.subject for _f, k in r.known] == ["is_pl__gross_profit"]
 
 
-def test_a_fixed_known_defect_is_reported_as_a_stale_entry(shipped):
-    """The mechanism behind the test above, on a copy where the fix has landed: the Ind AS gross
-    profit's terms trimmed to keys the set has, its entry is named stale and no longer excuses
-    anything — while every other entry, still matched, is not called stale."""
-    def trim(files):
-        st = files[INDAS_SET]
-        keys = {i["key"] for i in st["items"]}
-        item = _item(st, "is_pl__gross_profit")
-        item["terms"] = [t for t in item["terms"] if t["ref"] in keys]
-
-    r = _run(shipped, (INDAS_TEMPLATE, INDAS_SET), trim)
+def test_a_fixed_known_defect_is_reported_as_a_stale_entry(shipped, monkeypatch):
+    """An entry nothing matches any more — its fix has landed — is named stale, excuses nothing,
+    and fails the script on its own as well as this suite."""
+    monkeypatch.setattr(V, "KNOWN_DEFECTS", (_STAND_IN,))
+    r = _run(shipped, (INDAS_TEMPLATE, INDAS_SET))
     assert not _found(r, "dangling-ref", "is_pl__gross_profit")
     assert [(k.file, k.check, k.subject) for k in r.stale] == [
         (INDAS_SET, "dangling-ref", "is_pl__gross_profit")]
     assert "STALE ALLOWLIST ENTRY" in r.render()
-    # …and the script on its own fails on it too, not only this test suite.
     assert r.exit_code == 1
 
 

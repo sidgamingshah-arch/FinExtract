@@ -2043,10 +2043,6 @@
      "sign": 1
     },
     {
-     "ref": "bs_nca__entrusted_loan_receivables_related_parties_ltp",
-     "sign": 1
-    },
-    {
      "ref": "bs_nca__due_from_directors",
      "sign": 1
     },
@@ -2059,10 +2055,6 @@
      "sign": 1
     },
     {
-     "ref": "bs_nca__entrusted_loan_receivables_shareholders_ltp",
-     "sign": 1
-    },
-    {
      "ref": "bs_nca__due_from_mi",
      "sign": 1
     },
@@ -2071,51 +2063,7 @@
      "sign": 1
     },
     {
-     "ref": "bs_nca__wealth_management_products_ltp_from_secur_and_fincl",
-     "sign": 1
-    },
-    {
      "ref": "bs_nca__secur_and_other_fincl_assets_ltp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_nca__futures_nca",
-     "sign": 1
-    },
-    {
-     "ref": "bs_nca__options_nca",
-     "sign": 1
-    },
-    {
-     "ref": "bs_nca__forwards_nca",
-     "sign": 1
-    },
-    {
-     "ref": "bs_nca__commodities_nca",
-     "sign": 1
-    },
-    {
-     "ref": "bs_nca__swaps_nca",
-     "sign": 1
-    },
-    {
-     "ref": "bs_nca__deriv_and_hedg_assets_ltp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_nca__rtrmnt_plan_actuarial_surplus",
-     "sign": 1
-    },
-    {
-     "ref": "bs_nca__wealth_management_products_ltp_from_otherasset",
-     "sign": 1
-    },
-    {
-     "ref": "bs_nca__pledged_deposits_ltp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_nca__pledged_secur_and_other_fincl_assets_ltp",
      "sign": 1
     },
     {
@@ -2127,31 +2075,7 @@
      "sign": 1
     },
     {
-     "ref": "bs_nca__entrusted_loan_receivables_third_parties_ltp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_nca__wealth_management_products_ltp_from_receivables",
-     "sign": 1
-    },
-    {
-     "ref": "bs_nca__reverse_repo_ltp",
-     "sign": 1
-    },
-    {
      "ref": "bs_nca__other_receivables_ltp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_nca__prepaid_land_lease_payments_ltp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_nca__prepayments_ltp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_nca__restricted_cash",
      "sign": 1
     }
    ],
@@ -3003,19 +2927,7 @@
    "type": "calculated",
    "terms": [
     {
-     "ref": "bs_ca__operating_lease_receivables",
-     "sign": 1
-    },
-    {
      "ref": "bs_ca__inventories",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ca__due_from_jvs_and_partnerships",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ca__entrusted_loan_receivables_related_parties_cp",
      "sign": 1
     },
     {
@@ -3023,19 +2935,7 @@
      "sign": 1
     },
     {
-     "ref": "bs_ca__entrusted_loan_receivables_shareholders_cp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ca__due_from_sholder_cp",
-     "sign": 1
-    },
-    {
      "ref": "bs_ca__short_term_securities",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ca__wealth_management_products_cp_from_secur_and_fincl",
      "sign": 1
     },
     {
@@ -3043,39 +2943,7 @@
      "sign": 1
     },
     {
-     "ref": "bs_ca__futures_ca",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ca__options_ca",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ca__forwards_ca",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ca__commodities_ca",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ca__swaps_ca",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ca__deriv_and_hedg_assets_cp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ca__assets_plgd_under_securitization",
-     "sign": 1
-    },
-    {
      "ref": "bs_ca__current_tax_receivables",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ca__prepaid_land_lease_payments_cp",
      "sign": 1
     },
     {
@@ -3091,31 +2959,7 @@
      "sign": 1
     },
     {
-     "ref": "bs_ca__pledged_secur_and_other_fincl_assets_cp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ca__wealth_management_products_cp_from_otherasset",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ca__segregated_account_ca",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ca__suspense_account_ca",
-     "sign": 1
-    },
-    {
      "ref": "bs_ca__other_current_assets",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ca__trade_receivables_related_parties",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ca__trade_and_other_receivables_related_parties",
      "sign": 1
     },
     {
@@ -3127,27 +2971,7 @@
      "sign": 1
     },
     {
-     "ref": "bs_ca__subscribed_capital_called_not_paid",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ca__entrusted_loan_receivables_third_parties_cp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ca__wealth_management_products_cp_from_receivables",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ca__reverse_repo_cp",
-     "sign": 1
-    },
-    {
      "ref": "bs_ca__other_receivables_cp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ca__wealth_management_products_cp_from_cash_equ",
      "sign": 1
     },
     {
@@ -3456,10 +3280,6 @@
     },
     {
      "ref": "bs_equity__share_premium",
-     "sign": 1
-    },
-    {
-     "ref": "bs_equity__special_items_with_equity_character",
      "sign": 1
     },
     {
@@ -3890,19 +3710,7 @@
      "sign": 1
     },
     {
-     "ref": "bs_equity__subordinated_debt_from_related_parties",
-     "sign": 1
-    },
-    {
-     "ref": "bs_equity__subordinated_debt_equity",
-     "sign": 1
-    },
-    {
      "ref": "bs_equity__other_equity",
-     "sign": 1
-    },
-    {
-     "ref": "bs_equity__policyholders_equity",
      "sign": 1
     },
     {
@@ -4478,18 +4286,6 @@
      "sign": 1
     },
     {
-     "ref": "bs_ncl__entrusted_loan_payables_third_parties_ltp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ncl__perpetual_bond",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ncl__repo_ltp",
-     "sign": 1
-    },
-    {
      "ref": "bs_ncl__ltd_other",
      "sign": 1
     },
@@ -4498,39 +4294,11 @@
      "sign": 1
     },
     {
-     "ref": "bs_ncl__ltd_subordinated",
-     "sign": 1
-    },
-    {
      "ref": "bs_ncl__finance_leases_ltp",
      "sign": 1
     },
     {
-     "ref": "bs_ncl__entrusted_loan_payables_related_parties_ltp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ncl__due_to_directors_ltp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ncl__due_to_subsidiaries_ltp",
-     "sign": 1
-    },
-    {
      "ref": "bs_ncl__due_to_related_parties_ltp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ncl__entrusted_loan_payables_shareholders_ltp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ncl__due_to_mi_ltp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ncl__due_to_sholder_ltp",
      "sign": 1
     },
     {
@@ -4550,47 +4318,7 @@
      "sign": 1
     },
     {
-     "ref": "bs_ncl__futures_ncl",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ncl__options_ncl",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ncl__forwards_ncl",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ncl__commodities_ncl",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ncl__swaps_ncl",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ncl__deriv_and_hedg_liab_ltp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ncl__trade_and_other_payables_ltp",
-     "sign": 1
-    },
-    {
      "ref": "bs_ncl__trade_payables_ltp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ncl__soc_sec_and_other_taxes_ltp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ncl__decomm_and_envir_costs_ltp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ncl__share_option_costs_ltp",
      "sign": 1
     },
     {
@@ -4599,14 +4327,6 @@
     },
     {
      "ref": "bs_ncl__deferred_tax_liability",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ncl__restruct_provision_ltp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_ncl__tax_provision_ltp",
      "sign": 1
     },
     {
@@ -5293,39 +5013,11 @@
      "sign": 1
     },
     {
-     "ref": "bs_cl__entrusted_loan_payables_third_parties_cp",
-     "sign": 1
-    },
-    {
      "ref": "bs_cl__cpltd_other",
      "sign": 1
     },
     {
-     "ref": "bs_cl__cpltd_convertible",
-     "sign": 1
-    },
-    {
-     "ref": "bs_cl__cpltd_subordinated",
-     "sign": 1
-    },
-    {
-     "ref": "bs_cl__trade_financing",
-     "sign": 1
-    },
-    {
      "ref": "bs_cl__st_bank_loans_payable",
-     "sign": 1
-    },
-    {
-     "ref": "bs_cl__ipo_loans_st_bank_loans_pay",
-     "sign": 1
-    },
-    {
-     "ref": "bs_cl__ipo_loans_st_other_loans_pay",
-     "sign": 1
-    },
-    {
-     "ref": "bs_cl__repo_cp",
      "sign": 1
     },
     {
@@ -5337,51 +5029,11 @@
      "sign": 1
     },
     {
-     "ref": "bs_cl__overdrafts",
-     "sign": 1
-    },
-    {
-     "ref": "bs_cl__entrusted_loan_payables_related_parties_cp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_cl__due_to_directors_cp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_cl__due_to_subsidiaries_cp",
-     "sign": 1
-    },
-    {
      "ref": "bs_cl__due_to_related_parties_cp",
      "sign": 1
     },
     {
-     "ref": "bs_cl__entrusted_loan_payables_shareholders_cp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_cl__due_to_mi_cp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_cl__due_to_sholder_cp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_cl__liabilities_to_enterprises",
-     "sign": 1
-    },
-    {
      "ref": "bs_cl__lease_liabilities_cp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_cl__segregated_account_cl",
-     "sign": 1
-    },
-    {
-     "ref": "bs_cl__suspense_account_cl",
      "sign": 1
     },
     {
@@ -5397,34 +5049,6 @@
      "sign": 1
     },
     {
-     "ref": "bs_cl__billings_in_excess_of_costs",
-     "sign": 1
-    },
-    {
-     "ref": "bs_cl__futures_cl",
-     "sign": 1
-    },
-    {
-     "ref": "bs_cl__options_cl",
-     "sign": 1
-    },
-    {
-     "ref": "bs_cl__forwards_cl",
-     "sign": 1
-    },
-    {
-     "ref": "bs_cl__commodities_cl",
-     "sign": 1
-    },
-    {
-     "ref": "bs_cl__swaps_cl",
-     "sign": 1
-    },
-    {
-     "ref": "bs_cl__deriv_and_hedg_liab_cp",
-     "sign": 1
-    },
-    {
      "ref": "bs_cl__current_tax_payable",
      "sign": 1
     },
@@ -5433,27 +5057,11 @@
      "sign": 1
     },
     {
-     "ref": "bs_cl__soc_sec_and_other_taxes_cp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_cl__proposed_dividends",
-     "sign": 1
-    },
-    {
      "ref": "bs_cl__dividends_payable",
      "sign": 1
     },
     {
-     "ref": "bs_cl__notes_payable_cp",
-     "sign": 1
-    },
-    {
      "ref": "bs_cl__trade_payables_related_parties",
-     "sign": 1
-    },
-    {
-     "ref": "bs_cl__trade_and_other_payables_related_parties",
      "sign": 1
     },
     {
@@ -5465,19 +5073,7 @@
      "sign": 1
     },
     {
-     "ref": "bs_cl__decomm_and_envir_costs_cp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_cl__share_option_costs_cp",
-     "sign": 1
-    },
-    {
      "ref": "bs_cl__retirement_benefits_cp",
-     "sign": 1
-    },
-    {
-     "ref": "bs_cl__restruct_provision_cp",
      "sign": 1
     },
     {
@@ -5904,32 +5500,12 @@
    "type": "calculated",
    "terms": [
     {
-     "ref": "is_pl__derivatives_cos",
-     "sign": -1,
-     "abs": true
-    },
-    {
      "ref": "is_pl__cost_of_sales",
      "sign": -1,
      "abs": true
     },
     {
-     "ref": "is_pl__net_claims_and_benefits",
-     "sign": -1,
-     "abs": true
-    },
-    {
-     "ref": "is_pl__goods_and_services",
-     "sign": -1,
-     "abs": true
-    },
-    {
      "ref": "is_pl__material_expenses",
-     "sign": -1,
-     "abs": true
-    },
-    {
-     "ref": "is_pl__amort_and_impairment_intgbl_cos",
      "sign": -1,
      "abs": true
     },
@@ -5999,15 +5575,7 @@
      "sign": 1
     },
     {
-     "ref": "is_pl__net_premium_earned",
-     "sign": 1
-    },
-    {
      "ref": "is_pl__changes_in_inventories_incr_dcr",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__expenses_own_work_capitalized",
      "sign": 1
     },
     {
@@ -6376,62 +5944,11 @@
      "sign": 1
     },
     {
-     "ref": "is_pl__rents_and_royalty_income",
-     "sign": 1
-    },
-    {
      "ref": "is_pl__other_operating_income",
      "sign": 1
     },
     {
-     "ref": "is_pl__commission_income_other_operating_inc",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__commission_income_sales",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__grants_and_subsidies",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__selling_and_marketing_expenses",
-     "sign": -1,
-     "abs": true
-    },
-    {
-     "ref": "is_pl__general_and_admin_expenses",
-     "sign": -1,
-     "abs": true
-    },
-    {
      "ref": "is_pl__personnel_and_benefit_expenses",
-     "sign": -1,
-     "abs": true
-    },
-    {
-     "ref": "is_pl__officers_compensation",
-     "sign": -1,
-     "abs": true
-    },
-    {
-     "ref": "is_pl__operating_lease_and_rent_expenses",
-     "sign": -1,
-     "abs": true
-    },
-    {
-     "ref": "is_pl__research_and_development",
-     "sign": -1,
-     "abs": true
-    },
-    {
-     "ref": "is_pl__restructuring_costs",
-     "sign": -1,
-     "abs": true
-    },
-    {
-     "ref": "is_pl__asset_impairment_loss",
      "sign": -1,
      "abs": true
     },
@@ -6441,62 +5958,7 @@
      "abs": true
     },
     {
-     "ref": "is_pl__commission_expenses_other_operating_exp",
-     "sign": -1,
-     "abs": true
-    },
-    {
-     "ref": "is_pl__commission_expenses_cost_of_sales",
-     "sign": -1,
-     "abs": true
-    },
-    {
-     "ref": "is_pl__bad_debt_expense_other_receivables",
-     "sign": -1,
-     "abs": true
-    },
-    {
-     "ref": "is_pl__bad_debt_expense_trade_and_other_receivables",
-     "sign": -1,
-     "abs": true
-    },
-    {
-     "ref": "is_pl__bad_debt_expense",
-     "sign": -1,
-     "abs": true
-    },
-    {
-     "ref": "is_pl__prov_for_retirement_costs",
-     "sign": -1,
-     "abs": true
-    },
-    {
-     "ref": "is_pl__share_option_costs",
-     "sign": -1,
-     "abs": true
-    },
-    {
-     "ref": "is_pl__other_taxes",
-     "sign": -1,
-     "abs": true
-    },
-    {
-     "ref": "is_pl__other_oper_exp_provisions",
-     "sign": -1,
-     "abs": true
-    },
-    {
-     "ref": "is_pl__impairment_fixed_assets_oper_exp",
-     "sign": -1,
-     "abs": true
-    },
-    {
      "ref": "is_pl__deprec_and_impairment_oper_exp",
-     "sign": -1,
-     "abs": true
-    },
-    {
-     "ref": "is_pl__impairment_intgbl",
      "sign": -1,
      "abs": true
     },
@@ -6504,15 +5966,6 @@
      "ref": "is_pl__amort_and_impairment_intgbl",
      "sign": -1,
      "abs": true
-    },
-    {
-     "ref": "is_pl__goodwill_amortization",
-     "sign": -1,
-     "abs": true
-    },
-    {
-     "ref": "is_pl__capitalized_costs",
-     "sign": 1
     }
    ],
    "namespace": "template",
@@ -6644,63 +6097,11 @@
    "type": "calculated",
    "terms": [
     {
-     "ref": "is_pl__interest_income_from_derivatives",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__interest_income_from_wealth_management_products",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__interest_income_from_entrusted_loan_receivables",
-     "sign": 1
-    },
-    {
      "ref": "is_pl__interest_income",
      "sign": 1
     },
     {
-     "ref": "is_pl__interest_on_lease_liabilities",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__interest_on_debt_market_instruments",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__interest_on_capital_market_instruments",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__interest_on_trade_finance",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__interest_paid_to_related_parties",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__interest_expense_capitalised",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__finance_cost_on_derivatives",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__bank_charge_and_interest_expense",
-     "sign": 1
-    },
-    {
      "ref": "is_pl__interest_expense",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__other_debt_service_expenses",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__deferred_interest_expense",
      "sign": 1
     }
    ],
@@ -6797,55 +6198,7 @@
    "type": "calculated",
    "terms": [
     {
-     "ref": "is_pl__income_loss_from_related_party",
-     "sign": 1
-    },
-    {
      "ref": "is_pl__income_loss_from_joint_ventures",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__fncl_income_from_derivatives",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__fncl_income_from_wealth_management_products",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__other_fncl_asset_income_dvds",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__gain_loss_on_derivatives",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__gain_loss_on_wealth_management_products",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__gain_loss_on_fncl_assets",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__adjsts_to_scrtzn_programs",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__rlzd_forex_translation_g_l",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__fmv_adj_on_derivatives",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__fmv_adj_on_wealth_management_products",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__fmv_adj_on_fncl_assets",
      "sign": 1
     }
    ],
@@ -6901,40 +6254,6 @@
    "sign_rule": {},
    "inherits": "is_pl",
    "face_only": false,
-   "terms": [
-    {
-     "ref": "is_pl__gain_loss_disp_of_fixed_assets",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__gain_loss_on_invest_properties",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__gain_loss_disp_of_disc_ops",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__exchange_gain_loss_sale_of_bus",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__other_non_income_related_taxes",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__other_non_operating_inc_exp",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__fmv_adj_on_investment_properties",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__other_non_oper_inc_exp_nc",
-     "sign": 1
-    }
-   ],
    "namespace": "template",
    "note_source": {
     "note_title_any": [
@@ -7154,10 +6473,6 @@
     {
      "ref": "is_pl__deferred_income_taxes_nc",
      "sign": 1
-    },
-    {
-     "ref": "is_pl__prior_year_tax_adj",
-     "sign": 1
     }
    ],
    "namespace": "template",
@@ -7349,10 +6664,6 @@
     },
     {
      "ref": "is_pl__extraordinary_income_exp",
-     "sign": 1
-    },
-    {
-     "ref": "is_pl__extraordinary_income_exp_nc",
      "sign": 1
     },
     {
@@ -8383,14 +7694,6 @@
      "sign": 1
     },
     {
-     "ref": "cf_oper_indirect__other_after_tax_income_expense",
-     "sign": 1
-    },
-    {
-     "ref": "cf_oper_indirect__minority_interests_cf",
-     "sign": 1
-    },
-    {
      "ref": "cf_oper_indirect__income_tax_expense",
      "sign": 1
     },
@@ -8403,14 +7706,6 @@
      "sign": 1
     },
     {
-     "ref": "cf_oper_indirect__cash_flow_from_hedging_oper",
-     "sign": 1
-    },
-    {
-     "ref": "cf_oper_indirect__assoc_profit_share_net_of_dvds",
-     "sign": 1
-    },
-    {
      "ref": "cf_oper_indirect__interest_inc_received_oper",
      "sign": 1
     },
@@ -8419,31 +7714,11 @@
      "sign": 1
     },
     {
-     "ref": "cf_oper_indirect__cash_flow_disp_fixed_assets",
-     "sign": 1
-    },
-    {
-     "ref": "cf_oper_indirect__cash_flow_disp_financial_assets",
-     "sign": 1
-    },
-    {
      "ref": "cf_oper_indirect__chg_in_trade_receivables",
      "sign": 1
     },
     {
-     "ref": "cf_oper_indirect__chg_in_other_receivables",
-     "sign": 1
-    },
-    {
      "ref": "cf_oper_indirect__chg_in_inventories",
-     "sign": 1
-    },
-    {
-     "ref": "cf_oper_indirect__chg_in_prepayments_and_def_assets",
-     "sign": 1
-    },
-    {
-     "ref": "cf_oper_indirect__chg_in_fncl_instruments_trading",
      "sign": 1
     },
     {
@@ -8459,27 +7734,7 @@
      "sign": 1
     },
     {
-     "ref": "cf_oper_indirect__chg_in_post_employ_bnft_oblig",
-     "sign": 1
-    },
-    {
      "ref": "cf_oper_indirect__chg_in_other_current_liab",
-     "sign": 1
-    },
-    {
-     "ref": "cf_oper_indirect__chg_in_other_wkng_capital_items",
-     "sign": 1
-    },
-    {
-     "ref": "cf_oper_indirect__chg_in_taxes_payable",
-     "sign": 1
-    },
-    {
-     "ref": "cf_oper_indirect__chg_in_deferred_taxes",
-     "sign": 1
-    },
-    {
-     "ref": "cf_oper_indirect__dividends_received_oper",
      "sign": 1
     },
     {
@@ -8488,14 +7743,6 @@
     },
     {
      "ref": "cf_oper_indirect__interest_paid_oper",
-     "sign": 1
-    },
-    {
-     "ref": "cf_oper_indirect__dividends_paid_oper",
-     "sign": 1
-    },
-    {
-     "ref": "cf_oper_indirect__cash_flow_extraord_items_oper",
      "sign": 1
     },
     {
@@ -8545,28 +7792,6 @@
    "sign_rule": {},
    "inherits": "cf_oper_direct",
    "face_only": false,
-   "terms": [
-    {
-     "ref": "cf_oper_direct__cash_receipts_from_customers",
-     "sign": 1
-    },
-    {
-     "ref": "cf_oper_direct__cash_paid_to_suppliers",
-     "sign": 1
-    },
-    {
-     "ref": "cf_oper_direct__cash_paid_to_employees",
-     "sign": 1
-    },
-    {
-     "ref": "cf_oper_direct__income_taxes_paid_direct",
-     "sign": 1
-    },
-    {
-     "ref": "cf_oper_direct__borrowing_costs_paid",
-     "sign": 1
-    }
-   ],
    "namespace": "template",
    "note_source": {
     "note_title_any": [
@@ -8964,10 +8189,6 @@
      "sign": 1
     },
     {
-     "ref": "cf_investing__proceeds_sale_intgbl_assets",
-     "sign": 1
-    },
-    {
      "ref": "cf_investing__purchase_ppe",
      "sign": 1
     },
@@ -8980,10 +8201,6 @@
      "sign": 1
     },
     {
-     "ref": "cf_investing__proceeds_sale_investment_prop",
-     "sign": 1
-    },
-    {
      "ref": "cf_investing__purchase_financial_assets",
      "sign": 1
     },
@@ -8992,31 +8209,7 @@
      "sign": 1
     },
     {
-     "ref": "cf_investing__purchase_other_assets",
-     "sign": 1
-    },
-    {
-     "ref": "cf_investing__proceeds_sale_other_assets",
-     "sign": 1
-    },
-    {
      "ref": "cf_investing__investment_assoc_and_affiliates",
-     "sign": 1
-    },
-    {
-     "ref": "cf_investing__sale_assoc_and_affiliates",
-     "sign": 1
-    },
-    {
-     "ref": "cf_investing__acq_of_sub_net_of_cash_acqrd",
-     "sign": 1
-    },
-    {
-     "ref": "cf_investing__proceeds_sale_of_subsidiary",
-     "sign": 1
-    },
-    {
-     "ref": "cf_investing__payment_fin_lease_liab",
      "sign": 1
     },
     {
@@ -9025,14 +8218,6 @@
     },
     {
      "ref": "cf_investing__dividends_received_invest",
-     "sign": 1
-    },
-    {
-     "ref": "cf_investing__cash_flow_extraord_items_invest",
-     "sign": 1
-    },
-    {
-     "ref": "cf_investing__cash_flow_hedging_invest",
      "sign": 1
     },
     {
@@ -9309,15 +8494,7 @@
      "sign": 1
     },
     {
-     "ref": "cf_financing__purchase_sale_treasury_stock",
-     "sign": 1
-    },
-    {
      "ref": "cf_financing__proceeds_non_cur_borrowings",
-     "sign": 1
-    },
-    {
-     "ref": "cf_financing__issue_costs_non_cur_borrowings",
      "sign": 1
     },
     {
@@ -9333,23 +8510,7 @@
      "sign": 1
     },
     {
-     "ref": "cf_financing__translation_adj_relating_to_cash",
-     "sign": 1
-    },
-    {
-     "ref": "cf_financing__cash_flow_extraord_items_fin",
-     "sign": 1
-    },
-    {
-     "ref": "cf_financing__cash_flow_from_hedging_fin",
-     "sign": 1
-    },
-    {
      "ref": "cf_financing__dividends_paid_fin",
-     "sign": 1
-    },
-    {
-     "ref": "cf_financing__dvds_paid_minority_sholders",
      "sign": 1
     },
     {
@@ -9638,10 +8799,6 @@
      "sign": 1
     },
     {
-     "ref": "bs_equity__auditor_adj_on_retained_profits",
-     "sign": 1
-    },
-    {
      "ref": "bs_equity__retained_profits",
      "sign": 1
     },
@@ -9654,19 +8811,7 @@
      "sign": 1
     },
     {
-     "ref": "bs_equity__subordinated_debt_from_related_parties",
-     "sign": 1
-    },
-    {
-     "ref": "bs_equity__subordinated_debt_equity",
-     "sign": 1
-    },
-    {
      "ref": "bs_equity__other_equity",
-     "sign": 1
-    },
-    {
-     "ref": "bs_equity__policyholders_equity",
      "sign": 1
     },
     {

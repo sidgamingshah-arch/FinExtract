@@ -28,17 +28,25 @@ from __future__ import annotations
 import json
 import pathlib
 
+import pytest
+
 from app.schemas.line_items import load_line_item_set
 
 TEMPLATES = pathlib.Path(__file__).resolve().parents[1] / "app" / "sample" / "templates"
 SEED = TEMPLATES / "output_csv_hk_line_items.json"
 TEMPLATE = TEMPLATES / "output_csv_hk_v1_template.json"
+INDAS_SEED = TEMPLATES / "output_csv_indas_line_items.json"
+INDAS_TEMPLATE = TEMPLATES / "output_csv_indas_v1_template.json"
+# Both regimes are held to their OWN template. The Ind AS set once carried the HK set's terms
+# verbatim — 19 subtotals naming 230 keys it does not define.
+REGIMES = [(SEED, TEMPLATE), (INDAS_SEED, INDAS_TEMPLATE)]
+_IDS = ["hk", "indas"]
 
 # The two whose rollup subtracts from their own reported total.
 SELF_REFERENCING = {"bs_ca__inventories", "bs_equity__retained_profits"}
 
 
-def _template_rollups() -> dict[str, dict]:
+def _template_rollups(template=TEMPLATE) -> dict[str, dict]:
     """canonical_key -> rollup, for every template node that declares one."""
     out: dict[str, dict] = {}
 
@@ -54,12 +62,12 @@ def _template_rollups() -> dict[str, dict]:
             for value in node:
                 walk(value)
 
-    walk(json.loads(TEMPLATE.read_text(encoding="utf-8")))
+    walk(json.loads(template.read_text(encoding="utf-8")))
     return out
 
 
-def _resolved():
-    return {d.key: d for d in load_line_item_set(json.loads(SEED.read_text(encoding="utf-8"))).items}
+def _resolved(seed=SEED):
+    return {d.key: d for d in load_line_item_set(json.loads(seed.read_text(encoding="utf-8"))).items}
 
 
 def test_every_calculated_line_declares_its_formula_or_says_why_not() -> None:
@@ -74,14 +82,15 @@ def test_every_calculated_line_declares_its_formula_or_says_why_not() -> None:
         f"{sorted(without - SELF_REFERENCING)}")
 
 
-def test_the_configured_formula_is_the_templates_formula() -> None:
+@pytest.mark.parametrize("seed, template", REGIMES, ids=_IDS)
+def test_the_configured_formula_is_the_templates_formula(seed, template) -> None:
     """THE DRIFT CHECK. Two declarations of one arithmetic is what the old comment warned about;
     this is the assertion that makes the second copy safe to have.
 
     Term for term and in order, because a sum is order-insensitive but a reader comparing the two
     is not — and `evaluate` walks them in order to build the trail an analyst reads.
     """
-    lines, rollups = _resolved(), _template_rollups()
+    lines, rollups = _resolved(seed), _template_rollups(template)
     for key, item in lines.items():
         if not item.terms or str(getattr(item.type, "value", item.type)) != "calculated":
             continue
@@ -107,10 +116,11 @@ def test_the_configured_formula_is_the_templates_formula() -> None:
             t.ref: (-1 if t.ref in magnitude else 1) for t in item.terms}, key
 
 
-def test_every_term_names_a_line_that_exists() -> None:
+@pytest.mark.parametrize("seed, template", REGIMES, ids=_IDS)
+def test_every_term_names_a_line_that_exists(seed, template) -> None:
     """A formula referring to nothing evaluates to nothing, silently — the registry would report an
     unresolvable dependency, and a dangling ref is the way a regeneration goes wrong."""
-    lines = _resolved()
+    lines = _resolved(seed)
     dangling = {k: [t.ref for t in d.terms if t.ref and t.ref not in lines]
                 for k, d in lines.items() if d.terms}
     assert not {k: v for k, v in dangling.items() if v}, \
