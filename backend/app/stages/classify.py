@@ -333,6 +333,12 @@ class PageFeat:
     # The evidence that a page carries the tail of one statement and the head of the next, which
     # is what lets `pdf_extract` read the two halves as the statements they belong to.
     amounts_above_title: bool = False
+    # A SECOND exact title printed BELOW the first one, with a statement's figures between them —
+    # the page ends in a different statement (or a different entity's statement) from the one it
+    # opened with. See `_closing_statement`.
+    closing_statement: str | None = None
+    closing_title: str | None = None
+    closing_title_y: float | None = None
     unmapped: list[str] = field(default_factory=list)
     strong_title: bool = False
     narrative: bool = False
@@ -430,6 +436,191 @@ def _mid_page_statement(lines: list[dict], title_zone: list[dict]) -> tuple[str 
     candidates = [dict(line) for line in lines if id(line) not in zone_ids
                   and _looks_like_heading(line["text"])]
     return _resolve_statement(candidates, coverage=_MID_PAGE_TITLE_COVERAGE)
+
+
+def _closing_statement(lines: list[dict], title_zone: list[dict], title_y: float | None
+                       ) -> tuple[str | None, str | None, float | None]:
+    """The LAST exact statement title printed below this page's own title, as
+    ``(statement, title, y)`` — only when a statement's figures are printed between the two.
+
+    WHY THE PAGE'S FIRST TITLE IS NOT ENOUGH. A mainland filing prints its statements in numbered
+    pairs and a short pair fits on one page: 河钢股份 000709 page 88 opens with 5、合并现金流量表 and
+    prints 6、母公司现金流量表 at y=0.77, with the parent company's statement running on to the top of
+    page 89. The mid-page title was only ever looked for when the TOP of the page named nothing, so
+    page 88 recorded the Group's title alone, the run the next page continues was taken to be the
+    Group's, and page 89's company rows above 7、合并所有者权益变动表 were filed CONSOLIDATED — the
+    published consolidated operating cash flow was 13,718,703,924.02, the Group's printed
+    9,678,206,759.05 plus the company's 4,040,497,164.97, and the same for investing, financing and
+    closing cash in both years.
+
+    The rows ON the page are not this function's concern — `row_reconstruct` already switches the
+    basis at a mainland statement title part-way down a page (`_title_entity_basis`). What it decides
+    is what the page hands ON: the statement, and the entity, that is still running when it ends.
+
+    The same strict floor `_mid_page_statement` applies, because this reads the same region of the
+    page; and a title with no figures between it and the page's own title is not a second statement
+    but the first one's title printed twice.
+    """
+    if title_y is None:
+        return None, None, None
+    zone_ids = {id(line) for line in title_zone}
+    below = [line for line in lines if id(line) not in zone_ids
+             and float(line.get("y", 0.0)) > title_y and _looks_like_heading(line["text"])]
+    for cand in sorted(below, key=lambda line: float(line.get("y", 0.0)), reverse=True):
+        name, _combined, title, _ambig = _resolve_statement([dict(cand)],
+                                                            coverage=_MID_PAGE_TITLE_COVERAGE)
+        if not name:
+            continue
+        y = float(cand.get("y", 0.0))
+        if any(title_y < float(line.get("y", 0.0)) < y and _AMOUNT_LINE.search(line["text"])
+               for line in lines):
+            return name, title, y
+        return None, None, None
+    return None, None, None
+
+
+def _title_scope(title: str | None) -> str | None:
+    """The entity a statement TITLE names on its own — the title half of `_scope_of`, with neither
+    the column-header band nor the past-the-notes inference."""
+    if not title:
+        return None
+    if _SCOPE_CONSOL.search(title) or _ZH_CONSOL_AMBIG.search(title):
+        return "consolidated"
+    if _SCOPE_COMPANY.search(title):
+        return "company"
+    return None
+
+
+# THE CASH-FLOW SUPPLEMENT, which a mainland filing prints AS A NOTE. 现金流量表补充资料 is the
+# indirect-method reconciliation of the Group's operating cash flow, and the classifier reads it as a
+# cash-flow face page on purpose (see `_TITLE_QUALIFIER`): it is the only place a CAS filing prints
+# the `cf_oper_indirect__*` lines. But it is a note of the chapter it sits in, not a statement, and
+# two things follow that a statement page does not have:
+#
+#   * its ENTITY is the chapter's. It sits in 七、合并财务报表项目注释 on all three mainland reference
+#     filings, so it is the Group's — while the past-the-notes rule in `_scope_of` called it the
+#     Company's, because it "re-presents" a statement already shown as consolidated. 688008's
+#     standalone operating cash flow was published as 1,904,623,231.54: the company's printed
+#     213,301,725.40 plus the Group's 1,691,321,506.14 from the supplement.
+#   * its EXTENT is the reconciliation's. It is titled part-way down a page of other notes, and its
+#     reconciliation closes at 经营活动产生的现金流量净额 — what follows is the note's other tables
+#     (non-cash activities, the cash movement, the composition of cash) and then the next note. Read
+#     as a face, every one of those rows became a cash-flow row: 688008's cash composition
+#     (现金的期末余额 6,698,931,684.67, 可随时用于支付的银行存款 6,651,096,406.08) was filed on
+#     `cf_financing__other_financing_cash_flows`, and 300319's foreign-currency table after it.
+_CF_SUPPLEMENT_TITLE = re.compile(r"补充资料|補充資料")
+_CF_SUPPLEMENT_CLOSE = re.compile(r"^\s*(?:经营活动产生的现金流量净额|經營活動產生的現金流量淨額)")
+# A notes chapter about the statements' line items — 七、合并财务报表项目注释 for the Group's,
+# 十九、母公司财务报表主要项目注释 for the company's. Matched on a ROW (688008 prints the numeral
+# and the title as two lines at one height).
+_STATEMENT_NOTES_CHAPTER = re.compile(
+    r"^\s*[一二三四五六七八九十]{1,3}\s*[、.．]\s*(?P<entity>.{0,8}?)"
+    r"(?:财务报表|財務報表|会计报表|會計報表)(?:主要)?项目(?:注释|附注|註釋|附註)\s*$")
+
+
+def _rows_of(lines: list[dict], tol: float = 1.5) -> list[tuple[float, str]]:
+    """Lines printed at one height joined into one row, top-down, as ``(y, text)``."""
+    rows: list[tuple[float, list[str]]] = []
+    for line in lines:
+        y = float(line.get("y", 0.0))
+        if rows and abs(rows[-1][0] - y) <= tol:
+            rows[-1][1].append(line["text"])
+        else:
+            rows.append((y, [line["text"]]))
+    return [(y, " ".join(t.strip() for t in texts)) for y, texts in rows]
+
+
+def _statement_notes_chapter(lines: list[dict], below_y: float | None = None) -> str | None:
+    """The entity of the LAST statement-notes chapter heading on these lines — ``"company"`` for the
+    parent company's, ``"consolidated"`` for the Group's — or None when none is printed. ``below_y``
+    (in the lines' own units) limits the search to headings printed above that height."""
+    found: str | None = None
+    for y, text in _rows_of(lines):
+        if below_y is not None and y >= below_y:
+            break
+        m = _STATEMENT_NOTES_CHAPTER.match(text)
+        if m:
+            found = "company" if _SCOPE_COMPANY.search(m.group("entity") or "") else "consolidated"
+    return found
+
+
+def _cf_supplement_extent(path: list[str], feats: list, cache: list, *, log=None
+                          ) -> tuple[list[str], dict[int, dict]]:
+    """Bound each cash-flow supplement printed in the notes to its own reconciliation.
+
+    Returns the corrected path and, per page POSITION, the evidence `pdf_extract` reads the page
+    with: ``supplement`` on the page the supplement is titled on, ``notes_above_title`` when another
+    note's figures are printed above that title, and ``face_ends_at_y`` (a page fraction) on the
+    page its reconciliation closes on.
+
+    A FACE run counts as a supplement run only when it sits inside the notes (some page before it is
+    NOTES) and its first titled page is a cash-flow title naming 补充资料. Untitled pages of the
+    run BEFORE that title are notes — a supplement's run begins at its title, and the decode put
+    them in FACE on figure density alone (000709 page 160, note 55's tables). Untitled pages AFTER
+    the page the reconciliation closes on are notes for the same reason (300319 page 171: the cash
+    composition and note 59's foreign-currency table). When the closing row is not found the run is
+    left exactly as it was: the extent is unknown, and a guess would drop real lines.
+
+    Nothing outside the notes region is touched, so no statement face — and nothing on a filing
+    that prints no supplement, which is every HKFRS one — can move.
+    """
+    out = list(path)
+    extent: dict[int, dict] = {}
+    if not feats or len(feats) != len(path) or len(cache) != len(path):
+        return out, extent
+    first_notes = next((i for i, s in enumerate(path) if s == _NOTES), None)
+    if first_notes is None:
+        return out, extent
+    i = first_notes + 1
+    while i < len(path):
+        if path[i] != _FACE:
+            i += 1
+            continue
+        j = i
+        while j + 1 < len(path) and path[j + 1] == _FACE:
+            j += 1
+        titled = [k for k in range(i, j + 1) if feats[k].matched_title is not None]
+        head = titled[0] if titled else None
+        if (head is not None
+                and _STATEMENT_ALIAS.get(feats[head].statement or "", feats[head].statement)
+                == "cash_flow"
+                and _CF_SUPPLEMENT_TITLE.search(feats[head].matched_title or "")):
+            close_at: tuple[int, float | None] | None = None
+            for k in range(head, j + 1):
+                if k > head and feats[k].matched_title is not None:
+                    break                        # another statement's title: the run is not ours
+                lines, height = cache[k]
+                floor = (feats[k].matched_title_y or 0.0) * (height or 1.0) if k == head else -1.0
+                hit = next((line for line in lines if float(line.get("y", 0.0)) > floor
+                            and _CF_SUPPLEMENT_CLOSE.match(line["text"])), None)
+                if hit is None:
+                    continue
+                hy = float(hit.get("y", 0.0))
+                tol = 0.006 * (height or 1.0)
+                nxt = min((float(line.get("y", 0.0)) for line in lines
+                           if float(line.get("y", 0.0)) > hy + tol), default=None)
+                close_at = (k, (nxt / height) if (nxt is not None and height) else None)
+                break
+            if close_at is not None:
+                extent[head] = {"supplement": True,
+                                "notes_above_title": bool(feats[head].amounts_above_title)}
+                k_close, end_y = close_at
+                extent.setdefault(k_close, {})["face_ends_at_y"] = end_y
+                before = list(range(i, head))
+                after: list[int] = []
+                for k in range(k_close + 1, j + 1):
+                    if feats[k].matched_title is not None:
+                        break                    # a statement titled of its own: not the supplement's
+                    after.append(k)
+                for k in before + after:
+                    out[k] = _NOTES
+                if log:
+                    log(f"classify:cf_supplement=page{feats[head].index}"
+                        f"(closes_on={feats[k_close].index},face_ends_at_y={end_y},"
+                        f"notes_above_title={extent[head]['notes_above_title']},"
+                        f"to_notes={[feats[k].index for k in before + after]})")
+        i = j + 1
+    return out, extent
 
 
 def _anchored(t: str) -> bool:
@@ -839,6 +1030,12 @@ def _features(index: int, lines: list[dict], page_h: float, text: str) -> PageFe
             f.amounts_above_title = any(
                 line["y"] < hit["y"] and _AMOUNT_LINE.search(line["text"])
                 for line in lines)
+            # …and whether the page ENDS in another one. Asked of every titled page, top-zone or
+            # mid-page alike, because both can be followed by a second statement's title.
+            name, closing, closing_y = _closing_statement(lines, zone, float(hit["y"]))
+            if name:
+                f.closing_statement, f.closing_title = name, closing
+                f.closing_title_y = closing_y / page_h
     f.strong_title = f.statement is not None
 
     f.notes_banner = any(re.search(p, joined, re.I) for p in _NOTES_BANNER)
@@ -1277,11 +1474,18 @@ class ClassifyStage:
         # anchoring above, which decides where the notes region begins: this one reads the region
         # the anchoring produced.
         path = _untitled_face_inside_the_notes_is_notes(path, feats, log=ctx.log)
+        # …and a cash-flow supplement printed in the notes is a face only as far as its own
+        # reconciliation runs. LAST, because it reads the notes region both passes above settled.
+        path, supplement = _cf_supplement_extent(path, feats, cache, log=ctx.log)
 
         # A statement runs across several pages and only the first is titled, so a face page with no
         # resolvable title inherits the last one named. Reset when the face run ends.
         current: str | None = None
         seen_notes = False
+        # The entity of the statement-notes chapter in force — 七、合并财务报表项目注释 is the
+        # Group's, 十九、母公司财务报表主要项目注释 the company's. A supplement printed in the notes
+        # takes the entity of the chapter it is printed in.
+        notes_chapter: str | None = None
         # Which statements this filing has already presented as the GROUP's. A Company statement
         # printed past the notes is a SECOND presentation of one of them — that duplication is what
         # makes the two sets of figures collide on the same canonical keys — so it is the
@@ -1292,12 +1496,14 @@ class ClassifyStage:
         # continuation page keeps the consolidated default and its figures are still added to the
         # Group's — the same half-fix as leaving the scope unread altogether.
         run_scope: str | None = None
-        for page_src, f, state, margin, (lines, height) in zip(
-                pages, feats, path, margins, cache):
+        for pos, (page_src, f, state, margin, (lines, height)) in enumerate(zip(
+                pages, feats, path, margins, cache)):
             page_src.kind = _KIND[state]
             page_src.classification_confidence = _confidence(margin)
             # Every page, not just the faces: the viewer names any page the reader scrolls to.
             page_src.printed_page = _printed_folio(lines, height)
+            extent = supplement.get(pos) or {}
+            closing_scope: str | None = None
             if state == _FACE:
                 preceding_statement = current
                 preceding_scope = run_scope
@@ -1311,8 +1517,17 @@ class ClassifyStage:
                 scope, cols = _scope_of(
                     f.matched_title, lines, height,
                     repeat_after_notes=bool(seen_notes and current
-                                            and current in consolidated_stmts))
+                                            and current in consolidated_stmts
+                                            and not extent.get("supplement")))
                 resolved = f.scope or scope
+                if extent.get("supplement") and resolved is None:
+                    # NOT A RE-PRESENTATION: a note of the chapter it is printed in. A chapter
+                    # heading on this page counts only when it is printed above the title.
+                    here = _statement_notes_chapter(
+                        lines, below_y=(f.matched_title_y or 0.0) * (height or 1.0))
+                    resolved = "company" if (here or notes_chapter) == "company" else "consolidated"
+                    ctx.log(f"classify:page={page_src.index}:entity_scope=supplement_in_notes"
+                            f"({resolved}, chapter={here or notes_chapter or 'unread'})")
                 if resolved is None and f.matched_title is None:
                     # An untitled continuation of a titled run: the entity was named once, on the
                     # page the run started. A page that DID resolve a title and still says nothing
@@ -1341,6 +1556,18 @@ class ClassifyStage:
                 page_src.scope_columns = f.scope_columns or cols
                 if resolved == "consolidated" and current:
                     consolidated_stmts.add(current)
+                if f.closing_statement:
+                    # THE PAGE ENDS IN ANOTHER STATEMENT, so that is the run the next page
+                    # continues: 000709 page 88 opens with the Group's cash flow and closes with the
+                    # company's, whose tail heads page 89. This page's own verdict is unchanged —
+                    # its rows are split at the title by `row_reconstruct` — only what it hands on.
+                    current = _STATEMENT_ALIAS.get(f.closing_statement, f.closing_statement)
+                    closing_scope = _title_scope(f.closing_title)
+                    run_scope = closing_scope
+                    if closing_scope == "consolidated":
+                        consolidated_stmts.add(current)
+                    ctx.log(f"classify:page={page_src.index}:closing_title="
+                            f"{f.closing_title!r}({current},{closing_scope or 'unresolved'})")
             else:
                 page_src.statement = None
                 current = None if state == _NOTES else current
@@ -1349,6 +1576,7 @@ class ClassifyStage:
                 run_scope = None
             if state == _NOTES:
                 seen_notes = True
+            notes_chapter = _statement_notes_chapter(lines) or notes_chapter
             page_src.evidence = {"state": state, "matched_title": f.matched_title,
                                  "matched_title_y": f.matched_title_y,
                                  # WHETHER A STATEMENT IS STILL RUNNING ABOVE THE TITLE, decided
@@ -1373,6 +1601,15 @@ class ClassifyStage:
                                      and f.amounts_above_title else None),
                                  "title_ambig": f.title_ambig, "margin": round(margin, 2),
                                  "oci_combined": f.oci_combined}
+            if state == _FACE and f.closing_statement:
+                page_src.evidence.update({"closing_title": f.closing_title,
+                                          "closing_title_y": f.closing_title_y,
+                                          "scope_after_closing_title": closing_scope})
+            if state == _FACE and extent:
+                # WHERE ON THE PAGE THE FACE IS, for a supplement printed in the notes: above its
+                # title is another note's tail, which `pdf_extract` hands to the notes reader, and
+                # below its reconciliation's closing row is not read as a face.
+                page_src.evidence.update({k: v for k, v in extent.items() if v is not None})
             if f.unmapped:
                 doc.unmapped_titles.extend(f.unmapped[:3])
 

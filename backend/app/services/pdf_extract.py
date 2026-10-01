@@ -431,6 +431,30 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     captions = known_captions(getattr(ctx, "ontology", None)) \
         if getattr(ctx, "ontology", None) is not None else frozenset()
 
+    def _read_notes(region: list, page_index: int, source_kind: str, fold,
+                    carry_note, carry_grid, carry_group):
+        """Read ``region`` as note text and return the carries the next page continues with."""
+        from app.services.notes_extract import extract_note_tables
+        grids: list = []
+        groups: list = []
+        tables = extract_note_tables(region, page_index=page_index,
+                                     document_id=doc.content_hash, source_kind=source_kind,
+                                     scope=scope, normalisation=normalisation,
+                                     carry_note=carry_note, log=ctx.log,
+                                     carry_grid=carry_grid, grid_out=grids,
+                                     carry_group=carry_group, group_out=groups,
+                                     chapter=notes_chapter,
+                                     known_captions=captions, page_fold=fold)
+        doc.notes.extend(tables)
+        # The BASIS travels with the note, so a note continued onto the page where the
+        # company-only chapter opens stays the group's — see `extract_note_tables`.
+        # The note still open when this page ended is the LAST section, so its grid — None
+        # included — is what the next page's continuation inherits.
+        return (((tables[-1].note_number, tables[-1].title, tables[-1].basis) if tables
+                 else carry_note),
+                grids[-1] if grids else None,
+                groups[-1] if groups else None)
+
     for ps in targets:
         if ps.index >= pdf.page_count:
             continue
@@ -477,30 +501,46 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         # Notes pages → note detail tables (the breakdowns behind the face figures); every
         # other page → face line items. Both keep page + bbox provenance.
         if ps.kind == PageKind.NOTES:
-            from app.services.notes_extract import extract_note_tables
-            grids: list = []
-            groups: list = []
-            tables = extract_note_tables(words, page_index=ps.index,
-                                         document_id=doc.content_hash, source_kind=source_kind,
-                                         scope=scope, normalisation=normalisation,
-                                         carry_note=notes_carry, log=ctx.log,
-                                         carry_grid=notes_grid, grid_out=grids,
-                                         carry_group=notes_group, group_out=groups,
-                                         chapter=notes_chapter,
-                                         known_captions=captions, page_fold=fold)
-            doc.notes.extend(tables)
-            # The BASIS travels with the note, so a note continued onto the page where the
-            # company-only chapter opens stays the group's — see `extract_note_tables`.
-            notes_carry = ((tables[-1].note_number, tables[-1].title, tables[-1].basis) if tables
-                           else notes_carry)
-            # The note still open when this page ended is the LAST section, so its grid — None
-            # included — is what the next page's continuation inherits.
-            notes_grid = grids[-1] if grids else None
-            notes_group = groups[-1] if groups else None
+            notes_carry, notes_grid, notes_group = _read_notes(
+                words, ps.index, source_kind, fold, notes_carry, notes_grid, notes_group)
             continue
+        # A CASH-FLOW SUPPLEMENT PRINTED IN THE NOTES IS A FACE ONLY AS FAR AS ITS RECONCILIATION
+        # RUNS — see `stages.classify._cf_supplement_extent`, which says where that is.
+        #
+        # Above its title is the tail of the note before it (000709 page 161 opens with the last
+        # rows of note 55's 支付的其他与筹资活动有关的现金), so those words go to the notes reader,
+        # continuing the note the previous page left open. Below the reconciliation's closing row
+        # are the supplement's other tables — non-cash activities, the cash movement, the
+        # composition of cash. They are NOT handed to the notes reader: it reads the supplement's
+        # own section numbers 2、/3、 as note numbers and would mint them as notes 七、2 and 七、3,
+        # whose identities belong to real notes. They are left unread, as they were never notes
+        # before — they were face rows, filed as cash flows.
+        supp = ps.evidence or {}
+        if ps.kind == PageKind.FACE:
+            title_y = supp.get("matched_title_y")
+            ends_y = supp.get("face_ends_at_y")
+            above = ([word for word in words if (word.bbox.y0 + word.bbox.y1) / 2 < title_y]
+                     if supp.get("notes_above_title") and isinstance(title_y, (int, float))
+                     else [])
+            below = ([word for word in words if (word.bbox.y0 + word.bbox.y1) / 2 >= ends_y]
+                     if isinstance(ends_y, (int, float)) else [])
+            if above:
+                _read_notes(above, ps.index, source_kind, fold,
+                            notes_carry, notes_grid, notes_group)
+                ctx.log(f"extract:page={ps.index}:notes_above_supplement_title="
+                        f"{len(above)}_words")
+            if below:
+                ctx.log(f"extract:page={ps.index}:supplement_ends_at={ends_y:.3f}"
+                        f"(left_unread={len(below)}_words)")
+            if above or below:
+                outside = {id(word) for word in above + below}
+                words = [word for word in words if id(word) not in outside]
         notes_carry = None
         notes_grid = None
         notes_group = None
+        if not words:
+            carried = None
+            continue
         # ``ps.statement`` (from the classifier) is what tells the reconstructor that a page is a
         # component matrix rather than a two-column comparative; ``ctx.log`` records the cases
         # where a matrix page could not be attributed and was skipped.

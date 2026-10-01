@@ -110,7 +110,13 @@ def test_the_carry_is_offered_only_to_the_section_that_continues_the_note():
     notes = inspect.getsource(notes_extract.extract_note_tables)
     assert "carry_group=(carry_group if sec is carried else None)" in notes
     extract = inspect.getsource(pdf_extract.extract_pdf)
-    assert "carry_group=notes_group" in extract
+    # The notes reader is called through `_read_notes`, which a NOTES page and the note text above
+    # a cash-flow supplement's title share (see `stages.classify._cf_supplement_extent`). The facts
+    # pinned are unchanged: the carried group is what is passed, and what comes back is the last
+    # section's group — None included.
+    assert "carry_group=carry_group, group_out=groups" in extract
+    assert "notes_carry, notes_grid, notes_group = _read_notes(" in extract
+    assert "notes_carry, notes_grid, notes_group)" in extract
     # Reset on the same break as the note and the grid.
     assert extract.count("notes_group = None") == 1
-    assert "notes_group = groups[-1] if groups else None" in extract
+    assert "groups[-1] if groups else None" in extract

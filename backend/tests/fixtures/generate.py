@@ -1563,3 +1563,183 @@ def make_two_cas_cash_flow_statements_on_one_page_pdf() -> bytes:
     c.showPage()
     c.save()
     return buf.getvalue()
+
+
+def make_cas_cash_flow_pair_running_onto_next_page_pdf() -> bytes:
+    """A mainland cash-flow PAIR whose second statement runs onto the next page — 000709 pp.88-89.
+
+    Page 0 opens with 5、合并现金流量表 and prints 6、母公司现金流量表 part-way down, below the Group's
+    closing row. The parent company's statement runs on to the top of page 1, where it ends above
+    7、合并所有者权益变动表. The rows ON page 0 are split by ``row_reconstruct._title_entity_basis``;
+    what this fixture is about is what page 0 hands ON: the classifier recorded only page 0's first
+    title, so page 1's company rows above the equity title were filed as the Group's, and the
+    published consolidated operating cash flow was the Group's plus the company's.
+
+    Ground truth (000709's own figures): Group net operating cash flow 9,678,206,759.05 /
+    11,213,085,443.28; company 4,040,497,164.97 / 7,395,438,906.05; company closing cash
+    14,389,609,727.03 / 24,895,265,487.32.
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+
+    pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    _, height = A4
+
+    def _rows(y, rows):
+        c.setFont("STSong-Light", 8)
+        for label, cur, pri in rows:
+            y -= 16
+            c.drawString(72, y, label)
+            c.drawRightString(400, y, cur)
+            c.drawRightString(500, y, pri)
+        return y
+
+    def _head(y, title):
+        c.setFont("STSong-Light", 12)
+        c.drawString(72, y, title)
+        y -= 20
+        c.setFont("STSong-Light", 8)
+        c.drawString(72, y, "项目")
+        c.drawRightString(400, y, "2024 年度")
+        c.drawRightString(500, y, "2023 年度")
+        return y
+
+    c.setFont("STSong-Light", 8)
+    c.drawString(72, height - 40, "河钢股份有限公司 2024 年年度报告全文")
+    y = _head(height - 80, "5、合并现金流量表")
+    y = _rows(y, (("销售商品、提供劳务收到的现金", "113,973,832,889.31", "116,697,367,262.93"),
+                  ("购买商品、接受劳务支付的现金", "98,104,194,148.18", "98,510,109,643.53"),
+                  ("经营活动产生的现金流量净额", "9,678,206,759.05", "11,213,085,443.28"),
+                  ("六、期末现金及现金等价物余额", "18,709,822,673.91", "29,984,655,378.30")))
+    y = _head(y - 40, "6、母公司现金流量表")
+    _rows(y, (("销售商品、提供劳务收到的现金", "92,143,224,538.02", "104,391,123,754.02"),))
+    c.showPage()
+
+    c.setFont("STSong-Light", 8)
+    c.drawString(72, height - 40, "河钢股份有限公司 2024 年年度报告全文")
+    y = _rows(height - 60, (
+        ("购买商品、接受劳务支付的现金", "86,177,191,697.07", "94,184,328,006.91"),
+        ("经营活动产生的现金流量净额", "4,040,497,164.97", "7,395,438,906.05"),
+        ("六、期末现金及现金等价物余额", "14,389,609,727.03", "24,895,265,487.32")))
+    y = _head(y - 40, "7、合并所有者权益变动表")
+    _rows(y, (("一、上年期末余额", "10,208,826,960.00", "10,208,826,960.00"),))
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
+def make_cas_cash_flow_supplement_in_notes_pdf(chapter: str = "七、合并财务报表项目注释") -> bytes:
+    """A mainland filing's CASH-FLOW SUPPLEMENT, printed as a note — 688008 / 000709 / 300319.
+
+    Page 0 is the Group's cash-flow statement. Page 1 opens the notes chapter ``chapter`` names and
+    page 2 continues it. Page 3 is a notes page that carries the tail of note 78
+    (支付的其他与筹资活动有关的现金), then 79、现金流量表补充资料 part-way down: the indirect-method
+    reconciliation, closing at 经营活动产生的现金流量净额, and then the note's other tables (the cash
+    movement). Page 4 is the next note.
+
+    Two things went wrong on every mainland reference filing. The supplement came after the notes
+    and "re-presented" a statement already shown as the Group's, so it was read as the COMPANY's —
+    688008's standalone operating cash flow was the company's plus the Group's. And the whole page
+    was read as a face, so note 78's rows above the title and the cash movement below the
+    reconciliation were filed as cash flows.
+
+    Ground truth (688008's own figures): Group net operating cash flow 1,691,321,506.14 /
+    731,249,699.11; supplement net profit 1,340,736,124.50 / 451,147,481.14.
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+
+    pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    _, height = A4
+
+    def _chrome():
+        c.setFont("STSong-Light", 8)
+        c.drawString(72, height - 40, "澜起科技股份有限公司 2024 年年度报告")
+
+    def _rows(y, rows):
+        c.setFont("STSong-Light", 8)
+        for label, cur, pri in rows:
+            y -= 16
+            c.drawString(72, y, label)
+            c.drawRightString(400, y, cur)
+            c.drawRightString(500, y, pri)
+        return y
+
+    def _band(y, a="本期发生额", b="上期发生额", first="项目"):
+        c.setFont("STSong-Light", 8)
+        c.drawString(72, y, first)
+        c.drawRightString(400, y, a)
+        c.drawRightString(500, y, b)
+        return y
+
+    _chrome()
+    c.setFont("STSong-Light", 12)
+    c.drawString(72, height - 80, "5、合并现金流量表")
+    y = _band(height - 100, "2024 年度", "2023 年度")
+    _rows(y, (("销售商品、提供劳务收到的现金", "3,576,434,663.11", "2,297,192,754.40"),
+              ("经营活动产生的现金流量净额", "1,691,321,506.14", "731,249,699.11"),
+              ("六、期末现金及现金等价物余额", "6,698,931,684.67", "5,665,880,219.28")))
+    c.showPage()
+
+    _chrome()
+    c.setFont("STSong-Light", 11)
+    c.drawString(72, height - 80, chapter)
+    c.setFont("STSong-Light", 9)
+    c.drawString(72, height - 104, "1、货币资金")
+    y = _band(height - 124, "期末余额", "期初余额")
+    _rows(y, (("库存现金", "5,928.60", "11,742.60"),
+              ("银行存款", "6,651,096,406.08", "5,650,278,562.80"),
+              ("合计", "6,698,931,684.67", "5,665,880,219.28")))
+    c.showPage()
+
+    # A second notes page. A notes run is never one page long in a real filing, and a single NOTES
+    # page between two FACE pages is what `_reclaim_statement_continuations` exists to reclaim.
+    _chrome()
+    c.setFont("STSong-Light", 9)
+    c.drawString(72, height - 70, "2、交易性金融资产")
+    y = _band(height - 90, "期末余额", "期初余额")
+    _rows(y, (("结构性存款", "2,885,000,000.00", "2,397,000,000.00"),
+              ("合计", "2,885,000,000.00", "2,397,000,000.00")))
+    c.showPage()
+
+    _chrome()
+    c.setFont("STSong-Light", 9)
+    c.drawString(72, height - 70, "78、现金流量表项目")
+    c.drawString(72, height - 88, "支付的其他与筹资活动有关的现金")
+    y = _band(height - 106)
+    y = _rows(y, (("回购库存股", "409,057,267.16", "300,031,332.07"),
+                  ("支付新租赁准则下租金", "21,420,870.42", "15,790,349.72"),
+                  ("合计", "430,478,137.58", "315,821,681.79")))
+    c.setFont("STSong-Light", 9)
+    y -= 30
+    c.drawString(72, y, "79、现金流量表补充资料")
+    y = _band(y - 20, "本期金额", "上期金额", first="补充资料")
+    c.drawString(72, y - 16, "1、将净利润调节为经营活动现金流量：")
+    y = _rows(y - 16, (("净利润", "1,340,736,124.50", "451,147,481.14"),
+                       ("财务费用（收益以“－”号填列）", "-10,799,287.05", "-1,582,959.36"),
+                       ("股份支付", "58,848,996.62", "122,677,641.08"),
+                       ("经营活动产生的现金流量净额", "1,691,321,506.14", "731,249,699.11")))
+    c.setFont("STSong-Light", 8)
+    c.drawString(72, y - 18, "2、不涉及现金收支的重大投资和筹资活动：")
+    c.drawString(72, y - 34, "3、现金及现金等价物净变动情况：")
+    _rows(y - 34, (("现金的期末余额", "6,698,931,684.67", "5,665,880,219.28"),
+                   ("减：现金的期初余额", "5,665,880,219.28", "5,833,750,412.54")))
+    c.showPage()
+
+    _chrome()
+    c.setFont("STSong-Light", 9)
+    c.drawString(72, height - 70, "80、外币货币性项目")
+    y = _band(height - 90, "期末外币余额", "期末折算人民币余额")
+    _rows(y, (("货币资金", "568,370,539.23", "4,085,674,784.19"),
+              ("应收账款", "52,269,824.09", "375,736,403.49")))
+    c.showPage()
+    c.save()
+    return buf.getvalue()
