@@ -97,6 +97,11 @@ const core: LocaleDicts = {
     "ws.derived": "derived",
     "ws.sourceCcy": "source",
     "ws.rateLoading": "Looking up rate…",
+    // The figure the filing PRINTED for a calculated line, set beside the computed one as a
+    // reference where the two differ. {printed}/{shown}/{diff} are filled in by the Workspace.
+    "ws.printedRef": "printed",
+    "ws.printedRef.help":
+      "The filing printed {printed}. The figure shown is what this line's components come to ({shown}), and it is the figure the spread and the export publish. Difference: {diff}.",
     "ws.noRate": "No FX rate configured for",
     "ws.rateFailed": "Could not look up the FX rate for",
     "ws.rateFailedHint":
@@ -205,6 +210,9 @@ const core: LocaleDicts = {
     "ws.asOf": "截至",
     "ws.derived": "推算",
     "ws.sourceCcy": "原币",
+    "ws.printedRef": "原文",
+    "ws.printedRef.help":
+      "报表原文列示为 {printed}。此处显示的是本行各组成项目的合计（{shown}），表格与导出均发布该计算值。差额：{diff}。",
     "ws.rateLoading": "正在查询汇率…",
     "ws.noRate": "未配置汇率：",
     "ws.rateFailed": "无法查询汇率：",
@@ -310,6 +318,9 @@ const core: LocaleDicts = {
     "ws.asOf": "بتاريخ",
     "ws.derived": "مُستنتج",
     "ws.sourceCcy": "العملة الأصلية",
+    "ws.printedRef": "المطبوع",
+    "ws.printedRef.help":
+      "طبع التقرير {printed}. الرقم المعروض هو مجموع مكونات هذا البند ({shown})، وهو الرقم الذي ينشره الجدول والتصدير. الفرق: {diff}.",
     "ws.rateLoading": "جارٍ البحث عن سعر الصرف…",
     "ws.noRate": "لا يوجد سعر صرف مُهيّأ لـ",
     "ws.rateFailed": "تعذّر الاستعلام عن سعر الصرف لـ",
@@ -416,6 +427,9 @@ const core: LocaleDicts = {
     "ws.derived": "dérivé",
     "ws.sourceCcy": "source",
     "ws.rateLoading": "Recherche du taux…",
+    "ws.printedRef": "publié",
+    "ws.printedRef.help":
+      "Le document publie {printed}. Le chiffre affiché est la somme des composantes de cette ligne ({shown}) ; c'est lui que le tableau et l'export publient. Écart : {diff}.",
     "ws.noRate": "Aucun taux de change configuré pour",
     "ws.rateFailed": "Impossible de récupérer le taux de change pour",
     "ws.rateFailedHint":

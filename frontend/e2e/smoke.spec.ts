@@ -1443,6 +1443,39 @@ test("real extraction: prior-year links, an edit that sticks, KPIs and Additiona
   await expect(page.getByText("Units", { exact: true })).toBeVisible({ timeout: 15_000 });
 });
 
+test("a calculated total shows what the filing printed beside it, where the two differ",
+     async ({ page }) => {
+  // `printed-total.pdf` prints Total assets 5,000 over lines that add to 4,614 this year, and
+  // 4,000 over 1,100 + 2,900 last year. The published figure stays the computation; the printed
+  // one is a reference under it — for the period that differs, and only that one.
+  test.setTimeout(120_000);
+  await loginAs(page, "analyst");
+  // The upload → "Extract directly" path of the real-extraction test above, not `extractFixture`:
+  // that helper pins the configuration by id off `GET /line-items/versions`, which an analyst is
+  // refused (403), and this test needs nothing pinned.
+  await page.goto("/upload", DCL);
+  await page.setInputFiles('input[type="file"]', "e2e/fixtures/printed-total.pdf");
+  await expect(page.getByTestId("doc-row").filter({ hasText: "printed-total.pdf" }).first())
+    .toBeVisible({ timeout: 15_000 });
+  await page.getByRole("button", { name: /Extract directly/ }).click();
+  await expect(page.getByRole("heading", { name: "Extracted data" }))
+    .toBeVisible({ timeout: 60_000 });
+  await page.goto("/workspace", DCL);
+
+  await expect(page.getByTestId("v1-bs_ca__total_assets")).toContainText("4,614",
+                                                                         { timeout: 20_000 });
+  const ref = page.getByTestId("printed-v1-bs_ca__total_assets");
+  await expect(ref).toContainText("printed 5,000");
+  // The tooltip says which figure is published and by how much they differ.
+  await expect(ref).toHaveAttribute("title", /printed 5,000.*\(4,614\).*publish.*\(386\)/);
+  // Last year ties, so there is nothing to set beside it.
+  await expect(page.getByTestId("printed-v2-bs_ca__total_assets")).toHaveCount(0);
+
+  // The inspector reads the same server decision, so the two cannot disagree.
+  await ref.click();
+  await expect(page.getByTestId("reported-divergence")).toContainText("printed 5,000");
+});
+
 test("an admin downloads the template as a workbook and publishes an edited version",
      async ({ page }) => {
   test.setTimeout(120_000);

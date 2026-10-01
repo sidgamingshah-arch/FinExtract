@@ -617,6 +617,43 @@ function OriginChip({ origin }: { origin?: Origin }) {
   );
 }
 
+/** WHAT THE FILING PRINTED, under a calculated figure that is a different number.
+ *
+ * The published figure of a calculated line is the computation — the spread and the export carry
+ * it, and that decision stands. But a reader holding the page beside the grid sees one number in
+ * the filing and another on screen, and until now only the inspector said why, and only for the
+ * row selected — and on the reference filings the two can differ in sign, not only in rounding
+ * (a net profit computed negative that the filing prints positive). A difference like that has to
+ * be visible where the figure is.
+ *
+ * The server decides WHEN (`printed1`/`printed2`, see `as_calculated`): the period's figure is the
+ * computation, the line was printed, and the two differ beyond the cross-check tolerance. This only
+ * presents it — in the same units and currency as the figure above it, small and muted so the
+ * published figure still reads as THE figure, with the full sentence in the tooltip. */
+function PrintedRef({ printed, shown, present, testid }: {
+  printed: number;
+  shown: number;
+  present: (raw: number | null) => string;
+  testid: string;
+}) {
+  const t = useT();
+  const help = t("ws.printedRef.help")
+    .replace("{printed}", present(printed))
+    .replace("{shown}", present(shown))
+    .replace("{diff}", present(shown - printed));
+  return (
+    <span
+      data-testid={testid}
+      title={help}
+      style={{ fontSize: 9.5, fontWeight: 400, color: color.muted, whiteSpace: "nowrap",
+               cursor: "help" }}
+    >
+      <span style={{ color: color.amberFg, fontWeight: 700 }}>≠</span> {t("ws.printedRef")}{" "}
+      {present(printed)}
+    </span>
+  );
+}
+
 /* ---- right output-panel row ---- */
 /** Which note a printed reference actually OPENS, out of the notes this row resolved to.
  *
@@ -693,6 +730,10 @@ function OutputRow({
   function valueCell(period: "current" | "prior", text: string, links: boolean,
                      weight: number, fg: string) {
     const note = row.comments?.[period]?.text;
+    // What the filing printed, where the figure shown is a DIFFERENT number — see PrintedRef.
+    const shown = period === "current" ? row.v1 : row.v2;
+    const printed = showV ? (period === "current" ? row.printed1 : row.printed2) : null;
+    const hasRef = printed != null && shown != null;
     return (
       <span
         data-testid={showV ? `${period === "current" ? "v1" : "v2"}-${row.id}` : undefined}
@@ -708,12 +749,20 @@ function OutputRow({
       >
         {/* A figure carrying a reason why it was overridden says so where the figure is. */}
         {note && <span style={{ color: color.amberFg, fontSize: 10 }}>✎</span>}
-        <span
-          style={links
-            ? { borderBottom: `1px dashed ${selected ? color.indigo : color.dashed}` }
-            : undefined}
-        >
-          {text}
+        <span style={hasRef
+          ? { display: "flex", flexDirection: "column", alignItems: "flex-end", lineHeight: 1.15 }
+          : { display: "contents" }}>
+          <span
+            style={links
+              ? { borderBottom: `1px dashed ${selected ? color.indigo : color.dashed}` }
+              : undefined}
+          >
+            {text}
+          </span>
+          {hasRef && (
+            <PrintedRef printed={printed} shown={shown} present={present}
+                        testid={`printed-${period === "current" ? "v1" : "v2"}-${row.id}`} />
+          )}
         </span>
       </span>
     );
@@ -1483,8 +1532,14 @@ export default function WorkspaceScreen() {
   const onPickCitation = setPicked;
   // A calculated line's divergence from the printed figure is a finding, so the inspector states
   // it. The printed figure is never the line's value, but silence would hide the disagreement.
-  const inspDiverges = inspOrigin === "calculated" && inspReported != null && inspShown != null
-    && Math.abs(inspShown - inspReported) > 0.5;
+  // The server's `printed1`/`printed2` decides, so the grid's printed reference and this sentence
+  // cannot disagree about whether there is a difference. A payload without the field (an older
+  // backend, the sample project) keeps the rule this used before.
+  const inspPrinted = inspPeriod === "current" ? selRowObj?.printed1 : selRowObj?.printed2;
+  const inspDiverges = inspPrinted !== undefined
+    ? inspPrinted != null && inspShown != null
+    : inspOrigin === "calculated" && inspReported != null && inspShown != null
+      && Math.abs(inspShown - inspReported) > 0.5;
   const inspNote = selRowObj?.comments?.[inspPeriod];
 
   /** Save an edit: the retyped columns, the stored formula, and the reason.
@@ -2254,10 +2309,15 @@ export default function WorkspaceScreen() {
                              lineHeight: 1.5 }}
                   >
                     <strong style={{ fontWeight: 600 }}>
-                      The document printed {present(inspReported)}.
+                      The document printed {present(inspPrinted ?? inspReported ?? null)}.
                     </strong>{" "}
-                    This line shows what its components come to. The difference
-                    ({present((inspShown ?? 0) - (inspReported ?? 0))}) is in the review queue.
+                    {/* No parentheses of its own: `present` already brackets a negative, and a
+                        shortfall read "((386))". */}
+                    This line shows what its components come to. The difference is{" "}
+                    {present((inspShown ?? 0) - (inspPrinted ?? inspReported ?? 0))}
+                    {/* Only a key the cross-check compares becomes a finding; the printed figure
+                        is shown regardless, so the sentence names the queue only when it is so. */}
+                    {selRowObj?.status === "recon" ? ", and it is in the review queue." : "."}
                   </div>
                 )}
                 {inspOrigin === "manual" && inspComputed != null && (

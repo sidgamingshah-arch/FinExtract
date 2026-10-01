@@ -4955,6 +4955,27 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
         row["calculated1"] = c1.value if (c1 and c1.computable) else None
         row["calculated2"] = c2.value if (c2 and c2.computable) else None
         row["origin1"], row["origin2"] = o1, o2
+
+        def printed_reference(origin: str, shown, reported):
+            """What the filing printed, for the grid to show BESIDE a calculated figure — or None.
+
+            The published figure stays the computed one (the spread and the export carry it); this
+            is a reference, so a reader comparing the Workspace with the page sees both numbers
+            where they are not the same number. Served only when all three hold: the period's
+            figure IS the computation (a manual value is the analyst's answer and a fallback IS the
+            printed figure), the filing printed this line, and the two differ by more than the
+            cross-check tolerance — the rounding a sum of printed figures can carry. Below that the
+            reference would print the same number twice.
+
+            NOT gated on ``_check.compares``. That narrows which differences become review
+            findings; what the document printed is a fact about the page either way.
+            """
+            if origin != "calculated" or shown is None or reported is None:
+                return None
+            return reported if abs(shown - reported) > _check.tolerance else None
+
+        row["printed1"] = printed_reference(o1, row["v1"], row["reported1"])
+        row["printed2"] = printed_reference(o2, row["v2"], row["reported2"])
         # The row-level chip summarises the two: a manual value is the most important thing to
         # say about the line, then that anything on it was computed.
         row["origin"] = ("manual" if "manual" in (o1, o2)
@@ -5289,10 +5310,13 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
             if not nc and not np:
                 continue
             info = nc or np
+            # A restated figure is no longer the computation a printed reference was set beside.
             if nc:
                 r["v1"] = _to_num(nc["net"])
+                r.pop("printed1", None)
             if np:
                 r["v2"] = _to_num(np["net"])
+                r.pop("printed2", None)
             r["formula"] = info["formula"]
             r["status"] = "recon"
             raw = info["raw"]

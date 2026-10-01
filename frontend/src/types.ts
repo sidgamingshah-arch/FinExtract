@@ -376,6 +376,12 @@ export interface StatementRow {
    *  divergence can be stated. */
   reported1?: number | null;
   reported2?: number | null;
+  /** The printed figure to show BESIDE a calculated one, per period — the server's decision, not
+   *  the grid's. Set only when that period's figure is the computation, the filing printed the
+   *  line, and the two differ by more than the cross-check tolerance; null otherwise, and absent
+   *  on a row that is not a calculated line. The published figure stays `v1`/`v2`. */
+  printed1?: number | null;
+  printed2?: number | null;
   /** What the components come to, present even when a manual value is displayed instead. */
   calculated1?: number | null;
   calculated2?: number | null;

@@ -85,6 +85,79 @@ def test_a_subtotal_shows_its_components_not_the_printed_figure():
     assert (row["reported1"], row["reported2"]) == (999, 888)
 
 
+def test_a_calculated_figure_that_contradicts_the_page_serves_the_printed_one_beside_it():
+    # The Workspace shows the printed figure as a REFERENCE next to the computed one, per period,
+    # and only where the two are different numbers: the current column differs, the prior column
+    # agrees to within float noise, so only the current one carries a reference.
+    rows = [_row("bs_ca__inventories", "Inventories", 100, 90),
+            _row("bs_ca__cash", "Cash", 30, 20),
+            _row("bs_ca__total", "Total current assets", 999, 110.2)]
+    row = _row_of(_stmt(rows), "bs_ca__total")
+    assert (row["v1"], row["v2"]) == (130, 110)          # the published figure is unchanged
+    assert row["printed1"] == 999
+    assert row["printed2"] is None
+
+
+def test_no_printed_reference_where_there_is_nothing_to_set_beside():
+    # Printed and computed agree; the filing printed no total; and a fallback to the printed figure
+    # (no components extracted) already IS the printed figure. None of them gets a reference.
+    agree = _row_of(_stmt([_row("bs_ca__inventories", "Inventories", 100),
+                           _row("bs_ca__cash", "Cash", 30),
+                           _row("bs_ca__total", "Total current assets", 130)]), "bs_ca__total")
+    assert agree["printed1"] is None
+    unprinted = _row_of(_stmt([_row("bs_ca__inventories", "Inventories", 100),
+                               _row("bs_ca__cash", "Cash", 30)]), "bs_ca__total")
+    assert unprinted["printed1"] is None
+    fallback = _row_of(_stmt([_row("bs_ca__total", "Total current assets", 999)]), "bs_ca__total")
+    assert fallback["origin1"] == "reported_uncomputed" and fallback["printed1"] is None
+    # A plain line is not calculated and never carries the field.
+    assert "printed1" not in _row_of(_stmt([_row("bs_ca__cash", "Cash", 30)]), "bs_ca__cash")
+
+
+def test_a_manual_value_carries_no_printed_reference():
+    # The analyst's figure is their answer for the line; the reference is for a COMPUTED figure.
+    total = _row("bs_ca__total", "Total current assets", 999)
+    total["edited"] = True
+    rows = [_row("bs_ca__inventories", "Inventories", 100), _row("bs_ca__cash", "Cash", 30), total]
+    row = _row_of(_stmt(rows), "bs_ca__total")
+    assert row["origin1"] == "manual"
+    assert row["printed1"] is None
+
+
+def test_the_printed_reference_reaches_the_payload_the_workspace_reads(client):
+    """Through ``GET /documents/{id}/statement`` — the request the Workspace grid makes — and not
+    only through the builder: the field has to survive into the payload the screen renders."""
+    import uuid
+
+    from app.db.base import SessionLocal, init_db
+    from app.db.models import Document, ExtractionRun, TemplateVersion
+
+    rows = [_row("bs_ca__inventories", "Inventories", 100, 90),
+            _row("bs_ca__cash", "Cash", 30, 20),
+            _row("bs_ca__total", "Total current assets", 999, 110)]
+    init_db()
+    with SessionLocal() as s:
+        doc = Document(filename="p.pdf", fmt="pdf", byte_size=1, page_count=1,
+                       content_hash=uuid.uuid4().hex, object_key="k", owner="admin")
+        s.add(doc)
+        s.flush()
+        tv = TemplateVersion(template_key=f"p-{uuid.uuid4().hex[:8]}", name="P", version=1,
+                             definition=TEMPLATE)
+        s.add(tv)
+        s.flush()
+        s.add(ExtractionRun(document_id=doc.id, status="succeeded",
+                            options={"template_version_id": tv.id},
+                            result={"rows": rows, "filename": "p.pdf"}))
+        s.commit()
+        doc_id = doc.id
+
+    d = client.get(f"/api/v1/documents/{doc_id}/statement",
+                   params={"statement": "balance_sheet", "basis": "consolidated"}).json()
+    row = _row_of(d, "bs_ca__total")
+    assert (row["v1"], row["v2"]) == (130, 110)          # the published figure stays computed
+    assert (row["printed1"], row["printed2"]) == (999, None)
+
+
 def test_a_nested_total_rolls_up_the_computed_subtotals_not_the_printed_ones():
     rows = [_row("bs_ca__inventories", "Inventories", 100),
             _row("bs_ca__cash", "Cash", 30),
