@@ -52,6 +52,32 @@ note titles, row captions, exclusions and cascade rungs are authored, not genera
 figure those enumerated branches used to produce must now come from that configuration, or the
 cell is blank. There is no generator to recreate the file: restore it from version control.
 
+**The rebuild is no longer faithful.** Both inputs have drifted from the shipped set, which has been
+curated since: `validate_reference_data.py` reports how far (`unread-copy-drift`,
+`stale-build-input`). Read the diff before committing a rebuilt seed.
+
+## `validate_reference_data.py` — the checks no gate runs, on every shipped file
+
+```bash
+cd backend
+python scripts/validate_reference_data.py                  # a report grouped by file; exit 1 on any ERROR
+python -m scripts.validate_reference_data --errors-only    # ERROR and KNOWN rows only
+python scripts/validate_reference_data.py --dir /tmp/copy  # a copy of app/sample/templates
+```
+
+Puts every file in `app/sample/templates` through the boot gate and the publish gate, then through
+what neither gate asks: rollup cycles, a `reported_total_key` naming nothing, a repeated `node_id`,
+unknown locale codes, a part whose figure reaches no output column, an aliased line with no
+statement gate, a `section_scope` naming no section, the fixed template's boundary in both
+directions, and gross-parent declarations against the template's own rollups. The files the
+product never reads (see `app/sample/templates/README.md`) only have to load; what they say that
+the template or the live set does not is a WARN.
+
+`ERROR` fails the run and CI. `WARN` is suspicious but legitimate. `KNOWN` is an ERROR on the
+`KNOWN_DEFECTS` list — each one named exactly, each one being removed — and
+`tests/test_reference_data_validator.py` fails when an entry no longer matches anything, so the list
+is cleaned as the fixes land.
+
 ## `live_analysis.py` — real Claude extraction + analysis for one entity
 
 Feeds an entity's line items to Claude through the project's real `AnthropicLlmProvider`

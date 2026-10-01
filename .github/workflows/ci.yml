@@ -1,0 +1,78 @@
+# What every push and pull request has to pass.
+#
+# THREE THINGS, because each catches what the others cannot:
+#
+#   * the reference-data validator — the shipped templates and line-item sets held to the checks no
+#     load or publish gate runs (a rollup cycle, a residual whose reported total names nothing, a
+#     part whose figure reaches no column…). Most of those break no test: they publish, boot healthy
+#     and compute something else. See backend/scripts/validate_reference_data.py.
+#   * the backend suite.
+#   * the frontend typecheck and production build.
+#
+# The Playwright e2e suite (`pnpm e2e`) is not run here: it needs browsers and a live backend, and
+# it edits the configuration of the database it runs against.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          # backend/pyproject.toml: requires-python = ">=3.11"
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      # Before the suite, so a broken shipped file is reported as itself rather than as the dozens
+      # of downstream test failures it would otherwise cause.
+      - name: Validate reference data
+        run: python scripts/validate_reference_data.py
+      - name: Test suite
+        # No config.local.toml exists here, and none is needed: tests/conftest.py pins the stub LLM
+        # provider and points the database and object store at a temporary directory.
+        run: python -m pytest -q -p no:cacheprovider
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          # frontend/package.json declares no packageManager; this is the version the lockfile
+          # (lockfileVersion 9.0) and pnpm-workspace.yaml's `allowBuilds` were written with.
+          version: 10.33.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Build
+        run: pnpm build
