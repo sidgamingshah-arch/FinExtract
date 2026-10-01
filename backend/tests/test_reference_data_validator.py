@@ -149,6 +149,8 @@ def test_a_fixed_known_defect_is_reported_as_a_stale_entry(shipped):
     assert [(k.file, k.check, k.subject) for k in r.stale] == [
         (INDAS_SET, "dangling-ref", "is_pl__gross_profit")]
     assert "STALE ALLOWLIST ENTRY" in r.render()
+    # …and the script on its own fails on it too, not only this test suite.
+    assert r.exit_code == 1
 
 
 def test_the_report_is_grouped_by_file_and_the_exit_code_follows_the_errors(tmp_path, capsys):

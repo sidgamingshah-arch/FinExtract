@@ -5310,13 +5310,16 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
             if not nc and not np:
                 continue
             info = nc or np
-            # A restated figure is no longer the computation a printed reference was set beside.
+            # A restated figure is no longer the computation a printed reference was set beside. Null, not
+            # absent: the inspector reads an absent field as an older payload and falls back to its own rule.
             if nc:
                 r["v1"] = _to_num(nc["net"])
-                r.pop("printed1", None)
+                if "printed1" in r:
+                    r["printed1"] = None
             if np:
                 r["v2"] = _to_num(np["net"])
-                r.pop("printed2", None)
+                if "printed2" in r:
+                    r["printed2"] = None
             r["formula"] = info["formula"]
             r["status"] = "recon"
             raw = info["raw"]

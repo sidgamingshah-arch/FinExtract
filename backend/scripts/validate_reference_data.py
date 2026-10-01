@@ -206,7 +206,8 @@ class Report:
 
     @property
     def exit_code(self) -> int:
-        return 1 if self.errors() else 0
+        # A stale allowlist entry fails too: it would wait there to excuse the defect coming back.
+        return 1 if self.errors() or self.stale else 0
 
     def render(self, *, errors_only: bool = False) -> str:
         """The report, grouped by file, every finding on a header line and a wrapped message."""
