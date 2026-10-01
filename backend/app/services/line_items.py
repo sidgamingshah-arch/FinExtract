@@ -334,6 +334,13 @@ def evaluate(d: LineItemDef, known: dict[str, Decimal | None],
         # cycle, so there is nothing in `terms` to write. They keep the old behaviour: report what
         # the document supplied and let the template's rollup evaluator do the subtraction.
         #
+        # FOR RETAINED PROFITS THAT SUBTRACTION NEVER RAN, and what it subtracted was wrong. It
+        # deducted Revaluation, Hedging and Other Reserves while Other Reserves' own residual
+        # deducted Retained Profits — a cycle, which `rollups.evaluate` reports and evaluates
+        # neither side of. Those three reserves are now Total Equity & Reserves' own children, so
+        # Retained Profits deducts only the auditor adjustment, which is absent unless an analyst
+        # enters one: its published figure is the retained profits the filing prints.
+        #
         # WHAT THE PRINTED FIGURE IS STILL FOR. `services/rollups.evaluate` remains the export,
         # statement API and KPI path and still reads the TEMPLATE's rollup, so no published figure
         # moved with this migration. The two declarations agreeing is asserted by

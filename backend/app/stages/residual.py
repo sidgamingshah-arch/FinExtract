@@ -857,7 +857,21 @@ def _component(terms: _Terms, ontology, doc: DocumentModel, li, res: _Residual, 
 
 def _by_canonical_key(doc: DocumentModel) -> tuple[dict[str, dict[str, float]],
                                                    dict[str, list]]:
-    """Per concept, the figure the DOCUMENT publishes for it per column, and the rows behind it."""
+    """Per concept, the figure the DOCUMENT publishes for it per column, and the rows behind it.
+
+    PUBLISHES, so a RESTATEMENT does not add to a column the statements already fill — the rule
+    `periods.summable` applies for the grid. An equity-matrix closing balance of a line the balance
+    sheet also prints is that line printed a second time; adding it doubled 嘉民's share capital
+    and China SCE 1966's non-controlling interests inside the equity section's reconciliation.
+    """
+    from app.services.equity_matrix import TRANSPOSED_FLAG
+
+    def restated(ev) -> bool:
+        return TRANSPOSED_FLAG in tuple(ev.confidence.flags or ())
+
+    printed = {(li.canonical_key, _col(ev)) for li in doc.line_items if li.canonical_key
+               for ev in li.values.values()
+               if (ev.value is not None or ev.value_raw is not None) and not restated(ev)}
     totals: dict[str, dict[str, float]] = {}
     rows: dict[str, list] = {}
     for li in doc.line_items:
@@ -865,7 +879,11 @@ def _by_canonical_key(doc: DocumentModel) -> tuple[dict[str, dict[str, float]],
             continue
         rows.setdefault(li.canonical_key, []).append(li)
         slot = totals.setdefault(li.canonical_key, {})
+        dropped = {_col(ev) for ev in li.values.values()
+                   if restated(ev) and (li.canonical_key, _col(ev)) in printed}
         for col, val in _row_values(li).items():
+            if col in dropped:
+                continue
             slot[col] = slot.get(col, 0.0) + float(val)
     return totals, rows
 

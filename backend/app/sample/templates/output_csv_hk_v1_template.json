@@ -1554,15 +1554,12 @@
               "label_i18n": {
                 "en": "Retained Profits"
               },
-              "role": "subtotal",
+              "role": "line",
               "rollup": {
                 "op": "sum",
                 "reported_total_key": "bs_equity__retained_profits",
                 "reported_total_op": "diff",
                 "children": [
-                  "bs_equity__revaluation_reserves",
-                  "bs_equity__hedging_reserves",
-                  "bs_equity__other_reserves",
                   "bs_equity__auditor_adj_on_retained_profits"
                 ]
               }
@@ -1678,6 +1675,10 @@
                 "op": "sum",
                 "children": [
                   "bs_equity__permanent_equity",
+                  "bs_equity__revaluation_reserves",
+                  "bs_equity__hedging_reserves",
+                  "bs_equity__other_reserves",
+                  "bs_equity__auditor_adj_on_retained_profits",
                   "bs_equity__retained_profits",
                   "bs_equity__treasury_shares",
                   "bs_equity__forex_translation_equity",

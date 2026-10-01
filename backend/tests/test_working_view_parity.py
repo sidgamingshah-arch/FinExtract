@@ -66,7 +66,8 @@ RULEBOOK = TEMPLATES / "output_csv_hk_ontology.json"
 PROJECTED = sorted(set(SAME) | set(RENAMED))
 
 CONCEPTS = 462                 # the rulebook's concepts, and the set's `namespace == "template"`
-ITEMS = 528                    # …plus the 69 `sub__*` note-level parts, which ARE concepts too:
+ITEMS = 529                    # 529: sub__equity_reserves added (the face "Reserves 儲備" aggregate, kept apart from the equity-statement components it totals)  # 528 before
+                               # …plus the 69 `sub__*` note-level parts, which ARE concepts too:
                                # the view projects every definition, and `namespace` decides only
                                # where a figure is PUBLISHED. See
                                # test_shipped_set_projects_every_definition_including_the_parts.
@@ -191,6 +192,24 @@ _FACE_RECOGNITION_FIELDS = {"keyword_hints", "regex_hints", "match_priority"}
 _CONFUSABLE_CONVERTED = frozenset({
     "bs_nca__buildings", "bs_nca__land_use_rights",
     "bs_ca__trade_and_other_receivables", "bs_ca__trade_receivables_gross",
+})
+
+# THE TWO RESIDUALS THAT REFUSE "NET ASSETS". A Hong Kong statement of financial position prints
+# "Net assets 資產淨值" between the non-current liabilities and the equity section, and it is the SAME
+# FACT as total equity (2,376,067 = 2,376,067 on 嘉民, 20,482,326 = 20,482,326 on China SCE 1966).
+# Nothing claimed it, so the sweep filed it into whichever residual its banner resolved to:
+# `bs_ncl__other_non_current_liabilities` on 嘉民 (2,386,207 published for a printed 10,140) and
+# `bs_equity__other_reserves` on 1966. Both gained the `exclude_hints` that already refuse the
+# layout's other subtotals ("Net current assets", "Total assets less current liabilities"), so the
+# seed leads the rulebook on these two. Other Reserves also refuses the CAS "其中：优先股 / 永续债"
+# breakdown of 其他权益工具, which 河钢 000709 had swept into it beside Other Equity's own 7.0B. And
+# the current-liabilities residual gained the two layout hints the non-current one already had:
+# 嘉民 prints "Total assets less current liabilities 3,078,784" under its current liabilities, and
+# the sweep filed it on `bs_cl__other_current_liabilities`, which published 3,092,261 for a printed
+# 13,477 — total current liabilities 8,972,667 for a printed 5,893,883.
+_NET_ASSETS_VETOED = frozenset({
+    "bs_equity__other_reserves", "bs_ncl__other_non_current_liabilities",
+    "bs_cl__other_current_liabilities",
 })
 
 # THE SEED LEADS THE RULEBOOK ON TWO FIELDS BECAUSE THE CONFIG SCREEN WORK CHANGED THEM.
@@ -494,6 +513,13 @@ def test_shipped_set_projects_every_definition_including_the_parts():
         "sub__cp_face_trading_fincl_assets", "sub__cp_face_other_receivables",
         "sub__ltp_face_other_non_current_fincl_assets",
         "sub__ltp_face_other_equity_instrument_investments",
+        # AND THE RESERVES AGGREGATE, on the same grounds: no `note_source`, and
+        # `statement: balance_sheet` with `section_scope: ['bs_equity']` is how it is read off the
+        # face. It holds the one "Reserves 儲備" line a Hong Kong balance sheet prints, which used to
+        # bind to `bs_equity__other_reserves` beside the equity-statement components it totals —
+        # every reserve counted twice (China SCE 1966: Equity & Reserves 42,335,984 published for
+        # 12,605,743 by the template's own definition).
+        "sub__equity_reserves",
     }
     # A RESIDUAL BUCKET IS NOT A PART and declares its statement properly: `bs_ca_residual_L3`
     # is a balance-sheet current-assets bucket, so `balance_sheet` is where it belongs.
@@ -530,6 +556,13 @@ def test_shipped_set_diverges_only_in_the_known_classes():
         # being flipped without the measurement that justifies it.
         if field == "extraction_mode" and set(keys) <= _EXTRACTION_MODE_DECISIONS:
             continue
+        # …and `unit_of_account` on Retained Profits ALONE, which the seed declares `balance`
+        # where the rulebook derives `subtotal` from its `calculated` type. It is one reserve of the
+        # equity section, not a subtotal over it: read as a subtotal it was left out of the
+        # section's own identity, which then reported China SCE 1966 13,517,775 short and 嘉民
+        # 2,182,599 short — each filing's printed retained profits — while the section tied.
+        if field == "unit_of_account" and set(keys) <= {"bs_equity__retained_profits"}:
+            continue
         # …and the recognition fields on exactly the two derived parents whose face-reading PART
         # now carries them. Both halves are bounded: the field must be one of the three that moved,
         # and the concepts must be those two.
@@ -542,7 +575,8 @@ def test_shipped_set_diverges_only_in_the_known_classes():
         # `confusable_with` pair became exclusions gained some, and the derived parents lost theirs.
         # Checked against the union, because a per-reason check passes only while one reason acts
         # alone — and the first version of this allowance did exactly that and failed on the eight.
-        if field == "exclude_hints" and set(keys) <= _CONFUSABLE_CONVERTED | _derived_parents():
+        if field == "exclude_hints" and set(keys) <= (_CONFUSABLE_CONVERTED | _derived_parents()
+                                                     | _NET_ASSETS_VETOED):
             continue
         if field == "alias_matching" and len(keys) <= _ALIAS_MATCHING_REMOVED:
             continue

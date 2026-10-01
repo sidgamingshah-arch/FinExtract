@@ -206,16 +206,24 @@ def test_reviewer_corrected_extracted_roles_and_equity_formulas():
         "bs_nca__accum_intgbl_assets_amort",
     ]
 
+    # Retained Profits deducts only the auditor adjustment now. It used to deduct Revaluation,
+    # Hedging and Other Reserves as well, while Other Reserves (the section residual) deducted
+    # Retained Profits — a rollup cycle, so `rollups.evaluate` ran neither — and the three reserve
+    # lines reached Total Equity & Reserves only through that never-run residual: published total
+    # equity was 148,757 short on China SCE 1966 and 15,056 short on 嘉民. They are Total Equity's
+    # own children now (C9 + C22 + C23 of the extraction logic), so Retained Profits is the
+    # retained earnings the filing prints, with nothing of theirs inside it.
     retained = nodes["bs_equity__retained_profits"]["rollup"]["children"]
     assert retained == [
-        "bs_equity__revaluation_reserves",
-        "bs_equity__hedging_reserves",
-        "bs_equity__other_reserves",
         "bs_equity__auditor_adj_on_retained_profits",
     ]
     total_equity = nodes["bs_equity__total_equity_and_reserves"]["rollup"]["children"]
     assert total_equity == [
         "bs_equity__permanent_equity",
+        "bs_equity__revaluation_reserves",
+        "bs_equity__hedging_reserves",
+        "bs_equity__other_reserves",
+        "bs_equity__auditor_adj_on_retained_profits",
         "bs_equity__retained_profits",
         "bs_equity__treasury_shares",
         "bs_equity__forex_translation_equity",

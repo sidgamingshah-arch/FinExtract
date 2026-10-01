@@ -373,6 +373,13 @@ def test_every_reported_line_resolves_a_gate_and_parts_deliberately_do_not():
     # Current Assets published 11,271,578,867.08 against a printed 9,461,304,025.38 — 交易性金融资产
     # 1,783,494,750.68 and 其他应收款 4,143,856.36 counted in bs_ca__other_current_assets as well as
     # in their own columns.
+    # THE RESERVES AGGREGATE is named on the same condition: `statement: balance_sheet` AND
+    # `section_scope: ['bs_equity']`, so "Reserves 儲備" is bindable only under a balance sheet's
+    # equity banner. It exists because the caption used to bind to `bs_equity__other_reserves`
+    # (alias 储备) BESIDE the equity-statement components it totals — every reserve counted twice:
+    # China SCE 1966 published Equity & Reserves 42,335,984 for 12,605,743 by the template's own
+    # definition, 嘉民 4,529,714 for 2,191,372. It carries NO keyword hint: "reserves" as a keyword
+    # would claim every reserve caption the alias tier missed.
     _FACE_PARTS_WITH_ALIASES = {"sub__rp_bs_face_receivables", "sub__face_principal_revenue",
                                 "sub__cfo_depreciation",
                                 "sub__non_operating_income", "sub__non_operating_expenses",
@@ -385,7 +392,8 @@ def test_every_reported_line_resolves_a_gate_and_parts_deliberately_do_not():
                                 "sub__cp_face_trading_fincl_assets",
                                 "sub__ltp_face_other_equity_instrument_investments",
                                 "sub__cp_face_other_receivables",
-                                "sub__ltp_face_other_non_current_fincl_assets"}
+                                "sub__ltp_face_other_non_current_fincl_assets",
+                                "sub__equity_reserves"}
     aliased = [d.key for d in parts
                if (d.aliases or d.aliases_i18n) and d.key not in _FACE_PARTS_WITH_ALIASES]
     assert not aliased, (
@@ -415,7 +423,7 @@ def test_the_note_level_parts_are_off_template():
     # COLUMN of a gross/allowance/net grid, and a row whose own reported amount is the net. One
     # part holds one `measure`, so two readings are two parts; 000709 needs both, its consolidated
     # note printing the grid and its parent-company note a plain comparative.
-    assert len(subs) == 65   # 65: sub__expense_notes_depreciation added (depreciation rows of the selling/admin/R&D notes)   # 64: Other Receivables (CP): grid gross/allowance readings and six carve-outs went   # 72: Contingent liabilities: nine parts folded into one line-item sum over the contingencies note   # 80: plus the Securities (LTP) face part for CAS 其他权益工具投资, whose note is misread and whose face row is right   # 79: the four Securities (LTP) Find 2 and non-current-split parts left the set   # 83: the three Securities (CP) Find 2 and non-current parts left the set   # 83 with the related-party TRADE RECEIVABLE's three parts (账面余额 gross, 坏账准备 allowance, and the face part holding the aliases)   # 80: 543 with the three related-party PAYABLE face parts — `mapping._computed_parent` forbids a `derived` column from matching a caption, so a column with a note cascade could not read its own printed row, so each grew a FACE part carrying the aliases the column had to give up; two on the LTP twin because kaming prints the holding-company loan and the shareholder loan as separate rows   # 77: the two related-party payable readings, one per group the note prints
+    assert len(subs) == 66   # 66: sub__equity_reserves added (the face "Reserves 儲備" aggregate, kept apart from the equity-statement components it totals by `mutually_exclusive_groups.equity_reserves`)   # 65: sub__expense_notes_depreciation added (depreciation rows of the selling/admin/R&D notes)   # 64: Other Receivables (CP): grid gross/allowance readings and six carve-outs went   # 72: Contingent liabilities: nine parts folded into one line-item sum over the contingencies note   # 80: plus the Securities (LTP) face part for CAS 其他权益工具投资, whose note is misread and whose face row is right   # 79: the four Securities (LTP) Find 2 and non-current-split parts left the set   # 83: the three Securities (CP) Find 2 and non-current parts left the set   # 83 with the related-party TRADE RECEIVABLE's three parts (账面余额 gross, 坏账准备 allowance, and the face part holding the aliases)   # 80: 543 with the three related-party PAYABLE face parts — `mapping._computed_parent` forbids a `derived` column from matching a caption, so a column with a note cascade could not read its own printed row, so each grew a FACE part carrying the aliases the column had to give up; two on the LTP twin because kaming prints the holding-company loan and the shareholder loan as separate rows   # 77: the two related-party payable readings, one per group the note prints
     assert all(d.namespace == "internal" for d in subs)
     assert all(d.namespace == "template" for d in st.items if d.in_output)
 

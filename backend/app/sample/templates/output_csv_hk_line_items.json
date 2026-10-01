@@ -625,7 +625,26 @@
   ],
   "no_fabricated_split": "Never invent a decomposition. Where only a combined figure is reported, load the combined concept and leave the children empty. The one exception is a concept declaring sole_component_of: assigning a whole undifferentiated figure to a single child divides nothing, and it is refused as soon as any sibling child is evidenced on the face or in the subtotal's own note.",
   "totals_policy": "Compute totals from mutually exclusive concept outputs. Use reported totals only for validation, never as an input to the components.",
-  "mutually_exclusive_groups": []
+  "mutually_exclusive_groups": [
+   {
+    "id": "equity_reserves",
+    "aggregate": "sub__equity_reserves",
+    "components": [
+     "bs_equity__share_premium",
+     "bs_equity__capital_and_restricted_reserves",
+     "bs_equity__revaluation_reserves",
+     "bs_equity__hedging_reserves",
+     "bs_equity__other_reserves",
+     "bs_equity__retained_profits",
+     "bs_equity__treasury_shares",
+     "bs_equity__forex_translation_equity",
+     "bs_equity__other_equity",
+     "bs_equity__accum_oth_eqty_rsrv_inc"
+    ],
+    "rule": "Populate the aggregate only when the face prints a single undifferentiated 'Reserves' line and no component of it is printed. If any component is printed — on the face or as a closing balance of the statement of changes in equity — populate the components and leave the aggregate null.",
+    "note": "China SCE 1966 and 嘉民 print 'Reserves 儲備' on the face and break it down in the statement of changes in equity, whose closing balances sum to it exactly (9,358,611 and 2,361,865). Filing both counted every reserve twice: published Equity & Reserves was 42,335,984 and 4,529,714 against 12,605,743 and 2,191,372 by the template's own definition."
+   }
+  ]
  },
  "scope_selection": {
   "note": "Absent from v1 and a common cause of silent mis-loads on HKEX filings.",
@@ -4851,8 +4870,7 @@
    "label": "Other Reserves",
    "definition": "Extract the reported value for 'Other Reserves' from the stated section. Do not calculate it.",
    "aliases": [
-    "Other Reserves",
-    "Total Equity / Stockholders Equity/ Owners' Equity"
+    "Other Reserves"
    ],
    "aliases_i18n": {
     "en": [
@@ -4860,7 +4878,6 @@
     ],
     "zh": [
      "专项储备",
-     "储备",
      "其他储备"
     ]
    },
@@ -4888,7 +4905,44 @@
     "any movement belonging to the retained-profits reconciliation"
    ],
    "namespace": "template",
-   "route": "face"
+   "route": "face",
+   "exclude_hints": [
+    "^net (?:\\(liabilities\\)\\s*/\\s*)?assets?\\b",
+    "^(?:資產淨值|资产净值|資產淨額|资产净额|淨資產|净资产)",
+    "^(?:其中[:：]\\s*)?(?:永续债|永續債|优先股|優先股)\\s*$"
+   ]
+  },
+  {
+   "key": "sub__equity_reserves",
+   "label": "Reserves (face aggregate)",
+   "definition": "The single 'Reserves' line a Hong Kong statement of financial position prints under Equity (儲備 / 储备), between Share capital and Equity attributable to owners of the parent: the AGGREGATE of every reserve the company holds — share premium, capital and statutory reserves, revaluation, hedging, exchange, share-option and other reserves, and retained profits. Read OFF THE FACE of the balance sheet. It is not Other Reserves and it is not Retained Profits. Where the filing also states the components — normally as the closing balances of the statement of changes in equity, which the filing says comprise this line — the components are filed and this aggregate is kept only as evidence (mutually_exclusive_groups.equity_reserves). Where the filing prints nothing but the aggregate, its figure is carried to Other Reserves, the equity section's residual, which is where the template places reserves the filing does not break down.",
+   "inherits": "bs_equity",
+   "parent": "bs_equity__other_reserves",
+   "namespace": "internal",
+   "sign_rule": {},
+   "route": "face",
+   "sign_convention": "either",
+   "aliases": [
+    "Reserves",
+    "Total reserves"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Reserves",
+     "Total reserves"
+    ],
+    "zh": [
+     "储备",
+     "儲備",
+     "储备总额"
+    ]
+   },
+   "in_output": false,
+   "statement": "balance_sheet",
+   "section_scope": [
+    "bs_equity"
+   ],
+   "order": 1
   },
   {
    "key": "bs_equity__auditor_adj_on_retained_profits",
@@ -4915,8 +4969,9 @@
   {
    "key": "bs_equity__retained_profits",
    "label": "Retained Profits",
-   "definition": "The subtotal the filing PRINTS as 'Retained Profits', reported in the equity section of the balance sheet. It is the sum of Revaluation Reserves, Hedging Reserves, Other Reserves and Auditor adj on retained profits. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
+   "definition": "The retained earnings the filing prints in the equity section of the balance sheet — 'Retained profits', 'Retained earnings', 'Accumulated profits' or 'Accumulated losses', 保留溢利, 未分配利润 — or the retained-profits closing balance of the statement of changes in equity. It is ONE reserve among several, not a subtotal of the others: revaluation, hedging and other reserves are their own lines and are added BESIDE it in Equity & Reserves and in Total Equity & Reserves, so none of them is inside this figure. Read the printed amount. A single undifferentiated 'Reserves' (儲備) line is not this line: it is the aggregate of every reserve, retained profits included.",
    "extraction_mode": "extract_or_derive",
+   "unit_of_account": "balance",
    "aliases": [
     "Retained Profits",
     "Retained earning",
@@ -5209,7 +5264,7 @@
   {
    "key": "bs_equity__total_equity_and_reserves",
    "label": "Total Equity & Reserves",
-   "definition": "The subtotal the filing PRINTS as 'Total Equity & Reserves', reported in the equity section of the balance sheet. It is the sum of Permanent Equity, Retained Profits, Treasury Shares(-), Forex Translation Equity, Subordinated Debt from related parties, Subordinated Debt Equity, Other Equity, Policyholders Equity and and 2 more. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
+   "definition": "The subtotal the filing PRINTS as 'Total Equity & Reserves', reported in the equity section of the balance sheet. It is the sum of Permanent Equity, Revaluation Reserves, Hedging Reserves, Other Reserves, Auditor adj on retained profits, Retained Profits, Treasury Shares(-), Forex Translation Equity, Subordinated Debt from related parties, Subordinated Debt Equity, Other Equity, Policyholders Equity, Accum Oth Eqty Rsrv Inc and Minority Interest Equity. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Total Equity & Reserves",
@@ -5249,6 +5304,22 @@
    "terms": [
     {
      "ref": "bs_equity__permanent_equity",
+     "sign": 1
+    },
+    {
+     "ref": "bs_equity__revaluation_reserves",
+     "sign": 1
+    },
+    {
+     "ref": "bs_equity__hedging_reserves",
+     "sign": 1
+    },
+    {
+     "ref": "bs_equity__other_reserves",
+     "sign": 1
+    },
+    {
+     "ref": "bs_equity__auditor_adj_on_retained_profits",
      "sign": 1
     },
     {
@@ -5918,7 +5989,9 @@
    "exclude_hints": [
     "^net current (?:assets|liabilities)",
     "^total assets less current liabilities",
-    "^total non[\\-–—]?current liabilities"
+    "^total non[\\-–—]?current liabilities",
+    "^net (?:\\(liabilities\\)\\s*/\\s*)?assets?\\b",
+    "^(?:資產淨值|资产净值|資產淨額|资产净额|淨資產|净资产)"
    ],
    "sign_rule": {},
    "inherits": "bs_ncl",
@@ -7429,7 +7502,11 @@
     "any row printed in the non-current liabilities, equity or assets sections"
    ],
    "namespace": "template",
-   "route": "face"
+   "route": "face",
+   "exclude_hints": [
+    "^net current (?:assets|liabilities)",
+    "^total assets less current liabilities"
+   ]
   },
   {
    "key": "bs_cl__customer_advances_cp",

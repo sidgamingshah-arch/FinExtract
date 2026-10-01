@@ -3576,7 +3576,6 @@
    "definition": "Extract the reported value for 'Other Reserves' from the stated section. Do not calculate it.",
    "aliases": [
     "Other Reserves",
-    "Total Equity / Stockholders Equity/ Owners' Equity",
     "Other reserves"
    ],
    "aliases_i18n": {
@@ -3614,8 +3613,9 @@
   {
    "key": "bs_equity__retained_profits",
    "label": "Retained Profits",
-   "definition": "The subtotal the filing PRINTS as 'Retained Profits', reported in the equity section of the balance sheet. It is the sum of Revaluation Reserves, Hedging Reserves and Other Reserves. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
+   "definition": "The retained earnings the filing prints within Other Equity — 'Retained earnings', 'Surplus in the Statement of Profit and Loss', 'Accumulated profits' or 'Accumulated losses' — or the retained-earnings column of the statement of changes in equity. It is ONE reserve among several, not a subtotal of the others: revaluation, hedging and other reserves are their own lines and are added BESIDE it in Equity & Reserves and in Total Equity & Reserves, so none of them is inside this figure. Read the printed amount.",
    "extraction_mode": "extract_or_derive",
+   "unit_of_account": "balance",
    "aliases": [
     "Retained Profits",
     "Retained earning",
@@ -3848,7 +3848,7 @@
   {
    "key": "bs_equity__total_equity_and_reserves",
    "label": "Total Equity & Reserves",
-   "definition": "The subtotal the filing PRINTS as 'Total Equity & Reserves', reported in the equity section of the balance sheet. It is the sum of Permanent Equity, Retained Profits, Treasury Shares(-), Forex Translation Equity, Other Equity, Accum Oth Eqty Rsrv Inc and Minority Interest Equity. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
+   "definition": "The subtotal the filing PRINTS as 'Total Equity & Reserves', reported in the equity section of the balance sheet. It is the sum of Permanent Equity, Revaluation Reserves, Hedging Reserves, Other Reserves, Retained Profits, Treasury Shares(-), Forex Translation Equity, Other Equity, Accum Oth Eqty Rsrv Inc and Minority Interest Equity. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Total Equity & Reserves",
@@ -3879,6 +3879,18 @@
    "terms": [
     {
      "ref": "bs_equity__permanent_equity",
+     "sign": 1
+    },
+    {
+     "ref": "bs_equity__revaluation_reserves",
+     "sign": 1
+    },
+    {
+     "ref": "bs_equity__hedging_reserves",
+     "sign": 1
+    },
+    {
+     "ref": "bs_equity__other_reserves",
      "sign": 1
     },
     {

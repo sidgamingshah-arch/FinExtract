@@ -202,7 +202,31 @@ def _printed(ev) -> Decimal | None:
     return None if v is None else Decimal(v)
 
 
+def _is_restatement(ev) -> bool:
+    """Whether this value is the statement of changes in equity restating a balance-sheet figure.
+
+    `services.equity_matrix` raises the flag on every closing balance it transposes out of the
+    matrix, and `periods.summable` — the reader the grid, the export and the KPIs use — drops such a
+    value wherever the balance sheet printed the same line itself.
+    """
+    from app.services.equity_matrix import TRANSPOSED_FLAG
+
+    return TRANSPOSED_FLAG in tuple(getattr(getattr(ev, "confidence", None), "flags", None) or ())
+
+
 def collect_values(items: Iterable[LineItem]) -> MappedValues:
+    items = list(items)
+    # A RESTATEMENT NEVER ADDS TO A SLOT THE STATEMENTS ALREADY FILL — `periods.summable`'s rule,
+    # applied here so the checks validate the figure the grid publishes rather than a different
+    # one. Without it the equity-matrix closing balance of a line the balance sheet also prints was
+    # counted twice: on 嘉民 share capital entered `section_reconciliation:bs_equity` as 28,404 for
+    # a printed 14,202, and on China SCE 1966 non-controlling interests as 21,517,154 for a printed
+    # 10,758,577. Where the face printed nothing, the restatement is the only statement of the
+    # figure and still counts, exactly as it does on the grid.
+    printed_slots = {(li.canonical_key, (ev.basis.value, ev.period_label))
+                     for li in items if li.canonical_key
+                     for ev in li.values.values()
+                     if _printed(ev) is not None and not _is_restatement(ev)}
     out = MappedValues()
     for li in items:
         key = li.canonical_key
@@ -213,6 +237,8 @@ def collect_values(items: Iterable[LineItem]) -> MappedValues:
             if val is None:
                 continue
             slot: Slot = (ev.basis.value, ev.period_label)
+            if _is_restatement(ev) and (key, slot) in printed_slots:
+                continue
             seen = out.values.setdefault(key, {})
             seen[slot] = val if slot not in seen else seen[slot] + val
             out.contributors.setdefault(key, {})[slot] = out.sources(key, slot) + 1
