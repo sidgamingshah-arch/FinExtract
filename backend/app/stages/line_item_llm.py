@@ -310,6 +310,15 @@ class LineItemLlmStage(Stage):
                         answer, doc.notes, face_context.face_index(doc), allow_face=may_face,
                         pages=face_context.other_page_index(doc) if may_pages else None,
                         allow_pages=may_pages, allow_rows=may_rows)
+                    # A LINE THAT EXCLUDES DERIVATIVES REFUSES A DERIVATIVE CITATION — see
+                    # `_refuse_derivative_citations`. Refused citations carry no figure, so they
+                    # are recorded on the row and counted nowhere.
+                    resolved, refused = _refuse_derivative_citations(item, resolved)
+                    for bad in refused:
+                        ctx.log(f"line_item_llm:{key}: citation REFUSED "
+                                f"note={bad.get('note')!r} caption={str(bad.get('caption'))[:60]!r} "
+                                f"({bad.get('why')})")
+                    unresolved = unresolved + refused
                     unresolved_total += len(unresolved)
                     for bad in unresolved:
                         ctx.log(f"line_item_llm:{key}: citation NOT resolved "
@@ -355,7 +364,12 @@ class LineItemLlmStage(Stage):
                     # applies `row_caption_none` and `row_terms_none` — so the exclusions are unenforced
                     # only on the route whose request never mentioned them.
                     #
-                    # `extraction.llm_vetoes_bind_model_answers` is consequently unread. It is left in
+                    # ONE EXCEPTION, decided after a measured failure: the DERIVATIVE veto binds model
+                # answers (`_refuse_derivative_citations`, applied right after `resolve` below),
+                # because "excluding derivatives" is in those lines' label and definition — the
+                # model is told it — and on 嘉民 the swaps' notional was published as securities.
+                #
+                # `extraction.llm_vetoes_bind_model_answers` is consequently unread. It is left in
                     # the settings schema rather than deleted: it is the switch this behaviour comes
                     # back on if the split is judged too strict, and removing it would make restoring
                     # it a schema change instead of a default change.
@@ -842,6 +856,56 @@ def _cited_provenance(resolved: list[dict]):
         except Exception:  # noqa: BLE001 - a malformed citation must not end the run
             continue
     return None
+
+
+def _derivative_vetoes(item) -> list:
+    """The line's own `row_caption_none` patterns that exclude DERIVATIVES, compiled.
+
+    Read off the authored vetoes rather than restated here, so the words — and their exception for
+    structured deposits with embedded derivatives — are the ones the deterministic route already
+    applies. A line whose vetoes say nothing about derivatives gets an empty list.
+    """
+    import re as _re
+    src = getattr(item, "note_source", None)
+    out = []
+    for raw in (getattr(src, "row_caption_none", None) or ()):
+        if _re.search(r"derivative|衍生", raw, _re.IGNORECASE):
+            try:
+                out.append(_re.compile(raw, _re.IGNORECASE))
+            except _re.error:
+                continue
+    return out
+
+
+def _refuse_derivative_citations(item, resolved: list[dict]) -> tuple[list[dict], list[dict]]:
+    """`(kept, refused)`: a model citation of a DERIVATIVE, on a line that excludes derivatives.
+
+    THE ONE AUTHORED EXCLUSION A MODEL ANSWER IS HELD TO. The rest of `row_caption_none` is
+    deterministic-route bookkeeping (totals, the current/non-current split) that the request never
+    carries, and grading the model against it would be unfair — see the note above
+    `combine_terms`. "Excluding derivatives" is different: it is in the line's LABEL and its
+    DEFINITION, so the model was told, and measured on 嘉民 (kaming) it cited the interest rate
+    swaps' notional amount (950,000, note 22 "Derivative financial instruments") for a current
+    securities part anyway, and Securities (CP) published it.
+
+    Both the row caption and the cited note's title are tested: a swap row captioned only by
+    its counterparty still sits in a note titled "Derivative financial instruments". A refused
+    citation carries no figure — not `figures`, not `amount` — so `combine_terms` counts nothing
+    for it; it is returned to be recorded on the row and in the log.
+    """
+    vetoes = _derivative_vetoes(item)
+    if not vetoes or not resolved:
+        return resolved, []
+    kept, refused = [], []
+    for entry in resolved:
+        texts = [str(entry.get("caption") or ""), str(entry.get("title") or "")]
+        if any(v.search(t) for v in vetoes for t in texts if t):
+            refused.append({"at": entry.get("at"), "note": entry.get("note"),
+                            "caption": entry.get("caption"),
+                            "why": "this line excludes derivatives, and the cited row is one"})
+        else:
+            kept.append(entry)
+    return kept, refused
 
 
 def _current_period(doc) -> str | None:
