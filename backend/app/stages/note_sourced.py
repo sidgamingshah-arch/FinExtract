@@ -1204,10 +1204,42 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
                      # "it displaced 128,412" is the first thing they need to see.
                      + ([f"displaced_printed:{displaced}"] if displaced is not None else [])))
         target_row.confidence.flags.append(f"cascade_rung:{got.rung_used}")
+        # Per SLOT, not per row: one basis may be read out of the face's captions and another
+        # printed as a line of its own. See `CascadeRung.carved_from_face`.
+        from app.services.rollups import CARVED_FROM_FACE
+        rung_def = next((r for r in parent_def.cascade or () if r.id == got.rung_used), None)
+        if rung_def is not None and rung_def.carved_from_face and not _face_prints_line(
+                parent_def, by_key, defs or {}, basis, period):
+            slot = _slot(target_row, basis, period)
+            if slot is not None and CARVED_FROM_FACE not in slot.confidence.flags:
+                slot.confidence.flags.append(CARVED_FROM_FACE)
         ctx.log(f"note_sourced:{parent_def.key}[{basis}:{period}]: rung {got.rung_used} "
                 f"-> {got.value} from {len(got.inputs)} term(s)")
         filled += 1
     return filled
+
+
+def _face_prints_line(parent_def, by_key: dict, defs: dict, basis: str, period: str) -> bool:
+    """Whether the face prints this derived line AS A LINE OF ITS OWN, for one slot.
+
+    Answered by the line's own FACE parts — the terms of its cascade whose route is ``face``. China
+    SCE 1966 prints "Due to related parties 應付關聯方款項" 2,588,416, bound to
+    ``sub__rp_face_due_to_cp``; the note rung outranks that part and reads the same amount, and the
+    face row is counted nowhere but through this line. So a ``carved_from_face`` rung is carved
+    only where no face part of the line holds a figure: 000709 prints no such row, and its
+    related-party amounts sit inside 其他应付款 and 长期应付款.
+    """
+    for rung in parent_def.cascade or ():
+        for term in rung.terms:
+            part = defs.get(term.ref) if term.ref else None
+            route = getattr(part, "route", None) if part is not None else None
+            if str(getattr(route, "value", route) or "") != "face":
+                continue
+            row = by_key.get(term.ref)
+            ev = _slot(row, basis, period) if row is not None else None
+            if ev is not None and ev.value is not None:
+                return True
+    return False
 
 
 def _slot(row: LineItem, basis: str, period: str):

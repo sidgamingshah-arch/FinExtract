@@ -21,7 +21,7 @@ import json
 import re
 import statistics
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 
@@ -1100,6 +1100,15 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             if pending and _opens_its_own_line(label_words):
                 out.append(pending)
                 pending = []
+            # A PENDING CAPTION THAT IS ALREADY COMPLETE is a line item of its own, not the head of
+            # this row's caption. The known-caption test above runs on each printed line; a blank
+            # caption that itself WRAPS — 处置子公司及其他营业单位收到的 / 现金净额 on 300319 — is only
+            # complete once its two halves are joined, and was then folded onto the next row:
+            # "处置子公司及其他营业单位收到的现金净额收到其他与投资活动有关的现金".
+            if (pending and label_words
+                    and _is_known_caption(_scan_row(pending, fmt)[0], steps, known)):
+                out.append(pending)
+                pending = []
             straddle = ((list(pending), _row_box(row))
                         if pending and not label_words else None)
             out.append(pending + row if pending else row)
@@ -1191,6 +1200,12 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
                 continue
 
         if pending and _opens_its_own_line(label_words):
+            out.append(pending)
+            pending = []
+        # …and the same on a label-only line: a pending caption that is complete does not take the
+        # next caption's first line as its continuation.
+        if (pending and label_words
+                and _is_known_caption(_scan_row(pending, fmt)[0], steps, known)):
             out.append(pending)
             pending = []
         # Label-only (or note-only) line: candidate wrapped-label continuation.
@@ -1317,6 +1332,28 @@ _CAS_FACE_CAPTIONS: frozenset[str] = frozenset(normalize_label(_c) for _c in {
     "负债和所有者权益（或股东权益）总计",
     "经营活动产生的现金流量净额", "投资活动产生的现金流量净额", "筹资活动产生的现金流量净额",
     "期末现金及现金等价物余额",
+    # THE CASH FLOW STATEMENT'S OWN LINES. The standard layout prints every one whether the filer
+    # used it or not, so a blank 处置子公司及其他营业单位收到的现金净额 was folded onto the next row:
+    # 000709 came out with "取得子公司及其他营业单位支付的现金净额支付其他与投资活动有关的现金"
+    # holding 19,025,416,852.11 — the OUTFLOW SUBTOTAL's figures, a second time. Every entry is
+    # printed on 688008, 000709 and 300319 (the employee line in the two spellings they use).
+    "销售商品、提供劳务收到的现金", "收到的税费返还", "收到其他与经营活动有关的现金",
+    "经营活动现金流入小计", "购买商品、接受劳务支付的现金", "支付给职工以及为职工支付的现金",
+    "支付给职工及为职工支付的现金", "支付的各项税费", "支付其他与经营活动有关的现金",
+    "经营活动现金流出小计", "收回投资收到的现金", "取得投资收益收到的现金",
+    "处置固定资产、无形资产和其他长期资产收回的现金净额", "处置子公司及其他营业单位收到的现金净额",
+    "收到其他与投资活动有关的现金", "投资活动现金流入小计",
+    "购建固定资产、无形资产和其他长期资产支付的现金", "投资支付的现金",
+    "取得子公司及其他营业单位支付的现金净额", "支付其他与投资活动有关的现金", "投资活动现金流出小计",
+    "吸收投资收到的现金", "子公司吸收少数股东投资收到的现金", "取得借款收到的现金",
+    "收到其他与筹资活动有关的现金", "筹资活动现金流入小计", "偿还债务支付的现金",
+    "分配股利、利润或偿付利息支付的现金", "子公司支付给少数股东的股利、利润",
+    "支付其他与筹资活动有关的现金", "筹资活动现金流出小计",
+    "汇率变动对现金及现金等价物的影响", "现金及现金等价物净增加额", "期初现金及现金等价物余额",
+    # The one exception to "printed on all three": a statutory line of the financial-enterprise
+    # layout that 300319 prints blank between 投资支付的现金 and 取得子公司…, and that otherwise
+    # welds onto the caption below it. A complete caption, not a fragment.
+    "质押贷款净增加额",
     # THE STATEMENT OF CHANGES IN EQUITY, which the same scan also stopped short of. Its caption
     # column is the narrowest on the face — a dozen value columns share the page — so almost every
     # one of these wraps, and with none of them recognised the forward-fold ate them in runs:
@@ -4013,6 +4050,8 @@ class _Breakdown:
     parent: LineItem
     line_x0: float      # where the 其中： line itself starts
     body_x0: float      # where the caption after 其中： starts — the edge its further lines share
+    # The breakdown's lines summed so far, per (basis, period) — see `_fits_the_breakdown`.
+    used: dict = field(default_factory=dict)
 
 
 def _breakdown_body_x0(label_words: list[Word]) -> float | None:
@@ -4037,6 +4076,35 @@ def _breakdown_body_x0(label_words: list[Word]) -> float | None:
             return nxt.bbox.x0 if nxt is not None else w.bbox.x1
         return w.bbox.x0 + (w.bbox.x1 - w.bbox.x0) * cut / max(len(text), 1)
     return None
+
+
+def _fits_the_breakdown(open_breakdowns: list[_Breakdown], li: LineItem) -> bool:
+    """Whether this row's figures still fit inside the 其中 breakdown it was read into.
+
+    THE ARITHMETIC BOUND ON THE INDENT. An "of which" itemises PART of its parent, so its lines
+    together never exceed it in any column. The running total is kept on the breakdown; a row that
+    would take it past the parent's figure is not one of its lines.
+    """
+    if not open_breakdowns:
+        return True
+    bd = open_breakdowns[-1]
+    parent_by_slot = {(ev.basis, ev.period_label): abs(ev.value) for ev in bd.parent.values.values()
+                      if ev.value is not None}
+    used = bd.used
+    for ev in li.values.values():
+        if ev.value is None:
+            continue
+        slot = (ev.basis, ev.period_label)
+        cap = parent_by_slot.get(slot)
+        if cap is None:
+            continue
+        if used.get(slot, 0) + abs(ev.value) > cap * Decimal("1.0005") + 1:
+            return False
+    for ev in li.values.values():
+        if ev.value is not None:
+            slot = (ev.basis, ev.period_label)
+            used[slot] = used.get(slot, 0) + abs(ev.value)
+    return True
 
 
 def _breakdown_parent(open_breakdowns: list[_Breakdown], label_words: list[Word], label: str,
@@ -4724,6 +4792,15 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         if note_ref:
             li.note_refs.append(NoteRef(raw=note_ref, numbers=[note_ref]))
             li.note_number = note_ref
+        # BALANCE SHEET ONLY: a balance's "of which" is part of it, while a P&L line may be net —
+        # 财务费用 is 利息费用 less 利息收入, and its 其中：利息费用 legitimately exceeds it.
+        if (breakdown_of is not None and statement == "balance_sheet"
+                and not _fits_the_breakdown(open_breakdowns, li)):
+            # MORE THAN THE ROW IT WOULD BREAK DOWN: not part of it. Indent alone cannot see a
+            # breakdown end on a layout whose later lines never return to the parent's margin, and
+            # every line after it would be counted as already inside the parent.
+            li.parent_id = None
+            open_breakdowns.clear()
         items.append(li)
         above_emitted = True
         ordinal += 1

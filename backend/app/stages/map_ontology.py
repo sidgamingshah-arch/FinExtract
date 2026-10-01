@@ -69,6 +69,12 @@ def _page_of(li) -> int | None:
 
 
 
+def _bases_of(li) -> set:
+    """The bases (consolidated, standalone) a row carries a figure for."""
+    return {str(getattr(ev.basis, "value", ev.basis)) for ev in (li.values or {}).values()
+            if ev.value is not None or ev.value_raw is not None}
+
+
 def _pairs_to_keep_apart(ontology) -> list[tuple[str, list[str], str]]:
     """(aggregate, components, why) for every containment the rulebook declares.
 
@@ -974,7 +980,14 @@ class MapOntologyStage:
         # A and B are both unfiled as evidence, C stands. The shipped rulebook declares no chain
         # (tests/test_composite_caption_containment.py holds that), but an uploaded one may.
         as_mapped = {id(li): li.canonical_key for li in doc.line_items}
-        printed = {k for k in as_mapped.values() if k}
+        # PER BASIS, not filing-wide. A component printed for the company alone says nothing about
+        # the group: a filing whose group face prints one undifferentiated "Reserves" line, and whose
+        # company balance sheet breaks its own reserves down, would otherwise lose the group's
+        # reserves entirely — the aggregate unfiled on the strength of a different entity's rows.
+        printed_on: dict[str, set] = {}
+        for li in doc.line_items:
+            if as_mapped.get(id(li)):
+                printed_on.setdefault(as_mapped[id(li)], set()).update(_bases_of(li))
         for aggregate, components, why in pairs:
             # A template-calculated line is not an additive parent. Its printed amount remains
             # attached to the same key as validation evidence, while the statement/export serves
@@ -984,7 +997,8 @@ class MapOntologyStage:
             filed = [li for li in doc.line_items if as_mapped.get(id(li)) == aggregate]
             if not filed:
                 continue
-            present = [c for c in components if c in printed]
+            bases = set().union(*(_bases_of(li) for li in filed))
+            present = [c for c in components if printed_on.get(c, set()) & bases]
             if not present:
                 # The face printed only the aggregate — keep it. This arm is also
                 # ``global_rules.no_fabricated_split`` ("Where only a combined figure is reported,
@@ -995,6 +1009,8 @@ class MapOntologyStage:
             for li in filed:
                 if li.canonical_key is None:
                     continue          # an outer containment already unfiled it; do not count twice
+                if not any(printed_on.get(c, set()) & _bases_of(li) for c in present):
+                    continue          # this row's entity printed no component of it
                 li.canonical_key = None
                 if li.role is LineRole.LINE:
                     li.role = LineRole.SUBTOTAL

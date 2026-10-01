@@ -1657,7 +1657,8 @@
        "sign": 1
       }
      ],
-     "note": "MAX_VALID(Find 1, Find 2, Find 3) — the spec's own selection rule, now expressible. The three Finds are three readings of ONE quantity and the fullest disclosure wins, which is why this is a maximum and not a sum: summing them would count the same related-party receivable up to three times. Every term is `any_of`, so a filing that discloses only one of the three still answers with that one, and a filing that discloses none leaves the line empty rather than publishing zero (spec 3.6). `outranks_printed` because no balance sheet prints this quantity: it is related-party amounts extracted from within four receivable captions, net of entrusted loans, and a caption binding this line found something else. This replaces six first-available rungs whose own note recorded that they could not express the rule."
+     "note": "MAX_VALID(Find 1, Find 2, Find 3) — the spec's own selection rule, now expressible. The three Finds are three readings of ONE quantity and the fullest disclosure wins, which is why this is a maximum and not a sum: summing them would count the same related-party receivable up to three times. Every term is `any_of`, so a filing that discloses only one of the three still answers with that one, and a filing that discloses none leaves the line empty rather than publishing zero (spec 3.6). `outranks_printed` because no balance sheet prints this quantity: it is related-party amounts extracted from within four receivable captions, net of entrusted loans, and a caption binding this line found something else. This replaces six first-available rungs whose own note recorded that they could not express the rule.",
+     "carved_from_face": true
     }
    ],
    "namespace": "template",
@@ -3738,7 +3739,8 @@
        "sign": -1
       }
      ],
-     "note": "THE NET, because the note publishes only the two halves. A 关联方应收应付款项 table is laid out 项目名称 | 账面余额 | 坏账准备 | 账面余额 | 坏账准备 and prints no net column, so the net is gross LESS allowance — the same shape sub__rp_find_3 uses for the same table. Measured on 000709: 952,791,540.11 less 573,861,138.36 = 378,930,401.75; 河北承钢工贸's allowance EQUALS its gross. THE DOUBLE COUNT WITH FIND 3 IS DELIBERATE: the 应收账款 group read here is also inside sub__rp_find_3_gross, which feeds bs_nca__due_from_related_parties_ltp, so 000709's 378,930,401.75 publishes in both columns — instructed: \"for now want to double count on related parties\". The two parts read two columns of the same rows, so both must be given the note (see line_item_notes.claimed_notes: siblings compete only for the same measure)."
+     "note": "THE NET, because the note publishes only the two halves. A 关联方应收应付款项 table is laid out 项目名称 | 账面余额 | 坏账准备 | 账面余额 | 坏账准备 and prints no net column, so the net is gross LESS allowance — the same shape sub__rp_find_3 uses for the same table. Measured on 000709: 952,791,540.11 less 573,861,138.36 = 378,930,401.75; 河北承钢工贸's allowance EQUALS its gross. THE DOUBLE COUNT WITH FIND 3 IS DELIBERATE: the 应收账款 group read here is also inside sub__rp_find_3_gross, which feeds bs_nca__due_from_related_parties_ltp, so 000709's 378,930,401.75 publishes in both columns — instructed: \"for now want to double count on related parties\". The two parts read two columns of the same rows, so both must be given the note (see line_item_notes.claimed_notes: siblings compete only for the same measure).",
+     "carved_from_face": true
     },
     {
      "id": "FROM_THE_FACE",
@@ -5723,7 +5725,8 @@
        "sign": 1
       }
      ],
-     "note": "The related-party note's non-current payables: the counterparty rows under the 长期应付款 group of a mainland (CAS) 应付项目 table, without any portion due within one year (that is the current line's). FIRST, because the note is the specific disclosure."
+     "note": "The related-party note's non-current payables: the counterparty rows under the 长期应付款 group of a mainland (CAS) 应付项目 table, without any portion due within one year (that is the current line's). FIRST, because the note is the specific disclosure.",
+     "carved_from_face": true
     },
     {
      "id": "FROM_THE_FACE",
@@ -7214,7 +7217,8 @@
        "sign": 1
       }
      ],
-     "note": "The related-party note's current non-trade payables. A mainland (CAS) note prints them as counterparty rows under the 其他应付款 group of its 应付项目 table; an HKFRS note under a \"Due to related parties\" heading. FIRST, because the note is the specific disclosure."
+     "note": "The related-party note's current non-trade payables. A mainland (CAS) note prints them as counterparty rows under the 其他应付款 group of its 应付项目 table; an HKFRS note under a \"Due to related parties\" heading. FIRST, because the note is the specific disclosure.",
+     "carved_from_face": true
     },
     {
      "id": "FROM_THE_FACE",
@@ -9915,6 +9919,20 @@
       }
      ],
      "note": "The cash-flow add-back, less the cost-of-sales share."
+    },
+    {
+     "id": "P6",
+     "terms": [
+      {
+       "ref": "cf_oper_indirect__depreciation"
+      },
+      {
+       "ref": "sub__cos_depreciation",
+       "sign": -1,
+       "role": "adjustment"
+      }
+     ],
+     "note": "The cash flow statement's own depreciation line, less the cost-of-sales share — where the add-back binds to that line rather than the part (a CAS supplement)."
     }
    ],
    "rollup": "alternatives",
@@ -12585,7 +12603,8 @@
      "除所得税前溢利",
      "除税前亏损",
      "除税前溢利",
-     "除税前溢利/（亏损）"
+     "除税前溢利/（亏损）",
+     "净利润"
     ]
    },
    "keyword_hints": [
@@ -12695,9 +12714,12 @@
      "折旧",
      "折旧及摊销",
      "折旧及摊销费用",
-     "摊销",
-     "无形资产摊销",
-     "物业及设备折旧"
+     "物业及设备折旧",
+     "固定资产折旧、油气资产折耗、生产性生物资产折旧",
+     "固定资产折旧、油气资产折耗、生产性生物资产",
+     "固定资产折旧",
+     "使用权资产折旧",
+     "使用权资产摊销"
     ]
    },
    "keyword_hints": [
@@ -12731,6 +12753,15 @@
      "Asset Impairment gain/loss",
      "Impairment of property,plant and equipment",
      "Expected credit loss"
+    ],
+    "zh": [
+     "无形资产摊销",
+     "长期待摊费用摊销",
+     "摊销",
+     "信用减值损失",
+     "资产减值损失",
+     "资产减值准备",
+     "信用减值准备"
     ]
    },
    "keyword_hints": [
@@ -12886,6 +12917,11 @@
      "Gain/loss on Disposal of property,plant and equipment",
      "Gain/loss on Disposal of investment property",
      "Cash Flow from Disposal of leased Assets"
+    ],
+    "zh": [
+     "资产处置损失",
+     "固定资产报废损失",
+     "处置固定资产、无形资产和其他长期资产的损失"
     ]
    },
    "keyword_hints": [
@@ -12950,6 +12986,9 @@
      "Increase/Decrease/Change in Trade Receivables",
      "Increase/Decrease/Change in Trade and Other Receivables",
      "Increase/Decrease/Change in Bills Receivables"
+    ],
+    "zh": [
+     "经营性应收项目的减少"
     ]
    },
    "keyword_hints": [
@@ -12998,6 +13037,9 @@
     "en": [
      "Chg in Inventories",
      "Increase/Decrease/Change in Inventories"
+    ],
+    "zh": [
+     "存货的减少"
     ]
    },
    "keyword_hints": [
@@ -13094,6 +13136,9 @@
      "Chg in Trade Payables",
      "Increase/Decrease/Change in Trade Payables",
      "Increase/Decrease/Change in Trade and Other Payables"
+    ],
+    "zh": [
+     "经营性应付项目的增加"
     ]
    },
    "keyword_hints": [
@@ -13244,6 +13289,10 @@
     "en": [
      "Chg in Deferred Taxes",
      "Increase/Decrease/Change in Deferred Taxes"
+    ],
+    "zh": [
+     "递延所得税资产减少",
+     "递延所得税负债增加"
     ]
    },
    "keyword_hints": [
@@ -13417,7 +13466,9 @@
    ],
    "exclude_hints": [
     "cash generated from operations",
-    "net cash .*operating activities"
+    "net cash .*operating activities",
+    "^收到其他与经营活动有关的现金$",
+    "^支付其他与经营活动有关的现金$"
    ],
    "sign_rule": {},
    "inherits": "cf_oper_indirect",
@@ -13681,7 +13732,8 @@
      "Payments to employees"
     ],
     "zh": [
-     "支付给职工以及为职工支付的现金"
+     "支付给职工以及为职工支付的现金",
+     "支付给职工及为职工支付的现金"
     ]
    },
    "keyword_hints": [
@@ -17099,14 +17151,10 @@
      "Depreciation",
      "Amortisation",
      "Depreciation, depletion and amortisation",
-     "固定资产折旧、油气资产折耗、生产性生物资产折旧",
-     "固定資產折舊、油氣資產折耗、生產性生物資產折舊",
      "折旧和摊销",
      "折舊和攤銷",
      "折旧与摊销",
      "折舊與攤銷",
-     "固定资产折旧",
-     "固定資產折舊",
      "折旧及摊销",
      "折舊及攤銷"
     ]
@@ -17118,14 +17166,10 @@
     "Depreciation",
     "Amortisation",
     "Depreciation, depletion and amortisation",
-    "固定资产折旧、油气资产折耗、生产性生物资产折旧",
-    "固定資產折舊、油氣資產折耗、生產性生物資產折舊",
     "折旧和摊销",
     "折舊和攤銷",
     "折旧与摊销",
     "折舊與攤銷",
-    "固定资产折旧",
-    "固定資產折舊",
     "折旧及摊销",
     "折舊及攤銷"
    ],

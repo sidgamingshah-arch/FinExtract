@@ -49,6 +49,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field, replace
 from decimal import Decimal
 
+from app.services.rollups import CARVED_FROM_FACE
 from app.core.models import LineItem, RuleResult, StructuralReport
 from app.core.models.enums import LineRole
 from app.schemas.template import TemplateDefinition
@@ -177,6 +178,9 @@ class MappedValues:
     derived: dict[str, str] = field(default_factory=dict)
     # Retained for callers that still ask; nothing populates it now that repeats are summed.
     ambiguous: set[str] = field(default_factory=set)
+    # (key, slot) whose figure was read out of captions the face already carries — counted on its
+    # own line, never again inside a relation. See ``rollups.CARVED_FROM_FACE``.
+    carved: set = field(default_factory=set)
 
     def get(self, key: str, slot: Slot) -> Decimal | None:
         return self.values.get(key, {}).get(slot)
@@ -239,6 +243,8 @@ def collect_values(items: Iterable[LineItem]) -> MappedValues:
             slot: Slot = (ev.basis.value, ev.period_label)
             if _is_restatement(ev) and (key, slot) in printed_slots:
                 continue
+            if CARVED_FROM_FACE in (ev.confidence.flags or ()):
+                out.carved.add((key, slot))
             seen = out.values.setdefault(key, {})
             seen[slot] = val if slot not in seen else seen[slot] + val
             out.contributors.setdefault(key, {})[slot] = out.sources(key, slot) + 1
@@ -1087,7 +1093,8 @@ def _check(rel: Relation, slot: Slot, vals: MappedValues,
     filing states partially — a pass is a genuine pass, but not evidence every line was found.
     """
     zeroed = set(assumed_zero)
-    parts = {c: (Decimal(0) if c in zeroed else vals.get(c, slot)) for c in rel.components}
+    parts = {c: (Decimal(0) if c in zeroed or (c, slot) in vals.carved else vals.get(c, slot))
+             for c in rel.components}
     contributions = _contributions(rel, parts)
     actual = vals.get(rel.target, slot)
     expected = sum(contributions.values(), Decimal(0))

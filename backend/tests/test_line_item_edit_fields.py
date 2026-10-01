@@ -281,7 +281,10 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
          # comparison would be against this table's idea of a rung rather than the model's.
          # `outranks_printed` decides whether a resolved rung may displace a figure the filing
          # PRINTED, which only a rung that reconstructs something the face does not state should do.
-         "outranks_printed": False}]),
+         "outranks_printed": False,
+         # …and whether the figure is read out of captions the face already carries, so it is shown
+         # on its line and not added into its section a second time.
+         "carved_from_face": False}]),
     "implemented_by": ("implemented_by", "probe_service"),
     # prose
     "decomposition_rule": ("decomposition_rule", "= total cash − other"),

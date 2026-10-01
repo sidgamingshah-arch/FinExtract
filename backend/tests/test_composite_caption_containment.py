@@ -331,3 +331,32 @@ def test_the_two_shipped_netting_rules_survived(ontology):
     performs. "Change the netting" should not silently delete the working part."""
     ids = {r.id for r in ontology.netting_rules}
     assert {"cogs_inclusive_of_opex", "gross_expense_note_split"} <= ids
+
+
+def test_a_component_printed_for_another_entity_does_not_unfile_the_aggregate():
+    """Containment is judged PER BASIS. The company's own balance sheet printing a component says
+    nothing about the group's face: a group that prints one undifferentiated aggregate keeps it,
+    while the company row that does print the component still has its aggregate unfiled."""
+    parent = "bs_current_liabilities__other_payables_and_accruals"
+    child = "bs_current_liabilities__current_borrowings"
+    raw = json.loads(ONTOLOGY_PATH.read_text(encoding="utf-8"))
+    by = {c["canonical_key"]: c for c in raw["mappings"]}
+    by[parent]["is_gross_parent"] = True
+    by[parent]["children_if_decomposed"] = [child]
+
+    def row(ordinal, label, key, value, basis):
+        li = _bs_row(ordinal, label, key, value)
+        for ev in li.values.values():
+            ev.basis = basis
+        return li
+
+    doc = DocumentModel(filename="f.pdf", locale="en")
+    doc.pages = [PageSource(index=0, statement="balance_sheet")]
+    doc.line_items = [row(0, "Other payables and accruals", parent, 900, Basis.CONSOLIDATED),
+                      row(1, "Other payables and accruals", parent, 400, Basis.STANDALONE),
+                      row(2, "Bank and other borrowings", child, 300, Basis.STANDALONE)]
+
+    MapOntologyStage._enforce_containment(doc, load_ontology(raw, resolve=True),
+                                          PipelineContext(raw_bytes=b""))
+
+    assert [li.canonical_key for li in doc.line_items] == [parent, None, child]

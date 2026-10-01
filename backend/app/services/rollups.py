@@ -27,6 +27,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+#: A figure read out of captions the face already carries — shown on its line, not added into its
+#: section. Written by a `carved_from_face` cascade rung (`stages.note_sourced`); read here and by
+#: the structural checks.
+CARVED_FROM_FACE = "carved_from_face"
+
 # Ops a template may declare. `diff` is "first term minus the rest" — how a net figure is
 # written (net current assets = current assets − current liabilities).
 SUM = "sum"
@@ -274,7 +279,14 @@ def _readers(rows: list[dict], basis: str, period: str, netted: dict[str, float]
     def overridden(key: str) -> bool:
         return any(edited_for(x, basis, period) for x in groups.get(key, []))
 
-    return groups, reported, overridden
+    def carved(key: str) -> bool:
+        """The figure was read out of captions the face already carries — see
+        ``CascadeRung.carved_from_face``. Shown on its line; not added into a total again."""
+        return any(CARVED_FROM_FACE in ((v.get("confidence") or {}).get("flags") or ())
+                   for x in groups.get(key, []) for v in x.get("values") or ()
+                   if v.get("basis") == basis and v.get("period_label") == period)
+
+    return groups, reported, overridden, carved
 
 
 def evaluate_rows(template_def: dict | None, rows: list[dict], basis: str, period: str,
@@ -287,9 +299,9 @@ def evaluate_rows(template_def: dict | None, rows: list[dict], basis: str, perio
     ``periods.concept_value``, which means a component's manual correction flows straight into
     every subtotal above it.
     """
-    _, reported, overridden = _readers(rows, basis, period, netted)
+    _, reported, overridden, carved = _readers(rows, basis, period, netted)
     return evaluate(template_def, reported, labels=node_labels(template_def, locale),
-                    overridden=overridden)
+                    overridden=overridden, carved=carved)
 
 
 def figures_as_shown(template_def: dict | None, rows: list[dict], basis: str, period: str,
@@ -314,9 +326,9 @@ def figures_as_shown(template_def: dict | None, rows: list[dict], basis: str, pe
     year, and a period whose components were not extracted is not made computable by the other
     period's being so.
     """
-    groups, reported, overridden = _readers(rows, basis, period, netted)
+    groups, reported, overridden, carved = _readers(rows, basis, period, netted)
     calc = evaluate(template_def, reported, labels=node_labels(template_def, locale),
-                    overridden=overridden)
+                    overridden=overridden, carved=carved)
     out: dict[str, float] = {}
     for key in groups:
         value = reported(key)
@@ -358,7 +370,8 @@ def _order(nodes: dict[str, dict]) -> tuple[list[str], set[str]]:
 
 
 def evaluate(template_def: dict | None, reported, *, labels: dict[str, str] | None = None,
-             prefer_calculated: bool = True, overridden=None) -> dict[str, Calculated]:
+             prefer_calculated: bool = True, overridden=None,
+             carved=None) -> dict[str, Calculated]:
     """Evaluate every calculated line for one (basis, period).
 
     ``reported(key)`` returns the figure the DOCUMENT gives for a canonical key — the extracted
@@ -407,6 +420,10 @@ def evaluate(template_def: dict | None, reported, *, labels: dict[str, str] | No
         # costs and stay untouched in the residual rollups that subtract it from a reported total.
         magnitude = set(rollup.get("cost_magnitude_children") or [])
         for i, child in enumerate(children):
+            # A FIGURE ALREADY INSIDE ITS SIBLINGS is not added again — in a sum or in a residual's
+            # deductions alike. See ``CascadeRung.carved_from_face``.
+            if carved is not None and carved(child):
+                continue
             # In a `diff`, the first term is added and the rest subtracted.
             sign = -1 if reported_total is not None and reported_total_op == DIFF \
                 else -1 if (op == DIFF and i > 0) else 1

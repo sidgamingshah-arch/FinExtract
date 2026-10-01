@@ -277,6 +277,14 @@ class CascadeRung(BaseModel):
     # declaration and not a heuristic over rung order or magnitude — both of which fit these two
     # filings and neither of which means anything.
     outranks_printed: bool = False
+    # THE FIGURE THIS RUNG READS IS ALREADY ON THE FACE, INSIDE OTHER CAPTIONS. A mainland related-
+    # party note states how much of 其他应付款 and 长期应付款 is owed to related parties; the line
+    # shows that amount, and the face lines it was read out of still carry it. Added into the
+    # section as well, it is counted twice: 000709's liabilities came out 958,370,316 over print —
+    # exactly the two related-party lines. When this rung supplies the figure, the line is shown
+    # and its section total does not add it; a rung reading a face row of its own (an HKEX
+    # "Amounts due to related parties") is not carved and is added as before.
+    carved_from_face: bool = False
 
 
 class NoteSource(BaseModel):

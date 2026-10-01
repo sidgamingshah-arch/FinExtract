@@ -241,6 +241,9 @@ _SIGN_EXPECTED = ("positive_expected", "negative_expected")
 _NEGATE_ON_LOAD = "negate on load"
 # The row-level flag, one per line item however many columns were flipped.
 _NORMALISED_FLAG = "sign_normalised:unsigned_source"
+# A CAS cash-flow block: 经营活动现金流入小计 opens the operating outflows, 经营活动现金流出小计 closes them.
+_CAS_FLOW_SUBTOTAL = re.compile(r"(经营|投资|筹资)活动现金流(入|出)小计")
+_CAS_OUTFLOW_FLAG = "sign_normalised:cas_outflow"
 
 # How many DISTINCT expense concepts must agree before an all-positive cohort is read as the
 # filing's presentation rather than as mis-mapped rows.
@@ -393,6 +396,7 @@ class NormalizeStage:
                     changed += 1
 
         ctx.log(f"normalize:sign_adjusted={changed}")
+        self._negate_unsigned_cas_outflows(doc, ctx)
         # AFTER the per-row adjustments above, so a "less:" prefix or a sign_rule flip has already
         # had its say and the cohort is judged on finished figures. BEFORE `_check_expectations`, so
         # a statement this negates is not then reported as carrying the wrong sign — the whole point
@@ -401,6 +405,61 @@ class NormalizeStage:
             self._negate_unsigned_expenses(doc, ctx, expected_sign)
         self._check_expectations(doc, ctx, ontology, expected_sign, temporality, unit_of_account)
         return doc
+
+    @staticmethod
+    def _negate_unsigned_cas_outflows(doc: DocumentModel, ctx: PipelineContext) -> int:
+        """Negate a CAS cash-flow outflow block that the filing printed unsigned.
+
+        The CSRC layout prints each activity as an inflow block closed by 经营/投资/筹资活动现金流入
+        小计 and an outflow block closed by the matching 现金流出小计, every figure a positive
+        magnitude. The template's activity totals are SUMS of signed lines, so an unsigned outflow
+        was ADDED: 000709's financing total computed to +259.7bn against a printed -2.9bn. Three
+        operating captions carried a flip by caption; investing and financing carried none.
+
+        The block is the evidence, not the caption: every row the layout prints between the inflow
+        subtotal and the outflow subtotal is an outflow, whatever it is called — 支付其他与筹资活动
+        有关的现金 and the 其中 rows included. The same unanimity rule as ``unsigned_source``: one
+        negative printed figure in the block means the filing signs its outflows, and the block is
+        left alone. ``value_raw`` keeps what the page printed; ``sign_normalised`` records the flip.
+        """
+        statement_of = statement_resolver(doc)
+        blocks: list[list] = []
+        open_for: str | None = None
+        for li in doc.line_items:
+            label = re.sub(r"\s+", "", li.source_label or "")
+            hit = _CAS_FLOW_SUBTOTAL.search(label)
+            if hit:
+                activity, direction = hit.group(1), hit.group(2)
+                if direction == "入":
+                    open_for = activity
+                    blocks.append([])
+                elif open_for == activity:
+                    open_for = None
+                continue
+            if open_for is not None and statement_of(li) in (None, "cash_flow"):
+                blocks[-1].append(li)
+        negated = 0
+        for members in blocks:
+            values = [ev for li in members for ev in li.values.values()
+                      if (ev.value_raw if ev.value_raw is not None else ev.value) not in (None, 0)]
+            raws = [ev.value_raw if ev.value_raw is not None else ev.value for ev in values]
+            if not raws or any(v < 0 for v in raws):
+                continue
+            for li in members:
+                for ev in li.values.values():
+                    raw = ev.value_raw if ev.value_raw is not None else ev.value
+                    if raw in (None, 0):
+                        continue
+                    ev.value = -abs(raw)
+                    ev.sign_normalised = True
+                    if _CAS_OUTFLOW_FLAG not in ev.confidence.flags:
+                        ev.confidence.flags.append(_CAS_OUTFLOW_FLAG)
+                    negated += 1
+                if _CAS_OUTFLOW_FLAG not in li.confidence.flags:
+                    li.confidence.flags.append(_CAS_OUTFLOW_FLAG)
+        if negated:
+            ctx.log(f"normalize:cas_outflows negated={negated} value(s) in {len(blocks)} block(s)")
+        return negated
 
     @staticmethod
     def _negate_unsigned_expenses(doc: DocumentModel, ctx: PipelineContext,

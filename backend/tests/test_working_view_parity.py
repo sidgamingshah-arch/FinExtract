@@ -211,6 +211,10 @@ _NET_ASSETS_VETOED = frozenset({
     "bs_equity__other_reserves", "bs_ncl__other_non_current_liabilities",
     "bs_cl__other_current_liabilities",
 })
+# …and the indirect-method residual, which a mainland face's DIRECT-method "other operating"
+# receipts and payments no longer reach: the supplement already reconciles to the same total, so
+# sweeping them in counted them twice (000709 operating cash flow 3.89bn against a printed 9.68bn).
+_CAS_DIRECT_ROWS_VETOED = frozenset({"cf_oper_indirect__other_non_cash_adjs_oper"})
 
 # THE SEED LEADS THE RULEBOOK ON TWO FIELDS BECAUSE THE CONFIG SCREEN WORK CHANGED THEM.
 #
@@ -576,7 +580,8 @@ def test_shipped_set_diverges_only_in_the_known_classes():
         # Checked against the union, because a per-reason check passes only while one reason acts
         # alone — and the first version of this allowance did exactly that and failed on the eight.
         if field == "exclude_hints" and set(keys) <= (_CONFUSABLE_CONVERTED | _derived_parents()
-                                                     | _NET_ASSETS_VETOED):
+                                                     | _NET_ASSETS_VETOED
+                                                     | _CAS_DIRECT_ROWS_VETOED):
             continue
         if field == "alias_matching" and len(keys) <= _ALIAS_MATCHING_REMOVED:
             continue
