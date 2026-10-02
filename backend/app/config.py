@@ -55,6 +55,7 @@ _LOG = logging.getLogger(__name__)
 _CONFIG_TOML = Path(__file__).resolve().parent.parent / "config.toml"
 # …and beside it this machine's own values, gitignored: the gateway address and the model name.
 _LOCAL_TOML = _CONFIG_TOML.with_name("config.local.toml")
+BACKEND_DIR = _CONFIG_TOML.parent
 
 
 class AuthSettings(BaseModel):
@@ -151,7 +152,13 @@ class OcrSettings(BaseModel):
     # azure = Azure AI Document Intelligence (cloud layout+OCR+tables); paddleocr / tesseract
     # are alternatives. Default stays "stub" so the app runs offline with zero external
     # services; set the engine (and provide its config/extra) for scanned docs.
-    engine: str = "stub"              # docling | azure | paddleocr | tesseract | stub
+    engine: str = "stub"              # docling | azure | paddleocr | stub
+    # WHERE DOCLING'S MODELS ARE, for fully offline operation. Relative paths are taken from the
+    # backend folder. Filled once by `scripts/fetch_docling_models.py` (or baked into the image);
+    # Docling then never reaches the network — `adapters.docling_ocr` sets it as the pipeline's
+    # `artifacts_path` and turns the Hugging Face client offline. Empty = Docling's own cache,
+    # which downloads on first use and so is NOT offline.
+    docling_models_dir: str = "models/docling"
     languages: list[str] = Field(default_factory=lambda: ["en"])
     dpi: int = 300
 
@@ -393,6 +400,11 @@ class ExtractionSettings(BaseModel):
     # figure is printed — and its citations are checked against the same extracted rows.
     # Read by `stages.line_item_llm`; an admin can flip it from the Settings screen.
     llm_document_context: Literal["selected", "full"] = "selected"
+    # READ SCANNED PAGES WITH OCR. A page with a text layer is always read from that layer — OCR
+    # would only re-guess characters the file already holds — so this decides what happens to a
+    # page WITHOUT one: on, it is rasterised and read by the `[ocr]` engine (Docling, offline); off,
+    # it is skipped and the run log says so. An admin can flip it from the Settings screen.
+    ocr_scanned_pages: bool = True
     # HOW MANY LINE-ITEM REQUESTS ARE IN FLIGHT AT ONCE. The first request of a run is always
     # sent on its own (it is the one that fills the provider's prompt cache), then up to this many
     # together. Replies are processed in plan order either way, so the figures a run writes do not

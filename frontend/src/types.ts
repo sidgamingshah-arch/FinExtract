@@ -165,7 +165,11 @@ export interface AppSettings {
     api_key_env: string;
     key_configured: boolean;
   };
-  ocr: { engine: string; languages: string[]; dpi: number };
+  ocr: {
+    engine: string; languages: string[]; dpi: number;
+    // Whether the offline engine can run on this server: the package, and its models on disk.
+    docling?: { installed: boolean; models_dir: string; models_present: boolean };
+  };
   /** Runtime-tunable pipeline thresholds, keyed by knob name. Rendered from
    *  `extraction_fields` rather than a hardcoded list, so a knob added on the backend appears
    *  here with no frontend change. */

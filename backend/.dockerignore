@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+finex.db
+_exports/
+_object_store/
+test-results/
+offline/
+dist/
+models/
+config.local.toml
+*.egg-info/

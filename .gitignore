@@ -91,3 +91,8 @@ backend/_*.json
 backend/scripts/_*.json
 backend/scripts/_*.py
 *.xlsx
+
+# Docling models and offline bundles: fetched or built, never committed (hundreds of MB).
+backend/models/
+backend/offline/
+backend/dist/

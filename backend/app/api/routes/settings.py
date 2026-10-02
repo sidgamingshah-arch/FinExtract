@@ -26,6 +26,7 @@ from pydantic import BaseModel
 from app.api.deps import default_locale
 from app.config import get_settings
 from app.security import Permission, current_principal, require
+from app.adapters.docling_ocr import docling_status
 from app.services.settings_state import (
     extraction_config,
     get_review_required,
@@ -77,7 +78,10 @@ def _snapshot() -> dict:
             # shows the address that will be used rather than the field that was filled in.
             "azure_deployment": s.llm.azure_deployment_name(),
         },
-        "ocr": {"engine": s.ocr.engine, "languages": s.ocr.languages, "dpi": s.ocr.dpi},
+        "ocr": {"engine": s.ocr.engine, "languages": s.ocr.languages, "dpi": s.ocr.dpi,
+                # Whether the offline engine can actually run here — the package and its models
+                # on disk — so the screen can say so beside the switch that turns it on.
+                "docling": docling_status(s)},
         # Editable at runtime by an admin. ``fields`` describes each knob — bounds, step and
         # what it does — so the Settings screen renders and validates from the backend's own
         # definition instead of a second copy that can drift from it; ``defaults`` is what the

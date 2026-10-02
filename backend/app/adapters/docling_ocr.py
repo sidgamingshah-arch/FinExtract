@@ -11,10 +11,19 @@ so they feed the same ``row_reconstruct`` logic as the native-PDF and PaddleOCR 
 
 Lazy: importing this module needs neither Docling nor its models — the converter is built on
 first use, so the app and tests run without the heavy dependency.
+
+OFFLINE BY CONSTRUCTION. Docling's default is to download its models from Hugging Face on first
+use. Here the converter is always given ``[ocr] docling_models_dir`` as its ``artifacts_path`` —
+which Docling treats as fully-offline operation — and the Hugging Face client is switched offline
+before Docling is imported, so a missing model is an error naming the folder, never a silent
+download. ``scripts/fetch_docling_models.py`` fills the folder once, on a machine with access.
 """
 from __future__ import annotations
 
+import importlib.util
 import io
+import os
+from pathlib import Path
 
 from app.adapters._structured import LlmConfigError  # reused: "adapter selected but unusable"
 from app.core.models.geometry import BBox
@@ -62,13 +71,30 @@ class DoclingOcrProvider:
     def _converter_or_raise(self):
         if self._converter is not None:
             return self._converter
-        try:
-            from docling.document_converter import DocumentConverter
-        except ModuleNotFoundError as exc:  # pragma: no cover - depends on the docling extra
+        status = docling_status(self._settings)
+        if not status["installed"]:
             raise LlmConfigError(
-                "Docling is not installed. Run: pip install -e \".[docling]\""
-            ) from exc
-        self._converter = DocumentConverter()
+                "Docling is not installed. Install it from the offline bundle "
+                "(pip install --no-index --find-links <bundle>/wheelhouse -e \".[docling]\") or, "
+                "with network access, pip install -e \".[docling]\".")
+        if not status["models_present"]:
+            raise LlmConfigError(
+                f"Docling's models are not in {status['models_dir']}. Run "
+                f"`python scripts/fetch_docling_models.py` once on a machine with network access, "
+                f"or copy the folder from the offline bundle.")
+        _go_offline(status["models_dir"])
+        from docling.datamodel.base_models import InputFormat  # pragma: no cover - needs docling
+        from docling.datamodel.pipeline_options import PdfPipelineOptions
+        from docling.document_converter import (DocumentConverter, ImageFormatOption,
+                                                PdfFormatOption)
+
+        options = PdfPipelineOptions(artifacts_path=status["models_dir"])
+        options.do_ocr = True
+        options.do_table_structure = True
+        self._converter = DocumentConverter(format_options={
+            InputFormat.IMAGE: ImageFormatOption(pipeline_options=options),
+            InputFormat.PDF: PdfFormatOption(pipeline_options=options),
+        })
         return self._converter
 
     def recognize(self, image_bytes: bytes, *, lang: str = "en") -> OcrResult:  # pragma: no cover - needs docling + models
@@ -109,3 +135,37 @@ class DoclingOcrProvider:
 
     def detect_orientation(self, image_bytes: bytes) -> float:
         return 0.0
+
+
+def models_dir(settings=None) -> Path | None:
+    """``[ocr] docling_models_dir`` as an absolute path (relative to the backend folder), or None."""
+    from app.config import BACKEND_DIR, get_settings
+
+    raw = str(getattr((settings or get_settings()).ocr, "docling_models_dir", "") or "").strip()
+    if not raw:
+        return None
+    path = Path(raw).expanduser()
+    return path if path.is_absolute() else (BACKEND_DIR / path).resolve()
+
+
+def docling_status(settings=None) -> dict:
+    """Whether Docling can run here with no network: the package, and its models on disk.
+
+    Cheap — it imports nothing from Docling — so the Settings screen can show it on every load.
+    ``models_present`` asks only that the folder holds something; Docling itself reports a missing
+    individual model, by name, when it loads.
+    """
+    folder = models_dir(settings)
+    present = bool(folder and folder.is_dir() and any(folder.iterdir()))
+    return {
+        "installed": importlib.util.find_spec("docling") is not None,
+        "models_dir": str(folder) if folder else "",
+        "models_present": present,
+    }
+
+
+def _go_offline(folder: str) -> None:
+    """Pin Docling to the local folder and forbid the Hugging Face client the network."""
+    os.environ.setdefault("DOCLING_ARTIFACTS_PATH", str(folder))
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    os.environ["TRANSFORMERS_OFFLINE"] = "1"

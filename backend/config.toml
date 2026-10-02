@@ -174,7 +174,8 @@ azure_deployment = ""           # deployment name; empty = use `model` (common w
 # OCR (scanned-page recognition)
 # ---------------------------------------------------------------------------
 [ocr]
-engine = "docling"              # docling (free, recommended) | azure | paddleocr | tesseract | stub
+engine = "docling"              # docling (free, recommended, offline) | azure | paddleocr | stub
+docling_models_dir = "models/docling"  # Docling's models, fetched once: python scripts/fetch_docling_models.py
 languages = ["en", "ch", "ar", "fr"]   # OCR language packs to load
 dpi = 300                       # rasterization DPI for scanned pages
 
@@ -223,6 +224,7 @@ llm_focus_only = true
 # An admin can flip it from the Settings screen; the run log then shows input / cached / output
 # tokens per request and a summary line (`line_item_llm:tokens …`).
 llm_document_context = "selected"
+ocr_scanned_pages = true        # read pages with no text layer by OCR ([ocr] engine); admin-switchable
 # HOW MANY LINE-ITEM REQUESTS ARE SENT AT ONCE, after the first (which always goes alone, so the
 # provider can cache the shared beginning of the prompt). Replies are processed in order either way.
 llm_parallel_requests = 4

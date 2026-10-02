@@ -102,6 +102,15 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "shows input, cached and output tokens per request and a summary at the end. Combine "
          "with grouping to send the document fewer times.",
          choices=("selected", "full")),
+    Knob("ocr_scanned_pages", "bool", "Read scanned pages (OCR)",
+         "A page with a text layer is always read from that layer, exactly as printed — OCR would "
+         "only re-guess characters the file already holds — so this changes nothing for a native "
+         "PDF. It decides what happens to a page with NO text layer (a scan, a photographed "
+         "page): on, the page is rendered and read by the configured OCR engine — Docling, which "
+         "runs entirely on this server from its pre-installed models and sends nothing anywhere; "
+         "off, the page is skipped and the run log says so. Reading a scanned page is much slower "
+         "than reading text, and OCR can misread a digit: each figure's source records that it "
+         "was read by OCR, so check a scanned filing's figures against the page."),
     Knob("llm_parallel_requests", "number", "Requests sent at once",
          "How many line-item requests are in flight together. The first request of a run is "
          "always sent on its own — it fills the provider's prompt cache — and the rest follow "

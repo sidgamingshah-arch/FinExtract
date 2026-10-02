@@ -10,6 +10,27 @@ pytest -q
 uvicorn app.main:app --reload
 ```
 
+## Scanned pages: offline OCR with Docling
+
+A page with a text layer (a native PDF) is always read from that layer, exactly as printed; OCR is
+only for pages without one. Docling reads those pages **entirely on this server**: its models sit in
+`[ocr] docling_models_dir` (default `models/docling`), the adapter hands Docling that folder and
+switches the Hugging Face client offline, so nothing is downloaded and nothing leaves the machine.
+
+Admins switch it on and off on the **Settings** screen ("Read scanned pages (OCR)", on by default).
+The OCR card there shows whether Docling is installed and its models are present.
+
+Three ways to get it onto a server, all ending with no network access needed at run time:
+
+| Route | Where you run it | Then |
+|---|---|---|
+| **Docker image** (recommended) | `docker build -t finex-backend .` on a machine with network access | run the image anywhere; models are baked in |
+| **Offline bundle** | `./scripts/build_offline_bundle.sh` on a networked machine with the target's OS and Python | copy `dist/finex-docling-offline.tar.gz`; on the server: `tar xzf …`, `pip install --no-index --find-links offline/wheelhouse -e ".[pdf,docling]"`, `cp -r offline/models/docling models/docling` |
+| **Direct** | `pip install -e ".[docling]"` then `python scripts/fetch_docling_models.py` | — |
+
+Models and bundles are never committed (they are hundreds of MB): `backend/models/`, `offline/` and
+`dist/` are git-ignored. Keep built images or bundles in your container registry or artifact store.
+
 ## Layout
 
 ```

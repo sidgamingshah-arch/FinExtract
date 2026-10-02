@@ -693,6 +693,11 @@ def _resolve_number_format(ctx: PipelineContext, doc):
 
 
 def _resolve_ocr(ctx: PipelineContext):
+    # THE ADMIN SWITCH (`extraction.ocr_scanned_pages`, Settings screen). Off, no engine is
+    # resolved, so a page without a text layer is skipped rather than read.
+    if not getattr(ctx.settings.extraction, "ocr_scanned_pages", True):
+        ctx.log("extract:ocr_off(admin) — pages without a text layer are skipped")
+        return None
     engine = ctx.settings.ocr.engine
     if engine == "stub":
         return None

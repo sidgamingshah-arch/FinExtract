@@ -567,6 +567,13 @@ export default function SettingsScreen() {
           <Row label={t("st.engine")} value={s.ocr.engine} />
           <Row label={t("st.languages")} value={s.ocr.languages.join(" · ")} />
           <Row label={t("st.dpi")} value={s.ocr.dpi} />
+          {s.ocr.docling && (
+            <Row label={t("st.doclingReady")}
+                 value={s.ocr.docling.installed && s.ocr.docling.models_present
+                   ? t("st.doclingYes")
+                   : !s.ocr.docling.installed ? t("st.doclingNotInstalled")
+                   : t("st.doclingNoModels").replace("{dir}", s.ocr.docling.models_dir)} />
+          )}
         </SectionCard>
       </div>
 
