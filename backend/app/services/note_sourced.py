@@ -46,7 +46,7 @@ from __future__ import annotations
 import re
 from decimal import Decimal, InvalidOperation
 
-from app.services import derivation, prose_grammar
+from app.services import derivation, note_columns, prose_grammar
 from app.services.note_sections import open_to as _open_to
 # One split for every side of every comparison — see `line_item_notes`.
 from app.services.note_context import matches_title, note_blocks, same_table_title, subject_tokens
@@ -967,6 +967,35 @@ def _figures_by_basis(row) -> tuple[dict, dict, dict | None]:
     return dict(by_basis[chosen]), {"basis": chosen, **{"by": by_basis}}, prov
 
 
+def _by_column(row, ref, *, keys_are_periods: bool = False) -> tuple[dict | None, str]:
+    """``(fields, refusal)`` for a citation that names ONE COLUMN of the row it cites.
+
+    Read through `note_columns.pick`, the one definition of which printed cell a column citation
+    names and which period that cell is filed under — the same one a configured column selector
+    reads through, so the two routes cannot read one printed cell two ways. Only the picked
+    cell(s) are taken, keyed by the period they are FILED under, never by their positional key;
+    the provenance is the picked cell's, so click-to-source lands on the figure, not the row.
+    `fields` are merged into the resolved entry; a refusal is the reason it is unresolved.
+    """
+    want = str(getattr(ref, "column", "") or "").strip()
+    got = note_columns.pick(row, want, keys_are_periods=keys_are_periods)
+    if got["why"]:
+        return None, got["why"]
+    cells = got["cells"]
+    figures = dict(got["figures"])
+    first = cells[0]
+    return {
+        "figures": figures,
+        "provenance": derivation._json_safe_provenance(
+            getattr(first["ev"], "provenance", None)),
+        "basis": got["basis"], "figures_by_basis": {got["basis"]: dict(figures)},
+        "column": {"want": want, "heading": first["heading"], "key": first["key"],
+                   "matched_by": got["matched_by"], "assumed": bool(got["assumed"]),
+                   "cells": [{k: c[k] for k in ("key", "heading", "period", "period_source",
+                                                "value")} for c in cells]},
+    }, ""
+
+
 def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                     pages=None, allow_pages: bool = False,
                     allow_rows: bool = True) -> tuple[list[dict], list[dict]]:
@@ -1041,6 +1070,9 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
         want_note = str(getattr(ref, "note", "") or "").strip()
         want_cap = norm(getattr(ref, "caption", ""))
         quote = (getattr(ref, "quote", "") or "").strip()
+        # ONE COLUMN OF THE ROW, when the citation names one — the printed heading as given, or
+        # the positional key. See `_by_column`; every row arm below reads it the same way.
+        want_col = str(getattr(ref, "column", "") or "").strip()
 
         # A CITATION THAT NAMES A PAGE AND NOTHING ELSE IS LOOKED UP OFF THE STATEMENTS AND THE
         # NOTES ALTOGETHER — the `anywhere` route's own index. Taken FIRST and returning either
@@ -1079,6 +1111,19 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                 continue
             pg, caption, row = on_page
             figures, filed, prov = _figures_by_basis(row)
+            if want_col:
+                picked, why = _by_column(row, ref)
+                if picked is None:
+                    unresolved.append({
+                        "at": at, "note": "", "statement": "", "page": int(pg),
+                        "caption": getattr(ref, "caption", ""), "quote": quote,
+                        "column": want_col, "why": why})
+                    continue
+                resolved.append({"at": at, "note": "", "statement": "", "title": "",
+                                 "page": int(pg), "caption": caption, "quote": quote,
+                                 "on_face": False, "off_statement": True,
+                                 "row_id": str(getattr(row, "id", "") or ""), **picked})
+                continue
             if not figures:
                 unresolved.append({
                     "at": at, "note": "", "statement": "", "page": int(pg),
@@ -1132,6 +1177,20 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                 continue
             st, caption, row = on_face
             figures, filed, prov = _figures_by_basis(row)
+            if want_col:
+                # ON THE FACE A POSITIONAL `current`/`prior` IS A PERIOD — a statement's columns
+                # are its years — so a key the header did not otherwise date is filed as itself.
+                picked, why = _by_column(row, ref, keys_are_periods=True)
+                if picked is None:
+                    unresolved.append({
+                        "at": at, "note": "", "statement": st,
+                        "caption": getattr(ref, "caption", ""), "quote": quote,
+                        "column": want_col, "why": why})
+                    continue
+                resolved.append({"at": at, "note": "", "statement": st, "title": "",
+                                 "caption": caption, "quote": quote, "on_face": True,
+                                 "row_id": str(getattr(row, "id", "") or ""), **picked})
+                continue
             if not figures:
                 unresolved.append({
                     "at": at, "note": "", "statement": st,
@@ -1294,6 +1353,17 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                                               "and no sentence of the note contains it")})
             continue
         number, caption, row, table, _block, _heading = hit
+        if want_col:
+            picked, why = _by_column(row, ref)
+            if picked is None:
+                unresolved.append({"at": at, "note": want_note or number,
+                                   "table": str(getattr(ref, "table", "") or ""),
+                                   "caption": getattr(ref, "caption", ""), "quote": quote,
+                                   "column": want_col, "why": why})
+                continue
+            resolved.append({"at": at, "note": number, "title": getattr(table, "title", "") or "",
+                             "caption": caption, "quote": quote, **picked})
+            continue
         figures, filed, prov = _figures_by_basis(row)
         resolved.append({"at": at,
                          "note": number, "title": getattr(table, "title", "") or "",
