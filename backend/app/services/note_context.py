@@ -771,17 +771,30 @@ def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = Fal
         if not wanted_by and not every_note:
             continue
         rows = []
+        acc_prev = by_number.get(key)
+        legend_prev = acc_prev.get("_legend") if acc_prev is not None else None
+        groups_prev = acc_prev.get("_groups") if acc_prev is not None else None
         for row in getattr(table, "items", None) or ():
             caption = getattr(row, "raw_label", "") or ""
             if not caption:
                 continue
             figures = {}
+            legend = {}
             for ev in (getattr(row, "values", None) or {}).values():
                 if getattr(ev, "column_index", None) is not None:
                     continue
                 if getattr(ev, "value", None) is None:
                     continue
-                figures[str(getattr(ev, "period_label", "") or "?")] = str(ev.value)
+                label = str(getattr(ev, "period_label", "") or "?")
+                figures[label] = str(ev.value)
+                printed = getattr(ev, "column_heading", None)
+                if printed:
+                    legend[label] = printed
+            # WHAT EACH FIGURE KEY IS, AS PRINTED — sent when it changes, not on every row: a key is
+            # a column's position, and on a wide table `current` and `prior` are its first two
+            # columns, not two years. 1966's property note reached the model as current, prior,
+            # col2 … col8 with its nine headings only in the prose. See `column_headings`.
+            column_groups = list(getattr(row, "column_groups", None) or ())
             # THE ROW'S GROUP, WHEN IT HAS ONE. A mainland related-party note captions its rows with
             # COUNTERPARTY names and states which line item each balance is under the group heading
             # — `应收账款：` over a run of company names — so a row sent without it is "唐山唐钢气体有限
@@ -789,8 +802,15 @@ def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = Fal
             # receivable or a payable. The deterministic route has always read the group
             # (`note_sourced.select_rows`); the model was given the rows without it.
             group = str(getattr(row, "group_hint", "") or "").strip()
-            rows.append({"caption": caption, **({"group": group} if group else {}),
-                         **({"figures": figures} if figures else {})})
+            entry_row = {"caption": caption, **({"group": group} if group else {}),
+                         **({"figures": figures} if figures else {})}
+            if legend and legend != legend_prev:
+                entry_row["columns"] = legend
+                legend_prev = legend
+            if column_groups and column_groups != groups_prev:
+                entry_row["column_groups"] = column_groups
+                groups_prev = column_groups
+            rows.append(entry_row)
 
         # ONE ENTRY PER NOTE, WHICH IS NOT THE SAME AS ONE PER NUMBER.
         #
@@ -824,6 +844,7 @@ def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = Fal
             acc["title"] = title
         acc["_for"].update(wanted_by)
         acc["_rows"].extend(rows)
+        acc["_legend"], acc["_groups"] = legend_prev, groups_prev
         prose = (getattr(table, "source_text", "") or "").strip()
         if prose:
             acc["_prose"].append(prose)

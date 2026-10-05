@@ -1292,6 +1292,7 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                           # guess them from a caption that is not an identity.
                           component_ordinals=list(li.component_ordinals),
                           section_hint=li.section_hint,
+                          column_groups=list(li.column_groups),
                           group_hint=(li.group_hint
                                       or _category_for(cells, _row_top(li))),
                           # Both empty unless this note states a period on its blocks AND this row

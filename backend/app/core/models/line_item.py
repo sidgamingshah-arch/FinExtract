@@ -179,6 +179,11 @@ class ExtractedValue(BaseModel):
     # ``provenance.bbox`` once the page is sideways, because there the columns advance down the
     # page's y. None for every ordinary period-keyed fact, which has no column axis to record.
     column_index: int | None = None
+    # THE PRINTED HEADING OF THE COLUMN this figure stands in — "Leasehold improvements 租賃物業裝修",
+    # "2024年12月31日" — as `row_reconstruct.column_headings` read it off the table's header band.
+    # DISPLAY ONLY, like ``period_display``: ``period_label`` stays the positional key every reader
+    # keys on. It exists so a wide table reaches the model with its columns named.
+    column_heading: str | None = None
     unit_ctx: UnitContext = Field(default_factory=UnitContext)
     provenance: Provenance | None = None
     confidence: ConfidenceVector = Field(default_factory=ConfidenceVector)
@@ -212,6 +217,10 @@ class LineItem(BaseModel):
     # note itemising an under-provision by geography prints a row whose caption is "Mainland China",
     # and only the sub-heading says what the figure is.
     group_hint: str = ""
+    # THE HEADINGS PRINTED OVER SEVERAL COLUMNS of this row's table, in printed order — "Property and
+    # equipment", "Right-of-use assets". Not attached to a column: which columns one spans is not
+    # something the words alone settle. Display only; see ``ExtractedValue.column_heading``.
+    column_groups: list[str] = Field(default_factory=list)
     # THIS ROW'S CAPTION IS NOT THE FILING'S OWN. A note prints a block's total on a bare line —
     # the caption is the sub-heading two rows up, and a typesetter does not repeat it — so
     # reconstruction gives the row that heading and says here that it did. Two readers need to know:
@@ -361,6 +370,8 @@ class NoteItem(BaseModel):
     # is where breakdown-dimension captions live ("Mainland China", "Third parties"), so this is
     # the field that carries their meaning.
     group_hint: str = ""
+    # The headings printed over several columns of this row's table — see ``LineItem.column_groups``.
+    column_groups: list[str] = Field(default_factory=list)
     # WHICH PERIOD THIS MOVEMENT ROW BELONGS TO — "current" or "prior", and "" when the note says
     # nothing. Set only for a row inside an asset MOVEMENT table, where the period is stated on the
     # BLOCK rather than on the column.

@@ -105,32 +105,69 @@ def face_rows(doc, statements) -> list[dict]:
                     normalize_statement(str(getattr(p, "statement", "") or ""))
                     for p in (getattr(doc, "pages", None) or ())}
 
-    by_statement: dict[str, list[tuple[int, dict]]] = {}
+    # ONE BLOCK PER STATEMENT AND ENTITY. A mainland filing prints the group's statements and the
+    # parent company's own, and the two blocks were one: 000709's 货币资金 arrived twice — 31.8bn
+    # and 24.5bn — with nothing to say which was the group's. And an HKEX table printing Group and
+    # Company side by side was ONE row whose two `current` figures shared a key, so the company's
+    # overwrote the group's. Each figure now goes under its own entity.
+    by_block: dict[tuple[str, str], list[tuple[int, dict]]] = {}
+    legends: dict[tuple[str, str], dict[str, str]] = {}
     for row in (getattr(doc, "line_items", None) or ()):
         page = _page_of(row)
         statement = stmt_of_page.get(page if page is not None else -1, "")
         if statement not in want:
             continue
-        figures = _figures(row)
-        if not figures:
-            continue
-        entry: dict = {"caption": getattr(row, "source_label", "") or "", "figures": figures}
-        if banner := (getattr(row, "section_hint", None) or "").strip():
-            entry["under"] = banner
-        if sub := (getattr(row, "group_hint", "") or "").strip():
-            entry["subheading"] = sub
-        # THE DETERMINISTIC ROUTE'S PROPOSAL. Omitted for a row the mapper could not place —
-        # `stages.face_mapping_contract` keys those `engine_unclassified_face__…`, which names no
-        # line and would read as one.
-        key = str(getattr(row, "canonical_key", "") or "")
-        if key and not key.startswith("engine_unclassified"):
-            entry["line"] = key
-        by_statement.setdefault(statement, []).append((page if page is not None else 0, entry))
+        for entity, (figures, legend) in _figures_by_entity(row).items():
+            entry: dict = {"caption": getattr(row, "source_label", "") or "", "figures": figures}
+            if banner := (getattr(row, "section_hint", None) or "").strip():
+                entry["under"] = banner
+            if sub := (getattr(row, "group_hint", "") or "").strip():
+                entry["subheading"] = sub
+            # THE DETERMINISTIC ROUTE'S PROPOSAL. Omitted for a row the mapper could not place —
+            # `stages.face_mapping_contract` keys those `engine_unclassified_face__…`, which names
+            # no line and would read as one.
+            key = str(getattr(row, "canonical_key", "") or "")
+            if key and not key.startswith("engine_unclassified"):
+                entry["line"] = key
+            by_block.setdefault((statement, entity), []).append(
+                (page if page is not None else 0, entry))
+            seen = legends.setdefault((statement, entity), {})
+            for label, heading in legend.items():
+                seen.setdefault(label, heading)
 
     out: list[dict] = []
-    for statement in sorted(by_statement):
-        rows = [e for _p, e in sorted(by_statement[statement], key=lambda pe: pe[0])]
-        out.append({"statement": statement, "rows": rows})
+    for statement, entity in sorted(by_block, key=lambda se: (se[0], _ENTITY_ORDER.get(se[1], 9))):
+        rows = [e for _p, e in sorted(by_block[(statement, entity)], key=lambda pe: pe[0])]
+        block: dict = {"statement": statement, "entity": entity}
+        if legends.get((statement, entity)):
+            # The printed heading of each figure key — the period's date, as the page states it.
+            block["columns"] = legends[(statement, entity)]
+        block["rows"] = rows
+        out.append(block)
+    return out
+
+
+_ENTITY_ORDER = {"consolidated": 0, "standalone": 1}
+
+
+def _figures_by_entity(row) -> dict[str, tuple[dict[str, str], dict[str, str]]]:
+    """``{entity: (figures by period label, printed heading by period label)}`` for one row.
+
+    The heading is the column's own (`ExtractedValue.column_heading`), else the date the page
+    prints over it (`period_display`). Matrix values are skipped, as in :func:`_figures`.
+    """
+    out: dict[str, tuple[dict[str, str], dict[str, str]]] = {}
+    for ev in (getattr(row, "values", None) or {}).values():
+        if getattr(ev, "column_index", None) is not None or getattr(ev, "value", None) is None:
+            continue
+        basis = getattr(ev, "basis", None)
+        entity = str(getattr(basis, "value", basis) or "consolidated")
+        figures, legend = out.setdefault(entity, ({}, {}))
+        label = str(getattr(ev, "period_label", "") or "?")
+        figures[label] = str(ev.value)
+        heading = getattr(ev, "column_heading", None) or getattr(ev, "period_display", None)
+        if heading:
+            legend[label] = str(heading)
     return out
 
 
