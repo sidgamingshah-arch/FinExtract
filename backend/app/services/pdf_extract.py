@@ -387,6 +387,12 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     if chrome_feet:
         ctx.log(f"extract:page_foot_chrome_pages={len(chrome_feet)}")
     ocr = None
+    # A HOSTED DOCUMENT ENGINE (Kensho Extract), when the admin chose one: sent the whole PDF
+    # once, on the first page that needs it, and its answer read for the pages chosen
+    # (`extraction.document_reader_pages`). A page it did not return is read as before.
+    engine = _resolve_document_engine(ctx)
+    engine_words: dict | None = None
+    engine_every_page = ctx.settings.extraction.document_reader_pages == "all"
     added = 0
     ordinal = len(doc.line_items)
     # THE PREVIOUS PAGE'S LAST CAPTIONED ROW, so a caption broken across the page can be put back
@@ -482,7 +488,17 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         # The angle the page's text is read at: an OCR page is read as scanned, upright.
         rot = 0
 
-        if ps.source_kind == PageSourceKind.SCANNED:
+        words = None
+        if engine is not None and (engine_every_page or ps.source_kind == PageSourceKind.SCANNED):
+            if engine_words is None:
+                engine_words = _read_with_engine(engine, data, ctx)
+            got = engine_words.get(ps.index)
+            if got:
+                words = [Word(text=wd["text"], bbox=wd["bbox"]) for wd in got]
+                source_kind = "engine"
+            elif engine_words:
+                ctx.log(f"extract:page={ps.index}:engine_no_text({engine.id}) — read as usual")
+        if words is None and ps.source_kind == PageSourceKind.SCANNED:
             if ocr is None:                      # resolve the OCR provider lazily, once
                 ocr = _resolve_ocr(ctx)
             if ocr is None:
@@ -490,7 +506,7 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                 continue
             words = _ocr_words_for(page, ocr, ctx)
             source_kind = "ocr"
-        else:
+        elif words is None:
             # Text drawn sideways is read in reading space; the page records the angle so the
             # run is auditable and the viewer knows the page is not upright.
             rot = text_rotation(page)
@@ -726,6 +742,30 @@ def _resolve_ocr(ctx: PipelineContext):
     except Exception as exc:
         ctx.log(f"extract:ocr_unavailable({exc})")
         return None
+
+
+def _resolve_document_engine(ctx: PipelineContext):
+    """The hosted document engine the admin chose (`extraction.document_reader`), or None."""
+    choice = getattr(ctx.settings.extraction, "document_reader", "off")
+    if not choice or choice == "off":
+        return None
+    try:
+        return ctx.registry.get("document_engine", choice)
+    except Exception as exc:
+        ctx.log(f"extract:document_engine_unavailable({choice}: {exc}) — pages read as usual")
+        return None
+
+
+def _read_with_engine(engine, data: bytes, ctx: PipelineContext) -> dict:
+    """The engine's words by page, or {} when it failed — the run then reads every page as it
+    would have without the engine, and the log says why."""
+    try:
+        pages = engine.read_pdf(data) or {}
+    except Exception as exc:
+        ctx.log(f"extract:document_engine_failed({engine.id}: {exc}) — pages read as usual")
+        return {}
+    ctx.log(f"extract:document_engine={engine.id} pages_returned={len(pages)}")
+    return pages
 
 
 def _ocr_words_for(page, ocr, ctx: PipelineContext) -> list[Word]:

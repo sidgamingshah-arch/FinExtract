@@ -31,6 +31,27 @@ Three ways to get it onto a server, all ending with no network access needed at 
 Models and bundles are never committed (they are hundreds of MB): `backend/models/`, `offline/` and
 `dist/` are git-ignored. Keep built images or bundles in your container registry or artifact store.
 
+## A hosted document engine: Kensho Extract
+
+Kensho Extract can read a filing in place of the PDF's own text or OCR. It is sent the whole PDF
+once and returns every page's text and table cells with their positions; those become positioned
+words, and the same row-and-column reader as a native page reads them. **Off by default** — it
+sends the filing outside this server.
+
+1. In `config.toml` `[document_engine]`, set `kensho_submit_url` and `kensho_result_url` from
+   Kensho's API documentation for your account (`{request_id}` in the result address is
+   replaced by the id the submit call returns).
+2. Put the token in the environment: `KENSHO_ACCESS_TOKEN`, or set `kensho_token_url` and
+   `KENSHO_REFRESH_TOKEN` to exchange a refresh token for short-lived access tokens.
+3. On the Settings screen, set **Document extraction engine** to `kensho` and choose **Pages the
+   document engine reads**: `scanned` (in place of OCR) or `all` (in place of the text layer).
+   The OCR card shows whether the addresses and a token are configured.
+
+A page Kensho does not return, or a run where the call fails, is read as before, and the run log
+says why (`extract:document_engine_failed(...)`). The engine plugs in through
+`app/ports/document_engine.py`; another hosted engine is one adapter registered under
+`document_engine`.
+
 ## Layout
 
 ```

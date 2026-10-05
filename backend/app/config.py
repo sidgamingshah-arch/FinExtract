@@ -171,6 +171,45 @@ class OcrSettings(BaseModel):
     azure_api_key_env: str = "AZURE_DI_KEY"
 
 
+class DocumentEngineSettings(BaseModel):
+    """A hosted DOCUMENT extraction engine (Kensho Extract), read once per filing.
+
+    Where the `[ocr]` engines read one rendered page at a time, a document engine is sent the
+    whole PDF and returns every page's text and table cells with their positions; the pipeline
+    turns those into the same positioned words the native-text and OCR paths produce, so the
+    readers downstream do not know which one read a page. WHETHER it is used, and for which pages,
+    is the admin's choice on the Settings screen (`extraction.document_reader`,
+    `extraction.document_reader_pages`); HOW to reach it is here, in config.toml — like the LLM,
+    an address is not something to change from a browser.
+
+    No secret lives here: the token is read at call time from the environment variable named
+    below, and the Settings screen reports only whether that variable is set.
+    """
+
+    # Kensho Extract. The submit and result addresses come from Kensho's API documentation for
+    # your account (docs.kensho.com/extract); `{request_id}` in the result address is replaced by
+    # the id the submit call returns.
+    kensho_submit_url: str = ""
+    kensho_result_url: str = ""
+    # A ready access token, sent as `Authorization: Bearer <token>`…
+    kensho_token_env: str = "KENSHO_ACCESS_TOKEN"
+    # …or, when `kensho_token_url` is set, an OAuth refresh token exchanged there for one
+    # (grant_type=refresh_token, plus `kensho_client_id` when your account issues one). Kensho
+    # access tokens are short-lived; a refresh token lets a server keep running unattended.
+    kensho_token_url: str = ""
+    kensho_refresh_token_env: str = "KENSHO_REFRESH_TOKEN"
+    kensho_client_id: str = ""
+    # Sent with the PDF. `structured_document_with_locations` is what returns each block's
+    # position — without it there is nothing to place a figure in its column by.
+    kensho_params: dict[str, str] = Field(default_factory=lambda: {
+        "output_format": "structured_document_with_locations",
+        "enhanced_table_extraction": "true",
+    })
+    kensho_file_field: str = "file"
+    kensho_poll_seconds: float = 3.0
+    kensho_timeout_seconds: float = 900.0
+
+
 class ExtractionSettings(BaseModel):
     """Pipeline tuning: native/scanned detection, the mapping ensemble, reconciliation."""
 
@@ -405,6 +444,14 @@ class ExtractionSettings(BaseModel):
     # page WITHOUT one: on, it is rasterised and read by the `[ocr]` engine (Docling, offline); off,
     # it is skipped and the run log says so. An admin can flip it from the Settings screen.
     ocr_scanned_pages: bool = True
+    # A HOSTED DOCUMENT ENGINE (`[document_engine]`, e.g. Kensho Extract). "off" reads pages as
+    # before: the text layer, or the `[ocr]` engine for a page without one. "kensho" sends the PDF
+    # to Kensho once per filing and reads the pages chosen below from its answer; a page it does
+    # not return, or a run where it fails, falls back to the usual reading and the log says so.
+    document_reader: Literal["off", "kensho"] = "off"
+    # "scanned": only pages with no text layer (in place of OCR). "all": every page read, the
+    # engine's text replacing the PDF's own — for filings whose text layer is unreliable.
+    document_reader_pages: Literal["scanned", "all"] = "scanned"
     # HOW MANY LINE-ITEM REQUESTS ARE IN FLIGHT AT ONCE. The first request of a run is always
     # sent on its own (it is the one that fills the provider's prompt cache), then up to this many
     # together. Replies are processed in plan order either way, so the figures a run writes do not
@@ -630,6 +677,7 @@ class Settings(BaseSettings):
     features: FeatureSettings = FeatureSettings()
     llm: LlmSettings = LlmSettings()
     ocr: OcrSettings = OcrSettings()
+    document_engine: DocumentEngineSettings = DocumentEngineSettings()
     extraction: ExtractionSettings = ExtractionSettings()
 
     @classmethod

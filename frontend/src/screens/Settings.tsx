@@ -574,6 +574,13 @@ export default function SettingsScreen() {
                    : !s.ocr.docling.installed ? t("st.doclingNotInstalled")
                    : t("st.doclingNoModels").replace("{dir}", s.ocr.docling.models_dir)} />
           )}
+          {s.document_engine && (
+            <Row label={t("st.kensho")}
+                 value={!s.document_engine.kensho.addresses_set ? t("st.kenshoNoAddress")
+                   : !s.document_engine.kensho.token_present
+                     ? t("st.kenshoNoToken").replace("{env}", s.document_engine.kensho.token_env)
+                   : t("st.kenshoReady")} />
+          )}
         </SectionCard>
       </div>
 

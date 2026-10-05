@@ -170,6 +170,13 @@ export interface AppSettings {
     // Whether the offline engine can run on this server: the package, and its models on disk.
     docling?: { installed: boolean; models_dir: string; models_present: boolean };
   };
+  /** A hosted document engine (config.toml [document_engine]); switched on by the
+   *  `document_engine` extraction knob. Never carries the token, only whether one is set. */
+  document_engine?: {
+    defined_in: string;
+    kensho: { submit_url: string; result_url: string; addresses_set: boolean;
+              token_env: string; token_present: boolean };
+  };
   /** Runtime-tunable pipeline thresholds, keyed by knob name. Rendered from
    *  `extraction_fields` rather than a hardcoded list, so a knob added on the backend appears
    *  here with no frontend change. */

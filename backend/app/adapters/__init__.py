@@ -69,6 +69,13 @@ def register_builtins() -> None:
     registry.register("ocr", "azure_document_intelligence", AzureDocIntelligenceProvider)
     registry.register("ocr", "paddleocr", PaddleOcrProvider)
 
+    # Hosted DOCUMENT engines — sent the whole PDF once, answering for every page (ports.
+    # document_engine). Chosen by the admin (extraction.document_engine); reached through
+    # config.toml [document_engine]. Lazy: registering needs neither an address nor a token.
+    from .kensho_extract import KenshoExtractProvider
+
+    registry.register("document_engine", "kensho", KenshoExtractProvider)
+
     registry.register(
         "object_store", "local",
         lambda: LocalObjectStore(settings.object_store_root),

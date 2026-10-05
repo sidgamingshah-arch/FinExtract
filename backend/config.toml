@@ -186,6 +186,20 @@ azure_model = "prebuilt-layout" # prebuilt-layout | prebuilt-read
 azure_api_version = "2024-11-30"
 azure_api_key_env = "AZURE_DI_KEY"
 
+# A hosted DOCUMENT extraction engine — Kensho Extract — sent the whole PDF once per filing.
+# Switched on, and told which pages to read, from the Settings screen (extraction.document_reader
+# and extraction.document_reader_pages); reached through the addresses below, which come from
+# Kensho's API documentation for your account. No token here: it is read from the environment.
+[document_engine]
+kensho_submit_url = ""          # where the PDF is POSTed; the reply carries a request_id
+kensho_result_url = ""          # polled for the answer; {request_id} is replaced
+kensho_token_env = "KENSHO_ACCESS_TOKEN"     # a ready access token (Authorization: Bearer)
+kensho_token_url = ""           # set to exchange a refresh token for access tokens instead
+kensho_refresh_token_env = "KENSHO_REFRESH_TOKEN"
+kensho_client_id = ""
+kensho_poll_seconds = 3.0
+kensho_timeout_seconds = 900.0
+
 # ---------------------------------------------------------------------------
 # Extraction / reconciliation tuning
 # ---------------------------------------------------------------------------
@@ -225,6 +239,8 @@ llm_focus_only = true
 # tokens per request and a summary line (`line_item_llm:tokens …`).
 llm_document_context = "selected"
 ocr_scanned_pages = true        # read pages with no text layer by OCR ([ocr] engine); admin-switchable
+document_reader = "off"          # off | kensho — a hosted document engine ([document_engine]); admin-switchable
+document_reader_pages = "scanned" # scanned (in place of OCR) | all (in place of the text layer)
 # HOW MANY LINE-ITEM REQUESTS ARE SENT AT ONCE, after the first (which always goes alone, so the
 # provider can cache the shared beginning of the prompt). Replies are processed in order either way.
 llm_parallel_requests = 4

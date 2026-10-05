@@ -111,6 +111,21 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "off, the page is skipped and the run log says so. Reading a scanned page is much slower "
          "than reading text, and OCR can misread a digit: each figure's source records that it "
          "was read by OCR, so check a scanned filing's figures against the page."),
+    Knob("document_reader", "choice", "Document extraction engine",
+         "\"off\" reads every page as before: from the PDF's own text, or with the OCR engine for "
+         "a page that has none. \"kensho\" sends the filing to Kensho Extract once and reads the "
+         "pages chosen below from its answer — Kensho's text and table cells, placed where it saw "
+         "them, then read into rows and columns exactly as a native page is. This SENDS THE PDF "
+         "OUTSIDE this server, to the address set in config.toml [document_engine]; the status "
+         "below says whether that address and a token are configured. A page Kensho does not "
+         "return, or a run where it fails, is read as usual and the run log says so.",
+         choices=("off", "kensho")),
+    Knob("document_reader_pages", "choice", "Pages the document engine reads",
+         "\"scanned\" uses the engine only for pages with no text layer, in place of OCR — a "
+         "native page is still read from its own text, exactly as printed. \"all\" reads every "
+         "page from the engine's answer instead of the PDF's text layer: for filings whose text "
+         "layer is broken or scrambled. Only read when an engine is chosen above.",
+         choices=("scanned", "all")),
     Knob("llm_parallel_requests", "number", "Requests sent at once",
          "How many line-item requests are in flight together. The first request of a run is "
          "always sent on its own — it fills the provider's prompt cache — and the rest follow "

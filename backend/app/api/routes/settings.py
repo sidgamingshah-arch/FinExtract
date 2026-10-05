@@ -27,6 +27,7 @@ from app.api.deps import default_locale
 from app.config import get_settings
 from app.security import Permission, current_principal, require
 from app.adapters.docling_ocr import docling_status
+from app.adapters.kensho_extract import kensho_status
 from app.services.settings_state import (
     extraction_config,
     get_review_required,
@@ -82,6 +83,10 @@ def _snapshot() -> dict:
                 # Whether the offline engine can actually run here — the package and its models
                 # on disk — so the screen can say so beside the switch that turns it on.
                 "docling": docling_status(s)},
+        # READ-ONLY: where a hosted document engine is reached (config.toml [document_engine]) and
+        # whether a token is available — never the token. Chosen per run by the extraction knob.
+        "document_engine": {"defined_in": "config.toml [document_engine]",
+                            "kensho": kensho_status(s)},
         # Editable at runtime by an admin. ``fields`` describes each knob — bounds, step and
         # what it does — so the Settings screen renders and validates from the backend's own
         # definition instead of a second copy that can drift from it; ``defaults`` is what the
