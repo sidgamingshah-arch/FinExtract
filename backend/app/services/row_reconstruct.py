@@ -4047,13 +4047,29 @@ def _name_note_columns(items: list[LineItem], placed_at: dict[int, _Placed],
     if log and len(kept) != len(headings):
         log(f"extract:page={page_index}:printed_columns=headings_not_over_their_figures"
             f"({len(headings) - len(kept)})")
-    newest = reporting_year or _newest_year(kept.values())
+    newest = reporting_year or _newest_year(t for text in kept.values()
+                                            for t in _heading_parts(text))
     for ev, p in records:
         text = kept.get(p.col) if p.col is not None else None
         if text:
             ev.column_heading = text
-            ev.column_period = _stated_period(text, newest)
+            ev.column_period = _joined_heading_period(text, newest)
     return None
+
+
+def _heading_parts(text: str) -> list[str]:
+    """A `column_headings` heading split back into its printed phrases, the column's own first:
+    it joins them outermost first with " · " ("期末余额 · 账面余额")."""
+    return [t.strip() for t in text.split(" · ")][::-1]
+
+
+def _joined_heading_period(text: str, newest: int | None) -> str | None:
+    """The period a `column_headings` heading states, read in a header model's order — the
+    column's own phrase first, then the groups over it from the innermost out. Read whole, a
+    group's PRC caption outvoted the column's own date: 1966 p212's
+    "於報告期末，貿易應收款項的賬齡分析 · 2022" was "current" in a 2023 report."""
+    return next((s for s in (_stated_period(t, newest) for t in _heading_parts(text))
+                 if s is not None), None)
 
 
 # The flag a value carries when its column was read from a two-level header. Raised on

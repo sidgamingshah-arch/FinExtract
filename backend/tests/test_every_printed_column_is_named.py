@@ -144,6 +144,21 @@ def test_a_dated_heading_states_its_period_against_the_newest_year():
         == {"prior"}
 
 
+def test_a_headings_own_date_outranks_a_period_caption_in_a_group_over_it():
+    """Where no header model holds, the period comes off the `column_headings` heading — read in
+    the header model's order, the column's own phrase first. 1966 p212 (a 2023 report) prints its
+    ageing table under the prose "於報告期末，貿易應收款項的賬齡分析", which contains 期末; read whole,
+    "… · 2022" was filed as the CURRENT period."""
+    from app.services.row_reconstruct import _joined_heading_period
+    assert _joined_heading_period("於報告期末，貿易應收款項的賬齡分析 · 2022", 2023) == "prior"
+    assert _joined_heading_period("於報告期末，貿易應收款項的賬齡分析 · 2023", 2023) == "current"
+    # a column that states no period of its own takes its group's, as before
+    assert _joined_heading_period("期末余额 · 账面余额", None) == "current"
+    assert _joined_heading_period("期初余额 · 坏账准备", None) == "prior"
+    assert _joined_heading_period("2022", 2023) == "prior"
+    assert _joined_heading_period("Senior notes due 2024", 2024) is None
+
+
 def test_the_filings_own_year_is_read_off_its_statements_current_column():
     from types import SimpleNamespace
 
