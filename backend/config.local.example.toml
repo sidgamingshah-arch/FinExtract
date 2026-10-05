@@ -1,18 +1,19 @@
-# THIS MACHINE'S LLM GATEWAY — copy this file to config.local.toml (same folder) and fill it in.
+# THIS MACHINE'S LLM OVERRIDES — copy this file to config.local.toml (same folder) only if this
+# machine must reach a different gateway or model than config.toml ships.
 #
-# config.local.toml is gitignored: it is where the gateway address and the model name live, so
-# neither appears in the repository. Any key here overrides the same key in config.toml, which
-# holds the shared settings (provider, timeouts, reasoning effort, …). Restart the app after a
-# change. The API KEY never goes in either file: it is read from the environment variable that
-# `api_key_env` in config.toml names (AZURE_OPENAI_API_KEY), or from the gitignored backend/.env.
+# config.toml ships the CRISIL gateway (provider "bedrock_gateway",
+# https://llmgateway.crisil.local/api/bedrock, model us.anthropic.claude-opus-4-7), so most machines
+# need no local file at all — only the KEY, in the LLM_GATEWAY_TOKEN environment variable or the
+# gitignored backend/.env. Any key here overrides the same key in config.toml. Restart after a
+# change. The API KEY never goes in either file.
 
 [llm]
-# The gateway's base address. The app adds the path for each call; with the default provider
-# ("openai_compatible") a request goes to <base_url>/chat/completions.
-base_url = "https://<your-gateway-host>/api/openai"
+# The gateway's base address. With provider "bedrock_gateway" a request goes to
+# <base_url>/model/<model>/invoke.
+# base_url = "https://llmgateway.crisil.local/api/bedrock"
 
-# The model id the gateway serves, as "<vendor>/<deployment name>".
-model = "<vendor>/<deployment-name>"
+# The model id, exactly as it appears in the gateway URL.
+# model = "us.anthropic.claude-opus-4-7"
 
 # Uncomment to change the provider for this machine only (see config.toml [llm] for the list).
-# provider = "openai_compatible"
+# provider = "bedrock_gateway"

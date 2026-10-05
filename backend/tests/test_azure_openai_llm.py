@@ -21,15 +21,13 @@ def test_the_shipped_default_and_the_code_fallback_name_the_same_model():
 
     shipped = tomllib.loads(
         (Path(__file__).resolve().parents[1] / "config.toml").read_text(encoding="utf-8"))["llm"]
-    # The deployment reaches Azure through an internal gateway rather than an Azure resource
-    # directly, so the provider is the OpenAI wire format with a `<vendor>/<deployment>` model id
-    # and a base_url in config.toml. What this test is FOR is unchanged by that: whatever the
-    # default is, the file and the code must agree on it.
-    assert shipped["provider"] == "openai_compatible"
-    # The gateway address and the model are NOT in the repository: config.toml ships them empty and
-    # each machine sets them in the gitignored config.local.toml (config.local.example.toml).
-    assert shipped["model"] == "" and shipped["base_url"] == ""
-    assert shipped["api_key_env"] == "AZURE_OPENAI_API_KEY"
+    # The deployment reaches the model through the CRISIL LLM gateway's Bedrock invoke route, and
+    # config.toml ships that gateway, so a machine supplies only the key. What this test is FOR is
+    # unchanged by that: whatever the default is, the file and the code must agree on it.
+    assert shipped["provider"] == "bedrock_gateway"
+    assert shipped["model"] == "us.anthropic.claude-opus-4-7"
+    assert shipped["base_url"] == "https://llmgateway.crisil.local/api/bedrock"
+    assert shipped["api_key_env"] == "LLM_GATEWAY_TOKEN"
 
     # And the code's own fallback agrees, so a deployment without config.toml lands in the same
     # place. Asserted against the same three values rather than restated, so the pair cannot
@@ -148,7 +146,7 @@ def test_config_local_toml_overrides_the_shared_file_key_by_key(tmp_path, monkey
     s = config.Settings()
     assert s.llm.base_url == "https://gw.example.invalid/api/openai"
     assert s.llm.model == "vendor/deployment"
-    assert s.llm.api_key_env == "AZURE_OPENAI_API_KEY"      # still config.toml's
+    assert s.llm.api_key_env == "LLM_GATEWAY_TOKEN"         # still config.toml's
     assert config.warn_if_llm_unconfigured(s) == []
 
 
@@ -157,7 +155,7 @@ def test_a_missing_gateway_is_reported_at_startup_with_where_to_set_it(tmp_path,
 
     monkeypatch.setattr(config, "_LOCAL_TOML", tmp_path / "config.local.toml")   # absent
     s = config.Settings()
-    s.llm.provider = "openai_compatible"
+    s.llm.provider, s.llm.base_url, s.llm.model = "openai_compatible", "", ""
     lines = config.warn_if_llm_unconfigured(s)
     assert lines and "base_url and model" in lines[0] and "config.local.toml" in lines[0]
 

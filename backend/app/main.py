@@ -90,10 +90,10 @@ def create_app() -> FastAPI:
         # above reaches stderr — the same reason `install_shipped_caption_inventory(log=print)`
         # prints.
         print(f"[startup] {settings.app_name!r} serving the API under {settings.api_prefix!r}")
-        # THE GATEWAY ADDRESS AND MODEL ARE NOT IN THE REPOSITORY — config.local.toml holds them —
-        # so a fresh checkout says plainly that they are missing rather than failing on every call.
-        from app.config import warn_if_llm_unconfigured
-        for line in warn_if_llm_unconfigured(settings):
+        # A MISSING GATEWAY ADDRESS, MODEL OR KEY is said plainly here rather than failing on every
+        # call. config.toml ships the CRISIL gateway; the key comes from the environment.
+        from app.config import warn_if_llm_key_missing, warn_if_llm_unconfigured
+        for line in warn_if_llm_unconfigured(settings) + warn_if_llm_key_missing(settings):
             print(f"[startup] {line}")
         init_db()
         # Re-apply the administrator's saved settings (feature flags, LLM config, extraction

@@ -107,11 +107,12 @@ supported_locales = ["en", "zh", "ar", "fr"]
 # `provider` below selects the adapter; the rest of this section configures it.
 # ---------------------------------------------------------------------------
 [llm]
-# azure_openai       → Azure OpenAI (DEFAULT). Addresses a DEPLOYMENT on your own resource and
+# azure_openai       → Azure OpenAI. Addresses a DEPLOYMENT on your own resource and
 #                      authenticates with an api-key header, so it needs azure_endpoint below —
 #                      there is no shared default host the way there is for OpenAI.
 # anthropic          → Anthropic Messages API (SDK)
-# bedrock_gateway    → Internal Bedrock Anthropic invoke gateway; set base_url + deployment model
+# bedrock_gateway    → the CRISIL LLM gateway (DEFAULT): {base_url}/model/{model}/invoke, Bedrock
+#                      Anthropic Messages body, key sent in the `token` header (auth_header)
 # openai / openai_compatible → OpenAI Chat Completions wire format (OpenAI, TokenRouter,
 #                      OpenRouter, vLLM, …); set base_url + a vendor/model id below
 # stub               → offline / no-op
@@ -122,16 +123,17 @@ supported_locales = ["en", "zh", "ar", "fr"]
 # resolve and stamp mapping_strategy="llm_description" on a run that made zero model calls.
 #
 # THIS TABLE IS THE ONE PLACE THE LLM IS DEFINED, together with the same table in the gitignored
-# backend/config.local.toml, which overrides it key by key. The GATEWAY ADDRESS and the MODEL live
-# only there — internal hostnames do not belong in the repository — so `base_url` and `model` are
-# empty below. To set them on a machine: copy config.local.example.toml to config.local.toml and
-# fill them in. Nothing else overrides either file: FINEX_LLM__* environment variables and .env are
+# backend/config.local.toml, which overrides it key by key. It ships the CRISIL gateway and model,
+# so a machine needs only the KEY, in the environment variable `api_key_env` names
+# (LLM_GATEWAY_TOKEN). To point one machine elsewhere: copy config.local.example.toml to
+# config.local.toml and set the keys that differ. Nothing else overrides either file:
+# FINEX_LLM__* environment variables and .env are
 # not read for it (a startup WARNING names any that are set), and the Settings screen neither shows
 # an editor nor stores a value. Change a value and restart.
 # The KEY is the exception and never appears here — only the NAME of the env var it is read from
 # (`api_key_env`); the key itself goes in the environment or in the gitignored backend/.env.
-provider = "openai_compatible"
-model = ""                          # set in config.local.toml — gateway model id "<vendor>/<deployment name>"
+provider = "bedrock_gateway"
+model = "us.anthropic.claude-opus-4-7"   # the Bedrock model id, exactly as the gateway URL carries it
 # `temperature` was here and is GONE: it reached no provider call (the port default of 0.0 won
 # everywhere), so it is fixed at 0.0 in code and is not configuration. See app/config.py's
 # LlmSettings for the full note. A leftover value in a local copy of this file is still ignored
@@ -152,8 +154,9 @@ model = ""                          # set in config.local.toml — gateway model
 # run_analysis's 4096 (services/analysis_llm.py) — so nothing is truncated by the change.
 max_tokens = 32768
 timeout_seconds = 600
-base_url = ""                       # set in config.local.toml — the gateway address
-api_key_env = "AZURE_OPENAI_API_KEY" # env var the key is read from (the key itself is NOT stored here)
+base_url = "https://llmgateway.crisil.local/api/bedrock"   # requests go to <base_url>/model/<model>/invoke
+api_key_env = "LLM_GATEWAY_TOKEN"   # env var the key is read from (the key itself is NOT stored here)
+auth_header = "token"               # header the key is sent in; "Authorization" sends a Bearer token
 reasoning_effort = "low"
 # Hard ceiling on hidden reasoning tokens; 0 = do not send a cap. Distinct from
 # `reasoning_effort` above, which ASKS for reasoning where this BOUNDS it. Required by some

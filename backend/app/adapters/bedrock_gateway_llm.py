@@ -1,4 +1,10 @@
-"""Anthropic Messages adapter for the internal Bedrock invoke gateway."""
+"""Anthropic Messages adapter for the internal Bedrock invoke gateway.
+
+The CRISIL gateway serves a Bedrock model at ``{base_url}/model/{model}/invoke`` — e.g.
+``https://llmgateway.crisil.local/api/bedrock/model/us.anthropic.claude-opus-4-7/invoke`` — with the
+model id exactly as Bedrock names it, and reads the key from a ``token`` header
+(``[llm].auth_header``). The body is Bedrock's Anthropic Messages format.
+"""
 from __future__ import annotations
 
 import os
@@ -29,7 +35,14 @@ class BedrockGatewayLlmProvider:
         cfg = self._settings.llm
         if not cfg.base_url or not cfg.model:
             raise LlmConfigError("Bedrock gateway requires llm.base_url and llm.model (deployment name).")
-        return f"{cfg.base_url.rstrip('/')}/model/bedrock.{cfg.model}/invoke"
+        return f"{cfg.base_url.rstrip('/')}/model/{cfg.model}/invoke"
+
+    def _auth_headers(self) -> dict[str, str]:
+        name = (self._settings.llm.auth_header or "token").strip()
+        key = self._api_key()
+        if name.lower() == "authorization":
+            return {"Authorization": f"Bearer {key}"}
+        return {name: key}
 
     def build_body(self, *, system: str, messages: Sequence[LlmMessage],
                    response_schema: type[BaseModel], max_tokens: int) -> dict:
@@ -51,7 +64,7 @@ class BedrockGatewayLlmProvider:
         ) as client:
             response = client.post(
                 self._endpoint(),
-                headers={"Authorization": f"Bearer {self._api_key()}", "Content-Type": "application/json"},
+                headers={**self._auth_headers(), "Content-Type": "application/json"},
                 json=self.build_body(system=system, messages=messages,
                                      response_schema=response_schema, max_tokens=max_tokens),
             )

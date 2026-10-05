@@ -93,15 +93,15 @@ class FeatureSettings(BaseModel):
 class LlmSettings(BaseModel):
     """Configuration for the selected LLM adapter (used for mapping disambiguation).
 
-    Set in ONE place: the ``[llm]`` table — ``config.local.toml`` (this machine's gateway address
-    and model, never committed) over ``config.toml`` (see the module docstring). The address and
-    model default to EMPTY on purpose: neither belongs in the repository, and an empty one is
-    reported at startup (`warn_if_llm_unconfigured`) instead of being guessed. The KEY is never configuration: only the NAME
-    of the environment variable holding it is, so a credential cannot end up in a file or an export.
+    Set in ONE place: the ``[llm]`` table — ``config.toml``, which ships the CRISIL gateway, with
+    ``config.local.toml`` (gitignored) able to point one machine elsewhere key by key. An empty
+    address or model is reported at startup (`warn_if_llm_unconfigured`), and so is a key that is
+    not in the environment (`warn_if_llm_key_missing`). The KEY is never configuration: only the
+    NAME of the environment variable holding it is, so a credential cannot end up in a file.
     """
 
-    provider: str = "openai_compatible"  # azure_openai | anthropic | bedrock_gateway | openai | openai_compatible | stub
-    model: str = ""                    # set in config.local.toml
+    provider: str = "bedrock_gateway"  # azure_openai | anthropic | bedrock_gateway | openai | openai_compatible | stub
+    model: str = "us.anthropic.claude-opus-4-7"   # the Bedrock model id the gateway serves
     # NO `temperature` here, deliberately. It used to be a field, admin-editable, persisted and
     # echoed back by GET /settings — and passed to NOTHING: none of the nine `complete_structured`
     # call sites forwarded it, so `ports.llm.LlmProvider.complete_structured`'s own
@@ -123,8 +123,11 @@ class LlmSettings(BaseModel):
     # sent to the gateway on every call.
     max_tokens: int = Field(default=32768, ge=256, le=262144)
     timeout_seconds: int = Field(default=600, ge=1, le=3600)
-    base_url: str = ""                 # set in config.local.toml
-    api_key_env: str = "AZURE_OPENAI_API_KEY"  # env var the key is read from (not the key)
+    base_url: str = "https://llmgateway.crisil.local/api/bedrock"   # the CRISIL LLM gateway
+    api_key_env: str = "LLM_GATEWAY_TOKEN"  # env var the key is read from (not the key)
+    # The request header the key is sent in. The CRISIL gateway reads it from `token`; "Authorization"
+    # sends `Authorization: Bearer <key>` instead, for a gateway that expects that.
+    auth_header: str = "token"
     reasoning_effort: str = "low"      # low | medium | high (provider/gateway dependent)
     # >0 sends OpenRouter's `reasoning.max_tokens` to CAP reasoning. Needed for free models where
     # reasoning is mandatory (cannot be disabled) and would otherwise spend the whole completion
@@ -769,6 +772,23 @@ def warn_if_llm_unconfigured(settings: "Settings") -> list[str]:
                f"{_LOCAL_TOML.with_name('config.local.example.toml').name} to {_LOCAL_TOML.name} "
                f"(it is gitignored) and fill in the gateway address and model. Until then every "
                f"model call fails and extraction runs on the deterministic route only.")
+    _LOG.warning(message)
+    return [message]
+
+
+def warn_if_llm_key_missing(settings: "Settings") -> list[str]:
+    """Say, once at startup, that the LLM key is not in the environment — naming the variable.
+
+    The gateway address and model ship in config.toml, so the key is the one thing a machine has
+    to supply; without it every model call is refused and extraction runs deterministically."""
+    llm = settings.llm
+    if str(llm.provider or "").lower() in ("stub", ""):
+        return []
+    if os.environ.get(llm.api_key_env):
+        return []
+    message = (f"LLM key not set: put the gateway key in the {llm.api_key_env} environment "
+               f"variable (or in the gitignored backend/.env). Until then every model call fails "
+               f"and extraction runs on the deterministic route only.")
     _LOG.warning(message)
     return [message]
 
