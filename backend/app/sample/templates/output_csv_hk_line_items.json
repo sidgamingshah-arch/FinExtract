@@ -17620,14 +17620,38 @@
    "note_source": {
     "note_title_any": [],
     "row_caption_any": [
-     "level\\s*(?:3|three)\\b",
-     "第三級|第三層級|第三層次",
-     "第三级|第三层级|第三层次"
+     "financial\\s+assets?",
+     "fair\\s+value\\s+through",
+     "\\b(?:fvtpl|fvoci|fvtoci)\\b",
+     "equity\\s+(?:investments?|instruments?|securities)",
+     "debt\\s+(?:investments?|instruments?|securities)",
+     "(?:listed|unlisted)\\s+(?:equity\\s+)?(?:investments?|securities)",
+     "investments?\\s+at\\s+fair\\s+value",
+     "structured\\s+deposits?|wealth\\s+management\\s+products?",
+     "bills?\\s+receivables?|receivables?\\s+financing",
+     "金融资产|金融資產",
+     "权益工具投资|權益工具投資|债权投资|債權投資|债务工具投资|債務工具投資",
+     "应收款项融资|應收款項融資",
+     "理财产品|理財產品|结构性存款|結構性存款"
     ],
     "row_caption_none": [
      "level\\s*(?:1|2|one|two)\\b|第[一二](?:級|层|層|级)",
      "liabilit|負債|负债",
-     "transfer|轉撥|转拨|轉入|转入|轉出|转出"
+     "transfer|轉撥|转拨|轉入|转入|轉出|转出",
+     "^\\s*(?:total|sub-?total)\\b|合计|合計|總計|总计|小计|小計|总额|總額",
+     "^\\s*\\d+\\s*[.．、]",
+     "^\\s*[（(]\\s*\\d+\\s*[）)]",
+     "\\(\\s*level",
+     "^\\s*[\\\"“”'‘’]",
+     "significant|observable|quoted\\s+prices",
+     "第[一二三](?:层次|層次|級|级)",
+     "非持续|非持續|non-?recurring"
+    ],
+    "column_heading_any": [
+     "第三层次|第三層次|第三级|第三級|第三层级|第三層級|level\\s*(?:3|three)"
+    ],
+    "column_heading_none": [
+     "第[一二]|level\\s*(?:1|2|one|two)|合计|合計|總計|总计|total"
     ],
     "prose_any": [],
     "prose_subject": "",

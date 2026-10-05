@@ -397,8 +397,17 @@ def test_the_six_row_configs_are_generic_totals_and_that_is_deliberate(shipped):
 
 def test_level_3_reads_a_different_note_entirely(shipped):
     """Level 3 comes from the fair value hierarchy note, which is not one of the category notes,
-    and its row patterns name the level."""
+    and it names the level by the COLUMN it is printed in.
+
+    ITS ROW PATTERNS NAMED THE LEVEL UNTIL THE COLUMN ROUTE. Every fair-value hierarchy table on
+    the five reference filings prints its levels as columns, so a level-naming row pattern
+    selected nothing on any of them. The level is now `column_heading_any` — read through
+    `note_columns.matches_patterns` — and the rows are the classes of financial asset, named
+    rather than `\\S`, so a liability row, a total or the header read as a row stays out."""
     by_key = {i.key: i for i in shipped.items}
     l3 = by_key[LEVEL3].note_source
     assert any("hierarch" in t or "fair value" in t for t in l3.note_terms), l3.note_terms
-    assert any("level" in p.lower() for p in l3.row_caption_any)
+    assert any("level" in p.lower() for p in l3.column_heading_any), l3.column_heading_any
+    assert any("total" in p.lower() for p in l3.column_heading_none), l3.column_heading_none
+    assert l3.row_caption_any and l3.row_caption_any != [r"\S"]
+    assert not any("level" in p.lower() for p in l3.row_caption_any), l3.row_caption_any
