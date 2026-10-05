@@ -933,7 +933,7 @@ def _tied_captions(want: str, candidates, key=lambda c: c) -> list:
     return [c for d, c in near if d == closest]
 
 
-def _figures_by_basis(row) -> tuple[dict, dict, dict | None]:
+def _figures_by_basis(row, *, filed_only: bool = False) -> tuple[dict, dict, dict | None]:
     """A row's figures, KEYED BY BASIS as well as period — and the one basis the row is filed under.
 
     `(figures, by_basis, provenance)`. The flat `figures` was built from every value of the row
@@ -945,6 +945,11 @@ def _figures_by_basis(row) -> tuple[dict, dict, dict | None]:
     The chosen basis is the row's only one when it has one; where it has several, consolidated when
     present (the slot the face populates), otherwise the first in document order. `figures` is that
     basis's periods, so every existing consumer keyed on period reads one basis, not a blend.
+
+    `filed_only` keeps only the keys a figure is FILED under — `current` and `prior` — which is
+    what a citation of the WHOLE row may take (`note_columns.whole_row`): `col2`, a measure
+    `current:allowance`, a restatement `current_col3` are positions or variants, and a line has
+    no slot for them.
     """
     by_basis: dict[str, dict[str, str]] = {}
     order: list[str] = []
@@ -953,6 +958,9 @@ def _figures_by_basis(row) -> tuple[dict, dict, dict | None]:
         if getattr(ev, "column_index", None) is not None:
             continue
         if getattr(ev, "value", None) is None:
+            continue
+        if filed_only and str(getattr(ev, "period_label", "") or "") not in (
+                note_columns.FILED_PERIODS):
             continue
         basis = _basis_of(ev) or "consolidated"
         if basis not in by_basis:
@@ -1110,7 +1118,7 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                                if elsewhere else ""))})
                 continue
             pg, caption, row = on_page
-            figures, filed, prov = _figures_by_basis(row)
+            figures, filed, prov = _figures_by_basis(row, filed_only=True)
             if want_col:
                 picked, why = _by_column(row, ref)
                 if picked is None:
@@ -1176,7 +1184,7 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                             + (f" — it is on {', '.join(elsewhere)}" if elsewhere else ""))})
                 continue
             st, caption, row = on_face
-            figures, filed, prov = _figures_by_basis(row)
+            figures, filed, prov = _figures_by_basis(row, filed_only=True)
             if want_col:
                 # ON THE FACE A POSITIONAL `current`/`prior` IS A PERIOD — a statement's columns
                 # are its years — so a key the header did not otherwise date is filed as itself.
@@ -1364,7 +1372,20 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
             resolved.append({"at": at, "note": number, "title": getattr(table, "title", "") or "",
                              "caption": caption, "quote": quote, **picked})
             continue
-        figures, filed, prov = _figures_by_basis(row)
+        # THE WHOLE-ROW FENCE. A citation with no column takes the row's `current` and `prior` and
+        # nothing else, and is REFUSED where those are not periods — a row whose columns are
+        # fair-value levels, asset classes or measures, which the header names and does not date
+        # (or dates otherwise). Filed by its keys such a row published 000709's 合计 as last
+        # year's Level 3 and 1966's Leasehold improvements as last year's depreciation. The
+        # refusal asks for the column and lists the row's, so a model reading it can answer.
+        _kept, fence = note_columns.whole_row(row)
+        if fence:
+            unresolved.append({"at": at, "note": want_note or number,
+                               "table": str(getattr(ref, "table", "") or ""),
+                               "caption": getattr(ref, "caption", ""), "quote": quote,
+                               "columns": note_columns.row_columns(row), "why": fence})
+            continue
+        figures, filed, prov = _figures_by_basis(row, filed_only=True)
         resolved.append({"at": at,
                          "note": number, "title": getattr(table, "title", "") or "",
                          "caption": caption, "figures": figures, "provenance": prov,

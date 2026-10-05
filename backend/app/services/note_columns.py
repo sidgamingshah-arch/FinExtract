@@ -192,6 +192,56 @@ def blank_columns(row) -> list[str]:
             if h and normalise(h) not in held]
 
 
+def _key_is_period(ev, row) -> bool:
+    """Whether this figure's positional key may be read as the period it is filed under: a bare
+    `current`/`prior` whose column the header did not name (an unheaded period table — the reading
+    a whole-row citation has always taken), or whose printed period agrees with it."""
+    label = str(getattr(ev, "period_label", "") or "")
+    if label not in FILED_PERIODS:
+        return False
+    if not getattr(ev, "column_heading", None):
+        return True
+    return period_of(ev, row)[0] == label
+
+
+def whole_row(row) -> tuple[list, str]:
+    """``(cells, refusal)`` for a citation of a row WITHOUT a column.
+
+    Only the row's ``current`` and ``prior`` are kept: ``col2``, a measure ``current:allowance``,
+    a restatement ``current_col3`` are positions or variants, and a line has no slot for them.
+
+    REFUSED (``refusal`` non-empty) when those two are not periods — a figure the header names
+    whose period `period_of` cannot state (a fair-value level, an asset class, with no block period
+    over the row) or states as the other one (000709's ``prior`` is the same year-end's 合计;
+    1966's PPE block is all 2023, so its ``prior`` is the Leasehold improvements column). Filing
+    such a row by its keys would publish a column as a year. A period table — headings whose
+    period agrees with the key, or no headings at all — is untouched.
+    """
+    kept = [ev for ev in _cells(row)
+            if str(getattr(ev, "period_label", "") or "") in FILED_PERIODS]
+    columns = row_columns(row)
+    listing = "; ".join(columns[:12])
+    # The ask comes first, so a reason cut short on a row's flag still says what to do.
+    ask = (" — give the `column` this line's figure is in"
+           + (f"; the row's columns are {listing}" if listing else ""))
+    if any(getattr(ev, "column_heading", None) and not _key_is_period(ev, row) for ev in kept):
+        return kept, "that row's columns are not periods" + ask
+    if not kept and _cells(row):
+        return kept, "that row prints no current- or prior-period figure" + ask
+    return kept, ""
+
+
+# A filed period's key, bare or as the reader keeps a second column of one slot: `current_col1`,
+# `prior_col3`, `prior_restated` (`row_reconstruct._column_periods`). Not a measure suffix.
+_KEYED_PERIOD = re.compile(r"^(current|prior)(?:_col\d+|_restated)?$")
+
+
+def _key_base(label: str) -> str | None:
+    """The period a key's own slot names — `prior_col3` → prior — or None for a position."""
+    m = _KEYED_PERIOD.match(label or "")
+    return m.group(1) if m else None
+
+
 def _only_heading_containing(row, cells, want: str) -> str | None:
     """The one distinct printed heading (normalised) of the row's table that contains ``want``,
     whole or by a script half — None when none does, or when two or more do."""
@@ -225,7 +275,7 @@ def pick(row, want: str | None, *, reporting_period: str = "current",
 
     WHICH PERIOD. `period_of` — the period printed over the column, then the row's block. Else,
     for a bare key whose column is not named as anything else, the key itself (an unheaded period
-    table, the reading a whole-row citation takes; on the face of a statement,
+    table, the reading `whole_row` takes; on the face of a statement,
     ``keys_are_periods``). Else
     the REPORTING period, and the result says it was ``assumed`` so the caller flags it: nothing
     the filing printed said which year that column is.
@@ -282,9 +332,10 @@ def pick(row, want: str | None, *, reporting_period: str = "current",
     for ev in matched:
         period, source = period_of(ev, row)
         label = str(getattr(ev, "period_label", "") or "")
-        if period is None and label in FILED_PERIODS and (
+        base = _key_base(label)
+        if period is None and base and (
                 keys_are_periods or not getattr(ev, "column_heading", None)):
-            period, source = label, "key"
+            period, source = base, "key"
         if period is None:
             period, source = reporting_period, "assumed"
         by_period.setdefault(period, []).append(ev)

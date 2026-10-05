@@ -324,7 +324,121 @@ def test_the_stage_flags_a_column_whose_period_it_assumed():
 
 
 def test_the_stage_writes_no_positional_column_as_a_period(ppe_1966):
-    """A whole-row citation of 1966's Depreciation row: `col2` … `col8` are classes, not years."""
+    """A whole-row citation of 1966's Depreciation row: its columns are classes, not years, so it is
+    refused — nothing is written, and the row says to name the column."""
     _spy, row = _run(ppe_1966, ("14", "Depreciation 折舊"))
     labels = {ev.period_label for ev in row.values.values()} if row is not None else set()
-    assert labels <= {"current", "prior"}, labels
+    assert labels == set(), labels
+    assert any("llm_citation_unresolved" in f and "give the `column`" in f
+               for f in row.confidence.flags), row.confidence.flags
+
+
+# ── THE WHOLE-ROW FENCE ──────────────────────────────────────────────────────────────────────────
+
+def _whole(tables, note, caption):
+    return resolve_sources([SourceRef(note=note, caption=caption)], tables)
+
+
+def test_000709_a_whole_row_of_levels_is_refused_and_lists_its_columns(fv_000709):
+    """Before: Level 3 filed as current and the same year-end's 合计 as prior."""
+    resolved, unresolved = _whole(fv_000709, "十三、1", "（一）应收款项融资")
+    assert resolved == []
+    (bad,) = unresolved
+    assert bad["why"].startswith("that row's columns are not periods — give the `column`")
+    assert "第一层次公允价值计量" in bad["why"] and "合计" in bad["why"]
+    assert len(bad["columns"]) == 4
+
+
+def test_1966_a_whole_row_of_asset_classes_in_one_block_is_refused(ppe_1966):
+    """The block is 2023: its `prior` key is the Leasehold improvements column, not 2022."""
+    resolved, unresolved = _whole(ppe_1966, "14", "Depreciation 折舊")
+    assert resolved == [] and "not periods" in unresolved[0]["why"]
+
+
+def test_1966_fair_value_rows_in_year_blocks_are_refused_whole_but_answer_by_column():
+    """Note 46 prints 2023 and 2022 as blocks of rows; Level 1 and Level 3 are the keyed columns.
+    Whole, the 2022 row filed Level 1 as this year and Level 3 as last year."""
+    tables = _tables("1966_fv", "46", "FAIR VALUE AND FAIR VALUE HIERARCHY", 254)
+    rows = [ni for t in tables for ni in t.items if ni.raw_label.startswith("Financial assets")]
+    assert [r.period_hint for r in rows] == ["current", "prior"]
+    for row in rows:
+        _kept, why = note_columns.whole_row(row)
+        assert why.startswith("that row's columns are not periods"), row.period_hint
+    assert note_columns.pick(rows[0], "Level 3")["figures"] == {"current": "344135"}
+    assert note_columns.pick(rows[1], "Level 3")["figures"] == {"prior": "378539"}
+    assert note_columns.pick(rows[1], "Total")["blank"] is True
+
+
+def test_a_period_table_is_untouched_and_keeps_only_its_two_periods():
+    """Headings whose printed period agrees with the key: read as before, less `col2` and the
+    measures and the restatements."""
+    row = _note_row(_ev("current", "10", "2024年12月31日", "current"),
+                    _ev("prior", "9", "2023年12月31日", "prior"),
+                    _ev("col2", "8", "2022年12月31日"),
+                    _ev("current:allowance", "1", "期末 · 坏账准备", "current"),
+                    _ev("current_col3", "7", "2024年12月31日（重述）", "current"))
+    table = NotesTable(note_number="7", title="应收账款", items=[row])
+    resolved, unresolved = _whole([table], "7", "应收账款")
+    assert unresolved == []
+    assert resolved[0]["figures"] == {"current": "10", "prior": "9"}
+    assert resolved[0]["figures_by_basis"] == {"consolidated": {"current": "10", "prior": "9"}}
+
+
+def test_an_unheaded_row_is_untouched_less_its_positions():
+    row = _note_row(_ev("current", "10"), _ev("prior", "9"), _ev("col2", "8"))
+    table = NotesTable(note_number="7", title="应收账款", items=[row])
+    resolved, unresolved = _whole([table], "7", "应收账款")
+    assert unresolved == [] and resolved[0]["figures"] == {"current": "10", "prior": "9"}
+
+
+def test_a_grid_row_keeps_its_primary_measure():
+    grid = (note_columns.GRID_FLAG,)
+    row = _note_row(_ev("current", "100", "期末余额 · 账面余额", flags=grid),
+                    _ev("current:allowance", "7", "期末余额 · 坏账准备", flags=grid))
+    table = NotesTable(note_number="7", title="应收账款", items=[row])
+    resolved, unresolved = _whole([table], "7", "应收账款")
+    assert unresolved == [] and resolved[0]["figures"] == {"current": "100"}
+
+
+def test_a_heading_dated_against_its_key_is_refused():
+    row = _note_row(_ev("current", "10", "2023年12月31日", "prior"))
+    table = NotesTable(note_number="7", title="应收账款", items=[row])
+    resolved, unresolved = _whole([table], "7", "应收账款")
+    assert resolved == [] and "not periods" in unresolved[0]["why"]
+
+
+def test_a_block_row_whose_key_is_its_own_block_period_is_untouched():
+    """1966's movement rows with the year on the block, where the one figure's key IS that year."""
+    row = _note_row(_ev("current", "10", "Total 總計"), hint="current")
+    table = NotesTable(note_number="14", title="PPE", items=[row])
+    resolved, unresolved = _whole([table], "14", "应收账款")
+    assert unresolved == [] and resolved[0]["figures"] == {"current": "10"}
+
+
+def test_a_row_with_only_positional_figures_asks_for_a_column(ppe_1966):
+    """"Acquisition of a subsidiary" prints only col2, col4, col8 — no period key at all."""
+    resolved, unresolved = _whole(ppe_1966, "14", "Acquisition of a subsidiary")
+    assert resolved == []
+    assert unresolved[0]["why"].startswith("that row prints no current- or prior-period figure")
+
+
+def test_a_kept_second_column_of_a_period_is_cited_by_its_key():
+    """1966 note 30 keys its amounts `current_col1` (2023) and `prior_col3` (2022) — a period's
+    second column. Whole, the row holds no filed period; by key, each is its own slot's period."""
+    row = _note_row(_ev("current_col1", "9817976"), _ev("prior_col3", "10742959"))
+    assert note_columns.whole_row(row)[1].startswith(
+        "that row prints no current- or prior-period figure")
+    got = note_columns.pick(row, "prior_col3")
+    assert got["figures"] == {"prior": "10742959"} and got["assumed"] is False
+    assert got["cells"][0]["period_source"] == "key"
+
+
+def test_a_face_citation_keeps_only_its_periods():
+    from app.core.models.line_item import LineItem
+    face_row = LineItem(source_label="Trade receivables")
+    face_row.set_value(_ev("current", "10", "2024"))
+    face_row.set_value(_ev("current_restated", "11", "2024 (restated)"))
+    resolved, unresolved = resolve_sources(
+        [SourceRef(statement="balance_sheet", caption="Trade receivables")],
+        [], [("balance_sheet", "Trade receivables", face_row)])
+    assert unresolved == [] and resolved[0]["figures"] == {"current": "10"}
