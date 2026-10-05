@@ -156,7 +156,8 @@ def unbreakable_ties(line_items) -> list[str]:
 
 #: An inclusion list and the exclusion list that vetoes it. A pattern in BOTH can never admit
 #: anything, because the veto is applied after the match.
-_NOTE_SOURCE_GATE_PAIRS = (("row_caption_any", "row_caption_none"), ("row_terms", "row_terms_none"))
+_NOTE_SOURCE_GATE_PAIRS = (("row_caption_any", "row_caption_none"), ("row_terms", "row_terms_none"),
+                           ("column_heading_any", "column_heading_none"))
 
 
 def self_denying_note_sources(raw: dict, *, threshold: int = 4) -> list[str]:

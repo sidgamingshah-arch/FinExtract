@@ -337,6 +337,24 @@ class NoteSource(BaseModel):
     #: deducts 坏账准备 from the primary (`sub__rp_find_3`) must keep reading the primary, and
     #: moving the gross to a suffix would break it.
     from_measure_grid: bool | None = None
+    #: WHICH PRINTED COLUMN this part reads, by the heading the filing prints over it — regexes
+    #: searched (case-insensitively, whole heading and each script half) on
+    #: `ExtractedValue.column_heading`, read through `services.note_columns.matches_patterns`, the
+    #: one definition a model's column citation reads through too. Both EMPTY — the default — asks
+    #: nothing, and the part reads exactly as it did before these fields existed.
+    #:
+    #: WHY A HEADING AND NOT THE KEY. `period_label` is positional: on 河钢股份 000709's
+    #: fair-value table `current` is the Level 3 column and `prior` is the SAME year-end's 合计; on
+    #: 迈捷 300319's `current` is Level 2. Every fair-value hierarchy table on the five reference
+    #: filings prints its levels as COLUMNS, so a part reading Level 3 by row caption selected
+    #: nothing on any of them.
+    #:
+    #: A SELECTED FIGURE IS FILED UNDER THE PERIOD THE FILING PRINTS (`note_columns.period_of`:
+    #: the period over the column, else the row's block period, else a grid key's base), never
+    #: under the positional key, and is refused when nothing printed states one. A figure whose
+    #: column the reader could not name fails closed. The veto wins.
+    column_heading_any: list[str] = Field(default_factory=list)
+    column_heading_none: list[str] = Field(default_factory=list)
     # THE SEMANTIC HALF, and the two levels are the SAME two levels as the patterns above. That
     # parallel is the whole design: which note, then which rows inside it, are different questions
     # searched against different text, and they need different vocabularies.
@@ -433,6 +451,8 @@ class NoteSource(BaseModel):
             ("row_caption_any", self.row_caption_any),
             ("row_caption_none", self.row_caption_none),
             ("prose_any", self.prose_any),
+            ("column_heading_any", self.column_heading_any),
+            ("column_heading_none", self.column_heading_none),
         )
         return self
 

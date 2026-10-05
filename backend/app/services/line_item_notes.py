@@ -598,11 +598,20 @@ def claimed_notes(items, notes) -> dict[str, set[str]]:
     # allowance part (`measure: allowance`) read two columns of the same rows and the parent NETS
     # them, so neither can count the other's money; handing the note to one of them would leave
     # the other reading nothing.
-    by_parent: dict[tuple[str, str], list] = {}
+    #
+    # A COLUMN SELECTOR IS A COLUMN TOO. A part reading a fair-value table's Level 3 column by its
+    # printed heading (`column_heading_any`) and a sibling summing the same note's rows read
+    # different cells, so they do not compete for the note either. Parts declaring no selector
+    # share the empty one, which is the grouping this had before the fields existed.
+    by_parent: dict[tuple, list] = {}
     for item in items or ():
         if item.key in covered:
-            measure = str(getattr(getattr(item, "note_source", None), "measure", "") or "")
-            by_parent.setdefault((str(getattr(item, "parent", "") or ""), measure), []).append(item)
+            src = getattr(item, "note_source", None)
+            measure = str(getattr(src, "measure", "") or "")
+            selector = (tuple(getattr(src, "column_heading_any", None) or ()),
+                        tuple(getattr(src, "column_heading_none", None) or ()))
+            by_parent.setdefault((str(getattr(item, "parent", "") or ""), measure, selector),
+                                 []).append(item)
     for siblings in by_parent.values():
         score = {}
         for item in siblings:
