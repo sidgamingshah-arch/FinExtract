@@ -136,10 +136,10 @@ class NoteRowHit:
     """One note row a line item's declaration selected, with everything the trail needs."""
 
     __slots__ = ("key", "note_number", "note_title", "caption", "matched_by", "value", "amount",
-                 "basis", "period")
+                 "basis", "period", "column", "column_matched_by", "period_source")
 
     def __init__(self, *, key, note_number, note_title, caption, matched_by, value, amount,
-                 basis, period):
+                 basis, period, column=None, column_matched_by=None, period_source=None):
         self.key = key
         self.note_number = note_number
         self.note_title = note_title
@@ -149,6 +149,13 @@ class NoteRowHit:
         self.amount = amount
         self.basis = basis
         self.period = period
+        # WHICH PRINTED COLUMN selected this figure, for a part declaring `column_heading_any` /
+        # `column_heading_none` — the heading as printed, the pattern that admitted it, and where
+        # its period came from (`note_columns.period_of`: "column", "row_block" or "grid"). None
+        # for every part that selects by row alone, whose trail reads exactly as it always did.
+        self.column = column
+        self.column_matched_by = column_matched_by
+        self.period_source = period_source
 
 
 def _table_basis(table, value) -> str:
@@ -180,6 +187,90 @@ def _table_basis(table, value) -> str:
     if declared is None:
         return _basis_of(value)
     return str(getattr(declared, "value", declared) or "") or _basis_of(value)
+
+
+class _ColumnSelector:
+    """A part's `column_heading_any` / `column_heading_none`, compiled once per call.
+
+    WHAT IT DOES TO A ROW THE ROW GATES ADMITTED. It reads the values standing under a printed
+    heading the patterns admit (`note_columns.matches_patterns` — the one definition a model's
+    column citation reads through too, so the two routes cannot read one printed cell two ways),
+    and files each under the period the FILING PRINTS for it (`note_columns.period_of`: the period
+    over the column, else the row's block, else a grid key's base) — never under the positional
+    key. On 000709's fair-value table `current` is the Level 3 column and `prior` is the same
+    year-end's 合计; on 1966's the Level 3 column is keyed `prior` in both year blocks.
+
+    WHAT IT LIFTS, and only for a value it admitted:
+      * the `column_index` refusal — a named component column is exactly what the part named;
+      * the positional-slot refusal (`col3`) — that refusal exists because the period of such a
+        column is unknown, and a selected value is refused anyway unless the print states one;
+      * the face-period filter on the KEY — applied instead to the period the print states.
+
+    WHAT IT REFUSES: a value whose column the reader could not name (fails closed), a value no
+    printed period covers, and a (basis, period) slot of one row that two admitted columns fill
+    with DIFFERENT figures — which column the author meant is then decided by nothing printed.
+    Two admitted columns printing the same figure (a bilingual heading read twice) are one.
+    """
+
+    __slots__ = ("any_rx", "none_rx", "unsatisfiable")
+
+    def __init__(self, any_raw: list[str], none_raw: list[str]):
+        self.any_rx = [(raw, rx) for raw, rx in _compiled(any_raw) if rx is not None]
+        self.none_rx = [rx for _, rx in _compiled(none_raw) if rx is not None]
+        self.unsatisfiable = bool(any_raw) and not self.any_rx
+
+    @classmethod
+    def of(cls, src) -> "_ColumnSelector | None":
+        any_raw = list(getattr(src, "column_heading_any", None) or ())
+        none_raw = list(getattr(src, "column_heading_none", None) or ())
+        return cls(any_raw, none_raw) if (any_raw or none_raw) else None
+
+    def admits(self, heading) -> str | None:
+        """The pattern that admits ``heading`` ("" when the part declares only vetoes), or None."""
+        if not note_columns.matches_patterns(heading, [rx for _, rx in self.any_rx], self.none_rx):
+            return None
+        for raw, rx in self.any_rx:
+            if note_columns.matches_patterns(heading, [rx]):
+                return raw
+        return ""
+
+    def hits(self, *, item, table, title, row, caption, matched, periods, measure, want_grid,
+             grid_flag) -> list[NoteRowHit]:
+        slots: dict[tuple[str, str], list[NoteRowHit]] = {}
+        for value in (getattr(row, "values", None) or {}).values():
+            heading = getattr(value, "column_heading", None)
+            by = self.admits(heading)
+            if by is None:
+                continue
+            label = str(getattr(value, "period_label", "") or "")
+            if want_grid is not None:
+                on_grid = grid_flag in tuple(
+                    getattr(getattr(value, "confidence", None), "flags", None) or ())
+                if on_grid is not bool(want_grid):
+                    continue
+            if measure and not label.endswith(f":{measure}"):
+                continue
+            period, source = note_columns.period_of(value, row)
+            if period is None:
+                continue
+            if periods is not None and period not in periods:
+                continue
+            amount = _num(getattr(value, "value", None)
+                          if getattr(value, "value", None) is not None
+                          else getattr(value, "value_raw", None))
+            if amount is None:
+                continue
+            basis = _table_basis(table, value)
+            slots.setdefault((basis, period), []).append(NoteRowHit(
+                key=item.key, note_number=str(getattr(table, "note_number", "")),
+                note_title=title, caption=caption, matched_by=matched,
+                value=value, amount=amount, basis=basis, period=period,
+                column=str(heading), column_matched_by=by, period_source=source))
+        out: list[NoteRowHit] = []
+        for found in slots.values():
+            if len({h.amount for h in found}) == 1:
+                out.append(found[0])
+        return out
 
 
 def select_rows(item, notes, periods: set[str] | None = None,
@@ -226,6 +317,15 @@ def select_rows(item, notes, periods: set[str] | None = None,
     vetoes = _compiled(getattr(src, "row_caption_none", None))
     if not (titles or by_meaning) or not counts:
         return []
+    # See `NoteSource.column_heading_any`: WHICH PRINTED COLUMN this part reads, by its heading.
+    # Both lists empty — every part declared before the fields existed — and `by_column` is False,
+    # so every line below reads exactly as it did.
+    column = _ColumnSelector.of(src)
+    if column is not None and column.unsatisfiable:
+        # Every `column_heading_any` pattern failed to compile, so nothing could admit a column —
+        # and an empty admit list would read as "any column". `bad_patterns` names them.
+        return []
+    by_column = column is not None
 
     hits: list[NoteRowHit] = []
     for table in notes or ():
@@ -292,7 +392,13 @@ def select_rows(item, notes, periods: set[str] | None = None,
             # not a balance. Its vetoes are three or four by design, too few to name every movement
             # caption — so the table is not read at all. A part that NAMES its row (a depreciation
             # charge) reads movement tables as it always did.
-            if sums_items and block_periods:
+            # A PART THAT NAMES ITS COLUMN IS EXEMPT. The skip exists because a line-item sum over a
+            # movement table reads its columns as periods and adds the year's movements together;
+            # a column-selected part reads one column BY ITS PRINTED HEADING and files each figure
+            # under the period the filing prints for it (the row's block, for a table that prints
+            # its years as blocks of rows — 1966's and 嘉民's fair-value hierarchies), so neither
+            # half of that hazard is reachable.
+            if sums_items and block_periods and not by_column:
                 continue
             caption = getattr(row, "raw_label", "") or ""
             # THE GROUPING HEADER COUNTS AS THIS ROW'S CAPTION TOO, because one common note shape
@@ -320,6 +426,15 @@ def select_rows(item, notes, periods: set[str] | None = None,
             if not matched:
                 continue
             if _matches_any(caption, vetoes) or (group and _matches_any(group, vetoes)):
+                continue
+            # THE COLUMN GATE, ANDed after the row gates. A column-selected part reads the values
+            # of this row that stand under a heading its patterns admit, in place of the block's
+            # total column or the face's period labels — see `_ColumnSelector.hits`.
+            if by_column:
+                hits.extend(column.hits(
+                    item=item, table=table, title=title, row=row, caption=caption,
+                    matched=matched, periods=periods, measure=measure, want_grid=want_grid,
+                    grid_flag=GRID_FLAG))
                 continue
             # A MOVEMENT ROW CARRIES ITS PERIOD ON THE BLOCK, NOT ON THE COLUMN. An asset note's
             # columns are asset CLASSES and its comparative year is a second block of rows, so
@@ -673,10 +788,22 @@ def _trail_input(hit: NoteRowHit, *, counted: bool) -> dict:
         "provenance": derivation._json_safe_provenance(getattr(hit.value, "provenance", None)),
         # WHY IT WAS SELECTED — the author's own pattern, so a wrong selection is traceable to the
         # line of configuration that made it rather than to "the engine".
-        "excerpt": f"note '{hit.note_title}' row matched /{hit.matched_by}/",
+        "excerpt": f"note '{hit.note_title}' row matched /{hit.matched_by}/" + _column_excerpt(hit),
         "deducted": False,
         "counted": counted,
+        # THE PRINTED COLUMN, for a column-selected part only — so every other trail is unchanged.
+        **({"column": hit.column} if getattr(hit, "column", None) else {}),
     }
+
+
+def _column_excerpt(hit: NoteRowHit) -> str:
+    """", column 'Level 3' matched /level\\s*3/ (prior from the row block)" — or "" for a part
+    that selects by row alone."""
+    if not getattr(hit, "column", None):
+        return ""
+    source = str(getattr(hit, "period_source", "") or "").replace("_", " ")
+    return (f", column '{hit.column}' matched /{hit.column_matched_by}/"
+            f" ({hit.period} from the {source})")
 
 
 def take_by_rollup(amounts: list[Decimal], rollup: str) -> tuple[Decimal, list[bool]]:
@@ -766,7 +893,8 @@ def bad_patterns(item) -> list[str]:
     # pattern — and a broken one there is the same silent hole as anywhere else: the sentence simply
     # stops matching and the line stays empty. The GENERATED patterns need no check; a plain phrase
     # cannot fail to compile, which is the point of generating them.
-    for field in ("note_title_any", "row_caption_any", "row_caption_none", "prose_any"):
+    for field in ("note_title_any", "row_caption_any", "row_caption_none", "prose_any",
+                  "column_heading_any", "column_heading_none"):
         for raw, rx in _compiled(getattr(src, field, None)):
             if rx is None:
                 out.append(f"{item.key}.note_source.{field}: /{raw}/")

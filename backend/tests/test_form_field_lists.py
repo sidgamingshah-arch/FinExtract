@@ -188,7 +188,9 @@ def test_the_deterministic_tab_is_exactly_what_the_request_withholds() -> None:
             "row_terms": ["related party loans", "关联借款"],
             "row_terms_none": ["entrusted loans", "委托贷款"],
             "prose_any": ["amounts? due from related parties"],
-            "prose_landed_in": ["other receivables"]})})
+            "prose_landed_in": ["other receivables"],
+            "column_heading_any": [r"level\s*3", "第三层次"],
+            "column_heading_none": ["合计"]})})
     payload = line_item_payload(item, ("24",))
 
     ns = item.note_source
@@ -199,6 +201,8 @@ def test_the_deterministic_tab_is_exactly_what_the_request_withholds() -> None:
         "note_source.row_caption_none": list(ns.row_caption_none or ()),
         "note_source.prose_any": list(ns.prose_any or ()),
         "note_source.prose_landed_in": list(ns.prose_landed_in or ()),
+        "note_source.column_heading_any": list(ns.column_heading_any or ()),
+        "note_source.column_heading_none": list(ns.column_heading_none or ()),
         # paired into the same control as the regex lists above, so they are on the tab too
         "note_source.row_terms": list(ns.row_terms or ()),
         "note_source.row_terms_none": list(ns.row_terms_none or ()),

@@ -95,6 +95,7 @@ const TYPE_TONE: Record<LineItemType, { bg: string; fg: string; label: string }>
  *  what "I have declared this object and not yet its patterns" actually means. */
 const NEW_NOTE_SOURCE: NoteSource = {
   note_title_any: [], row_caption_any: [], row_caption_none: [],
+  column_heading_any: [], column_heading_none: [],
   prose_any: [], prose_subject: "", prose_landed_in: [],
   note_terms: [], row_terms: [], row_terms_none: [],
 };
@@ -373,7 +374,9 @@ function withheldReason(name: string, sel: {
   // patterns are inert. The note TITLE patterns are not — they still choose which note to read the
   // sentence out of — so they stay.
   if (route === "prose" && (name === "note_source.row_caption_any"
-                            || name === "note_source.row_caption_none")) {
+                            || name === "note_source.row_caption_none"
+                            || name === "note_source.column_heading_any"
+                            || name === "note_source.column_heading_none")) {
     return "this line's figure is read from a sentence, so the row search is skipped entirely — "
          + "these patterns would select nothing";
   }
@@ -595,7 +598,8 @@ const GROUP_FIELDS = {
          "note_source"],
   /** Rendered only while the `note_source` switch is on, so counted only then. */
   noteSource: ["note_source.note_title_any", "note_source.row_caption_any",
-               "note_source.row_caption_none", "note_source.prose_subject",
+               "note_source.row_caption_none", "note_source.column_heading_any",
+               "note_source.column_heading_none", "note_source.prose_subject",
                "note_source.prose_landed_in", "note_source.prose_any"],
   structure: ["parent", "order"],
   // `type` FIRST, because it selects which of the other three applies. It used to sit in
@@ -636,6 +640,8 @@ const DETERMINISTIC_FIELDS = new Set([
   // Row selection inside a note. Each of these is one `MatchListEditor` over a regex list and its
   // paired terms list, which is why `row_terms`/`row_terms_none` need no entry of their own.
   "note_source.row_caption_any", "note_source.row_caption_none",
+  // Column selection inside a note's rows — regexes over the printed column headings.
+  "note_source.column_heading_any", "note_source.column_heading_none",
   // Prose patterns. The prose ROUTE is an LLM-tab question (`route`); these are how a sentence is
   // matched once that route is chosen.
   "note_source.prose_subject", "note_source.prose_landed_in", "note_source.prose_any",
@@ -652,7 +658,8 @@ const CONDITIONAL_FIELDS = [
   // The switch and every control under it, so rolling the group open shows the reason once rather
   // than seven silent inputs.
   "note_source", "note_source.note_title_any", "note_source.row_caption_any",
-  "note_source.row_caption_none", "note_source.prose_subject",
+  "note_source.row_caption_none", "note_source.column_heading_any",
+  "note_source.column_heading_none", "note_source.prose_subject",
   "note_source.prose_landed_in", "note_source.prose_any",
   "aliases", "exclude_hints",
 ];
@@ -1679,6 +1686,56 @@ function Detail(p: EditorProps) {
                                    idx("note_source.row_caption_none"),
                                  "note_source.row_terms_none":
                                    idx("note_source.row_terms_none") }} />
+            ))}
+            {/* ── WHICH PRINTED COLUMN ──────────────────────────────────────────────────────
+                A fair-value hierarchy prints its levels as COLUMNS, and the reader's period key is
+                positional — on one filing `current` is the Level 3 column and `prior` the same
+                year-end's 合计. So a part reading Level 3 names the column by the heading the
+                filing prints over it. Patterns only: a heading is matched, never scored. */}
+            {fld("note_source.column_heading_any", (e) => (
+              <MatchListEditor label="Which printed column it reads"
+                               testid="note_source-columns" editable={editable}
+                               help="Leave empty to read the row's figures by period, as every
+                                     line does by default. Filled in, only the figures standing
+                                     under a heading these reach are read (“第三层次”, “Level 3”),
+                                     each filed under the period the filing prints over its
+                                     column or its block of rows — and a column the reader could
+                                     not name is never read."
+                               map={{ exact_loose: "note_source.column_heading_any",
+                                      starts: "note_source.column_heading_any",
+                                      ends: "note_source.column_heading_any",
+                                      pattern: "note_source.column_heading_any" }}
+                               order={["note_source.column_heading_any"]}
+                               values={{ "note_source.column_heading_any":
+                                           noteSource.column_heading_any ?? [] }}
+                               onChange={(next) => setNoteSource({
+                                 column_heading_any: next["note_source.column_heading_any"] })}
+                               emptyText="Nothing said — the row's figures are read by period."
+                               error={e}
+                               indexErrors={{
+                                 "note_source.column_heading_any":
+                                   idx("note_source.column_heading_any") }} />
+            ))}
+            {fld("note_source.column_heading_none", (e) => (
+              <MatchListEditor label="Which printed columns must be EXCLUDED"
+                               testid="note_source-columns-excluded" editable={editable} veto
+                               help="Headings that must NOT be read even where the list above
+                                     reaches them — the Level 1 and Level 2 columns, the all-levels
+                                     total. The exclusion wins."
+                               map={{ exact_loose: "note_source.column_heading_none",
+                                      starts: "note_source.column_heading_none",
+                                      ends: "note_source.column_heading_none",
+                                      pattern: "note_source.column_heading_none" }}
+                               order={["note_source.column_heading_none"]}
+                               values={{ "note_source.column_heading_none":
+                                           noteSource.column_heading_none ?? [] }}
+                               onChange={(next) => setNoteSource({
+                                 column_heading_none: next["note_source.column_heading_none"] })}
+                               emptyText="Nothing vetoed."
+                               error={e}
+                               indexErrors={{
+                                 "note_source.column_heading_none":
+                                   idx("note_source.column_heading_none") }} />
             ))}
             {/* ── THE PROSE ROUTE, IN WORDS ────────────────────────────────────────────────
                 A figure the filing states in a sentence and tabulates nowhere — "Depreciation

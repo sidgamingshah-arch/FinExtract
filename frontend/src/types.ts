@@ -1642,6 +1642,19 @@ export interface NoteSource {
    *  simply stops excluding — which is why the edit path compiles each one and attributes the
    *  compile error to this list and to the offending index. */
   row_caption_none: string[];
+  /** WHICH MEASURE OF THE PERIOD this part reads — the slug the reader suffixes onto the period
+   *  label ("allowance" is 坏账准备). Empty is the primary measure. */
+  measure?: string;
+  /** Whether this part's column must (true) or must not (false) come from a two-level
+   *  period × measure header; null does not ask. */
+  from_measure_grid?: boolean | null;
+  /** WHICH PRINTED COLUMN this part reads, by the heading the filing prints over it — regexes
+   *  searched on the whole heading and each script half. Both empty is the default and reads
+   *  exactly as before. A selected figure is filed under the period the filing prints for it,
+   *  never the positional key, and a column the reader could not name is never selected. */
+  column_heading_any?: string[];
+  /** Headings that must NOT be read, even where the list above admits them. The veto wins. */
+  column_heading_none?: string[];
   /** THE RAW ESCAPE HATCH for the prose route — regexes over a note's SENTENCES. Authored in
    *  plain words through the two fields below now; this stays for a sentence shape the grammar
    *  cannot express. Measured over the 28 patterns it replaced, none needed it. */

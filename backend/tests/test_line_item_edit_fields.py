@@ -240,7 +240,12 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
         # `None` for the same reason as above: the default would pass whether the screen carried
         # the field or not, and a configurator who cannot set it cannot tell a grid's gross from a
         # plain comparative's reported amount.
-        "from_measure_grid": True}),
+        "from_measure_grid": True,
+        # WHICH PRINTED COLUMN, by its heading — the pair a fair-value hierarchy's Level 3 part
+        # needs, because every such table on the reference filings prints its levels as columns.
+        # Both non-empty so the round trip proves the screen carries each list on its own.
+        "column_heading_any": [r"level\s*3", "第三层次"],
+        "column_heading_none": [r"total|合计"]}),
     # recognition
     "aliases": ("aliases", ["Cash at bank", "Bank balances"]),
     "alias_matching": ("alias_matching", "disabled"),
