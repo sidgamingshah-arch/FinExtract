@@ -1008,7 +1008,10 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                         group_out: list[str] | None = None,
                         chapter: list | None = None,
                         known_captions: frozenset[str] | None = None,
-                        page_fold=DETECT_FOLD) -> list[NotesTable]:
+                        page_fold=DETECT_FOLD,
+                        carry_header=None,
+                        header_out: list | None = None,
+                        reporting_year: int | None = None) -> list[NotesTable]:
     """Split a notes page into note sections and reconstruct each note's detail rows.
 
     ``scope``/``normalisation`` are the run's own rulebook blocks; a note's columns are read by
@@ -1054,6 +1057,14 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
     the next page. A PRC related-party note prints its 期末余额{账面余额|坏账准备} header once and
     then runs for eight pages; without the carry every page after the first reads four columns
     positionally, which is the mis-load the grid exists to prevent.
+
+    ``carry_header`` is the PRINTED-COLUMN header (`row_reconstruct.HeaderModel`) the note still
+    open on the previous page was read with, and ``header_out`` collects the header each section
+    was named by. Unlike the grid it also carries WITHIN the page, to a section of the same note the
+    walk split off below its header (迈捷 300319's 十二、1 is cut at the wrapped row caption
+    "1.以公允价值计量且…", leaving its four Level 2 rows under no header) — and in either case only
+    when those rows print no header of their own and their figures fit the carried one; see
+    `row_reconstruct._name_note_columns`. ``reporting_year`` places a dated column heading.
     """
     # The same page-derived tolerance the face uses: a note's detail lines are set as tightly as a
     # statement's, and two of them merged into one row interleave their captions (row_reconstruct.
@@ -1198,6 +1209,8 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
         i += 1
 
     tables: list[NotesTable] = []
+    # The printed-column header the previous section was named by, and which note it belonged to.
+    prev_header = (carry_header, None)
     for sec in sections:
         # ``on_face=False``: the rulebook's ``company_only_markers`` rule is declared about the
         # FACE ("presence of …investments_in_subsidiaries on the face is strong evidence the
@@ -1220,6 +1233,15 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
         cells = declared[0] if declared is not None else _category_cells(grouped)
         row_words = ([w for w in sec["words"] if id(w) not in declared[1]]
                      if declared is not None else sec["words"])
+        # THE SAME NOTE'S HEADER, OFFERED: the carried section takes the previous page's; a later
+        # section takes the one the section before it was named by, when both are the same note.
+        sec_numeral_now = (sec.get("chapter") or page_start)[0]
+        sec_note = qualified_note_number(sec_numeral_now, sec["no"])
+        if sec is carried:
+            offered = carry_header
+        else:
+            offered = prev_header[0] if prev_header[1] == sec_note else None
+        named: list = []
         items, _ = build_line_items(row_words, page_index=page_index,
                                     document_id=document_id, source_kind=source_kind,
                                     on_face=False, scope=scope, normalisation=normalisation,
@@ -1228,7 +1250,13 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                                     grid_out=seen,
                                     carry_group=(carry_group if sec is carried else None),
                                     group_out=open_group, known_captions=known_captions,
-                                    page_fold=fold)
+                                    page_fold=fold,
+                                    header_carry=offered, header_out=named,
+                                    reporting_year=reporting_year)
+        used_header = named[0] if named else None
+        prev_header = (used_header, sec_note)
+        if header_out is not None:
+            header_out.append(used_header)
         # What the NEXT page inherits is the grid of the note still open when this page ended, so
         # the carry is whatever the last section was read with — None included.
         carry_grid = seen[0] if seen else None
@@ -1293,6 +1321,7 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                           component_ordinals=list(li.component_ordinals),
                           section_hint=li.section_hint,
                           column_groups=list(li.column_groups),
+                          printed_columns=list(li.printed_columns),
                           group_hint=(li.group_hint
                                       or _category_for(cells, _row_top(li))),
                           # Both empty unless this note states a period on its blocks AND this row

@@ -8,6 +8,14 @@ side by side with nothing to say which was the group's; and an HKEX "Group | Com
 
 Display only. The figure keys stay positional — every deterministic reader keys on them — so
 nothing here can move a published figure.
+
+WHAT CHANGED SINCE, ON PURPOSE. `column_headings` still names the figure BANDS, by the rules pinned
+below, and a statement face still takes its headings from it. A NOTE's figures no longer do: they
+are named from the printed header read first (`row_reconstruct.read_printed_columns`, pinned in
+test_every_printed_column_is_named.py), because a blank column has no band, so its heading either
+ended the climb or went to the nearest band — on 300319's fair-value table that is the Level 2
+figure's band. Where no header model holds, a band heading is kept on a note figure only if it
+stands over that figure. And a bare "$’000" is a units line like "RMB’000".
 """
 from __future__ import annotations
 
@@ -145,3 +153,34 @@ def test_two_headings_read_into_one_column_are_dropped_not_merged():
             [_w("客户一", 0.15, 0.13), _w("1,000", 0.40, 0.13), _w("2,000", 0.70, 0.13)]]
     headings, _ = column_headings(rows, bands)
     assert headings == {1: "比例"}
+
+
+# ── where the header-first reader now decides, deliberately differently ────────────────────────────
+
+def test_a_note_figure_is_named_by_the_column_it_stands_in_not_the_nearest_band():
+    """Figures under Level 2 and Total of Level 1 | Level 2 | Level 3 | Total. `column_headings`
+    sees two bands; Level 3's heading is within half a pitch of the Level 2 band, so that band took
+    two phrases of one line and is left unnamed — and with the veto gone it would read Level 3. The
+    note's figures are named from the printed header instead: Level 2, where they are printed."""
+    from app.services.row_reconstruct import build_line_items
+
+    header = [_w("Level 1", 0.34, 0.10, 0.05), _w("Level 2", 0.50, 0.10, 0.05),
+              _w("Level 3", 0.66, 0.10, 0.05), _w("Total", 0.82, 0.10, 0.04)]
+    body = [[_w(c, 0.15, y, 0.10), _w("431,478,888.81", 0.52, y, 0.10),
+             _w("431,478,888.81", 0.84, y, 0.10)]
+            for c, y in (("Trading assets", 0.14), ("Receivables", 0.16), ("Total assets", 0.18))]
+    bands = [0.52, 0.84]
+    assert column_headings([header, *body], bands)[0] == {1: "Total"}
+    items, _ = build_line_items([w for row in [header, *body] for w in row], page_index=0,
+                                document_id="t", source_kind="native", on_face=False)
+    named = {ev.period_label: ev.column_heading for ev in items[0].values.values()}
+    assert named == {"current": "Level 2", "prior": "Total"}
+    assert items[0].printed_columns == ["Level 1", "Level 2", "Level 3", "Total"]
+
+
+def test_a_bare_dollar_thousands_line_is_a_unit_not_a_heading():
+    rows = [[_w("2026", 0.50, 0.10), _w("2025", 0.65, 0.10)],
+            [_w("$’000", 0.50, 0.12), _w("$’000", 0.65, 0.12)],
+            _figures(0.15)]
+    headings, _ = column_headings(rows, BANDS[:2])
+    assert headings == {0: "2026", 1: "2025"}

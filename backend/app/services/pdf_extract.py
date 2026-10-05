@@ -12,7 +12,7 @@ from app.core.stage import PipelineContext
 from app.services.mapping import known_captions
 from app.services.buckets import PRINTED_ON_FLAG
 from app.services import page_spread
-from app.services.row_reconstruct import Word, build_line_items
+from app.services.row_reconstruct import Word, build_line_items, face_reporting_year
 
 
 def _clamp(v: float) -> float:
@@ -411,6 +411,10 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     # and its counterparty rows at the top of the next; a row whose caption is a company name has
     # nothing else to identify it by. See `row_reconstruct.build_line_items`' `carry_group`.
     notes_group: str | None = None
+    # The PRINTED-COLUMN header (`row_reconstruct.HeaderModel`) the last NOTES page's open note was
+    # named by, carried and reset with the grid — and, like it, used only by rows that print no
+    # header of their own and whose figures fit it.
+    notes_header = None
     # THE NOTES' TOP-LEVEL CHAPTER, as ``[numeral, highest ordinal seen]``. A mainland filing
     # numbers its notes WITHIN each chapter, so the chapter is half of a note's identity — see
     # ``notes_extract.read_chapter``. A mutable cell because the reader updates it while walking a
@@ -431,12 +435,23 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     captions = known_captions(getattr(ctx, "ontology", None)) \
         if getattr(ctx, "ontology", None) is not None else frozenset()
 
+    # THE FILING'S OWN YEAR, as its statements print it, for placing a dated column heading in a
+    # note ("2023" in a 2024 report is the comparative). Read off the faces already reconstructed,
+    # and re-read only when more face rows have arrived.
+    reporting: list = [-1, None]
+
+    def _reporting_year() -> int | None:
+        if reporting[0] != len(doc.line_items):
+            reporting[0], reporting[1] = len(doc.line_items), face_reporting_year(doc.line_items)
+        return reporting[1]
+
     def _read_notes(region: list, page_index: int, source_kind: str, fold,
-                    carry_note, carry_grid, carry_group):
+                    carry_note, carry_grid, carry_group, carry_header=None):
         """Read ``region`` as note text and return the carries the next page continues with."""
         from app.services.notes_extract import extract_note_tables
         grids: list = []
         groups: list = []
+        headers: list = []
         tables = extract_note_tables(region, page_index=page_index,
                                      document_id=doc.content_hash, source_kind=source_kind,
                                      scope=scope, normalisation=normalisation,
@@ -444,16 +459,19 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                                      carry_grid=carry_grid, grid_out=grids,
                                      carry_group=carry_group, group_out=groups,
                                      chapter=notes_chapter,
-                                     known_captions=captions, page_fold=fold)
+                                     known_captions=captions, page_fold=fold,
+                                     carry_header=carry_header, header_out=headers,
+                                     reporting_year=_reporting_year())
         doc.notes.extend(tables)
         # The BASIS travels with the note, so a note continued onto the page where the
         # company-only chapter opens stays the group's — see `extract_note_tables`.
         # The note still open when this page ended is the LAST section, so its grid — None
-        # included — is what the next page's continuation inherits.
+        # included — is what the next page's continuation inherits. Its printed-column header too.
         return (((tables[-1].note_number, tables[-1].title, tables[-1].basis) if tables
                  else carry_note),
                 grids[-1] if grids else None,
-                groups[-1] if groups else None)
+                groups[-1] if groups else None,
+                headers[-1] if headers else None)
 
     for ps in targets:
         if ps.index >= pdf.page_count:
@@ -501,8 +519,9 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         # Notes pages → note detail tables (the breakdowns behind the face figures); every
         # other page → face line items. Both keep page + bbox provenance.
         if ps.kind == PageKind.NOTES:
-            notes_carry, notes_grid, notes_group = _read_notes(
-                words, ps.index, source_kind, fold, notes_carry, notes_grid, notes_group)
+            notes_carry, notes_grid, notes_group, notes_header = _read_notes(
+                words, ps.index, source_kind, fold, notes_carry, notes_grid, notes_group,
+                notes_header)
             continue
         # A CASH-FLOW SUPPLEMENT PRINTED IN THE NOTES IS A FACE ONLY AS FAR AS ITS RECONCILIATION
         # RUNS — see `stages.classify._cf_supplement_extent`, which says where that is.
@@ -526,7 +545,7 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                      if isinstance(ends_y, (int, float)) else [])
             if above:
                 _read_notes(above, ps.index, source_kind, fold,
-                            notes_carry, notes_grid, notes_group)
+                            notes_carry, notes_grid, notes_group, notes_header)
                 ctx.log(f"extract:page={ps.index}:notes_above_supplement_title="
                         f"{len(above)}_words")
             if below:
@@ -538,6 +557,7 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         notes_carry = None
         notes_grid = None
         notes_group = None
+        notes_header = None
         if not words:
             carried = None
             continue

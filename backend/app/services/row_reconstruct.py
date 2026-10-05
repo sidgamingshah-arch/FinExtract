@@ -2748,6 +2748,14 @@ def _prc_period_slot(text: str) -> int | None:
     return None
 
 
+def _opens_with_period(text: str) -> bool:
+    """Whether a header phrase IS a period caption — 期末余额, 本期发生额, 上年年末余额, 期末公允价值
+    — rather than a longer heading that merely contains one, wrapped into a tight column
+    ("应收账款期末余", "同资产期末余额")."""
+    folded = unicodedata.normalize("NFKC", text).strip()
+    return any(folded.startswith(caption) for caption, _slot in _PRC_PERIOD_CAPTIONS)
+
+
 def _measure_slug(text: str) -> str | None:
     """The measure a caption names: "" for the primary amount, a slug otherwise, None for a
     caption that names no measure this reader knows."""
@@ -2981,7 +2989,10 @@ def _period_measure_grid(rows: list[list[Word]], value_bands: list[float],
 # order, and never attached to one column it does not name. Units ("RMB'000", "人民幣千元") are not
 # a heading. Display only: nothing keys on it.
 _HEADING_UNIT = re.compile(
-    r"^(?:(?:RMB|HK\$|US\$|USD|HKD|EUR|S\$|NT\$|MOP)?\s*[’']?000|'000|"
+    # A BARE "$’000" IS A UNIT TOO: 嘉民 kaming prints its fair-value hierarchy in "$’000 千元",
+    # and without the bare dollar the units line was read as a heading over every column.
+    r"^(?:(?:RMB|HK\$|US\$|USD|HKD|EUR|S\$|NT\$|MOP|\$)?\s*[’'‘]?000|'000|"
+    r"千份|千股|"
     r"人民[幣币](?:千|百萬|百万|万|萬)?元|港[幣币](?:千|百萬|百万)?元|(?:千|万|萬|百萬|百万)?元|%|"
     r"\(?(?:RMB|HK\$|US\$)?\s*(?:million|thousand)s?\)?|"
     r"(?:单位|單位|币种|幣種)[:：]\S*)$", re.IGNORECASE)
@@ -2992,12 +3003,18 @@ _HEADING_MAX_LINES = 12
 
 
 def column_headings(rows: list[list[Word]], value_bands: list[float], fmt=None,
-                    page_chrome: frozenset[str] = frozenset()) -> tuple[dict[int, str], list[str]]:
+                    page_chrome: frozenset[str] = frozenset(),
+                    spans_out: dict[int, tuple[float, float]] | None = None,
+                    ) -> tuple[dict[int, str], list[str]]:
     """``({column: printed heading}, [column groups])`` for one table, or ``({}, [])``.
 
     ``rows`` are the table's UNMERGED printed lines, top to bottom; ``value_bands`` its value
     columns' x-centres, left to right — the same bands the figures are placed by, so heading ``i``
     is the heading of the figures filed under column ``i``.
+
+    ``spans_out``, when given, receives the printed x-extent of each heading's own words, so a
+    caller can test that a heading actually stands OVER the figures it was given to — see
+    :func:`_headings_over_their_figures`.
     """
     if len(value_bands) < 2:
         return {}, []
@@ -3056,6 +3073,7 @@ def column_headings(rows: list[list[Word]], value_bands: list[float], fmt=None,
     sources: dict[int, set[tuple[int, int]]] = {}
     groups: list[str] = []
     period_groups: list[tuple[float, str]] = []           # (centre, caption) of 期末余额-style groups
+    period_spans: list[tuple[float, float]] = []          # …and each one's printed extent
     group_centres: dict[int, list[tuple[float, bool]]] = {}
 
     def centre_of(phrase: list[Word]) -> float:
@@ -3084,6 +3102,8 @@ def column_headings(rows: list[list[Word]], value_bands: list[float], fmt=None,
                 group_centres.setdefault(i, []).append((centre_of(phrase), han))
                 if period:
                     period_groups.append((centre_of(phrase), text))
+                    period_spans.append((min(w.bbox.x0 for w in phrase),
+                                         max(w.bbox.x1 for w in phrase)))
                 continue
             if any(abs(c - centre_of(phrase)) <= 0.5 * pitch and h != han for c, h in above):
                 groups.append(text)
@@ -3104,6 +3124,8 @@ def column_headings(rows: list[list[Word]], value_bands: list[float], fmt=None,
         text = _join_words(_regroup_scripts(ordered)).strip()
         if len(text) >= 2:                              # a lone character is a fragment, not a name
             headings[col] = text
+            if spans_out is not None:
+                spans_out[col] = (min(w.bbox.x0 for w in words), max(w.bbox.x1 for w in words))
     # THE PERIOD OVER ITS MEASURES. A mainland two-level header prints 期末余额 | 期初余额 over the
     # same measures under each (账面余额 | 跌价准备 | 账面价值), so where the columns divide evenly
     # between the period captions each column is named with its period first.
@@ -3112,8 +3134,12 @@ def column_headings(rows: list[list[Word]], value_bands: list[float], fmt=None,
         ordered = [t for _c, t in sorted(period_groups)]
         for col in list(headings):
             headings[col] = f"{ordered[col // run]} · {headings[col]}"
+        spans = [x for _c, x in sorted(zip([c for c, _t in period_groups], period_spans))]
         for col in range(len(value_bands)):
-            headings.setdefault(col, ordered[col // run]) if run == 1 else None
+            if run == 1 and col not in headings:
+                headings[col] = ordered[col]
+                if spans_out is not None:
+                    spans_out[col] = spans[col]
     return headings, groups
 
 
@@ -3211,6 +3237,823 @@ def _header_declared_bands(rows: list[list[Word]], figure_rows: list[list[Word]]
     if any(_nearest_col(_xc(w), bands) != i for i, m in enumerate(members) for w in m):
         return []
     return bands
+
+
+# ── EVERY COLUMN A TABLE PRINTS, read header-first ────────────────────────────────────────────
+#
+# `column_headings` names the figure BANDS: it starts from the columns the figures make and looks
+# up for the words over each. A column that prints no figure therefore has no heading, and the
+# heading of such a column was either attached to the nearest figure band or ended the climb
+# altogether. Measured on the five reference filings, every fair-value hierarchy table reached the
+# model with NO headings at all:
+#
+#   * 河钢股份 000709 note 十三、1 prints 期末公允价值 over 第一层次 | 第二层次 | 第三层次 | 合计 and
+#     its figures under the last two only. The row banner 一、持续的公允价值计量 between the header
+#     and the figures ended the climb, and the two blank columns' headings stood left of the label
+#     edge the figure bands imply, which ended it again.
+#   * 迈捷 300319 note 十二、1 prints the same header with its figures under 第二层次 — and the
+#     heading 第三层次 is within half a pitch of that band, so nearest-band assignment, had its
+#     two-phrase veto not fired, would have named a Level 2 figure Level 3.
+#
+# So the header is read FIRST, as printed, and the figures are then placed into it:
+#
+#   1. CLIMB from the first figure row, skipping the rows of the table's BODY that stand between it
+#      and the header — wrapped captions, banners, enumerated and colon sub-headings and block
+#      anchors at the caption margin, nil-only rows, units lines — until a header line is found;
+#      then collect header lines until the running header, the table's title, prose, or another
+#      row at the caption margin.
+#   2. STACK the header's phrases bottom-up into LEAF columns by x-overlap. A phrase over two or
+#      more stacks is a GROUP heading, as is a mainland period caption centred over two or more
+#      measures, a phrase on the same printed line as a group, and a group's other-script
+#      translation set directly beneath it.
+#   3. NAME each leaf with its words in printed order and each script kept together, the period
+#      caption first where a line of period captions divides the leaves between them — the naming
+#      `column_headings` has always used.
+#   4. PLACE each figure band in the leaf CELL its figures stand in — bounds at the midpoints
+#      between neighbouring leaves, the outer cells half a pitch wide — and refuse the whole
+#      reading unless the placement is one-to-one, in printed order, with every figure of a band in
+#      one cell (`_place_bands`). A false header is worse than none: it renames a figure.
+#
+# ANNOTATION ONLY. The figure bands, and therefore every positional key — current, prior, col2 … —
+# are untouched: the model names the columns the figures are already in, lists the ones they are
+# not in, and says which period the header states over each.
+
+_NIL_MARK = re.compile(r"^[-–—−]{1,2}$")
+# A currency printed on a units line of its own ("‘000 | HK$", "港元"). Not a unit by itself — a
+# currency breakdown heads its columns RMB | HK$ | 美元 — so a line is skipped as units only when
+# every word on it is one.
+_CURRENCY_TOKEN = re.compile(r"^(?:RMB|HK\$|US\$|USD|HKD|S\$|NT\$|\$|人民[幣币]|港[幣币]|港元|美元)$",
+                             re.IGNORECASE)
+# What a heading line never is. A Han sentence carries its own punctuation; an English one is told
+# by its function words, three of which no column heading measured on the corpus contains.
+_HEADER_HAN_SENTENCE = re.compile(r"[，。；！？]")
+_HEADER_FUNCTION_WORD = re.compile(
+    r"\b(?:the|and|of|which|are|is|was|were|to|for|by|with|that|this|has|have|been)\b",
+    re.IGNORECASE)
+# …and a line ending a sentence ("…of the financial asset.") is the last line of a paragraph.
+_HEADER_SENTENCE_END = re.compile(r"\b[a-z]{4,}\.\s*$")
+# A heading names something: a word, a Han character, or a year. ".00" or "(1)" is not one.
+_HEADER_NAMES_SOMETHING = re.compile(r"[A-Za-z]|(?:19|20)\d{2}|[㐀-䶿一-鿿豈-﫿]")
+_HEADER_LATIN_MAX = 40        # characters of one Latin heading phrase on one printed line
+_HEADER_HAN_MAX = 16          # Han characters of one heading phrase on one printed line
+_HEADER_MAX_LINES = 16
+# Header lines are set solid; this many line-heights of clear air between two lines ends the header.
+_HEADER_LINE_GAP = 2.5
+_CAPTION_MARGIN_SLACK = 0.02
+# A caption-column heading printed on a header line beside the value columns' headings: 账龄,
+# 单位名称, "Name". Short, no digits, not an enumerated or colon sub-heading, not a date anchor.
+_CAPTION_HEADING_HAN_MAX = 8
+_CAPTION_HEADING_WORDS_MAX = 3
+# What a MEASURE column under a mainland period caption is called: the amount, its allowance, its
+# carrying value, its share, its movement. Wider than `_MEASURE_CAPTIONS`, whose slugs key figures;
+# this only says a column is a measure a period caption may head.
+_MEASURE_LIKE = re.compile(
+    r"余额|餘額|金额|金額|准备|準備|价值|價值|比例|占比|佔比|收入|成本|数量|數量|增加|减少|減少|"
+    r"转回|轉回|转销|轉銷|计提|計提|变动|變動|发生额|發生額|追加|处置|處置|转入|轉入|转出|轉出|"
+    r"计入|計入|确认|確認")
+_ENUMERATED_CAPTION = re.compile(
+    r"^\s*(?:[一二三四五六七八九十]+[、.．]|[（(][一二三四五六七八九十\d]{1,3}[）)]|\d{1,2}[.．、)）]|"
+    r"[①-⑳]|\(?[a-z]{1,3}\))", re.IGNORECASE)
+
+
+@dataclass
+class PrintedColumn:
+    """One column a table's header PRINTS, whether or not a figure stands in it."""
+    heading: str
+    x0: float
+    x1: float
+    #: The group headings printed over this column, outermost first.
+    groups: tuple[str, ...] = ()
+    #: The period the header STATES over this column — "current" / "prior" — read from its own
+    #: heading or from a group over it; None when the header states none (a fair-value level, an
+    #: asset class), which is not the same as "current".
+    period: str | None = None
+
+    @property
+    def xc(self) -> float:
+        return (self.x0 + self.x1) / 2
+
+
+@dataclass
+class HeaderModel:
+    """A table's printed columns, left to right, read from its header alone."""
+    columns: list[PrintedColumn]
+    groups: list[str]
+    #: Where the figures of each printed column were printed — the median RIGHT edge of the
+    #: figures named into it, by column index — on the table the header was validated against. A
+    #: header carried to a section that prints none of its own is held to these: the continuation
+    #: of a table prints its figures where the table did.
+    anchors: dict[int, float] = field(default_factory=dict)
+
+    @property
+    def headings(self) -> list[str]:
+        return [c.heading for c in self.columns]
+
+    def cells(self) -> list[tuple[float, float]]:
+        """Each column's CELL: bounded at the midpoints between neighbouring columns' centres, the
+        outer two half a pitch beyond their centres. Never wider, because an unbounded outer cell
+        is how a header's last heading would reach figures printed beyond it."""
+        cs = [c.xc for c in self.columns]
+        if len(cs) == 1:
+            only = self.columns[0]
+            half = max(0.06, (only.x1 - only.x0) / 2 + 0.01)
+            return [(cs[0] - half, cs[0] + half)]
+        half = _pitch(cs) / 2
+        return [((cs[k - 1] + c) / 2 if k else c - half,
+                 (c + cs[k + 1]) / 2 if k + 1 < len(cs) else c + half)
+                for k, c in enumerate(cs)]
+
+    def cell_of(self, x: float) -> int | None:
+        for k, (lo, hi) in enumerate(self.cells()):
+            if lo <= x < hi:
+                return k
+        return None
+
+
+def _header_phrase_gap(lines: list[list[Word]]) -> float:
+    """ONE PHRASE = WORDS AT ORDINARY SPACING, scaled to the header's own type — the rule
+    `column_headings` uses."""
+    heights = sorted(w.bbox.y1 - w.bbox.y0 for line in lines for w in line)
+    return (min(_HEADING_PHRASE_GAP, 0.6 * heights[len(heights) // 2]) if heights
+            else _HEADING_PHRASE_GAP)
+
+
+def _header_phrases(line: list[Word], gap: float) -> list[list[Word]]:
+    out: list[list[Word]] = []
+    for w in sorted(line, key=lambda w: w.bbox.x0):
+        if out and w.bbox.x0 - out[-1][-1].bbox.x1 <= gap:
+            out[-1].append(w)
+        else:
+            out.append([w])
+    return out
+
+
+def _header_reads_as_prose(words: list[Word]) -> bool:
+    """Whether a printed line is a sentence rather than column headings."""
+    if not words:
+        return False
+    ordered = sorted(words, key=lambda w: w.bbox.x0)
+    text = _join_words(ordered)
+    if (_HEADER_HAN_SENTENCE.search(text) or len(_HEADER_FUNCTION_WORD.findall(text)) >= 3
+            or _HEADER_SENTENCE_END.search(text)):
+        return True
+    # A Han sentence is extracted as ONE long word; two table cells set close together are two
+    # words that only join into one phrase ("唐山钢铁集团有限责 | 宣化钢铁集团有限责"), so Han length is
+    # judged per word and Latin length per phrase.
+    if any(len(_HAN.findall(w.text)) > _HEADER_HAN_MAX for w in ordered):
+        return True
+    for phrase in _header_phrases(ordered, _HEADING_PHRASE_GAP):
+        t = _join_words(phrase)
+        if len(t) - len(_HAN.findall(t)) > _HEADER_LATIN_MAX:
+            return True
+    return False
+
+
+def _names_the_caption_column(words: list[Word]) -> bool:
+    """Whether the caption-side words of a header line are the caption column's own heading
+    (账龄, 单位名称, "Name") rather than a row of the table's body."""
+    text = _join_words(sorted(words, key=lambda w: w.bbox.x0)).strip()
+    if not text or re.search(r"\d", text) or text.endswith((":", "：")):
+        return False
+    if _ENUMERATED_CAPTION.match(text) or _PERIOD_PREPOSITION.match(text):
+        return False
+    han = len(_HAN.findall(text))
+    if han:
+        return han <= _CAPTION_HEADING_HAN_MAX and len(text) - han <= 4
+    return len(text.split()) <= _CAPTION_HEADING_WORDS_MAX
+
+
+def _names_caption_columns(words: list[Word]) -> bool:
+    """Whether every phrase of a line's caption-side words is a column's own heading — the caption
+    column's, or the text columns' beside it ("委托方名称 | 受托/承包资产类型 | 受托起始日")."""
+    runs = _header_phrases(words, _header_phrase_gap([words]))
+    return bool(runs) and all(_names_the_caption_column(run) for run in runs)
+
+
+def _first_figure_row(rows: list[list[Word]], fmt=None) -> int | None:
+    return next((i for i, row in enumerate(rows)
+                 if _carries_amounts(row, fmt) and not _is_folio_row(row, fmt)), None)
+
+
+def _caption_geometry(body: list[list[Word]], fmt=None) -> tuple[float | None, float | None]:
+    """``(caption margin, caption column's right edge)`` of a table's body.
+
+    The MARGIN is the left edge the body's captions are set from; the RIGHT EDGE how far the
+    caption column of a figure row reaches. Both are read from the rows nearest the header, before
+    any prose below the table can widen them, and a nil cell set before a row's first figure
+    ("– – 344,135") is not caption.
+
+    A LINE WITH NO FIGURE counts towards the margin only when it stands wholly left of every
+    figure: 迈捷 300319 wraps its captions over the line its figures are printed on, so that is
+    where its margin is, while 1966's share-option table prints no caption column at all and its
+    repeated header ("Number of options", "二零二二年") is not one.
+    """
+    figure_rows: list[tuple[list[Word], list[Word]]] = []
+    plain: list[list[Word]] = []
+    for row in body:
+        if len(figure_rows) >= 12:
+            break
+        labels, _nr, values = _scan_row(row, fmt, extract_note_refs=False)
+        labels = [w for w in labels if not _NIL_MARK.match(_cell_text(w.text))]
+        if labels and (_header_reads_as_prose(labels) or _RUNNING_HDR.search(_join_words(labels))):
+            continue
+        if values and _carries_amounts(row, fmt):
+            figure_rows.append((labels, [w for w in values if _is_placed_amount(w, fmt)]))
+        elif labels:
+            plain.append(labels)
+    figures = [w for _l, vs in figure_rows for w in vs]
+    if not figures:
+        return None, None
+    left_of_figures = min(w.bbox.x0 for w in figures)
+    margin: float | None = None
+    right: float | None = None
+    for labels, _vs in figure_rows:
+        if labels:
+            margin = min(margin if margin is not None else 1.0, min(w.bbox.x0 for w in labels))
+            right = max(right if right is not None else 0.0, max(w.bbox.x1 for w in labels))
+    for labels in plain:
+        if max(w.bbox.x1 for w in labels) < left_of_figures:
+            margin = min(margin if margin is not None else 1.0, min(w.bbox.x0 for w in labels))
+    return margin, right
+
+
+def _caption_side(words: list[Word], margin: float | None, right: float | None) -> set[int]:
+    """The ids of the words of one printed line that stand in the CAPTION column: a run set from
+    the caption margin, or a word within the reach of the body's captions."""
+    side: set[int] = set()
+    for run in _x_runs(sorted(words, key=lambda w: w.bbox.x0), _CAPTION_GAP):
+        at_margin = margin is not None and run[0].bbox.x0 <= margin + _CAPTION_MARGIN_SLACK
+        for w in run:
+            if at_margin or (right is not None and _xc(w) <= right):
+                side.add(id(w))
+    return side
+
+
+def _header_lines(rows: list[list[Word]], fmt=None, page_chrome: frozenset[str] = frozenset()
+                  ) -> tuple[list[list[Word]], int | None, float | None]:
+    """The printed header lines over a table's value columns, top to bottom, the index of the
+    table's first figure row and the right edge of its caption column — ``([], …)`` when no header
+    is printed above the first figure row."""
+    first = _first_figure_row(rows, fmt)
+    if not first:
+        return [], first, None
+    margin, right = _caption_geometry(rows[first:], fmt)
+    lines: list[list[Word]] = []
+    for row in reversed(rows[:first]):
+        words = [w for w in row if w.text.strip() and not _HEADING_UNIT.match(w.text.strip())]
+        if not words or all(_CURRENCY_TOKEN.match(w.text.strip()) for w in words):
+            continue                                    # a units line, or nothing at all
+        text = _join_words(words)
+        if _RUNNING_HDR.search(text) or (page_chrome and _chrome_key(text) in page_chrome):
+            break                                       # the page's own furniture
+        words = [w for w in words if not _HEADING_LABEL_WORD.match(w.text.strip())]
+        if not words:
+            continue                                    # 项目 / Notes alone, on a line of its own
+        if _carries_amounts(row, fmt) or _header_reads_as_prose(words):
+            break                                       # a figure or a sentence: above the table
+        if lines and _row_box(lines[-1]).y0 - _row_box(words).y1 > _HEADER_LINE_GAP * max(
+                (w.bbox.y1 - w.bbox.y0 for w in words), default=0.01):
+            break                                       # clear air: the header has ended
+        side_ids = _caption_side(words, margin, right)
+        side = [w for w in words if id(w) in side_ids]
+        over = [w for w in words if id(w) not in side_ids]
+        if not over:
+            # A caption-margin row with nothing over the columns: below the header it is a row of
+            # the body (a wrapped caption, a banner, a sub-heading, a block anchor) and is skipped;
+            # above a header line already read, it is the table's title and the header ends —
+            # unless it is the caption column's own heading (类别, 账龄) set on a line of its own
+            # between two of the header's lines.
+            if lines and not _names_caption_columns(side):
+                break
+            continue
+        if all(_NIL_MARK.match(_cell_text(w.text)) for w in over):
+            if lines:
+                break
+            continue                                    # a nil row of the body: "-- -- -- --"
+        if side and not _names_caption_columns(side):
+            # A row of the body whose other half stands over the columns — 1966's block anchor
+            # "As at 31 December 2023 於二零二三年十二月三十一日" — or, above the header, its title.
+            if lines:
+                break
+            continue
+        lines.append(over)
+        if len(lines) >= _HEADER_MAX_LINES:
+            break
+    lines.reverse()
+    return lines, first, right
+
+
+def _overlap(a0: float, a1: float, b0: float, b1: float) -> float:
+    return min(a1, b1) - max(a0, b0)
+
+
+def _stack_header(lines: list[list[Word]]) -> tuple[list[dict], list[dict]]:
+    """Leaf stacks and group headings, read bottom-up from the header lines."""
+    gap = _header_phrase_gap(lines)
+    stacks: list[dict] = []          # {"x0", "x1", "parts": [(line, words)]}
+    groups: list[dict] = []          # {"line", "x0", "x1", "words", "stacks", "translation"}
+
+    def attach(s: dict, li: int, words: list[Word]) -> None:
+        s["parts"].append((li, words))
+        s["x0"] = min(s["x0"], min(w.bbox.x0 for w in words))
+        s["x1"] = max(s["x1"], max(w.bbox.x1 for w in words))
+
+    def over(x0: float, x1: float) -> list[int]:
+        return [k for k, s in enumerate(stacks) if _overlap(x0, x1, s["x0"], s["x1"]) > 0.002]
+
+    for li in range(len(lines) - 1, -1, -1):
+        centres = sorted((s["x0"] + s["x1"]) / 2 for s in stacks)
+        reach = 0.25 * _pitch(centres) if len(centres) > 1 else 0.0
+        phrases = _header_phrases(lines[li], gap)
+        decided = []
+        for p in phrases:
+            x0, x1 = min(w.bbox.x0 for w in p), max(w.bbox.x1 for w in p)
+            hit = over(x0, x1)
+            strict = sorted({k for k, s in enumerate(stacks) for _l, q in s["parts"]
+                             for w in q if x0 <= _xc(w) <= x1})
+            wide = sorted({k for k, s in enumerate(stacks) for _l, q in s["parts"]
+                           for w in q if x0 - reach <= _xc(w) <= x1 + reach})
+            group = len(hit) >= 2 or len(strict) >= 2
+            pieces = None
+            if group and len(p) > 1:
+                # Two columns' headings set so tight they read as one phrase ("observable
+                # unobservable"): every word stands over one stack, and they are not the same one.
+                per = [over(w.bbox.x0, w.bbox.x1) for w in p]
+                if all(len(h) == 1 for h in per) and len({h[0] for h in per}) > 1:
+                    pieces, group = per, False
+            decided.append({"p": p, "x0": x0, "x1": x1, "hit": hit, "strict": strict,
+                            "wide": wide, "group": group, "pieces": pieces, "band": False,
+                            "period": _opens_with_period(_caption_text(p))})
+        # A MAINLAND PERIOD BAND OVER ITS MEASURES, however narrowly each caption is printed:
+        # 000709's 应收项目 sets 期末余额 in the gap between 账面余额 and 坏账准备, over neither. The
+        # period captions of one line divide the columns below between them, each taking the
+        # columns nearer to it than to the next — and the line is a BAND only when every one of its
+        # period captions is a group by that reading or by its own extent. 688008's equity-investment
+        # note wraps 期初/余额 and 本期计入其/他综合收益 in tight columns: each of those captions
+        # stands over one column of its own, so none is a band and each stays in its column's name.
+        captions = [d for d in decided if d["period"] and d["pieces"] is None]
+        if captions and stacks:
+            region: dict[int, list[int]] = {}
+            for k_s, s in enumerate(stacks):
+                sc = (s["x0"] + s["x1"]) / 2
+                near = min(range(len(captions)),
+                           key=lambda c: abs((captions[c]["x0"] + captions[c]["x1"]) / 2 - sc))
+                region.setdefault(near, []).append(k_s)
+            tol = 0.3 * (_pitch(centres) if len(centres) > 1 else 0.1)
+
+            def stack_text(k: int) -> str:
+                return "".join(w.text for _l, q in sorted(stacks[k]["parts"], key=lambda t: t[0])
+                               for w in q)
+
+            def wraps_onto(d: dict) -> bool:
+                """Whether the caption is the first line of ONE column's own heading, wrapped in a
+                tight column (期初 / 余额): set over that column alone, flush with it."""
+                if len(d["hit"]) != 1:
+                    return False
+                s = stacks[d["hit"][0]]
+                return (abs(d["x0"] - s["x0"]) <= 0.004
+                        or abs((d["x0"] + d["x1"]) / 2 - (s["x0"] + s["x1"]) / 2) <= 0.004)
+
+            def governed(c: int, measures_only: bool) -> list[int]:
+                """The widest run of columns in the caption's share that it is CENTRED over — a
+                period caption is set over the middle of the measures it heads."""
+                members = sorted(region.get(c, ()), key=lambda k: stacks[k]["x0"])
+                cc = (captions[c]["x0"] + captions[c]["x1"]) / 2
+                best: list[int] = []
+                for i in range(len(members)):
+                    for j in range(i + 1, len(members)):
+                        run = members[i:j + 1]
+                        lo = min(stacks[k]["x0"] for k in run)
+                        hi = max(stacks[k]["x1"] for k in run)
+                        if (abs((lo + hi) / 2 - cc) <= tol and len(run) > len(best)
+                                and (not measures_only
+                                     or all(_MEASURE_LIKE.search(stack_text(k)) for k in run))):
+                            best = run
+                return best
+            # A CLEAN PARTITION: every period caption of the line centred over the whole of its
+            # share, and each share two columns or more — 期末余额 | 上年年末余额 over 美元 | 其他外币
+            # | 合计 each. That is a band however each caption happens to sit over its middle column.
+            partition = all(len(region.get(c, ())) >= 2
+                            and governed(c, measures_only=False) == sorted(
+                                region.get(c, ()), key=lambda k: stacks[k]["x0"])
+                            for c in range(len(captions)))
+            for c, d in enumerate(captions):
+                if d["group"]:
+                    # Over two columns by its own extent: it heads its whole share of the line.
+                    d["wide"] = sorted(set(d["wide"]) | set(region.get(c, ())))
+                    continue
+                # Set flush over one column, it is that column's own first line unless the columns
+                # it is centred over are all MEASURES (期末余额 centred over 账面余额 | 坏账准备 |
+                # 账面价值 stands flush over the middle one), or the line partitions cleanly.
+                run = governed(c, measures_only=wraps_onto(d) and not partition)
+                if len(run) >= 2:
+                    d["group"] = True
+                    d["wide"] = sorted(set(d["wide"]) | set(run))
+            # A BAND when every period caption of the line heads columns: only then are its
+            # columns named period first.
+            if all(d["group"] for d in captions):
+                for d in captions:
+                    d["band"] = True
+        # THE SAME PRINTED LINE AS A GROUP — "Property and equipment | Right-of-use assets" — is a
+        # line of groups. Not for a mainland period band, whose line also carries top-aligned leaf
+        # headings.
+        group_line = any(d["group"] and not d["period"] for d in decided)
+        for d in decided:
+            p, x0, x1, hit, strict, wide = d["p"], d["x0"], d["x1"], d["hit"], d["strict"], d["wide"]
+            if d["pieces"] is not None:
+                for w, h in zip(p, d["pieces"]):
+                    attach(stacks[h[0]], li, [w])
+                continue
+            if d["group"] or (group_line and wide and not d["period"]):
+                groups.append({"line": li, "x0": x0, "x1": x1, "words": p,
+                               "stacks": set(hit) | set(strict) | set(wide),
+                               "translation": False, "band": d["band"]})
+                continue
+            if len(hit) == 1:
+                attach(stacks[hit[0]], li, p)
+            else:
+                stacks.append({"x0": x0, "x1": x1, "parts": [(li, p)]})
+    if not stacks:
+        return [], groups
+
+    # A TRANSLATION SET DIRECTLY UNDER A GROUP, aligned with it and in the other script, is the
+    # group's — "Property and equipment" / "物業及設備" — however narrowly it is printed. Only when
+    # every phrase on its line aligns with a group above, so a line of leaf headings under a group
+    # (kaming's "Level 1 | Level 2 | Level 3" under 公平值計量分類為) is never taken for one.
+    pitch = _pitch(sorted((s["x0"] + s["x1"]) / 2 for s in stacks)) if len(stacks) > 1 else 0.1
+
+    def centre(words: list[Word]) -> float:
+        return (min(w.bbox.x0 for w in words) + max(w.bbox.x1 for w in words)) / 2
+
+    def is_han(words: list[Word]) -> bool:
+        return bool(_HAN.search("".join(w.text for w in words)))
+
+    primaries = list(groups)
+    for g in primaries:
+        target = g["line"] + 1
+        if target >= len(lines):
+            continue
+        above = [q for q in primaries if q["line"] == g["line"]]
+        line_ok = all(any(abs(centre(ph) - centre(q["words"])) <= 0.5 * pitch
+                          and is_han(ph) != is_han(q["words"]) for q in above)
+                      for ph in _header_phrases(lines[target], gap))
+        if not line_ok:
+            continue
+        for s in stacks:
+            for part in list(s["parts"]):
+                li, q = part
+                if (li == target and len(s["parts"]) > 1
+                        and abs(centre(q) - centre(g["words"])) <= 0.5 * pitch
+                        and is_han(q) != is_han(g["words"])):
+                    s["parts"].remove(part)
+                    groups.append({"line": li, "x0": min(w.bbox.x0 for w in q),
+                                   "x1": max(w.bbox.x1 for w in q), "words": q,
+                                   "stacks": set(g["stacks"]), "translation": True,
+                                   "band": False})
+    kept = [k for k, s in enumerate(stacks) if s["parts"]]
+    for k in kept:
+        s = stacks[k]
+        ws = [w for _l, q in s["parts"] for w in q]
+        s["x0"], s["x1"] = min(w.bbox.x0 for w in ws), max(w.bbox.x1 for w in ws)
+    order = sorted(kept, key=lambda k: (stacks[k]["x0"], stacks[k]["x1"]))
+    index = {k: j for j, k in enumerate(order)}
+    for g in groups:
+        g["stacks"] = sorted(index[k] for k in g["stacks"] if k in index)
+    groups.sort(key=lambda g: (g["line"], g["x0"]))
+    return [stacks[k] for k in order], groups
+
+
+_PERIOD_PHRASE_FILLER = re.compile(
+    r"(?:19|20)\d{2}|[〇零一二三四五六七八九十]+\s*[年月日]|\d{1,2}\s*[年月日]|"
+    rf"{_MONTHS}|\b\d{{1,2}}(?:st|nd|rd|th)?\b|"
+    r"\bas\s+(?:at|of)\b|\bat\b|\bfor\s+the\b|\b(?:years?|period|ended|ending|end|months?|six|"
+    r"twelve|the|group|company|restated)\b|"
+    r"年度|止|截至|於|于|集團|集团|本集團|本集团|公司|本公司|經重列|经重列|重列|"
+    r"rmb|hk\$|us\$|[’']000|千元|人民[幣币]|港[幣币]|元|[\s,./()（）·:：\-–]",
+    re.IGNORECASE)
+
+
+def _period_phrase_year(text: str) -> int | None:
+    """The year a heading NAMES AS ITS PERIOD — "2023 二零二三年", "31 December 2022",
+    "2024年12月31日" — or None. A heading that merely contains a year ("Senior notes due 2024",
+    an investee founded in 2019) names something else, and is not a period."""
+    date = _period_date(text)
+    if date is None:
+        return None
+    rest = _PERIOD_PHRASE_FILLER.sub("", unicodedata.normalize("NFKC", text))
+    return date[0] if len(rest) <= 1 else None
+
+
+def _stated_period(text: str, newest: int | None) -> str | None:
+    """"current" / "prior" when a heading states the period, else None.
+
+    A dateless mainland caption says so itself (期末 / 本期 → current, 期初 / 上年 → prior, through
+    `_prc_period_slot`); a date is placed against the newest year the table or the filing prints,
+    and a year that is neither of the two periods is no period this reader can name."""
+    if not text:
+        return None
+    slot = _prc_period_slot(unicodedata.normalize("NFKC", text))
+    if slot is not None:
+        return "current" if slot == 0 else "prior"
+    year = _period_phrase_year(text)
+    if year is None or newest is None:
+        return None
+    return "current" if year == newest else "prior" if year == newest - 1 else None
+
+
+def read_printed_columns(rows: list[list[Word]], fmt=None,
+                         page_chrome: frozenset[str] = frozenset(), *,
+                         reporting_year: int | None = None) -> HeaderModel | None:
+    """The columns a table's header prints, left to right — blank ones included — or None when no
+    header is printed above its first figure row.
+
+    ``rows`` are the table's UNMERGED printed lines, top to bottom. ``reporting_year`` is the
+    filing's own year when the caller knows it; otherwise a dated heading is placed against the
+    newest year the header itself prints, and only when it prints two.
+    """
+    lines, first, right = _header_lines(rows, fmt, page_chrome)
+    if not lines:
+        return None
+    stacks, groups = _stack_header(lines)
+    # THE CAPTION COLUMN'S OWN HEADING IS NOT A VALUE COLUMN: "单位名称" centred over a caption
+    # column wider than its captions starts inside it, and stands left of every figure.
+    if right is not None:
+        figures = [w for row in rows[first:] for w in row if _is_placed_amount(w, fmt)]
+        left_of_figures = min((w.bbox.x0 for w in figures), default=1.0)
+        kept = [k for k, s in enumerate(stacks)
+                if not (s["x0"] < right - 0.004 and s["x1"] < left_of_figures)]
+        if len(kept) != len(stacks):
+            index = {k: j for j, k in enumerate(kept)}
+            stacks = [stacks[k] for k in kept]
+            for g in groups:
+                g["stacks"] = [index[k] for k in g["stacks"] if k in index]
+
+    def text_of(words: list[Word]) -> str:
+        return _join_words(_regroup_scripts(words)).strip()
+
+    leaves = []
+    for s in stacks:
+        ordered = [w for _l, q in sorted(s["parts"], key=lambda part: part[0])
+                   for w in sorted(q, key=lambda w: w.bbox.x0)]
+        leaves.append(text_of(ordered))
+    if not stacks or not all(_HEADER_NAMES_SOMETHING.search(t) for t in leaves):
+        return None                                     # a fragment is no header to trust
+    group_text = [text_of(g["words"]) for g in groups]
+    # THE PERIOD OVER ITS MEASURES, named first — `column_headings`' naming, over the printed
+    # leaves: each period band's caption over the columns its line divided to it, then any measure
+    # group printed between the band and the column (300319's 期末余额 over 账面余额 over 金额 |
+    # 比例). A column whose own heading states a period keeps it and is not renamed.
+    period_over: dict[int, tuple[str, int]] = {}
+    for g, t in zip(groups, group_text):
+        if not g["band"]:
+            continue
+        for j in g["stacks"]:
+            if _prc_period_slot(unicodedata.normalize("NFKC", leaves[j])) is None:
+                period_over.setdefault(j, (t, g["line"]))
+    years = sorted({y for y in (_period_phrase_year(t) for t in leaves + group_text) if y})
+    newest = reporting_year if reporting_year else (years[-1] if len(years) >= 2 else None)
+    columns: list[PrintedColumn] = []
+    for j, (s, leaf) in enumerate(zip(stacks, leaves)):
+        # The groups over this column, outermost first: its period band's caption, then every
+        # other group printed over it.
+        band = period_over.get(j)
+        over_it = [t for g, t in zip(groups, group_text)
+                   if j in g["stacks"] and not (band and t == band[0])]
+        heading = leaf
+        if band is not None:
+            between = [t for g, t in zip(groups, group_text)
+                       if j in g["stacks"] and not g["band"] and not g["translation"]
+                       and g["line"] > band[1] and _MEASURE_LIKE.search(t)]
+            over_it.insert(0, band[0])
+            heading = " · ".join([band[0], *between, leaf])
+        # THE PERIOD THE HEADER STATES: the column's own heading first, then the groups over it
+        # from the innermost out.
+        stated = (_stated_period(t, newest) for t in [leaf, *reversed(over_it)])
+        period = next((p for p in stated if p is not None), None)
+        columns.append(PrintedColumn(heading=heading, x0=s["x0"], x1=s["x1"],
+                                     groups=tuple(over_it), period=period))
+    return HeaderModel(columns=columns, groups=group_text)
+
+
+def face_reporting_year(line_items) -> int | None:
+    """The year a filing's statements print over their CURRENT column, by the most of them, or None.
+
+    What a note's dated column heading is placed against: "2023 | 2022" in a 2023 report is current
+    and prior, and a lone "2022" printed over a note's comparative table is the prior year, which
+    the note's own header cannot say on its own."""
+    counts: dict[int, int] = {}
+    for li in line_items:
+        for ev in (li.values or {}).values():
+            if ev.period_label != "current" or ev.column_index is not None:
+                continue
+            date = _period_date(ev.period_display or "")
+            if date:
+                counts[date[0]] = counts.get(date[0], 0) + 1
+    return max(sorted(counts), key=lambda y: counts[y]) if counts else None
+
+
+def _is_placed_amount(w: Word, fmt=None) -> bool:
+    """A figure that is evidence of where a column is: an amount, not a year or a day."""
+    text = w.text.strip()
+    value = _num(text, fmt)
+    return (value is not None and _is_money_like(text, fmt)
+            and (not _is_date_ish(value) or bool(_AMOUNT_SHAPED.match(text))))
+
+
+@dataclass
+class _Placed:
+    """One figure as it was PLACED on a row: the row it went to, the band it went under (None when
+    it was placed by printed order), and the word itself."""
+    row: int
+    col: int | None
+    word: Word
+    fact: ExtractedValue | None = None
+
+
+def _place_bands(model: HeaderModel, value_bands: list[float], placed: list[_Placed],
+                 fmt=None) -> tuple[dict[int, int] | None, str]:
+    """``({figure band: printed column}, "ok")``, or ``(None, why)`` — by CONTAINMENT.
+
+    Every figure placed under a band must stand in ONE printed column's cell, the bands must take
+    distinct columns, and in printed order. Anything else refuses the whole placement: a band whose
+    figures stand in two cells (a "straddle") is a band defect the header cannot repair, and a
+    header that cannot hold the figures one-to-one is not this table's header. Only the figures
+    actually PLACED count — a page folio standing beside the last column is not one of them.
+
+    NEVER NEAREST-WITHIN-A-PITCH. On 300319 page 176 the Level 3 heading is within half a pitch of
+    the band its Level 2 figures make; containment puts them in the Level 2 cell, where they are
+    printed.
+    """
+    if len(model.columns) < len(value_bands):
+        return None, f"fewer_columns({len(model.columns)}<{len(value_bands)})"
+    out: dict[int, int] = {}
+    for i, band in enumerate(value_bands):
+        cells = {model.cell_of(_xc(p.word)) for p in placed
+                 if p.col == i and _is_placed_amount(p.word, fmt)} or {model.cell_of(band)}
+        if None in cells:
+            return None, f"outside(band{i})"
+        if len(cells) > 1:
+            return None, f"straddle(band{i}:{'+'.join(str(c) for c in sorted(cells))})"
+        out[i] = cells.pop()
+    taken = [out[i] for i in range(len(value_bands))]
+    if len(set(taken)) != len(taken) or taken != sorted(taken):
+        return None, "not_one_to_one"
+    return out, "ok"
+
+
+def _place_unbanded(model: HeaderModel, placed: list[_Placed], fmt=None) -> tuple[bool, str]:
+    """For a table too short to have figure bands, whose figures were placed by printed order:
+    every figure must stand in a printed column's cell, and each row's in distinct cells, in
+    printed order."""
+    by_row: dict[int, list[Word]] = {}
+    for p in placed:
+        if _is_placed_amount(p.word, fmt):
+            by_row.setdefault(p.row, []).append(p.word)
+    if not by_row:
+        return False, "no_figures"
+    for words in by_row.values():
+        cells = [model.cell_of(_xc(w)) for w in sorted(words, key=lambda w: w.bbox.x0)]
+        if None in cells:
+            return False, "outside"
+        if cells != sorted(set(cells)):
+            return False, "not_one_to_one"
+    return True, "ok"
+
+
+# A carried header's figures may stand this far from where the table printed them, all by the same
+# amount (a page with a mirrored margin), and no further — and no two columns' shifts may differ by
+# more than the second figure.
+_CARRY_SHIFT_MAX = 0.03
+_CARRY_SHIFT_SPREAD = 0.012
+
+
+def _figures_where_the_table_printed_them(model: HeaderModel, mapping: dict[int, int],
+                                          value_bands: list[float], placed: list[_Placed],
+                                          fmt=None) -> tuple[bool, str]:
+    """Whether a CARRIED header's figures are printed where the table printed its own.
+
+    Containment alone is too weak a test for a header that is not printed over the figures: a note
+    that runs several tables of different shapes — 000709's related-party note prints a two-column
+    settlement table and, three sections on, a trust-income table — can put one table's figures
+    inside another's cells. A continuation of the same table prints its figures in the same places,
+    so each column's figures must sit on the right edge the table's own figures did, all shifted by
+    one amount at most (a facing page's margin). A section none of whose figures falls in a column
+    the table printed figures in has nothing to show it is the same table, and is refused."""
+    shifts: list[float] = []
+    by_column: dict[int, list[float]] = {}
+    for p in placed:
+        if not _is_placed_amount(p.word, fmt):
+            continue
+        j = mapping.get(p.col) if value_bands else model.cell_of(_xc(p.word))
+        if j is not None:
+            by_column.setdefault(j, []).append(p.word.bbox.x1)
+    for j, xs in by_column.items():
+        if j in model.anchors:
+            shifts.append(_median(xs) - model.anchors[j])
+    if not shifts:
+        return False, "no_figure_column_in_common"
+    if max(shifts) - min(shifts) > _CARRY_SHIFT_SPREAD or max(abs(x) for x in shifts) > _CARRY_SHIFT_MAX:
+        return False, f"figures_moved({min(shifts):+.3f}..{max(shifts):+.3f})"
+    return True, "ok"
+
+
+def _headings_over_their_figures(headings: dict[int, str], spans: dict[int, tuple[float, float]],
+                                 placed: list[_Placed], fmt=None) -> dict[int, str]:
+    """The headings of :func:`column_headings` that stand OVER the figures they were given to.
+
+    Kept only where no header model could be read. Nearest-band assignment hands a blank column's
+    heading to the figure band beside it; a heading whose printed extent does not overlap its own
+    band's figures was printed over a different column, and is dropped rather than shown."""
+    extent: dict[int, tuple[float, float]] = {}
+    for p in placed:
+        if p.col is None or not _is_placed_amount(p.word, fmt):
+            continue
+        lo, hi = extent.get(p.col, (p.word.bbox.x0, p.word.bbox.x1))
+        extent[p.col] = (min(lo, p.word.bbox.x0), max(hi, p.word.bbox.x1))
+    out: dict[int, str] = {}
+    for col, text in headings.items():
+        span, figs = spans.get(col), extent.get(col)
+        if span is not None and figs is not None and _overlap(*span, *figs) > 0:
+            out[col] = text
+    return out
+
+
+def _newest_year(texts) -> int | None:
+    """The newest year a set of headings names as a period, when they name two or more."""
+    years = sorted({y for y in (_period_phrase_year(t) for t in texts if t) if y})
+    return years[-1] if len(years) >= 2 else None
+
+
+def _name_note_columns(items: list[LineItem], placed_at: dict[int, _Placed],
+                       value_bands: list[float], own: HeaderModel | None,
+                       carried: HeaderModel | None, headings: dict[int, str],
+                       spans: dict[int, tuple[float, float]], *, fmt=None,
+                       reporting_year: int | None = None, log=None,
+                       page_index: int | None = None) -> HeaderModel | None:
+    """Name every placed figure's column from the printed header, and list the printed columns.
+
+    The table's OWN header first. A table with no header of its own — a continuation page, or a
+    section the note walk split off below its header — may use the header CARRIED to it, but only
+    when its figures fit that header by the same containment test; a table that printed a header
+    of its own never borrows one. Where no header holds, a heading read the old way is kept only
+    where it stands over its own figures. Returns the header the figures were named by, or None.
+    """
+    records = [(ev, placed_at[id(ev)]) for li in items for ev in li.values.values()
+               if id(ev) in placed_at and placed_at[id(ev)].fact is ev]
+    placed = [p for _ev, p in records]
+    if not any(_is_placed_amount(p.word, fmt) for p in placed):
+        # NOTHING TO HOLD A HEADER TO: a section of prose, or of dates. It names nothing, and a
+        # header carried to it passes on untouched to the next section of the same note — still to
+        # be validated there against figures.
+        return carried if own is None else None
+    used: HeaderModel | None = None
+    mapping: dict[int, int] = {}
+    for model, source in ((own, "header"), (carried if own is None else None, "carried")):
+        if model is None:
+            continue
+        if value_bands:
+            found, why = _place_bands(model, value_bands, placed, fmt)
+            ok = found is not None
+        else:
+            ok, why = _place_unbanded(model, placed, fmt)
+            found = {}
+        if ok and source == "carried":
+            ok, why = _figures_where_the_table_printed_them(model, found, value_bands, placed, fmt)
+        if log:
+            log(f"extract:page={page_index}:printed_columns="
+                f"{source}({len(model.columns)}cols/{len(value_bands)}bands:{why})")
+        if ok:
+            used, mapping = model, found or {}
+            break
+    if used is not None:
+        edges: dict[int, list[float]] = {}
+        for ev, p in records:
+            j = mapping.get(p.col) if value_bands else used.cell_of(_xc(p.word))
+            if value_bands and p.col is None:
+                j = None                                # placed by order: no column to name
+            if j is not None:
+                ev.column_heading = used.columns[j].heading or None
+                ev.column_period = used.columns[j].period
+                if _is_placed_amount(p.word, fmt):
+                    edges.setdefault(j, []).append(p.word.bbox.x1)
+        for li in items:
+            li.printed_columns = list(used.headings)
+            if li.values:
+                li.column_groups = list(used.groups)
+        anchors = {j: _median(xs) for j, xs in sorted(edges.items())}
+        return HeaderModel(columns=used.columns, groups=used.groups,
+                           anchors={**anchors, **used.anchors})
+    kept = _headings_over_their_figures(headings, spans, placed, fmt) if value_bands else {}
+    if log and len(kept) != len(headings):
+        log(f"extract:page={page_index}:printed_columns=headings_not_over_their_figures"
+            f"({len(headings) - len(kept)})")
+    newest = reporting_year or _newest_year(kept.values())
+    for ev, p in records:
+        text = kept.get(p.col) if p.col is not None else None
+        if text:
+            ev.column_heading = text
+            ev.column_period = _stated_period(text, newest)
+    return None
 
 
 # The flag a value carries when its column was read from a two-level header. Raised on
@@ -4303,6 +5146,14 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                      grid_out: list[ColumnGrid | None] | None = None,
                      carry_group: str | None = None,
                      group_out: list[str] | None = None,
+                     # THE PRINTED COLUMNS, in and out — the same shape as `column_grid`/`grid_out`.
+                     # `header_carry` is the header an earlier section of the same table was read
+                     # with, used only when these rows print no header of their own and their
+                     # figures fit it; `header_out` receives the header these rows were named by
+                     # (None included). `reporting_year` places a dated heading. Notes only.
+                     header_carry: HeaderModel | None = None,
+                     header_out: list[HeaderModel | None] | None = None,
+                     reporting_year: int | None = None,
                      # A CAPTION BROKEN ACROSS THE PAGE, in and out — the same in/out shape
                      # `carry_group`/`group_out` uses for the note-continuation carry.
                      # `carry_caption` is the previous page's last captioned row, passed only when
@@ -4526,8 +5377,16 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     # it was printed. A page with no such header keeps the grid its note's first page established,
     # provided its figures cluster into the same number of columns.
     # WHAT EACH COLUMN IS CALLED, as printed — display only (see `column_headings`).
+    heading_spans: dict[int, tuple[float, float]] = {}
     headings, heading_groups = column_headings(raw_rows, value_bands, number_format,
-                                               page_chrome=page_chrome)
+                                               page_chrome=page_chrome, spans_out=heading_spans)
+    # EVERY COLUMN THE TABLE PRINTS, read header-first (see `read_printed_columns`). Notes only:
+    # a statement face keeps the headings it has always had. Applied after the rows are built,
+    # from the figures as they were actually placed — see `_name_note_columns`.
+    printed = (None if on_face else
+               read_printed_columns(raw_rows, number_format, page_chrome,
+                                    reporting_year=reporting_year))
+    placed_at: dict[int, _Placed] = {}
     grid = _period_measure_grid(raw_rows, value_bands,
                                 _value_area(value_bands, col_xs), number_format)
     if grid is None and column_grid is not None and column_grid.columns == len(value_bands):
@@ -4940,13 +5799,16 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                 # The printed header, both levels of it, so the reviewer reads "本期发生额 成本"
                 # rather than an internal token whose suffix they would have to decode.
                 display = display or " ".join(t for t in (period_cap, measure_cap) if t) or None
-            store_fact(li, ExtractedValue(
+            fact = ExtractedValue(
                 value_raw=dec, value=dec, basis=basis,
                 period_label=period_label,
                 period_display=display,
-                column_heading=headings.get(col) if col is not None else None,
+                # A note's headings are named once its rows are built — see `_name_note_columns`.
+                column_heading=(headings.get(col) if col is not None and on_face else None),
                 unit_ctx=unit_ctx, provenance=prov, confidence=conf,
-            ), dims, log=log, where=f"page={page_index}:")
+            )
+            placed_at[id(fact)] = _Placed(row=ordinal, col=col, word=vw, fact=fact)
+            store_fact(li, fact, dims, log=log, where=f"page={page_index}:")
         if note_ref:
             li.note_refs.append(NoteRef(raw=note_ref, numbers=[note_ref]))
             li.note_number = note_ref
@@ -4999,6 +5861,13 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                 block_value_x1s.extend(w.bbox.x1 for w in value_words)
     if group_out is not None:
         group_out.append(group)
+    if not on_face:
+        named = _name_note_columns(items, placed_at, value_bands, printed, header_carry,
+                                   headings, heading_spans, fmt=number_format,
+                                   reporting_year=reporting_year, log=log,
+                                   page_index=page_index)
+        if header_out is not None:
+            header_out.append(named)
     return items, ordinal
 
 

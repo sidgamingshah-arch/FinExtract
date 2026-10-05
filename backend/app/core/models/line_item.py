@@ -10,6 +10,7 @@ import re
 from collections.abc import Container
 from datetime import date
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, model_validator
@@ -184,6 +185,12 @@ class ExtractedValue(BaseModel):
     # DISPLAY ONLY, like ``period_display``: ``period_label`` stays the positional key every reader
     # keys on. It exists so a wide table reaches the model with its columns named.
     column_heading: str | None = None
+    # THE PERIOD THE PRINTED HEADER STATES OVER THAT COLUMN — its own heading or a group over it:
+    # 期末余额 / 期末公允价值 / "2024" against the table's or the filing's newest year → "current",
+    # 期初余额 / 上年 / the year before → "prior" — and None when the header states none, as over
+    # a fair-value level or an asset class. Annotation, like ``column_heading``: ``period_label``
+    # stays positional, and on a fair-value table its "prior" is the 合计 column, not last year.
+    column_period: Literal["current", "prior"] | None = None
     unit_ctx: UnitContext = Field(default_factory=UnitContext)
     provenance: Provenance | None = None
     confidence: ConfidenceVector = Field(default_factory=ConfidenceVector)
@@ -221,6 +228,11 @@ class LineItem(BaseModel):
     # equipment", "Right-of-use assets". Not attached to a column: which columns one spans is not
     # something the words alone settle. Display only; see ``ExtractedValue.column_heading``.
     column_groups: list[str] = Field(default_factory=list)
+    # EVERY VALUE COLUMN THIS ROW'S TABLE PRINTS, left to right, by heading — the ones no figure
+    # stands in included (a blank 第一层次 beside a populated 第三层次). Read from the table's header,
+    # and only where its figures were validated against it; [] when no header was read. Display and
+    # annotation only; see ``row_reconstruct.read_printed_columns``.
+    printed_columns: list[str] = Field(default_factory=list)
     # THIS ROW'S CAPTION IS NOT THE FILING'S OWN. A note prints a block's total on a bare line —
     # the caption is the sub-heading two rows up, and a typesetter does not repeat it — so
     # reconstruction gives the row that heading and says here that it did. Two readers need to know:
@@ -372,6 +384,9 @@ class NoteItem(BaseModel):
     group_hint: str = ""
     # The headings printed over several columns of this row's table — see ``LineItem.column_groups``.
     column_groups: list[str] = Field(default_factory=list)
+    # Every value column this row's table section prints, blank ones included, in printed order —
+    # see ``LineItem.printed_columns``. [] when no header was read.
+    printed_columns: list[str] = Field(default_factory=list)
     # WHICH PERIOD THIS MOVEMENT ROW BELONGS TO — "current" or "prior", and "" when the note says
     # nothing. Set only for a row inside an asset MOVEMENT table, where the period is stated on the
     # BLOCK rather than on the column.

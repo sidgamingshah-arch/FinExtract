@@ -113,10 +113,11 @@ def test_the_carry_is_offered_only_to_the_section_that_continues_the_note():
     # The notes reader is called through `_read_notes`, which a NOTES page and the note text above
     # a cash-flow supplement's title share (see `stages.classify._cf_supplement_extent`). The facts
     # pinned are unchanged: the carried group is what is passed, and what comes back is the last
-    # section's group — None included.
+    # section's group — None included. (The printed-column header now travels as a fourth carry
+    # beside it, `notes_header`, on the same boundary; see test_every_printed_column_is_named.)
     assert "carry_group=carry_group, group_out=groups" in extract
-    assert "notes_carry, notes_grid, notes_group = _read_notes(" in extract
-    assert "notes_carry, notes_grid, notes_group)" in extract
+    assert "notes_carry, notes_grid, notes_group, notes_header = _read_notes(" in extract
+    assert "notes_carry, notes_grid, notes_group,\n                notes_header)" in extract
     # Reset on the same break as the note and the grid.
     assert extract.count("notes_group = None") == 1
     assert "groups[-1] if groups else None" in extract
